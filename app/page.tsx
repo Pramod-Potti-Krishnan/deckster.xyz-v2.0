@@ -6,29 +6,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowRight, Sparkles, Users, Zap, Check } from "lucide-react"
-import { signIn } from "next-auth/react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export default function LandingPage() {
+  const router = useRouter()
   const [staySignedIn, setStaySignedIn] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSignIn = async () => {
-    try {
-      setIsLoading(true)
-      // Store the stay signed in preference
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('staySignedIn', staySignedIn.toString())
-      }
-      
-      await signIn("google", {
-        callbackUrl: "/builder",
-        redirect: true,
-      })
-    } catch (error) {
-      console.error("Sign in error:", error)
-      setIsLoading(false)
+  const handleSignIn = () => {
+    // Store the stay signed in preference
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('staySignedIn', staySignedIn.toString())
+      // Store mock user for development
+      localStorage.setItem('mockUser', JSON.stringify({
+        id: 'dev-user-' + Date.now(),
+        email: 'dev@deckster.xyz',
+        name: 'Dev User',
+        tier: 'free'
+      }))
     }
+    // Navigate directly to builder
+    router.push('/builder')
   }
 
   const features = [

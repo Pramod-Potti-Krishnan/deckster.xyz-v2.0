@@ -1,106 +1,72 @@
 "use client"
 
-import type React from "react"
-import { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { useDecksterWebSocket } from "@/hooks/use-deckster-websocket"
-import { usePresentation, PresentationProvider } from "@/contexts/presentation-context"
-import { presentationActions } from "@/lib/presentation-reducer"
+import { useDecksterWebSocketV2, type DirectorMessage, type ChatMessage as V2ChatMessage, type ActionRequest, type StatusUpdate, type PresentationURL } from "@/hooks/use-deckster-websocket-v2"
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
 import { ConnectionError } from "@/components/connection-error"
-import { ConnectionStatusIndicator } from "@/components/connection-debug"
-import { ConversationFlow, ConversationFlowCompact } from "@/components/conversation-flow"
-import { WaitingIndicator } from "@/components/waiting-indicator"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { UserProfileMenu } from "@/components/user-profile-menu"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Sparkles,
-  Users,
-  MessageSquare,
-  Palette,
-  BarChart3,
-  Plus,
-  ChevronLeft,
-  ChevronRight,
   Settings,
-  Download,
   Share,
-  Maximize2,
-  Minimize2,
   Menu,
   History,
-  PinOff,
-  Zap,
+  Send,
+  ExternalLink,
+  Loader2,
+  Bot,
+  User,
 } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { AttachmentPanel } from "@/components/attachment-panel"
-import { SettingsDialog } from "@/components/settings-dialog"
-import { ShareDialog } from "@/components/share-dialog"
-import { VersionHistory } from "@/components/version-history"
-import { EnhancedChatInput } from "@/components/enhanced-chat-input"
-import { EnhancedProjectSidebar } from "@/components/enhanced-project-sidebar"
-import { SlideElement } from "@/components/slide-element"
-import { SlideDisplay } from "@/components/slide-display"
-import { ChatMessage } from "@/components/chat-message"
-import { ProgressTracker } from "@/components/progress-tracker"
-import { AgentStatus as AgentStatusType } from "@/lib/types/director-messages"
-import { ChatData } from "@/lib/types/websocket-types"
 import { OnboardingModal } from "@/components/onboarding-modal"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
 
 function BuilderContent() {
-  const { user, isLoading: isAuthLoading, requireAuth } = useAuth()
-  const { state, dispatch } = usePresentation()
-  const router = useRouter()
-  
-  // WebSocket integration
+  const { user, isLoading: isAuthLoading } = useAuth()
+
+  // WebSocket v2 integration
   const {
     connected,
-    authenticated,
+    connecting,
     connectionState,
     error: wsError,
-    messages: directorMessages,
-    slides: slideData,
-    chatMessages,
-    progress,
+    messages,
+    presentationUrl,
+    slideCount,
+    currentStatus,
     sendMessage,
-    uploadFile,
-    referenceSlideElement,
-    performAction,
+    clearMessages,
     isReady
-  } = useDecksterWebSocket({ autoConnect: true })
+  } = useDecksterWebSocketV2({
+    autoConnect: true,
+    reconnectOnError: false, // Disabled for now to stop loop
+    maxReconnectAttempts: 0,
+    reconnectDelay: 5000
+  })
 
   // Local UI state
   const [inputMessage, setInputMessage] = useState("")
-  const [isCanvasFocused, setIsCanvasFocused] = useState(false)
-  const [isChatFocused, setIsChatFocused] = useState(false)
+  const [userMessages, setUserMessages] = useState<Array<{ id: string; text: string; timestamp: number }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [showSidebar, setShowSidebar] = useState(false)
-  const [internetSearchEnabled, setInternetSearchEnabled] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [showVersions, setShowVersions] = useState(false)
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
-  const [splitPosition, setSplitPosition] = useState(25)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragStartX, setDragStartX] = useState(0)
-  const [dragStartSplit, setDragStartSplit] = useState(50)
-  const [isNavPinned, setIsNavPinned] = useState(true)
   const [showOnboarding, setShowOnboarding] = useState(false)
 
   // Check if user is new and should see onboarding
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const isNewUser = urlParams.get('new') === 'true'
-    
+
     if (isNewUser && user) {
       setShowOnboarding(true)
       // Remove the query parameter
@@ -108,233 +74,75 @@ function BuilderContent() {
     }
   }, [user])
 
-  // Round 23 Fix: Track processed messages to prevent duplication
-  const processedMessageIds = useRef(new Set<string>());
-  
-  // Process director messages into presentation state
-  useEffect(() => {
-    console.log('[Round 23 Fix] Director messages processing triggered:', {
-      messageCount: directorMessages.length,
-      processedCount: processedMessageIds.current.size,
-      messages: directorMessages
-    });
-    
-    directorMessages.forEach((message, index) => {
-      // Round 23 Fix: Only process new messages
-      if (!processedMessageIds.current.has(message.message_id)) {
-        console.log(`[Round 23 Fix] Processing NEW director message ${index + 1}:`, {
-          messageId: message.message_id,
-          type: message.type,
-          source: message.source,
-          hasChatData: !!message.chat_data,
-          chatData: message.chat_data,
-          hasSlideData: !!message.slide_data
-        });
-        
-        // Mark as processed BEFORE dispatching to prevent race conditions
-        processedMessageIds.current.add(message.message_id);
-        
-        const actions = presentationActions.processDirectorMessage(message);
-        
-        console.log(`[Round 23 Fix] Generated actions for message ${index + 1}:`, {
-          actionCount: actions.length,
-          actionTypes: actions.map(a => a.type),
-          actions: actions
-        });
-        
-        actions.forEach((action, actionIndex) => {
-          console.log(`[Round 23 Fix] Dispatching action ${actionIndex + 1}:`, action);
-          dispatch(action);
-        });
-      } else {
-        console.log(`[Round 23 Fix] Skipping already processed message ${index + 1}:`, {
-          messageId: message.message_id
-        });
-      }
-    })
-  }, [directorMessages, dispatch])
-
-  // Update slides when slide data changes
-  useEffect(() => {
-    if (slideData && slideData.slides && Array.isArray(slideData.slides)) {
-      dispatch({
-        type: 'UPDATE_SLIDES',
-        payload: {
-          slides: slideData.slides,
-          metadata: slideData.presentation_metadata
-        }
-      })
-    }
-  }, [slideData, dispatch])
-
-  // Update progress
-  useEffect(() => {
-    if (progress) {
-      dispatch({
-        type: 'UPDATE_PROGRESS',
-        payload: progress
-      })
-    }
-  }, [progress, dispatch])
-
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [state.chatMessages])
-
-  // Check authentication
-  useEffect(() => {
-    requireAuth()
-  }, [requireAuth])
-
-  // Generate presentation ID
-  useEffect(() => {
-    if (!state.presentationId) {
-      dispatch({
-        type: 'SET_PRESENTATION_ID',
-        payload: `pres_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      })
-    }
-  }, [state.presentationId, dispatch])
-
-  // Helper function to create user message in ChatData format
-  const createUserMessage = useCallback((text: string): ChatData => ({
-    // Round 24 Fix: Add unique ID to user messages
-    id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    type: 'user_input',
-    content: {
-      message: text
-    }
-  }), []);
+  }, [messages, userMessages])
 
   // Handle sending messages
-  const handleSendMessage = useCallback(async (message: string) => {
-    if (!message.trim() || !isReady) return
+  const handleSendMessage = useCallback((e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if (!inputMessage.trim() || !isReady) return
 
-    // Phase 1.1 Fix: Add user message to chat UI before sending to backend
-    const userMessage = createUserMessage(message.trim());
-    dispatch({ 
-      type: 'ADD_CHAT_MESSAGE', 
-      payload: userMessage 
-    });
+    const messageText = inputMessage.trim()
 
-    dispatch({ type: 'SET_PROCESSING', payload: true })
-    
-    try {
-      await sendMessage(message)
+    // Add user message to local state
+    setUserMessages(prev => [...prev, {
+      id: `user_${Date.now()}`,
+      text: messageText,
+      timestamp: Date.now() // Store as milliseconds for easier comparison
+    }])
+
+    const success = sendMessage(messageText)
+    if (success) {
       setInputMessage("")
-    } catch (error) {
-      console.error('Failed to send message:', error)
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: 'Failed to send message. Please try again.' 
-      })
-    } finally {
-      dispatch({ type: 'SET_PROCESSING', payload: false })
     }
-  }, [isReady, sendMessage, dispatch, createUserMessage])
+  }, [inputMessage, isReady, sendMessage])
 
-  // Handle file attachments
-  const handleFileAttach = useCallback(async (files: File[]) => {
-    if (!isReady) return
+  // Handle action button clicks
+  const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0]) => {
+    // Add user message to local state
+    setUserMessages(prev => [...prev, {
+      id: `user_${Date.now()}`,
+      text: action.label,
+      timestamp: Date.now() // Store as milliseconds for easier comparison
+    }])
 
-    dispatch({ type: 'SET_PROCESSING', payload: true })
-    
-    try {
-      for (const file of files) {
-        await uploadFile(file)
-      }
-    } catch (error) {
-      console.error('Failed to upload files:', error)
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: 'Failed to upload files. Please try again.' 
-      })
-    } finally {
-      dispatch({ type: 'SET_PROCESSING', payload: false })
+    if (action.requires_input) {
+      // For actions that require input, we'd need to show an input field
+      // For now, just send the label
+      sendMessage(action.label)
+    } else {
+      // Send the button label directly
+      sendMessage(action.label)
     }
-  }, [isReady, uploadFile, dispatch])
-
-  // Handle slide navigation
-  const handleSlideChange = useCallback((index: number) => {
-    dispatch({ type: 'SET_CURRENT_SLIDE', payload: index })
-  }, [dispatch])
-
-  // Handle element updates
-  const handleElementUpdate = useCallback((slideId: string, elementId: string, updates: any) => {
-    dispatch({
-      type: 'UPDATE_SLIDE',
-      payload: {
-        slideId,
-        updates: {
-          elements: (state.slides || []).find(s => s.slide_id === slideId)?.elements?.map(el =>
-            el.id === elementId ? { ...el, ...updates } : el
-          )
-        }
-      }
-    })
-  }, [state.slides, dispatch])
-
-  // Map agent statuses for UI
-  const agentStatuses = useMemo(() => {
-    const agents = ['director', 'scripter', 'graphic-artist', 'data-visualizer']
-    return agents.map(agentName => {
-      const status = state.agentStatuses.find(s => s.agentName.toLowerCase().replace(/\s+/g, '-') === agentName)
-      return {
-        agent: agentName as any,
-        status: status?.status || 'idle',
-        task: status?.currentTask || 'Waiting for instructions',
-        progress: status?.progress || 0
-      }
-    })
-  }, [state.agentStatuses])
+  }, [sendMessage])
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-50">
-      {/* Sidebar */}
-      {showSidebar && (
-        <EnhancedProjectSidebar 
-          showSidebar={showSidebar} 
-          setShowSidebar={setShowSidebar}
-        />
-      )}
-
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-full">
         {/* Header */}
         <header className="bg-white border-b h-16 flex-shrink-0">
           <div className="h-full px-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowSidebar(!showSidebar)}
-                className="lg:hidden"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
               <Link href="/" className="flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-blue-600" />
-                <span className="font-semibold text-xl">Vibe Deck</span>
+                <span className="font-semibold text-xl">Vibe Deck v2.0</span>
               </Link>
               <Badge variant="secondary" className="hidden sm:flex">
-                AI-Powered
+                Director v2.0
               </Badge>
             </div>
 
             <div className="flex items-center gap-4">
-              <ConnectionStatusIndicator 
-                connectionState={connectionState}
-                isReady={isReady}
-              />
-              <ConversationFlowCompact />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowVersions(!showVersions)}
+              {/* Connection Status */}
+              <Badge
+                variant={connected ? "default" : connecting ? "secondary" : "destructive"}
+                className="hidden sm:flex"
               >
-                <History className="h-5 w-5" />
-              </Button>
+                {connecting ? "Connecting..." : connected ? "Connected" : "Disconnected"}
+              </Badge>
               <Button
                 variant="ghost"
                 size="icon"
@@ -361,237 +169,247 @@ function BuilderContent() {
           </div>
         )}
 
-        {/* Main Content Area */}
+        {/* Main Content Area - 25/75 Split */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Panel - Chat & Agents */}
-          <div 
-            className="flex flex-col bg-white border-r transition-all duration-300"
-            style={{ width: `${splitPosition}%` }}
-          >
-            {/* Agent Status Bar */}
-            <div className="p-4 border-b bg-gray-50">
-              <h3 className="text-sm font-medium mb-3">AI Agents</h3>
-              <div className="space-y-2">
-                {agentStatuses.map((agent) => (
-                  <div key={agent.agent} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        agent.status === "working" ? "bg-green-500 animate-pulse" :
-                        agent.status === "thinking" ? "bg-yellow-500 animate-pulse" :
-                        agent.status === "completed" ? "bg-blue-500" : "bg-gray-300"
-                      }`} />
-                      <span className="text-sm capitalize">{agent.agent.replace('-', ' ')}</span>
-                    </div>
-                    {agent.status !== "idle" && (
-                      <span className="text-xs text-gray-500">{agent.task}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-              
-              {/* Progress Tracker */}
-              {state.progress && (
-                <div className="mt-4">
-                  <ProgressTracker progress={state.progress} />
+          {/* Left Panel - Chat (25%) */}
+          <div className="w-1/4 flex flex-col bg-white border-r">
+            {/* Status Bar */}
+            {currentStatus && (
+              <div className="p-4 border-b bg-gray-50">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                  <span className="text-sm">{currentStatus.text}</span>
                 </div>
-              )}
-            </div>
+                {currentStatus.progress !== undefined && (
+                  <Progress value={currentStatus.progress} className="mt-2" />
+                )}
+              </div>
+            )}
 
             {/* Chat Messages */}
             <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4 mb-4">
+              <div className="space-y-4">
+                {/* Interleave user messages and bot messages by timestamp */}
                 {(() => {
-                  console.log('[Chat Fix Debug] Rendering chat messages:', {
-                    messageCount: state.chatMessages.length,
-                    messages: state.chatMessages,
-                    isProcessing: state.isProcessing
+                  const combined = [
+                    ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
+                    ...messages.map(m => ({ ...m, messageType: 'bot' as const }))
+                  ];
+
+                  const sorted = combined.sort((a, b) => {
+                    // User messages have numeric timestamps (milliseconds), bot messages have ISO string timestamps
+                    const timeA = a.messageType === 'user'
+                      ? a.timestamp
+                      : new Date(a.timestamp + 'Z').getTime() // Add 'Z' to treat as UTC
+                    const timeB = b.messageType === 'user'
+                      ? b.timestamp
+                      : new Date(b.timestamp + 'Z').getTime() // Add 'Z' to treat as UTC
+
+                    return timeA - timeB
                   });
-                  return null;
+
+                  return sorted.map((item, index) => {
+                  if (item.messageType === 'user') {
+                    // Render user message
+                    return (
+                      <div key={item.id} className="flex gap-2 justify-end">
+                        <div className="flex-1 max-w-[80%]">
+                          <div className="bg-blue-600 text-white rounded-lg p-3">
+                            <p className="text-sm whitespace-pre-wrap">{item.text}</p>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <User className="h-6 w-6 text-blue-600" />
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  const msg = item as DirectorMessage & { messageType: 'bot' }
+                  return (
+                    <React.Fragment key={msg.message_id}>
+                {/* Bot messages */}
+                {(() => {
+                  if (msg.type === 'chat_message') {
+                    const chatMsg = msg as V2ChatMessage
+                    return (
+                      <div key={msg.message_id} className="flex gap-2">
+                        <div className="flex-shrink-0">
+                          <Bot className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="bg-gray-100 rounded-lg p-3">
+                            <p className="text-sm whitespace-pre-wrap">{chatMsg.payload.text}</p>
+                            {chatMsg.payload.sub_title && (
+                              <p className="text-xs text-gray-600 mt-2">{chatMsg.payload.sub_title}</p>
+                            )}
+                            {chatMsg.payload.list_items && chatMsg.payload.list_items.length > 0 && (
+                              <ul className="mt-2 space-y-1">
+                                {chatMsg.payload.list_items.map((item, i) => (
+                                  <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
+                                    <span className="text-blue-600">•</span>
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  } else if (msg.type === 'action_request') {
+                    const actionMsg = msg as ActionRequest
+                    return (
+                      <div key={msg.message_id} className="space-y-2">
+                        <div className="flex gap-2">
+                          <div className="flex-shrink-0">
+                            <Bot className="h-6 w-6 text-blue-600" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="bg-gray-100 rounded-lg p-3">
+                              <p className="text-sm font-medium">{actionMsg.payload.prompt_text}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="ml-8 flex flex-wrap gap-2">
+                          {actionMsg.payload.actions.map((action, i) => (
+                            <Button
+                              key={i}
+                              size="sm"
+                              variant={action.primary ? "default" : "outline"}
+                              onClick={() => handleActionClick(action)}
+                            >
+                              {action.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  } else if (msg.type === 'status_update') {
+                    const statusMsg = msg as StatusUpdate
+                    return (
+                      <div key={msg.message_id} className="flex items-center gap-2 text-sm text-gray-600">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>{statusMsg.payload.text}</span>
+                        {statusMsg.payload.progress !== undefined && (
+                          <span className="text-xs">({statusMsg.payload.progress}%)</span>
+                        )}
+                      </div>
+                    )
+                  } else if (msg.type === 'presentation_url') {
+                    const presMsg = msg as PresentationURL
+                    return (
+                      <div key={msg.message_id} className="flex gap-2">
+                        <div className="flex-shrink-0">
+                          <Bot className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <p className="text-sm font-medium text-green-800">{presMsg.payload.message}</p>
+                            <p className="text-xs text-green-600 mt-1">
+                              {presMsg.payload.slide_count} slides created
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-2"
+                              onClick={() => window.open(presMsg.payload.url, '_blank')}
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Open in new tab
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }
+                  return null
                 })()}
-                {state.chatMessages.map((message, index) => (
-                  <ChatMessage 
-                    key={index}
-                    message={message}
-                    onAction={performAction}
-                    onResponse={(text, questionId) => sendMessage(text, { responseTo: questionId })}
-                  />
-                ))}
-                
-                {state.isProcessing && (
-                  <WaitingIndicator 
-                    message="AI agents are working on your request..." 
-                    showProgress={true}
-                  />
-                )}
-                
+                    </React.Fragment>
+                  )
+                  });
+                })()}
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
 
             {/* Chat Input */}
             <div className="p-4 border-t">
-              <EnhancedChatInput
-                value={inputMessage}
-                onChange={setInputMessage}
-                onSend={handleSendMessage}
-                onFileAttach={handleFileAttach}
-                isLoading={state.isProcessing}
-                internetSearchEnabled={internetSearchEnabled}
-                onToggleInternetSearch={() => setInternetSearchEnabled(!internetSearchEnabled)}
-                placeholder={!isReady ? "Connecting to AI agents..." : "Ask the AI agents anything..."}
-                connectionState={connectionState}
-                isReady={isReady}
-              />
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <Textarea
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSendMessage()
+                    }
+                  }}
+                  placeholder={!isReady ? "Connecting to Director..." : "Type your message..."}
+                  disabled={!isReady}
+                  className="resize-none"
+                  rows={3}
+                />
+                <Button
+                  type="submit"
+                  disabled={!isReady || !inputMessage.trim()}
+                  size="icon"
+                  className="self-end"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </form>
             </div>
           </div>
 
-          {/* Resize Handle */}
-          <div
-            className="w-1 bg-gray-200 hover:bg-gray-300 cursor-col-resize transition-colors"
-            onMouseDown={(e) => {
-              setIsDragging(true)
-              setDragStartX(e.clientX)
-              setDragStartSplit(splitPosition)
-            }}
-          />
-
-          {/* Right Panel - Slides */}
+          {/* Right Panel - Presentation Display (75%) */}
           <div className="flex-1 flex flex-col bg-gray-100">
-            {/* Slide Navigation */}
-            <div className="bg-white border-b p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleSlideChange(Math.max(0, state.currentSlideIndex - 1))}
-                    disabled={state.currentSlideIndex === 0}
+            {presentationUrl ? (
+              <div className="flex-1 flex items-center justify-center p-8">
+                {/* 16:9 aspect ratio container */}
+                <div className="w-full h-full flex items-center justify-center">
+                  <div
+                    className="relative w-full bg-black shadow-2xl"
+                    style={{
+                      aspectRatio: '16 / 9',
+                      maxHeight: 'calc(100% - 2rem)',
+                      maxWidth: 'calc((100vh - 2rem - 4rem) * 16 / 9)' // Account for header height
+                    }}
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm">
-                    Slide {state.currentSlideIndex + 1} of {(state.slides && Array.isArray(state.slides) ? state.slides.length : 0) || 1}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleSlideChange(Math.min((state.slides && Array.isArray(state.slides) ? state.slides.length : 1) - 1, state.currentSlideIndex + 1))}
-                    disabled={state.currentSlideIndex >= ((state.slides && Array.isArray(state.slides) ? state.slides.length : 1) - 1)}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setIsCanvasFocused(!isCanvasFocused)}
-                  >
-                    {isCanvasFocused ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                  </Button>
-                  <Button variant="outline" size="icon">
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Slide Canvas */}
-            <div className="flex-1 p-8 overflow-auto">
-              {state.slides && Array.isArray(state.slides) && state.slides.length > 0 && state.slides[state.currentSlideIndex] ? (
-                <SlideDisplay
-                  slide={state.slides[state.currentSlideIndex]}
-                  isSelected={true}
-                  onElementUpdate={(elementId, updates) => 
-                    handleElementUpdate(state.slides[state.currentSlideIndex].slide_id, elementId, updates)
-                  }
-                  selectedElementId={selectedElementId}
-                  onElementSelect={setSelectedElementId}
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center">
-                    <Sparkles className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">Your slides will appear here</p>
-                    <p className="text-sm text-gray-400 mt-2">Start by describing your presentation</p>
+                    <iframe
+                      src={presentationUrl}
+                      className="absolute inset-0 w-full h-full border-none"
+                      title="Presentation"
+                      allow="fullscreen"
+                    />
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Slide Thumbnails */}
-            <div className="bg-white border-t p-4">
-              <ScrollArea className="w-full">
-                <div className="flex gap-4">
-                  {state.slides && Array.isArray(state.slides) && state.slides.map((slide, index) => (
-                    <button
-                      key={slide.slide_id}
-                      onClick={() => handleSlideChange(index)}
-                      className={`relative flex-shrink-0 w-32 h-24 rounded-lg overflow-hidden border-2 transition-all ${
-                        index === state.currentSlideIndex
-                          ? "border-blue-500 shadow-lg"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      <div className="absolute inset-0 bg-white p-2">
-                        <p className="text-xs font-medium truncate">{slide.title}</p>
-                      </div>
-                      <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 rounded">
-                        {index + 1}
-                      </div>
-                    </button>
-                  ))}
-                  {(!state.slides || !Array.isArray(state.slides) || state.slides.length === 0) && (
-                    <div className="w-32 h-24 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
-                      <Plus className="h-6 w-6 text-gray-400" />
-                    </div>
-                  )}
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <Sparkles className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-lg text-gray-600">Your presentation will appear here</p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Start by telling Director what presentation you'd like to create
+                  </p>
                 </div>
-              </ScrollArea>
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Dialogs */}
-      <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
-      <ShareDialog open={showShare} onOpenChange={setShowShare} />
-      {showVersions && (
-        <VersionHistory
-          versions={[]}
-          currentVersion={null}
-          onSelectVersion={() => {}}
-          onClose={() => setShowVersions(false)}
-        />
-      )}
+      {/* Onboarding Modal */}
       <OnboardingModal open={showOnboarding} onClose={() => setShowOnboarding(false)} />
-
-      {/* Drag handler for resize */}
-      {isDragging && (
-        <div
-          className="fixed inset-0 z-50 cursor-col-resize"
-          onMouseMove={(e) => {
-            const deltaX = e.clientX - dragStartX
-            const containerWidth = window.innerWidth
-            const deltaPercent = (deltaX / containerWidth) * 100
-            const newSplit = Math.max(20, Math.min(50, dragStartSplit + deltaPercent))
-            setSplitPosition(newSplit)
-          }}
-          onMouseUp={() => {
-            setIsDragging(false)
-          }}
-        />
-      )}
     </div>
   )
 }
 
 export default function BuilderPage() {
   return (
-    <PresentationProvider>
-      <WebSocketErrorBoundary>
-        <BuilderContent />
-      </WebSocketErrorBoundary>
-    </PresentationProvider>
+    <WebSocketErrorBoundary>
+      <BuilderContent />
+    </WebSocketErrorBoundary>
   )
 }

@@ -1,1 +1,0 @@
-export { useFileUpload } from '@/lib/file-upload-service';

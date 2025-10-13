@@ -17,10 +17,11 @@ export default withAuth(
 )
 
 // Protect these routes
+// Note: /builder is temporarily unprotected for development
 export const config = {
   matcher: [
     "/dashboard/:path*",
-    "/builder/:path*",
+    // "/builder/:path*", // Commented out for dev - no auth required
     "/billing/:path*",
     "/settings/:path*",
   ],

@@ -7,9 +7,23 @@ export function useAuth() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const user = session?.user || null
+  // Check for mock user in localStorage
+  let mockUserData = null
+  if (typeof window !== 'undefined') {
+    const mockUserStr = localStorage.getItem('mockUser')
+    if (mockUserStr) {
+      try {
+        mockUserData = JSON.parse(mockUserStr)
+      } catch (e) {
+        console.error('Failed to parse mock user:', e)
+      }
+    }
+  }
+  const hasMockUser = !!mockUserData
+
+  const user = session?.user || mockUserData
   const isLoading = status === "loading"
-  const isAuthenticated = status === "authenticated"
+  const isAuthenticated = status === "authenticated" || hasMockUser
 
   // Update token manager when session changes
   useEffect(() => {
