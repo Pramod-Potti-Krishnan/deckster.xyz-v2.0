@@ -1,27 +1,33 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 
-// Director v2.0 Message Types (based on FRONTEND_INTEGRATION.md)
+// Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
 export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'status_update' | 'presentation_url' | 'state_change';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_url' | 'status_update';
   payload: any;
 }
 
-export interface ChatMessage extends BaseMessage {
+export interface ChatMessage {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
   type: 'chat_message';
   payload: {
     text: string;
-    sub_title?: string;
-    list_items?: string[];
-    format?: 'markdown' | 'plain';
+    sub_title: string | null;
+    list_items: string[] | null;
+    format?: 'markdown' | 'text';
   };
 }
 
-export interface ActionRequest extends BaseMessage {
+export interface ActionRequest {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
   type: 'action_request';
   payload: {
     prompt_text: string;
@@ -34,17 +40,23 @@ export interface ActionRequest extends BaseMessage {
   };
 }
 
-export interface StatusUpdate extends BaseMessage {
+export interface StatusUpdate {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
   type: 'status_update';
   payload: {
     status: 'idle' | 'thinking' | 'generating' | 'complete' | 'error';
     text: string;
-    progress?: number;
-    estimated_time?: number;
+    progress: number | null;
+    estimated_time: number | null;
   };
 }
 
-export interface PresentationURL extends BaseMessage {
+export interface PresentationURL {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
   type: 'presentation_url';
   payload: {
     url: string;
@@ -54,13 +66,37 @@ export interface PresentationURL extends BaseMessage {
   };
 }
 
-export interface StateChange extends BaseMessage {
-  type: 'state_change';
-  new_state: string;
-  previous_state: string;
+export interface SlideUpdate {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'slide_update';
+  payload: {
+    operation: 'full_update' | 'partial_update';
+    metadata: {
+      main_title: string;
+      overall_theme: string;
+      design_suggestions: string;
+      target_audience: string;
+      presentation_duration: number;
+    };
+    slides: Array<{
+      slide_id: string;
+      slide_number: number;
+      slide_type: string;
+      title: string;
+      narrative: string;
+      key_points: string[];
+      analytics_needed: string | null;
+      visuals_needed: string | null;
+      diagrams_needed: string | null;
+      structure_preference: string | null;
+    }>;
+    affected_slides: string[] | null;
+  };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | StatusUpdate | PresentationURL | StateChange;
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationURL | StatusUpdate;
 
 // User message to send to server
 export interface UserMessage {
@@ -83,6 +119,7 @@ export interface UseDecksterWebSocketV2State {
   presentationId: string | null;
   slideCount: number | null;
   currentStatus: StatusUpdate['payload'] | null;
+  slideStructure: SlideUpdate['payload'] | null;
 }
 
 // Hook options
@@ -96,7 +133,7 @@ export interface UseDecksterWebSocketV2Options {
   onPresentationReady?: (url: string) => void;
 }
 
-const DEFAULT_WS_URL = 'wss://directorv20-production.up.railway.app/ws';
+const DEFAULT_WS_URL = 'wss://directorv33-production.up.railway.app/ws';
 
 export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = {}) {
   const { user } = useAuth();
@@ -126,6 +163,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     presentationId: null,
     slideCount: null,
     currentStatus: null,
+    slideStructure: null,
   });
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -161,13 +199,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     try {
       const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}`;
-      console.log(`🔌 Connecting to Director v2.0: ${wsUrl}`);
+      console.log(`🔌 Connecting to Director v3.4: ${wsUrl}`);
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('✅ Connected to Director v2.0');
+        console.log('✅ Connected to Director v3.4');
         reconnectAttemptsRef.current = 0;
         isConnectingRef.current = false;
         hasConnectedRef.current = true;
@@ -184,12 +222,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ws.onmessage = (event) => {
         try {
           const message: DirectorMessage = JSON.parse(event.data);
+
+          // Add client-side timestamp for message ordering
+          const messageWithTimestamp = {
+            ...message,
+            clientTimestamp: Date.now()
+          } as DirectorMessage & { clientTimestamp: number };
+
           console.log('📨 Received message:', message.type, message);
 
           setState(prev => {
             const newState = {
               ...prev,
-              messages: [...prev.messages, message],
+              messages: [...prev.messages, messageWithTimestamp],
             };
 
             // Handle specific message types
@@ -207,6 +252,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 if (options.onPresentationReady) {
                   options.onPresentationReady(message.payload.url);
                 }
+                break;
+
+              case 'slide_update':
+                newState.slideStructure = message.payload;
                 break;
             }
 
@@ -340,6 +389,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       presentationId: null,
       slideCount: null,
       currentStatus: null,
+      slideStructure: null,
     }));
   }, []);
 

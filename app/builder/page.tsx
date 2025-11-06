@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { useDecksterWebSocketV2, type DirectorMessage, type ChatMessage as V2ChatMessage, type ActionRequest, type StatusUpdate, type PresentationURL } from "@/hooks/use-deckster-websocket-v2"
+import { useDecksterWebSocketV2, type DirectorMessage, type ChatMessage as V2ChatMessage, type ActionRequest, type StatusUpdate, type PresentationURL, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
 import { ConnectionError } from "@/components/connection-error"
 import { Button } from "@/components/ui/button"
@@ -40,8 +40,10 @@ function BuilderContent() {
     error: wsError,
     messages,
     presentationUrl,
+    presentationId,
     slideCount,
     currentStatus,
+    slideStructure,
     sendMessage,
     clearMessages,
     isReady
@@ -101,7 +103,7 @@ function BuilderContent() {
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0]) => {
-    // Add user message to local state
+    // Add user message to local state (show label to user)
     setUserMessages(prev => [...prev, {
       id: `user_${Date.now()}`,
       text: action.label,
@@ -109,12 +111,15 @@ function BuilderContent() {
     }])
 
     if (action.requires_input) {
-      // For actions that require input, we'd need to show an input field
-      // For now, just send the label
-      sendMessage(action.label)
+      // For actions that require input, prompt user for text
+      const userInput = window.prompt(action.label);
+      if (userInput && userInput.trim()) {
+        sendMessage(userInput.trim());
+      }
     } else {
-      // Send the button label directly
-      sendMessage(action.label)
+      // CRITICAL FIX: Send the action VALUE (not label) to backend
+      // Example: sends "accept_strawman" instead of "Looks perfect!"
+      sendMessage(action.value)
     }
   }, [sendMessage])
 
@@ -180,8 +185,13 @@ function BuilderContent() {
                   <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
                   <span className="text-sm">{currentStatus.text}</span>
                 </div>
-                {currentStatus.progress !== undefined && (
+                {currentStatus.progress !== null && (
                   <Progress value={currentStatus.progress} className="mt-2" />
+                )}
+                {currentStatus.estimated_time && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    Estimated time: {currentStatus.estimated_time} seconds
+                  </p>
                 )}
               </div>
             )}
@@ -197,15 +207,16 @@ function BuilderContent() {
                   ];
 
                   const sorted = combined.sort((a, b) => {
-                    // User messages have numeric timestamps (milliseconds), bot messages have ISO string timestamps
+                    // User messages have numeric timestamps
                     const timeA = a.messageType === 'user'
                       ? a.timestamp
-                      : new Date(a.timestamp + 'Z').getTime() // Add 'Z' to treat as UTC
+                      : (a as any).clientTimestamp || 0; // Use client-side timestamp added in hook
+
                     const timeB = b.messageType === 'user'
                       ? b.timestamp
-                      : new Date(b.timestamp + 'Z').getTime() // Add 'Z' to treat as UTC
+                      : (b as any).clientTimestamp || 0;
 
-                    return timeA - timeB
+                    return timeA - timeB;
                   });
 
                   return sorted.map((item, index) => {
@@ -227,13 +238,13 @@ function BuilderContent() {
 
                   const msg = item as DirectorMessage & { messageType: 'bot' }
                   return (
-                    <React.Fragment key={msg.message_id}>
+                    <React.Fragment key={(msg as any).clientTimestamp || Math.random()}>
                 {/* Bot messages */}
                 {(() => {
                   if (msg.type === 'chat_message') {
                     const chatMsg = msg as V2ChatMessage
                     return (
-                      <div key={msg.message_id} className="flex gap-2">
+                      <div key={(msg as any).clientTimestamp || Math.random()} className="flex gap-2">
                         <div className="flex-shrink-0">
                           <Bot className="h-6 w-6 text-blue-600" />
                         </div>
@@ -241,15 +252,12 @@ function BuilderContent() {
                           <div className="bg-gray-100 rounded-lg p-3">
                             <p className="text-sm whitespace-pre-wrap">{chatMsg.payload.text}</p>
                             {chatMsg.payload.sub_title && (
-                              <p className="text-xs text-gray-600 mt-2">{chatMsg.payload.sub_title}</p>
+                              <p className="text-xs text-gray-600 mt-1">{chatMsg.payload.sub_title}</p>
                             )}
                             {chatMsg.payload.list_items && chatMsg.payload.list_items.length > 0 && (
-                              <ul className="mt-2 space-y-1">
+                              <ul className="text-xs mt-2 space-y-1">
                                 {chatMsg.payload.list_items.map((item, i) => (
-                                  <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
-                                    <span className="text-blue-600">•</span>
-                                    <span>{item}</span>
-                                  </li>
+                                  <li key={i} className="ml-4 list-disc">{item}</li>
                                 ))}
                               </ul>
                             )}
@@ -260,7 +268,7 @@ function BuilderContent() {
                   } else if (msg.type === 'action_request') {
                     const actionMsg = msg as ActionRequest
                     return (
-                      <div key={msg.message_id} className="space-y-2">
+                      <div key={(msg as any).clientTimestamp || Math.random()} className="space-y-2">
                         <div className="flex gap-2">
                           <div className="flex-shrink-0">
                             <Bot className="h-6 w-6 text-blue-600" />
@@ -288,26 +296,59 @@ function BuilderContent() {
                   } else if (msg.type === 'status_update') {
                     const statusMsg = msg as StatusUpdate
                     return (
-                      <div key={msg.message_id} className="flex items-center gap-2 text-sm text-gray-600">
+                      <div key={(msg as any).clientTimestamp || Math.random()} className="flex items-center gap-2 text-sm text-gray-600">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span>{statusMsg.payload.text}</span>
-                        {statusMsg.payload.progress !== undefined && (
-                          <span className="text-xs">({statusMsg.payload.progress}%)</span>
+                        {statusMsg.payload.progress !== null && (
+                          <span className="text-xs">
+                            ({statusMsg.payload.progress}%)
+                          </span>
                         )}
+                      </div>
+                    )
+                  } else if (msg.type === 'slide_update') {
+                    const slideMsg = msg as SlideUpdate
+                    return (
+                      <div key={(msg as any).clientTimestamp || Math.random()} className="flex gap-2">
+                        <div className="flex-shrink-0">
+                          <Bot className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p className="text-sm font-medium text-blue-800">
+                              📊 Presentation Plan: {slideMsg.payload.metadata.main_title}
+                            </p>
+                            <p className="text-xs text-blue-600 mt-1">
+                              {slideMsg.payload.slides.length} slides • {slideMsg.payload.metadata.presentation_duration} minutes • Theme: {slideMsg.payload.metadata.overall_theme}
+                            </p>
+                            <div className="mt-3 space-y-1 max-h-40 overflow-y-auto">
+                              {slideMsg.payload.slides.map((slide, i) => (
+                                <div key={i} className="text-xs bg-white rounded p-2">
+                                  <span className="font-medium text-gray-700">
+                                    {slide.slide_number}. {slide.title}
+                                  </span>
+                                  <span className="text-gray-500 ml-2">({slide.slide_type})</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )
                   } else if (msg.type === 'presentation_url') {
                     const presMsg = msg as PresentationURL
                     return (
-                      <div key={msg.message_id} className="flex gap-2">
+                      <div key={(msg as any).clientTimestamp || Math.random()} className="flex gap-2">
                         <div className="flex-shrink-0">
                           <Bot className="h-6 w-6 text-blue-600" />
                         </div>
                         <div className="flex-1">
                           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                            <p className="text-sm font-medium text-green-800">{presMsg.payload.message}</p>
+                            <p className="text-sm font-medium text-green-800">
+                              ✅ {presMsg.payload.message}
+                            </p>
                             <p className="text-xs text-green-600 mt-1">
-                              {presMsg.payload.slide_count} slides created
+                              {presMsg.payload.slide_count} slides generated successfully
                             </p>
                             <Button
                               size="sm"
@@ -316,7 +357,7 @@ function BuilderContent() {
                               onClick={() => window.open(presMsg.payload.url, '_blank')}
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
-                              Open in new tab
+                              Open presentation
                             </Button>
                           </div>
                         </div>
