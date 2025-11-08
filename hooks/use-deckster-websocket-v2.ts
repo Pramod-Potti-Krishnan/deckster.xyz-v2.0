@@ -258,15 +258,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 break;
 
               case 'slide_update':
-                console.log('📊 Slide update received');
+                console.log('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
                 newState.slideStructure = message.payload;
 
                 // Extract preview URL if present (strawman preview)
+                // Check multiple possible locations
                 const previewUrl = message.payload.preview_url ||
-                                   message.payload.metadata?.preview_url;
+                                   message.payload.metadata?.preview_url ||
+                                   message.payload.strawman?.preview_url ||
+                                   (message.payload as any).url;  // Sometimes sent as just 'url'
 
                 if (previewUrl) {
                   console.log('✅ Found strawman preview URL:', previewUrl);
+                  console.log('🖼️ Setting presentationUrl to display preview IMMEDIATELY');
                   newState.presentationUrl = previewUrl;
 
                   // Trigger callback for preview
@@ -274,7 +278,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     options.onPresentationReady(previewUrl);
                   }
                 } else {
-                  console.log('⚠️ No preview URL in slide_update message');
+                  console.log('⚠️ No preview URL found in slide_update message');
+                  console.log('Checked locations: payload.preview_url, metadata.preview_url, strawman.preview_url, payload.url');
                 }
                 break;
             }
