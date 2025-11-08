@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useDecksterWebSocketV2, type DirectorMessage, type ChatMessage as V2ChatMessage, type ActionRequest, type StatusUpdate, type PresentationURL, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
+import ReactMarkdown from 'react-markdown'
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
 import { ConnectionError } from "@/components/connection-error"
 import { Button } from "@/components/ui/button"
@@ -243,14 +244,38 @@ function BuilderContent() {
                 {(() => {
                   if (msg.type === 'chat_message') {
                     const chatMsg = msg as V2ChatMessage
+                    // Detect if this is a preview link message
+                    const isPreviewLink = chatMsg.payload.text.includes('📊') &&
+                                          chatMsg.payload.text.toLowerCase().includes('preview');
+
                     return (
                       <div key={(msg as any).clientTimestamp || Math.random()} className="flex gap-2">
                         <div className="flex-shrink-0">
                           <Bot className="h-6 w-6 text-blue-600" />
                         </div>
                         <div className="flex-1">
-                          <div className="bg-gray-100 rounded-lg p-3">
-                            <p className="text-sm whitespace-pre-wrap">{chatMsg.payload.text}</p>
+                          <div className={`rounded-lg p-3 ${
+                            isPreviewLink
+                              ? 'bg-blue-50 border border-blue-200'
+                              : 'bg-gray-100'
+                          }`}>
+                            <ReactMarkdown
+                              className="text-sm prose prose-sm max-w-none"
+                              components={{
+                                a: ({node, ...props}) => (
+                                  <a
+                                    {...props}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline font-medium"
+                                  />
+                                ),
+                                p: ({node, ...props}) => <p {...props} className="text-sm mb-0" />,
+                                strong: ({node, ...props}) => <strong {...props} className="font-semibold" />
+                              }}
+                            >
+                              {chatMsg.payload.text}
+                            </ReactMarkdown>
                             {chatMsg.payload.sub_title && (
                               <p className="text-xs text-gray-600 mt-1">{chatMsg.payload.sub_title}</p>
                             )}
