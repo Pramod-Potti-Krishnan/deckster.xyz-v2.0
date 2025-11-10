@@ -11,8 +11,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { 
-  ArrowLeft, 
+import { Header, Footer } from "@/components/layout"
+import {
   BookOpen,
   MessageSquare,
   Video,
@@ -89,6 +89,86 @@ export default function HelpPage() {
       category: "Troubleshooting",
       question: "Why can't I sign in with Google?",
       answer: "Ensure pop-ups are enabled for this site and cookies are not blocked. Try using a different browser or incognito mode. Make sure you're using a valid Google account."
+    },
+    {
+      category: "Getting Started",
+      question: "Do I need to install any software?",
+      answer: "No! deckster is entirely web-based. Just sign in through your browser and you're ready to go. Works on Chrome, Firefox, Safari, and Edge."
+    },
+    {
+      category: "Getting Started",
+      question: "Can I use templates instead of starting from scratch?",
+      answer: "Absolutely! Visit the Templates page to browse 15+ professional templates across different categories. Click 'Use Template' to start with a pre-built structure."
+    },
+    {
+      category: "Features",
+      question: "How many slides can I create in one presentation?",
+      answer: "There's no hard limit on slide count. The Free plan supports up to 3 presentations, while Pro and Enterprise plans offer unlimited presentations with unlimited slides."
+    },
+    {
+      category: "Features",
+      question: "Can I collaborate with my team on presentations?",
+      answer: "Team collaboration is available on Pro and Enterprise plans. Share presentations with team members, work together in real-time, and leave comments for feedback."
+    },
+    {
+      category: "AI Agents",
+      question: "How do I know which agents are working on my presentation?",
+      answer: "The Chain of Thought panel shows you exactly which agents are active and what they're working on. You'll see real-time updates as the Director, Scripter, Graphic Artist, and Data Visualizer collaborate."
+    },
+    {
+      category: "AI Agents",
+      question: "Can I request a specific agent to revise content?",
+      answer: "Yes! In the chat interface, you can ask for specific changes like 'Scripter, make the intro more engaging' or 'Data Visualizer, create a bar chart for this data.'"
+    },
+    {
+      category: "AI Agents",
+      question: "What's the difference between Pro and Free AI capabilities?",
+      answer: "Free plan includes Director and Scripter agents with basic capabilities. Pro adds the Graphic Artist and Data Visualizer, plus advanced features like web research and DALL-E image generation."
+    },
+    {
+      category: "Exporting & Sharing",
+      question: "What export formats are available?",
+      answer: "You can export to PowerPoint (.pptx), PDF, Google Slides, PNG/JPEG images, and shareable web links. All formats preserve your presentation's design and formatting."
+    },
+    {
+      category: "Exporting & Sharing",
+      question: "Can I download my presentations for offline use?",
+      answer: "Yes! Export to PowerPoint or PDF for offline presentations. Web link exports require an internet connection to view."
+    },
+    {
+      category: "Exporting & Sharing",
+      question: "How do I share a presentation with someone who doesn't have deckster?",
+      answer: "Generate a shareable web link that anyone can view in their browser, or export to PDF/PowerPoint and send the file via email or file sharing services."
+    },
+    {
+      category: "Billing",
+      question: "Is there a free trial for Pro or Enterprise?",
+      answer: "Yes! Pro plans include a 14-day free trial with full access to all features. Enterprise plans include a trial period customized to your needs. Contact sales for details."
+    },
+    {
+      category: "Billing",
+      question: "What happens if I downgrade my plan?",
+      answer: "Your existing presentations are preserved, but you'll lose access to premium features. For example, downgrading from Pro to Free limits you to 3 presentations and basic AI agents."
+    },
+    {
+      category: "Billing",
+      question: "Do you offer refunds?",
+      answer: "Yes! We offer a 14-day money-back guarantee for all paid plans. If you're not satisfied, contact support for a full refund within 14 days of purchase."
+    },
+    {
+      category: "Troubleshooting",
+      question: "The AI agents aren't responding. What should I check?",
+      answer: "Ensure you have an active internet connection and haven't reached your plan's usage limits. Try refreshing the page. If issues persist, check our status page or contact support."
+    },
+    {
+      category: "Troubleshooting",
+      question: "My export is taking too long. Is this normal?",
+      answer: "Export times vary by presentation size. Most exports complete within 30-60 seconds. Large presentations (50+ slides) may take longer. You'll receive a notification when it's ready."
+    },
+    {
+      category: "Troubleshooting",
+      question: "How do I report a bug or suggest a feature?",
+      answer: "Use the contact form on this page or email support@deckster.com. For feature requests, we love detailed descriptions of how the feature would help your workflow!"
     }
   ]
 
@@ -128,26 +208,14 @@ export default function HelpPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/dashboard">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Dashboard
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Header />
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Help & Support</h1>
-          <p className="text-slate-600">Get help with Deckster and learn how to make the most of our platform</p>
+          <p className="text-slate-600">Get help with deckster and learn how to make the most of our platform</p>
         </div>
 
         {/* Quick Links */}
@@ -475,6 +543,8 @@ export default function HelpPage() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <Footer />
     </div>
   )
 }

@@ -132,12 +132,16 @@ function BuilderContent() {
         <header className="bg-white border-b h-16 flex-shrink-0">
           <div className="h-full px-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href="/" className="flex items-center gap-2">
-                <Sparkles className="h-6 w-6 text-blue-600" />
-                <span className="font-semibold text-xl">Vibe Deck v2.0</span>
+              <Link href="/" className="flex items-center gap-2 group">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 transition-transform group-hover:scale-105">
+                  <Sparkles className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                  deckster
+                </span>
               </Link>
               <Badge variant="secondary" className="hidden sm:flex">
-                Director v2.0
+                Director v3.4
               </Badge>
             </div>
 
@@ -249,7 +253,7 @@ function BuilderContent() {
                                           chatMsg.payload.text.toLowerCase().includes('preview');
 
                     return (
-                      <div key={(msg as any).clientTimestamp || Math.random()} className="flex gap-2">
+                      <div className="flex gap-2">
                         <div className="flex-shrink-0">
                           <Bot className="h-6 w-6 text-blue-600" />
                         </div>
@@ -259,23 +263,24 @@ function BuilderContent() {
                               ? 'bg-blue-50 border border-blue-200'
                               : 'bg-gray-100'
                           }`}>
-                            <ReactMarkdown
-                              className="text-sm prose prose-sm max-w-none"
-                              components={{
-                                a: ({node, ...props}) => (
-                                  <a
-                                    {...props}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline font-medium"
-                                  />
-                                ),
-                                p: ({node, ...props}) => <p {...props} className="text-sm mb-0" />,
-                                strong: ({node, ...props}) => <strong {...props} className="font-semibold" />
-                              }}
-                            >
-                              {chatMsg.payload.text}
-                            </ReactMarkdown>
+                            <div className="text-sm prose prose-sm max-w-none">
+                              <ReactMarkdown
+                                components={{
+                                  a: ({node, ...props}) => (
+                                    <a
+                                      {...props}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline font-medium"
+                                    />
+                                  ),
+                                  p: ({node, ...props}) => <p {...props} className="text-sm mb-0" />,
+                                  strong: ({node, ...props}) => <strong {...props} className="font-semibold" />
+                                }}
+                              >
+                                {chatMsg.payload.text}
+                              </ReactMarkdown>
+                            </div>
                             {chatMsg.payload.sub_title && (
                               <p className="text-xs text-gray-600 mt-1">{chatMsg.payload.sub_title}</p>
                             )}
@@ -293,7 +298,7 @@ function BuilderContent() {
                   } else if (msg.type === 'action_request') {
                     const actionMsg = msg as ActionRequest
                     return (
-                      <div key={(msg as any).clientTimestamp || Math.random()} className="space-y-2">
+                      <div className="space-y-2">
                         <div className="flex gap-2">
                           <div className="flex-shrink-0">
                             <Bot className="h-6 w-6 text-blue-600" />
@@ -321,7 +326,7 @@ function BuilderContent() {
                   } else if (msg.type === 'status_update') {
                     const statusMsg = msg as StatusUpdate
                     return (
-                      <div key={(msg as any).clientTimestamp || Math.random()} className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span>{statusMsg.payload.text}</span>
                         {statusMsg.payload.progress !== null && (
@@ -334,7 +339,7 @@ function BuilderContent() {
                   } else if (msg.type === 'slide_update') {
                     const slideMsg = msg as SlideUpdate
                     return (
-                      <div key={(msg as any).clientTimestamp || Math.random()} className="flex gap-2">
+                      <div className="flex gap-2">
                         <div className="flex-shrink-0">
                           <Bot className="h-6 w-6 text-blue-600" />
                         </div>
@@ -363,7 +368,7 @@ function BuilderContent() {
                   } else if (msg.type === 'presentation_url') {
                     const presMsg = msg as PresentationURL
                     return (
-                      <div key={(msg as any).clientTimestamp || Math.random()} className="flex gap-2">
+                      <div className="flex gap-2">
                         <div className="flex-shrink-0">
                           <Bot className="h-6 w-6 text-blue-600" />
                         </div>

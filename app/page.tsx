@@ -8,6 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowRight, Sparkles, Users, Zap, Check } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { Header, Footer } from "@/components/layout"
+import { HowItWorks, AgentShowcase, FeatureComparison, StatsSection, ProductDemo } from "@/components/marketing/Homepage"
 
 export default function LandingPage() {
   const router = useRouter()
@@ -98,33 +100,8 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">deckster.xyz</span>
-          </div>
-          <div className="flex items-center space-x-4">
-            <Button 
-              variant="ghost" 
-              onClick={handleSignIn}
-              disabled={isLoading}
-            >
-              {isLoading ? "Signing in..." : "Sign In"}
-            </Button>
-            <Button 
-              onClick={handleSignIn}
-              disabled={isLoading}
-            >
-              {isLoading ? "Loading..." : "Get Started"}
-            </Button>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
+      <Header />
 
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-20 text-center">
@@ -198,6 +175,21 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* How It Works Section */}
+      <HowItWorks />
+
+      {/* Agent Showcase Section */}
+      <AgentShowcase />
+
+      {/* Product Demo Section */}
+      <ProductDemo />
+
+      {/* Feature Comparison Section */}
+      <FeatureComparison />
+
+      {/* Stats Section */}
+      <StatsSection />
+
       {/* Pricing Section */}
       <section className="container mx-auto px-4 py-20">
         <div className="text-center mb-16">
@@ -246,20 +238,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t bg-white">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-gradient-to-br from-purple-600 to-blue-600 rounded flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              <span className="font-semibold">deckster.xyz</span>
-            </div>
-            <p className="text-sm text-slate-500">© 2024 deckster.xyz. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

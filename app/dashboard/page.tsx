@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { UserProfileMenu } from "@/components/user-profile-menu"
-import { Plus, Search, Filter, MoreVertical, Sparkles, Calendar, Users, Crown } from "lucide-react"
+import { Plus, Search, Filter, MoreVertical, Sparkles, Calendar, Users, Crown, Folder, Tag, X, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -25,12 +25,26 @@ interface Presentation {
   slideCount: number
   status: "draft" | "completed" | "in-progress"
   thumbnail: string
+  folder?: string
+  tags: string[]
+}
+
+interface Folder {
+  id: string
+  name: string
+  color: string
+  count: number
 }
 
 export default function DashboardPage() {
   const { user, logout, isLoading } = useAuth()
   const [presentations, setPresentations] = useState<Presentation[]>([])
+  const [folders, setFolders] = useState<Folder[]>([])
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+  const [showFilters, setShowFilters] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -45,6 +59,8 @@ export default function DashboardPage() {
         slideCount: 12,
         status: "completed",
         thumbnail: "/placeholder.svg?height=200&width=300",
+        folder: "marketing",
+        tags: ["marketing", "strategy", "quarterly"],
       },
       {
         id: "2",
@@ -55,6 +71,8 @@ export default function DashboardPage() {
         slideCount: 8,
         status: "in-progress",
         thumbnail: "/placeholder.svg?height=200&width=300",
+        folder: "products",
+        tags: ["product", "launch", "stakeholders"],
       },
       {
         id: "3",
@@ -65,7 +83,42 @@ export default function DashboardPage() {
         slideCount: 6,
         status: "draft",
         thumbnail: "/placeholder.svg?height=200&width=300",
+        folder: "internal",
+        tags: ["team", "performance", "monthly"],
       },
+      {
+        id: "4",
+        title: "Investor Pitch Deck",
+        description: "Series A fundraising presentation",
+        createdAt: "2024-01-12",
+        updatedAt: "2024-01-12",
+        slideCount: 15,
+        status: "completed",
+        thumbnail: "/placeholder.svg?height=200&width=300",
+        folder: "sales",
+        tags: ["investor", "funding", "pitch"],
+      },
+      {
+        id: "5",
+        title: "Customer Success Stories",
+        description: "Showcase of client testimonials and case studies",
+        createdAt: "2024-01-11",
+        updatedAt: "2024-01-15",
+        slideCount: 10,
+        status: "completed",
+        thumbnail: "/placeholder.svg?height=200&width=300",
+        folder: "marketing",
+        tags: ["customers", "testimonials", "case-studies"],
+      },
+    ])
+
+    // Mock folders data
+    setFolders([
+      { id: "all", name: "All Presentations", color: "slate", count: 5 },
+      { id: "marketing", name: "Marketing", color: "purple", count: 2 },
+      { id: "sales", name: "Sales", color: "blue", count: 1 },
+      { id: "products", name: "Products", color: "green", count: 1 },
+      { id: "internal", name: "Internal", color: "orange", count: 1 },
     ])
   }, [router])
 
@@ -86,11 +139,51 @@ export default function DashboardPage() {
     }
   }
 
-  const filteredPresentations = presentations.filter(
-    (p) =>
-      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  // Get all unique tags from presentations
+  const allTags = Array.from(new Set(presentations.flatMap(p => p.tags)))
+
+  // Advanced filtering logic
+  const filteredPresentations = presentations.filter((p) => {
+    // Search filter
+    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+
+    // Folder filter
+    const matchesFolder = !selectedFolder || selectedFolder === "all" || p.folder === selectedFolder
+
+    // Tags filter
+    const matchesTags = selectedTags.length === 0 || selectedTags.some(tag => p.tags.includes(tag))
+
+    // Status filter
+    const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(p.status)
+
+    return matchesSearch && matchesFolder && matchesTags && matchesStatus
+  })
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    )
+  }
+
+  const toggleStatus = (status: string) => {
+    setSelectedStatuses(prev =>
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    )
+  }
+
+  const clearFilters = () => {
+    setSelectedFolder(null)
+    setSelectedTags([])
+    setSelectedStatuses([])
+    setSearchQuery("")
+  }
+
+  const activeFiltersCount =
+    (selectedFolder && selectedFolder !== "all" ? 1 : 0) +
+    selectedTags.length +
+    selectedStatuses.length
 
   // User authentication is handled by middleware
   
@@ -155,7 +248,7 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">{presentations.length}</div>
               <p className="text-xs text-muted-foreground">
-                {user?.tier === "free" ? `${3 - presentations.length} remaining in free plan` : "Unlimited"}
+                {user?.tier === "free" ? `${Math.max(0, 3 - presentations.length)} remaining in free plan` : "Unlimited"}
               </p>
             </CardContent>
           </Card>
@@ -183,21 +276,108 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Search and Filter */}
-        <div className="flex items-center space-x-4 mb-6">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
-            <Input
-              placeholder="Search presentations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+        {/* Folders */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Folder className="h-5 w-5 text-slate-600" />
+            <h2 className="text-lg font-semibold">Folders</h2>
           </div>
-          <Button variant="outline">
-            <Filter className="mr-2 h-4 w-4" />
-            Filter
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {folders.map((folder) => (
+              <Button
+                key={folder.id}
+                variant={selectedFolder === folder.id ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedFolder(folder.id)}
+                className="gap-2"
+              >
+                <Folder className="h-4 w-4" />
+                {folder.name}
+                <Badge variant="secondary" className="ml-1">
+                  {folder.count}
+                </Badge>
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Search and Filter */}
+        <div className="space-y-4 mb-6">
+          <div className="flex items-center space-x-4">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
+              <Input
+                placeholder="Search presentations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button
+              variant={showFilters ? "default" : "outline"}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              Filters
+              {activeFiltersCount > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {activeFiltersCount}
+                </Badge>
+              )}
+            </Button>
+            {activeFiltersCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Clear all
+              </Button>
+            )}
+          </div>
+
+          {/* Filter Panel */}
+          {showFilters && (
+            <Card className="p-4">
+              <div className="space-y-4">
+                {/* Status Filters */}
+                <div>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <ChevronDown className="h-4 w-4" />
+                    Status
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {["draft", "in-progress", "completed"].map((status) => (
+                      <Button
+                        key={status}
+                        variant={selectedStatuses.includes(status) ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleStatus(status)}
+                      >
+                        {status}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tag Filters */}
+                <div>
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Tag className="h-4 w-4" />
+                    Tags
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {allTags.map((tag) => (
+                      <Button
+                        key={tag}
+                        variant={selectedTags.includes(tag) ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleTag(tag)}
+                      >
+                        {tag}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
 
         {/* Presentations Grid */}
@@ -234,12 +414,29 @@ export default function DashboardPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4 text-sm text-slate-500">
-                    <span>{presentation.slideCount} slides</span>
-                    <span>Updated {new Date(presentation.updatedAt).toLocaleDateString()}</span>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 text-sm text-slate-500">
+                      <span>{presentation.slideCount} slides</span>
+                      <span>Updated {new Date(presentation.updatedAt).toLocaleDateString()}</span>
+                    </div>
+                    <Badge className={getStatusColor(presentation.status)}>{presentation.status}</Badge>
                   </div>
-                  <Badge className={getStatusColor(presentation.status)}>{presentation.status}</Badge>
+                  {presentation.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {presentation.tags.slice(0, 3).map((tag) => (
+                        <Badge key={tag} variant="outline" className="text-xs">
+                          <Tag className="h-3 w-3 mr-1" />
+                          {tag}
+                        </Badge>
+                      ))}
+                      {presentation.tags.length > 3 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{presentation.tags.length - 3}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
