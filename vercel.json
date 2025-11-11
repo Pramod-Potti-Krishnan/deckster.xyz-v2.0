@@ -11,6 +11,17 @@
   },
   "redirects": [
     {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.deckster.xyz"
+        }
+      ],
+      "destination": "https://deckster.xyz/:path*",
+      "permanent": true
+    },
+    {
       "source": "/slides",
       "destination": "/dashboard",
       "permanent": false
