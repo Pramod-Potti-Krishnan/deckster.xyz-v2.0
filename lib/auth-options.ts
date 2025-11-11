@@ -4,6 +4,20 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import type { Adapter } from "next-auth/adapters"
 import { prisma } from "./prisma"
 
+// Validate required environment variables at module load time
+if (!process.env.NEXTAUTH_SECRET) {
+  throw new Error('Missing required environment variable: NEXTAUTH_SECRET')
+}
+if (!process.env.GOOGLE_CLIENT_ID) {
+  throw new Error('Missing required environment variable: GOOGLE_CLIENT_ID')
+}
+if (!process.env.GOOGLE_CLIENT_SECRET) {
+  throw new Error('Missing required environment variable: GOOGLE_CLIENT_SECRET')
+}
+if (!process.env.DATABASE_URL) {
+  throw new Error('Missing required environment variable: DATABASE_URL')
+}
+
 // Helper function to get session duration based on user preference
 function getSessionMaxAge(req?: any): number {
   // Default to 24 hours
@@ -54,9 +68,6 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
-  jwt: {
-    secret: process.env.NEXTAUTH_SECRET,
   },
   pages: {
     signIn: "/", // Direct to landing page for sign in
