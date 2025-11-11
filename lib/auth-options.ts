@@ -75,6 +75,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: {
+    strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
@@ -83,32 +84,87 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user, account, trigger }) {
-      try {
-        console.log('[Auth] JWT callback triggered:', { hasAccount: !!account, hasUser: !!user, trigger })
+      console.log('🟢🟢🟢 [Auth JWT] =============== JWT CALLBACK START ===============')
+      console.log('🟢 [Auth JWT] Timestamp:', new Date().toISOString())
+      console.log('🟢 [Auth JWT] Trigger:', trigger)
+      console.log('🟢 [Auth JWT] Has account?', !!account)
+      console.log('🟢 [Auth JWT] Has user?', !!user)
+      console.log('🟢 [Auth JWT] User email:', user?.email)
+      console.log('🟢 [Auth JWT] Token keys:', Object.keys(token))
 
+      try {
         // Initial sign in
         if (account && user) {
-          console.log('[Auth] Initial sign in for:', user.email)
-          // Fetch user from database to get approval status
-          const dbUser = await prisma.user.findUnique({
-            where: { email: user.email! },
-            select: { id: true, approved: true, tier: true }
-          })
+          console.log('✅ [Auth JWT] Initial sign in detected for:', user.email)
+          console.log('🔍 [Auth JWT] Fetching user from database...')
 
-          console.log('[Auth] DB user found:', !!dbUser, dbUser ? { approved: dbUser.approved, tier: dbUser.tier } : null)
+          try {
+            const dbUser = await prisma.user.findUnique({
+              where: { email: user.email! },
+              select: { id: true, approved: true, tier: true }
+            })
 
-          return {
-            ...token,
-            id: dbUser?.id || user.id,
-            tier: dbUser?.tier || "free",
-            approved: dbUser?.approved || false,
-            subscriptionStatus: null,
-            exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60), // 30 days
+            console.log('🔍 [Auth JWT] DB query completed')
+            console.log('🔍 [Auth JWT] DB user found?', !!dbUser)
+
+            if (dbUser) {
+              console.log('✅ [Auth JWT] DB user data:', {
+                id: dbUser.id,
+                approved: dbUser.approved,
+                tier: dbUser.tier
+              })
+            } else {
+              console.log('⚠️  [Auth JWT] User not found in database:', user.email)
+            }
+
+            const newToken = {
+              ...token,
+              id: dbUser?.id || user.id,
+              tier: dbUser?.tier || "free",
+              approved: dbUser?.approved || false,
+              subscriptionStatus: null,
+              exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60), // 30 days
+            }
+
+            console.log('✅ [Auth JWT] Created new token with data:', {
+              id: newToken.id,
+              tier: newToken.tier,
+              approved: newToken.approved,
+              exp: newToken.exp,
+              expReadable: new Date(newToken.exp * 1000).toISOString()
+            })
+            console.log('🟢🟢🟢 [Auth JWT] =============== JWT CALLBACK END (SUCCESS) ===============')
+
+            return newToken
+          } catch (dbError) {
+            console.error('❌❌❌ [Auth JWT] DATABASE ERROR:', dbError)
+            console.error('❌ [Auth JWT] Error name:', (dbError as Error).name)
+            console.error('❌ [Auth JWT] Error message:', (dbError as Error).message)
+            console.error('❌ [Auth JWT] Error stack:', (dbError as Error).stack)
+
+            // Create a fallback token to prevent complete failure
+            console.log('⚠️  [Auth JWT] Creating fallback token without DB data')
+            const fallbackToken = {
+              ...token,
+              id: user.id,
+              tier: "free" as const,
+              approved: false, // Default to false for safety
+              subscriptionStatus: null,
+              exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
+            }
+            console.log('🟢🟢🟢 [Auth JWT] =============== JWT CALLBACK END (FALLBACK) ===============')
+            return fallbackToken
           }
         }
+
+        console.log('🔵 [Auth JWT] Not initial sign in, returning existing token')
+        console.log('🟢🟢🟢 [Auth JWT] =============== JWT CALLBACK END (EXISTING TOKEN) ===============')
         return token
       } catch (error) {
-        console.error('[Auth] JWT callback error:', error)
+        console.error('❌❌❌ [Auth JWT] FATAL JWT CALLBACK ERROR:', error)
+        console.error('❌ [Auth JWT] Error type:', typeof error)
+        console.error('❌ [Auth JWT] Error details:', JSON.stringify(error, null, 2))
+        console.log('🟢🟢🟢 [Auth JWT] =============== JWT CALLBACK END (ERROR) ===============')
         throw error
       }
     },
