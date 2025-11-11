@@ -3,7 +3,16 @@ import { NextResponse } from "next/server"
 
 export default withAuth(
   function middleware(req) {
-    // Custom logic can be added here
+    const token = req.nextauth.token
+
+    // Check if user is approved (except for pending page)
+    if (token && !req.nextUrl.pathname.startsWith('/auth/pending')) {
+      if (!token.approved) {
+        // Redirect unapproved users to pending page
+        return NextResponse.redirect(new URL('/auth/pending', req.url))
+      }
+    }
+
     return NextResponse.next()
   },
   {
@@ -11,17 +20,16 @@ export default withAuth(
       authorized: ({ token }) => !!token,
     },
     pages: {
-      signIn: "/auth/signin",
+      signIn: "/",  // Redirect to landing page for sign-in
     },
   }
 )
 
-// Protect these routes
-// Note: /builder is temporarily unprotected for development
+// Protect these routes - now includes /builder
 export const config = {
   matcher: [
     "/dashboard/:path*",
-    // "/builder/:path*", // Commented out for dev - no auth required
+    "/builder/:path*",  // Now protected - requires authentication
     "/billing/:path*",
     "/settings/:path*",
   ],

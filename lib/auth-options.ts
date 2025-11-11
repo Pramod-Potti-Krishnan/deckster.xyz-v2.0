@@ -2,10 +2,7 @@ import { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import type { Adapter } from "next-auth/adapters"
-
-// For now, we'll use in-memory storage until Prisma is set up
-// This will be replaced with PrismaAdapter once database is configured
-const users: any[] = []
+import { prisma } from "./prisma"
 
 // Helper function to get session duration based on user preference
 function getSessionMaxAge(req?: any): number {
@@ -24,10 +21,12 @@ function getSessionMaxAge(req?: any): number {
 }
 
 export const authOptions: NextAuthOptions = {
+  // Use Prisma adapter for database storage
+  adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       authorization: {
         params: {
           prompt: "consent",
@@ -37,10 +36,9 @@ export const authOptions: NextAuthOptions = {
       }
     }),
   ],
-  // Temporarily use JWT strategy until database is set up
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // Max 30 days, will be adjusted per user preference
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   jwt: {
     secret: process.env.NEXTAUTH_SECRET,
@@ -53,19 +51,19 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, trigger }) {
       // Initial sign in
       if (account && user) {
-        // Check for stay signed in preference from browser storage
-        const staySignedIn = trigger === "signIn" ? true : false;
-        
+        // Fetch user from database to get approval status
+        const dbUser = await prisma.user.findUnique({
+          where: { email: user.email! },
+          select: { id: true, approved: true, tier: true }
+        })
+
         return {
           ...token,
-          id: user.id,
-          tier: "free", // Default tier for new users
+          id: dbUser?.id || user.id,
+          tier: dbUser?.tier || "free",
+          approved: dbUser?.approved || false,
           subscriptionStatus: null,
-          staySignedIn,
-          // Set custom expiry based on preference
-          exp: staySignedIn 
-            ? Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 days
-            : Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
+          exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60), // 30 days
         }
       }
       return token
@@ -75,27 +73,66 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string
         session.user.tier = token.tier as "free" | "pro" | "enterprise"
         session.user.subscriptionStatus = token.subscriptionStatus as string | null
+        session.user.approved = token.approved as boolean
       }
       return session
     },
-    async signIn({ user, account }) {
-      // Check if this is a new user by looking for them in our temporary storage
-      const existingUser = users.find(u => u.email === user.email)
-      
-      if (!existingUser && user.email) {
-        // New user - they'll need onboarding
-        users.push({
-          id: user.id || `user_${Date.now()}`,
-          email: user.email,
-          name: user.name,
-          isNew: true,
+    async signIn({ user, account, profile }) {
+      if (!user.email) {
+        return false
+      }
+
+      // Development bypass - allow specific email without approval
+      const devBypassEmail = process.env.DEV_BYPASS_EMAIL
+      if (devBypassEmail && user.email === devBypassEmail) {
+        console.log(`[Auth] Dev bypass for ${user.email}`)
+
+        // Ensure dev user exists and is approved in database
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email }
         })
-        
-        // Redirect new users to builder with new=true parameter
+
+        if (existingUser && !existingUser.approved) {
+          // Auto-approve dev user
+          await prisma.user.update({
+            where: { email: user.email },
+            data: {
+              approved: true,
+              approvedAt: new Date(),
+              approvedBy: 'dev-bypass'
+            }
+          })
+        }
+
+        return true // Allow access immediately
+      }
+
+      // Check if user is approved in database
+      const dbUser = await prisma.user.findUnique({
+        where: { email: user.email },
+        select: { approved: true, createdAt: true }
+      })
+
+      if (!dbUser) {
+        // New user signing up - they'll be created by Prisma adapter
+        // Redirect to pending page
+        console.log(`[Auth] New user signup: ${user.email}`)
+        return '/auth/pending'
+      }
+
+      if (!dbUser.approved) {
+        // Existing user but not approved yet
+        console.log(`[Auth] Unapproved user attempted login: ${user.email}`)
+        return '/auth/pending'
+      }
+
+      // User is approved - check if new user for onboarding
+      const isNewUser = dbUser.createdAt > new Date(Date.now() - 5 * 60 * 1000) // Created in last 5 minutes
+
+      if (isNewUser) {
         return '/builder?new=true'
       }
-      
-      // Existing users go directly to builder
+
       return '/builder'
     },
   },

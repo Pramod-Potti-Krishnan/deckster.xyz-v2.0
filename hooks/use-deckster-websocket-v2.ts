@@ -130,9 +130,16 @@ export interface UseDecksterWebSocketV2Options {
   reconnectOnError?: boolean;
   reconnectDelay?: number;
   maxReconnectAttempts?: number;
+  existingSessionId?: string; // Resume existing session instead of creating new one
   onError?: (error: Error) => void;
   onMessage?: (message: DirectorMessage) => void;
   onPresentationReady?: (url: string) => void;
+  onSessionStateChange?: (state: {
+    presentationUrl?: string;
+    presentationId?: string;
+    slideCount?: number;
+    currentStage?: number;
+  }) => void;
 }
 
 const DEFAULT_WS_URL = 'wss://directorv33-production.up.railway.app/ws';
@@ -145,7 +152,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const userIdRef = useRef<string>();
 
   if (!sessionIdRef.current) {
-    sessionIdRef.current = crypto.randomUUID();
+    // Use existing session ID if provided, otherwise generate new one
+    sessionIdRef.current = options.existingSessionId || crypto.randomUUID();
   }
 
   if (!userIdRef.current) {
@@ -234,9 +242,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           console.log('📨 Received message:', message.type, message);
 
           setState(prev => {
+            // Prevent duplicate messages by checking message_id
+            const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
+
             const newState = {
               ...prev,
-              messages: [...prev.messages, messageWithTimestamp],
+              messages: isDuplicate ? prev.messages : [...prev.messages, messageWithTimestamp],
             };
 
             // Handle specific message types
@@ -251,9 +262,23 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 newState.presentationId = message.payload.presentation_id;
                 newState.slideCount = message.payload.slide_count;
 
-                // Trigger callback
+                // Clear loading state - final presentation is complete
+                console.log('✅ Final presentation received - clearing loading state');
+                newState.currentStatus = null;
+
+                // Trigger callbacks
                 if (options.onPresentationReady) {
                   options.onPresentationReady(message.payload.url);
+                }
+
+                // Notify session state change for persistence
+                if (options.onSessionStateChange) {
+                  options.onSessionStateChange({
+                    presentationUrl: message.payload.url,
+                    presentationId: message.payload.presentation_id,
+                    slideCount: message.payload.slide_count,
+                    currentStage: 6, // Stage 6 - final presentation
+                  });
                 }
                 break;
 
@@ -268,14 +293,43 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                                    message.payload.strawman?.preview_url ||
                                    (message.payload as any).url;  // Sometimes sent as just 'url'
 
+                // Extract presentation ID for strawman downloads (Stage 4)
+                // Director v3.4 sends this in metadata object (per PREVIEW_PRESENTATION_ID_FIX.md)
+                const previewPresentationId = message.payload.metadata?.preview_presentation_id ||
+                                              message.payload.preview_presentation_id ||
+                                              message.payload.strawman?.preview_presentation_id ||
+                                              (message.payload as any).presentation_id;
+
                 if (previewUrl) {
                   console.log('✅ Found strawman preview URL:', previewUrl);
                   console.log('🖼️ Setting presentationUrl to display preview IMMEDIATELY');
                   newState.presentationUrl = previewUrl;
 
+                  // Clear loading state - strawman generation is complete
+                  console.log('✅ Strawman received - clearing loading state');
+                  newState.currentStatus = null;
+
+                  // Set presentation ID if found (enables download buttons)
+                  if (previewPresentationId) {
+                    console.log('✅ Found strawman presentation_id:', previewPresentationId);
+                    newState.presentationId = previewPresentationId;
+                  } else {
+                    console.log('⚠️ No preview_presentation_id found - download buttons will be disabled');
+                  }
+
                   // Trigger callback for preview
                   if (options.onPresentationReady) {
                     options.onPresentationReady(previewUrl);
+                  }
+
+                  // Notify session state change for persistence
+                  if (options.onSessionStateChange) {
+                    options.onSessionStateChange({
+                      presentationUrl: previewUrl,
+                      presentationId: previewPresentationId || undefined,
+                      slideCount: message.payload.slides?.length || undefined,
+                      currentStage: 4, // Stage 4 - strawman preview
+                    });
                   }
                 } else {
                   console.log('⚠️ No preview URL found in slide_update message');
@@ -418,6 +472,25 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }));
   }, []);
 
+  // Restore messages from database (for session loading)
+  const restoreMessages = useCallback((historicalMessages: DirectorMessage[], sessionState?: {
+    presentationUrl?: string | null;
+    presentationId?: string | null;
+    slideCount?: number | null;
+    slideStructure?: any;
+  }) => {
+    console.log(`🔄 Restoring ${historicalMessages.length} messages from database`);
+
+    setState(prev => ({
+      ...prev,
+      messages: historicalMessages,
+      presentationUrl: sessionState?.presentationUrl || prev.presentationUrl,
+      presentationId: sessionState?.presentationId || prev.presentationId,
+      slideCount: sessionState?.slideCount || prev.slideCount,
+      slideStructure: sessionState?.slideStructure || prev.slideStructure,
+    }));
+  }, []);
+
   // Auto-connect on mount (only once)
   useEffect(() => {
     console.log('🚀 WebSocket Hook Mounted', {
@@ -455,6 +528,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     disconnect,
     sendMessage,
     clearMessages,
+    restoreMessages,
 
     // Utility
     isReady: state.connected,

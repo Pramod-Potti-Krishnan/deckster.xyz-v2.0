@@ -1,0 +1,158 @@
+// This is your Prisma schema file for Supabase PostgreSQL
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// NextAuth.js required models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("auth_accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("auth_sessions")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+
+  // Subscription tier
+  tier          String    @default("free")
+
+  // CRITICAL: Manual approval system
+  approved      Boolean   @default(false)
+  approvedAt    DateTime? @map("approved_at")
+  approvedBy    String?   @map("approved_by")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  accounts     Account[]
+  sessions     Session[]
+  chatSessions ChatSession[]
+
+  @@map("auth_users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("auth_verification_tokens")
+}
+
+// Chat Session Management Models
+// Stores metadata for each presentation generation session
+model ChatSession {
+  id                     String    @id                    // WebSocket session_id (UUID)
+  userId                 String    @map("user_id")
+
+  // Session metadata
+  title                  String?
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  lastMessageAt          DateTime? @map("last_message_at")
+
+  // Presentation state
+  currentStage           Int       @default(1) @map("current_stage")
+
+  // Presentation URLs
+  strawmanPreviewUrl     String?   @map("strawman_preview_url") @db.Text
+  finalPresentationUrl   String?   @map("final_presentation_url") @db.Text
+
+  // Presentation IDs for downloads
+  strawmanPresentationId String?   @map("strawman_presentation_id")
+  finalPresentationId    String?   @map("final_presentation_id")
+
+  // Slide metadata
+  slideCount             Int?      @map("slide_count")
+
+  // Session status
+  status                 String    @default("active")     // 'active' | 'archived' | 'deleted'
+  isFavorite             Boolean   @default(false) @map("is_favorite")
+
+  // Relations
+  user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages               ChatMessage[]
+  stateCache             SessionStateCache?
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, lastMessageAt(sort: Desc)])
+  @@map("fe_chat_sessions")
+}
+
+// Stores all messages (user and bot) for a session
+model ChatMessage {
+  id                     String    @id                    // WebSocket message_id
+  sessionId              String    @map("session_id")
+
+  // Message metadata
+  messageType            String    @map("message_type")   // 'user' | 'chat_message' | 'action_request' | 'slide_update' | 'presentation_url' | 'status_update'
+  timestamp              DateTime
+
+  // Message content (JSON for flexibility with different message types)
+  payload                Json
+
+  // User messages specific (for quick queries and display)
+  userText               String?   @map("user_text") @db.Text
+
+  // Relations
+  session                ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, timestamp(sort: Asc)])
+  @@index([sessionId, messageType])
+  @@map("fe_chat_messages")
+}
+
+// Stores computed state to quickly restore hook state
+model SessionStateCache {
+  sessionId              String    @id @map("session_id")
+
+  // Cached state from WebSocket hook
+  currentStatus          Json?     @map("current_status")  // Last StatusUpdate payload
+  slideStructure         Json?     @map("slide_structure") // Last SlideUpdate payload
+
+  // Timestamps
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  session                ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("fe_session_state_cache")
+}

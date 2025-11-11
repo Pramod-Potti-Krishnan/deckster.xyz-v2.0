@@ -8,6 +8,7 @@ declare module "next-auth" {
     subscriptionId?: string | null
     subscriptionEndDate?: Date | null
     trialEndsAt?: Date | null
+    approved?: boolean
   }
 
   interface Session {
@@ -15,6 +16,7 @@ declare module "next-auth" {
       id: string
       tier: "free" | "pro" | "enterprise"
       subscriptionStatus: string | null
+      approved: boolean
     } & DefaultSession["user"]
   }
 }
@@ -24,5 +26,6 @@ declare module "next-auth/jwt" {
     id: string
     tier: "free" | "pro" | "enterprise"
     subscriptionStatus: string | null
+    approved: boolean
   }
 }

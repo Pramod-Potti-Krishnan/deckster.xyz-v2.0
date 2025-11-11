@@ -1,0 +1,216 @@
+import { useEffect, useRef, useCallback } from 'react';
+import { useChatSessions, ChatMessage } from './use-chat-sessions';
+import { DirectorMessage } from './use-deckster-websocket-v2';
+
+export interface SessionPersistenceOptions {
+  sessionId: string;
+  enabled?: boolean;
+  debounceMs?: number; // Debounce for bot messages (default: 3000ms)
+  onError?: (error: Error) => void;
+}
+
+export function useSessionPersistence(options: SessionPersistenceOptions) {
+  const { sessionId, enabled = true, debounceMs = 3000, onError } = options;
+  const { saveMessages, updateSession } = useChatSessions();
+
+  // Queue of pending messages to save
+  const messageQueueRef = useRef<Map<string, any>>(new Map());
+  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const isSavingRef = useRef(false);
+
+  /**
+   * Flush all pending messages to database
+   */
+  const flushMessages = useCallback(async () => {
+    if (messageQueueRef.current.size === 0 || isSavingRef.current) {
+      return;
+    }
+
+    isSavingRef.current = true;
+
+    try {
+      const messages = Array.from(messageQueueRef.current.values());
+      console.log(`💾 Flushing ${messages.length} messages to database`);
+
+      const result = await saveMessages(sessionId, messages);
+
+      if (result) {
+        console.log(`✅ Saved ${result.saved}/${result.total} messages`);
+        // Clear successfully saved messages
+        messageQueueRef.current.clear();
+      } else {
+        console.warn('⚠️ Failed to save messages (keeping in queue)');
+        if (onError) {
+          onError(new Error('Failed to save messages'));
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error flushing messages:', error);
+      if (onError) {
+        onError(error instanceof Error ? error : new Error('Unknown error'));
+      }
+    } finally {
+      isSavingRef.current = false;
+    }
+  }, [sessionId, saveMessages, onError]);
+
+  /**
+   * Add a message to the save queue
+   */
+  const queueMessage = useCallback((message: DirectorMessage, userText?: string) => {
+    if (!enabled) return;
+
+    // Add to queue (using message_id as key for deduplication)
+    messageQueueRef.current.set(message.message_id, {
+      id: message.message_id,
+      messageType: message.type,
+      timestamp: message.timestamp,
+      payload: message.payload,
+      userText: userText || null,
+    });
+
+    // For user messages, flush immediately
+    if (message.type === 'user' || userText) {
+      console.log('📤 User message - immediate save');
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      flushMessages();
+      return;
+    }
+
+    // For bot messages, debounce
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      flushMessages();
+    }, debounceMs);
+  }, [enabled, debounceMs, flushMessages]);
+
+  /**
+   * Save a batch of messages
+   */
+  const saveBatch = useCallback(async (messages: DirectorMessage[]) => {
+    if (!enabled || messages.length === 0) return;
+
+    try {
+      const formattedMessages = messages.map(msg => ({
+        id: msg.message_id,
+        messageType: msg.type,
+        timestamp: msg.timestamp,
+        payload: msg.payload,
+        userText: null,
+      }));
+
+      console.log(`💾 Batch saving ${formattedMessages.length} messages`);
+      const result = await saveMessages(sessionId, formattedMessages);
+
+      if (result) {
+        console.log(`✅ Batch saved ${result.saved}/${result.total} messages`);
+      }
+    } catch (error) {
+      console.error('❌ Error batch saving messages:', error);
+      if (onError) {
+        onError(error instanceof Error ? error : new Error('Unknown error'));
+      }
+    }
+  }, [enabled, sessionId, saveMessages, onError]);
+
+  /**
+   * Update session metadata
+   */
+  const updateMetadata = useCallback(async (updates: {
+    title?: string;
+    currentStage?: number;
+    strawmanPreviewUrl?: string;
+    finalPresentationUrl?: string;
+    strawmanPresentationId?: string;
+    finalPresentationId?: string;
+    slideCount?: number;
+    lastMessageAt?: Date;
+  }) => {
+    if (!enabled) return;
+
+    try {
+      console.log('📝 Updating session metadata:', updates);
+      await updateSession(sessionId, updates);
+    } catch (error) {
+      console.error('❌ Error updating session metadata:', error);
+      if (onError) {
+        onError(error instanceof Error ? error : new Error('Unknown error'));
+      }
+    }
+  }, [enabled, sessionId, updateSession, onError]);
+
+  /**
+   * Generate title from first user message or presentation metadata
+   */
+  const generateTitle = useCallback((
+    firstUserMessage?: string,
+    presentationTitle?: string
+  ): string => {
+    if (presentationTitle) {
+      return presentationTitle;
+    }
+
+    if (firstUserMessage) {
+      // Truncate to 50 characters
+      return firstUserMessage.length > 50
+        ? firstUserMessage.substring(0, 50) + '...'
+        : firstUserMessage;
+    }
+
+    // Fallback
+    const now = new Date();
+    return `Session - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+  }, []);
+
+  // Flush on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      // Flush any pending messages
+      if (messageQueueRef.current.size > 0) {
+        flushMessages();
+      }
+    };
+  }, [flushMessages]);
+
+  // Flush on window beforeunload
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleBeforeUnload = () => {
+      // Synchronous flush attempt
+      if (messageQueueRef.current.size > 0) {
+        // Use sendBeacon API for synchronous last-ditch save
+        const messages = Array.from(messageQueueRef.current.values());
+        const blob = new Blob([JSON.stringify({ messages })], {
+          type: 'application/json',
+        });
+
+        // Best effort - may or may not work depending on browser
+        navigator.sendBeacon(`/api/sessions/${sessionId}/messages`, blob);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [enabled, sessionId]);
+
+  return {
+    queueMessage,
+    saveBatch,
+    flushMessages,
+    updateMetadata,
+    generateTitle,
+    pendingCount: messageQueueRef.current.size,
+  };
+}

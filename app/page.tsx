@@ -4,32 +4,28 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowRight, Sparkles, Users, Zap, Check } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { Header, Footer } from "@/components/layout"
 import { HowItWorks, AgentShowcase, FeatureComparison, StatsSection, ProductDemo } from "@/components/marketing/Homepage"
 
 export default function LandingPage() {
   const router = useRouter()
-  const [staySignedIn, setStaySignedIn] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSignIn = () => {
-    // Store the stay signed in preference
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('staySignedIn', staySignedIn.toString())
-      // Store mock user for development
-      localStorage.setItem('mockUser', JSON.stringify({
-        id: 'dev-user-' + Date.now(),
-        email: 'dev@deckster.xyz',
-        name: 'Dev User',
-        tier: 'free'
-      }))
+  const handleSignIn = async () => {
+    setIsLoading(true)
+    try {
+      // Use NextAuth Google OAuth sign-in
+      await signIn('google', {
+        callbackUrl: '/builder'
+      })
+    } catch (error) {
+      console.error('Sign-in error:', error)
+      setIsLoading(false)
     }
-    // Navigate directly to builder
-    router.push('/builder')
   }
 
   const features = [
@@ -132,19 +128,6 @@ export default function LandingPage() {
                   Watch Demo
                 </Button>
               </Link>
-            </div>
-            <div className="flex items-center justify-center space-x-2">
-              <Checkbox 
-                id="stay-signed-in" 
-                checked={staySignedIn}
-                onCheckedChange={(checked) => setStaySignedIn(checked as boolean)}
-              />
-              <label 
-                htmlFor="stay-signed-in" 
-                className="text-sm text-slate-600 cursor-pointer"
-              >
-                Stay signed in for 30 days
-              </label>
             </div>
           </div>
         </div>
