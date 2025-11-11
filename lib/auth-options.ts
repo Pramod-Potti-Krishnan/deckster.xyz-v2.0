@@ -32,6 +32,8 @@ console.log('[Auth Config] Environment check:', {
 })
 
 export const authOptions: NextAuthOptions = {
+  // Secret for JWT encryption (required by NextAuth)
+  secret: process.env.NEXTAUTH_SECRET,
   // Use Prisma adapter for database storage
   adapter: PrismaAdapter(prisma) as Adapter,
   // Trust host in production (required for Vercel)
