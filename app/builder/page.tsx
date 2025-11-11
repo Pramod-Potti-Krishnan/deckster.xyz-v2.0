@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { useDecksterWebSocketV2, type DirectorMessage, type ChatMessage as V2ChatMessage, type ActionRequest, type StatusUpdate, type PresentationURL, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
@@ -841,7 +841,16 @@ function BuilderContent() {
 export default function BuilderPage() {
   return (
     <WebSocketErrorBoundary>
-      <BuilderContent />
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+          <div className="text-center">
+            <div className="h-10 w-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-sm text-gray-600">Loading builder...</p>
+          </div>
+        </div>
+      }>
+        <BuilderContent />
+      </Suspense>
     </WebSocketErrorBoundary>
   )
 }
