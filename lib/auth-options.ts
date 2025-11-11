@@ -224,18 +224,23 @@ export const authOptions: NextAuthOptions = {
       }
     },
     async signIn({ user, account, profile }) {
-      try {
-        console.log('[Auth] SignIn callback triggered for:', user.email)
+      console.log('🟢🟢🟢 [Auth SignIn] =============== SIGNIN CALLBACK START ===============')
+      console.log('🟢 [Auth SignIn] Timestamp:', new Date().toISOString())
+      console.log('🟢 [Auth SignIn] User email:', user.email)
+      console.log('🟢 [Auth SignIn] Has account?', !!account)
+      console.log('🟢 [Auth SignIn] Has profile?', !!profile)
 
+      try {
         if (!user.email) {
-          console.log('[Auth] No email provided, denying sign in')
+          console.log('❌ [Auth SignIn] No email provided, denying sign in')
+          console.log('🟢🟢🟢 [Auth SignIn] =============== SIGNIN CALLBACK END (DENIED) ===============')
           return false
         }
 
         // Development bypass - allow specific email without approval
         const devBypassEmail = process.env.DEV_BYPASS_EMAIL
         if (devBypassEmail && user.email === devBypassEmail) {
-          console.log(`[Auth] Dev bypass for ${user.email}`)
+          console.log(`✅ [Auth SignIn] Dev bypass for ${user.email}`)
 
           // Ensure dev user exists and is approved in database
           const existingUser = await prisma.user.findUnique({
@@ -252,46 +257,56 @@ export const authOptions: NextAuthOptions = {
                 approvedBy: 'dev-bypass'
               }
             })
-            console.log(`[Auth] Auto-approved dev user: ${user.email}`)
+            console.log(`✅ [Auth SignIn] Auto-approved dev user: ${user.email}`)
           }
 
-          return true // Allow access immediately
+          console.log('✅ [Auth SignIn] Allowing dev bypass user')
+          console.log('🟢🟢🟢 [Auth SignIn] =============== SIGNIN CALLBACK END (APPROVED - DEV) ===============')
+          return true
         }
 
         // Check if user is approved in database
+        console.log('🔍 [Auth SignIn] Checking user approval status in database...')
         const dbUser = await prisma.user.findUnique({
           where: { email: user.email },
           select: { approved: true, createdAt: true }
         })
 
-        console.log('[Auth] DB user check:', { email: user.email, found: !!dbUser, approved: dbUser?.approved })
+        console.log('🔍 [Auth SignIn] DB user check:', {
+          email: user.email,
+          found: !!dbUser,
+          approved: dbUser?.approved,
+          createdAt: dbUser?.createdAt
+        })
 
         if (!dbUser) {
           // New user signing up - they'll be created by Prisma adapter
-          // Redirect to pending page
-          console.log(`[Auth] New user signup: ${user.email}`)
-          return '/auth/pending'
+          // Allow sign-in but middleware will redirect to pending
+          console.log(`⚠️  [Auth SignIn] New user signup: ${user.email}`)
+          console.log('✅ [Auth SignIn] Allowing sign-in (will be redirected to pending by middleware)')
+          console.log('🟢🟢🟢 [Auth SignIn] =============== SIGNIN CALLBACK END (NEW USER) ===============')
+          return true
         }
 
         if (!dbUser.approved) {
           // Existing user but not approved yet
-          console.log(`[Auth] Unapproved user attempted login: ${user.email}`)
-          return '/auth/pending'
+          // Allow sign-in but middleware will redirect to pending
+          console.log(`⚠️  [Auth SignIn] Unapproved user attempted login: ${user.email}`)
+          console.log('✅ [Auth SignIn] Allowing sign-in (will be redirected to pending by middleware)')
+          console.log('🟢🟢🟢 [Auth SignIn] =============== SIGNIN CALLBACK END (UNAPPROVED) ===============')
+          return true
         }
 
-        // User is approved - check if new user for onboarding
-        const isNewUser = dbUser.createdAt > new Date(Date.now() - 5 * 60 * 1000) // Created in last 5 minutes
-
-        if (isNewUser) {
-          console.log(`[Auth] Redirecting new approved user to onboarding: ${user.email}`)
-          return '/builder?new=true'
-        }
-
-        console.log(`[Auth] Redirecting approved user to builder: ${user.email}`)
-        return '/builder'
+        // User is approved - allow sign-in
+        console.log(`✅✅✅ [Auth SignIn] Approved user sign-in: ${user.email}`)
+        console.log('✅ [Auth SignIn] Allowing sign-in (middleware will grant access to builder)')
+        console.log('🟢🟢🟢 [Auth SignIn] =============== SIGNIN CALLBACK END (APPROVED) ===============')
+        return true
       } catch (error) {
-        console.error('[Auth] SignIn callback error:', error)
-        throw error
+        console.error('❌❌❌ [Auth SignIn] SIGNIN CALLBACK ERROR:', error)
+        console.error('❌ [Auth SignIn] Error details:', JSON.stringify(error, null, 2))
+        console.log('🟢🟢🟢 [Auth SignIn] =============== SIGNIN CALLBACK END (ERROR) ===============')
+        return false
       }
     },
   },
