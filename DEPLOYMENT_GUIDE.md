@@ -12,7 +12,7 @@ DATABASE_URL="<your-supabase-postgres-url>"
 
 # NextAuth.js Configuration
 # IMPORTANT: Update this to your actual production domain
-NEXTAUTH_URL="https://deckster.xyz"  # CHANGE THIS TO YOUR DOMAIN
+NEXTAUTH_URL="https://deckster.xyz"  # CHANGE THIS TO YOUR DOMAIN (no trailing slash, no www unless you use it)
 
 # NextAuth Secret (use the one from .env.local)
 NEXTAUTH_SECRET="<your-nextauth-secret-from-env-local>"

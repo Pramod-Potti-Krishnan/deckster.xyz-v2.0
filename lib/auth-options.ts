@@ -23,6 +23,8 @@ function getSessionMaxAge(req?: any): number {
 export const authOptions: NextAuthOptions = {
   // Use Prisma adapter for database storage
   adapter: PrismaAdapter(prisma) as Adapter,
+  // Trust host in production (required for Vercel)
+  trustHost: true,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
