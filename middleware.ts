@@ -1,9 +1,11 @@
 import { withAuth } from "next-auth/middleware"
 import { NextResponse } from "next/server"
+import { getToken } from "next-auth/jwt"
 
 export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token
+  async function middleware(req) {
+    // Get session token for database sessions
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
 
     // Check if user is approved (except for pending page)
     if (token && !req.nextUrl.pathname.startsWith('/auth/pending')) {
@@ -17,7 +19,11 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      // For database sessions, check if request has session cookie
+      authorized: async ({ req }) => {
+        const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+        return !!token
+      },
     },
     pages: {
       signIn: "/",  // Redirect to landing page for sign-in
