@@ -4,18 +4,25 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import type { Adapter } from "next-auth/adapters"
 import { prisma } from "./prisma"
 
-// Validate required environment variables at module load time
-if (!process.env.NEXTAUTH_SECRET) {
-  throw new Error('Missing required environment variable: NEXTAUTH_SECRET')
-}
-if (!process.env.GOOGLE_CLIENT_ID) {
-  throw new Error('Missing required environment variable: GOOGLE_CLIENT_ID')
-}
-if (!process.env.GOOGLE_CLIENT_SECRET) {
-  throw new Error('Missing required environment variable: GOOGLE_CLIENT_SECRET')
-}
-if (!process.env.DATABASE_URL) {
-  throw new Error('Missing required environment variable: DATABASE_URL')
+// Validate required environment variables (only at runtime, not during build)
+if (typeof window === 'undefined' && process.env.NODE_ENV !== 'development') {
+  // Only validate in production runtime (not during build)
+  const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build'
+
+  if (!isBuildTime) {
+    if (!process.env.NEXTAUTH_SECRET) {
+      console.error('[Auth Config] Missing NEXTAUTH_SECRET environment variable')
+    }
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      console.error('[Auth Config] Missing GOOGLE_CLIENT_ID environment variable')
+    }
+    if (!process.env.GOOGLE_CLIENT_SECRET) {
+      console.error('[Auth Config] Missing GOOGLE_CLIENT_SECRET environment variable')
+    }
+    if (!process.env.DATABASE_URL) {
+      console.error('[Auth Config] Missing DATABASE_URL environment variable')
+    }
+  }
 }
 
 // Helper function to get session duration based on user preference
