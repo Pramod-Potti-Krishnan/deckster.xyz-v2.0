@@ -36,12 +36,20 @@ NEXT_PUBLIC_LAYOUT_SERVICE_URL="https://web-production-f0d13.up.railway.app"
 
 ## Google OAuth Configuration
 
+**CRITICAL:** The redirect URIs must include `/api/` in the path!
+
 1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
 2. Select your OAuth 2.0 Client ID
-3. Add your production domain to **Authorized redirect URIs**:
-   - Add: `https://deckster.xyz/api/auth/callback/google`
-   - Or: `https://your-domain.com/api/auth/callback/google`
-4. Save changes
+3. Under **Authorized JavaScript origins**, add:
+   - `http://localhost:3002` (for development)
+   - `https://deckster.xyz` (for production)
+4. Under **Authorized redirect URIs**, add (NOTE THE `/api/` IN THE PATH):
+   - `http://localhost:3002/api/auth/callback/google` (for development)
+   - `https://deckster.xyz/api/auth/callback/google` (for production)
+   - **IMPORTANT:** Make sure it's `/api/auth/callback/google`, NOT `/auth/callback/google`
+5. Save changes
+
+**Common Error:** If you see 404 errors after clicking "Continue with Google", check that your redirect URI includes `/api/` in the path.
 
 ## Vercel Deployment (Recommended)
 
@@ -54,9 +62,9 @@ NEXT_PUBLIC_LAYOUT_SERVICE_URL="https://web-production-f0d13.up.railway.app"
 
 **Build & Development Settings:**
 - Framework Preset: `Next.js`
-- Build Command: `npx prisma generate && next build`
+- Build Command: `pnpm build` (automatically includes Prisma generation)
 - Output Directory: `.next` (default)
-- Install Command: `npm install` (default)
+- Install Command: `pnpm install` (default)
 
 **Environment Variables:**
 Add all the required variables listed above in the "Environment Variables" section.
@@ -77,8 +85,8 @@ Click "Deploy" and Vercel will:
 
 ### 2. Configure Build
 Add these settings:
-- Build Command: `npx prisma generate && npm run build`
-- Start Command: `npm start`
+- Build Command: `pnpm build` (automatically includes Prisma generation)
+- Start Command: `pnpm start`
 
 ### 3. Add Environment Variables
 Add all required variables in the "Variables" tab.
