@@ -181,7 +181,7 @@ export const authOptions: NextAuthOptions = {
           // Fetch full user data including approval status
           const dbUser = await prisma.user.findUnique({
             where: { id: user.id },
-            select: { id: true, approved: true, tier: true, subscriptionStatus: true }
+            select: { id: true, approved: true, tier: true }
           })
 
           console.log('🔍 [Auth Session] DB user found?', !!dbUser)
@@ -190,13 +190,12 @@ export const authOptions: NextAuthOptions = {
             console.log('✅ [Auth Session] DB user data:', {
               id: dbUser.id,
               approved: dbUser.approved,
-              tier: dbUser.tier,
-              subscriptionStatus: dbUser.subscriptionStatus
+              tier: dbUser.tier
             })
 
             session.user.id = dbUser.id
             session.user.tier = dbUser.tier as "free" | "pro" | "enterprise"
-            session.user.subscriptionStatus = dbUser.subscriptionStatus
+            session.user.subscriptionStatus = null  // Not stored in User table yet
             session.user.approved = dbUser.approved
           } else {
             console.log('⚠️  [Auth Session] User not found in database:', user.id)
