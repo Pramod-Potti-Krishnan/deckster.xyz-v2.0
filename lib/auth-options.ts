@@ -75,7 +75,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: {
-    // Using database sessions with PrismaAdapter (removed "strategy: jwt" conflict)
+    strategy: "jwt", // Use JWT for sessions (PrismaAdapter still manages users)
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
@@ -168,49 +168,27 @@ export const authOptions: NextAuthOptions = {
         throw error
       }
     },
-    async session({ session, user }) {
+    async session({ session, token }) {
       console.log('🔵🔵🔵 [Auth Session] =============== SESSION CALLBACK START ===============')
       console.log('🔵 [Auth Session] Timestamp:', new Date().toISOString())
       console.log('🔵 [Auth Session] User email:', session.user?.email)
-      console.log('🔵 [Auth Session] Has user object?', !!user)
+      console.log('🔵 [Auth Session] Has token?', !!token)
 
       try {
-        if (session.user && user) {
-          console.log('🔍 [Auth Session] Fetching user data from database...')
-
-          // Fetch full user data including approval status
-          const dbUser = await prisma.user.findUnique({
-            where: { id: user.id },
-            select: { id: true, approved: true, tier: true }
+        if (session.user && token) {
+          console.log('✅ [Auth Session] Token data:', {
+            id: token.id,
+            approved: token.approved,
+            tier: token.tier,
+            email: token.email
           })
 
-          console.log('🔍 [Auth Session] DB user found?', !!dbUser)
+          session.user.id = token.id as string
+          session.user.tier = token.tier as "free" | "pro" | "enterprise"
+          session.user.subscriptionStatus = token.subscriptionStatus as string | null
+          session.user.approved = token.approved as boolean
 
-          if (dbUser) {
-            console.log('✅ [Auth Session] DB user data:', {
-              id: dbUser.id,
-              approved: dbUser.approved,
-              tier: dbUser.tier
-            })
-
-            session.user.id = dbUser.id
-            session.user.tier = dbUser.tier as "free" | "pro" | "enterprise"
-            session.user.subscriptionStatus = null  // Not stored in User table yet
-            session.user.approved = dbUser.approved
-          } else {
-            console.log('⚠️  [Auth Session] User not found in database:', user.id)
-            // Fallback to user object data
-            session.user.id = user.id
-            session.user.tier = "free"
-            session.user.subscriptionStatus = null
-            session.user.approved = false
-          }
-
-          console.log('✅ [Auth Session] Session data set:', {
-            id: session.user.id,
-            approved: session.user.approved,
-            tier: session.user.tier
-          })
+          console.log('✅ [Auth Session] Session data set from JWT token')
         }
 
         console.log('🔵🔵🔵 [Auth Session] =============== SESSION CALLBACK END (SUCCESS) ===============')
