@@ -3,11 +3,13 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, FileText, Presentation } from 'lucide-react';
-import { downloadPDF, downloadPPTX, PresentationVersion } from '@/lib/api/layout-service';
+import { downloadPDF, downloadPPTX, DownloadQuality } from '@/lib/api/download-service';
 import { useToast } from '@/hooks/use-toast';
 
 export interface PresentationDownloadControlsProps {
+  presentationUrl: string | null;
   presentationId: string | null;
+  slideCount: number | null;
   stage: number;
   className?: string;
 }
@@ -19,46 +21,54 @@ export interface PresentationDownloadControlsProps {
  * positioned at the top-right of the presentation preview area.
  *
  * Features:
- * - Automatically determines version based on current stage
- * - Stage 4 (strawman ready) → "strawman" version
- * - Stage 5 (reviewed/refined) → "refined" version
- * - Stage 6 (final content) → "final" version
- * - Disabled when no presentationId is available
- * - Shows loading state during download
+ * - Automatically enables when presentationUrl is available (Stage 4+)
+ * - Downloads using v7.5 Downloads Service
+ * - Shows loading state during 5-15 second conversion
+ * - Displays toast notifications for success/error
+ * - Quality options: high (default), medium, low
  */
 export function PresentationDownloadControls({
+  presentationUrl,
   presentationId,
+  slideCount,
   stage,
   className = ''
 }: PresentationDownloadControlsProps) {
   const { toast } = useToast();
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [isDownloadingPPTX, setIsDownloadingPPTX] = useState(false);
-
-  // Determine version based on current stage
-  const getVersion = (): PresentationVersion => {
-    if (stage === 4) return 'strawman';
-    if (stage === 5) return 'refined';
-    return 'final'; // stage 6 or later
-  };
+  const [quality] = useState<DownloadQuality>('high');
 
   // Check if downloads should be enabled
-  // Enable from Stage 4 onwards when presentationId is available
-  const isDownloadEnabled = presentationId !== null && stage >= 4;
+  // Enable from Stage 4 onwards when presentationUrl is available
+  const isDownloadEnabled = presentationUrl !== null && stage >= 4;
+
+  // Get stage label for user feedback
+  const getStageLabel = (): string => {
+    if (stage === 4) return 'strawman';
+    if (stage === 5) return 'refined';
+    return 'final';
+  };
 
   const handleDownloadPDF = async () => {
-    if (!presentationId) return;
+    if (!presentationUrl) {
+      toast({
+        title: 'Download Not Available',
+        description: 'Presentation URL is not available yet',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsDownloadingPDF(true);
 
     try {
-      const version = getVersion();
-      const result = await downloadPDF(presentationId, version);
+      const result = await downloadPDF(presentationUrl, quality);
 
       if (result.success) {
         toast({
-          title: 'Download Started',
-          description: `PDF (${version}) is being downloaded`,
+          title: 'PDF Download Started',
+          description: `Your PDF is being downloaded (${quality} quality)`,
         });
       } else {
         toast({
@@ -79,18 +89,33 @@ export function PresentationDownloadControls({
   };
 
   const handleDownloadPPTX = async () => {
-    if (!presentationId) return;
+    if (!presentationUrl) {
+      toast({
+        title: 'Download Not Available',
+        description: 'Presentation URL is not available yet',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!slideCount || slideCount <= 0) {
+      toast({
+        title: 'Download Not Available',
+        description: 'Slide count is not available yet',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsDownloadingPPTX(true);
 
     try {
-      const version = getVersion();
-      const result = await downloadPPTX(presentationId, version);
+      const result = await downloadPPTX(presentationUrl, slideCount, quality);
 
       if (result.success) {
         toast({
-          title: 'Download Started',
-          description: `PPTX (${version}) is being downloaded`,
+          title: 'PPTX Download Started',
+          description: `Your PowerPoint is being downloaded (${quality} quality, ${slideCount} slides)`,
         });
       } else {
         toast({
@@ -110,8 +135,14 @@ export function PresentationDownloadControls({
     }
   };
 
-  // Get version label for button tooltips
-  const versionLabel = getVersion();
+  // Get button tooltip
+  const getTooltip = (format: string): string => {
+    if (!isDownloadEnabled) {
+      return 'Presentation not ready yet. Waiting for Stage 4 (strawman)...';
+    }
+    const stageLabel = getStageLabel();
+    return `Download ${format} (${stageLabel} version, ${quality} quality)`;
+  };
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
@@ -121,12 +152,12 @@ export function PresentationDownloadControls({
         size="sm"
         variant="outline"
         className="shadow-md"
-        title={isDownloadEnabled ? `Download PDF (${versionLabel})` : 'Presentation not ready yet'}
+        title={getTooltip('PDF')}
       >
         {isDownloadingPDF ? (
           <>
             <Download className="mr-2 h-4 w-4 animate-spin" />
-            Downloading...
+            Converting...
           </>
         ) : (
           <>
@@ -138,16 +169,16 @@ export function PresentationDownloadControls({
 
       <Button
         onClick={handleDownloadPPTX}
-        disabled={!isDownloadEnabled || isDownloadingPPTX}
+        disabled={!isDownloadEnabled || isDownloadingPPTX || !slideCount}
         size="sm"
         variant="outline"
         className="shadow-md"
-        title={isDownloadEnabled ? `Download PPTX (${versionLabel})` : 'Presentation not ready yet'}
+        title={getTooltip('PPTX')}
       >
         {isDownloadingPPTX ? (
           <>
             <Download className="mr-2 h-4 w-4 animate-spin" />
-            Downloading...
+            Converting...
           </>
         ) : (
           <>
@@ -157,10 +188,17 @@ export function PresentationDownloadControls({
         )}
       </Button>
 
-      {/* Version indicator */}
+      {/* Status indicator */}
       {isDownloadEnabled && (
         <span className="text-xs text-muted-foreground ml-2">
-          ({versionLabel})
+          ({getStageLabel()}, {slideCount || '?'} slides)
+        </span>
+      )}
+
+      {/* Loading hint */}
+      {(isDownloadingPDF || isDownloadingPPTX) && (
+        <span className="text-xs text-muted-foreground">
+          (conversion takes 5-15 seconds)
         </span>
       )}
     </div>

@@ -782,7 +782,9 @@ function BuilderContent() {
             {/* Download Controls - Floating at top-right */}
             <div className="absolute top-4 right-4 z-10">
               <PresentationDownloadControls
+                presentationUrl={presentationUrl}
                 presentationId={presentationId}
+                slideCount={slideCount}
                 stage={currentStage}
               />
             </div>
