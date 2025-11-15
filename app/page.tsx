@@ -7,18 +7,25 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Sparkles, Users, Zap, Check } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { signIn } from "next-auth/react"
+import { signIn, useSession } from "next-auth/react"
 import { Header, Footer } from "@/components/layout"
 import { HowItWorks, AgentShowcase, FeatureComparison, StatsSection, ProductDemo } from "@/components/marketing/Homepage"
 
 export default function LandingPage() {
   const router = useRouter()
+  const { data: session, status } = useSession()
   const [isLoading, setIsLoading] = useState(false)
 
   const handleSignIn = async () => {
     setIsLoading(true)
     try {
-      // Use NextAuth Google OAuth sign-in
+      // If user is already authenticated, go directly to builder
+      if (status === 'authenticated' && session?.user) {
+        router.push('/builder')
+        return
+      }
+
+      // Otherwise, initiate Google OAuth sign-in
       await signIn('google', {
         callbackUrl: '/builder'
       })
