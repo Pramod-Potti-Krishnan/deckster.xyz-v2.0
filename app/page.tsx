@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,23 +16,34 @@ export default function LandingPage() {
   const { data: session, status } = useSession()
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSignIn = async () => {
-    setIsLoading(true)
-    try {
-      // If user is already authenticated, go directly to builder
-      if (status === 'authenticated' && session?.user) {
-        router.push('/builder')
-        return
-      }
+  // Debug: Log session changes
+  useEffect(() => {
+    console.log('Session status changed:', status)
+    if (session?.user) {
+      console.log('Logged in user:', session.user.email)
+    }
+  }, [status, session])
 
-      // Otherwise, initiate Google OAuth sign-in
-      await signIn('google', {
-        callbackUrl: '/builder'
-      })
-    } catch (error) {
+  const handleStartBuilding = () => {
+    console.log('Start Building clicked. Session status:', status, 'User:', session?.user)
+
+    // If user is already authenticated, navigate directly to builder
+    if (status === 'authenticated' && session?.user) {
+      console.log('User is authenticated, navigating to /builder')
+      setIsLoading(true)
+      router.push('/builder')
+      return
+    }
+
+    // If not authenticated, start OAuth flow
+    console.log('User not authenticated, initiating OAuth flow')
+    setIsLoading(true)
+    signIn('google', {
+      callbackUrl: '/builder'
+    }).catch((error) => {
       console.error('Sign-in error:', error)
       setIsLoading(false)
-    }
+    })
   }
 
   const features = [
@@ -125,10 +136,10 @@ export default function LandingPage() {
               <Button
                 size="lg"
                 className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                onClick={handleSignIn}
-                disabled={isLoading}
+                onClick={handleStartBuilding}
+                disabled={isLoading || status === 'loading'}
               >
-                {isLoading ? "Loading..." : "Start Building"} <ArrowRight className="ml-2 h-4 w-4" />
+                {isLoading ? "Loading..." : status === 'loading' ? "Loading..." : "Start Building"} <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
               <Link href="/demo">
                 <Button size="lg" variant="outline">
