@@ -69,8 +69,18 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       authorization: {
         params: {
-          prompt: "consent",
+          // OAuth Flow Configuration:
+          // - "select_account": Shows account chooser every time, but skips consent for returning users
+          // - First-time users will still see consent screen (Google enforces this automatically)
+          // - Returning users can quickly select their account without re-authorizing
+          // - This follows industry best practices (Slack, Notion, etc.)
+          prompt: "select_account",
+
+          // Request offline access to get refresh tokens
+          // This allows the app to access user data even when they're not actively using it
           access_type: "offline",
+
+          // Standard OAuth 2.0 authorization code flow
           response_type: "code"
         }
       }
