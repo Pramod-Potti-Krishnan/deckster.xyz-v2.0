@@ -352,13 +352,22 @@ function BuilderContent() {
         router.push(`/builder?session_id=${session.id}`)
         console.log('✅ Database session created:', session.id)
 
+        // IMPORTANT: Add user message to UI immediately (before sending)
+        const messageId = crypto.randomUUID()
+        const timestamp = Date.now()
+        setUserMessages(prev => [...prev, {
+          id: messageId,
+          text: messageText,
+          timestamp: timestamp
+        }])
+
+        // Clear input field immediately
+        setInputMessage("")
+
         // Now send the message (will continue below after state update)
         // Use a small delay to ensure state is updated
         setTimeout(() => {
-          const success = sendMessage(messageText)
-          if (success) {
-            setInputMessage("")
-          }
+          sendMessage(messageText)
         }, 100)
         return
       } else {
@@ -373,11 +382,22 @@ function BuilderContent() {
       connect()
       // Mark as no longer resumed (we're now actively chatting)
       setIsResumedSession(false)
+
+      // IMPORTANT: Add user message to UI immediately (before sending)
+      const messageId = crypto.randomUUID()
+      const timestamp = Date.now()
+      setUserMessages(prev => [...prev, {
+        id: messageId,
+        text: messageText,
+        timestamp: timestamp
+      }])
+
+      // Clear input field immediately
+      setInputMessage("")
+
       // Wait a bit for connection, then send (user can retry if needed)
       setTimeout(() => {
-        if (sendMessage(messageText)) {
-          setInputMessage("")
-        }
+        sendMessage(messageText)
       }, 1000)
       return
     }
