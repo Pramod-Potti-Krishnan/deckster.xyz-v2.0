@@ -117,6 +117,9 @@ function BuilderContent() {
   const hasTitleFromUserMessageRef = useRef(false)
   const hasTitleFromPresentationRef = useRef(false)
 
+  // Track if we've already seen the welcome message (to prevent duplicates on reconnect)
+  const hasSeenWelcomeRef = useRef(false)
+
   // Check if user is new and should see onboarding
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -176,13 +179,15 @@ function BuilderContent() {
                   })
                 } else {
                   // Bot message - convert from DB format to WebSocket format
+                  // IMPORTANT: Add clientTimestamp for proper sorting with user messages
                   botMsgs.push({
                     message_id: msg.id,
                     session_id: session.id,
                     timestamp: msg.timestamp,
                     type: msg.messageType as any,
-                    payload: msg.payload
-                  })
+                    payload: msg.payload,
+                    clientTimestamp: new Date(msg.timestamp).getTime() // Convert ISO to numeric timestamp
+                  } as any)
                 }
               })
 
@@ -198,6 +203,8 @@ function BuilderContent() {
 
               // Mark as resumed session - DON'T auto-connect WebSocket
               setIsResumedSession(true)
+              // Mark that we've seen welcome message (to prevent duplicates if reconnecting)
+              hasSeenWelcomeRef.current = true
               console.log(`✅ Restored ${userMsgs.length} user messages and ${botMsgs.length} bot messages (resumed session - no auto-connect)`)
             } else {
               // No messages - treat as new session
@@ -577,18 +584,44 @@ function BuilderContent() {
 
                   const sorted = combined.sort((a, b) => {
                     // User messages have numeric timestamps
+                    // Bot messages should have clientTimestamp (added in hook or when restoring)
+                    // Fallback: parse ISO timestamp if clientTimestamp missing
                     const timeA = a.messageType === 'user'
                       ? a.timestamp
-                      : (a as any).clientTimestamp || 0; // Use client-side timestamp added in hook
+                      : (a as any).clientTimestamp || new Date((a as any).timestamp).getTime() || 0;
 
                     const timeB = b.messageType === 'user'
                       ? b.timestamp
-                      : (b as any).clientTimestamp || 0;
+                      : (b as any).clientTimestamp || new Date((b as any).timestamp).getTime() || 0;
 
                     return timeA - timeB;
                   });
 
-                  return sorted.map((item, index) => {
+                  // Filter out duplicate welcome messages if we've already seen one
+                  const filtered = sorted.filter((item, index) => {
+                    if (item.messageType === 'bot') {
+                      const msg = item as DirectorMessage;
+                      if (msg.type === 'chat_message') {
+                        const chatMsg = msg as V2ChatMessage;
+                        const isWelcome = chatMsg.payload.text.toLowerCase().includes("hello! i'm deckster") ||
+                                         chatMsg.payload.text.toLowerCase().includes("what presentation would you like to build");
+
+                        // If this is a welcome message and we've seen one before (resumed session), skip it
+                        if (isWelcome && hasSeenWelcomeRef.current && index > 0) {
+                          console.log('🚫 Filtering duplicate welcome message on reconnect');
+                          return false;
+                        }
+
+                        // Mark that we've seen a welcome message
+                        if (isWelcome) {
+                          hasSeenWelcomeRef.current = true;
+                        }
+                      }
+                    }
+                    return true;
+                  });
+
+                  return filtered.map((item, index) => {
                   if (item.messageType === 'user') {
                     // Render user message
                     return (
@@ -821,6 +854,18 @@ function BuilderContent() {
                       maxWidth: 'calc((100vh - 2rem - 4rem) * 16 / 9)' // Account for header height
                     }}
                   >
+                    {/*
+                      IMPORTANT: This iframe loads Google Slides presentations.
+                      You may see Chart.js/Recharts errors in the browser console like:
+                      "TypeError: n.label.call is not a function"
+
+                      These errors come from INSIDE the Google Slides iframe (cross-origin),
+                      not from our React code. They occur when Google Slides presentations
+                      contain charts and the user enters/exits edit mode.
+
+                      This is EXPECTED BEHAVIOR and does not affect our app's functionality.
+                      The errors are cosmetic and can be safely ignored.
+                    */}
                     <iframe
                       src={presentationUrl}
                       className="absolute inset-0 w-full h-full border-none"

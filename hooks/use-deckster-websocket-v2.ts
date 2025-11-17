@@ -181,8 +181,44 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const reconnectAttemptsRef = useRef(0);
   const isConnectingRef = useRef(false);
   const hasConnectedRef = useRef(false);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout>();
   const maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
   const reconnectDelay = options.reconnectDelay ?? 3000;
+  const HEARTBEAT_INTERVAL = 15000; // Send ping every 15 seconds
+
+  // Start heartbeat to keep connection alive during long operations
+  const startHeartbeat = useCallback(() => {
+    // Clear any existing heartbeat first
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+    }
+
+    console.log('💓 Starting heartbeat (ping every 15s)');
+    heartbeatIntervalRef.current = setInterval(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          // Send ping message to keep connection alive
+          const pingMessage = {
+            type: 'ping',
+            timestamp: new Date().toISOString()
+          };
+          wsRef.current.send(JSON.stringify(pingMessage));
+          console.log('💓 Ping sent');
+        } catch (error) {
+          console.error('❌ Failed to send ping:', error);
+        }
+      }
+    }, HEARTBEAT_INTERVAL);
+  }, [HEARTBEAT_INTERVAL]);
+
+  // Stop heartbeat
+  const stopHeartbeat = useCallback(() => {
+    if (heartbeatIntervalRef.current) {
+      console.log('💔 Stopping heartbeat');
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = undefined;
+    }
+  }, []);
 
   // Connect to WebSocket
   const connect = useCallback(() => {
@@ -219,6 +255,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         reconnectAttemptsRef.current = 0;
         isConnectingRef.current = false;
         hasConnectedRef.current = true;
+
+        // Start heartbeat to keep connection alive
+        startHeartbeat();
 
         setState(prev => ({
           ...prev,
@@ -370,11 +409,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         console.log('🔌 WebSocket connection closed');
         isConnectingRef.current = false;
 
+        // Stop heartbeat
+        stopHeartbeat();
+
         setState(prev => ({
           ...prev,
           connected: false,
           connecting: false,
           connectionState: 'disconnected',
+          // Clear status when disconnected - prevents stale "working on strawman" messages
+          currentStatus: null,
         }));
 
         wsRef.current = null;
@@ -409,11 +453,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         options.onError(err);
       }
     }
-  }, [options, reconnectDelay, maxReconnectAttempts]);
+  }, [options, reconnectDelay, maxReconnectAttempts, startHeartbeat, stopHeartbeat]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
     console.log('🔌 Disconnecting WebSocket');
+
+    // Stop heartbeat
+    stopHeartbeat();
 
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -434,7 +481,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       connecting: false,
       connectionState: 'disconnected',
     }));
-  }, []);
+  }, [stopHeartbeat]);
 
   // Send message to server
   const sendMessage = useCallback((text: string): boolean => {
