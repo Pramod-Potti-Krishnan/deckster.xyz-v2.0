@@ -120,6 +120,9 @@ function BuilderContent() {
   // Track if we've already seen the welcome message (to prevent duplicates on reconnect)
   const hasSeenWelcomeRef = useRef(false)
 
+  // Track sessions we just created to prevent race condition with re-initialization
+  const justCreatedSessionRef = useRef<string | null>(null)
+
   // Check if user is new and should see onboarding
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -147,6 +150,15 @@ function BuilderContent() {
         const sessionParam = searchParams?.get('session_id')
 
         if (sessionParam && sessionParam !== 'new') {
+          // Skip re-initialization if we just created this session
+          // This prevents race condition where router.push triggers re-init before message is persisted
+          if (justCreatedSessionRef.current === sessionParam) {
+            console.log('⏭️ Skipping re-initialization of just-created session:', sessionParam)
+            justCreatedSessionRef.current = null
+            setIsLoadingSession(false)
+            return
+          }
+
           // Load existing session from URL
           console.log('📂 Loading session from URL:', sessionParam)
           const session = await loadSession(sessionParam)
@@ -353,6 +365,8 @@ function BuilderContent() {
       const session = await createSession(newSessionId)
 
       if (session) {
+        // Mark this session as just created to prevent re-initialization race condition
+        justCreatedSessionRef.current = session.id
         setCurrentSessionId(session.id)
         setIsUnsavedSession(false)
         // Update URL
