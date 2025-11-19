@@ -13,7 +13,9 @@
       "Bash(rm:*)",
       "Bash(cp:*)",
       "Bash(pnpm build:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "WebSearch",
+      "Bash(git mv:*)"
     ],
     "deny": []
   }
