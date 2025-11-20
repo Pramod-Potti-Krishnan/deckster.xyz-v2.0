@@ -77,6 +77,7 @@ function BuilderContent() {
     sessionId: wsSessionId
   } = useDecksterWebSocketV2({
     autoConnect: false, // We'll control connection manually
+    existingSessionId: currentSessionId || undefined, // Use database session ID for WebSocket
     reconnectOnError: false,
     maxReconnectAttempts: 0,
     reconnectDelay: 5000,
@@ -122,6 +123,9 @@ function BuilderContent() {
 
   // Track sessions we just created to prevent race condition with re-initialization
   const justCreatedSessionRef = useRef<string | null>(null)
+
+  // Guard to prevent concurrent executions of handleSendMessage (prevents duplication)
+  const isExecutingSendRef = useRef(false)
 
   // Check if user is new and should see onboarding
   useEffect(() => {
@@ -356,22 +360,62 @@ function BuilderContent() {
     if (e) e.preventDefault()
     if (!inputMessage.trim()) return
 
-    const messageText = inputMessage.trim()
+    // GUARD: Prevent concurrent executions (fixes React Strict Mode double-execution)
+    if (isExecutingSendRef.current) {
+      console.log('🚫 Already executing send, skipping duplicate call')
+      return
+    }
 
-    // For unsaved sessions, create database session first
-    if (isUnsavedSession && !currentSessionId) {
-      console.log('💾 Creating database session for first message')
-      const newSessionId = crypto.randomUUID()
-      const session = await createSession(newSessionId)
+    isExecutingSendRef.current = true
 
-      if (session) {
-        // Mark this session as just created to prevent re-initialization race condition
-        justCreatedSessionRef.current = session.id
-        setCurrentSessionId(session.id)
-        setIsUnsavedSession(false)
-        // Update URL
-        router.push(`/builder?session_id=${session.id}`)
-        console.log('✅ Database session created:', session.id)
+    try {
+      const messageText = inputMessage.trim()
+
+      // For unsaved sessions, create database session first
+      if (isUnsavedSession && !currentSessionId) {
+        console.log('💾 Creating database session for first message')
+        const newSessionId = crypto.randomUUID()
+        const session = await createSession(newSessionId)
+
+        if (session) {
+          // Mark this session as just created to prevent re-initialization race condition
+          justCreatedSessionRef.current = session.id
+          setCurrentSessionId(session.id)
+          setIsUnsavedSession(false)
+          // Update URL
+          router.push(`/builder?session_id=${session.id}`)
+          console.log('✅ Database session created:', session.id)
+
+          // IMPORTANT: Add user message to UI immediately (before sending)
+          const messageId = crypto.randomUUID()
+          const timestamp = Date.now()
+          setUserMessages(prev => [...prev, {
+            id: messageId,
+            text: messageText,
+            timestamp: timestamp
+          }])
+
+          // Clear input field immediately
+          setInputMessage("")
+
+          // Now send the message (will continue below after state update)
+          // Use a small delay to ensure state is updated
+          setTimeout(() => {
+            sendMessage(messageText)
+          }, 100)
+          return
+        } else {
+          alert('Failed to create session. Please try again.')
+          return
+        }
+      }
+
+      // For resumed sessions, connect on first message
+      if (isResumedSession && !connected && !connecting) {
+        console.log('🔌 Connecting WebSocket for first message in resumed session')
+        connect()
+        // Mark as no longer resumed (we're now actively chatting)
+        setIsResumedSession(false)
 
         // IMPORTANT: Add user message to UI immediately (before sending)
         const messageId = crypto.randomUUID()
@@ -385,81 +429,56 @@ function BuilderContent() {
         // Clear input field immediately
         setInputMessage("")
 
-        // Now send the message (will continue below after state update)
-        // Use a small delay to ensure state is updated
+        // Wait a bit for connection, then send (user can retry if needed)
         setTimeout(() => {
           sendMessage(messageText)
-        }, 100)
-        return
-      } else {
-        alert('Failed to create session. Please try again.')
+        }, 1000)
         return
       }
-    }
 
-    // For resumed sessions, connect on first message
-    if (isResumedSession && !connected && !connecting) {
-      console.log('🔌 Connecting WebSocket for first message in resumed session')
-      connect()
-      // Mark as no longer resumed (we're now actively chatting)
-      setIsResumedSession(false)
+      // Normal check for connection
+      if (!isReady) return
 
-      // IMPORTANT: Add user message to UI immediately (before sending)
       const messageId = crypto.randomUUID()
       const timestamp = Date.now()
+
+      // Add user message to local state
       setUserMessages(prev => [...prev, {
         id: messageId,
         text: messageText,
         timestamp: timestamp
       }])
 
-      // Clear input field immediately
-      setInputMessage("")
+      // Queue message for persistence
+      if (currentSessionId && persistence) {
+        persistence.queueMessage({
+          message_id: messageId,
+          session_id: currentSessionId,
+          timestamp: new Date(timestamp).toISOString(),
+          type: 'chat_message',
+          payload: { text: messageText }
+        } as DirectorMessage, messageText)
 
-      // Wait a bit for connection, then send (user can retry if needed)
-      setTimeout(() => {
-        sendMessage(messageText)
-      }, 1000)
-      return
-    }
-
-    // Normal check for connection
-    if (!isReady) return
-
-    const messageId = crypto.randomUUID()
-    const timestamp = Date.now()
-
-    // Add user message to local state
-    setUserMessages(prev => [...prev, {
-      id: messageId,
-      text: messageText,
-      timestamp: timestamp
-    }])
-
-    // Queue message for persistence
-    if (currentSessionId && persistence) {
-      persistence.queueMessage({
-        message_id: messageId,
-        session_id: currentSessionId,
-        timestamp: new Date(timestamp).toISOString(),
-        type: 'chat_message',
-        payload: { text: messageText }
-      } as DirectorMessage, messageText)
-
-      // Generate title from first user message if not already set
-      if (!hasTitleFromUserMessageRef.current && !hasTitleFromPresentationRef.current) {
-        const generatedTitle = persistence.generateTitle(messageText)
-        console.log('📝 Setting initial title from first message:', generatedTitle)
-        persistence.updateMetadata({
-          title: generatedTitle
-        })
-        hasTitleFromUserMessageRef.current = true
+        // Generate title from first user message if not already set
+        if (!hasTitleFromUserMessageRef.current && !hasTitleFromPresentationRef.current) {
+          const generatedTitle = persistence.generateTitle(messageText)
+          console.log('📝 Setting initial title from first message:', generatedTitle)
+          persistence.updateMetadata({
+            title: generatedTitle
+          })
+          hasTitleFromUserMessageRef.current = true
+        }
       }
-    }
 
-    const success = sendMessage(messageText)
-    if (success) {
-      setInputMessage("")
+      const success = sendMessage(messageText)
+      if (success) {
+        setInputMessage("")
+      }
+    } finally {
+      // Reset guard after a delay to allow state updates to propagate
+      setTimeout(() => {
+        isExecutingSendRef.current = false
+      }, 500)
     }
   }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router])
 
@@ -596,7 +615,17 @@ function BuilderContent() {
                     ...messages.map(m => ({ ...m, messageType: 'bot' as const }))
                   ];
 
-                  const sorted = combined.sort((a, b) => {
+                  // Deduplicate messages by ID (prevents duplicate display)
+                  const deduplicated = Array.from(
+                    new Map(
+                      combined.map(item => [
+                        item.messageType === 'user' ? item.id : (item as any).message_id,
+                        item
+                      ])
+                    ).values()
+                  );
+
+                  const sorted = deduplicated.sort((a, b) => {
                     // User messages have numeric timestamps
                     // Bot messages should have clientTimestamp (added in hook or when restoring)
                     // Fallback: parse ISO timestamp if clientTimestamp missing
