@@ -197,12 +197,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     heartbeatIntervalRef.current = setInterval(() => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         try {
-          // Send ping message to keep connection alive
-          const pingMessage = {
-            type: 'ping',
-            timestamp: new Date().toISOString()
-          };
-          wsRef.current.send(JSON.stringify(pingMessage));
+          // Send raw "ping" text to keep connection alive (protocol spec)
+          // Backend expects raw text "ping", not JSON object
+          wsRef.current.send('ping');
           console.log('💓 Ping sent');
         } catch (error) {
           console.error('❌ Failed to send ping:', error);
@@ -270,6 +267,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
       ws.onmessage = (event) => {
         try {
+          // Handle raw "pong" response from heartbeat ping
+          if (event.data === 'pong') {
+            console.log('💓 Pong received');
+            return;
+          }
+
           const message: DirectorMessage = JSON.parse(event.data);
 
           // Add client-side timestamp for message ordering
