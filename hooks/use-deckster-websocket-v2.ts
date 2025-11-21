@@ -151,9 +151,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const sessionIdRef = useRef<string>();
   const userIdRef = useRef<string>();
 
-  if (!sessionIdRef.current) {
-    // Use existing session ID if provided, otherwise generate new one
-    sessionIdRef.current = options.existingSessionId || crypto.randomUUID();
+  // Update session ID if a new one is provided from database
+  if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
+    console.log('🔄 Session ID changed:', { old: sessionIdRef.current, new: options.existingSessionId });
+    sessionIdRef.current = options.existingSessionId;
+  } else if (!sessionIdRef.current) {
+    sessionIdRef.current = crypto.randomUUID();
   }
 
   if (!userIdRef.current) {
@@ -184,6 +187,18 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const heartbeatIntervalRef = useRef<NodeJS.Timeout>();
   const maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
   const reconnectDelay = options.reconnectDelay ?? 3000;
+
+  // Reconnect when session ID changes (e.g., after database session creation)
+  useEffect(() => {
+    if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
+      console.log('🔄 Reconnecting with new session ID:', options.existingSessionId);
+      sessionIdRef.current = options.existingSessionId;
+      if (wsRef.current) {
+        wsRef.current.close();
+        // Will auto-reconnect via existing reconnection logic
+      }
+    }
+  }, [options.existingSessionId]);
   const HEARTBEAT_INTERVAL = 15000; // Send ping every 15 seconds
 
   // Start heartbeat to keep connection alive during long operations
