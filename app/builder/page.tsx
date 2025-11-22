@@ -95,10 +95,11 @@ function BuilderContent() {
     }
   })
 
-  // Session persistence
+  // Session persistence (enabled regardless of WebSocket state to prevent message loss)
   const persistence = useSessionPersistence({
     sessionId: currentSessionId || '',
-    enabled: !!currentSessionId && connected,
+    enabled: !!currentSessionId, // Persist even when WebSocket disconnected
+    debounceMs: 500, // Reduce from default 3000ms to prevent loss on page close
     onError: (error) => {
       console.error('Persistence error:', error)
     }
@@ -188,6 +189,7 @@ function BuilderContent() {
               session.messages.forEach((msg: any) => {
                 if (msg.userText) {
                   // User message
+                  console.log('👤 Loading user message:', { id: msg.id, text: msg.userText.substring(0, 50), timestamp: msg.timestamp });
                   userMsgs.push({
                     id: msg.id,
                     text: msg.userText,
@@ -196,6 +198,7 @@ function BuilderContent() {
                 } else {
                   // Bot message - convert from DB format to WebSocket format
                   // IMPORTANT: Add clientTimestamp for proper sorting with user messages
+                  console.log('🤖 Loading bot message:', { id: msg.id, type: msg.messageType, timestamp: msg.timestamp });
                   botMsgs.push({
                     message_id: msg.id,
                     session_id: session.id,
@@ -615,6 +618,8 @@ function BuilderContent() {
                     ...messages.map(m => ({ ...m, messageType: 'bot' as const }))
                   ];
 
+                  console.log('📊 Message rendering - userMessages:', userMessages.length, 'botMessages:', messages.length, 'combined:', combined.length);
+
                   // Deduplicate messages by ID (prevents duplicate display)
                   const deduplicated = Array.from(
                     new Map(
@@ -624,6 +629,8 @@ function BuilderContent() {
                       ])
                     ).values()
                   );
+
+                  console.log('📊 After deduplication:', deduplicated.length);
 
                   const sorted = deduplicated.sort((a, b) => {
                     // User messages have numeric timestamps
@@ -663,6 +670,14 @@ function BuilderContent() {
                     }
                     return true;
                   });
+
+                  console.log('📊 After filtering:', filtered.length, 'messages');
+                  console.log('📊 Final message list:', filtered.map((m, i) => ({
+                    index: i,
+                    type: m.messageType,
+                    id: m.messageType === 'user' ? m.id : (m as any).message_id,
+                    text: m.messageType === 'user' ? m.text : (m as any).payload?.text?.substring(0, 50)
+                  })));
 
                   return filtered.map((item, index) => {
                   if (item.messageType === 'user') {
