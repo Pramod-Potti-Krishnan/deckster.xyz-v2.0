@@ -151,9 +151,18 @@ export default function LandingPage() {
       <section className="relative pt-32 pb-20 overflow-hidden">
         {/* Background Elements */}
         <div className="absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute inset-0 bg-grid-black dark:bg-grid-white opacity-[0.4]" />
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-500/20 rounded-full blur-[120px] opacity-50 animate-pulse" />
-          <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-blue-500/20 rounded-full blur-[100px] opacity-30" />
+          {/* Hero Background Image */}
+          <div className="absolute inset-0">
+            <img
+              src="/hero-background.png"
+              alt="Background"
+              className="w-full h-full object-cover opacity-20"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/60 to-background" />
+          </div>
+          {/* Overlay gradients for depth */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-500/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-blue-500/10 rounded-full blur-[100px]" />
         </div>
 
         <div className="container mx-auto px-4 text-center relative z-10">
@@ -190,19 +199,44 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Hero Image */}
+          {/* Builder Interface Demo Preview */}
           <div className="mt-20 relative mx-auto max-w-5xl animate-in fade-in zoom-in duration-1000 delay-200">
-            <div className="aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-slate-900/50 backdrop-blur-xl group">
-              <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 to-blue-500/10 group-hover:opacity-75 transition-opacity z-10" />
-              <img
-                src="/hero-illustration.png"
-                alt="Deckster AI Collaboration"
-                className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
-              />
+            <div className="aspect-video rounded-2xl overflow-hidden shadow-2xl border-2 border-purple-200/50 bg-gradient-to-br from-slate-50 to-slate-100 backdrop-blur-xl group">
+              <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/5 to-blue-500/5 group-hover:opacity-75 transition-opacity z-10" />
+
+              {/* Placeholder for Builder Interface Demo */}
+              <div className="w-full h-full flex items-center justify-center relative">
+                {/* Simulated Interface */}
+                <div className="w-full h-full p-8 flex gap-4">
+                  {/* Left Panel - Chat */}
+                  <div className="w-1/3 bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex flex-col gap-3">
+                    <div className="h-8 bg-purple-100 rounded-lg animate-pulse" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-16 bg-gray-100 rounded-lg" />
+                      <div className="h-12 bg-blue-100 rounded-lg ml-auto w-4/5" />
+                      <div className="h-20 bg-gray-100 rounded-lg" />
+                    </div>
+                    <div className="h-12 bg-gray-200 rounded-lg" />
+                  </div>
+
+                  {/* Right Panel - Presentation */}
+                  <div className="flex-1 bg-white rounded-xl shadow-lg border border-gray-200 p-6 flex items-center justify-center">
+                    <div className="w-full aspect-video bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg border-2 border-dashed border-purple-200 flex items-center justify-center">
+                      <div className="text-center space-y-4 px-8">
+                        <div className="w-20 h-20 mx-auto bg-purple-100 rounded-full flex items-center justify-center">
+                          <Sparkles className="w-10 h-10 text-purple-600" />
+                        </div>
+                        <p className="text-lg font-semibold text-gray-700">Interactive Builder Interface</p>
+                        <p className="text-sm text-gray-500">Click "Start Building Free" to see the AI agents in action</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            {/* Decorative elements around image */}
-            <div className="absolute -top-10 -right-10 w-24 h-24 bg-yellow-400/30 rounded-full blur-2xl" />
-            <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-purple-500/30 rounded-full blur-2xl" />
+            {/* Decorative elements around demo */}
+            <div className="absolute -top-10 -right-10 w-24 h-24 bg-purple-400/30 rounded-full blur-2xl" />
+            <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-blue-500/30 rounded-full blur-2xl" />
           </div>
         </div>
       </section>
