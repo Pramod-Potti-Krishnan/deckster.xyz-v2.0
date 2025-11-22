@@ -23,6 +23,11 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
    */
   const flushMessages = useCallback(async () => {
     if (messageQueueRef.current.size === 0 || isSavingRef.current) {
+      if (messageQueueRef.current.size === 0) {
+        console.log('✅ No messages to flush (queue empty)');
+      } else {
+        console.log('⏳ Already saving messages, skipping duplicate flush');
+      }
       return;
     }
 
@@ -30,16 +35,22 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
 
     try {
       const messages = Array.from(messageQueueRef.current.values());
-      console.log(`💾 Flushing ${messages.length} messages to database`);
+      console.log(`💾 Flushing ${messages.length} messages to database:`, messages.map(m => ({
+        id: m.id,
+        type: m.messageType,
+        hasUserText: !!m.userText,
+        userTextPreview: m.userText ? m.userText.substring(0, 30) : null
+      })));
 
       const result = await saveMessages(sessionId, messages);
 
       if (result) {
-        console.log(`✅ Saved ${result.saved}/${result.total} messages`);
+        console.log(`✅ Successfully saved ${result.saved}/${result.total} messages to database`);
         // Clear successfully saved messages
         messageQueueRef.current.clear();
+        console.log('🗑️ Message queue cleared');
       } else {
-        console.warn('⚠️ Failed to save messages (keeping in queue)');
+        console.warn('⚠️ Failed to save messages - result was null (keeping in queue)');
         if (onError) {
           onError(new Error('Failed to save messages'));
         }
@@ -60,6 +71,14 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
   const queueMessage = useCallback((message: DirectorMessage, userText?: string) => {
     if (!enabled) return;
 
+    console.log('📥 Queueing message:', {
+      id: message.message_id,
+      type: message.type,
+      hasUserText: !!userText,
+      userTextPreview: userText ? userText.substring(0, 30) : null,
+      queueSize: messageQueueRef.current.size + 1
+    });
+
     // Add to queue (using message_id as key for deduplication)
     messageQueueRef.current.set(message.message_id, {
       id: message.message_id,
@@ -71,7 +90,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
 
     // For user messages, flush immediately
     if (message.type === 'user' || userText) {
-      console.log('📤 User message - immediate save');
+      console.log('📤 User message detected - triggering immediate save');
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
@@ -80,6 +99,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     }
 
     // For bot messages, debounce
+    console.log(`⏱️ Bot message - scheduling flush in ${debounceMs}ms`);
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
@@ -187,6 +207,8 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     const handleBeforeUnload = () => {
       // Synchronous flush attempt
       if (messageQueueRef.current.size > 0) {
+        console.log(`🚨 beforeunload: Attempting to save ${messageQueueRef.current.size} pending messages via sendBeacon`);
+
         // Use sendBeacon API for synchronous last-ditch save
         const messages = Array.from(messageQueueRef.current.values());
         const blob = new Blob([JSON.stringify({ messages })], {
@@ -194,7 +216,10 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         });
 
         // Best effort - may or may not work depending on browser
-        navigator.sendBeacon(`/api/sessions/${sessionId}/messages`, blob);
+        const success = navigator.sendBeacon(`/api/sessions/${sessionId}/messages`, blob);
+        console.log(`🚨 sendBeacon ${success ? 'succeeded' : 'failed'} for ${messages.length} messages`);
+      } else {
+        console.log('✅ beforeunload: No pending messages to save');
       }
     };
 

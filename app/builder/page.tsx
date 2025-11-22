@@ -950,7 +950,7 @@ function BuilderContent() {
                               ? 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'
                               : 'bg-white border border-gray-200'
                           }`}>
-                            <div className="text-sm max-w-none">
+                            <div className="text-sm max-w-none text-gray-800">
                               <ReactMarkdown
                                 components={{
                                   a: ({node, ...props}) => (
@@ -958,13 +958,13 @@ function BuilderContent() {
                                       {...props}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="!text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+                                      className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
                                     />
                                   ),
-                                  p: ({node, ...props}) => <p {...props} className="!text-sm leading-relaxed mb-0 text-gray-800" />,
-                                  strong: ({node, ...props}) => <strong {...props} className="!text-sm font-semibold text-gray-900" />,
-                                  ul: ({node, ...props}) => <ul {...props} className="!text-sm space-y-1 my-2" />,
-                                  li: ({node, ...props}) => <li {...props} className="!text-sm text-gray-700 leading-relaxed" />
+                                  p: ({node, ...props}) => <p {...props} className="leading-relaxed mb-0" />,
+                                  strong: ({node, ...props}) => <strong {...props} className="font-semibold text-gray-900" />,
+                                  ul: ({node, ...props}) => <ul {...props} className="space-y-1 my-2" />,
+                                  li: ({node, ...props}) => <li {...props} className="leading-relaxed" />
                                 }}
                               >
                                 {chatMsg.payload.text}
