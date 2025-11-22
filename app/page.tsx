@@ -148,42 +148,46 @@ export default function LandingPage() {
       <Header />
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 overflow-hidden">
+      <section className="relative pt-32 pb-20 overflow-hidden min-h-[600px]">
         {/* Background Elements */}
         <div className="absolute inset-0 -z-10 overflow-hidden">
-          {/* Hero Background Image */}
+          {/* Hero Background Image with enhanced overlay */}
           <div className="absolute inset-0">
             <img
               src="/hero-background.png"
               alt="Background"
-              className="w-full h-full object-cover opacity-20"
+              className="w-full h-full object-cover opacity-30 blur-[2px]"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/60 to-background" />
+            {/* Multi-layer gradient for text readability */}
+            <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-white/85 to-white/90" />
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-50/40 via-transparent to-blue-50/40" />
+            {/* Center vignette for maximum text clarity */}
+            <div className="absolute inset-0 bg-radial-gradient from-transparent via-white/20 to-white/60" />
           </div>
-          {/* Overlay gradients for depth */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-500/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-blue-500/10 rounded-full blur-[100px]" />
+          {/* Subtle accent gradients */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-500/5 rounded-full blur-[120px]" />
+          <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-blue-500/5 rounded-full blur-[100px]" />
         </div>
 
         <div className="container mx-auto px-4 text-center relative z-10">
           <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000">
-            <Badge className="mb-6 bg-white/80 backdrop-blur-sm text-primary border-primary/20 hover:bg-white px-4 py-1.5 text-sm shadow-sm">
+            <Badge className="mb-6 bg-white/90 backdrop-blur-md text-primary border-primary/20 hover:bg-white px-4 py-1.5 text-sm shadow-lg">
               <Sparkles className="w-3 h-3 mr-2 inline-block" />
               Powered by Multi-Agent AI
             </Badge>
-            <h1 className="text-6xl md:text-7xl font-bold mb-8 tracking-tight leading-tight">
+            <h1 className="text-6xl md:text-7xl font-bold mb-8 tracking-tight leading-tight drop-shadow-sm">
               Build Presentations with
               <br />
-              <span className="text-gradient">AI Agent Collaboration</span>
+              <span className="text-gradient drop-shadow-md">AI Agent Collaboration</span>
             </h1>
-            <p className="text-xl text-muted-foreground mb-10 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-xl text-foreground/90 mb-10 max-w-3xl mx-auto leading-relaxed drop-shadow-sm font-medium">
               Watch specialized AI agents work together to create stunning presentations. The Director orchestrates, the
               Scripter writes, and the Graphic Artist designs - all while you guide the process.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button
                 size="lg"
-                className="h-14 px-8 text-lg rounded-full bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all hover:scale-105"
+                className="h-14 px-8 text-lg rounded-full bg-primary hover:bg-primary/90 shadow-2xl shadow-primary/30 transition-all hover:scale-105 hover:shadow-primary/40"
                 onClick={handleStartBuilding}
                 disabled={isLoading || status === 'loading'}
               >
@@ -191,7 +195,7 @@ export default function LandingPage() {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <Link href="/demo">
-                <Button size="lg" variant="outline" className="h-14 px-8 text-lg rounded-full border-2 hover:bg-secondary/50 backdrop-blur-sm">
+                <Button size="lg" variant="outline" className="h-14 px-8 text-lg rounded-full border-2 bg-white/90 hover:bg-white backdrop-blur-md shadow-lg hover:shadow-xl transition-all">
                   <PlayCircle className="mr-2 h-5 w-5" />
                   Watch Demo
                 </Button>
