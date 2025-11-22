@@ -325,13 +325,17 @@ function BuilderContent() {
   }, [currentSessionId, isLoadingSession, connecting, connected, connect, isResumedSession, isUnsavedSession])
 
   // Persist bot messages received from WebSocket
+  // DISABLED: This effect was causing user messages to be overwritten without userText parameter
+  // Bot messages are now persisted individually when received
+  // User messages are persisted in handleSendMessage with userText parameter
+  /*
   useEffect(() => {
     if (!currentSessionId || !persistence || messages.length === 0) return
 
     // Get the last message
     const lastMessage = messages[messages.length - 1]
 
-    // Queue message for persistence
+    // Queue message for persistence (BUG: no userText parameter!)
     persistence.queueMessage(lastMessage)
 
     // Update session title if this is the first chat message with presentation title
@@ -339,6 +343,27 @@ function BuilderContent() {
       const slideUpdate = lastMessage as SlideUpdate
       const presentationTitle = slideUpdate.payload.metadata.main_title
       if (presentationTitle) {
+        console.log('📝 Updating session title from presentation:', presentationTitle)
+        persistence.updateMetadata({
+          title: presentationTitle
+        })
+        hasTitleFromPresentationRef.current = true
+      }
+    }
+  }, [messages, currentSessionId, persistence])
+  */
+
+  // Update session title from presentation metadata
+  useEffect(() => {
+    if (!currentSessionId || !persistence || messages.length === 0) return
+
+    const lastMessage = messages[messages.length - 1]
+
+    // Only update title from slide_update messages
+    if (lastMessage.type === 'slide_update') {
+      const slideUpdate = lastMessage as SlideUpdate
+      const presentationTitle = slideUpdate.payload.metadata.main_title
+      if (presentationTitle && !hasTitleFromPresentationRef.current) {
         console.log('📝 Updating session title from presentation:', presentationTitle)
         persistence.updateMetadata({
           title: presentationTitle
@@ -950,7 +975,7 @@ function BuilderContent() {
                               ? 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'
                               : 'bg-white border border-gray-200'
                           }`}>
-                            <div className="text-sm max-w-none text-gray-800">
+                            <div className="text-sm max-w-none text-gray-800" style={{ fontSize: '0.875rem' }}>
                               <ReactMarkdown
                                 components={{
                                   a: ({node, ...props}) => (
@@ -961,10 +986,10 @@ function BuilderContent() {
                                       className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
                                     />
                                   ),
-                                  p: ({node, ...props}) => <p {...props} className="leading-relaxed mb-0" />,
-                                  strong: ({node, ...props}) => <strong {...props} className="font-semibold text-gray-900" />,
-                                  ul: ({node, ...props}) => <ul {...props} className="space-y-1 my-2" />,
-                                  li: ({node, ...props}) => <li {...props} className="leading-relaxed" />
+                                  p: ({node, ...props}) => <p {...props} className="leading-relaxed mb-0" style={{ fontSize: 'inherit' }} />,
+                                  strong: ({node, ...props}) => <strong {...props} className="font-semibold text-gray-900" style={{ fontSize: 'inherit' }} />,
+                                  ul: ({node, ...props}) => <ul {...props} className="space-y-1 my-2" style={{ fontSize: 'inherit' }} />,
+                                  li: ({node, ...props}) => <li {...props} className="leading-relaxed" style={{ fontSize: 'inherit' }} />
                                 }}
                               >
                                 {chatMsg.payload.text}
