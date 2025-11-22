@@ -120,22 +120,45 @@ export async function POST(req: NextRequest) {
     // Authenticate user
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
+      console.error('[Session Create] Unauthorized - no session or email');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
+    console.log('[Session Create] Authenticated user:', session.user.email);
+
     // Get user from database
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email: session.user.email }
     });
 
+    // If user doesn't exist in DB (shouldn't happen with PrismaAdapter, but handle gracefully)
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      console.warn('[Session Create] User not found in database, creating:', session.user.email);
+
+      // Create user record (fallback in case PrismaAdapter didn't create it)
+      try {
+        user = await prisma.user.create({
+          data: {
+            email: session.user.email,
+            name: session.user.name || null,
+            image: session.user.image || null,
+            tier: 'free',
+            approved: false,
+          }
+        });
+        console.log('[Session Create] User created successfully:', user.id);
+      } catch (createError) {
+        console.error('[Session Create] Failed to create user:', createError);
+        return NextResponse.json(
+          { error: 'Failed to create user account' },
+          { status: 500 }
+        );
+      }
+    } else {
+      console.log('[Session Create] User found in database:', user.id);
     }
 
     // Parse request body

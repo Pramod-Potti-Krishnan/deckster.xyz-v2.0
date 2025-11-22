@@ -120,6 +120,8 @@ export function useChatSessions() {
     setError(null);
 
     try {
+      console.log('[useChatSessions] Creating session:', sessionId);
+
       const response = await fetch('/api/sessions', {
         method: 'POST',
         headers: {
@@ -128,21 +130,36 @@ export function useChatSessions() {
         body: JSON.stringify({ sessionId, title }),
       });
 
+      console.log('[useChatSessions] Response status:', response.status);
+
       if (!response.ok) {
         // If conflict (409), session already exists - that's ok
         if (response.status === 409) {
+          console.log('[useChatSessions] Session already exists (409)');
           const data = await response.json();
           return data.session;
         }
-        throw new Error(`Failed to create session: ${response.statusText}`);
+
+        // Try to get error details from response
+        let errorMessage = response.statusText;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+          console.error('[useChatSessions] API error:', errorMessage, 'Status:', response.status);
+        } catch {
+          console.error('[useChatSessions] Failed with status:', response.status, response.statusText);
+        }
+
+        throw new Error(`Failed to create session (${response.status}): ${errorMessage}`);
       }
 
       const data = await response.json();
+      console.log('[useChatSessions] Session created successfully:', data.session?.id);
       return data.session;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error');
       setError(error);
-      console.error('Error creating session:', error);
+      console.error('[useChatSessions] Error creating session:', error);
       return null;
     } finally {
       setLoading(false);

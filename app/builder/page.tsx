@@ -378,37 +378,45 @@ function BuilderContent() {
       if (isUnsavedSession && !currentSessionId) {
         console.log('💾 Creating database session for first message')
         const newSessionId = crypto.randomUUID()
-        const session = await createSession(newSessionId)
 
-        if (session) {
-          // Mark this session as just created to prevent re-initialization race condition
-          justCreatedSessionRef.current = session.id
-          setCurrentSessionId(session.id)
-          setIsUnsavedSession(false)
-          // Update URL
-          router.push(`/builder?session_id=${session.id}`)
-          console.log('✅ Database session created:', session.id)
+        try {
+          const session = await createSession(newSessionId)
 
-          // IMPORTANT: Add user message to UI immediately (before sending)
-          const messageId = crypto.randomUUID()
-          const timestamp = Date.now()
-          setUserMessages(prev => [...prev, {
-            id: messageId,
-            text: messageText,
-            timestamp: timestamp
-          }])
+          if (session) {
+            // Mark this session as just created to prevent re-initialization race condition
+            justCreatedSessionRef.current = session.id
+            setCurrentSessionId(session.id)
+            setIsUnsavedSession(false)
+            // Update URL
+            router.push(`/builder?session_id=${session.id}`)
+            console.log('✅ Database session created:', session.id)
 
-          // Clear input field immediately
-          setInputMessage("")
+            // IMPORTANT: Add user message to UI immediately (before sending)
+            const messageId = crypto.randomUUID()
+            const timestamp = Date.now()
+            setUserMessages(prev => [...prev, {
+              id: messageId,
+              text: messageText,
+              timestamp: timestamp
+            }])
 
-          // Now send the message (will continue below after state update)
-          // Use a small delay to ensure state is updated
-          setTimeout(() => {
-            sendMessage(messageText)
-          }, 100)
-          return
-        } else {
-          alert('Failed to create session. Please try again.')
+            // Clear input field immediately
+            setInputMessage("")
+
+            // Now send the message (will continue below after state update)
+            // Use a small delay to ensure state is updated
+            setTimeout(() => {
+              sendMessage(messageText)
+            }, 100)
+            return
+          } else {
+            console.error('❌ createSession returned null')
+            alert('Failed to create session. Please check your connection and try again.')
+            return
+          }
+        } catch (error) {
+          console.error('❌ Error creating session:', error)
+          alert(`Failed to create session: ${error instanceof Error ? error.message : 'Unknown error'}. Please try refreshing the page.`)
           return
         }
       }
