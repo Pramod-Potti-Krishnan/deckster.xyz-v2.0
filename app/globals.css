@@ -62,6 +62,12 @@ body {
   .bg-radial-gradient {
     background: radial-gradient(ellipse at center, var(--tw-gradient-stops));
   }
+
+  /* Progress bar countdown animation */
+  @keyframes shrink {
+    from { width: 100%; }
+    to { width: 0%; }
+  }
 }
 
 @layer base {

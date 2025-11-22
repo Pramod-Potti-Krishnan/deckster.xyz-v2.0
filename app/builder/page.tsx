@@ -109,6 +109,12 @@ function BuilderContent() {
   const [inputMessage, setInputMessage] = useState("")
   const [userMessages, setUserMessages] = useState<Array<{ id: string; text: string; timestamp: number }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [pendingActionInput, setPendingActionInput] = useState<{
+    action: ActionRequest['payload']['actions'][0];
+    messageId: string;
+    timestamp: number;
+  } | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showShare, setShowShare] = useState(false)
@@ -374,6 +380,42 @@ function BuilderContent() {
     try {
       const messageText = inputMessage.trim()
 
+      // Handle pending action input
+      if (pendingActionInput) {
+        const { action, messageId, timestamp } = pendingActionInput
+
+        // Add action label message to local state (e.g., "Make changes")
+        setUserMessages(prev => [...prev, {
+          id: messageId,
+          text: action.label,
+          timestamp: timestamp
+        }])
+
+        // Queue action message for persistence
+        if (currentSessionId && persistence) {
+          persistence.queueMessage({
+            message_id: messageId,
+            session_id: currentSessionId,
+            timestamp: new Date(timestamp).toISOString(),
+            type: 'chat_message',
+            payload: { text: action.label, action_value: action.value }
+          } as DirectorMessage, action.label)
+        }
+
+        // Send the user's typed input
+        const success = sendMessage(messageText)
+        if (success) {
+          setInputMessage("")
+          setPendingActionInput(null)
+        }
+
+        // Reset guard
+        setTimeout(() => {
+          isExecutingSendRef.current = false
+        }, 500)
+        return
+      }
+
       // For unsaved sessions, create database session first
       if (isUnsavedSession && !currentSessionId) {
         console.log('💾 Creating database session for first message')
@@ -498,31 +540,33 @@ function BuilderContent() {
     const messageId = crypto.randomUUID()
     const timestamp = Date.now()
 
-    // Add user message to local state (show label to user)
-    setUserMessages(prev => [...prev, {
-      id: messageId,
-      text: action.label,
-      timestamp: timestamp
-    }])
-
-    // Queue action message for persistence
-    if (currentSessionId && persistence) {
-      persistence.queueMessage({
-        message_id: messageId,
-        session_id: currentSessionId,
-        timestamp: new Date(timestamp).toISOString(),
-        type: 'chat_message',
-        payload: { text: action.label, action_value: action.value }
-      } as DirectorMessage, action.label)
-    }
-
     if (action.requires_input) {
-      // For actions that require input, prompt user for text
-      const userInput = window.prompt(action.label);
-      if (userInput && userInput.trim()) {
-        sendMessage(userInput.trim());
-      }
+      // For actions that require input, set state and focus chat input
+      setPendingActionInput({ action, messageId, timestamp })
+
+      // Focus the textarea after a brief delay to ensure state is set
+      setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 100)
     } else {
+      // Add user message to local state (show label to user)
+      setUserMessages(prev => [...prev, {
+        id: messageId,
+        text: action.label,
+        timestamp: timestamp
+      }])
+
+      // Queue action message for persistence
+      if (currentSessionId && persistence) {
+        persistence.queueMessage({
+          message_id: messageId,
+          session_id: currentSessionId,
+          timestamp: new Date(timestamp).toISOString(),
+          type: 'chat_message',
+          payload: { text: action.label, action_value: action.value }
+        } as DirectorMessage, action.label)
+      }
+
       // CRITICAL FIX: Send the action VALUE (not label) to backend
       // Example: sends "accept_strawman" instead of "Looks perfect!"
       sendMessage(action.value)
@@ -602,9 +646,9 @@ function BuilderContent() {
             {currentStatus && (
               <div className="px-4 py-3 border-b bg-gradient-to-r from-blue-50 to-purple-50 animate-in slide-in-from-top duration-300">
                 <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{currentStatus.text}</p>
+                    <p className="text-sm font-medium text-gray-900 whitespace-normal break-words">{currentStatus.text}</p>
                     {currentStatus.estimated_time && (
                       <p className="text-xs text-gray-600 mt-0.5">
                         ~{currentStatus.estimated_time}s remaining
@@ -612,9 +656,18 @@ function BuilderContent() {
                     )}
                   </div>
                 </div>
-                {currentStatus.progress !== null && currentStatus.progress > 0 && (
+                {currentStatus.progress !== null && currentStatus.progress > 0 ? (
                   <Progress value={currentStatus.progress} className="mt-2 h-1" />
-                )}
+                ) : currentStatus.estimated_time ? (
+                  <div className="mt-2">
+                    <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-600 rounded-full transition-all duration-1000 ease-linear"
+                        style={{ width: '100%', animation: `shrink ${currentStatus.estimated_time}s linear` }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -689,7 +742,71 @@ function BuilderContent() {
                     text: m.messageType === 'user' ? m.text : (m as any).payload?.text?.substring(0, 50)
                   })));
 
-                  return filtered.map((item, index) => {
+                  // Group consecutive strawman-related messages (slide_update, presentation_url, action_request)
+                  const processedMessages: Array<typeof filtered[0] | {
+                    messageType: 'bot',
+                    type: 'combined_strawman',
+                    message_id: string,
+                    slideUpdate?: SlideUpdate,
+                    presentationUrl?: PresentationURL,
+                    actionRequest?: ActionRequest
+                  }> = [];
+
+                  let i = 0;
+                  while (i < filtered.length) {
+                    const current = filtered[i];
+
+                    // Check if this starts a strawman group
+                    if (current.messageType === 'bot') {
+                      const botMsg = current as DirectorMessage;
+
+                      // Look for slide_update followed by presentation_url and optionally action_request
+                      if (botMsg.type === 'slide_update') {
+                        const slideUpdate = botMsg as SlideUpdate;
+                        let presentationUrl: PresentationURL | undefined;
+                        let actionRequest: ActionRequest | undefined;
+                        let consumed = 1;
+
+                        // Check next message for presentation_url
+                        if (i + 1 < filtered.length && filtered[i + 1].messageType === 'bot') {
+                          const nextMsg = filtered[i + 1] as DirectorMessage;
+                          if (nextMsg.type === 'presentation_url') {
+                            presentationUrl = nextMsg as PresentationURL;
+                            consumed++;
+
+                            // Check message after that for action_request
+                            if (i + 2 < filtered.length && filtered[i + 2].messageType === 'bot') {
+                              const thirdMsg = filtered[i + 2] as DirectorMessage;
+                              if (thirdMsg.type === 'action_request') {
+                                actionRequest = thirdMsg as ActionRequest;
+                                consumed++;
+                              }
+                            }
+                          }
+                        }
+
+                        // If we found at least slide_update + presentation_url, create combined message
+                        if (presentationUrl) {
+                          processedMessages.push({
+                            messageType: 'bot',
+                            type: 'combined_strawman',
+                            message_id: `combined_${slideUpdate.message_id}`,
+                            slideUpdate,
+                            presentationUrl,
+                            actionRequest
+                          });
+                          i += consumed;
+                          continue;
+                        }
+                      }
+                    }
+
+                    // Not part of a group, add as-is
+                    processedMessages.push(current);
+                    i++;
+                  }
+
+                  return processedMessages.map((item, index) => {
                   if (item.messageType === 'user') {
                     // Render user message
                     return (
@@ -708,12 +825,113 @@ function BuilderContent() {
                     )
                   }
 
-                  const msg = item as DirectorMessage & { messageType: 'bot' }
+                  const msg = item as any;
                   return (
-                    <React.Fragment key={msg.message_id}>
+                    <React.Fragment key={msg.message_id || msg.id}>
                 {/* Bot messages */}
                 {(() => {
-                  if (msg.type === 'chat_message') {
+                  // Handle combined strawman message (slide_update + presentation_url + action_request)
+                  if (msg.type === 'combined_strawman') {
+                    const { slideUpdate, presentationUrl, actionRequest } = msg;
+
+                    return (
+                      <div className="flex gap-3 animate-in slide-in-from-left duration-300">
+                        <div className="flex-shrink-0 mt-1">
+                          <div className="bg-green-100 rounded-full p-1.5">
+                            <Bot className="h-4 w-4 text-green-600" />
+                          </div>
+                        </div>
+                        <div className="flex-1 max-w-[85%]">
+                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl rounded-tl-sm shadow-sm overflow-hidden">
+                            {/* Slide Structure Section */}
+                            <div className="px-4 py-3 border-b border-green-200">
+                              <div className="flex items-start gap-2">
+                                <span className="text-xl">📊</span>
+                                <div className="flex-1">
+                                  <p className="text-sm font-semibold text-green-900">
+                                    {slideUpdate?.payload.metadata.main_title}
+                                  </p>
+                                  <p className="text-xs text-green-700 mt-1 flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium">{slideUpdate?.payload.slides.length} slides</span>
+                                    <span className="text-green-400">•</span>
+                                    <span>{slideUpdate?.payload.metadata.presentation_duration} min</span>
+                                    <span className="text-green-400">•</span>
+                                    <span className="capitalize">{slideUpdate?.payload.metadata.overall_theme}</span>
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                                {slideUpdate?.payload.slides.map((slide, i) => (
+                                  <div key={i} className="text-xs bg-white/80 backdrop-blur rounded-lg px-3 py-2 border border-green-100">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-green-700 min-w-[1.5rem]">
+                                        {slide.slide_number}.
+                                      </span>
+                                      <span className="font-medium text-gray-800 flex-1">
+                                        {slide.title}
+                                      </span>
+                                      <span className="text-gray-500 text-[10px] uppercase tracking-wide">
+                                        {slide.slide_type}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Presentation Ready Section */}
+                            {presentationUrl && (
+                              <div className="px-4 py-3 border-b border-green-200 bg-white/40">
+                                <div className="flex items-start gap-2">
+                                  <span className="text-xl">✅</span>
+                                  <div className="flex-1">
+                                    <p className="text-sm font-semibold text-green-900">
+                                      {presentationUrl.payload.message}
+                                    </p>
+                                    <p className="text-xs text-green-700 mt-1">
+                                      {presentationUrl.payload.slide_count} slides ready to view
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="mt-3 w-full bg-white hover:bg-green-50 border-green-300 text-green-700 hover:text-green-800"
+                                  onClick={() => window.open(presentationUrl.payload.url, '_blank')}
+                                >
+                                  <ExternalLink className="h-3 w-3 mr-1" />
+                                  Open presentation
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Action Buttons Section */}
+                            {actionRequest && (
+                              <div className="px-4 py-3 bg-white/60">
+                                <p className="text-sm font-medium text-gray-900 mb-3">{actionRequest.payload.prompt_text}</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {actionRequest.payload.actions.map((action, i) => (
+                                    <Button
+                                      key={i}
+                                      size="sm"
+                                      variant={action.primary ? "default" : "outline"}
+                                      onClick={() => handleActionClick(action)}
+                                      className={action.primary
+                                        ? "bg-green-600 hover:bg-green-700 shadow-sm"
+                                        : "hover:bg-gray-50 border-gray-300"
+                                      }
+                                    >
+                                      {action.label}
+                                    </Button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  } else if (msg.type === 'chat_message') {
                     const chatMsg = msg as V2ChatMessage
                     // Detect if this is a preview link message
                     const isPreviewLink = chatMsg.payload.text.includes('📊') &&
@@ -732,7 +950,7 @@ function BuilderContent() {
                               ? 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'
                               : 'bg-white border border-gray-200'
                           }`}>
-                            <div className="text-sm prose prose-sm max-w-none">
+                            <div className="text-sm max-w-none">
                               <ReactMarkdown
                                 components={{
                                   a: ({node, ...props}) => (
@@ -740,13 +958,13 @@ function BuilderContent() {
                                       {...props}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+                                      className="!text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
                                     />
                                   ),
-                                  p: ({node, ...props}) => <p {...props} className="text-sm leading-relaxed mb-0 text-gray-800" />,
-                                  strong: ({node, ...props}) => <strong {...props} className="font-semibold text-gray-900" />,
-                                  ul: ({node, ...props}) => <ul {...props} className="space-y-1 my-2" />,
-                                  li: ({node, ...props}) => <li {...props} className="text-sm text-gray-700" />
+                                  p: ({node, ...props}) => <p {...props} className="!text-sm leading-relaxed mb-0 text-gray-800" />,
+                                  strong: ({node, ...props}) => <strong {...props} className="!text-sm font-semibold text-gray-900" />,
+                                  ul: ({node, ...props}) => <ul {...props} className="!text-sm space-y-1 my-2" />,
+                                  li: ({node, ...props}) => <li {...props} className="!text-sm text-gray-700 leading-relaxed" />
                                 }}
                               >
                                 {chatMsg.payload.text}
@@ -895,9 +1113,34 @@ function BuilderContent() {
 
             {/* Chat Input */}
             <div className="p-4 border-t bg-gray-50/50">
+              {/* Action Input Banner */}
+              {pendingActionInput && (
+                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-600 font-medium text-sm">
+                      {pendingActionInput.action.label}
+                    </span>
+                    <span className="text-blue-500 text-xs">
+                      - Type your input below and press Enter
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setPendingActionInput(null)
+                      setInputMessage("")
+                    }}
+                    className="h-6 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
               <form onSubmit={handleSendMessage} className="flex gap-3">
                 <div className="flex-1 relative">
                   <Textarea
+                    ref={textareaRef}
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     onKeyDown={(e) => {
@@ -905,8 +1148,19 @@ function BuilderContent() {
                         e.preventDefault()
                         handleSendMessage()
                       }
+                      if (e.key === 'Escape' && pendingActionInput) {
+                        e.preventDefault()
+                        setPendingActionInput(null)
+                        setInputMessage("")
+                      }
                     }}
-                    placeholder={!isReady ? "Connecting to Director..." : "Type your message... (Shift+Enter for new line)"}
+                    placeholder={
+                      !isReady
+                        ? "Connecting to Director..."
+                        : pendingActionInput
+                        ? `Type your changes here... (ESC to cancel)`
+                        : "Type your message... (Shift+Enter for new line)"
+                    }
                     disabled={!isReady}
                     className="resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-xl shadow-sm"
                     rows={3}
