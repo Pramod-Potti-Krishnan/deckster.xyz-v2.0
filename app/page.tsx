@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, Sparkles, Users, Zap, Check } from "lucide-react"
+import { ArrowRight, Sparkles, Users, Zap, Check, PlayCircle, Layout, Wand2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { signIn, useSession } from "next-auth/react"
@@ -48,22 +48,52 @@ export default function LandingPage() {
 
   const features = [
     {
-      icon: <Sparkles className="h-6 w-6" />,
+      icon: <Sparkles className="h-8 w-8 text-purple-500" />,
       title: "AI Agent Collaboration",
       description:
         "Watch specialized AI agents work together - The Director, Scripter, and Graphic Artist collaborate to create your perfect presentation.",
+      color: "bg-purple-500/10",
+      lineColor: "bg-purple-500",
     },
     {
-      icon: <Users className="h-6 w-6" />,
+      icon: <Users className="h-8 w-8 text-blue-500" />,
       title: "Transparent Workflow",
       description:
         "See exactly what each agent is doing with our Chain of Thought visualizer. No black boxes, just clear collaboration.",
+      color: "bg-blue-500/10",
+      lineColor: "bg-blue-500",
     },
     {
-      icon: <Zap className="h-6 w-6" />,
+      icon: <Zap className="h-8 w-8 text-cyan-500" />,
       title: "Interactive Canvas",
       description:
         "Edit slides in real-time with our Living Canvas. Click, drag, and modify elements directly while chatting with AI.",
+      color: "bg-cyan-500/10",
+      lineColor: "bg-cyan-500",
+    },
+    {
+      icon: <Layout className="h-8 w-8 text-pink-500" />,
+      title: "Smart Layouts",
+      description:
+        "Intelligent layout engine that automatically adjusts content to look professional and balanced on every slide.",
+      color: "bg-pink-500/10",
+      lineColor: "bg-pink-500",
+    },
+    {
+      icon: <Wand2 className="h-8 w-8 text-indigo-500" />,
+      title: "Brand Magic",
+      description:
+        "Instantly apply your brand guidelines, colors, and fonts across the entire presentation with a single click.",
+      color: "bg-indigo-500/10",
+      lineColor: "bg-indigo-500",
+    },
+    {
+      icon: <PlayCircle className="h-8 w-8 text-green-500" />,
+      title: "Live Preview",
+      description:
+        "Preview your presentation in real-time as it's being built. Make adjustments on the fly without breaking the flow.",
+      color: "bg-green-500/10",
+      lineColor: "bg-green-500",
     },
   ]
 
@@ -114,62 +144,90 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col font-sans selection:bg-primary/20">
       <Header />
 
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 text-center">
-        <div className="opacity-100 translate-y-0">
-          <Badge className="mb-4 bg-purple-100 text-purple-700 hover:bg-purple-200">Powered by Multi-Agent AI</Badge>
-          <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-            Build Presentations with
-            <br />
-            AI Agent Collaboration
-          </h1>
-          <p className="text-xl text-slate-600 mb-8 max-w-3xl mx-auto">
-            Watch specialized AI agents work together to create stunning presentations. The Director orchestrates, the
-            Scripter writes, and the Graphic Artist designs - all while you guide the process through natural
-            conversation.
-          </p>
-          <div className="space-y-4">
-            <div className="flex items-center justify-center space-x-4">
+      <section className="relative pt-32 pb-20 overflow-hidden">
+        {/* Background Elements */}
+        <div className="absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute inset-0 bg-grid-black dark:bg-grid-white opacity-[0.4]" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-500/20 rounded-full blur-[120px] opacity-50 animate-pulse" />
+          <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-blue-500/20 rounded-full blur-[100px] opacity-30" />
+        </div>
+
+        <div className="container mx-auto px-4 text-center relative z-10">
+          <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000">
+            <Badge className="mb-6 bg-white/80 backdrop-blur-sm text-primary border-primary/20 hover:bg-white px-4 py-1.5 text-sm shadow-sm">
+              <Sparkles className="w-3 h-3 mr-2 inline-block" />
+              Powered by Multi-Agent AI
+            </Badge>
+            <h1 className="text-6xl md:text-7xl font-bold mb-8 tracking-tight leading-tight">
+              Build Presentations with
+              <br />
+              <span className="text-gradient">AI Agent Collaboration</span>
+            </h1>
+            <p className="text-xl text-muted-foreground mb-10 max-w-3xl mx-auto leading-relaxed">
+              Watch specialized AI agents work together to create stunning presentations. The Director orchestrates, the
+              Scripter writes, and the Graphic Artist designs - all while you guide the process.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button
                 size="lg"
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                className="h-14 px-8 text-lg rounded-full bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all hover:scale-105"
                 onClick={handleStartBuilding}
                 disabled={isLoading || status === 'loading'}
               >
-                {isLoading ? "Loading..." : status === 'loading' ? "Loading..." : "Start Building"} <ArrowRight className="ml-2 h-4 w-4" />
+                {isLoading ? "Loading..." : status === 'loading' ? "Loading..." : "Start Building Free"}
+                <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <Link href="/demo">
-                <Button size="lg" variant="outline">
+                <Button size="lg" variant="outline" className="h-14 px-8 text-lg rounded-full border-2 hover:bg-secondary/50 backdrop-blur-sm">
+                  <PlayCircle className="mr-2 h-5 w-5" />
                   Watch Demo
                 </Button>
               </Link>
             </div>
           </div>
+
+          {/* Hero Image */}
+          <div className="mt-20 relative mx-auto max-w-5xl animate-in fade-in zoom-in duration-1000 delay-200">
+            <div className="aspect-video rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-slate-900/50 backdrop-blur-xl group">
+              <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 to-blue-500/10 group-hover:opacity-75 transition-opacity z-10" />
+              <img
+                src="/hero-illustration.png"
+                alt="Deckster AI Collaboration"
+                className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
+              />
+            </div>
+            {/* Decorative elements around image */}
+            <div className="absolute -top-10 -right-10 w-24 h-24 bg-yellow-400/30 rounded-full blur-2xl" />
+            <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-purple-500/30 rounded-full blur-2xl" />
+          </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">The Future of Presentation Creation</h2>
-          <p className="text-slate-600 max-w-2xl mx-auto">
+      <section className="container mx-auto px-4 py-32 relative">
+        <div className="text-center mb-20">
+          <h2 className="text-4xl font-bold mb-6">The Future of Presentation Creation</h2>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Experience transparent AI collaboration with our innovative dual-pane interface
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-8">
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((feature, index) => (
-            <Card key={index} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+            <Card key={index} className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/50 backdrop-blur-sm border-white/20 overflow-hidden group">
+              <div className={`h-2 w-full ${feature.lineColor}`} />
               <CardHeader>
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg flex items-center justify-center mb-4">
+                <div className={`w-14 h-14 ${feature.color} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                   {feature.icon}
                 </div>
-                <CardTitle>{feature.title}</CardTitle>
+                <CardTitle className="text-xl">{feature.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                <CardDescription className="text-base">{feature.description}</CardDescription>
+                <CardDescription className="text-base leading-relaxed">{feature.description}</CardDescription>
               </CardContent>
             </Card>
           ))}
@@ -192,43 +250,56 @@ export default function LandingPage() {
       <StatsSection />
 
       {/* Pricing Section */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold mb-4">Choose Your Plan</h2>
-          <p className="text-slate-600 max-w-2xl mx-auto">
+      <section className="container mx-auto px-4 py-32 relative overflow-hidden">
+        <div className="absolute inset-0 -z-10 bg-slate-50/50 skew-y-3 transform origin-top-left" />
+
+        <div className="text-center mb-20">
+          <h2 className="text-4xl font-bold mb-6">Choose Your Plan</h2>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Start free and upgrade as your needs grow. Each tier unlocks more powerful AI capabilities.
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+
+        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-start">
           {tiers.map((tier, index) => (
             <Card
               key={index}
-              className={`relative ${tier.popular ? "border-purple-200 shadow-xl scale-105" : "border-slate-200"}`}
+              className={`relative transition-all duration-300 ${tier.popular
+                ? "border-primary/50 shadow-2xl scale-105 z-10 bg-white"
+                : "border-border shadow-lg hover:shadow-xl bg-white/60 backdrop-blur-sm"
+                }`}
             >
               {tier.popular && (
-                <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-600 to-blue-600">
-                  Most Popular
-                </Badge>
-              )}
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">{tier.name}</CardTitle>
-                <div className="text-3xl font-bold">
-                  {tier.price}
-                  {tier.price !== "Custom" && <span className="text-sm font-normal text-slate-500">/month</span>}
+                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                  <Badge className="bg-gradient-to-r from-primary to-purple-600 text-white border-0 px-4 py-1 text-sm font-medium shadow-lg">
+                    Most Popular
+                  </Badge>
                 </div>
-                <CardDescription>{tier.description}</CardDescription>
+              )}
+              <CardHeader className="text-center pt-10">
+                <CardTitle className="text-2xl font-bold">{tier.name}</CardTitle>
+                <div className="text-4xl font-bold mt-4 mb-2">
+                  {tier.price}
+                  {tier.price !== "Custom" && <span className="text-lg font-normal text-muted-foreground">/mo</span>}
+                </div>
+                <CardDescription className="text-base">{tier.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-3 mb-6">
+                <div className="space-y-4 mb-8">
                   {tier.features.map((feature, featureIndex) => (
-                    <li key={featureIndex} className="flex items-start space-x-2">
-                      <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm">{feature}</span>
-                    </li>
+                    <div key={featureIndex} className="flex items-start space-x-3">
+                      <div className="mt-1 bg-green-100 rounded-full p-0.5">
+                        <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+                      </div>
+                      <span className="text-sm text-slate-600">{feature}</span>
+                    </div>
                   ))}
-                </ul>
+                </div>
                 <Button
-                  className={`w-full ${tier.popular ? "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700" : ""}`}
+                  className={`w-full h-12 text-lg rounded-xl ${tier.popular
+                    ? "bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
+                    : "bg-secondary hover:bg-secondary/80 text-foreground"
+                    }`}
                   variant={tier.popular ? "default" : "outline"}
                 >
                   {tier.cta}

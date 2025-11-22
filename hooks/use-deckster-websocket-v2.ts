@@ -302,15 +302,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // Prevent duplicate messages by checking message_id
             const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
 
+            // Don't add status_update messages to chat - they're only for the status bar
+            const shouldAddToMessages = message.type !== 'status_update' && !isDuplicate;
+
             const newState = {
               ...prev,
-              messages: isDuplicate ? prev.messages : [...prev.messages, messageWithTimestamp],
+              messages: shouldAddToMessages ? [...prev.messages, messageWithTimestamp] : prev.messages,
             };
 
             // Handle specific message types
             switch (message.type) {
               case 'status_update':
+                console.log('📊 Status update:', message.payload.text, message.payload.progress ? `${message.payload.progress}%` : '');
                 newState.currentStatus = message.payload;
+                // Auto-clear status when complete
+                if (message.payload.status === 'complete' || message.payload.status === 'idle') {
+                  console.log('✅ Status complete/idle - will clear shortly');
+                  setTimeout(() => {
+                    setState(s => ({ ...s, currentStatus: null }));
+                  }, 2000);
+                }
                 break;
 
               case 'presentation_url':

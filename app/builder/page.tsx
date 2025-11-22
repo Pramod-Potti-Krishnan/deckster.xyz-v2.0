@@ -590,20 +590,22 @@ function BuilderContent() {
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel - Chat (25%) */}
           <div className="w-1/4 flex flex-col bg-white border-r">
-            {/* Status Bar */}
+            {/* Status Bar - Only shows when actively processing */}
             {currentStatus && (
-              <div className="p-4 border-b bg-gray-50">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                  <span className="text-sm">{currentStatus.text}</span>
+              <div className="px-4 py-3 border-b bg-gradient-to-r from-blue-50 to-purple-50 animate-in slide-in-from-top duration-300">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{currentStatus.text}</p>
+                    {currentStatus.estimated_time && (
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        ~{currentStatus.estimated_time}s remaining
+                      </p>
+                    )}
+                  </div>
                 </div>
-                {currentStatus.progress !== null && (
-                  <Progress value={currentStatus.progress} className="mt-2" />
-                )}
-                {currentStatus.estimated_time && (
-                  <p className="text-xs text-gray-600 mt-1">
-                    Estimated time: {currentStatus.estimated_time} seconds
-                  </p>
+                {currentStatus.progress !== null && currentStatus.progress > 0 && (
+                  <Progress value={currentStatus.progress} className="mt-2 h-1" />
                 )}
               </div>
             )}
@@ -683,14 +685,16 @@ function BuilderContent() {
                   if (item.messageType === 'user') {
                     // Render user message
                     return (
-                      <div key={item.id} className="flex gap-2 justify-end">
-                        <div className="flex-1 max-w-[80%]">
-                          <div className="bg-blue-600 text-white rounded-lg p-3">
-                            <p className="text-sm whitespace-pre-wrap">{item.text}</p>
+                      <div key={item.id} className="flex gap-3 justify-end animate-in slide-in-from-right duration-300">
+                        <div className="flex-1 max-w-[85%]">
+                          <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.text}</p>
                           </div>
                         </div>
-                        <div className="flex-shrink-0">
-                          <User className="h-6 w-6 text-blue-600" />
+                        <div className="flex-shrink-0 mt-1">
+                          <div className="bg-blue-100 rounded-full p-1.5">
+                            <User className="h-4 w-4 text-blue-600" />
+                          </div>
                         </div>
                       </div>
                     )
@@ -708,15 +712,17 @@ function BuilderContent() {
                                           chatMsg.payload.text.toLowerCase().includes('preview');
 
                     return (
-                      <div className="flex gap-2">
-                        <div className="flex-shrink-0">
-                          <Bot className="h-6 w-6 text-blue-600" />
+                      <div className="flex gap-3 animate-in slide-in-from-left duration-300">
+                        <div className="flex-shrink-0 mt-1">
+                          <div className="bg-purple-100 rounded-full p-1.5">
+                            <Bot className="h-4 w-4 text-purple-600" />
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <div className={`rounded-lg p-3 ${
+                        <div className="flex-1 max-w-[85%]">
+                          <div className={`rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm ${
                             isPreviewLink
-                              ? 'bg-blue-50 border border-blue-200'
-                              : 'bg-gray-100'
+                              ? 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'
+                              : 'bg-white border border-gray-200'
                           }`}>
                             <div className="text-sm prose prose-sm max-w-none">
                               <ReactMarkdown
@@ -726,11 +732,13 @@ function BuilderContent() {
                                       {...props}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-blue-600 hover:underline font-medium"
+                                      className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
                                     />
                                   ),
-                                  p: ({node, ...props}) => <p {...props} className="text-sm mb-0" />,
-                                  strong: ({node, ...props}) => <strong {...props} className="font-semibold" />
+                                  p: ({node, ...props}) => <p {...props} className="text-sm leading-relaxed mb-0 text-gray-800" />,
+                                  strong: ({node, ...props}) => <strong {...props} className="font-semibold text-gray-900" />,
+                                  ul: ({node, ...props}) => <ul {...props} className="space-y-1 my-2" />,
+                                  li: ({node, ...props}) => <li {...props} className="text-sm text-gray-700" />
                                 }}
                               >
                                 {chatMsg.payload.text}
@@ -753,24 +761,30 @@ function BuilderContent() {
                   } else if (msg.type === 'action_request') {
                     const actionMsg = msg as ActionRequest
                     return (
-                      <div className="space-y-2">
-                        <div className="flex gap-2">
-                          <div className="flex-shrink-0">
-                            <Bot className="h-6 w-6 text-blue-600" />
+                      <div className="space-y-3 animate-in slide-in-from-left duration-300">
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 mt-1">
+                            <div className="bg-purple-100 rounded-full p-1.5">
+                              <Bot className="h-4 w-4 text-purple-600" />
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <div className="bg-gray-100 rounded-lg p-3">
-                              <p className="text-sm font-medium">{actionMsg.payload.prompt_text}</p>
+                          <div className="flex-1 max-w-[85%]">
+                            <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
+                              <p className="text-sm font-medium text-gray-900">{actionMsg.payload.prompt_text}</p>
                             </div>
                           </div>
                         </div>
-                        <div className="ml-8 flex flex-wrap gap-2">
+                        <div className="ml-11 flex flex-wrap gap-2">
                           {actionMsg.payload.actions.map((action, i) => (
                             <Button
                               key={i}
                               size="sm"
                               variant={action.primary ? "default" : "outline"}
                               onClick={() => handleActionClick(action)}
+                              className={action.primary
+                                ? "bg-blue-600 hover:bg-blue-700 shadow-sm"
+                                : "hover:bg-gray-50 border-gray-300"
+                              }
                             >
                               {action.label}
                             </Button>
@@ -778,41 +792,46 @@ function BuilderContent() {
                         </div>
                       </div>
                     )
-                  } else if (msg.type === 'status_update') {
-                    const statusMsg = msg as StatusUpdate
-                    return (
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>{statusMsg.payload.text}</span>
-                        {statusMsg.payload.progress !== null && (
-                          <span className="text-xs">
-                            ({statusMsg.payload.progress}%)
-                          </span>
-                        )}
-                      </div>
-                    )
                   } else if (msg.type === 'slide_update') {
                     const slideMsg = msg as SlideUpdate
                     return (
-                      <div className="flex gap-2">
-                        <div className="flex-shrink-0">
-                          <Bot className="h-6 w-6 text-blue-600" />
+                      <div className="flex gap-3 animate-in slide-in-from-left duration-300">
+                        <div className="flex-shrink-0 mt-1">
+                          <div className="bg-purple-100 rounded-full p-1.5">
+                            <Bot className="h-4 w-4 text-purple-600" />
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                            <p className="text-sm font-medium text-blue-800">
-                              📊 Presentation Plan: {slideMsg.payload.metadata.main_title}
-                            </p>
-                            <p className="text-xs text-blue-600 mt-1">
-                              {slideMsg.payload.slides.length} slides • {slideMsg.payload.metadata.presentation_duration} minutes • Theme: {slideMsg.payload.metadata.overall_theme}
-                            </p>
-                            <div className="mt-3 space-y-1 max-h-40 overflow-y-auto">
+                        <div className="flex-1 max-w-[85%]">
+                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                            <div className="flex items-start gap-2">
+                              <span className="text-xl">📊</span>
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-blue-900">
+                                  {slideMsg.payload.metadata.main_title}
+                                </p>
+                                <p className="text-xs text-blue-700 mt-1 flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium">{slideMsg.payload.slides.length} slides</span>
+                                  <span className="text-blue-400">•</span>
+                                  <span>{slideMsg.payload.metadata.presentation_duration} min</span>
+                                  <span className="text-blue-400">•</span>
+                                  <span className="capitalize">{slideMsg.payload.metadata.overall_theme}</span>
+                                </p>
+                              </div>
+                            </div>
+                            <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
                               {slideMsg.payload.slides.map((slide, i) => (
-                                <div key={i} className="text-xs bg-white rounded p-2">
-                                  <span className="font-medium text-gray-700">
-                                    {slide.slide_number}. {slide.title}
-                                  </span>
-                                  <span className="text-gray-500 ml-2">({slide.slide_type})</span>
+                                <div key={i} className="text-xs bg-white/80 backdrop-blur rounded-lg px-3 py-2 border border-blue-100">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-blue-700 min-w-[1.5rem]">
+                                      {slide.slide_number}.
+                                    </span>
+                                    <span className="font-medium text-gray-800 flex-1">
+                                      {slide.title}
+                                    </span>
+                                    <span className="text-gray-500 text-[10px] uppercase tracking-wide">
+                                      {slide.slide_type}
+                                    </span>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -823,22 +842,29 @@ function BuilderContent() {
                   } else if (msg.type === 'presentation_url') {
                     const presMsg = msg as PresentationURL
                     return (
-                      <div className="flex gap-2">
-                        <div className="flex-shrink-0">
-                          <Bot className="h-6 w-6 text-blue-600" />
+                      <div className="flex gap-3 animate-in slide-in-from-left duration-300">
+                        <div className="flex-shrink-0 mt-1">
+                          <div className="bg-green-100 rounded-full p-1.5">
+                            <Bot className="h-4 w-4 text-green-600" />
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                            <p className="text-sm font-medium text-green-800">
-                              ✅ {presMsg.payload.message}
-                            </p>
-                            <p className="text-xs text-green-600 mt-1">
-                              {presMsg.payload.slide_count} slides generated successfully
-                            </p>
+                        <div className="flex-1 max-w-[85%]">
+                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                            <div className="flex items-start gap-2">
+                              <span className="text-xl">✅</span>
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-green-900">
+                                  {presMsg.payload.message}
+                                </p>
+                                <p className="text-xs text-green-700 mt-1">
+                                  {presMsg.payload.slide_count} slides ready to view
+                                </p>
+                              </div>
+                            </div>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="mt-2"
+                              className="mt-3 w-full bg-white hover:bg-green-50 border-green-300 text-green-700 hover:text-green-800"
                               onClick={() => window.open(presMsg.payload.url, '_blank')}
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
@@ -860,27 +886,34 @@ function BuilderContent() {
             </ScrollArea>
 
             {/* Chat Input */}
-            <div className="p-4 border-t">
-              <form onSubmit={handleSendMessage} className="flex gap-2">
-                <Textarea
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSendMessage()
-                    }
-                  }}
-                  placeholder={!isReady ? "Connecting to Director..." : "Type your message..."}
-                  disabled={!isReady}
-                  className="resize-none"
-                  rows={3}
-                />
+            <div className="p-4 border-t bg-gray-50/50">
+              <form onSubmit={handleSendMessage} className="flex gap-3">
+                <div className="flex-1 relative">
+                  <Textarea
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSendMessage()
+                      }
+                    }}
+                    placeholder={!isReady ? "Connecting to Director..." : "Type your message... (Shift+Enter for new line)"}
+                    disabled={!isReady}
+                    className="resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-xl shadow-sm"
+                    rows={3}
+                  />
+                  {!isReady && (
+                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] rounded-xl flex items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                    </div>
+                  )}
+                </div>
                 <Button
                   type="submit"
                   disabled={!isReady || !inputMessage.trim()}
                   size="icon"
-                  className="self-end"
+                  className="self-end bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-sm h-10 w-10"
                 >
                   <Send className="h-4 w-4" />
                 </Button>

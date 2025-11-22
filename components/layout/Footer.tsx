@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Sparkles, Shield, Lock, Award, Heart } from 'lucide-react';
+import { Shield, Lock, Award, Heart } from 'lucide-react';
 
 export function Footer() {
   const footerLinks = {
@@ -39,12 +39,11 @@ export function Footer() {
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center space-x-2 group mb-4">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 transition-transform group-hover:scale-105">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                deckster
-              </span>
+              <img
+                src="/logo-full.png"
+                alt="Deckster Logo"
+                className="h-14 w-auto transition-transform group-hover:scale-105"
+              />
             </Link>
             <p className="text-sm text-muted-foreground mb-4">
               Create stunning presentations with AI. Multi-agent intelligence for professional results.

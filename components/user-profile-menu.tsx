@@ -25,7 +25,6 @@ import {
   HelpCircle,
   LogOut,
   Crown,
-  Sparkles,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 
@@ -70,8 +69,8 @@ export function UserProfileMenu() {
           className="relative h-10 w-10 p-0 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
         >
           <Avatar className="h-10 w-10 border-2 border-gray-200 dark:border-gray-700">
-            <AvatarImage 
-              src={user.image || undefined} 
+            <AvatarImage
+              src={user.image || undefined}
               alt={user.name || "User avatar"}
             />
             <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-500 text-white font-medium">
@@ -90,17 +89,17 @@ export function UserProfileMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        
+
         <DropdownMenuItem onClick={() => handleNavigation("/profile")}>
           <User className="mr-2 h-4 w-4" />
           <span>Profile</span>
         </DropdownMenuItem>
-        
+
         <DropdownMenuItem onClick={() => handleNavigation("/settings/account")}>
           <Settings className="mr-2 h-4 w-4" />
           <span>Account Settings</span>
         </DropdownMenuItem>
-        
+
         <DropdownMenuItem onClick={() => handleNavigation("/billing")}>
           <CreditCard className="mr-2 h-4 w-4" />
           <span>Billing & Subscription</span>
@@ -110,9 +109,9 @@ export function UserProfileMenu() {
             </Badge>
           )}
         </DropdownMenuItem>
-        
+
         <DropdownMenuSeparator />
-        
+
         <DropdownMenuItem onClick={toggleTheme}>
           {theme === "dark" ? (
             <>
@@ -126,20 +125,20 @@ export function UserProfileMenu() {
             </>
           )}
         </DropdownMenuItem>
-        
+
         <DropdownMenuItem onClick={() => handleNavigation("/shortcuts")}>
           <Keyboard className="mr-2 h-4 w-4" />
           <span>Keyboard Shortcuts</span>
           <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
         </DropdownMenuItem>
-        
+
         <DropdownMenuItem onClick={() => handleNavigation("/help")}>
           <HelpCircle className="mr-2 h-4 w-4" />
           <span>Help & Support</span>
         </DropdownMenuItem>
-        
+
         <DropdownMenuSeparator />
-        
+
         <DropdownMenuItem onClick={handleLogout} className="text-red-600 dark:text-red-400">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sign Out</span>
