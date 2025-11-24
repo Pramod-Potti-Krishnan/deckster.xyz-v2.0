@@ -2,7 +2,13 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, FileText, Presentation } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Download, FileText, Presentation, ChevronDown } from 'lucide-react';
 import { downloadPDF, downloadPPTX, DownloadQuality } from '@/lib/api/download-service';
 import { useToast } from '@/hooks/use-toast';
 
@@ -98,24 +104,17 @@ export function PresentationDownloadControls({
       return;
     }
 
-    if (!slideCount || slideCount <= 0) {
-      toast({
-        title: 'Download Not Available',
-        description: 'Slide count is not available yet',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setIsDownloadingPPTX(true);
 
     try {
-      const result = await downloadPPTX(presentationUrl, slideCount, quality);
+      // Use slideCount if available, otherwise default to 1 (backend will auto-detect)
+      const effectiveSlideCount = slideCount && slideCount > 0 ? slideCount : 1;
+      const result = await downloadPPTX(presentationUrl, effectiveSlideCount, quality);
 
       if (result.success) {
         toast({
           title: 'PPTX Download Started',
-          description: `Your PowerPoint is being downloaded (${quality} quality, ${slideCount} slides)`,
+          description: `Your PowerPoint is being downloaded (${quality} quality)`,
         });
       } else {
         toast({
@@ -144,61 +143,57 @@ export function PresentationDownloadControls({
     return `Download ${format} (${stageLabel} version, ${quality} quality)`;
   };
 
+  const isDownloading = isDownloadingPDF || isDownloadingPPTX;
+
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <Button
-        onClick={handleDownloadPDF}
-        disabled={!isDownloadEnabled || isDownloadingPDF}
-        size="sm"
-        variant="outline"
-        className="shadow-md"
-        title={getTooltip('PDF')}
-      >
-        {isDownloadingPDF ? (
-          <>
-            <Download className="mr-2 h-4 w-4 animate-spin" />
-            Converting...
-          </>
-        ) : (
-          <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            disabled={!isDownloadEnabled || isDownloading}
+            size="sm"
+            variant="outline"
+            className="h-8"
+            title={!isDownloadEnabled ? 'Waiting for presentation...' : 'Download as PDF or PPTX'}
+          >
+            {isDownloading ? (
+              <>
+                <Download className="mr-1 h-3.5 w-3.5 animate-spin" />
+                Converting...
+              </>
+            ) : (
+              <>
+                <Download className="mr-1 h-3.5 w-3.5" />
+                Download
+                <ChevronDown className="ml-1 h-3 w-3" />
+              </>
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem
+            onClick={handleDownloadPDF}
+            disabled={isDownloading}
+            className="cursor-pointer"
+          >
             <FileText className="mr-2 h-4 w-4" />
-            Download PDF
-          </>
-        )}
-      </Button>
-
-      <Button
-        onClick={handleDownloadPPTX}
-        disabled={!isDownloadEnabled || isDownloadingPPTX || !slideCount}
-        size="sm"
-        variant="outline"
-        className="shadow-md"
-        title={getTooltip('PPTX')}
-      >
-        {isDownloadingPPTX ? (
-          <>
-            <Download className="mr-2 h-4 w-4 animate-spin" />
-            Converting...
-          </>
-        ) : (
-          <>
+            <span>Download as PDF</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={handleDownloadPPTX}
+            disabled={isDownloading}
+            className="cursor-pointer"
+          >
             <Presentation className="mr-2 h-4 w-4" />
-            Download PPTX
-          </>
-        )}
-      </Button>
-
-      {/* Status indicator */}
-      {isDownloadEnabled && (
-        <span className="text-xs text-muted-foreground ml-2">
-          ({getStageLabel()}, {slideCount || '?'} slides)
-        </span>
-      )}
+            <span>Download as PPTX</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* Loading hint */}
-      {(isDownloadingPDF || isDownloadingPPTX) && (
+      {isDownloading && (
         <span className="text-xs text-muted-foreground">
-          (conversion takes 5-15 seconds)
+          (5-15 sec)
         </span>
       )}
     </div>

@@ -75,10 +75,12 @@ export function PresentationViewer({
   className = ''
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(1)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
@@ -233,11 +235,25 @@ export function PresentationViewer({
     }
   }, [onEditModeChange])
 
-  const handleFullscreen = useCallback(() => {
-    if (!presentationId) return
-    // This will be handled by parent component - just notify
-    window.open(`/presentation/${presentationId}`, '_blank')
-  }, [presentationId])
+  const handleFullscreen = useCallback(async () => {
+    if (!containerRef.current) return
+
+    try {
+      if (!document.fullscreenElement) {
+        // Enter fullscreen
+        await containerRef.current.requestFullscreen()
+        setIsFullscreen(true)
+        console.log('🖥️ Entered fullscreen mode')
+      } else {
+        // Exit fullscreen
+        await document.exitFullscreen()
+        setIsFullscreen(false)
+        console.log('🖥️ Exited fullscreen mode')
+      }
+    } catch (error) {
+      console.error('❌ Fullscreen error:', error)
+    }
+  }, [])
 
   // Debug: Log button states
   useEffect(() => {
@@ -246,8 +262,18 @@ export function PresentationViewer({
     console.log(`   Next disabled: ${currentSlide === totalSlides}`)
   }, [currentSlide, totalSlides])
 
+  // Handle fullscreen change events (user presses ESC or F11)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
   return (
-    <div className={`flex flex-col h-full ${className}`}>
+    <div ref={containerRef} className={`flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
       {/* Control Toolbar */}
       {showControls && (
         <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b">
@@ -257,7 +283,7 @@ export function PresentationViewer({
               size="sm"
               variant="outline"
               onClick={handlePrevSlide}
-              disabled={currentSlide === 1}
+              disabled={currentSlide <= 1}
               className="h-8"
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
@@ -267,7 +293,7 @@ export function PresentationViewer({
               size="sm"
               variant="outline"
               onClick={handleNextSlide}
-              disabled={currentSlide === totalSlides}
+              disabled={totalSlides ? currentSlide >= totalSlides : false}
               className="h-8"
             >
               Next
@@ -326,8 +352,8 @@ export function PresentationViewer({
               size="sm"
               variant="outline"
               onClick={handleFullscreen}
-              disabled={!presentationId}
               className="h-8"
+              title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
             >
               <Maximize2 className="h-4 w-4" />
             </Button>
@@ -341,19 +367,19 @@ export function PresentationViewer({
 
           {/* Slide Counter */}
           <div className="text-sm font-medium text-gray-600">
-            Slide {currentSlide} / {totalSlides}
+            Slide {currentSlide} / {totalSlides || '?'}
           </div>
         </div>
       )}
 
       {/* Presentation Iframe */}
-      <div className="flex-1 relative bg-gray-900 flex items-center justify-center p-8">
+      <div className={`flex-1 relative bg-gray-900 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-8'}`}>
         {presentationUrl ? (
-          <div className="w-full max-w-7xl" style={{ aspectRatio: '16/9' }}>
+          <div className={`w-full ${isFullscreen ? 'h-full' : 'max-w-7xl'}`} style={isFullscreen ? undefined : { aspectRatio: '16/9' }}>
             <iframe
               ref={iframeRef}
               src={presentationUrl}
-              className="w-full h-full border-0 rounded-lg shadow-2xl"
+              className={`w-full h-full border-0 ${isFullscreen ? '' : 'rounded-lg shadow-2xl'}`}
               title="Presentation Viewer"
               allow="fullscreen"
             />
