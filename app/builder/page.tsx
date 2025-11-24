@@ -9,6 +9,7 @@ import { useSessionPersistence } from "@/hooks/use-session-persistence"
 import ReactMarkdown from 'react-markdown'
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
 import { ConnectionError } from "@/components/connection-error"
+import { PresentationViewer } from "@/components/presentation-viewer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -1211,7 +1212,7 @@ function BuilderContent() {
           {/* Right Panel - Presentation Display (75%) */}
           <div className="flex-1 flex flex-col bg-gray-100 relative">
             {/* Download Controls - Floating at top-right */}
-            <div className="absolute top-4 right-4 z-10">
+            <div className="absolute top-4 right-4 z-20">
               <PresentationDownloadControls
                 presentationUrl={presentationUrl}
                 presentationId={presentationId}
@@ -1221,38 +1222,19 @@ function BuilderContent() {
             </div>
 
             {presentationUrl ? (
-              <div className="flex-1 flex items-center justify-center p-8">
-                {/* 16:9 aspect ratio container */}
-                <div className="w-full h-full flex items-center justify-center">
-                  <div
-                    className="relative w-full bg-black shadow-2xl"
-                    style={{
-                      aspectRatio: '16 / 9',
-                      maxHeight: 'calc(100% - 2rem)',
-                      maxWidth: 'calc((100vh - 2rem - 4rem) * 16 / 9)' // Account for header height
-                    }}
-                  >
-                    {/*
-                      IMPORTANT: This iframe loads Google Slides presentations.
-                      You may see Chart.js/Recharts errors in the browser console like:
-                      "TypeError: n.label.call is not a function"
-
-                      These errors come from INSIDE the Google Slides iframe (cross-origin),
-                      not from our React code. They occur when Google Slides presentations
-                      contain charts and the user enters/exits edit mode.
-
-                      This is EXPECTED BEHAVIOR and does not affect our app's functionality.
-                      The errors are cosmetic and can be safely ignored.
-                    */}
-                    <iframe
-                      src={presentationUrl}
-                      className="absolute inset-0 w-full h-full border-none"
-                      title="Presentation"
-                      allow="fullscreen"
-                    />
-                  </div>
-                </div>
-              </div>
+              <PresentationViewer
+                presentationUrl={presentationUrl}
+                presentationId={presentationId}
+                slideCount={slideCount}
+                showControls={true}
+                onSlideChange={(slideNum) => {
+                  console.log(`📍 Viewing slide ${slideNum}`)
+                }}
+                onEditModeChange={(isEditing) => {
+                  console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
+                }}
+                className="flex-1"
+              />
             ) : (
               <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
