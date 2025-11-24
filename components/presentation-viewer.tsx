@@ -80,6 +80,37 @@ export function PresentationViewer({
   const [currentSlide, setCurrentSlide] = useState(1)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
 
+  // Define handlers FIRST (before effects that use them)
+  const handleNextSlide = useCallback(async () => {
+    if (!iframeRef.current) return
+    try {
+      await sendCommand(iframeRef.current, 'nextSlide')
+      console.log('➡️ Next slide')
+    } catch (error) {
+      console.error('Error navigating to next slide:', error)
+    }
+  }, [])
+
+  const handlePrevSlide = useCallback(async () => {
+    if (!iframeRef.current) return
+    try {
+      await sendCommand(iframeRef.current, 'prevSlide')
+      console.log('⬅️ Previous slide')
+    } catch (error) {
+      console.error('Error navigating to previous slide:', error)
+    }
+  }, [])
+
+  const handleToggleOverview = useCallback(async () => {
+    if (!iframeRef.current) return
+    try {
+      const result = await sendCommand(iframeRef.current, 'toggleOverview')
+      console.log(`🔲 Overview mode: ${result.isOverview ? 'ON' : 'OFF'}`)
+    } catch (error) {
+      console.error('Error toggling overview:', error)
+    }
+  }, [])
+
   // Poll for slide info updates via postMessage
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -101,7 +132,7 @@ export function PresentationViewer({
     return () => clearInterval(interval)
   }, [onSlideChange])
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts (handlers are now defined above)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!iframeRef.current) return
@@ -132,36 +163,6 @@ export function PresentationViewer({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleNextSlide, handlePrevSlide, handleToggleOverview])
-
-  const handleNextSlide = useCallback(async () => {
-    if (!iframeRef.current) return
-    try {
-      await sendCommand(iframeRef.current, 'nextSlide')
-      console.log('➡️ Next slide')
-    } catch (error) {
-      console.error('Error navigating to next slide:', error)
-    }
-  }, [])
-
-  const handlePrevSlide = useCallback(async () => {
-    if (!iframeRef.current) return
-    try {
-      await sendCommand(iframeRef.current, 'prevSlide')
-      console.log('⬅️ Previous slide')
-    } catch (error) {
-      console.error('Error navigating to previous slide:', error)
-    }
-  }, [])
-
-  const handleToggleOverview = useCallback(async () => {
-    if (!iframeRef.current) return
-    try {
-      const result = await sendCommand(iframeRef.current, 'toggleOverview')
-      console.log(`🔲 Overview mode: ${result.isOverview ? 'ON' : 'OFF'}`)
-    } catch (error) {
-      console.error('Error toggling overview:', error)
-    }
-  }, [])
 
   const handleToggleEditMode = useCallback(async () => {
     if (!iframeRef.current) return
