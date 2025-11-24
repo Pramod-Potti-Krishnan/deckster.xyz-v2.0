@@ -82,7 +82,11 @@ export function PresentationViewer({
 
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
-    if (!iframeRef.current) return
+    console.log('🔘 Next button clicked!')
+    if (!iframeRef.current) {
+      console.log('❌ Iframe not ready')
+      return
+    }
     try {
       await sendCommand(iframeRef.current, 'nextSlide')
       console.log('➡️ Next slide')
@@ -92,7 +96,11 @@ export function PresentationViewer({
   }, [])
 
   const handlePrevSlide = useCallback(async () => {
-    if (!iframeRef.current) return
+    console.log('🔘 Prev button clicked!')
+    if (!iframeRef.current) {
+      console.log('❌ Iframe not ready')
+      return
+    }
     try {
       await sendCommand(iframeRef.current, 'prevSlide')
       console.log('⬅️ Previous slide')
@@ -102,7 +110,11 @@ export function PresentationViewer({
   }, [])
 
   const handleToggleOverview = useCallback(async () => {
-    if (!iframeRef.current) return
+    console.log('🔘 Grid button clicked!')
+    if (!iframeRef.current) {
+      console.log('❌ Iframe not ready')
+      return
+    }
     try {
       const result = await sendCommand(iframeRef.current, 'toggleOverview')
       console.log(`🔲 Overview mode: ${result.isOverview ? 'ON' : 'OFF'}`)
@@ -120,12 +132,14 @@ export function PresentationViewer({
         const result = await sendCommand(iframeRef.current, 'getCurrentSlideInfo')
         if (result.success && result.data) {
           const slideNum = result.data.index + 1 // Convert 0-based to 1-based
+          console.log(`📊 Slide info: ${slideNum} / ${result.data.total}`)
           setCurrentSlide(slideNum)
           setTotalSlides(result.data.total)
           onSlideChange?.(slideNum)
         }
       } catch (error) {
         // Silently fail during polling - iframe might not be ready yet
+        console.log('⏸️ Polling failed (iframe not ready)')
       }
     }, 500)
 
@@ -165,7 +179,11 @@ export function PresentationViewer({
   }, [handleNextSlide, handlePrevSlide, handleToggleOverview])
 
   const handleToggleEditMode = useCallback(async () => {
-    if (!iframeRef.current) return
+    console.log('🔘 Edit button clicked!')
+    if (!iframeRef.current) {
+      console.log('❌ Iframe not ready')
+      return
+    }
     try {
       const result = await sendCommand(iframeRef.current, 'toggleEditMode')
       const newEditMode = result.isEditing
@@ -220,6 +238,13 @@ export function PresentationViewer({
     // This will be handled by parent component - just notify
     window.open(`/presentation/${presentationId}`, '_blank')
   }, [presentationId])
+
+  // Debug: Log button states
+  useEffect(() => {
+    console.log(`🎯 Button states - currentSlide: ${currentSlide}, totalSlides: ${totalSlides}`)
+    console.log(`   Prev disabled: ${currentSlide === 1}`)
+    console.log(`   Next disabled: ${currentSlide === totalSlides}`)
+  }, [currentSlide, totalSlides])
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
