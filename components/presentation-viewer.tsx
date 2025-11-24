@@ -9,6 +9,7 @@ interface PresentationViewerProps {
   presentationId: string | null
   slideCount: number | null
   showControls?: boolean
+  downloadControls?: React.ReactNode
   onSlideChange?: (slideNumber: number) => void
   onEditModeChange?: (isEditing: boolean) => void
   className?: string
@@ -19,62 +20,91 @@ interface SlideInfo {
   total: number
 }
 
+// Viewer origin for postMessage communication
+const VIEWER_ORIGIN = 'https://web-production-f0d13.up.railway.app'
+
+/**
+ * Send command to iframe via postMessage (cross-origin safe)
+ */
+function sendCommand(
+  iframe: HTMLIFrameElement | null,
+  action: string,
+  params?: Record<string, any>
+): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if (!iframe) {
+      reject(new Error('Iframe not ready'))
+      return
+    }
+
+    const handler = (event: MessageEvent) => {
+      // Only accept messages from viewer origin
+      if (event.origin !== VIEWER_ORIGIN) return
+
+      if (event.data.action === action) {
+        window.removeEventListener('message', handler)
+
+        if (event.data.success) {
+          resolve(event.data)
+        } else {
+          reject(new Error(event.data.error || 'Command failed'))
+        }
+      }
+    }
+
+    window.addEventListener('message', handler)
+
+    // Timeout after 5 seconds
+    setTimeout(() => {
+      window.removeEventListener('message', handler)
+      reject(new Error('Command timeout'))
+    }, 5000)
+
+    iframe.contentWindow?.postMessage({ action, params }, VIEWER_ORIGIN)
+  })
+}
+
 export function PresentationViewer({
   presentationUrl,
   presentationId,
   slideCount,
   showControls = true,
+  downloadControls,
   onSlideChange,
   onEditModeChange,
   className = ''
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const [iframeWindow, setIframeWindow] = useState<Window | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(1)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
 
-  // Initialize iframe window reference on load
+  // Poll for slide info updates via postMessage
   useEffect(() => {
-    const handleLoad = () => {
-      if (iframeRef.current?.contentWindow) {
-        console.log('📺 Presentation iframe loaded successfully')
-        setIframeWindow(iframeRef.current.contentWindow)
-      }
-    }
+    const interval = setInterval(async () => {
+      if (!iframeRef.current) return
 
-    const iframe = iframeRef.current
-    iframe?.addEventListener('load', handleLoad)
-
-    return () => iframe?.removeEventListener('load', handleLoad)
-  }, [presentationUrl])
-
-  // Poll for slide info updates
-  useEffect(() => {
-    if (!iframeWindow) return
-
-    const interval = setInterval(() => {
       try {
-        const info = (iframeWindow as any).getCurrentSlideInfo?.() as SlideInfo | undefined
-        if (info) {
-          const slideNum = info.index + 1 // Convert 0-based to 1-based
+        const result = await sendCommand(iframeRef.current, 'getCurrentSlideInfo')
+        if (result.success && result.data) {
+          const slideNum = result.data.index + 1 // Convert 0-based to 1-based
           setCurrentSlide(slideNum)
-          setTotalSlides(info.total)
+          setTotalSlides(result.data.total)
           onSlideChange?.(slideNum)
         }
       } catch (error) {
-        console.error('Error getting slide info:', error)
+        // Silently fail during polling - iframe might not be ready yet
       }
     }, 500)
 
     return () => clearInterval(interval)
-  }, [iframeWindow, onSlideChange])
+  }, [onSlideChange])
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!iframeWindow) return
+      if (!iframeRef.current) return
 
       // Only handle if not in an input/textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -101,46 +131,43 @@ export function PresentationViewer({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [iframeWindow])
+  }, [handleNextSlide, handlePrevSlide, handleToggleOverview])
 
-  const handleNextSlide = useCallback(() => {
-    if (!iframeWindow) return
+  const handleNextSlide = useCallback(async () => {
+    if (!iframeRef.current) return
     try {
-      ;(iframeWindow as any).Reveal?.next()
+      await sendCommand(iframeRef.current, 'nextSlide')
       console.log('➡️ Next slide')
     } catch (error) {
       console.error('Error navigating to next slide:', error)
     }
-  }, [iframeWindow])
+  }, [])
 
-  const handlePrevSlide = useCallback(() => {
-    if (!iframeWindow) return
+  const handlePrevSlide = useCallback(async () => {
+    if (!iframeRef.current) return
     try {
-      ;(iframeWindow as any).Reveal?.prev()
+      await sendCommand(iframeRef.current, 'prevSlide')
       console.log('⬅️ Previous slide')
     } catch (error) {
       console.error('Error navigating to previous slide:', error)
     }
-  }, [iframeWindow])
+  }, [])
 
-  const handleToggleOverview = useCallback(() => {
-    if (!iframeWindow) return
+  const handleToggleOverview = useCallback(async () => {
+    if (!iframeRef.current) return
     try {
-      ;(iframeWindow as any).toggleOverview?.()
-      console.log('🔲 Toggled overview mode')
+      const result = await sendCommand(iframeRef.current, 'toggleOverview')
+      console.log(`🔲 Overview mode: ${result.isOverview ? 'ON' : 'OFF'}`)
     } catch (error) {
       console.error('Error toggling overview:', error)
     }
-  }, [iframeWindow])
+  }, [])
 
-  const handleToggleEditMode = useCallback(() => {
-    if (!iframeWindow) return
+  const handleToggleEditMode = useCallback(async () => {
+    if (!iframeRef.current) return
     try {
-      ;(iframeWindow as any).toggleEditMode?.()
-
-      // Check if edit mode was actually toggled
-      const body = (iframeWindow as any).document?.body
-      const newEditMode = body?.getAttribute('data-mode') === 'edit'
+      const result = await sendCommand(iframeRef.current, 'toggleEditMode')
+      const newEditMode = result.isEditing
       setIsEditMode(newEditMode)
       onEditModeChange?.(newEditMode)
 
@@ -148,14 +175,14 @@ export function PresentationViewer({
     } catch (error) {
       console.error('Error toggling edit mode:', error)
     }
-  }, [iframeWindow, onEditModeChange])
+  }, [onEditModeChange])
 
   const handleSaveChanges = useCallback(async () => {
-    if (!iframeWindow) return
+    if (!iframeRef.current) return
 
     setIsSaving(true)
     try {
-      await (iframeWindow as any).saveAllChanges?.()
+      await sendCommand(iframeRef.current, 'saveAllChanges')
       console.log('💾 Changes saved successfully')
 
       // Exit edit mode after saving
@@ -167,10 +194,10 @@ export function PresentationViewer({
     } finally {
       setIsSaving(false)
     }
-  }, [iframeWindow, onEditModeChange])
+  }, [onEditModeChange])
 
-  const handleCancelEdits = useCallback(() => {
-    if (!iframeWindow) return
+  const handleCancelEdits = useCallback(async () => {
+    if (!iframeRef.current) return
 
     // Confirm before canceling
     if (!confirm('Are you sure you want to discard all changes?')) {
@@ -178,14 +205,14 @@ export function PresentationViewer({
     }
 
     try {
-      ;(iframeWindow as any).cancelEdits?.()
+      await sendCommand(iframeRef.current, 'cancelEdits')
       setIsEditMode(false)
       onEditModeChange?.(false)
       console.log('🚫 Edits canceled')
     } catch (error) {
       console.error('Error canceling edits:', error)
     }
-  }, [iframeWindow, onEditModeChange])
+  }, [onEditModeChange])
 
   const handleFullscreen = useCallback(() => {
     if (!presentationId) return
@@ -204,7 +231,7 @@ export function PresentationViewer({
               size="sm"
               variant="outline"
               onClick={handlePrevSlide}
-              disabled={!iframeWindow || currentSlide === 1}
+              disabled={currentSlide === 1}
               className="h-8"
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
@@ -214,7 +241,7 @@ export function PresentationViewer({
               size="sm"
               variant="outline"
               onClick={handleNextSlide}
-              disabled={!iframeWindow || currentSlide === totalSlides}
+              disabled={currentSlide === totalSlides}
               className="h-8"
             >
               Next
@@ -226,7 +253,6 @@ export function PresentationViewer({
               size="sm"
               variant="outline"
               onClick={handleToggleOverview}
-              disabled={!iframeWindow}
               className="h-8"
               title="Grid view (Esc)"
             >
@@ -239,7 +265,6 @@ export function PresentationViewer({
                 size="sm"
                 variant="outline"
                 onClick={handleToggleEditMode}
-                disabled={!iframeWindow}
                 className="h-8"
               >
                 <Edit3 className="h-4 w-4 mr-1" />
@@ -251,7 +276,7 @@ export function PresentationViewer({
                   size="sm"
                   variant="default"
                   onClick={handleSaveChanges}
-                  disabled={!iframeWindow || isSaving}
+                  disabled={isSaving}
                   className="h-8 bg-green-600 hover:bg-green-700"
                 >
                   <Save className="h-4 w-4 mr-1" />
@@ -261,7 +286,7 @@ export function PresentationViewer({
                   size="sm"
                   variant="outline"
                   onClick={handleCancelEdits}
-                  disabled={!iframeWindow || isSaving}
+                  disabled={isSaving}
                   className="h-8"
                 >
                   <X className="h-4 w-4 mr-1" />
@@ -280,6 +305,12 @@ export function PresentationViewer({
             >
               <Maximize2 className="h-4 w-4" />
             </Button>
+
+            {/* Divider */}
+            {downloadControls && <div className="h-6 w-px bg-gray-300 mx-2" />}
+
+            {/* Download Controls */}
+            {downloadControls}
           </div>
 
           {/* Slide Counter */}
@@ -290,17 +321,19 @@ export function PresentationViewer({
       )}
 
       {/* Presentation Iframe */}
-      <div className="flex-1 relative bg-gray-100">
+      <div className="flex-1 relative bg-gray-900 flex items-center justify-center p-8">
         {presentationUrl ? (
-          <iframe
-            ref={iframeRef}
-            src={presentationUrl}
-            className="w-full h-full border-0"
-            title="Presentation Viewer"
-            allow="fullscreen"
-          />
+          <div className="w-full max-w-7xl" style={{ aspectRatio: '16/9' }}>
+            <iframe
+              ref={iframeRef}
+              src={presentationUrl}
+              className="w-full h-full border-0 rounded-lg shadow-2xl"
+              title="Presentation Viewer"
+              allow="fullscreen"
+            />
+          </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div className="flex items-center justify-center text-gray-400">
             <p>No presentation to display</p>
           </div>
         )}

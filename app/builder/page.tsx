@@ -1210,23 +1210,21 @@ function BuilderContent() {
           </div>
 
           {/* Right Panel - Presentation Display (75%) */}
-          <div className="flex-1 flex flex-col bg-gray-100 relative">
-            {/* Download Controls - Floating at top-right */}
-            <div className="absolute top-4 right-4 z-20">
-              <PresentationDownloadControls
-                presentationUrl={presentationUrl}
-                presentationId={presentationId}
-                slideCount={slideCount}
-                stage={currentStage}
-              />
-            </div>
-
+          <div className="flex-1 flex flex-col bg-gray-100">
             {presentationUrl ? (
               <PresentationViewer
                 presentationUrl={presentationUrl}
                 presentationId={presentationId}
                 slideCount={slideCount}
                 showControls={true}
+                downloadControls={
+                  <PresentationDownloadControls
+                    presentationUrl={presentationUrl}
+                    presentationId={presentationId}
+                    slideCount={slideCount}
+                    stage={currentStage}
+                  />
+                }
                 onSlideChange={(slideNum) => {
                   console.log(`📍 Viewing slide ${slideNum}`)
                 }}

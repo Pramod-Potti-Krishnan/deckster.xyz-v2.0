@@ -25,8 +25,8 @@ export default function PresentationPage({ params }: PresentationPageProps) {
         setIsLoading(true)
         setError(null)
 
-        // Use the v7.5-main presentation viewer URL
-        const viewerUrl = `https://web-production-f0d13.up.railway.app/viewer/${id}`
+        // Use the v7.5-main presentation viewer URL (correct format: /p/{id})
+        const viewerUrl = `https://web-production-f0d13.up.railway.app/p/${id}`
 
         setPresentationUrl(viewerUrl)
 
