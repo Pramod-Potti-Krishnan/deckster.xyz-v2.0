@@ -13,7 +13,7 @@ export function Footer() {
     ],
     company: [
       { name: 'About', href: '/about' },
-      { name: 'Blog', href: '/resources' },
+      { name: 'Blog', href: '/blog' },
       { name: 'Agents', href: '/agents' },
       { name: 'Compare', href: '/compare' },
       { name: 'Careers', href: '/careers' },
@@ -25,10 +25,10 @@ export function Footer() {
       { name: 'Community', href: '/community' },
     ],
     legal: [
-      { name: 'Privacy', href: '/privacy' },
-      { name: 'Terms', href: '/terms' },
-      { name: 'Security', href: '/security' },
-      { name: 'Cookies', href: '/cookies' },
+      { name: 'Privacy', href: '/legal/privacy' },
+      { name: 'Terms', href: '/legal/terms' },
+      { name: 'Security', href: '/legal/security' },
+      { name: 'Cookies', href: '/legal/cookies' },
     ],
   };
 
@@ -86,37 +86,26 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Product Links */}
+          {/* Product Column */}
           <div>
             <h3 className="font-semibold mb-4">Product</h3>
             <ul className="space-y-3">
-              {footerLinks.product.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
+              <li><Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</Link></li>
+              <li><Link href="/enterprise" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Enterprise</Link></li>
+              <li><Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Agents</Link></li>
+              <li><Link href="/templates" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Templates</Link></li>
+              <li><Link href="/builder" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Builder</Link></li>
             </ul>
           </div>
 
-          {/* Company Links */}
+          {/* Company Column */}
           <div>
             <h3 className="font-semibold mb-4">Company</h3>
             <ul className="space-y-3">
-              {footerLinks.company.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
+              <li><Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">About Us</Link></li>
+              <li><Link href="/careers" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Careers</Link></li>
+              <li><Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</Link></li>
+              <li><Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Blog</Link></li>
             </ul>
           </div>
 

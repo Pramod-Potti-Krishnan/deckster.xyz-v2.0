@@ -8,10 +8,10 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: {
-    default: 'Deckster - AI-Powered Presentation Builder',
+    default: 'Deckster | AI-Powered Presentation Generator',
     template: '%s | Deckster'
   },
-  description: 'Create stunning presentations with AI. Deckster uses multi-agent AI to help you build engaging, professional presentations in minutes.',
+  description: 'Create stunning presentations in minutes with Deckster. Our multi-agent AI system writes, designs, and visualizes your slides automatically.',
   keywords: ['presentation builder', 'AI presentations', 'slide deck creator', 'Deckster', 'presentation software'],
   authors: [{ name: 'Deckster Team' }],
   creator: 'Deckster',

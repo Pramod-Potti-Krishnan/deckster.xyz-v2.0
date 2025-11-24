@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Header, Footer } from "@/components/layout"
+import { PageHeader } from "@/components/marketing/PageHeader"
+import { Section } from "@/components/marketing/Section"
 import {
   BookOpen,
   MessageSquare,
@@ -27,6 +29,8 @@ import {
   Shield
 } from "lucide-react"
 import Link from "next/link"
+import { motion } from "framer-motion"
+import { Metadata } from "next"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -37,12 +41,14 @@ interface FAQItem {
   category: string
 }
 
+
+
 export default function HelpPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
-  
+
   // Contact form state
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
@@ -168,13 +174,13 @@ export default function HelpPage() {
     {
       category: "Troubleshooting",
       question: "How do I report a bug or suggest a feature?",
-      answer: "Use the contact form on this page or email support@deckster.com. For feature requests, we love detailed descriptions of how the feature would help your workflow!"
+      answer: "Use the contact form on this page or email support@deckster.xyz. For feature requests, we love detailed descriptions of how the feature would help your workflow!"
     }
   ]
 
   const filteredFAQ = faqItems.filter(item => {
     const matchesSearch = item.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.answer.toLowerCase().includes(searchQuery.toLowerCase())
+      item.answer.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = selectedCategory === "all" || item.category === selectedCategory
     return matchesSearch && matchesCategory
   })
@@ -184,15 +190,15 @@ export default function HelpPage() {
   const handleSubmitSupport = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    
+
     // TODO: Implement actual support ticket submission
     await new Promise(resolve => setTimeout(resolve, 1500))
-    
+
     setIsSubmitting(false)
     setShowSuccess(true)
     setSubject("")
     setMessage("")
-    
+
     setTimeout(() => setShowSuccess(false), 5000)
   }
 
@@ -208,57 +214,48 @@ export default function HelpPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       <Header />
 
       {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Help & Support</h1>
-          <p className="text-slate-600">Get help with deckster and learn how to make the most of our platform</p>
-        </div>
+      <PageHeader
+        title="Help & Support"
+        subtitle="Get help with Deckster and learn how to make the most of our platform"
+        badge={{
+          text: "Support Center",
+          icon: <Shield className="h-3 w-3" />
+        }}
+      />
+
+      {/* Main Content */}
+      <Section className="flex-1 py-8">
 
         {/* Quick Links */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader className="pb-3">
-              <BookOpen className="h-8 w-8 text-purple-600 mb-2" />
-              <CardTitle className="text-lg">Documentation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Browse our comprehensive guides</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader className="pb-3">
-              <Video className="h-8 w-8 text-blue-600 mb-2" />
-              <CardTitle className="text-lg">Video Tutorials</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Watch step-by-step tutorials</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader className="pb-3">
-              <MessageSquare className="h-8 w-8 text-green-600 mb-2" />
-              <CardTitle className="text-lg">Community</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Join our user community</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <CardHeader className="pb-3">
-              <Mail className="h-8 w-8 text-orange-600 mb-2" />
-              <CardTitle className="text-lg">Contact Us</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Get direct support</p>
-            </CardContent>
-          </Card>
+          {[
+            { icon: BookOpen, title: "Documentation", desc: "Browse our comprehensive guides", color: "text-purple-600" },
+            { icon: Video, title: "Video Tutorials", desc: "Watch step-by-step tutorials", color: "text-blue-600" },
+            { icon: MessageSquare, title: "Community", desc: "Join our user community", color: "text-green-600" },
+            { icon: Mail, title: "Contact Us", desc: "Get direct support", color: "text-orange-600" }
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1, duration: 0.4 }}
+              viewport={{ once: true }}
+            >
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+                <CardHeader className="pb-3">
+                  <item.icon className={`h-8 w-8 ${item.color} mb-2`} />
+                  <CardTitle className="text-lg">{item.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">{item.desc}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
         </div>
 
         <Tabs defaultValue="faq" className="space-y-6">
@@ -542,7 +539,7 @@ export default function HelpPage() {
             </Card>
           </TabsContent>
         </Tabs>
-      </main>
+      </Section>
 
       <Footer />
     </div>
