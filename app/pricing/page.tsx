@@ -11,6 +11,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Slider } from "@/components/ui/slider"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Header, Footer } from "@/components/layout"
+import { PageHeader } from "@/components/marketing/PageHeader"
+import { Section } from "@/components/marketing/Section"
 import { Separator } from "@/components/ui/separator"
 import {
   Check,
@@ -308,138 +310,138 @@ export default function PricingPage() {
       <Header />
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-12 max-w-7xl">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <Badge className="mb-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
-            <Sparkles className="h-3 w-3 mr-1" />
-            14-Day Money-Back Guarantee
-          </Badge>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">Choose Your Plan</h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Unlock the full power of multi-agent AI for stunning presentations
-          </p>
+      <PageHeader
+        title="Choose Your Plan"
+        subtitle="Unlock the full power of multi-agent AI for stunning presentations"
+        badge={{
+          text: "14-Day Money-Back Guarantee",
+          icon: <Sparkles className="h-3 w-3" />
+        }}
+      />
 
+      {/* Main Content */}
+      <main>
+        <Section>
           {/* Billing Toggle */}
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-12 relative z-20">
             <Tabs value={billingPeriod} onValueChange={(v) => setBillingPeriod(v as "monthly" | "yearly")}>
-              <TabsList className="bg-muted">
-                <TabsTrigger value="monthly">Monthly</TabsTrigger>
-                <TabsTrigger value="yearly">
+              <TabsList className="bg-muted h-12 p-1">
+                <TabsTrigger value="monthly" className="h-10 px-6 rounded-md">Monthly</TabsTrigger>
+                <TabsTrigger value="yearly" className="h-10 px-6 rounded-md">
                   Yearly
-                  <Badge variant="secondary" className="ml-2 text-xs bg-green-100 text-green-700">Save 20%</Badge>
+                  <Badge variant="secondary" className="ml-2 text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Save 20%</Badge>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
-        </div>
 
-        {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
-          {plans.map((plan) => {
-            const Icon = plan.icon
-            const isCurrentPlan = currentPlanId === plan.id
-            const price = billingPeriod === "yearly" ? plan.price.yearly : plan.price.monthly
-            const monthlyEquivalent = billingPeriod === "yearly" ? plan.price.yearly / 12 : price
-            const isYearlyDiscount = billingPeriod === "yearly" && plan.id !== "free"
+          {/* Pricing Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+            {plans.map((plan) => {
+              const Icon = plan.icon
+              const isCurrentPlan = currentPlanId === plan.id
+              const price = billingPeriod === "yearly" ? plan.price.yearly : plan.price.monthly
+              const monthlyEquivalent = billingPeriod === "yearly" ? plan.price.yearly / 12 : price
+              const isYearlyDiscount = billingPeriod === "yearly" && plan.id !== "free"
 
-            return (
-              <Card
-                key={plan.id}
-                className={`relative ${plan.popular ? "border-2 border-blue-500 shadow-xl scale-105" : "border-2"}`}
-              >
-                {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                    <Badge className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-4 py-1">
-                      Most Popular
-                    </Badge>
-                  </div>
-                )}
-
-                <CardHeader className="text-center pb-6">
-                  <div className={`mx-auto p-4 rounded-xl mb-4 bg-gradient-to-br ${
-                    plan.color === "purple" ? "from-purple-100 to-purple-200 dark:from-purple-900 dark:to-purple-800" :
-                    plan.color === "blue" ? "from-blue-100 to-cyan-200 dark:from-blue-900 dark:to-cyan-800" :
-                    "from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700"
-                  }`}>
-                    <Icon className={`h-10 w-10 ${
-                      plan.color === "purple" ? "text-purple-700 dark:text-purple-300" :
-                      plan.color === "blue" ? "text-blue-700 dark:text-blue-300" :
-                      "text-gray-700 dark:text-gray-300"
-                    }`} />
-                  </div>
-                  <CardTitle className="text-3xl font-bold">{plan.name}</CardTitle>
-                  <CardDescription className="text-base mt-2">{plan.description}</CardDescription>
-                  <div className="mt-6">
-                    <div className="flex items-baseline justify-center">
-                      <span className="text-5xl font-bold">${price}</span>
-                      <span className="text-muted-foreground ml-2">
-                        /{billingPeriod === "yearly" ? "year" : "month"}
-                      </span>
+              return (
+                <Card
+                  key={plan.id}
+                  className={`relative ${plan.popular ? "border-2 border-blue-500 shadow-xl scale-105" : "border-2"}`}
+                >
+                  {plan.popular && (
+                    <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                      <Badge className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-4 py-1">
+                        Most Popular
+                      </Badge>
                     </div>
-                    {isYearlyDiscount && (
-                      <div className="mt-2 space-y-1">
-                        <p className="text-sm text-muted-foreground">
-                          ${monthlyEquivalent.toFixed(2)}/month when billed yearly
-                        </p>
-                        <p className="text-sm font-semibold text-green-600">
-                          Save ${plan.price.monthly * 12 - plan.price.yearly}/year
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
+                  )}
 
-                <CardContent className="space-y-6">
-                  <Button
-                    className={`w-full ${plan.popular ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" : ""}`}
-                    variant={isCurrentPlan ? "outline" : plan.popular ? "default" : "outline"}
-                    disabled={isCurrentPlan}
-                    onClick={() => handleSelectPlan(plan.id)}
-                    size="lg"
-                  >
-                    {getCtaText(plan.id)}
-                    {!isCurrentPlan && <ArrowRight className="ml-2 h-4 w-4" />}
-                  </Button>
-
-                  {/* Perfect For Section */}
-                  <div className="bg-muted/50 rounded-lg p-4">
-                    <p className="text-sm font-semibold mb-3">Perfect for:</p>
-                    <ul className="space-y-2">
-                      {plan.bestFor.map((use, index) => (
-                        <li key={index} className="flex items-start gap-2 text-sm">
-                          <Check className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                          <span>{use}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-3">
-                    <p className="text-sm font-semibold">Key features:</p>
-                    {plan.features.map((feature, index) => (
-                      <div key={index} className="flex items-start gap-2">
-                        {feature.included ? (
-                          <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                        ) : (
-                          <X className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                        )}
-                        <span className={`text-sm ${feature.included ? "" : "text-muted-foreground line-through"}`}>
-                          {feature.text}
+                  <CardHeader className="text-center pb-6">
+                    <div className={`mx-auto p-4 rounded-xl mb-4 bg-gradient-to-br ${plan.color === "purple" ? "from-purple-100 to-purple-200 dark:from-purple-900 dark:to-purple-800" :
+                      plan.color === "blue" ? "from-blue-100 to-cyan-200 dark:from-blue-900 dark:to-cyan-800" :
+                        "from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700"
+                      }`}>
+                      <Icon className={`h-10 w-10 ${plan.color === "purple" ? "text-purple-700 dark:text-purple-300" :
+                        plan.color === "blue" ? "text-blue-700 dark:text-blue-300" :
+                          "text-gray-700 dark:text-gray-300"
+                        }`} />
+                    </div>
+                    <CardTitle className="text-3xl font-bold">{plan.name}</CardTitle>
+                    <CardDescription className="text-base mt-2">{plan.description}</CardDescription>
+                    <div className="mt-6">
+                      <div className="flex items-baseline justify-center">
+                        <span className="text-5xl font-bold">${price}</span>
+                        <span className="text-muted-foreground ml-2">
+                          /{billingPeriod === "yearly" ? "year" : "month"}
                         </span>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+                      {isYearlyDiscount && (
+                        <div className="mt-2 space-y-1">
+                          <p className="text-sm text-muted-foreground">
+                            ${monthlyEquivalent.toFixed(2)}/month when billed yearly
+                          </p>
+                          <p className="text-sm font-semibold text-green-600">
+                            Save ${plan.price.monthly * 12 - plan.price.yearly}/year
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-6">
+                    <Button
+                      className={`w-full ${plan.popular ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" : ""}`}
+                      variant={isCurrentPlan ? "outline" : plan.popular ? "default" : "outline"}
+                      disabled={isCurrentPlan}
+                      onClick={() => handleSelectPlan(plan.id)}
+                      size="lg"
+                    >
+                      {getCtaText(plan.id)}
+                      {!isCurrentPlan && <ArrowRight className="ml-2 h-4 w-4" />}
+                    </Button>
+
+                    {/* Perfect For Section */}
+                    <div className="bg-muted/50 rounded-lg p-4">
+                      <p className="text-sm font-semibold mb-3">Perfect for:</p>
+                      <ul className="space-y-2">
+                        {plan.bestFor.map((use, index) => (
+                          <li key={index} className="flex items-start gap-2 text-sm">
+                            <Check className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                            <span>{use}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold">Key features:</p>
+                      {plan.features.map((feature, index) => (
+                        <div key={index} className="flex items-start gap-2">
+                          {feature.included ? (
+                            <Check className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          ) : (
+                            <X className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                          )}
+                          <span className={`text-sm ${feature.included ? "" : "text-muted-foreground line-through"}`}>
+                            {feature.text}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </Section>
+
+        <Separator className="mb-16" />
 
         {/* Enterprise Pricing Calculator */}
-        <div className="mb-20 max-w-2xl mx-auto">
+        <Section background="muted">
           <Card className="border-2 border-purple-200 dark:border-purple-800">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -482,10 +484,12 @@ export default function PricingPage() {
               </Button>
             </CardContent>
           </Card>
-        </div>
+        </Section>
+
+        <Separator className="mb-16" />
 
         {/* Detailed Feature Comparison */}
-        <div className="mb-20">
+        <Section>
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Complete Feature Comparison</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -493,7 +497,7 @@ export default function PricingPage() {
             </p>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 rounded-lg border-2 overflow-hidden">
+          <div className="bg-white dark:bg-gray-900 rounded-lg border-2 overflow-hidden max-w-6xl mx-auto">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -556,16 +560,18 @@ export default function PricingPage() {
               </Table>
             </div>
           </div>
-        </div>
+        </Section>
+
+        <Separator className="mb-16" />
 
         {/* Trust Signals */}
-        <div className="mb-20">
+        <Section background="muted">
           <div className="text-center mb-8">
             <h3 className="text-2xl font-bold mb-4">Secure & Trusted</h3>
             <p className="text-muted-foreground">Your data and payments are safe with us</p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-6xl mx-auto">
             <Card className="text-center p-6">
               <Lock className="h-10 w-10 text-green-600 mx-auto mb-3" />
               <p className="font-semibold text-sm">SSL Encrypted</p>
@@ -601,106 +607,114 @@ export default function PricingPage() {
               <Badge variant="outline" className="text-sm px-4 py-2">Corporate Cards</Badge>
             </div>
           </div>
-        </div>
+        </Section>
+
+        <Separator className="mb-16" />
 
         {/* FAQ Section */}
-        <div className="mb-20 max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Frequently Asked Questions</h2>
-            <p className="text-lg text-muted-foreground">
-              Everything you need to know about pricing and plans
-            </p>
-          </div>
-
-          <Accordion type="single" collapsible className="w-full">
-            {faqs.map((faq, index) => (
-              <AccordionItem key={index} value={`item-${index}`}>
-                <AccordionTrigger className="text-left">
-                  <span className="flex items-center gap-2">
-                    <HelpCircle className="h-5 w-5 text-purple-600 flex-shrink-0" />
-                    {faq.question}
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  {faq.answer}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-
-          <div className="mt-8 text-center">
-            <p className="text-sm text-muted-foreground mb-4">Still have questions?</p>
-            <div className="flex gap-4 justify-center">
-              <Button variant="outline" asChild>
-                <Link href="/help">Visit Help Center</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/help">Contact Support</Link>
-              </Button>
+        <Section>
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Frequently Asked Questions</h2>
+              <p className="text-lg text-muted-foreground">
+                Everything you need to know about pricing and plans
+              </p>
             </div>
-          </div>
-        </div>
 
-        {/* Comparison CTA */}
-        <div className="mb-20">
-          <Card className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border-2">
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl">How does Deckster compare?</CardTitle>
-              <CardDescription className="text-base">
-                See how we stack up against other presentation tools
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <div className="flex flex-wrap gap-4 justify-center">
+            <Accordion type="single" collapsible className="w-full">
+              {faqs.map((faq, index) => (
+                <AccordionItem key={index} value={`item-${index}`}>
+                  <AccordionTrigger className="text-left">
+                    <span className="flex items-center gap-2">
+                      <HelpCircle className="h-5 w-5 text-purple-600 flex-shrink-0" />
+                      {faq.question}
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    {faq.answer}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+
+            <div className="mt-8 text-center">
+              <p className="text-sm text-muted-foreground mb-4">Still have questions?</p>
+              <div className="flex gap-4 justify-center">
                 <Button variant="outline" asChild>
-                  <Link href="/compare/beautiful-ai">vs Beautiful.ai</Link>
+                  <Link href="/help">Visit Help Center</Link>
                 </Button>
                 <Button variant="outline" asChild>
-                  <Link href="/compare/gamma">vs Gamma</Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href="/compare/pitch">vs Pitch</Link>
-                </Button>
-                <Button variant="outline" asChild>
-                  <Link href="/compare/powerpoint">vs PowerPoint</Link>
+                  <Link href="/help">Contact Support</Link>
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Final CTA */}
-        <div className="text-center py-16 px-8 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl text-white">
-          <h3 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to create amazing presentations?
-          </h3>
-          <p className="text-lg mb-8 max-w-2xl mx-auto opacity-90">
-            Join thousands of professionals using Deckster's multi-agent AI to build better presentations faster
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              size="lg"
-              variant="secondary"
-              onClick={() => handleSelectPlan("free")}
-              className="bg-white text-purple-600 hover:bg-gray-100"
-            >
-              Start Free
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-            <Button
-              size="lg"
-              onClick={() => handleSelectPlan("pro")}
-              className="bg-white/10 border-2 border-white/20 text-white hover:bg-white/20"
-            >
-              Go Pro
-              <Zap className="ml-2 h-4 w-4" />
-            </Button>
+            </div>
           </div>
-          <p className="text-sm mt-6 opacity-75">No credit card required • 14-day money-back guarantee</p>
-        </div>
+        </Section>
+
+        <Separator className="mb-16" />
+
+        {/* Comparison CTA */}
+        <Section background="muted">
+          <div className="mb-16">
+            <Card className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border-2">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl">How does Deckster compare?</CardTitle>
+                <CardDescription className="text-base">
+                  See how we stack up against other presentation tools
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div className="flex flex-wrap gap-4 justify-center">
+                  <Button variant="outline" asChild>
+                    <Link href="/compare/beautiful-ai">vs Beautiful.ai</Link>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href="/compare/gamma">vs Gamma</Link>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href="/compare/pitch">vs Pitch</Link>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href="/compare/powerpoint">vs PowerPoint</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Final CTA */}
+          <div className="text-center py-16 px-8 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl text-white">
+            <h3 className="text-3xl md:text-4xl font-bold mb-4">
+              Ready to create amazing presentations?
+            </h3>
+            <p className="text-lg mb-8 max-w-2xl mx-auto opacity-90">
+              Join thousands of professionals using Deckster's multi-agent AI to build better presentations faster
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button
+                size="lg"
+                variant="secondary"
+                onClick={() => handleSelectPlan("free")}
+                className="bg-white text-purple-600 hover:bg-gray-100"
+              >
+                Start Free
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Button
+                size="lg"
+                onClick={() => handleSelectPlan("pro")}
+                className="bg-white/10 border-2 border-white/20 text-white hover:bg-white/20"
+              >
+                Go Pro
+                <Zap className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-sm mt-6 opacity-75">No credit card required • 14-day money-back guarantee</p>
+          </div>
+        </Section>
       </main>
 
       <Footer />
-    </div>
+    </div >
   )
 }

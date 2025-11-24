@@ -91,7 +91,7 @@ export const comparisonPages: ComparisonPage[] = [
       {
         id: 'content-generation',
         title: 'Content Generation',
-        description: 'Deckster\'s Scripter agent writes compelling narratives and persuasive copy. Beautiful.ai requires you to write all content yourself.',
+        description: 'Deckster\'s Scripter agent writes compelling narratives and persuasive copy. Beautiful.ai requires you to write most content yourself or use basic AI text generation.',
         icon: 'PenTool',
         advantage: 'deckster',
       },
@@ -115,7 +115,7 @@ export const comparisonPages: ComparisonPage[] = [
         id: 'ai-content-writing',
         feature: 'AI Content Writing',
         deckster: { value: true, description: 'Full narrative and copywriting', highlight: true },
-        competitor: { value: false, description: 'Manual content entry' },
+        competitor: { value: 'Basic', description: 'Simple text generation' },
         category: 'ai',
       },
       {
@@ -274,6 +274,13 @@ export const comparisonPages: ComparisonPage[] = [
         feature: 'Content Formats',
         deckster: { value: 'Presentations', description: 'Focused on decks' },
         competitor: { value: 'Presentations, Docs, Webpages', description: 'Multiple formats', highlight: true },
+        category: 'core',
+      },
+      {
+        id: 'interactive',
+        feature: 'Interactive Elements',
+        deckster: { value: 'Basic', description: 'Standard interactions' },
+        competitor: { value: true, description: 'Quizzes, forms, embeds', highlight: true },
         category: 'core',
       },
       {

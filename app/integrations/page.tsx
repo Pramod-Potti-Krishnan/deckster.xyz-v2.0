@@ -5,6 +5,8 @@ import { IntegrationCategory, IntegrationStatus } from '@/types/integration';
 import { getAllIntegrations, getIntegrationsByCategory, getIntegrationsByStatus } from '@/lib/integrations';
 import { IntegrationCard } from '@/components/marketing/Integrations/IntegrationCard';
 import { Header, Footer } from '@/components/layout';
+import { PageHeader } from '@/components/marketing/PageHeader';
+import { Section } from '@/components/marketing/Section';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plug2 } from 'lucide-react';
@@ -25,27 +27,17 @@ export default function IntegrationsPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
 
-      {/* Header */}
-      <div className="border-b bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
-        <div className="container mx-auto px-4 py-12 md:py-16">
-          <div className="max-w-3xl mx-auto text-center">
-            <Badge className="mb-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
-              <Plug2 className="h-3 w-3 mr-1" />
-              Integrations & Exports
-            </Badge>
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-              Integrations & Export Options
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              Connect deckster with your favorite tools and export in multiple formats.
-              Seamlessly integrate into your existing workflow.
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Integrations & Export Options"
+        subtitle="Connect deckster with your favorite tools and export in multiple formats. Seamlessly integrate into your existing workflow."
+        badge={{
+          text: "Integrations & Exports",
+          icon: <Plug2 className="h-3 w-3" />
+        }}
+      />
 
       {/* Main Content */}
-      <div className="flex-1 container mx-auto px-4 py-8">
+      <Section className="flex-1 py-8">
         {/* Category Filter */}
         <div className="mb-8">
           <Tabs
@@ -167,8 +159,7 @@ export default function IntegrationsPage() {
             </a>
           </div>
         </div>
-      </div>
-
+      </Section>
       <Footer />
     </div>
   );

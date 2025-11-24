@@ -5,6 +5,8 @@ import { ArticleCategory } from '@/types/article';
 import { getAllArticles, getFeaturedArticles, getArticleCategories } from '@/lib/articles';
 import { ArticleCard } from '@/components/marketing/Resources/ArticleCard';
 import { Header, Footer } from '@/components/layout';
+import { PageHeader } from '@/components/marketing/PageHeader';
+import { Section } from '@/components/marketing/Section';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BookOpen, Sparkles } from 'lucide-react';
@@ -23,26 +25,17 @@ export default function ResourcesPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
 
-      {/* Header */}
-      <div className="border-b bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
-        <div className="container mx-auto px-4 py-12 md:py-16">
-          <div className="max-w-3xl mx-auto text-center">
-            <Badge className="mb-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
-              <BookOpen className="h-3 w-3 mr-1" />
-              Resources & Insights
-            </Badge>
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-              Learn About AI-Powered Presentations
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              Discover best practices, tutorials, and insights about creating stunning presentations with deckster's multi-agent AI system.
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Learn About AI-Powered Presentations"
+        subtitle="Discover best practices, tutorials, and insights about creating stunning presentations with deckster's multi-agent AI system."
+        badge={{
+          text: "Resources & Insights",
+          icon: <BookOpen className="h-3 w-3" />
+        }}
+      />
 
       {/* Main Content */}
-      <div className="flex-1 container mx-auto px-4 py-8">
+      <Section className="flex-1 py-8">
         {/* Featured Articles */}
         {featuredArticles.length > 0 && selectedCategory === 'all' && (
           <div className="mb-12">
@@ -132,8 +125,7 @@ export default function ResourcesPage() {
             </button>
           </div>
         </div>
-      </div>
-
+      </Section>
       <Footer />
     </div>
   );

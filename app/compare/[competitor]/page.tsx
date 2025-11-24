@@ -47,7 +47,7 @@ export default function ComparisonDetailPage() {
 
   const getWinnerBadge = (winner: string) => {
     if (winner === 'deckster') return <Badge className="bg-purple-600">Deckster</Badge>;
-    if (winner === 'competitor') return <Badge variant="secondary">{ comparison.competitor.name}</Badge>;
+    if (winner === 'competitor') return <Badge variant="secondary">{comparison.competitor.name}</Badge>;
     return <Badge variant="outline">Tie</Badge>;
   };
 
@@ -151,62 +151,62 @@ export default function ComparisonDetailPage() {
           <div className="mb-16">
             <h2 className="text-3xl font-bold mb-8">Feature Comparison</h2>
 
-            <div className="space-y-6">
+            <div className="space-y-8">
               {['ai', 'core', 'collaboration', 'export', 'pricing'].map((category) => {
                 const categoryFeatures = comparison.featureComparison.filter(f => f.category === category);
                 if (categoryFeatures.length === 0) return null;
 
                 return (
-                  <div key={category}>
-                    <h3 className="text-xl font-semibold mb-4 capitalize">
-                      {category === 'ai' ? 'AI Capabilities' : category}
-                    </h3>
-                    <div className="space-y-3">
+                  <div key={category} className="bg-card rounded-xl border shadow-sm overflow-hidden">
+                    <div className="bg-muted/50 px-6 py-4 border-b">
+                      <h3 className="text-lg font-semibold capitalize flex items-center gap-2">
+                        {category === 'ai' && <Sparkles className="h-4 w-4 text-purple-600" />}
+                        {category === 'ai' ? 'AI Capabilities' : category}
+                      </h3>
+                    </div>
+                    <div className="divide-y">
                       {categoryFeatures.map((feature) => (
-                        <Card key={feature.id} className={feature.deckster.highlight || feature.competitor.highlight ? 'border-2' : ''}>
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-base font-semibold mb-4">
-                              {feature.feature}
-                            </CardTitle>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              {/* Deckster */}
-                              <div className={`flex items-start gap-3 ${feature.deckster.highlight ? 'p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg' : ''}`}>
-                                <div className="flex-shrink-0 mt-1">
-                                  {getFeatureIcon(feature.deckster.value)}
-                                </div>
-                                <div>
-                                  <div className="font-semibold text-sm mb-1">Deckster</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {typeof feature.deckster.value === 'string' ? feature.deckster.value : feature.deckster.value ? 'Yes' : 'No'}
-                                  </div>
-                                  {feature.deckster.description && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      {feature.deckster.description}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
+                        <div key={feature.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 hover:bg-muted/20 transition-colors">
+                          <div className="md:col-span-4">
+                            <h4 className="font-medium text-base">{feature.feature}</h4>
+                          </div>
 
-                              {/* Competitor */}
-                              <div className={`flex items-start gap-3 ${feature.competitor.highlight ? 'p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg' : ''}`}>
-                                <div className="flex-shrink-0 mt-1">
-                                  {getFeatureIcon(feature.competitor.value)}
-                                </div>
-                                <div>
-                                  <div className="font-semibold text-sm mb-1">{comparison.competitor.name}</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {typeof feature.competitor.value === 'string' ? feature.competitor.value : feature.competitor.value ? 'Yes' : 'No'}
-                                  </div>
-                                  {feature.competitor.description && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      {feature.competitor.description}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
+                          {/* Deckster */}
+                          <div className="md:col-span-4 flex items-start gap-3">
+                            <div className="flex-shrink-0 mt-0.5">
+                              {getFeatureIcon(feature.deckster.value)}
                             </div>
-                          </CardHeader>
-                        </Card>
+                            <div>
+                              <div className="font-semibold text-sm text-purple-700 dark:text-purple-400 mb-0.5">Deckster</div>
+                              <div className="text-sm font-medium">
+                                {typeof feature.deckster.value === 'string' ? feature.deckster.value : feature.deckster.value ? 'Yes' : 'No'}
+                              </div>
+                              {feature.deckster.description && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {feature.deckster.description}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Competitor */}
+                          <div className="md:col-span-4 flex items-start gap-3">
+                            <div className="flex-shrink-0 mt-0.5">
+                              {getFeatureIcon(feature.competitor.value)}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-sm text-muted-foreground mb-0.5">{comparison.competitor.name}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {typeof feature.competitor.value === 'string' ? feature.competitor.value : feature.competitor.value ? 'Yes' : 'No'}
+                              </div>
+                              {feature.competitor.description && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {feature.competitor.description}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>

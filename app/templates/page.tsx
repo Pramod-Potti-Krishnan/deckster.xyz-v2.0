@@ -6,6 +6,8 @@ import { filterTemplates, getAllTemplates } from '@/lib/templates';
 import { TemplateCard } from '@/components/marketing/TemplateGallery/TemplateCard';
 import { TemplateFilters } from '@/components/marketing/TemplateGallery/TemplateFilters';
 import { Header, Footer } from '@/components/layout';
+import { PageHeader } from '@/components/marketing/PageHeader';
+import { Section } from '@/components/marketing/Section';
 
 export default function TemplatesPage() {
   const allTemplates = getAllTemplates();
@@ -20,22 +22,14 @@ export default function TemplatesPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
       {/* Header */}
-      <div className="border-b bg-muted/40">
-        <div className="container mx-auto px-4 py-12 md:py-16">
-          <div className="max-w-3xl">
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-              Presentation Templates
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              Browse our collection of professionally designed templates. Each template is powered by
-              our AI agents to help you create stunning presentations in minutes.
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Presentation Templates"
+        subtitle="Browse our collection of professionally designed templates. Each template is powered by our AI agents to help you create stunning presentations in minutes."
+        align="left"
+      />
 
       {/* Main Content */}
-      <div className="flex-1 container mx-auto px-4 py-8">
+      <Section className="flex-1 py-8">
         {/* Filters */}
         <div className="mb-8">
           <TemplateFilters
@@ -78,9 +72,9 @@ export default function TemplatesPage() {
             </div>
           </div>
         )}
-      </div>
+      </Section>
 
       <Footer />
-    </div>
+    </div >
   );
 }
