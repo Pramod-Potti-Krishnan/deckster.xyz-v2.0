@@ -91,13 +91,30 @@ function BuilderContent() {
     onSessionStateChange: (state) => {
       // Session state changed - update metadata in database
       if (currentSessionId && persistence) {
-        persistence.updateMetadata({
+        // FIXED: Use currentStage to determine which URL fields to update
+        // Stage 4 = strawman, Stage 6 = final presentation
+        const isStrawman = state.currentStage === 4
+        const isFinal = state.currentStage === 6
+
+        const updates: any = {
           currentStage: state.currentStage,
-          strawmanPreviewUrl: state.presentationUrl,
-          strawmanPresentationId: state.presentationId,
           slideCount: state.slideCount,
           lastMessageAt: new Date()
-        })
+        }
+
+        if (isStrawman) {
+          // Update strawman-specific fields
+          updates.strawmanPreviewUrl = state.presentationUrl
+          updates.strawmanPresentationId = state.presentationId
+          console.log('💾 Saving strawman URLs:', { url: state.presentationUrl, id: state.presentationId })
+        } else if (isFinal) {
+          // Update final-specific fields
+          updates.finalPresentationUrl = state.presentationUrl
+          updates.finalPresentationId = state.presentationId
+          console.log('💾 Saving final URLs:', { url: state.presentationUrl, id: state.presentationId })
+        }
+
+        persistence.updateMetadata(updates)
       }
     }
   })
@@ -170,6 +187,11 @@ function BuilderContent() {
       hasTitleFromUserMessageRef.current = false
       hasTitleFromPresentationRef.current = false
 
+      // FIXED: Reset answered actions ref when loading a new session
+      // This prevents historical action buttons from being permanently hidden
+      answeredActionsRef.current.clear()
+      console.log('🔄 Cleared answeredActionsRef for session initialization')
+
       try {
         const sessionParam = searchParams?.get('session_id')
 
@@ -213,11 +235,13 @@ function BuilderContent() {
                   // User message
                   console.log('👤 Loading user message:', { id: msg.id, text: msg.userText.substring(0, 50), timestamp: msg.timestamp });
 
-                  // Check if this user message is answering an action (has action_value in payload)
-                  if (msg.payload?.action_value && lastActionRequestId) {
-                    answeredActionsRef.current.add(lastActionRequestId)
-                    console.log(`✅ Restored answered action: ${lastActionRequestId} (answered by user message ${msg.id})`)
-                  }
+                  // FIXED: Don't mark actions as answered during restoration
+                  // Actions should only be hidden when user actively clicks them in current session
+                  // This allows action buttons to re-appear when navigating back to the page
+                  // if (msg.payload?.action_value && lastActionRequestId) {
+                  //   answeredActionsRef.current.add(lastActionRequestId)
+                  //   console.log(`✅ Restored answered action: ${lastActionRequestId} (answered by user message ${msg.id})`)
+                  // }
 
                   userMsgs.push({
                     id: msg.id,
@@ -249,9 +273,14 @@ function BuilderContent() {
               setUserMessages(userMsgs)
 
               // Restore bot messages and session state
+              // FIXED: Pass both strawman and final URLs separately for version toggle
               const sessionState = {
                 presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl,
                 presentationId: session.finalPresentationId || session.strawmanPresentationId,
+                strawmanPreviewUrl: session.strawmanPreviewUrl,
+                strawmanPresentationId: session.strawmanPresentationId,
+                finalPresentationUrl: session.finalPresentationUrl,
+                finalPresentationId: session.finalPresentationId,
                 slideCount: session.slideCount,
                 slideStructure: (session as any).stateCache?.slideStructure || null
               }
@@ -262,10 +291,10 @@ function BuilderContent() {
               console.log('📊 Restored session state:', {
                 presentationUrl: sessionState.presentationUrl || '(none)',
                 presentationId: sessionState.presentationId || '(none)',
+                strawmanPreviewUrl: sessionState.strawmanPreviewUrl || '(none)',
+                finalPresentationUrl: sessionState.finalPresentationUrl || '(none)',
                 slideCount: sessionState.slideCount || 0,
-                slideStructure: sessionState.slideStructure ? 'present' : 'none',
-                finalPresentationUrl: session.finalPresentationUrl || '(none)',
-                strawmanPreviewUrl: session.strawmanPreviewUrl || '(none)'
+                slideStructure: sessionState.slideStructure ? 'present' : 'none'
               })
 
               // Mark as resumed session - WILL auto-connect WebSocket (welcome message deduplication handled separately)
@@ -302,6 +331,18 @@ function BuilderContent() {
 
     initializeSession()
   }, [user, isAuthLoading, searchParams])
+
+  // FIXED: Add timeout for isLoadingSession to prevent UI from getting stuck
+  useEffect(() => {
+    if (isLoadingSession) {
+      const timeout = setTimeout(() => {
+        console.warn('⏰ isLoadingSession timeout - forcing reset after 10 seconds')
+        setIsLoadingSession(false)
+      }, 10000) // 10 second timeout
+
+      return () => clearTimeout(timeout)
+    }
+  }, [isLoadingSession])
 
   // Helper to create new session
   const createNewSession = async () => {

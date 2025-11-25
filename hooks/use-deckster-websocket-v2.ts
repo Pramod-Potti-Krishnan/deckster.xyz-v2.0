@@ -607,6 +607,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const restoreMessages = useCallback((historicalMessages: DirectorMessage[], sessionState?: {
     presentationUrl?: string | null;
     presentationId?: string | null;
+    strawmanPreviewUrl?: string | null;
+    strawmanPresentationId?: string | null;
+    finalPresentationUrl?: string | null;
+    finalPresentationId?: string | null;
     slideCount?: number | null;
     slideStructure?: any;
   }) => {
@@ -614,8 +618,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     console.log(`📊 Restoration data:`, {
       presentationUrl: sessionState?.presentationUrl || '(none)',
       presentationId: sessionState?.presentationId || '(none)',
+      strawmanPreviewUrl: sessionState?.strawmanPreviewUrl || '(none)',
+      finalPresentationUrl: sessionState?.finalPresentationUrl || '(none)',
       slideCount: sessionState?.slideCount || 0
     });
+
+    // FIXED: Determine activeVersion based on which URLs are available
+    // Prefer final if both exist, otherwise use whichever is available
+    let activeVersion: 'strawman' | 'final' = 'final';
+    if (sessionState?.finalPresentationUrl) {
+      activeVersion = 'final';
+    } else if (sessionState?.strawmanPreviewUrl) {
+      activeVersion = 'strawman';
+    }
 
     setState(prev => ({
       ...prev,
@@ -624,9 +639,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // This ensures empty strings don't fall back to prev values
       presentationUrl: sessionState?.presentationUrl ?? prev.presentationUrl,
       presentationId: sessionState?.presentationId ?? prev.presentationId,
+      strawmanPreviewUrl: sessionState?.strawmanPreviewUrl ?? prev.strawmanPreviewUrl,
+      strawmanPresentationId: sessionState?.strawmanPresentationId ?? prev.strawmanPresentationId,
+      finalPresentationUrl: sessionState?.finalPresentationUrl ?? prev.finalPresentationUrl,
+      finalPresentationId: sessionState?.finalPresentationId ?? prev.finalPresentationId,
+      activeVersion: activeVersion,
       slideCount: sessionState?.slideCount ?? prev.slideCount,
       slideStructure: sessionState?.slideStructure ?? prev.slideStructure,
     }));
+
+    console.log(`✅ Restored session with activeVersion: ${activeVersion}`);
   }, []);
 
   // Auto-connect on mount (only once)

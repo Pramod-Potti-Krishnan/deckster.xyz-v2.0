@@ -100,20 +100,6 @@ export function SlideBuildingLoader({
           </AnimatePresence>
         </div>
       </div>
-
-      {/* Status Text */}
-      <div className="text-center space-y-2">
-        <motion.p
-          className="text-lg font-medium bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-600"
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          {statusText}
-        </motion.p>
-        {estimatedTime && (
-          <p className="text-sm text-muted-foreground">~{estimatedTime}s remaining</p>
-        )}
-      </div>
     </div>
   )
 }
