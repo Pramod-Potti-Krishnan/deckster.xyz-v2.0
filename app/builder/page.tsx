@@ -896,7 +896,7 @@ function BuilderContent() {
                       if (msg.type === 'chat_message') {
                         const chatMsg = msg as V2ChatMessage;
                         const isWelcome = chatMsg.payload.text.toLowerCase().includes("hello! i'm deckster") ||
-                                         chatMsg.payload.text.toLowerCase().includes("what presentation would you like to build");
+                          chatMsg.payload.text.toLowerCase().includes("what presentation would you like to build");
 
                         // If this is a welcome message and we've seen one before (resumed session), skip it
                         if (isWelcome && hasSeenWelcomeRef.current && index > 0) {
@@ -986,117 +986,211 @@ function BuilderContent() {
                   }
 
                   return processedMessages.map((item, index) => {
-                  if (item.messageType === 'user') {
-                    // Render user message
-                    return (
-                      <div key={item.id} className="flex gap-3 justify-end animate-in slide-in-from-right duration-300">
-                        <div className="flex-1 max-w-[85%]">
-                          <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.text}</p>
+                    if (item.messageType === 'user') {
+                      // Render user message
+                      return (
+                        <div key={item.id} className="flex gap-3 justify-end animate-in slide-in-from-right duration-300">
+                          <div className="flex-1 max-w-[85%]">
+                            <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
+                              <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.text}</p>
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0 mt-1">
+                            <div className="bg-blue-100 rounded-full p-1.5">
+                              <User className="h-4 w-4 text-blue-600" />
+                            </div>
                           </div>
                         </div>
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="bg-blue-100 rounded-full p-1.5">
-                            <User className="h-4 w-4 text-blue-600" />
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  }
+                      )
+                    }
 
-                  const msg = item as any;
-                  return (
-                    <React.Fragment key={msg.message_id || msg.id}>
-                {/* Bot messages */}
-                {(() => {
-                  // Handle combined strawman message (slide_update + presentation_url + action_request)
-                  if (msg.type === 'combined_strawman') {
-                    const { slideUpdate, presentationUrl, actionRequest } = msg;
-
+                    const msg = item as any;
                     return (
-                      <div className="flex gap-3 animate-in slide-in-from-left duration-300">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="bg-green-100 rounded-full p-1.5">
-                            <Bot className="h-4 w-4 text-green-600" />
-                          </div>
-                        </div>
-                        <div className="flex-1 max-w-[85%]">
-                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl rounded-tl-sm shadow-sm overflow-hidden">
-                            {/* Slide Structure Section */}
-                            <div className="px-4 py-3 border-b border-green-200">
-                              <div className="flex items-start gap-2">
-                                <span className="text-xl">📊</span>
-                                <div className="flex-1">
-                                  <p className="text-sm font-semibold text-green-900">
-                                    {slideUpdate?.payload.metadata.main_title}
-                                  </p>
-                                  <p className="text-xs text-green-700 mt-1 flex items-center gap-2 flex-wrap">
-                                    <span className="font-medium">{slideUpdate?.payload.slides.length} slides</span>
-                                    <span className="text-green-400">•</span>
-                                    <span>{slideUpdate?.payload.metadata.presentation_duration} min</span>
-                                    <span className="text-green-400">•</span>
-                                    <span className="capitalize">{slideUpdate?.payload.metadata.overall_theme}</span>
-                                  </p>
+                      <React.Fragment key={msg.message_id || msg.id}>
+                        {/* Bot messages */}
+                        {(() => {
+                          // Handle combined strawman message (slide_update + presentation_url + action_request)
+                          if (msg.type === 'combined_strawman') {
+                            const { slideUpdate, presentationUrl, actionRequest } = msg;
+
+                            return (
+                              <div className="flex gap-3 animate-in slide-in-from-left duration-300">
+                                <div className="flex-shrink-0 mt-1">
+                                  <div className="bg-green-100 rounded-full p-1.5">
+                                    <Bot className="h-4 w-4 text-green-600" />
+                                  </div>
+                                </div>
+                                <div className="flex-1 max-w-[85%]">
+                                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl rounded-tl-sm shadow-sm overflow-hidden">
+                                    {/* Slide Structure Section */}
+                                    <div className="px-4 py-3 border-b border-green-200">
+                                      <div className="flex items-start gap-2">
+                                        <span className="text-xl">📊</span>
+                                        <div className="flex-1">
+                                          <p className="text-sm font-semibold text-green-900">
+                                            {slideUpdate?.payload.metadata.main_title}
+                                          </p>
+                                          <p className="text-xs text-green-700 mt-1 flex items-center gap-2 flex-wrap">
+                                            <span className="font-medium">{slideUpdate?.payload.slides.length} slides</span>
+                                            <span className="text-green-400">•</span>
+                                            <span>{slideUpdate?.payload.metadata.presentation_duration} min</span>
+                                            <span className="text-green-400">•</span>
+                                            <span className="capitalize">{slideUpdate?.payload.metadata.overall_theme}</span>
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                                        {slideUpdate?.payload.slides.map((slide, i) => (
+                                          <div key={i} className="text-xs bg-white/80 backdrop-blur rounded-lg px-3 py-2 border border-green-100">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-semibold text-green-700 min-w-[1.5rem]">
+                                                {slide.slide_number}.
+                                              </span>
+                                              <span className="font-medium text-gray-800 flex-1">
+                                                {slide.title}
+                                              </span>
+                                              <span className="text-gray-500 text-[10px] uppercase tracking-wide">
+                                                {slide.slide_type}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Presentation Ready Section */}
+                                    {presentationUrl && (
+                                      <div className="px-4 py-3 border-b border-green-200 bg-white/40">
+                                        <div className="flex items-start gap-2">
+                                          <span className="text-xl">✅</span>
+                                          <div className="flex-1">
+                                            <p className="text-sm font-semibold text-green-900">
+                                              {presentationUrl.payload.message}
+                                            </p>
+                                            <p className="text-xs text-green-700 mt-1">
+                                              {presentationUrl.payload.slide_count} slides ready to view
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="mt-3 w-full bg-white hover:bg-green-50 border-green-300 text-green-700 hover:text-green-800"
+                                          onClick={() => window.open(presentationUrl.payload.url, '_blank')}
+                                        >
+                                          <ExternalLink className="h-3 w-3 mr-1" />
+                                          Open presentation
+                                        </Button>
+                                      </div>
+                                    )}
+
+                                    {/* Action Buttons Section */}
+                                    {actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                                      <div className="px-4 py-3 bg-white/60">
+                                        <p className="text-sm font-medium text-gray-900 mb-3">{actionRequest.payload.prompt_text}</p>
+                                        <div className="flex flex-wrap gap-2">
+                                          {actionRequest.payload.actions.map((action, i) => (
+                                            <Button
+                                              key={i}
+                                              size="sm"
+                                              variant={action.primary ? "default" : "outline"}
+                                              onClick={() => handleActionClick(action, actionRequest.message_id)}
+                                              className={action.primary
+                                                ? "bg-green-600 hover:bg-green-700 shadow-sm"
+                                                : "hover:bg-gray-50 border-gray-300"
+                                              }
+                                            >
+                                              {action.label}
+                                            </Button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                              <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
-                                {slideUpdate?.payload.slides.map((slide, i) => (
-                                  <div key={i} className="text-xs bg-white/80 backdrop-blur rounded-lg px-3 py-2 border border-green-100">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-semibold text-green-700 min-w-[1.5rem]">
-                                        {slide.slide_number}.
-                                      </span>
-                                      <span className="font-medium text-gray-800 flex-1">
-                                        {slide.title}
-                                      </span>
-                                      <span className="text-gray-500 text-[10px] uppercase tracking-wide">
-                                        {slide.slide_type}
-                                      </span>
+                            );
+                          } else if (msg.type === 'chat_message') {
+                            const chatMsg = msg as V2ChatMessage
+                            // Detect if this is a preview link message
+                            const isPreviewLink = chatMsg.payload.text.includes('📊') &&
+                              chatMsg.payload.text.toLowerCase().includes('preview');
+
+                            return (
+                              <div className="flex gap-3 animate-in slide-in-from-left duration-300">
+                                <div className="flex-shrink-0 mt-1">
+                                  <div className="bg-purple-100 rounded-full p-1.5">
+                                    <Bot className="h-4 w-4 text-purple-600" />
+                                  </div>
+                                </div>
+                                <div className="flex-1 max-w-[85%]">
+                                  <div className={`rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm ${isPreviewLink
+                                    ? 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'
+                                    : 'bg-white border border-gray-200'
+                                    }`}>
+                                    <div className="text-sm max-w-none text-gray-800" style={{ fontSize: '0.875rem' }}>
+                                      <ReactMarkdown
+                                        components={{
+                                          a: ({ node, ...props }) => (
+                                            <a
+                                              {...props}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+                                            />
+                                          ),
+                                          p: ({ node, ...props }) => <p {...props} className="leading-relaxed mb-0" style={{ fontSize: 'inherit' }} />,
+                                          strong: ({ node, ...props }) => <strong {...props} className="font-semibold text-gray-900" style={{ fontSize: 'inherit' }} />,
+                                          ul: ({ node, ...props }) => <ul {...props} className="space-y-1 my-2" style={{ fontSize: 'inherit' }} />,
+                                          li: ({ node, ...props }) => <li {...props} className="leading-relaxed" style={{ fontSize: 'inherit' }} />
+                                        }}
+                                      >
+                                        {chatMsg.payload.text}
+                                      </ReactMarkdown>
+                                    </div>
+                                    {chatMsg.payload.sub_title && (
+                                      <p className="text-xs text-gray-600 mt-1">{chatMsg.payload.sub_title}</p>
+                                    )}
+                                    {chatMsg.payload.list_items && chatMsg.payload.list_items.length > 0 && (
+                                      <ul className="text-xs mt-2 space-y-1">
+                                        {chatMsg.payload.list_items.map((item, i) => (
+                                          <li key={i} className="ml-4 list-disc">{item}</li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          } else if (msg.type === 'action_request') {
+                            const actionMsg = msg as ActionRequest
+                            // Don't render if this action has already been answered
+                            if (answeredActionsRef.current.has(actionMsg.message_id)) {
+                              return null
+                            }
+                            return (
+                              <div className="space-y-3 animate-in slide-in-from-left duration-300">
+                                <div className="flex gap-3">
+                                  <div className="flex-shrink-0 mt-1">
+                                    <div className="bg-purple-100 rounded-full p-1.5">
+                                      <Bot className="h-4 w-4 text-purple-600" />
                                     </div>
                                   </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Presentation Ready Section */}
-                            {presentationUrl && (
-                              <div className="px-4 py-3 border-b border-green-200 bg-white/40">
-                                <div className="flex items-start gap-2">
-                                  <span className="text-xl">✅</span>
-                                  <div className="flex-1">
-                                    <p className="text-sm font-semibold text-green-900">
-                                      {presentationUrl.payload.message}
-                                    </p>
-                                    <p className="text-xs text-green-700 mt-1">
-                                      {presentationUrl.payload.slide_count} slides ready to view
-                                    </p>
+                                  <div className="flex-1 max-w-[85%]">
+                                    <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
+                                      <p className="text-sm font-medium text-gray-900">{actionMsg.payload.prompt_text}</p>
+                                    </div>
                                   </div>
                                 </div>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="mt-3 w-full bg-white hover:bg-green-50 border-green-300 text-green-700 hover:text-green-800"
-                                  onClick={() => window.open(presentationUrl.payload.url, '_blank')}
-                                >
-                                  <ExternalLink className="h-3 w-3 mr-1" />
-                                  Open presentation
-                                </Button>
-                              </div>
-                            )}
-
-                            {/* Action Buttons Section */}
-                            {actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
-                              <div className="px-4 py-3 bg-white/60">
-                                <p className="text-sm font-medium text-gray-900 mb-3">{actionRequest.payload.prompt_text}</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {actionRequest.payload.actions.map((action, i) => (
+                                <div className="ml-11 flex flex-wrap gap-2">
+                                  {actionMsg.payload.actions.map((action, i) => (
                                     <Button
                                       key={i}
                                       size="sm"
                                       variant={action.primary ? "default" : "outline"}
-                                      onClick={() => handleActionClick(action, actionRequest.message_id)}
+                                      onClick={() => handleActionClick(action, actionMsg.message_id)}
                                       className={action.primary
-                                        ? "bg-green-600 hover:bg-green-700 shadow-sm"
+                                        ? "bg-blue-600 hover:bg-blue-700 shadow-sm"
                                         : "hover:bg-gray-50 border-gray-300"
                                       }
                                     >
@@ -1105,189 +1199,94 @@ function BuilderContent() {
                                   ))}
                                 </div>
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  } else if (msg.type === 'chat_message') {
-                    const chatMsg = msg as V2ChatMessage
-                    // Detect if this is a preview link message
-                    const isPreviewLink = chatMsg.payload.text.includes('📊') &&
-                                          chatMsg.payload.text.toLowerCase().includes('preview');
-
-                    return (
-                      <div className="flex gap-3 animate-in slide-in-from-left duration-300">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="bg-purple-100 rounded-full p-1.5">
-                            <Bot className="h-4 w-4 text-purple-600" />
-                          </div>
-                        </div>
-                        <div className="flex-1 max-w-[85%]">
-                          <div className={`rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm ${
-                            isPreviewLink
-                              ? 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'
-                              : 'bg-white border border-gray-200'
-                          }`}>
-                            <div className="text-sm max-w-none text-gray-800" style={{ fontSize: '0.875rem' }}>
-                              <ReactMarkdown
-                                components={{
-                                  a: ({node, ...props}) => (
-                                    <a
-                                      {...props}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
-                                    />
-                                  ),
-                                  p: ({node, ...props}) => <p {...props} className="leading-relaxed mb-0" style={{ fontSize: 'inherit' }} />,
-                                  strong: ({node, ...props}) => <strong {...props} className="font-semibold text-gray-900" style={{ fontSize: 'inherit' }} />,
-                                  ul: ({node, ...props}) => <ul {...props} className="space-y-1 my-2" style={{ fontSize: 'inherit' }} />,
-                                  li: ({node, ...props}) => <li {...props} className="leading-relaxed" style={{ fontSize: 'inherit' }} />
-                                }}
-                              >
-                                {chatMsg.payload.text}
-                              </ReactMarkdown>
-                            </div>
-                            {chatMsg.payload.sub_title && (
-                              <p className="text-xs text-gray-600 mt-1">{chatMsg.payload.sub_title}</p>
-                            )}
-                            {chatMsg.payload.list_items && chatMsg.payload.list_items.length > 0 && (
-                              <ul className="text-xs mt-2 space-y-1">
-                                {chatMsg.payload.list_items.map((item, i) => (
-                                  <li key={i} className="ml-4 list-disc">{item}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  } else if (msg.type === 'action_request') {
-                    const actionMsg = msg as ActionRequest
-                    // Don't render if this action has already been answered
-                    if (answeredActionsRef.current.has(actionMsg.message_id)) {
-                      return null
-                    }
-                    return (
-                      <div className="space-y-3 animate-in slide-in-from-left duration-300">
-                        <div className="flex gap-3">
-                          <div className="flex-shrink-0 mt-1">
-                            <div className="bg-purple-100 rounded-full p-1.5">
-                              <Bot className="h-4 w-4 text-purple-600" />
-                            </div>
-                          </div>
-                          <div className="flex-1 max-w-[85%]">
-                            <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
-                              <p className="text-sm font-medium text-gray-900">{actionMsg.payload.prompt_text}</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="ml-11 flex flex-wrap gap-2">
-                          {actionMsg.payload.actions.map((action, i) => (
-                            <Button
-                              key={i}
-                              size="sm"
-                              variant={action.primary ? "default" : "outline"}
-                              onClick={() => handleActionClick(action, actionMsg.message_id)}
-                              className={action.primary
-                                ? "bg-blue-600 hover:bg-blue-700 shadow-sm"
-                                : "hover:bg-gray-50 border-gray-300"
-                              }
-                            >
-                              {action.label}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  } else if (msg.type === 'slide_update') {
-                    const slideMsg = msg as SlideUpdate
-                    return (
-                      <div className="flex gap-3 animate-in slide-in-from-left duration-300">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="bg-purple-100 rounded-full p-1.5">
-                            <Bot className="h-4 w-4 text-purple-600" />
-                          </div>
-                        </div>
-                        <div className="flex-1 max-w-[85%]">
-                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-                            <div className="flex items-start gap-2">
-                              <span className="text-xl">📊</span>
-                              <div className="flex-1">
-                                <p className="text-sm font-semibold text-blue-900">
-                                  {slideMsg.payload.metadata.main_title}
-                                </p>
-                                <p className="text-xs text-blue-700 mt-1 flex items-center gap-2 flex-wrap">
-                                  <span className="font-medium">{slideMsg.payload.slides.length} slides</span>
-                                  <span className="text-blue-400">•</span>
-                                  <span>{slideMsg.payload.metadata.presentation_duration} min</span>
-                                  <span className="text-blue-400">•</span>
-                                  <span className="capitalize">{slideMsg.payload.metadata.overall_theme}</span>
-                                </p>
-                              </div>
-                            </div>
-                            <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
-                              {slideMsg.payload.slides.map((slide, i) => (
-                                <div key={i} className="text-xs bg-white/80 backdrop-blur rounded-lg px-3 py-2 border border-blue-100">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-blue-700 min-w-[1.5rem]">
-                                      {slide.slide_number}.
-                                    </span>
-                                    <span className="font-medium text-gray-800 flex-1">
-                                      {slide.title}
-                                    </span>
-                                    <span className="text-gray-500 text-[10px] uppercase tracking-wide">
-                                      {slide.slide_type}
-                                    </span>
+                            )
+                          } else if (msg.type === 'slide_update') {
+                            const slideMsg = msg as SlideUpdate
+                            return (
+                              <div className="flex gap-3 animate-in slide-in-from-left duration-300">
+                                <div className="flex-shrink-0 mt-1">
+                                  <div className="bg-purple-100 rounded-full p-1.5">
+                                    <Bot className="h-4 w-4 text-purple-600" />
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  } else if (msg.type === 'presentation_url') {
-                    const presMsg = msg as PresentationURL
-                    return (
-                      <div className="flex gap-3 animate-in slide-in-from-left duration-300">
-                        <div className="flex-shrink-0 mt-1">
-                          <div className="bg-green-100 rounded-full p-1.5">
-                            <Bot className="h-4 w-4 text-green-600" />
-                          </div>
-                        </div>
-                        <div className="flex-1 max-w-[85%]">
-                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-                            <div className="flex items-start gap-2">
-                              <span className="text-xl">✅</span>
-                              <div className="flex-1">
-                                <p className="text-sm font-semibold text-green-900">
-                                  {presMsg.payload.message}
-                                </p>
-                                <p className="text-xs text-green-700 mt-1">
-                                  {presMsg.payload.slide_count} slides ready to view
-                                </p>
+                                <div className="flex-1 max-w-[85%]">
+                                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-xl">📊</span>
+                                      <div className="flex-1">
+                                        <p className="text-sm font-semibold text-blue-900">
+                                          {slideMsg.payload.metadata.main_title}
+                                        </p>
+                                        <p className="text-xs text-blue-700 mt-1 flex items-center gap-2 flex-wrap">
+                                          <span className="font-medium">{slideMsg.payload.slides.length} slides</span>
+                                          <span className="text-blue-400">•</span>
+                                          <span>{slideMsg.payload.metadata.presentation_duration} min</span>
+                                          <span className="text-blue-400">•</span>
+                                          <span className="capitalize">{slideMsg.payload.metadata.overall_theme}</span>
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                                      {slideMsg.payload.slides.map((slide, i) => (
+                                        <div key={i} className="text-xs bg-white/80 backdrop-blur rounded-lg px-3 py-2 border border-blue-100">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-semibold text-blue-700 min-w-[1.5rem]">
+                                              {slide.slide_number}.
+                                            </span>
+                                            <span className="font-medium text-gray-800 flex-1">
+                                              {slide.title}
+                                            </span>
+                                            <span className="text-gray-500 text-[10px] uppercase tracking-wide">
+                                              {slide.slide_type}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="mt-3 w-full bg-white hover:bg-green-50 border-green-300 text-green-700 hover:text-green-800"
-                              onClick={() => window.open(presMsg.payload.url, '_blank')}
-                            >
-                              <ExternalLink className="h-3 w-3 mr-1" />
-                              Open presentation
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
+                            )
+                          } else if (msg.type === 'presentation_url') {
+                            const presMsg = msg as PresentationURL
+                            return (
+                              <div className="flex gap-3 animate-in slide-in-from-left duration-300">
+                                <div className="flex-shrink-0 mt-1">
+                                  <div className="bg-green-100 rounded-full p-1.5">
+                                    <Bot className="h-4 w-4 text-green-600" />
+                                  </div>
+                                </div>
+                                <div className="flex-1 max-w-[85%]">
+                                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-xl">✅</span>
+                                      <div className="flex-1">
+                                        <p className="text-sm font-semibold text-green-900">
+                                          {presMsg.payload.message}
+                                        </p>
+                                        <p className="text-xs text-green-700 mt-1">
+                                          {presMsg.payload.slide_count} slides ready to view
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="mt-3 w-full bg-white hover:bg-green-50 border-green-300 text-green-700 hover:text-green-800"
+                                      onClick={() => window.open(presMsg.payload.url, '_blank')}
+                                    >
+                                      <ExternalLink className="h-3 w-3 mr-1" />
+                                      Open presentation
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+                          return null
+                        })()}
+                      </React.Fragment>
                     )
-                  }
-                  return null
-                })()}
-                    </React.Fragment>
-                  )
                   });
                 })()}
                 <div ref={messagesEndRef} />
@@ -1341,12 +1340,12 @@ function BuilderContent() {
                       isLoadingSession
                         ? "Loading session..."
                         : !connected && !connecting
-                        ? "Disconnected - send a message to reconnect"
-                        : connecting
-                        ? "Connecting to Director..."
-                        : pendingActionInput
-                        ? `Type your changes here... (ESC to cancel)`
-                        : "Type your message... (Shift+Enter for new line)"
+                          ? "Disconnected - send a message to reconnect"
+                          : connecting
+                            ? "Connecting to Director..."
+                            : pendingActionInput
+                              ? `Type your changes here... (ESC to cancel)`
+                              : "Type your message... (Shift+Enter for new line)"
                     }
                     disabled={isLoadingSession}
                     className="resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-xl shadow-sm"
@@ -1406,8 +1405,9 @@ function BuilderContent() {
                   // FIXED: Show slide building animation when actively processing OR generating final
                   <SlideBuildingLoader
                     statusText={isGeneratingFinal ? "Generating your final presentation..." : currentStatus?.text}
-                    estimatedTime={currentStatus?.estimated_time}
+                    estimatedTime={currentStatus?.estimated_time ?? undefined}
                     className="w-full px-8"
+                    mode={isGeneratingFinal ? 'default' : 'strawman'}
                   />
                 ) : (
                   // Show default placeholder when idle

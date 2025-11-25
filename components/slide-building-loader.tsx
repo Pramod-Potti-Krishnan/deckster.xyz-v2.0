@@ -8,6 +8,7 @@ interface SlideBuildingLoaderProps {
   statusText?: string
   estimatedTime?: number
   className?: string
+  mode?: 'default' | 'strawman'
 }
 
 type LayoutType = 'text-heavy' | 'visual-heavy' | 'data-focused'
@@ -15,13 +16,16 @@ type LayoutType = 'text-heavy' | 'visual-heavy' | 'data-focused'
 export function SlideBuildingLoader({
   statusText = "Building your presentation...",
   estimatedTime,
-  className = ''
+  className = '',
+  mode = 'default'
 }: SlideBuildingLoaderProps) {
   const [currentLayout, setCurrentLayout] = useState<LayoutType>('text-heavy')
   const [isRebuilding, setIsRebuilding] = useState(false)
 
-  // Cycle layouts
+  // Cycle layouts (only for default mode)
   useEffect(() => {
+    if (mode !== 'default') return
+
     const layouts: LayoutType[] = ['text-heavy', 'visual-heavy', 'data-focused']
     let currentIndex = 0
 
@@ -35,7 +39,7 @@ export function SlideBuildingLoader({
     }, 4000) // 4 seconds per slide
 
     return () => clearInterval(interval)
-  }, [])
+  }, [mode])
 
   return (
     <div className={cn("flex flex-col items-center justify-center gap-8", className)}>
@@ -82,23 +86,101 @@ export function SlideBuildingLoader({
 
         {/* 3. Content Area */}
         <div className="absolute inset-0 p-8 flex flex-col">
-          <AnimatePresence mode="wait">
-            {!isRebuilding && (
-              <motion.div
-                key={currentLayout}
-                className="w-full h-full flex flex-col gap-4"
-                initial={{ opacity: 0, scale: 0.95, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 1.05, filter: 'blur(4px)' }}
-                transition={{ duration: 0.5 }}
-              >
-                {currentLayout === 'text-heavy' && <TextHeavyLayout />}
-                {currentLayout === 'visual-heavy' && <VisualHeavyLayout />}
-                {currentLayout === 'data-focused' && <DataFocusedLayout />}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {mode === 'strawman' ? (
+            <StrawmanLayout />
+          ) : (
+            <AnimatePresence mode="wait">
+              {!isRebuilding && (
+                <motion.div
+                  key={currentLayout}
+                  className="w-full h-full flex flex-col gap-4"
+                  initial={{ opacity: 0, scale: 0.95, filter: 'blur(4px)' }}
+                  animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                  exit={{ opacity: 0, scale: 1.05, filter: 'blur(4px)' }}
+                  transition={{ duration: 0.5 }}
+                >
+                  {currentLayout === 'text-heavy' && <TextHeavyLayout />}
+                  {currentLayout === 'visual-heavy' && <VisualHeavyLayout />}
+                  {currentLayout === 'data-focused' && <DataFocusedLayout />}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
         </div>
+      </div>
+
+      {/* Status Text */}
+      <div className="text-center space-y-2">
+        <motion.p
+          className="text-lg font-medium bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-600"
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          {statusText}
+        </motion.p>
+        {estimatedTime && (
+          <p className="text-sm text-muted-foreground">~{estimatedTime}s remaining</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Strawman Layout: Grid of small slides appearing
+function StrawmanLayout() {
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <div className="grid grid-cols-3 gap-6 w-full max-w-2xl">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <motion.div
+            key={i}
+            className="aspect-video rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 relative overflow-hidden shadow-sm"
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{
+              delay: i * 0.3, // Staggered appearance
+              duration: 0.5,
+              type: "spring",
+              bounce: 0.4
+            }}
+          >
+            {/* Mini slide content skeleton */}
+            <div className="p-2 space-y-1.5">
+              {/* Title line */}
+              <motion.div
+                className="h-1.5 w-3/4 bg-slate-300 dark:bg-slate-600 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: '75%' }}
+                transition={{ delay: i * 0.3 + 0.3, duration: 0.4 }}
+              />
+              {/* Body lines */}
+              <motion.div
+                className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: '100%' }}
+                transition={{ delay: i * 0.3 + 0.4, duration: 0.4 }}
+              />
+              <motion.div
+                className="h-1 w-5/6 bg-slate-200 dark:bg-slate-700 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: '83%' }}
+                transition={{ delay: i * 0.3 + 0.5, duration: 0.4 }}
+              />
+            </div>
+
+            {/* Shimmer overlay */}
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent"
+              animate={{ x: ['-100%', '200%'] }}
+              transition={{
+                repeat: Infinity,
+                duration: 1.5,
+                ease: "linear",
+                delay: i * 0.2 // Offset shimmers slightly
+              }}
+            />
+          </motion.div>
+        ))}
       </div>
     </div>
   )
