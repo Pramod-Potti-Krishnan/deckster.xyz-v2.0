@@ -135,6 +135,9 @@ function BuilderContent() {
   // Guard to prevent concurrent executions of handleSendMessage (prevents duplication)
   const isExecutingSendRef = useRef(false)
 
+  // Track user message IDs to distinguish from bot chat_messages
+  const userMessageIdsRef = useRef<Set<string>>(new Set())
+
   // Check if user is new and should see onboarding
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -287,9 +290,11 @@ function BuilderContent() {
     if (sessionId === currentSessionId) return
 
     console.log('📂 Switching to session:', sessionId)
+    setShowChatHistory(false)
+    setIsLoadingSession(true)
+
+    // Use router.push for navigation (Next.js will handle state properly)
     router.push(`/builder?session_id=${sessionId}`)
-    // Page will reload with new session
-    window.location.href = `/builder?session_id=${sessionId}`
   }, [currentSessionId, router])
 
   // Handle new chat from sidebar
@@ -326,17 +331,22 @@ function BuilderContent() {
   }, [currentSessionId, isLoadingSession, connecting, connected, connect, isResumedSession, isUnsavedSession])
 
   // Persist bot messages received from WebSocket
-  // FIXED: Only persist bot messages (not chat_message type) to avoid overwriting user messages
+  // FIXED: Persist all bot messages including bot chat_messages (welcome messages)
   useEffect(() => {
     if (!currentSessionId || !persistence || messages.length === 0) return
 
     // Get the last message
     const lastMessage = messages[messages.length - 1]
 
-    // Only persist bot messages (status_update, action_request, presentation_url, slide_update, etc.)
-    // Skip chat_message type as those are user messages persisted in handleSendMessage with userText
+    // Persist non-chat_message types (action_request, slide_update, etc.)
     if (lastMessage.type !== 'chat_message') {
       console.log('💾 Persisting bot message:', lastMessage.type, lastMessage.message_id)
+      persistence.queueMessage(lastMessage)
+    }
+    // For chat_message type, only persist if it's NOT from the user
+    // User messages are tracked in userMessageIdsRef and persisted separately with userText
+    else if (!userMessageIdsRef.current.has(lastMessage.message_id)) {
+      console.log('💾 Persisting bot chat_message (welcome/initial):', lastMessage.message_id)
       persistence.queueMessage(lastMessage)
     }
 
@@ -410,6 +420,9 @@ function BuilderContent() {
       if (pendingActionInput) {
         const { action, messageId, timestamp } = pendingActionInput
 
+        // Track this as a user message ID
+        userMessageIdsRef.current.add(messageId)
+
         // Add action label message to local state (e.g., "Make changes")
         setUserMessages(prev => [...prev, {
           id: messageId,
@@ -462,6 +475,10 @@ function BuilderContent() {
             // IMPORTANT: Add user message to UI immediately (before sending)
             const messageId = crypto.randomUUID()
             const timestamp = Date.now()
+
+            // Track this as a user message ID
+            userMessageIdsRef.current.add(messageId)
+
             setUserMessages(prev => [...prev, {
               id: messageId,
               text: messageText,
@@ -521,6 +538,9 @@ function BuilderContent() {
       const messageId = crypto.randomUUID()
       const timestamp = Date.now()
 
+      // Track this as a user message ID
+      userMessageIdsRef.current.add(messageId)
+
       // Add user message to local state
       setUserMessages(prev => [...prev, {
         id: messageId,
@@ -575,6 +595,9 @@ function BuilderContent() {
         textareaRef.current?.focus()
       }, 100)
     } else {
+      // Track this as a user message ID
+      userMessageIdsRef.current.add(messageId)
+
       // Add user message to local state (show label to user)
       setUserMessages(prev => [...prev, {
         id: messageId,
