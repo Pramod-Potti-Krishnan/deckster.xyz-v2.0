@@ -113,9 +113,8 @@ function BuilderContent() {
           updates.finalPresentationId = state.presentationId
           console.log('💾 Saving final URLs:', { url: state.presentationUrl, id: state.presentationId })
 
-          // FIXED: Clear loading state when final presentation arrives
-          setIsGeneratingFinal(false)
-          console.log('✅ Final presentation ready - hiding loader')
+          // NOTE: isGeneratingFinal state is now cleared via useEffect (lines 154-161)
+          // This ensures proper React state synchronization instead of calling setState from callback
         }
 
         persistence.updateMetadata(updates)
@@ -150,6 +149,15 @@ function BuilderContent() {
 
   // FIXED: Track when generating final presentation to show loading animation
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
+
+  // FIXED: Clear loading state when final presentation URL arrives
+  // Using useEffect ensures proper React state synchronization
+  useEffect(() => {
+    if (finalPresentationUrl && isGeneratingFinal) {
+      setIsGeneratingFinal(false)
+      console.log('✅ Final presentation ready - hiding loader')
+    }
+  }, [finalPresentationUrl, isGeneratingFinal])
 
   // Track if we've generated a title from user message yet
   const hasTitleFromUserMessageRef = useRef(false)
