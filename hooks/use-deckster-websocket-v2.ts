@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
+import { useSessionCache, CachedSessionState } from './use-session-cache';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -170,25 +171,94 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     userIdRef.current = user?.id || user?.email || `user_${Date.now()}`;
   }
 
-  const [state, setState] = useState<UseDecksterWebSocketV2State>({
-    connected: false,
-    connecting: false,
-    connectionState: 'disconnected',
+  // Initialize browser cache for this session
+  const sessionCache = useSessionCache({
     sessionId: sessionIdRef.current,
-    userId: userIdRef.current,
-    error: null,
-    messages: [],
-    presentationUrl: null,
-    strawmanPreviewUrl: null,
-    finalPresentationUrl: null,
-    presentationId: null,
-    strawmanPresentationId: null,
-    finalPresentationId: null,
-    activeVersion: 'final', // Default to final when available, fallback to strawman
-    slideCount: null,
-    currentStatus: null,
-    slideStructure: null,
+    enabled: true,
+    ttl: 24 * 60 * 60 * 1000, // 24 hours
   });
+
+  // Try to restore state from cache first (before creating default state)
+  const getInitialState = (): UseDecksterWebSocketV2State => {
+    const cached = sessionCache.getCachedState();
+    if (cached && sessionCache.isCacheValid()) {
+      console.log('⚡ Initializing from sessionStorage cache:', {
+        messages: cached.messages?.length || 0,
+        strawman: !!cached.strawmanPreviewUrl,
+        final: !!cached.finalPresentationUrl,
+      });
+
+      return {
+        connected: false,
+        connecting: false,
+        connectionState: 'disconnected',
+        sessionId: sessionIdRef.current,
+        userId: userIdRef.current,
+        error: null,
+        messages: cached.messages || [],
+        presentationUrl: cached.presentationUrl || null,
+        strawmanPreviewUrl: cached.strawmanPreviewUrl || null,
+        finalPresentationUrl: cached.finalPresentationUrl || null,
+        presentationId: cached.presentationId || null,
+        strawmanPresentationId: cached.strawmanPresentationId || null,
+        finalPresentationId: cached.finalPresentationId || null,
+        activeVersion: cached.activeVersion || 'final',
+        slideCount: cached.slideCount || null,
+        currentStatus: cached.currentStatus || null,
+        slideStructure: cached.slideStructure || null,
+      };
+    }
+
+    // No cache or invalid cache - return default state
+    return {
+      connected: false,
+      connecting: false,
+      connectionState: 'disconnected',
+      sessionId: sessionIdRef.current,
+      userId: userIdRef.current,
+      error: null,
+      messages: [],
+      presentationUrl: null,
+      strawmanPreviewUrl: null,
+      finalPresentationUrl: null,
+      presentationId: null,
+      strawmanPresentationId: null,
+      finalPresentationId: null,
+      activeVersion: 'final', // Default to final when available, fallback to strawman
+      slideCount: null,
+      currentStatus: null,
+      slideStructure: null,
+    };
+  };
+
+  const [state, setState] = useState<UseDecksterWebSocketV2State>(getInitialState());
+
+  // Wrapper for setState that also writes to cache
+  const setStateWithCache = useCallback((
+    updateFn: (prev: UseDecksterWebSocketV2State) => UseDecksterWebSocketV2State
+  ) => {
+    setState(prev => {
+      const newState = updateFn(prev);
+
+      // Write to sessionStorage cache (synchronous, instant)
+      sessionCache.setCachedState({
+        messages: newState.messages,
+        presentationUrl: newState.presentationUrl,
+        strawmanPreviewUrl: newState.strawmanPreviewUrl,
+        finalPresentationUrl: newState.finalPresentationUrl,
+        presentationId: newState.presentationId,
+        strawmanPresentationId: newState.strawmanPresentationId,
+        finalPresentationId: newState.finalPresentationId,
+        activeVersion: newState.activeVersion,
+        slideCount: newState.slideCount,
+        currentStatus: newState.currentStatus,
+        slideStructure: newState.slideStructure,
+        userMessages: [], // Will be updated from page.tsx
+      });
+
+      return newState;
+    });
+  }, [sessionCache]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
@@ -309,7 +379,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
           console.log('📨 Received message:', message.type, message);
 
-          setState(prev => {
+          setStateWithCache(prev => {
             // Prevent duplicate messages by checking message_id
             const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
 
@@ -558,7 +628,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Switch between strawman and final versions
   const switchVersion = useCallback((version: 'strawman' | 'final') => {
-    setState(prev => {
+    setStateWithCache(prev => {
       const newActiveVersion = version;
       let newPresentationUrl = null;
       let newPresentationId = null;
@@ -583,11 +653,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         presentationId: newPresentationId
       };
     });
-  }, []);
+  }, [setStateWithCache]);
 
   // Clear messages
   const clearMessages = useCallback(() => {
-    setState(prev => ({
+    // Also clear the cache
+    sessionCache.clearCache();
+
+    setStateWithCache(prev => ({
       ...prev,
       messages: [],
       presentationUrl: null,
@@ -601,7 +674,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       currentStatus: null,
       slideStructure: null,
     }));
-  }, []);
+  }, [sessionCache, setStateWithCache]);
 
   // Restore messages from database (for session loading)
   const restoreMessages = useCallback((historicalMessages: DirectorMessage[], sessionState?: {
@@ -632,7 +705,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       activeVersion = 'strawman';
     }
 
-    setState(prev => ({
+    setStateWithCache(prev => ({
       ...prev,
       messages: historicalMessages,
       // FIXED: Use nullish coalescing (??) instead of OR (||)
@@ -649,7 +722,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }));
 
     console.log(`✅ Restored session with activeVersion: ${activeVersion}`);
-  }, []);
+  }, [setStateWithCache]);
 
   // Auto-connect on mount (only once)
   useEffect(() => {

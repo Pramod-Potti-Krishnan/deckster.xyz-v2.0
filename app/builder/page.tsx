@@ -605,6 +605,7 @@ function BuilderContent() {
             // Persist user message to database IMMEDIATELY (synchronous)
             // FIXED: Use saveBatch instead of queueMessage to prevent race condition
             // where message is lost if user navigates away before queue flushes
+            // FIXED: Pass messageText as second argument to save userText field
             if (persistence) {
               console.log('💾 Persisting user message for new session (synchronous):', messageId)
               await persistence.saveBatch([{
@@ -613,7 +614,7 @@ function BuilderContent() {
                 timestamp: new Date(timestamp).toISOString(),
                 type: 'chat_message',
                 payload: { text: messageText }
-              } as DirectorMessage])
+              } as DirectorMessage], messageText) // FIXED: Pass userText as 2nd arg
 
               // Generate title from first user message
               const generatedTitle = persistence.generateTitle(messageText)

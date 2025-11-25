@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useChatSessions, ChatMessage } from './use-chat-sessions';
 import { DirectorMessage } from './use-deckster-websocket-v2';
+import { useSessionCache } from './use-session-cache';
 
 export interface SessionPersistenceOptions {
   sessionId: string;
@@ -12,6 +13,13 @@ export interface SessionPersistenceOptions {
 export function useSessionPersistence(options: SessionPersistenceOptions) {
   const { sessionId, enabled = true, debounceMs = 3000, onError } = options;
   const { saveMessages, updateSession } = useChatSessions();
+
+  // Initialize browser cache
+  const sessionCache = useSessionCache({
+    sessionId,
+    enabled,
+    ttl: 24 * 60 * 60 * 1000, // 24 hours
+  });
 
   // Queue of pending messages to save
   const messageQueueRef = useRef<Map<string, any>>(new Map());
@@ -79,7 +87,10 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
       queueSize: messageQueueRef.current.size + 1
     });
 
-    // Add to queue (using message_id as key for deduplication)
+    // STEP 1: Write to browser cache IMMEDIATELY (synchronous, no delay)
+    sessionCache.appendMessage(message, userText);
+
+    // STEP 2: Add to queue for DB save (using message_id as key for deduplication)
     messageQueueRef.current.set(message.message_id, {
       id: message.message_id,
       messageType: message.type,
@@ -107,24 +118,31 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     saveTimeoutRef.current = setTimeout(() => {
       flushMessages();
     }, debounceMs);
-  }, [enabled, debounceMs, flushMessages]);
+  }, [enabled, debounceMs, flushMessages, sessionCache]);
 
   /**
    * Save a batch of messages
+   * FIXED: Now accepts optional userText parameter to save user messages correctly
    */
-  const saveBatch = useCallback(async (messages: DirectorMessage[]) => {
+  const saveBatch = useCallback(async (messages: DirectorMessage[], userText?: string) => {
     if (!enabled || messages.length === 0) return;
 
     try {
+      // STEP 1: Write to browser cache FIRST (synchronous)
+      if (userText && messages.length > 0) {
+        sessionCache.appendMessage(messages[0], userText);
+      }
+
+      // STEP 2: Format messages for DB save
       const formattedMessages = messages.map(msg => ({
         id: msg.message_id,
         messageType: msg.type,
         timestamp: msg.timestamp,
         payload: msg.payload,
-        userText: null,
+        userText: userText || null, // FIXED: Use provided userText instead of hardcoded null
       }));
 
-      console.log(`💾 Batch saving ${formattedMessages.length} messages`);
+      console.log(`💾 Batch saving ${formattedMessages.length} messages with userText: ${!!userText}`);
       const result = await saveMessages(sessionId, formattedMessages);
 
       if (result) {
@@ -136,7 +154,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         onError(error instanceof Error ? error : new Error('Unknown error'));
       }
     }
-  }, [enabled, sessionId, saveMessages, onError]);
+  }, [enabled, sessionId, saveMessages, onError, sessionCache]);
 
   /**
    * Update session metadata
