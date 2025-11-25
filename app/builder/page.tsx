@@ -20,7 +20,6 @@ import { ChatHistorySidebar } from "@/components/chat-history-sidebar"
 import {
   Sparkles,
   Settings,
-  Share,
   Menu,
   History,
   Send,
@@ -118,7 +117,6 @@ function BuilderContent() {
   } | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [showShare, setShowShare] = useState(false)
   const [showVersions, setShowVersions] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
 
@@ -667,13 +665,6 @@ function BuilderContent() {
                 onClick={() => setShowSettings(true)}
               >
                 <Settings className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowShare(true)}
-              >
-                <Share className="h-5 w-5" />
               </Button>
               <UserProfileMenu />
             </div>
