@@ -1250,7 +1250,7 @@ function BuilderContent() {
                         ? `Type your changes here... (ESC to cancel)`
                         : "Type your message... (Shift+Enter for new line)"
                     }
-                    disabled={isLoadingSession || isSending}
+                    disabled={isLoadingSession}
                     className="resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-xl shadow-sm"
                     rows={3}
                   />
