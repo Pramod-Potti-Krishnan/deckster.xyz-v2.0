@@ -1,5 +1,5 @@
 // Prisma Client singleton instance
-// Prevents multiple instances in development due to hot-reloading
+// Prevents multiple instances in all environments (critical for serverless)
 
 import { PrismaClient } from '@prisma/client'
 
@@ -17,14 +17,20 @@ const createPrismaClient = () => {
   console.log('[Prisma] Creating new PrismaClient instance')
   return new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    // Connection pool settings for serverless (Supabase Transaction Pooler)
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
   })
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma
-}
+// CRITICAL: Use singleton in ALL environments (including production)
+// This prevents exhausting database connections in Vercel serverless
+globalForPrisma.prisma = prisma
 
 console.log('[Prisma] PrismaClient instance ready')
 
