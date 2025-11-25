@@ -136,6 +136,10 @@ function BuilderContent() {
   // Track user message IDs to distinguish from bot chat_messages
   const userMessageIdsRef = useRef<Set<string>>(new Set())
 
+  // Track which action_request messages have been answered by the user
+  // Prevents duplicate action buttons from re-appearing on page refresh
+  const answeredActionsRef = useRef<Set<string>>(new Set())
+
   // Check if user is new and should see onboarding
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -194,10 +198,20 @@ function BuilderContent() {
               const userMsgs: Array<{ id: string; text: string; timestamp: number }> = []
               const botMsgs: DirectorMessage[] = []
 
+              // Track last seen action_request to match with user responses
+              let lastActionRequestId: string | null = null
+
               session.messages.forEach((msg: any) => {
                 if (msg.userText) {
                   // User message
                   console.log('👤 Loading user message:', { id: msg.id, text: msg.userText.substring(0, 50), timestamp: msg.timestamp });
+
+                  // Check if this user message is answering an action (has action_value in payload)
+                  if (msg.payload?.action_value && lastActionRequestId) {
+                    answeredActionsRef.current.add(lastActionRequestId)
+                    console.log(`✅ Restored answered action: ${lastActionRequestId} (answered by user message ${msg.id})`)
+                  }
+
                   userMsgs.push({
                     id: msg.id,
                     text: msg.userText,
@@ -207,6 +221,12 @@ function BuilderContent() {
                   // Bot message - convert from DB format to WebSocket format
                   // IMPORTANT: Add clientTimestamp for proper sorting with user messages
                   console.log('🤖 Loading bot message:', { id: msg.id, type: msg.messageType, timestamp: msg.timestamp });
+
+                  // Track action_request messages
+                  if (msg.messageType === 'action_request') {
+                    lastActionRequestId = msg.id
+                  }
+
                   botMsgs.push({
                     message_id: msg.id,
                     session_id: session.id,
@@ -222,17 +242,28 @@ function BuilderContent() {
               setUserMessages(userMsgs)
 
               // Restore bot messages and session state
-              restoreMessages(botMsgs, {
+              const sessionState = {
                 presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl,
                 presentationId: session.finalPresentationId || session.strawmanPresentationId,
                 slideCount: session.slideCount,
+              }
+
+              restoreMessages(botMsgs, sessionState)
+
+              // Debug: Log presentation state restoration
+              console.log('📊 Restored session state:', {
+                presentationUrl: sessionState.presentationUrl || '(none)',
+                presentationId: sessionState.presentationId || '(none)',
+                slideCount: sessionState.slideCount || 0,
+                finalPresentationUrl: session.finalPresentationUrl || '(none)',
+                strawmanPreviewUrl: session.strawmanPreviewUrl || '(none)'
               })
 
-              // Mark as resumed session - DON'T auto-connect WebSocket
+              // Mark as resumed session - WILL auto-connect WebSocket (welcome message deduplication handled separately)
               setIsResumedSession(true)
-              // Mark that we've seen welcome message (to prevent duplicates if reconnecting)
+              // Mark that we've seen welcome message (to prevent duplicates when reconnecting)
               hasSeenWelcomeRef.current = true
-              console.log(`✅ Restored ${userMsgs.length} user messages and ${botMsgs.length} bot messages (resumed session - no auto-connect)`)
+              console.log(`✅ Restored ${userMsgs.length} user messages and ${botMsgs.length} bot messages (resumed session - will auto-connect)`)
             } else {
               // No messages - treat as new session
               setIsResumedSession(false)
@@ -311,20 +342,19 @@ function BuilderContent() {
     router.push('/builder')
   }, [router, clearMessages])
 
-  // Auto-connect WebSocket for NEW sessions only (not resumed sessions)
+  // Auto-connect WebSocket for ALL sessions (new, unsaved, and resumed)
+  // Welcome message deduplication is handled separately (lines 761-782)
   useEffect(() => {
-    // Auto-connect for saved new sessions (has sessionId, not resumed)
-    if (currentSessionId && !isLoadingSession && !connecting && !connected && !isResumedSession) {
-      console.log('🔌 Auto-connecting WebSocket for NEW session:', currentSessionId)
+    // Auto-connect for ANY session with a sessionId
+    if (currentSessionId && !isLoadingSession && !connecting && !connected) {
+      const sessionType = isResumedSession ? 'RESUMED' : 'NEW'
+      console.log(`🔌 Auto-connecting WebSocket for ${sessionType} session:`, currentSessionId)
       connect()
     }
     // Auto-connect for unsaved sessions (no sessionId yet, waiting for first message)
     else if (isUnsavedSession && !isLoadingSession && !connecting && !connected) {
       console.log('🔌 Auto-connecting WebSocket for UNSAVED session (no DB session yet)')
       connect()
-    }
-    else if (isResumedSession) {
-      console.log('⏸️ Skipping auto-connect for RESUMED session (has existing messages)')
     }
   }, [currentSessionId, isLoadingSession, connecting, connected, connect, isResumedSession, isUnsavedSession])
 
@@ -616,9 +646,13 @@ function BuilderContent() {
   }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router])
 
   // Handle action button clicks
-  const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0]) => {
+  const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
     const messageId = crypto.randomUUID()
     const timestamp = Date.now()
+
+    // Mark this action request as answered (prevent duplicate buttons on refresh)
+    answeredActionsRef.current.add(actionRequestMessageId)
+    console.log(`✅ Marked action request ${actionRequestMessageId} as answered`)
 
     if (action.requires_input) {
       // For actions that require input, set state and focus chat input
@@ -953,7 +987,7 @@ function BuilderContent() {
                             )}
 
                             {/* Action Buttons Section */}
-                            {actionRequest && (
+                            {actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
                               <div className="px-4 py-3 bg-white/60">
                                 <p className="text-sm font-medium text-gray-900 mb-3">{actionRequest.payload.prompt_text}</p>
                                 <div className="flex flex-wrap gap-2">
@@ -962,7 +996,7 @@ function BuilderContent() {
                                       key={i}
                                       size="sm"
                                       variant={action.primary ? "default" : "outline"}
-                                      onClick={() => handleActionClick(action)}
+                                      onClick={() => handleActionClick(action, actionRequest.message_id)}
                                       className={action.primary
                                         ? "bg-green-600 hover:bg-green-700 shadow-sm"
                                         : "hover:bg-gray-50 border-gray-300"
@@ -1033,6 +1067,10 @@ function BuilderContent() {
                     )
                   } else if (msg.type === 'action_request') {
                     const actionMsg = msg as ActionRequest
+                    // Don't render if this action has already been answered
+                    if (answeredActionsRef.current.has(actionMsg.message_id)) {
+                      return null
+                    }
                     return (
                       <div className="space-y-3 animate-in slide-in-from-left duration-300">
                         <div className="flex gap-3">
@@ -1053,7 +1091,7 @@ function BuilderContent() {
                               key={i}
                               size="sm"
                               variant={action.primary ? "default" : "outline"}
-                              onClick={() => handleActionClick(action)}
+                              onClick={() => handleActionClick(action, actionMsg.message_id)}
                               className={action.primary
                                 ? "bg-blue-600 hover:bg-blue-700 shadow-sm"
                                 : "hover:bg-gray-50 border-gray-300"
@@ -1202,17 +1240,22 @@ function BuilderContent() {
                       }
                     }}
                     placeholder={
-                      !isReady
+                      isLoadingSession
+                        ? "Loading session..."
+                        : !connected && !connecting
+                        ? "Disconnected - send a message to reconnect"
+                        : connecting
                         ? "Connecting to Director..."
                         : pendingActionInput
                         ? `Type your changes here... (ESC to cancel)`
                         : "Type your message... (Shift+Enter for new line)"
                     }
-                    disabled={!isReady}
+                    disabled={isLoadingSession || isSending}
                     className="resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-xl shadow-sm"
                     rows={3}
                   />
-                  {!isReady && (
+                  {/* Only show loading overlay when actually loading session, not when WebSocket disconnected */}
+                  {isLoadingSession && (
                     <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] rounded-xl flex items-center justify-center">
                       <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
                     </div>
