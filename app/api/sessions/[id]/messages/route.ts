@@ -75,6 +75,14 @@ export async function POST(
       );
     }
 
+    // Log received messages for debugging
+    console.log(`[API] Saving ${messages.length} messages to session ${sessionId}`);
+    messages.forEach((msg, i) => {
+      if (msg.userText) {
+        console.log(`[API] Message ${i} (${msg.id}): userText = "${msg.userText.substring(0, 30)}..."`);
+      }
+    });
+
     // Batch insert messages with deduplication (upsert)
     const results = await Promise.allSettled(
       messages.map(async (msg: any) => {
@@ -83,7 +91,8 @@ export async function POST(
           update: {
             // Only update if content might have changed
             payload: msg.payload,
-            userText: msg.userText || null
+            // FIXED: Only update userText if new value is provided (don't overwrite with null)
+            ...(msg.userText ? { userText: msg.userText } : {})
           },
           create: {
             id: msg.id,

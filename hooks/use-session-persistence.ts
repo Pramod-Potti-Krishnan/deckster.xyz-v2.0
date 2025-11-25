@@ -142,7 +142,9 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         userText: userText || null, // FIXED: Use provided userText instead of hardcoded null
       }));
 
-      console.log(`💾 Batch saving ${formattedMessages.length} messages with userText: ${!!userText}`);
+      console.log(`💾 Batch saving ${formattedMessages.length} messages`);
+      console.log(`📝 userText parameter:`, userText ? `"${userText.substring(0, 50)}..."` : 'NULL');
+      console.log(`📝 First message userText field:`, formattedMessages[0]?.userText ? `"${formattedMessages[0].userText.substring(0, 30)}..."` : 'NULL');
       const result = await saveMessages(sessionId, formattedMessages);
 
       if (result) {
