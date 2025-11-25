@@ -718,35 +718,6 @@ function BuilderContent() {
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel - Chat (25%) */}
           <div className="w-1/4 flex flex-col bg-white border-r">
-            {/* Status Bar - Only shows when actively processing */}
-            {currentStatus && (
-              <div className="px-4 py-3 border-b bg-gradient-to-r from-blue-50 to-purple-50 animate-in slide-in-from-top duration-300">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-blue-600 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 whitespace-normal break-words">{currentStatus.text}</p>
-                    {currentStatus.estimated_time && (
-                      <p className="text-xs text-gray-600 mt-0.5">
-                        ~{currentStatus.estimated_time}s remaining
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {currentStatus.progress !== null && currentStatus.progress > 0 ? (
-                  <Progress value={currentStatus.progress} className="mt-2 h-1" />
-                ) : currentStatus.estimated_time ? (
-                  <div className="mt-2">
-                    <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-600 rounded-full transition-all duration-1000 ease-linear"
-                        style={{ width: '100%', animation: `shrink ${currentStatus.estimated_time}s linear` }}
-                      />
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
             {/* Chat Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
@@ -1286,13 +1257,45 @@ function BuilderContent() {
               />
             ) : (
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <Sparkles className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-lg text-gray-600">Your presentation will appear here</p>
-                  <p className="text-sm text-gray-400 mt-2">
-                    Start by telling Director what presentation you'd like to create
-                  </p>
-                </div>
+                {currentStatus ? (
+                  // Show status message when actively processing
+                  <div className="max-w-md w-full px-8">
+                    <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
+                      <div className="flex items-start gap-4 mb-6">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-600 flex-shrink-0 mt-1" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-lg font-medium text-gray-900 mb-2 whitespace-normal break-words">
+                            {currentStatus.text}
+                          </p>
+                          {currentStatus.estimated_time && (
+                            <p className="text-sm text-gray-600">
+                              ~{currentStatus.estimated_time}s remaining
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {currentStatus.progress !== null && currentStatus.progress > 0 ? (
+                        <Progress value={currentStatus.progress} className="h-2" />
+                      ) : currentStatus.estimated_time ? (
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-600 rounded-full transition-all duration-1000 ease-linear"
+                            style={{ width: '100%', animation: `shrink ${currentStatus.estimated_time}s linear` }}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  // Show default placeholder when idle
+                  <div className="text-center">
+                    <Sparkles className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-lg text-gray-600">Your presentation will appear here</p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Start by telling Director what presentation you'd like to create
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>

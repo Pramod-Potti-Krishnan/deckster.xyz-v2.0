@@ -368,7 +368,7 @@ export function PresentationViewer({
               size="sm"
               variant="outline"
               onClick={handlePrevSlide}
-              disabled={currentSlide <= 1}
+              disabled={false}
               className="h-8"
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
