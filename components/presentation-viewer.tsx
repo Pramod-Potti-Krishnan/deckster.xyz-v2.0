@@ -117,11 +117,17 @@ export function PresentationViewer({
     }
     try {
       await sendCommand(iframeRef.current, 'nextSlide')
-      console.log('➡️ Next slide')
+      // Immediately update local state (polling will confirm/sync)
+      if (currentSlide < (totalSlides || 999)) {
+        const newSlide = currentSlide + 1
+        setCurrentSlide(newSlide)
+        onSlideChange?.(newSlide)
+        console.log(`➡️ Next slide (${currentSlide} → ${newSlide})`)
+      }
     } catch (error) {
       console.error('Error navigating to next slide:', error)
     }
-  }, [])
+  }, [currentSlide, totalSlides, onSlideChange])
 
   const handlePrevSlide = useCallback(async () => {
     console.log('🔘 Prev button clicked!')
@@ -133,12 +139,18 @@ export function PresentationViewer({
     }
     try {
       console.log('📤 Sending prevSlide command...')
-      const result = await sendCommand(iframeRef.current, 'prevSlide')
-      console.log('⬅️ Previous slide command successful:', result)
+      await sendCommand(iframeRef.current, 'prevSlide')
+      // Immediately update local state (polling will confirm/sync)
+      if (currentSlide > 1) {
+        const newSlide = currentSlide - 1
+        setCurrentSlide(newSlide)
+        onSlideChange?.(newSlide)
+        console.log(`⬅️ Previous slide (${currentSlide} → ${newSlide})`)
+      }
     } catch (error) {
       console.error('❌ Error navigating to previous slide:', error)
     }
-  }, [currentSlide, totalSlides])
+  }, [currentSlide, totalSlides, onSlideChange])
 
   const handleToggleOverview = useCallback(() => {
     console.log('🔘 Grid button clicked - toggling thumbnail strip!')
