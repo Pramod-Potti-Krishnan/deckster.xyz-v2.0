@@ -1,18 +1,34 @@
 "use client"
 
-import React from 'react';
+import React, { useState } from 'react';
 import { SessionListItem as SessionListItemType } from '@/hooks/use-chat-sessions';
 import { formatDistanceToNow } from 'date-fns';
 import { Trash2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DeleteConfirmModal } from '@/components/delete-confirm-modal';
 
 export interface SessionListItemProps {
   session: SessionListItemType;
   isActive?: boolean;
   onClick?: () => void;
   onDelete?: (sessionId: string) => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onSelectionChange?: (sessionId: string, selected: boolean) => void;
 }
 
-export function SessionListItem({ session, isActive = false, onClick, onDelete }: SessionListItemProps) {
+export function SessionListItem({
+  session,
+  isActive = false,
+  onClick,
+  onDelete,
+  isSelectionMode = false,
+  isSelected = false,
+  onSelectionChange
+}: SessionListItemProps) {
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Get last message preview
   const lastMessage = session.messages?.[0];
   const lastMessagePreview = lastMessage?.userText ||
@@ -28,27 +44,65 @@ export function SessionListItem({ session, isActive = false, onClick, onDelete }
   // Get stage indicator
   const stageLabel = getStageLabel(session.currentStage);
 
-  // Handle delete with confirmation
+  // Handle delete with confirmation modal
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering onClick
+    setShowDeleteModal(true);
+  };
 
-    if (window.confirm(`Delete "${session.title || 'Untitled Session'}"?\n\nThis action cannot be undone.`)) {
-      onDelete?.(session.id);
+  const handleConfirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await onDelete?.(session.id);
+      setShowDeleteModal(false);
+    } catch (error) {
+      console.error('Delete failed:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Handle checkbox change
+  const handleCheckboxChange = (checked: boolean) => {
+    onSelectionChange?.(session.id, checked);
+  };
+
+  // Handle item click - in selection mode, toggle checkbox; otherwise navigate
+  const handleItemClick = () => {
+    if (isSelectionMode) {
+      handleCheckboxChange(!isSelected);
+    } else {
+      onClick?.();
     }
   };
 
   return (
-    <div
-      className={`
-        relative w-full p-4 rounded-lg transition-all group
-        ${isActive ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' : 'border-l-4 border-transparent hover:bg-gray-100 dark:hover:bg-gray-800'}
-      `}
-    >
-      {/* Clickable session area */}
-      <button
-        onClick={onClick}
-        className="w-full text-left"
+    <>
+      <div
+        className={`
+          relative w-full p-4 rounded-lg transition-all group
+          ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500' :
+            isActive ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' :
+            'border-l-4 border-transparent hover:bg-gray-100 dark:hover:bg-gray-800'}
+        `}
       >
+        <div className="flex items-start gap-3">
+          {/* Checkbox (visible in selection mode) */}
+          {isSelectionMode && (
+            <div className="pt-1">
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={handleCheckboxChange}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+
+          {/* Clickable session area */}
+          <button
+            onClick={handleItemClick}
+            className="flex-1 text-left"
+          >
         {/* Title */}
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className="font-semibold text-sm line-clamp-1 flex-1">
@@ -76,23 +130,35 @@ export function SessionListItem({ session, isActive = false, onClick, onDelete }
           </span>
           <span>{timeAgo}</span>
         </div>
-      </button>
+          </button>
 
-      {/* Delete button (appears on hover) */}
-      {onDelete && (
-        <button
-          onClick={handleDelete}
-          className="absolute top-2 right-2 p-1.5 rounded-md
-            bg-white dark:bg-gray-800 shadow-sm
-            text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20
-            opacity-0 group-hover:opacity-100 transition-opacity
-            border border-gray-200 dark:border-gray-700"
-          title="Delete session"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-      )}
-    </div>
+          {/* Delete button (appears on hover, hidden in selection mode) */}
+          {onDelete && !isSelectionMode && (
+            <button
+              onClick={handleDelete}
+              className="absolute top-2 right-2 p-1.5 rounded-md
+                bg-white dark:bg-gray-800 shadow-sm
+                text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20
+                opacity-0 group-hover:opacity-100 transition-opacity
+                border border-gray-200 dark:border-gray-700"
+              title="Delete session"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Delete confirmation modal */}
+      <DeleteConfirmModal
+        open={showDeleteModal}
+        onOpenChange={setShowDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title={session.title}
+        sessionTitles={[session.title || 'Untitled Session']}
+        isDeleting={isDeleting}
+      />
+    </>
   );
 }
 
