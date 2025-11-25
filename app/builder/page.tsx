@@ -1216,6 +1216,7 @@ function BuilderContent() {
                 presentationUrl={presentationUrl}
                 presentationId={presentationId}
                 slideCount={slideCount}
+                slideStructure={slideStructure}
                 showControls={true}
                 downloadControls={
                   <PresentationDownloadControls

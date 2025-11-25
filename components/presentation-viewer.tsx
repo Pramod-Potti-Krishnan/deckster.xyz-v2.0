@@ -1,13 +1,15 @@
 "use client"
 
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, Grid3x3, Edit3, Maximize2, Save, X } from 'lucide-react'
+import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 
 interface PresentationViewerProps {
   presentationUrl: string
   presentationId: string | null
   slideCount: number | null
+  slideStructure?: any // SlideUpdate payload from WebSocket
   showControls?: boolean
   downloadControls?: React.ReactNode
   onSlideChange?: (slideNumber: number) => void
@@ -68,6 +70,7 @@ export function PresentationViewer({
   presentationUrl,
   presentationId,
   slideCount,
+  slideStructure,
   showControls = true,
   downloadControls,
   onSlideChange,
@@ -81,6 +84,28 @@ export function PresentationViewer({
   const [currentSlide, setCurrentSlide] = useState(1)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showThumbnails, setShowThumbnails] = useState(false)
+
+  // Extract slide thumbnails from slideStructure
+  const slideThumbnails = useMemo<SlideThumbnail[]>(() => {
+    if (!slideStructure || !slideStructure.slides) {
+      // If no slide structure, generate basic thumbnails based on slideCount
+      if (totalSlides > 0) {
+        return Array.from({ length: totalSlides }, (_, i) => ({
+          slideNumber: i + 1,
+          title: `Slide ${i + 1}`
+        }))
+      }
+      return []
+    }
+
+    // Extract titles from slide structure
+    return slideStructure.slides.map((slide: any, index: number) => ({
+      slideNumber: index + 1,
+      title: slide.title || slide.slide_type || `Slide ${index + 1}`,
+      content: slide.narrative || slide.key_points?.join(', ')
+    }))
+  }, [slideStructure, totalSlides])
 
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
@@ -111,17 +136,23 @@ export function PresentationViewer({
     }
   }, [])
 
-  const handleToggleOverview = useCallback(async () => {
-    console.log('🔘 Grid button clicked!')
+  const handleToggleOverview = useCallback(() => {
+    console.log('🔘 Grid button clicked - toggling thumbnail strip!')
+    setShowThumbnails(prev => !prev)
+  }, [])
+
+  const handleGoToSlide = useCallback(async (slideIndex: number) => {
+    console.log(`🎯 Navigating to slide ${slideIndex + 1}`)
     if (!iframeRef.current) {
       console.log('❌ Iframe not ready')
       return
     }
     try {
-      const result = await sendCommand(iframeRef.current, 'toggleOverview')
-      console.log(`🔲 Overview mode: ${result.isOverview ? 'ON' : 'OFF'}`)
+      const result = await sendCommand(iframeRef.current, 'goToSlide', { index: slideIndex })
+      console.log(`✅ Navigated to slide ${slideIndex + 1}`)
+      setCurrentSlide(slideIndex + 1)
     } catch (error) {
-      console.error('Error toggling overview:', error)
+      console.error('Error navigating to slide:', error)
     }
   }, [])
 
@@ -396,6 +427,17 @@ export function PresentationViewer({
         <div className="px-4 py-2 bg-yellow-50 border-t border-yellow-200 text-sm text-yellow-800">
           <strong>Edit Mode:</strong> Click on any text in the presentation to edit. Click "Save" when done or "Cancel" to discard changes.
         </div>
+      )}
+
+      {/* Slide Thumbnail Navigation Strip */}
+      {showThumbnails && slideThumbnails.length > 0 && (
+        <SlideThumbnailStrip
+          slides={slideThumbnails}
+          currentSlide={currentSlide}
+          onSlideClick={(slideNumber) => {
+            handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
+          }}
+        />
       )}
     </div>
   )
