@@ -10,6 +10,7 @@ import ReactMarkdown from 'react-markdown'
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
 import { ConnectionError } from "@/components/connection-error"
 import { PresentationViewer } from "@/components/presentation-viewer"
+import { SlideBuildingLoader } from "@/components/slide-building-loader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -1301,34 +1302,12 @@ function BuilderContent() {
             ) : (
               <div className="flex-1 flex items-center justify-center">
                 {currentStatus ? (
-                  // Show status message when actively processing
-                  <div className="max-w-md w-full px-8">
-                    <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
-                      <div className="flex items-start gap-4 mb-6">
-                        <Loader2 className="h-8 w-8 animate-spin text-blue-600 flex-shrink-0 mt-1" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-lg font-medium text-gray-900 mb-2 whitespace-normal break-words">
-                            {currentStatus.text}
-                          </p>
-                          {currentStatus.estimated_time && (
-                            <p className="text-sm text-gray-600">
-                              ~{currentStatus.estimated_time}s remaining
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      {currentStatus.progress !== null && currentStatus.progress > 0 ? (
-                        <Progress value={currentStatus.progress} className="h-2" />
-                      ) : currentStatus.estimated_time ? (
-                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-600 rounded-full transition-all duration-1000 ease-linear"
-                            style={{ width: '100%', animation: `shrink ${currentStatus.estimated_time}s linear` }}
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
+                  // Show spectacular slide building animation when actively processing
+                  <SlideBuildingLoader
+                    statusText={currentStatus.text}
+                    estimatedTime={currentStatus.estimated_time}
+                    className="w-full px-8"
+                  />
                 ) : (
                   // Show default placeholder when idle
                   <div className="text-center">
