@@ -116,27 +116,52 @@ export async function GET(req: NextRequest) {
  * - title?: string (optional initial title)
  */
 export async function POST(req: NextRequest) {
+  console.log('='.repeat(80));
+  console.log('[Session Create] Starting session creation...');
+  console.log('[Session Create] Timestamp:', new Date().toISOString());
+  console.log('[Session Create] Environment:', process.env.NODE_ENV);
+  console.log('[Session Create] DATABASE_URL configured:', !!process.env.DATABASE_URL);
+  console.log('[Session Create] DATABASE_URL prefix:', process.env.DATABASE_URL?.substring(0, 40) + '...');
+  console.log('[Session Create] DIRECT_URL configured:', !!process.env.DIRECT_URL);
+
   try {
     // Authenticate user
+    console.log('[Session Create] Step 1: Authenticating user...');
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
-      console.error('[Session Create] Unauthorized - no session or email');
+      console.error('[Session Create] ❌ Unauthorized - no session or email');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    console.log('[Session Create] Authenticated user:', session.user.email);
+    console.log('[Session Create] ✅ Authenticated user:', session.user.email);
 
     // Get user from database
-    let user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    });
+    console.log('[Session Create] Step 2: Finding user in database...');
+    console.log('[Session Create] Attempting Prisma query: user.findUnique({ where: { email:', session.user.email, '}})');
+
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { email: session.user.email }
+      });
+      console.log('[Session Create] ✅ Prisma query successful, user found:', !!user);
+    } catch (dbError: any) {
+      console.error('[Session Create] ❌ Database error during user lookup:');
+      console.error('[Session Create] Error name:', dbError.name);
+      console.error('[Session Create] Error message:', dbError.message);
+      console.error('[Session Create] Error code:', dbError.code);
+      console.error('[Session Create] Error meta:', dbError.meta);
+      console.error('[Session Create] Client version:', dbError.clientVersion);
+      throw dbError; // Re-throw to be caught by outer catch
+    }
 
     // If user doesn't exist in DB (shouldn't happen with PrismaAdapter, but handle gracefully)
     if (!user) {
-      console.warn('[Session Create] User not found in database, creating:', session.user.email);
+      console.warn('[Session Create] ⚠️ User not found in database, creating:', session.user.email);
+      console.log('[Session Create] Step 3: Creating user in database...');
 
       // Create user record (fallback in case PrismaAdapter didn't create it)
       try {
@@ -149,23 +174,29 @@ export async function POST(req: NextRequest) {
             approved: false,
           }
         });
-        console.log('[Session Create] User created successfully:', user.id);
-      } catch (createError) {
-        console.error('[Session Create] Failed to create user:', createError);
+        console.log('[Session Create] ✅ User created successfully:', user.id);
+      } catch (createError: any) {
+        console.error('[Session Create] ❌ Failed to create user:');
+        console.error('[Session Create] Error:', createError.message);
+        console.error('[Session Create] Code:', createError.code);
         return NextResponse.json(
-          { error: 'Failed to create user account' },
+          { error: 'Failed to create user account', details: createError.message },
           { status: 500 }
         );
       }
     } else {
-      console.log('[Session Create] User found in database:', user.id);
+      console.log('[Session Create] ✅ User found in database:', user.id);
     }
 
     // Parse request body
+    console.log('[Session Create] Step 4: Parsing request body...');
     const body = await req.json();
     const { sessionId, title } = body;
+    console.log('[Session Create] Session ID:', sessionId);
+    console.log('[Session Create] Title:', title || '(no title)');
 
     if (!sessionId) {
+      console.error('[Session Create] ❌ sessionId is required');
       return NextResponse.json(
         { error: 'sessionId is required' },
         { status: 400 }
@@ -173,18 +204,31 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if session already exists
+    console.log('[Session Create] Step 5: Checking if session already exists...');
     const existing = await prisma.chatSession.findUnique({
       where: { id: sessionId }
     });
 
     if (existing) {
+      console.log('[Session Create] ⚠️ Session already exists:', sessionId);
       return NextResponse.json(
         { error: 'Session already exists', session: existing },
         { status: 409 }
       );
     }
 
+    console.log('[Session Create] ✅ Session does not exist, creating new one');
+
     // Create new session
+    console.log('[Session Create] Step 6: Creating chat session...');
+    console.log('[Session Create] Data:', {
+      id: sessionId,
+      userId: user.id,
+      title: title || null,
+      currentStage: 1,
+      status: 'active'
+    });
+
     const newSession = await prisma.chatSession.create({
       data: {
         id: sessionId,
@@ -195,14 +239,31 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    console.log('[Session Create] ✅ Chat session created successfully:', newSession.id);
+    console.log('='.repeat(80));
+
     return NextResponse.json({
       session: newSession
     }, { status: 201 });
 
-  } catch (error) {
-    console.error('Error creating session:', error);
+  } catch (error: any) {
+    console.error('='.repeat(80));
+    console.error('[Session Create] ❌ FATAL ERROR creating session');
+    console.error('[Session Create] Error type:', error.constructor?.name);
+    console.error('[Session Create] Error message:', error.message);
+    console.error('[Session Create] Error code:', error.code);
+    console.error('[Session Create] Error meta:', error.meta);
+    console.error('[Session Create] Client version:', error.clientVersion);
+    console.error('[Session Create] Full error:', JSON.stringify(error, null, 2));
+    console.error('[Session Create] Stack trace:', error.stack);
+    console.error('='.repeat(80));
+
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: 'Internal server error',
+        details: error.message,
+        code: error.code
+      },
       { status: 500 }
     );
   }

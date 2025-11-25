@@ -15,7 +15,8 @@
       "Bash(pnpm build:*)",
       "Bash(npm run build:*)",
       "WebSearch",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "WebFetch(domain:supabase.com)"
     ],
     "deny": []
   }
