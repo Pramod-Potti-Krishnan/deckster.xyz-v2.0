@@ -112,6 +112,10 @@ function BuilderContent() {
           updates.finalPresentationUrl = state.presentationUrl
           updates.finalPresentationId = state.presentationId
           console.log('💾 Saving final URLs:', { url: state.presentationUrl, id: state.presentationId })
+
+          // FIXED: Clear loading state when final presentation arrives
+          setIsGeneratingFinal(false)
+          console.log('✅ Final presentation ready - hiding loader')
         }
 
         persistence.updateMetadata(updates)
@@ -144,6 +148,9 @@ function BuilderContent() {
   const [showVersions, setShowVersions] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
 
+  // FIXED: Track when generating final presentation to show loading animation
+  const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
+
   // Track if we've generated a title from user message yet
   const hasTitleFromUserMessageRef = useRef(false)
   const hasTitleFromPresentationRef = useRef(false)
@@ -153,6 +160,9 @@ function BuilderContent() {
 
   // Track sessions we just created to prevent race condition with re-initialization
   const justCreatedSessionRef = useRef<string | null>(null)
+
+  // FIXED: Track last loaded session to prevent duplicate initialization on navigation
+  const lastLoadedSessionRef = useRef<string | null>(null)
 
   // Guard to prevent concurrent executions of handleSendMessage (prevents duplication)
   const isExecutingSendRef = useRef(false)
@@ -196,6 +206,14 @@ function BuilderContent() {
         const sessionParam = searchParams?.get('session_id')
 
         if (sessionParam && sessionParam !== 'new') {
+          // FIXED: Skip re-initialization if we already loaded this session
+          // This prevents duplicate initialization when searchParams changes (e.g., navigation events)
+          if (lastLoadedSessionRef.current === sessionParam) {
+            console.log('⏭️ Skipping re-initialization of already-loaded session:', sessionParam)
+            setIsLoadingSession(false)
+            return
+          }
+
           // Skip re-initialization if we just created this session
           // This prevents race condition where router.push triggers re-init before message is persisted
           if (justCreatedSessionRef.current === sessionParam) {
@@ -204,6 +222,9 @@ function BuilderContent() {
             setIsLoadingSession(false)
             return
           }
+
+          // Mark this session as loaded to prevent duplicate initialization
+          lastLoadedSessionRef.current = sessionParam
 
           // Load existing session from URL
           console.log('📂 Loading session from URL:', sessionParam)
@@ -271,6 +292,13 @@ function BuilderContent() {
 
               // Restore user messages
               setUserMessages(userMsgs)
+
+              // FIXED: Repopulate userMessageIdsRef with restored user message IDs
+              // This prevents user messages from being misidentified as bot messages
+              userMsgs.forEach(msg => {
+                userMessageIdsRef.current.add(msg.id)
+              })
+              console.log(`✅ Repopulated userMessageIdsRef with ${userMsgs.length} user message IDs`)
 
               // Restore bot messages and session state
               // FIXED: Pass both strawman and final URLs separately for version toggle
@@ -346,6 +374,9 @@ function BuilderContent() {
 
   // Helper to create new session
   const createNewSession = async () => {
+    // FIXED: Reset last loaded session ref when creating new session
+    lastLoadedSessionRef.current = null
+
     const newSessionId = crypto.randomUUID()
     const session = await createSession(newSessionId)
 
@@ -734,6 +765,12 @@ function BuilderContent() {
           type: 'chat_message',
           payload: { text: action.label, action_value: action.value }
         } as DirectorMessage, action.label)
+      }
+
+      // FIXED: If accepting strawman, show loading animation for final generation
+      if (action.value === 'accept_strawman') {
+        setIsGeneratingFinal(true)
+        console.log('🎨 Starting final deck generation - showing loader')
       }
 
       // CRITICAL FIX: Send the action VALUE (not label) to backend
@@ -1327,7 +1364,7 @@ function BuilderContent() {
 
           {/* Right Panel - Presentation Display (75%) */}
           <div className="flex-1 flex flex-col bg-gray-100">
-            {presentationUrl ? (
+            {presentationUrl && !isGeneratingFinal ? (
               <PresentationViewer
                 presentationUrl={presentationUrl}
                 presentationId={presentationId}
@@ -1356,11 +1393,11 @@ function BuilderContent() {
               />
             ) : (
               <div className="flex-1 flex items-center justify-center">
-                {currentStatus ? (
-                  // Show spectacular slide building animation when actively processing
+                {(currentStatus || isGeneratingFinal) ? (
+                  // FIXED: Show slide building animation when actively processing OR generating final
                   <SlideBuildingLoader
-                    statusText={currentStatus.text}
-                    estimatedTime={currentStatus.estimated_time}
+                    statusText={isGeneratingFinal ? "Generating your final presentation..." : currentStatus?.text}
+                    estimatedTime={currentStatus?.estimated_time}
                     className="w-full px-8"
                   />
                 ) : (
