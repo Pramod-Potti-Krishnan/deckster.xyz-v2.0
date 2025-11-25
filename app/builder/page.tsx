@@ -483,6 +483,26 @@ function BuilderContent() {
               timestamp: timestamp
             }])
 
+            // Persist user message to database
+            if (persistence) {
+              console.log('💾 Persisting user message for new session:', messageId)
+              persistence.queueMessage({
+                message_id: messageId,
+                session_id: session.id,
+                timestamp: new Date(timestamp).toISOString(),
+                type: 'chat_message',
+                payload: { text: messageText }
+              } as DirectorMessage, messageText)
+
+              // Generate title from first user message
+              const generatedTitle = persistence.generateTitle(messageText)
+              console.log('📝 Setting initial title from first message:', generatedTitle)
+              persistence.updateMetadata({
+                title: generatedTitle
+              })
+              hasTitleFromUserMessageRef.current = true
+            }
+
             // Clear input field immediately
             setInputMessage("")
 
@@ -514,11 +534,27 @@ function BuilderContent() {
         // IMPORTANT: Add user message to UI immediately (before sending)
         const messageId = crypto.randomUUID()
         const timestamp = Date.now()
+
+        // Track this as a user message ID
+        userMessageIdsRef.current.add(messageId)
+
         setUserMessages(prev => [...prev, {
           id: messageId,
           text: messageText,
           timestamp: timestamp
         }])
+
+        // Persist user message to database
+        if (currentSessionId && persistence) {
+          console.log('💾 Persisting user message for resumed session:', messageId)
+          persistence.queueMessage({
+            message_id: messageId,
+            session_id: currentSessionId,
+            timestamp: new Date(timestamp).toISOString(),
+            type: 'chat_message',
+            payload: { text: messageText }
+          } as DirectorMessage, messageText)
+        }
 
         // Clear input field immediately
         setInputMessage("")
