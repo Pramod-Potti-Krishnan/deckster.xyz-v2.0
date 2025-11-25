@@ -97,12 +97,12 @@ export function UserProfileMenu() {
 
         <DropdownMenuItem onClick={() => handleNavigation("/settings/account")}>
           <Settings className="mr-2 h-4 w-4" />
-          <span>Account Settings</span>
+          <span>Settings</span>
         </DropdownMenuItem>
 
         <DropdownMenuItem onClick={() => handleNavigation("/billing")}>
           <CreditCard className="mr-2 h-4 w-4" />
-          <span>Billing & Subscription</span>
+          <span>Subscription</span>
           {user.tier === "free" && (
             <Badge variant="secondary" className="ml-auto text-xs">
               Upgrade
@@ -134,7 +134,7 @@ export function UserProfileMenu() {
 
         <DropdownMenuItem onClick={() => handleNavigation("/help")}>
           <HelpCircle className="mr-2 h-4 w-4" />
-          <span>Help & Support</span>
+          <span>Support</span>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
