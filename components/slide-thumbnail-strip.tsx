@@ -14,36 +14,46 @@ export interface SlideThumbnailStripProps {
   currentSlide: number
   onSlideClick: (slideNumber: number) => void
   className?: string
+  orientation?: 'horizontal' | 'vertical'
 }
 
 /**
  * SlideThumbnailStrip Component
  *
- * Displays a horizontal scrollable strip of slide thumbnails
- * for quick navigation. Shows slide numbers and titles.
+ * Displays a scrollable strip of slide thumbnails for quick navigation.
+ * Shows slide numbers and titles.
  *
  * Features:
- * - Horizontal scrollable layout
+ * - Horizontal or vertical scrollable layout
  * - Highlights current slide
  * - Click to navigate to any slide
- * - Compact design for bottom placement
+ * - Compact design for side or bottom placement
  */
 export function SlideThumbnailStrip({
   slides,
   currentSlide,
   onSlideClick,
-  className = ''
+  className = '',
+  orientation = 'horizontal'
 }: SlideThumbnailStripProps) {
   if (slides.length === 0) {
     return null
   }
 
+  const isVertical = orientation === 'vertical'
+
   return (
     <div className={cn(
-      "w-full bg-gray-50 border-t border-gray-200 py-3 px-4",
+      isVertical
+        ? "h-full bg-gray-50 border-l border-gray-200 py-4 px-2"
+        : "w-full bg-gray-50 border-t border-gray-200 py-3 px-4",
       className
     )}>
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200">
+      <div className={cn(
+        isVertical
+          ? "flex flex-col items-center gap-2 overflow-y-auto h-full scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
+          : "flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
+      )}>
         {slides.map((slide) => {
           const isActive = slide.slideNumber === currentSlide
 
@@ -52,7 +62,9 @@ export function SlideThumbnailStrip({
               key={slide.slideNumber}
               onClick={() => onSlideClick(slide.slideNumber)}
               className={cn(
-                "flex-shrink-0 w-32 h-20 rounded-md border-2 transition-all duration-200",
+                isVertical
+                  ? "flex-shrink-0 w-24 h-16 rounded-md border-2 transition-all duration-200"
+                  : "flex-shrink-0 w-32 h-20 rounded-md border-2 transition-all duration-200",
                 "flex flex-col items-center justify-center p-2",
                 "hover:border-blue-400 hover:shadow-md",
                 "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",

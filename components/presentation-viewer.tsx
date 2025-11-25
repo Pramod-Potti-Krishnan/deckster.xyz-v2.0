@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Grid3x3, Edit3, Maximize2, Save, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Grid3x3, Edit3, Maximize2, Minimize2, Save, X } from 'lucide-react'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 
 interface PresentationViewerProps {
@@ -81,10 +81,11 @@ export function PresentationViewer({
   const containerRef = useRef<HTMLDivElement>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [currentSlide, setCurrentSlide] = useState(1)
+  const [currentSlide, setCurrentSlide] = useState(0) // Start at 0 until we get real data
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showThumbnails, setShowThumbnails] = useState(false)
+  const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
 
   // Extract slide thumbnails from slideStructure
   const slideThumbnails = useMemo<SlideThumbnail[]>(() => {
@@ -124,17 +125,20 @@ export function PresentationViewer({
 
   const handlePrevSlide = useCallback(async () => {
     console.log('🔘 Prev button clicked!')
+    console.log(`   Current slide: ${currentSlide}, Total: ${totalSlides}`)
+    console.log(`   Button should be disabled: ${currentSlide <= 1}`)
     if (!iframeRef.current) {
       console.log('❌ Iframe not ready')
       return
     }
     try {
-      await sendCommand(iframeRef.current, 'prevSlide')
-      console.log('⬅️ Previous slide')
+      console.log('📤 Sending prevSlide command...')
+      const result = await sendCommand(iframeRef.current, 'prevSlide')
+      console.log('⬅️ Previous slide command successful:', result)
     } catch (error) {
-      console.error('Error navigating to previous slide:', error)
+      console.error('❌ Error navigating to previous slide:', error)
     }
-  }, [])
+  }, [currentSlide, totalSlides])
 
   const handleToggleOverview = useCallback(() => {
     console.log('🔘 Grid button clicked - toggling thumbnail strip!')
@@ -296,18 +300,56 @@ export function PresentationViewer({
   // Handle fullscreen change events (user presses ESC or F11)
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement)
+      const isNowFullscreen = !!document.fullscreenElement
+      setIsFullscreen(isNowFullscreen)
+      // When entering fullscreen, hide toolbar initially
+      if (isNowFullscreen) {
+        setShowToolbar(false)
+      } else {
+        setShowToolbar(true)
+      }
     }
 
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
+  // Auto-hide toolbar in fullscreen mode
+  useEffect(() => {
+    if (!isFullscreen) return
+
+    let hideTimeout: NodeJS.Timeout
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Show toolbar if mouse is near top (within 100px)
+      if (e.clientY < 100) {
+        setShowToolbar(true)
+        // Hide again after 3 seconds of no movement
+        clearTimeout(hideTimeout)
+        hideTimeout = setTimeout(() => {
+          setShowToolbar(false)
+        }, 3000)
+      } else {
+        // Hide toolbar if mouse is away from top
+        setShowToolbar(false)
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      clearTimeout(hideTimeout)
+    }
+  }, [isFullscreen])
+
   return (
-    <div ref={containerRef} className={`flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
+    <div ref={containerRef} className={`flex flex-col h-full ${className} ${isFullscreen ? 'bg-gray-800' : ''}`}>
       {/* Control Toolbar */}
       {showControls && (
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b">
+        <div className={`flex items-center justify-between px-4 py-2 bg-gray-50 border-b transition-all duration-300 ${
+          isFullscreen && !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
+        }`}>
           <div className="flex items-center gap-2">
             {/* Navigation */}
             <Button
@@ -386,7 +428,11 @@ export function PresentationViewer({
               className="h-8"
               title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
             >
-              <Maximize2 className="h-4 w-4" />
+              {isFullscreen ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
             </Button>
 
             {/* Divider */}
@@ -403,42 +449,51 @@ export function PresentationViewer({
         </div>
       )}
 
-      {/* Presentation Iframe */}
-      <div className={`flex-1 relative bg-gray-900 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-8'}`}>
-        {presentationUrl ? (
-          <div className={`w-full ${isFullscreen ? 'h-full' : 'max-w-7xl'}`} style={isFullscreen ? undefined : { aspectRatio: '16/9' }}>
-            <iframe
-              ref={iframeRef}
-              src={presentationUrl}
-              className={`w-full h-full border-0 ${isFullscreen ? '' : 'rounded-lg shadow-2xl'}`}
-              title="Presentation Viewer"
-              allow="fullscreen"
-            />
+      {/* Main Content Area - Flex container for slide and thumbnails */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* Left: Presentation Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Presentation Iframe */}
+          <div className={`flex-1 relative bg-gray-800 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-8'}`}>
+            {presentationUrl ? (
+              <div className={`w-full ${isFullscreen ? 'h-full' : 'max-w-7xl'}`} style={isFullscreen ? undefined : { aspectRatio: '16/9' }}>
+                <iframe
+                  ref={iframeRef}
+                  src={presentationUrl}
+                  className={`w-full h-full border-0 ${isFullscreen ? '' : 'rounded-sm shadow-2xl'}`}
+                  title="Presentation Viewer"
+                  allow="fullscreen"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center text-gray-400">
+                <p>No presentation to display</p>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="flex items-center justify-center text-gray-400">
-            <p>No presentation to display</p>
+
+          {/* Edit Mode Instructions */}
+          {isEditMode && !isFullscreen && (
+            <div className="px-4 py-2 bg-yellow-50 border-t border-yellow-200 text-sm text-yellow-800">
+              <strong>Edit Mode:</strong> Click on any text in the presentation to edit. Click "Save" when done or "Cancel" to discard changes.
+            </div>
+          )}
+        </div>
+
+        {/* Right: Slide Thumbnail Navigation Strip (Vertical) */}
+        {showThumbnails && slideThumbnails.length > 0 && !isFullscreen && (
+          <div className="w-32 flex-shrink-0">
+            <SlideThumbnailStrip
+              slides={slideThumbnails}
+              currentSlide={currentSlide}
+              onSlideClick={(slideNumber) => {
+                handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
+              }}
+              orientation="vertical"
+            />
           </div>
         )}
       </div>
-
-      {/* Edit Mode Instructions */}
-      {isEditMode && (
-        <div className="px-4 py-2 bg-yellow-50 border-t border-yellow-200 text-sm text-yellow-800">
-          <strong>Edit Mode:</strong> Click on any text in the presentation to edit. Click "Save" when done or "Cancel" to discard changes.
-        </div>
-      )}
-
-      {/* Slide Thumbnail Navigation Strip */}
-      {showThumbnails && slideThumbnails.length > 0 && (
-        <SlideThumbnailStrip
-          slides={slideThumbnails}
-          currentSlide={currentSlide}
-          onSlideClick={(slideNumber) => {
-            handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
-          }}
-        />
-      )}
     </div>
   )
 }

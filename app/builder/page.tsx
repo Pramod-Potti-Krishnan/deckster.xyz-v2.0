@@ -326,18 +326,19 @@ function BuilderContent() {
   }, [currentSessionId, isLoadingSession, connecting, connected, connect, isResumedSession, isUnsavedSession])
 
   // Persist bot messages received from WebSocket
-  // DISABLED: This effect was causing user messages to be overwritten without userText parameter
-  // Bot messages are now persisted individually when received
-  // User messages are persisted in handleSendMessage with userText parameter
-  /*
+  // FIXED: Only persist bot messages (not chat_message type) to avoid overwriting user messages
   useEffect(() => {
     if (!currentSessionId || !persistence || messages.length === 0) return
 
     // Get the last message
     const lastMessage = messages[messages.length - 1]
 
-    // Queue message for persistence (BUG: no userText parameter!)
-    persistence.queueMessage(lastMessage)
+    // Only persist bot messages (status_update, action_request, presentation_url, slide_update, etc.)
+    // Skip chat_message type as those are user messages persisted in handleSendMessage with userText
+    if (lastMessage.type !== 'chat_message') {
+      console.log('💾 Persisting bot message:', lastMessage.type, lastMessage.message_id)
+      persistence.queueMessage(lastMessage)
+    }
 
     // Update session title if this is the first chat message with presentation title
     if (lastMessage.type === 'slide_update') {
@@ -352,7 +353,6 @@ function BuilderContent() {
       }
     }
   }, [messages, currentSessionId, persistence])
-  */
 
   // Update session title from presentation metadata
   useEffect(() => {
