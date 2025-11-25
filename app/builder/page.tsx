@@ -69,9 +69,15 @@ function BuilderContent() {
     slideCount,
     currentStatus,
     slideStructure,
+    strawmanPreviewUrl,
+    finalPresentationUrl,
+    strawmanPresentationId,
+    finalPresentationId,
+    activeVersion,
     sendMessage,
     clearMessages,
     restoreMessages,
+    switchVersion,
     connect,
     disconnect,
     isReady,
@@ -247,6 +253,7 @@ function BuilderContent() {
                 presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl,
                 presentationId: session.finalPresentationId || session.strawmanPresentationId,
                 slideCount: session.slideCount,
+                slideStructure: (session as any).stateCache?.slideStructure || null
               }
 
               restoreMessages(botMsgs, sessionState)
@@ -256,6 +263,7 @@ function BuilderContent() {
                 presentationUrl: sessionState.presentationUrl || '(none)',
                 presentationId: sessionState.presentationId || '(none)',
                 slideCount: sessionState.slideCount || 0,
+                slideStructure: sessionState.slideStructure ? 'present' : 'none',
                 finalPresentationUrl: session.finalPresentationUrl || '(none)',
                 strawmanPreviewUrl: session.strawmanPreviewUrl || '(none)'
               })
@@ -514,16 +522,18 @@ function BuilderContent() {
               timestamp: timestamp
             }])
 
-            // Persist user message to database
+            // Persist user message to database IMMEDIATELY (synchronous)
+            // FIXED: Use saveBatch instead of queueMessage to prevent race condition
+            // where message is lost if user navigates away before queue flushes
             if (persistence) {
-              console.log('💾 Persisting user message for new session:', messageId)
-              persistence.queueMessage({
+              console.log('💾 Persisting user message for new session (synchronous):', messageId)
+              await persistence.saveBatch([{
                 message_id: messageId,
                 session_id: session.id,
                 timestamp: new Date(timestamp).toISOString(),
                 type: 'chat_message',
                 payload: { text: messageText }
-              } as DirectorMessage, messageText)
+              } as DirectorMessage])
 
               // Generate title from first user message
               const generatedTitle = persistence.generateTitle(messageText)
@@ -537,11 +547,9 @@ function BuilderContent() {
             // Clear input field immediately
             setInputMessage("")
 
-            // Now send the message (will continue below after state update)
-            // Use a small delay to ensure state is updated
-            setTimeout(() => {
-              sendMessage(messageText)
-            }, 100)
+            // FIXED: Send message immediately without artificial delay
+            // State has already been updated and message persisted to DB
+            sendMessage(messageText)
             return
           } else {
             console.error('❌ createSession returned null')
@@ -590,10 +598,12 @@ function BuilderContent() {
         // Clear input field immediately
         setInputMessage("")
 
-        // Wait a bit for connection, then send (user can retry if needed)
+        // FIXED: Reduced delay from 1000ms to 200ms for better performance
+        // WebSocket typically connects in 100-300ms
+        // If connection not ready, message is already in UI/DB and user can retry
         setTimeout(() => {
           sendMessage(messageText)
-        }, 1000)
+        }, 200)
         return
       }
 
@@ -1282,6 +1292,10 @@ function BuilderContent() {
                 presentationId={presentationId}
                 slideCount={slideCount}
                 slideStructure={slideStructure}
+                strawmanPreviewUrl={strawmanPreviewUrl}
+                finalPresentationUrl={finalPresentationUrl}
+                activeVersion={activeVersion}
+                onVersionSwitch={switchVersion}
                 showControls={true}
                 downloadControls={
                   <PresentationDownloadControls

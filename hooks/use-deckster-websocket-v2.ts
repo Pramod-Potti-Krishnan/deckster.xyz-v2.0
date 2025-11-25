@@ -117,8 +117,14 @@ export interface UseDecksterWebSocketV2State {
   userId: string;
   error: Error | null;
   messages: DirectorMessage[];
-  presentationUrl: string | null;
-  presentationId: string | null;
+  // UPDATED: Split presentation URLs to support strawman/final toggle
+  presentationUrl: string | null; // Currently displayed URL (computed from strawman/final)
+  strawmanPreviewUrl: string | null; // Strawman preview URL
+  finalPresentationUrl: string | null; // Final presentation URL
+  presentationId: string | null; // Currently displayed presentation ID
+  strawmanPresentationId: string | null; // Strawman presentation ID
+  finalPresentationId: string | null; // Final presentation ID
+  activeVersion: 'strawman' | 'final'; // Which version is currently being viewed
   slideCount: number | null;
   currentStatus: StatusUpdate['payload'] | null;
   slideStructure: SlideUpdate['payload'] | null;
@@ -173,7 +179,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     error: null,
     messages: [],
     presentationUrl: null,
+    strawmanPreviewUrl: null,
+    finalPresentationUrl: null,
     presentationId: null,
+    strawmanPresentationId: null,
+    finalPresentationId: null,
+    activeVersion: 'final', // Default to final when available, fallback to strawman
     slideCount: null,
     currentStatus: null,
     slideStructure: null,
@@ -326,12 +337,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
               case 'presentation_url':
                 console.log('🎯 Final presentation URL received:', message.payload.url);
+                newState.finalPresentationUrl = message.payload.url;
+                newState.finalPresentationId = message.payload.presentation_id;
+
+                // Automatically switch to final version when it arrives
+                newState.activeVersion = 'final';
                 newState.presentationUrl = message.payload.url;
                 newState.presentationId = message.payload.presentation_id;
                 newState.slideCount = message.payload.slide_count;
 
                 // Clear loading state - final presentation is complete
-                console.log('✅ Final presentation received - clearing loading state');
+                console.log('✅ Final presentation received - clearing loading state, switching to final version');
                 newState.currentStatus = null;
 
                 // Trigger callbacks
@@ -370,8 +386,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
                 if (previewUrl) {
                   console.log('✅ Found strawman preview URL:', previewUrl);
-                  console.log('🖼️ Setting presentationUrl to display preview IMMEDIATELY');
+                  console.log('🖼️ Setting strawmanPreviewUrl and displaying preview IMMEDIATELY');
+                  newState.strawmanPreviewUrl = previewUrl;
+                  newState.strawmanPresentationId = previewPresentationId || null;
+
+                  // Set activeVersion to strawman and update presentationUrl to display it
+                  newState.activeVersion = 'strawman';
                   newState.presentationUrl = previewUrl;
+                  newState.presentationId = previewPresentationId || null;
 
                   // Clear loading state - strawman generation is complete
                   console.log('✅ Strawman received - clearing loading state');
@@ -380,7 +402,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   // Set presentation ID if found (enables download buttons)
                   if (previewPresentationId) {
                     console.log('✅ Found strawman presentation_id:', previewPresentationId);
-                    newState.presentationId = previewPresentationId;
                   } else {
                     console.log('⚠️ No preview_presentation_id found - download buttons will be disabled');
                   }
@@ -535,13 +556,47 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, []);
 
+  // Switch between strawman and final versions
+  const switchVersion = useCallback((version: 'strawman' | 'final') => {
+    setState(prev => {
+      const newActiveVersion = version;
+      let newPresentationUrl = null;
+      let newPresentationId = null;
+
+      if (version === 'strawman' && prev.strawmanPreviewUrl) {
+        newPresentationUrl = prev.strawmanPreviewUrl;
+        newPresentationId = prev.strawmanPresentationId;
+      } else if (version === 'final' && prev.finalPresentationUrl) {
+        newPresentationUrl = prev.finalPresentationUrl;
+        newPresentationId = prev.finalPresentationId;
+      }
+
+      console.log(`🔄 Switching to ${version} version:`, {
+        presentationUrl: newPresentationUrl || '(none)',
+        presentationId: newPresentationId || '(none)'
+      });
+
+      return {
+        ...prev,
+        activeVersion: newActiveVersion,
+        presentationUrl: newPresentationUrl,
+        presentationId: newPresentationId
+      };
+    });
+  }, []);
+
   // Clear messages
   const clearMessages = useCallback(() => {
     setState(prev => ({
       ...prev,
       messages: [],
       presentationUrl: null,
+      strawmanPreviewUrl: null,
+      finalPresentationUrl: null,
       presentationId: null,
+      strawmanPresentationId: null,
+      finalPresentationId: null,
+      activeVersion: 'final',
       slideCount: null,
       currentStatus: null,
       slideStructure: null,
@@ -556,14 +611,21 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     slideStructure?: any;
   }) => {
     console.log(`🔄 Restoring ${historicalMessages.length} messages from database`);
+    console.log(`📊 Restoration data:`, {
+      presentationUrl: sessionState?.presentationUrl || '(none)',
+      presentationId: sessionState?.presentationId || '(none)',
+      slideCount: sessionState?.slideCount || 0
+    });
 
     setState(prev => ({
       ...prev,
       messages: historicalMessages,
-      presentationUrl: sessionState?.presentationUrl || prev.presentationUrl,
-      presentationId: sessionState?.presentationId || prev.presentationId,
-      slideCount: sessionState?.slideCount || prev.slideCount,
-      slideStructure: sessionState?.slideStructure || prev.slideStructure,
+      // FIXED: Use nullish coalescing (??) instead of OR (||)
+      // This ensures empty strings don't fall back to prev values
+      presentationUrl: sessionState?.presentationUrl ?? prev.presentationUrl,
+      presentationId: sessionState?.presentationId ?? prev.presentationId,
+      slideCount: sessionState?.slideCount ?? prev.slideCount,
+      slideStructure: sessionState?.slideStructure ?? prev.slideStructure,
     }));
   }, []);
 
@@ -605,6 +667,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     sendMessage,
     clearMessages,
     restoreMessages,
+    switchVersion,
 
     // Utility
     isReady: state.connected,

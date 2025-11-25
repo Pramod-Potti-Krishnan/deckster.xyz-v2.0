@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Grid3x3, Edit3, Maximize2, Minimize2, Save, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Grid3x3, Edit3, Maximize2, Minimize2, Save, X, Layers } from 'lucide-react'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 
 interface PresentationViewerProps {
@@ -15,6 +15,11 @@ interface PresentationViewerProps {
   onSlideChange?: (slideNumber: number) => void
   onEditModeChange?: (isEditing: boolean) => void
   className?: string
+  // Version switching support
+  strawmanPreviewUrl?: string | null
+  finalPresentationUrl?: string | null
+  activeVersion?: 'strawman' | 'final'
+  onVersionSwitch?: (version: 'strawman' | 'final') => void
 }
 
 interface SlideInfo {
@@ -75,17 +80,29 @@ export function PresentationViewer({
   downloadControls,
   onSlideChange,
   onEditModeChange,
-  className = ''
+  className = '',
+  strawmanPreviewUrl,
+  finalPresentationUrl,
+  activeVersion = 'final',
+  onVersionSwitch
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [currentSlide, setCurrentSlide] = useState(0) // Start at 0 until we get real data
+  const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showThumbnails, setShowThumbnails] = useState(false)
   const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
+
+  // Sync totalSlides with slideCount prop changes
+  useEffect(() => {
+    if (slideCount && slideCount > 0) {
+      console.log(`📊 Updating totalSlides: ${totalSlides} → ${slideCount}`)
+      setTotalSlides(slideCount)
+    }
+  }, [slideCount])
 
   // Extract slide thumbnails from slideStructure
   const slideThumbnails = useMemo<SlideThumbnail[]>(() => {
@@ -395,6 +412,37 @@ export function PresentationViewer({
             >
               <Grid3x3 className="h-4 w-4" />
             </Button>
+
+            {/* Version Toggle - Only show when both versions are available */}
+            {strawmanPreviewUrl && finalPresentationUrl && (
+              <div className="flex items-center gap-0 border border-gray-300 rounded-md overflow-hidden h-8">
+                <button
+                  onClick={() => onVersionSwitch?.('strawman')}
+                  className={`px-3 py-1 text-xs font-medium transition-colors ${
+                    activeVersion === 'strawman'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title="View strawman preview"
+                >
+                  <Layers className="h-3 w-3 inline mr-1" />
+                  Strawman
+                </button>
+                <div className="w-px h-full bg-gray-300" />
+                <button
+                  onClick={() => onVersionSwitch?.('final')}
+                  className={`px-3 py-1 text-xs font-medium transition-colors ${
+                    activeVersion === 'final'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title="View final presentation"
+                >
+                  <Layers className="h-3 w-3 inline mr-1" />
+                  Final
+                </button>
+              </div>
+            )}
 
             {/* Edit Mode Toggle */}
             {!isEditMode ? (
