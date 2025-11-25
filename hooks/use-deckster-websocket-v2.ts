@@ -708,17 +708,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     setStateWithCache(prev => ({
       ...prev,
       messages: historicalMessages,
-      // FIXED: Use nullish coalescing (??) instead of OR (||)
-      // This ensures empty strings don't fall back to prev values
-      presentationUrl: sessionState?.presentationUrl ?? prev.presentationUrl,
-      presentationId: sessionState?.presentationId ?? prev.presentationId,
-      strawmanPreviewUrl: sessionState?.strawmanPreviewUrl ?? prev.strawmanPreviewUrl,
-      strawmanPresentationId: sessionState?.strawmanPresentationId ?? prev.strawmanPresentationId,
-      finalPresentationUrl: sessionState?.finalPresentationUrl ?? prev.finalPresentationUrl,
-      finalPresentationId: sessionState?.finalPresentationId ?? prev.finalPresentationId,
+      // CRITICAL FIX: Explicitly assign null to clear old session state
+      // Using || instead of ?? ensures database null values override prev values
+      // This prevents old presentation URLs from persisting when switching sessions
+      presentationUrl: sessionState?.presentationUrl || null,
+      presentationId: sessionState?.presentationId || null,
+      strawmanPreviewUrl: sessionState?.strawmanPreviewUrl || null,
+      strawmanPresentationId: sessionState?.strawmanPresentationId || null,
+      finalPresentationUrl: sessionState?.finalPresentationUrl || null,
+      finalPresentationId: sessionState?.finalPresentationId || null,
       activeVersion: activeVersion,
-      slideCount: sessionState?.slideCount ?? prev.slideCount,
-      slideStructure: sessionState?.slideStructure ?? prev.slideStructure,
+      slideCount: sessionState?.slideCount || null,
+      slideStructure: sessionState?.slideStructure || null,
+      currentStatus: null, // Always clear status on session restore
     }));
 
     console.log(`✅ Restored session with activeVersion: ${activeVersion}`);

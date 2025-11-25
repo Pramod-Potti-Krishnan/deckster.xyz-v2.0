@@ -408,12 +408,18 @@ function BuilderContent() {
     if (sessionId === currentSessionId) return
 
     console.log('📂 Switching to session:', sessionId)
+
+    // CRITICAL: Clear all state before switching sessions to prevent pollution
+    setUserMessages([]) // Clear user messages
+    clearMessages() // Clear WebSocket state (messages, presentations, etc.)
+    setIsGeneratingFinal(false) // Reset final generation flag
+
     setShowChatHistory(false)
     setIsLoadingSession(true)
 
     // Use router.push for navigation (Next.js will handle state properly)
     router.push(`/builder?session_id=${sessionId}`)
-  }, [currentSessionId, router])
+  }, [currentSessionId, router, clearMessages])
 
   // Handle new chat from sidebar
   const handleNewChat = useCallback(() => {

@@ -78,18 +78,21 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
   // Update session ID ref when it changes
   useEffect(() => {
     if (sessionIdRef.current !== sessionId) {
-      console.log(`🔄 Session ID changed from ${sessionIdRef.current} to ${sessionId}`)
-      sessionIdRef.current = sessionId
-      // Clear old session cache when session changes
-      if (sessionIdRef.current) {
-        const oldKey = CACHE_KEYS.SESSION_STATE(sessionIdRef.current)
+      const oldSessionId = sessionIdRef.current // CRITICAL: Save old ID before updating ref
+      console.log(`🔄 Session ID changed from ${oldSessionId} to ${sessionId}`)
+
+      // Clear old session cache BEFORE updating ref
+      if (oldSessionId) {
+        const oldKey = CACHE_KEYS.SESSION_STATE(oldSessionId)
         try {
           sessionStorage.removeItem(oldKey)
-          console.log(`🗑️ Cleared cache for old session: ${sessionIdRef.current}`)
+          console.log(`🗑️ Cleared cache for old session: ${oldSessionId}`)
         } catch (e) {
           // Ignore errors
         }
       }
+
+      sessionIdRef.current = sessionId // Update ref AFTER clearing old cache
     }
   }, [sessionId])
 
