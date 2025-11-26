@@ -153,6 +153,7 @@ function BuilderContent() {
 
   // FIXED: Track when generating final presentation to show loading animation
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
+  const [isCreatingSession, setIsCreatingSession] = useState(false)
 
   // File upload state (feature flag controlled)
   const {
@@ -420,6 +421,40 @@ function BuilderContent() {
       console.log('✅ New session created:', session.id)
     }
   }
+
+  // Handler to create draft session for file uploads (early session creation)
+  const handleRequestSession = useCallback(async () => {
+    // If session already exists, no-op
+    if (currentSessionId) {
+      console.log('📎 Session already exists:', currentSessionId)
+      return
+    }
+
+    setIsCreatingSession(true)
+
+    try {
+      console.log('📎 Creating draft session for file upload')
+      const newSessionId = crypto.randomUUID()
+      const session = await createSession(newSessionId)
+
+      if (session) {
+        setCurrentSessionId(session.id)
+        setIsUnsavedSession(false)
+
+        // Update URL to include session
+        router.push(`/builder?session_id=${session.id}`)
+
+        console.log('✅ Draft session created:', session.id)
+      } else {
+        throw new Error('Session creation returned null')
+      }
+    } catch (error) {
+      console.error('❌ Error creating draft session:', error)
+      throw error // Re-throw so file upload button can show error
+    } finally {
+      setIsCreatingSession(false)
+    }
+  }, [currentSessionId, createSession, router])
 
   // Handle session selection from sidebar
   const handleSessionSelect = useCallback((sessionId: string) => {
@@ -1355,7 +1390,9 @@ function BuilderContent() {
                       onFilesSelected={handleFilesSelected}
                       maxFiles={5}
                       currentFileCount={uploadedFiles.length}
-                      disabled={!currentSessionId || isLoadingSession}
+                      disabled={features.enableEarlySessionCreation ? isLoadingSession : (!currentSessionId || isLoadingSession)}
+                      onRequestSession={features.enableEarlySessionCreation ? handleRequestSession : undefined}
+                      isCreatingSession={features.enableEarlySessionCreation ? isCreatingSession : false}
                     />
                     {uploadedFiles.length > 0 && (
                       <Button

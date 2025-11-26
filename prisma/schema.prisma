@@ -97,6 +97,7 @@ model ChatSession {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
   lastMessageAt          DateTime? @map("last_message_at")
+  firstMessageAt         DateTime? @map("first_message_at")  // Track when session became active
 
   // Presentation state
   currentStage           Int       @default(1) @map("current_stage")
@@ -113,7 +114,7 @@ model ChatSession {
   slideCount             Int?      @map("slide_count")
 
   // Session status
-  status                 String    @default("active")     // 'active' | 'archived' | 'deleted'
+  status                 String    @default("draft")      // 'draft' | 'active' | 'archived' | 'deleted'
   isFavorite             Boolean   @default(false) @map("is_favorite")
 
   // Gemini File Search Store (NEW ARCHITECTURE)

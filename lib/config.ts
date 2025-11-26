@@ -28,6 +28,7 @@ export const config = {
     useRealAPI: process.env.NEXT_PUBLIC_USE_REAL_API === 'true',
     useOptimisticUpdates: process.env.NEXT_PUBLIC_USE_OPTIMISTIC_UPDATES !== 'false',
     enableFileUploads: process.env.NEXT_PUBLIC_ENABLE_FILE_UPLOADS !== 'false',
+    enableEarlySessionCreation: process.env.NEXT_PUBLIC_ENABLE_EARLY_SESSION_CREATION === 'true',
     enableInternetSearch: process.env.NEXT_PUBLIC_ENABLE_INTERNET_SEARCH === 'true',
     debugMode: process.env.NEXT_PUBLIC_DEBUG_MODE === 'true',
   },
