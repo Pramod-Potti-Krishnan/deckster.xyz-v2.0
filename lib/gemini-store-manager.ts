@@ -223,15 +223,18 @@ export async function deleteFileSearchStore(storeName: string): Promise<void> {
 /**
  * Get Google Cloud access token for API authentication
  *
- * This uses the service account credentials configured via GOOGLE_APPLICATION_CREDENTIALS
+ * This uses the service account credentials configured via GOOGLE_APPLICATION_CREDENTIALS_BASE64 or file path
  */
 async function getAccessToken(): Promise<string> {
   try {
-    // In a real implementation, this would use the Google Auth Library
-    // For now, we'll use a placeholder that works with Application Default Credentials
     const { GoogleAuth } = await import('google-auth-library');
+    const { getGoogleCredentials } = await import('./vertexai-client');
+
+    // Get credentials object from vertexai-client (decoded from base64)
+    const credentials = getGoogleCredentials();
 
     const auth = new GoogleAuth({
+      credentials: credentials, // Pass credentials directly (null falls back to env var/default)
       scopes: ['https://www.googleapis.com/auth/cloud-platform'],
     });
 

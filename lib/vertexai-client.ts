@@ -11,6 +11,9 @@
 import { VertexAI } from '@google-cloud/vertexai';
 import { GoogleAuth } from 'google-auth-library';
 
+// Store decoded credentials for use by GoogleAuth
+let cachedCredentials: any = null;
+
 // Validate required environment variables
 function validateEnvironment() {
   const required = {
@@ -44,13 +47,10 @@ function setupGoogleAuth() {
   const base64Creds = process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64;
 
   if (base64Creds) {
-    // Decode base64 credentials and set as environment variable
+    // Decode base64 credentials and parse as JSON object
     try {
       const decodedCreds = Buffer.from(base64Creds, 'base64').toString('utf-8');
-      const credentials = JSON.parse(decodedCreds);
-
-      // Google Auth Library will use these credentials
-      process.env.GOOGLE_APPLICATION_CREDENTIALS = JSON.stringify(credentials);
+      cachedCredentials = JSON.parse(decodedCreds);
 
       console.log('[Vertex AI] Using base64-encoded service account credentials');
     } catch (error) {
@@ -61,9 +61,25 @@ function setupGoogleAuth() {
     }
   } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     console.log('[Vertex AI] Using GOOGLE_APPLICATION_CREDENTIALS');
+    // For file path, GoogleAuth will handle it automatically
+    cachedCredentials = null;
   } else {
     console.log('[Vertex AI] Using default credentials (gcloud CLI)');
+    cachedCredentials = null;
   }
+}
+
+/**
+ * Get Google Cloud credentials object for direct use with GoogleAuth
+ *
+ * @returns Credentials object if available, null otherwise
+ */
+export function getGoogleCredentials(): any | null {
+  // Ensure setupGoogleAuth has been called
+  if (cachedCredentials === null && process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64) {
+    setupGoogleAuth();
+  }
+  return cachedCredentials;
 }
 
 /**
