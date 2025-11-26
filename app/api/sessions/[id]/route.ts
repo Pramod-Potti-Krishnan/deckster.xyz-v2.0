@@ -62,6 +62,14 @@ export async function GET(
       );
     }
 
+    // Reject deleted sessions
+    if (chatSession.status === 'deleted') {
+      return NextResponse.json(
+        { error: 'Session has been deleted' },
+        { status: 410 } // 410 Gone - resource permanently deleted
+      );
+    }
+
     return NextResponse.json({ session: chatSession });
 
   } catch (error) {

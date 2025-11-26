@@ -258,6 +258,19 @@ function BuilderContent() {
           const session = await loadSession(sessionParam)
 
           if (session) {
+            // Validate session is not deleted
+            if (session.status === 'deleted') {
+              console.warn('⚠️ Attempted to load deleted session, navigating to new chat')
+              toast({
+                title: "Session unavailable",
+                description: "This session has been deleted.",
+                variant: "destructive",
+              })
+              router.push('/builder?session_id=new')
+              setIsLoadingSession(false)
+              return
+            }
+
             setCurrentSessionId(session.id)
             console.log('✅ Session loaded successfully')
 

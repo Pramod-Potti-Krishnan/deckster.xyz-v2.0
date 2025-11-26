@@ -94,10 +94,22 @@ export function useChatSessions() {
       const response = await fetch(`/api/sessions/${sessionId}`);
 
       if (!response.ok) {
+        // Handle deleted sessions specifically
+        if (response.status === 410) {
+          console.warn('⚠️ Session has been deleted:', sessionId);
+          throw new Error('Session has been deleted');
+        }
         throw new Error(`Failed to load session: ${response.statusText}`);
       }
 
       const data = await response.json();
+
+      // Additional validation: Check status field
+      if (data.session?.status === 'deleted') {
+        console.warn('⚠️ Session marked as deleted in response:', sessionId);
+        return null;
+      }
+
       return data.session;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error');

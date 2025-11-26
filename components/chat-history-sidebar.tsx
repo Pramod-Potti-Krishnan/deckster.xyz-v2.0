@@ -54,6 +54,15 @@ export function ChatHistorySidebar({
   const handleDeleteSession = async (sessionId: string) => {
     const success = await deleteSession(sessionId);
     if (success) {
+      // Clear sessionStorage cache for deleted session
+      try {
+        sessionStorage.removeItem(`deckster_session_${sessionId}`);
+        sessionStorage.removeItem(`deckster_metadata_${sessionId}`);
+        console.log(`🗑️ Cleared sessionStorage cache for deleted session: ${sessionId}`);
+      } catch (error) {
+        console.error('❌ Failed to clear sessionStorage:', error);
+      }
+
       // Remove from local state
       setSessions(prev => prev.filter(s => s.id !== sessionId));
 
@@ -120,6 +129,14 @@ export function ChatHistorySidebar({
       for (const sessionId of idsToDelete) {
         const success = await deleteSession(sessionId);
         if (success) {
+          // Clear sessionStorage cache for deleted session
+          try {
+            sessionStorage.removeItem(`deckster_session_${sessionId}`);
+            sessionStorage.removeItem(`deckster_metadata_${sessionId}`);
+            console.log(`🗑️ Cleared sessionStorage cache for deleted session: ${sessionId}`);
+          } catch (error) {
+            console.error('❌ Failed to clear sessionStorage:', error);
+          }
           successCount++;
         } else {
           failedCount++;
