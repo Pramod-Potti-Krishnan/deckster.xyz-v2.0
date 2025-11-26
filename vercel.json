@@ -9,6 +9,12 @@
       "maxDuration": 30
     }
   },
+  "crons": [
+    {
+      "path": "/api/admin/cleanup-sessions",
+      "schedule": "0 2 * * *"
+    }
+  ],
   "redirects": [
     {
       "source": "/slides",
