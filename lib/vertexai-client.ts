@@ -9,6 +9,7 @@
  */
 
 import { VertexAI } from '@google-cloud/vertexai';
+import { GoogleAuth } from 'google-auth-library';
 
 // Validate required environment variables
 function validateEnvironment() {
@@ -32,12 +33,49 @@ function validateEnvironment() {
 }
 
 /**
+ * Setup Google authentication with support for base64-encoded credentials
+ *
+ * Supports three methods:
+ * 1. GOOGLE_APPLICATION_CREDENTIALS_BASE64 - Base64 encoded service account JSON (recommended for Vercel)
+ * 2. GOOGLE_APPLICATION_CREDENTIALS - File path or inline JSON
+ * 3. Default credentials (for local development with gcloud CLI)
+ */
+function setupGoogleAuth() {
+  const base64Creds = process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64;
+
+  if (base64Creds) {
+    // Decode base64 credentials and set as environment variable
+    try {
+      const decodedCreds = Buffer.from(base64Creds, 'base64').toString('utf-8');
+      const credentials = JSON.parse(decodedCreds);
+
+      // Google Auth Library will use these credentials
+      process.env.GOOGLE_APPLICATION_CREDENTIALS = JSON.stringify(credentials);
+
+      console.log('[Vertex AI] Using base64-encoded service account credentials');
+    } catch (error) {
+      throw new Error(
+        'Failed to decode GOOGLE_APPLICATION_CREDENTIALS_BASE64. ' +
+        'Ensure it contains valid base64-encoded JSON.'
+      );
+    }
+  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    console.log('[Vertex AI] Using GOOGLE_APPLICATION_CREDENTIALS');
+  } else {
+    console.log('[Vertex AI] Using default credentials (gcloud CLI)');
+  }
+}
+
+/**
  * Get or create Vertex AI client instance
  *
  * @returns VertexAI client configured with project and location
  */
 export function getVertexAIClient(): VertexAI {
   const { GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION } = validateEnvironment();
+
+  // Setup authentication (handles base64 credentials)
+  setupGoogleAuth();
 
   const vertexAI = new VertexAI({
     project: GOOGLE_CLOUD_PROJECT,
