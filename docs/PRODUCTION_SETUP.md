@@ -25,11 +25,16 @@ Add these variables:
 | `GOOGLE_APPLICATION_CREDENTIALS_BASE64` | *paste base64 output* | Base64 service account |
 | `GEMINI_MODEL` | `gemini-2.0-flash-exp` | Model to use |
 
-**IMPORTANT**: Use `GOOGLE_APPLICATION_CREDENTIALS_BASE64` (with `_BASE64` suffix) for production.
+**IMPORTANT**:
+- Variable name MUST be `GOOGLE_APPLICATION_CREDENTIALS_BASE64` (with `_BASE64` suffix)
+- Without the `_BASE64` suffix, the automatic decoding will not work
+- Applies to all environments: Production, Preview, and Development
 
-### Step 3: Deploy
+### Step 3: Deploy & Verify
 
-Push to GitHub or trigger a new deployment in Vercel. The app will automatically decode the credentials.
+1. **Trigger Deployment**: Push to GitHub or click "Redeploy" in Vercel Dashboard
+2. **Check Logs**: After deployment, verify you see: `[Vertex AI] Using base64-encoded service account credentials`
+3. **Test Upload**: Try uploading a file to confirm it works
 
 ---
 
