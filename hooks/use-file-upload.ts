@@ -57,7 +57,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         ...uploadedFile,
         status: 'success',
         uploadProgress: 100,
-        geminiFileUri: result.geminiFileUri
+        geminiFileUri: result.geminiFileUri,
+        geminiFileName: result.geminiFileName,
+        geminiStoreName: result.geminiStoreName, // NEW: Store name from response
       }
 
       setFiles(prev => prev.map(f => f.id === fileId ? successFile : f))

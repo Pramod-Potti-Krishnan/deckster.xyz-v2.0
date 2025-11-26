@@ -58,6 +58,12 @@ model User {
   approvedAt    DateTime? @map("approved_at")
   approvedBy    String?   @map("approved_by")
 
+  // Stripe Integration Fields
+  stripeCustomerId       String?   @unique @map("stripe_customer_id")
+  stripeSubscriptionId   String?   @unique @map("stripe_subscription_id")
+  stripePriceId          String?   @map("stripe_price_id")
+  stripeCurrentPeriodEnd DateTime? @map("stripe_current_period_end")
+
   // Timestamps
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -66,6 +72,7 @@ model User {
   sessions      Session[]
   chatSessions  ChatSession[]
   uploadedFiles UploadedFile[]
+  subscriptions Subscription[]
 
   @@map("auth_users")
 }
@@ -108,6 +115,10 @@ model ChatSession {
   // Session status
   status                 String    @default("active")     // 'active' | 'archived' | 'deleted'
   isFavorite             Boolean   @default(false) @map("is_favorite")
+
+  // Gemini File Search Store (NEW ARCHITECTURE)
+  geminiStoreName        String?   @map("gemini_store_name") @db.Text  // Full resource name: "fileSearchStores/{store_id}"
+  geminiStoreId          String?   @map("gemini_store_id")              // Just the ID part for reference
 
   // Relations
   user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -171,9 +182,14 @@ model UploadedFile {
   fileSize          Int       @map("file_size")      // Size in bytes
   fileType          String    @map("file_type")      // MIME type
 
-  // Gemini File API references
+  // Gemini File API references (NEW ARCHITECTURE)
   geminiFileUri     String    @map("gemini_file_uri") @db.Text  // e.g., "files/abc123"
-  geminiFileId      String?   @map("gemini_file_id")
+  geminiFileName    String?   @map("gemini_file_name")          // Gemini's internal file name
+  geminiStoreName   String?   @map("gemini_store_name") @db.Text // "fileSearchStores/{store_id}"
+
+  // Upload status tracking
+  uploadStatus      String    @default("uploading") @map("upload_status")  // "uploading" | "indexed" | "failed"
+  uploadError       String?   @map("upload_error") @db.Text                // Error message if failed
 
   // Timestamps
   uploadedAt        DateTime  @default(now()) @map("uploaded_at")
@@ -185,5 +201,70 @@ model UploadedFile {
   @@index([sessionId])
   @@index([userId])
   @@index([uploadedAt(sort: Desc)])
+  @@index([geminiStoreName])
   @@map("fe_uploaded_files")
+}
+
+// Stripe Subscription Model
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Stripe Fields
+  stripeSubscriptionId String   @unique @map("stripe_subscription_id")
+  stripeCustomerId     String   @map("stripe_customer_id")
+  stripePriceId        String   @map("stripe_price_id")
+  stripeProductId      String   @map("stripe_product_id")
+
+  // Subscription Details
+  status               String   // "active" | "canceled" | "incomplete" | "incomplete_expired" | "past_due" | "trialing" | "unpaid"
+  tier                 String   // "pro" | "enterprise"
+  billingCycle         String   // "monthly" | "yearly"
+
+  // Billing Period
+  currentPeriodStart   DateTime @map("current_period_start")
+  currentPeriodEnd     DateTime @map("current_period_end")
+  cancelAtPeriodEnd    Boolean  @default(false) @map("cancel_at_period_end")
+  canceledAt           DateTime? @map("canceled_at")
+
+  // Trial Info
+  trialStart           DateTime? @map("trial_start")
+  trialEnd             DateTime? @map("trial_end")
+
+  // Metadata
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
+  @@index([userId])
+  @@index([stripeCustomerId])
+  @@index([status])
+}
+
+// Stripe Payment Model
+model Payment {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+
+  // Stripe Fields
+  stripeInvoiceId      String   @unique @map("stripe_invoice_id")
+  stripePaymentIntentId String? @unique @map("stripe_payment_intent_id")
+  stripeSubscriptionId String?  @map("stripe_subscription_id")
+
+  // Payment Details
+  amount               Int      // Amount in cents
+  currency             String   @default("usd")
+  status               String   // "paid" | "failed" | "pending"
+
+  // Invoice Details
+  invoiceUrl           String?  @map("invoice_url")
+  invoicePdf           String?  @map("invoice_pdf")
+
+  // Metadata
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@map("payments")
+  @@index([userId])
+  @@index([status])
 }

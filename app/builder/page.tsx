@@ -582,21 +582,18 @@ function BuilderContent() {
           } as DirectorMessage, action.label)
         }
 
-        // Send the user's typed input (with files if any)
-        const filesToSend = uploadedFiles
-          .filter(f => f.status === 'success')
-          .map(f => ({
-            id: f.id,
-            name: f.name,
-            size: f.size,
-            type: f.type,
-            geminiFileUri: f.geminiFileUri
-          }))
-        const success = sendMessage(messageText, filesToSend.length > 0 ? filesToSend : undefined)
+        // Send the user's typed input (NEW: with File Search Store if files attached)
+        const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
+        const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
+        const fileCount = successfulFiles.length
+
+        const success = sendMessage(messageText, storeName, fileCount)
         if (success) {
           setInputMessage("")
           setPendingActionInput(null)
-          clearAllFiles() // Clear uploaded files after sending
+          if (successfulFiles.length > 0) {
+            clearAllFiles() // Clear uploaded files after sending
+          }
         }
 
         // Reset guard
@@ -664,17 +661,12 @@ function BuilderContent() {
 
             // FIXED: Send message immediately without artificial delay
             // State has already been updated and message persisted to DB
-            const filesToSend = uploadedFiles
-              .filter(f => f.status === 'success')
-              .map(f => ({
-                id: f.id,
-                name: f.name,
-                size: f.size,
-                type: f.type,
-                geminiFileUri: f.geminiFileUri
-              }))
-            sendMessage(messageText, filesToSend.length > 0 ? filesToSend : undefined)
-            if (filesToSend.length > 0) {
+            const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
+            const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
+            const fileCount = successfulFiles.length
+
+            sendMessage(messageText, storeName, fileCount)
+            if (successfulFiles.length > 0) {
               clearAllFiles() // Clear uploaded files after sending
             }
             return
@@ -728,18 +720,13 @@ function BuilderContent() {
         // FIXED: Reduced delay from 1000ms to 200ms for better performance
         // WebSocket typically connects in 100-300ms
         // If connection not ready, message is already in UI/DB and user can retry
-        const filesToSend = uploadedFiles
-          .filter(f => f.status === 'success')
-          .map(f => ({
-            id: f.id,
-            name: f.name,
-            size: f.size,
-            type: f.type,
-            geminiFileUri: f.geminiFileUri
-          }))
+        const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
+        const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
+        const fileCount = successfulFiles.length
+
         setTimeout(() => {
-          sendMessage(messageText, filesToSend.length > 0 ? filesToSend : undefined)
-          if (filesToSend.length > 0) {
+          sendMessage(messageText, storeName, fileCount)
+          if (successfulFiles.length > 0) {
             clearAllFiles() // Clear uploaded files after sending
           }
         }, 200)
@@ -783,19 +770,14 @@ function BuilderContent() {
         }
       }
 
-      const filesToSend = uploadedFiles
-        .filter(f => f.status === 'success')
-        .map(f => ({
-          id: f.id,
-          name: f.name,
-          size: f.size,
-          type: f.type,
-          geminiFileUri: f.geminiFileUri
-        }))
-      const success = sendMessage(messageText, filesToSend.length > 0 ? filesToSend : undefined)
+      const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
+      const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
+      const fileCount = successfulFiles.length
+
+      const success = sendMessage(messageText, storeName, fileCount)
       if (success) {
         setInputMessage("")
-        if (filesToSend.length > 0) {
+        if (successfulFiles.length > 0) {
           clearAllFiles() // Clear uploaded files after sending
         }
       }

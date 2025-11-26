@@ -28,3 +28,4 @@ next-env.d.ts
 
 # archived code (not needed in repo)
 /archive/
+service-account-key.json

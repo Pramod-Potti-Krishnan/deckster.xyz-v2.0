@@ -603,16 +603,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }));
   }, [stopHeartbeat]);
 
-  // Send message to server (with optional file attachments)
+  // Send message to server (NEW ARCHITECTURE: with optional File Search Store)
   const sendMessage = useCallback((
     text: string,
-    files?: Array<{
-      id: string
-      name: string
-      size: number
-      type: string
-      geminiFileUri?: string
-    }>
+    storeName?: string,  // NEW: Gemini File Search Store resource name
+    fileCount?: number   // NEW: Number of files in the store (for logging)
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send message: WebSocket not connected');
@@ -624,19 +619,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         type: 'user_message',
         data: {
           text,
-          ...(files && files.length > 0 && {
-            files: files.map(f => ({
-              id: f.id,
-              name: f.name,
-              size: f.size,
-              type: f.type,
-              gemini_file_uri: f.geminiFileUri
-            }))
+          // NEW: Pass store_name to backend instead of individual file URIs
+          ...(storeName && {
+            store_name: storeName,
+            file_count: fileCount || 0
           })
         },
       };
 
-      console.log('📤 Sending message:', text, files ? `with ${files.length} files` : '');
+      console.log(
+        '📤 Sending message:',
+        text,
+        storeName ? `with File Search Store: ${storeName} (${fileCount || 0} files)` : ''
+      );
       wsRef.current.send(JSON.stringify(message));
 
       return true;

@@ -24,6 +24,8 @@ export interface UploadedFile {
   uploadProgress: number
   errorMessage?: string
   geminiFileUri?: string
+  geminiFileName?: string  // NEW: Gemini's internal file name
+  geminiStoreName?: string // NEW: File Search Store resource name
 }
 
 interface FileChipProps {
