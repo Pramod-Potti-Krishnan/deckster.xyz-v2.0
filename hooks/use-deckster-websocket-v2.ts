@@ -603,8 +603,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }));
   }, [stopHeartbeat]);
 
-  // Send message to server
-  const sendMessage = useCallback((text: string): boolean => {
+  // Send message to server (with optional file attachments)
+  const sendMessage = useCallback((
+    text: string,
+    files?: Array<{
+      id: string
+      name: string
+      size: number
+      type: string
+      geminiFileUri?: string
+    }>
+  ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send message: WebSocket not connected');
       return false;
@@ -613,10 +622,21 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     try {
       const message: UserMessage = {
         type: 'user_message',
-        data: { text },
+        data: {
+          text,
+          ...(files && files.length > 0 && {
+            files: files.map(f => ({
+              id: f.id,
+              name: f.name,
+              size: f.size,
+              type: f.type,
+              gemini_file_uri: f.geminiFileUri
+            }))
+          })
+        },
       };
 
-      console.log('📤 Sending message:', text);
+      console.log('📤 Sending message:', text, files ? `with ${files.length} files` : '');
       wsRef.current.send(JSON.stringify(message));
 
       return true;

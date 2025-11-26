@@ -34,9 +34,9 @@ export const config = {
 
   // File Upload Configuration
   upload: {
-    maxFileSize: parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE || '10485760', 10), // 10MB
+    maxFileSize: parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE || '20971520', 10), // 20MB (updated from 10MB)
     maxFiles: parseInt(process.env.NEXT_PUBLIC_MAX_FILES || '5', 10),
-    allowedTypes: (process.env.NEXT_PUBLIC_ALLOWED_FILE_TYPES || 'image/*,application/pdf,application/vnd.ms-powerpoint,application/vnd.ms-excel,text/*').split(','),
+    allowedTypes: (process.env.NEXT_PUBLIC_ALLOWED_FILE_TYPES || '.pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg').split(','),
   },
 
   // UI Configuration

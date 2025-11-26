@@ -32,6 +32,10 @@ import {
 import Link from "next/link"
 import { OnboardingModal } from "@/components/onboarding-modal"
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
+import { FileUploadButton } from '@/components/file-upload-button'
+import { FileChip } from '@/components/file-chip'
+import { useFileUpload } from '@/hooks/use-file-upload'
+import { features } from '@/lib/config'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -149,6 +153,20 @@ function BuilderContent() {
 
   // FIXED: Track when generating final presentation to show loading animation
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
+
+  // File upload state (feature flag controlled)
+  const {
+    files: uploadedFiles,
+    handleFilesSelected,
+    removeFile,
+    clearAllFiles
+  } = useFileUpload({
+    sessionId: currentSessionId || '',
+    userId: user?.email || '',
+    onUploadComplete: (files) => {
+      console.log('📎 Files uploaded:', files)
+    }
+  })
 
   // FIXED: Clear loading state when final presentation URL arrives
   // Using useEffect ensures proper React state synchronization
@@ -564,11 +582,21 @@ function BuilderContent() {
           } as DirectorMessage, action.label)
         }
 
-        // Send the user's typed input
-        const success = sendMessage(messageText)
+        // Send the user's typed input (with files if any)
+        const filesToSend = uploadedFiles
+          .filter(f => f.status === 'success')
+          .map(f => ({
+            id: f.id,
+            name: f.name,
+            size: f.size,
+            type: f.type,
+            geminiFileUri: f.geminiFileUri
+          }))
+        const success = sendMessage(messageText, filesToSend.length > 0 ? filesToSend : undefined)
         if (success) {
           setInputMessage("")
           setPendingActionInput(null)
+          clearAllFiles() // Clear uploaded files after sending
         }
 
         // Reset guard
@@ -636,7 +664,19 @@ function BuilderContent() {
 
             // FIXED: Send message immediately without artificial delay
             // State has already been updated and message persisted to DB
-            sendMessage(messageText)
+            const filesToSend = uploadedFiles
+              .filter(f => f.status === 'success')
+              .map(f => ({
+                id: f.id,
+                name: f.name,
+                size: f.size,
+                type: f.type,
+                geminiFileUri: f.geminiFileUri
+              }))
+            sendMessage(messageText, filesToSend.length > 0 ? filesToSend : undefined)
+            if (filesToSend.length > 0) {
+              clearAllFiles() // Clear uploaded files after sending
+            }
             return
           } else {
             console.error('❌ createSession returned null')
@@ -688,8 +728,20 @@ function BuilderContent() {
         // FIXED: Reduced delay from 1000ms to 200ms for better performance
         // WebSocket typically connects in 100-300ms
         // If connection not ready, message is already in UI/DB and user can retry
+        const filesToSend = uploadedFiles
+          .filter(f => f.status === 'success')
+          .map(f => ({
+            id: f.id,
+            name: f.name,
+            size: f.size,
+            type: f.type,
+            geminiFileUri: f.geminiFileUri
+          }))
         setTimeout(() => {
-          sendMessage(messageText)
+          sendMessage(messageText, filesToSend.length > 0 ? filesToSend : undefined)
+          if (filesToSend.length > 0) {
+            clearAllFiles() // Clear uploaded files after sending
+          }
         }, 200)
         return
       }
@@ -731,9 +783,21 @@ function BuilderContent() {
         }
       }
 
-      const success = sendMessage(messageText)
+      const filesToSend = uploadedFiles
+        .filter(f => f.status === 'success')
+        .map(f => ({
+          id: f.id,
+          name: f.name,
+          size: f.size,
+          type: f.type,
+          geminiFileUri: f.geminiFileUri
+        }))
+      const success = sendMessage(messageText, filesToSend.length > 0 ? filesToSend : undefined)
       if (success) {
         setInputMessage("")
+        if (filesToSend.length > 0) {
+          clearAllFiles() // Clear uploaded files after sending
+        }
       }
     } finally {
       // Reset guard after a delay to allow state updates to propagate
@@ -741,7 +805,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -1301,6 +1365,41 @@ function BuilderContent() {
 
             {/* Chat Input */}
             <div className="p-4 border-t bg-gray-50/50">
+              {/* File Upload UI (Feature Flag Controlled) */}
+              {features.enableFileUploads && (
+                <>
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileUploadButton
+                      onFilesSelected={handleFilesSelected}
+                      maxFiles={5}
+                      currentFileCount={uploadedFiles.length}
+                      disabled={!currentSessionId || isLoadingSession}
+                    />
+                    {uploadedFiles.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearAllFiles}
+                        className="text-gray-600 hover:text-gray-800"
+                      >
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
+                  {uploadedFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {uploadedFiles.map((file) => (
+                        <FileChip
+                          key={file.id}
+                          file={file}
+                          onRemove={() => removeFile(file.id)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
               {/* Action Input Banner */}
               {pendingActionInput && (
                 <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">

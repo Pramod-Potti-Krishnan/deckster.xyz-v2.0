@@ -62,9 +62,10 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  accounts     Account[]
-  sessions     Session[]
-  chatSessions ChatSession[]
+  accounts      Account[]
+  sessions      Session[]
+  chatSessions  ChatSession[]
+  uploadedFiles UploadedFile[]
 
   @@map("auth_users")
 }
@@ -112,6 +113,7 @@ model ChatSession {
   user                   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages               ChatMessage[]
   stateCache             SessionStateCache?
+  uploadedFiles          UploadedFile[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, lastMessageAt(sort: Desc)])
@@ -156,4 +158,32 @@ model SessionStateCache {
   session                ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("fe_session_state_cache")
+}
+
+// File uploads for RAG-based content generation
+model UploadedFile {
+  id                String    @id @default(cuid())
+  sessionId         String    @map("session_id")
+  userId            String    @map("user_id")
+
+  // File metadata
+  fileName          String    @map("file_name")
+  fileSize          Int       @map("file_size")      // Size in bytes
+  fileType          String    @map("file_type")      // MIME type
+
+  // Gemini File API references
+  geminiFileUri     String    @map("gemini_file_uri") @db.Text  // e.g., "files/abc123"
+  geminiFileId      String?   @map("gemini_file_id")
+
+  // Timestamps
+  uploadedAt        DateTime  @default(now()) @map("uploaded_at")
+
+  // Relations
+  session           ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([userId])
+  @@index([uploadedAt(sort: Desc)])
+  @@map("fe_uploaded_files")
 }
