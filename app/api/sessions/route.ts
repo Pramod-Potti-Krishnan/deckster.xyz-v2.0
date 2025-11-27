@@ -41,11 +41,22 @@ export async function GET(req: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const status = searchParams.get('status') || 'active';
 
+    // Filter out "ghost" sessions: older than 7 days with no messages
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     // Fetch sessions
     const sessions = await prisma.chatSession.findMany({
       where: {
         userId: user.id,
-        status: status as string
+        status: status as string,
+        // Exclude old empty sessions that clutter the UI
+        NOT: {
+          AND: [
+            { lastMessageAt: null },
+            { createdAt: { lt: sevenDaysAgo } }
+          ]
+        }
       },
       orderBy: [
         { lastMessageAt: 'desc' },

@@ -103,19 +103,24 @@ function BuilderContent() {
         const updates: any = {
           currentStage: state.currentStage,
           slideCount: state.slideCount,
-          lastMessageAt: new Date()
+          lastMessageAt: new Date(),
+          // CRITICAL FIX: Save activeVersion to persist user's presentation choice
+          stateCache: {
+            activeVersion: state.activeVersion,
+            slideStructure: state.slideStructure
+          }
         }
 
         if (isStrawman) {
           // Update strawman-specific fields
           updates.strawmanPreviewUrl = state.presentationUrl
           updates.strawmanPresentationId = state.presentationId
-          console.log('💾 Saving strawman URLs:', { url: state.presentationUrl, id: state.presentationId })
+          console.log('💾 Saving strawman URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
         } else if (isFinal) {
           // Update final-specific fields
           updates.finalPresentationUrl = state.presentationUrl
           updates.finalPresentationId = state.presentationId
-          console.log('💾 Saving final URLs:', { url: state.presentationUrl, id: state.presentationId })
+          console.log('💾 Saving final URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
 
           // NOTE: isGeneratingFinal state is now cleared via useEffect (lines 154-161)
           // This ensures proper React state synchronization instead of calling setState from callback
@@ -351,7 +356,8 @@ function BuilderContent() {
                 finalPresentationId: session.finalPresentationId,
                 slideCount: session.slideCount,
                 slideStructure: (session as any).stateCache?.slideStructure || null,
-                currentStage: session.currentStage
+                currentStage: session.currentStage,
+                activeVersion: (session as any).stateCache?.activeVersion || null
               }
 
               restoreMessages(botMsgs, sessionState)
@@ -364,7 +370,8 @@ function BuilderContent() {
                 finalPresentationUrl: sessionState.finalPresentationUrl || '(none)',
                 slideCount: sessionState.slideCount || 0,
                 slideStructure: sessionState.slideStructure ? 'present' : 'none',
-                currentStage: sessionState.currentStage || '(none)'
+                currentStage: sessionState.currentStage || '(none)',
+                activeVersion: sessionState.activeVersion || '(none)'
               })
 
               // Mark as resumed session - WILL auto-connect WebSocket (welcome message deduplication handled separately)

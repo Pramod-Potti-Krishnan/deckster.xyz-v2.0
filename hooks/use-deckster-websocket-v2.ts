@@ -188,6 +188,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         final: !!cached.finalPresentationUrl,
       });
 
+      // Determine activeVersion: use cached value if available, otherwise infer from URLs
+      const cachedActiveVersion = cached.activeVersion ||
+        (cached.finalPresentationUrl ? 'final' : (cached.strawmanPreviewUrl ? 'strawman' : 'final'));
+
       return {
         connected: false,
         connecting: false,
@@ -202,7 +206,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         presentationId: cached.presentationId || null,
         strawmanPresentationId: cached.strawmanPresentationId || null,
         finalPresentationId: cached.finalPresentationId || null,
-        activeVersion: cached.activeVersion || 'final',
+        activeVersion: cachedActiveVersion,
         slideCount: cached.slideCount || null,
         currentStatus: cached.currentStatus || null,
         slideStructure: cached.slideStructure || null,
@@ -702,6 +706,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     slideCount?: number | null;
     slideStructure?: any;
     currentStage?: number | null;
+    activeVersion?: 'strawman' | 'final' | null;
   }) => {
     console.log(`🔄 Restoring ${historicalMessages.length} messages from database`);
     console.log(`📊 Restoration data:`, {
@@ -710,26 +715,49 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       strawmanPreviewUrl: sessionState?.strawmanPreviewUrl || '(none)',
       finalPresentationUrl: sessionState?.finalPresentationUrl || '(none)',
       slideCount: sessionState?.slideCount || 0,
-      currentStage: sessionState?.currentStage || '(none)'
+      currentStage: sessionState?.currentStage || '(none)',
+      activeVersion: sessionState?.activeVersion || '(none)'
     });
 
-    // FIXED: Determine activeVersion based on which URLs are available
-    // Prefer final if both exist, otherwise use whichever is available
+    // CRITICAL FIX: Determine activeVersion based on explicit value or infer from URLs
+    // This preserves user's choice when switching tabs or sessions
     let activeVersion: 'strawman' | 'final' = 'final';
-    if (sessionState?.finalPresentationUrl) {
-      activeVersion = 'final';
-    } else if (sessionState?.strawmanPreviewUrl) {
+
+    if (sessionState?.activeVersion) {
+      // If activeVersion is explicitly provided (from database or cache), use it
+      activeVersion = sessionState.activeVersion;
+    } else if (sessionState?.currentStage === 4) {
+      // Stage 4 = strawman preview
       activeVersion = 'strawman';
+    } else if (sessionState?.currentStage === 6) {
+      // Stage 6 = final presentation
+      activeVersion = 'final';
+    } else {
+      // Fallback: infer from which URLs are available (prefer final)
+      if (sessionState?.finalPresentationUrl) {
+        activeVersion = 'final';
+      } else if (sessionState?.strawmanPreviewUrl) {
+        activeVersion = 'strawman';
+      }
     }
+
+    // Compute the display URL based on the determined activeVersion
+    const displayUrl = activeVersion === 'strawman'
+      ? sessionState?.strawmanPreviewUrl || null
+      : sessionState?.finalPresentationUrl || null;
+    const displayId = activeVersion === 'strawman'
+      ? sessionState?.strawmanPresentationId || null
+      : sessionState?.finalPresentationId || null;
+
+    console.log(`✅ Determined activeVersion: ${activeVersion} (display URL: ${displayUrl ? 'present' : 'none'})`);
 
     setStateWithCache(prev => ({
       ...prev,
       messages: historicalMessages,
-      // CRITICAL FIX: Explicitly assign null to clear old session state
-      // Using || instead of ?? ensures database null values override prev values
-      // This prevents old presentation URLs from persisting when switching sessions
-      presentationUrl: sessionState?.presentationUrl || null,
-      presentationId: sessionState?.presentationId || null,
+      // CRITICAL FIX: Use computed display URL based on activeVersion
+      // This ensures the correct presentation version is shown
+      presentationUrl: displayUrl,
+      presentationId: displayId,
       strawmanPreviewUrl: sessionState?.strawmanPreviewUrl || null,
       strawmanPresentationId: sessionState?.strawmanPresentationId || null,
       finalPresentationUrl: sessionState?.finalPresentationUrl || null,
@@ -740,8 +768,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       currentStage: sessionState?.currentStage || null,
       currentStatus: null, // Always clear status on session restore
     }));
-
-    console.log(`✅ Restored session with activeVersion: ${activeVersion}`);
   }, [setStateWithCache]);
 
   // Auto-connect on mount (only once)
