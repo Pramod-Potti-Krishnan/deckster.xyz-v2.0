@@ -70,6 +70,14 @@ function BuilderContent() {
     }
   })
 
+  // CRITICAL FIX: Use ref to avoid stale closure in onSessionStateChange callback
+  // The callback is created once when the component mounts, but persistence changes when session is created
+  // Without this ref, the callback would always reference the initial persistence object (enabled: false)
+  const persistenceRef = useRef(persistence)
+  useEffect(() => {
+    persistenceRef.current = persistence
+  }, [persistence])
+
   // WebSocket v2 integration with session support
   // NOTE: We never pass existingSessionId - always use fresh WebSocket session ID
   // This prevents Director from sending welcome messages when reconnecting to existing sessions
@@ -105,7 +113,8 @@ function BuilderContent() {
     reconnectDelay: 5000,
     onSessionStateChange: (state) => {
       // Session state changed - update metadata in database
-      if (currentSessionId && persistence) {
+      // CRITICAL: Use persistenceRef.current to avoid stale closure
+      if (currentSessionId && persistenceRef.current) {
         // FIXED: Use currentStage to determine which URL fields to update
         // Stage 4 = strawman, Stage 6 = final presentation
         const isStrawman = state.currentStage === 4
@@ -137,7 +146,7 @@ function BuilderContent() {
           // This ensures proper React state synchronization instead of calling setState from callback
         }
 
-        persistence.updateMetadata(updates)
+        persistenceRef.current.updateMetadata(updates)
       }
     }
   })
