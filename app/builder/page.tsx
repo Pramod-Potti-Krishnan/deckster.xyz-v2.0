@@ -484,6 +484,16 @@ function BuilderContent() {
 
     console.log('📂 Switching to session:', sessionId)
 
+    // CRITICAL FIX: Clear ALL sessionStorage caches to prevent cross-session pollution
+    // This fixes the bug where presentations appear "one session behind"
+    const cacheKeys = Object.keys(sessionStorage).filter(key =>
+      key.startsWith('deckster_session_')
+    )
+    cacheKeys.forEach(key => {
+      sessionStorage.removeItem(key)
+      console.log(`🗑️ Cleared cache: ${key}`)
+    })
+
     // CRITICAL: Clear all state before switching sessions to prevent pollution
     setUserMessages([]) // Clear user messages
     clearMessages() // Clear WebSocket state (messages, presentations, etc.)
