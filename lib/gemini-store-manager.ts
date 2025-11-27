@@ -99,10 +99,11 @@ export async function createFileSearchStore(
 }
 
 /**
- * Upload a file to a File Search Store
+ * Upload a file to a File Search Store using resumable upload protocol
  *
- * This performs both upload and indexing in a single operation using
- * the uploadToFileSearchStore endpoint.
+ * This performs both upload and indexing using the two-step resumable upload:
+ * 1. Initiate upload (get upload URL)
+ * 2. Upload file bytes
  *
  * @param options Upload options including store name and file path
  * @returns Object with fileUri and fileName
@@ -115,17 +116,17 @@ export async function uploadFileToStore(
 
     // Read file from filesystem
     const fileBuffer = await readFile(options.filePath);
-    const fileBlob = new Blob([fileBuffer]);
+    const fileSize = fileBuffer.length;
+
+    // Detect MIME type (basic detection, can be enhanced)
+    const mimeType = detectMimeType(options.displayName);
 
     console.log('[Gemini Store] Uploading file:', {
       store: options.storeName,
       file: options.displayName,
-      size: fileBuffer.length,
+      size: fileSize,
+      mimeType,
     });
-
-    // Prepare multipart form data
-    const formData = new FormData();
-    formData.append('file', fileBlob, options.displayName);
 
     // Build config object for upload
     const config: any = {
@@ -140,24 +141,53 @@ export async function uploadFileToStore(
       }));
     }
 
-    formData.append('config', JSON.stringify(config));
-
-    // Upload using the uploadToFileSearchStore endpoint
-    // Note: Upload uses different base URL (upload subdomain before v1beta)
-    const response = await fetch(
+    // Step 1: Initiate resumable upload
+    console.log('[Gemini Store] Step 1: Initiating resumable upload...');
+    const initiateResponse = await fetch(
       `${GEMINI_UPLOAD_BASE}/${options.storeName}:uploadToFileSearchStore?key=${apiKey}`,
       {
         method: 'POST',
-        body: formData,
+        headers: {
+          'X-Goog-Upload-Protocol': 'resumable',
+          'X-Goog-Upload-Command': 'start',
+          'X-Goog-Upload-Header-Content-Length': fileSize.toString(),
+          'X-Goog-Upload-Header-Content-Type': mimeType,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config),
       }
     );
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to upload file: ${response.status} ${error}`);
+    if (!initiateResponse.ok) {
+      const error = await initiateResponse.text();
+      throw new Error(`Failed to initiate upload: ${initiateResponse.status} ${error}`);
     }
 
-    const result = await response.json();
+    // Get upload URL from response header
+    const uploadUrl = initiateResponse.headers.get('x-goog-upload-url');
+    if (!uploadUrl) {
+      throw new Error('No upload URL returned from initiate request');
+    }
+
+    console.log('[Gemini Store] Step 2: Uploading file bytes...');
+
+    // Step 2: Upload file bytes
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize',
+        'Content-Length': fileSize.toString(),
+      },
+      body: fileBuffer,
+    });
+
+    if (!uploadResponse.ok) {
+      const error = await uploadResponse.text();
+      throw new Error(`Failed to upload file bytes: ${uploadResponse.status} ${error}`);
+    }
+
+    const result = await uploadResponse.json();
     const fileUri = result.file?.name || result.name; // Format: "files/abc123"
     const fileName = result.file?.displayName || options.displayName;
 
@@ -170,6 +200,39 @@ export async function uploadFileToStore(
       `Failed to upload file to store: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
+}
+
+/**
+ * Detect MIME type from file extension
+ */
+function detectMimeType(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const mimeTypes: Record<string, string> = {
+    'pdf': 'application/pdf',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'doc': 'application/msword',
+    'txt': 'text/plain',
+    'md': 'text/markdown',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'xls': 'application/vnd.ms-excel',
+    'csv': 'text/csv',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'ppt': 'application/vnd.ms-powerpoint',
+    'json': 'application/json',
+    'xml': 'application/xml',
+    'yaml': 'application/x-yaml',
+    'yml': 'application/x-yaml',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'py': 'text/x-python',
+    'js': 'text/javascript',
+    'ts': 'text/typescript',
+    'java': 'text/x-java-source',
+    'go': 'text/x-go',
+    'rs': 'text/x-rustsrc',
+  };
+  return mimeTypes[ext || ''] || 'application/octet-stream';
 }
 
 /**
