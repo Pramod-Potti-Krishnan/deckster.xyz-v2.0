@@ -701,6 +701,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     finalPresentationId?: string | null;
     slideCount?: number | null;
     slideStructure?: any;
+    currentStage?: number | null;
   }) => {
     console.log(`🔄 Restoring ${historicalMessages.length} messages from database`);
     console.log(`📊 Restoration data:`, {
@@ -708,7 +709,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       presentationId: sessionState?.presentationId || '(none)',
       strawmanPreviewUrl: sessionState?.strawmanPreviewUrl || '(none)',
       finalPresentationUrl: sessionState?.finalPresentationUrl || '(none)',
-      slideCount: sessionState?.slideCount || 0
+      slideCount: sessionState?.slideCount || 0,
+      currentStage: sessionState?.currentStage || '(none)'
     });
 
     // FIXED: Determine activeVersion based on which URLs are available
@@ -735,6 +737,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       activeVersion: activeVersion,
       slideCount: sessionState?.slideCount || null,
       slideStructure: sessionState?.slideStructure || null,
+      currentStage: sessionState?.currentStage || null,
       currentStatus: null, // Always clear status on session restore
     }));
 

@@ -350,7 +350,8 @@ function BuilderContent() {
                 finalPresentationUrl: session.finalPresentationUrl,
                 finalPresentationId: session.finalPresentationId,
                 slideCount: session.slideCount,
-                slideStructure: (session as any).stateCache?.slideStructure || null
+                slideStructure: (session as any).stateCache?.slideStructure || null,
+                currentStage: session.currentStage
               }
 
               restoreMessages(botMsgs, sessionState)
@@ -362,7 +363,8 @@ function BuilderContent() {
                 strawmanPreviewUrl: sessionState.strawmanPreviewUrl || '(none)',
                 finalPresentationUrl: sessionState.finalPresentationUrl || '(none)',
                 slideCount: sessionState.slideCount || 0,
-                slideStructure: sessionState.slideStructure ? 'present' : 'none'
+                slideStructure: sessionState.slideStructure ? 'present' : 'none',
+                currentStage: sessionState.currentStage || '(none)'
               })
 
               // Mark as resumed session - WILL auto-connect WebSocket (welcome message deduplication handled separately)
