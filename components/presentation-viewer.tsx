@@ -95,6 +95,8 @@ export function PresentationViewer({
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showThumbnails, setShowThumbnails] = useState(false)
   const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
+  const [iframeReady, setIframeReady] = useState(false)
+  const [pollingFailureCount, setPollingFailureCount] = useState(0)
 
   // Sync totalSlides with slideCount prop changes
   useEffect(() => {
@@ -103,6 +105,20 @@ export function PresentationViewer({
       setTotalSlides(slideCount)
     }
   }, [slideCount])
+
+  // Reset iframe ready state when presentation URL changes
+  useEffect(() => {
+    console.log('🔄 Presentation URL changed, resetting iframe state')
+    setIframeReady(false)
+    setPollingFailureCount(0)
+  }, [presentationUrl])
+
+  // Handle iframe load event
+  const handleIframeLoad = useCallback(() => {
+    console.log('✅ Iframe loaded and ready')
+    setIframeReady(true)
+    setPollingFailureCount(0) // Reset failure count on load
+  }, [])
 
   // Extract slide thumbnails from slideStructure
   const slideThumbnails = useMemo<SlideThumbnail[]>(() => {
@@ -189,10 +205,27 @@ export function PresentationViewer({
     }
   }, [])
 
-  // Poll for slide info updates via postMessage
+  // Poll for slide info updates via postMessage (with exponential backoff)
   useEffect(() => {
+    // Don't poll if iframe isn't ready
+    if (!iframeReady) {
+      console.log('⏸️ Polling paused - iframe not ready yet')
+      return
+    }
+
+    // Stop polling after too many consecutive failures (10 failures = ~5 seconds)
+    const MAX_FAILURES = 10
+    if (pollingFailureCount >= MAX_FAILURES) {
+      console.warn(`🛑 Polling stopped after ${MAX_FAILURES} consecutive failures`)
+      return
+    }
+
+    // Exponential backoff: start at 500ms, double on each failure (max 4s)
+    const baseInterval = 500
+    const backoffInterval = Math.min(baseInterval * Math.pow(2, pollingFailureCount), 4000)
+
     const interval = setInterval(async () => {
-      if (!iframeRef.current) return
+      if (!iframeRef.current || !iframeReady) return
 
       try {
         const result = await sendCommand(iframeRef.current, 'getCurrentSlideInfo')
@@ -202,15 +235,19 @@ export function PresentationViewer({
           setCurrentSlide(slideNum)
           setTotalSlides(result.data.total)
           onSlideChange?.(slideNum)
+
+          // Reset failure count on success
+          setPollingFailureCount(0)
         }
       } catch (error) {
-        // Silently fail during polling - iframe might not be ready yet
-        console.log('⏸️ Polling failed (iframe not ready)')
+        // Increment failure count and apply backoff
+        setPollingFailureCount(prev => prev + 1)
+        console.log(`⏸️ Polling failed (attempt ${pollingFailureCount + 1}/${MAX_FAILURES})`)
       }
-    }, 500)
+    }, backoffInterval)
 
     return () => clearInterval(interval)
-  }, [onSlideChange])
+  }, [iframeReady, pollingFailureCount, onSlideChange])
 
   // Keyboard shortcuts (handlers are now defined above)
   useEffect(() => {
@@ -520,6 +557,7 @@ export function PresentationViewer({
                 <iframe
                   ref={iframeRef}
                   src={presentationUrl}
+                  onLoad={handleIframeLoad}
                   className={`w-full h-full border-0 ${isFullscreen ? '' : 'rounded-sm shadow-2xl'}`}
                   title="Presentation Viewer"
                   allow="fullscreen"
