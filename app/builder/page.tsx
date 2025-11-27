@@ -59,6 +59,17 @@ function BuilderContent() {
   // We only save to database when user sends first message
   const [isUnsavedSession, setIsUnsavedSession] = useState(false)
 
+  // Session persistence (enabled regardless of WebSocket state to prevent message loss)
+  // CRITICAL: Must be declared BEFORE useDecksterWebSocketV2 so the onSessionStateChange callback can reference it
+  const persistence = useSessionPersistence({
+    sessionId: currentSessionId || '',
+    enabled: !!currentSessionId, // Persist even when WebSocket disconnected
+    debounceMs: 500, // Reduce from default 3000ms to prevent loss on page close
+    onError: (error) => {
+      console.error('Persistence error:', error)
+    }
+  })
+
   // WebSocket v2 integration with session support
   // NOTE: We never pass existingSessionId - always use fresh WebSocket session ID
   // This prevents Director from sending welcome messages when reconnecting to existing sessions
@@ -128,16 +139,6 @@ function BuilderContent() {
 
         persistence.updateMetadata(updates)
       }
-    }
-  })
-
-  // Session persistence (enabled regardless of WebSocket state to prevent message loss)
-  const persistence = useSessionPersistence({
-    sessionId: currentSessionId || '',
-    enabled: !!currentSessionId, // Persist even when WebSocket disconnected
-    debounceMs: 500, // Reduce from default 3000ms to prevent loss on page close
-    onError: (error) => {
-      console.error('Persistence error:', error)
     }
   })
 
