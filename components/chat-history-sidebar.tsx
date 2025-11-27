@@ -28,6 +28,7 @@ export function ChatHistorySidebar({
   const { loadSessions, deleteSession, loading } = useChatSessions();
   const { toast } = useToast();
   const [sessions, setSessions] = useState<SessionType[]>([]);
+  const [totalSessionCount, setTotalSessionCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Selection mode state
@@ -35,6 +36,7 @@ export function ChatHistorySidebar({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [deletionProgress, setDeletionProgress] = useState({ current: 0, total: 0 });
 
   // Load sessions when sidebar opens
   useEffect(() => {
@@ -47,6 +49,7 @@ export function ChatHistorySidebar({
     const result = await loadSessions({ limit: 50, status: 'active' });
     if (result) {
       setSessions(result.sessions);
+      setTotalSessionCount(result.pagination?.total || result.sessions.length);
     }
   };
 
@@ -124,9 +127,17 @@ export function ChatHistorySidebar({
     let successCount = 0;
     let failedCount = 0;
 
+    // Initialize progress tracking
+    setDeletionProgress({ current: 0, total: idsToDelete.length });
+
     try {
       // Delete each session
-      for (const sessionId of idsToDelete) {
+      for (let i = 0; i < idsToDelete.length; i++) {
+        const sessionId = idsToDelete[i];
+
+        // Update progress before each deletion
+        setDeletionProgress({ current: i + 1, total: idsToDelete.length });
+
         const success = await deleteSession(sessionId);
         if (success) {
           // Clear sessionStorage cache for deleted session
@@ -262,7 +273,7 @@ export function ChatHistorySidebar({
                 htmlFor="select-all"
                 className="text-sm font-medium cursor-pointer select-none"
               >
-                Select All ({selectedIds.size}/{filteredSessions.length})
+                Select All Visible ({selectedIds.size}/{filteredSessions.length})
               </label>
             </div>
           ) : (
@@ -344,7 +355,11 @@ export function ChatHistorySidebar({
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <p className="text-xs text-gray-500 text-center">
-            {filteredSessions.length} {filteredSessions.length === 1 ? 'session' : 'sessions'}
+            {sessions.length < totalSessionCount ? (
+              <>Showing {sessions.length} of {totalSessionCount} sessions</>
+            ) : (
+              <>{filteredSessions.length} {filteredSessions.length === 1 ? 'session' : 'sessions'}</>
+            )}
           </p>
         </div>
       </div>
@@ -359,6 +374,7 @@ export function ChatHistorySidebar({
           return session?.title || 'Untitled Session';
         })}
         isDeleting={isDeletingBulk}
+        deletionProgress={deletionProgress}
       />
     </>
   );

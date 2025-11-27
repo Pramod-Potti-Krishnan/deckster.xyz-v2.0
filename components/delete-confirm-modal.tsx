@@ -19,6 +19,7 @@ interface DeleteConfirmModalProps {
   title?: string
   sessionTitles?: string[]
   isDeleting?: boolean
+  deletionProgress?: { current: number; total: number }
 }
 
 export function DeleteConfirmModal({
@@ -27,7 +28,8 @@ export function DeleteConfirmModal({
   onConfirm,
   title,
   sessionTitles = [],
-  isDeleting = false
+  isDeleting = false,
+  deletionProgress
 }: DeleteConfirmModalProps) {
   const count = sessionTitles.length
   const isBulk = count > 1
@@ -117,7 +119,11 @@ export function DeleteConfirmModal({
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                Deleting...
+                {deletionProgress && deletionProgress.total > 0 ? (
+                  <>Deleting {deletionProgress.current}/{deletionProgress.total}...</>
+                ) : (
+                  <>Deleting...</>
+                )}
               </span>
             ) : (
               'Delete'
