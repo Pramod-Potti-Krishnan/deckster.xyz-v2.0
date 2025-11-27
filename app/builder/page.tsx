@@ -184,22 +184,6 @@ function BuilderContent() {
     }
   }, [finalPresentationUrl, isGeneratingFinal])
 
-  // Set strawman generation flag when stage is 4 and no URL yet
-  useEffect(() => {
-    if (currentStage === 4 && !strawmanPreviewUrl && !isGeneratingStrawman) {
-      setIsGeneratingStrawman(true)
-      console.log('🎨 Strawman generation started - showing loader')
-    }
-  }, [currentStage, strawmanPreviewUrl, isGeneratingStrawman])
-
-  // Clear strawman generation flag when URL arrives
-  useEffect(() => {
-    if (strawmanPreviewUrl && isGeneratingStrawman) {
-      setIsGeneratingStrawman(false)
-      console.log('✅ Strawman presentation ready - hiding loader')
-    }
-  }, [strawmanPreviewUrl, isGeneratingStrawman])
-
   // Track if we've generated a title from user message yet
   const hasTitleFromUserMessageRef = useRef(false)
   const hasTitleFromPresentationRef = useRef(false)
@@ -620,6 +604,22 @@ function BuilderContent() {
     if (slideStructure && slideStructure.length > 0) return 4; // Strawman ready
     return 3; // Earlier stages (greeting, questions, plan)
   }, [presentationUrl, slideCount, slideStructure])
+
+  // Set strawman generation flag when stage is 4 and no URL yet
+  useEffect(() => {
+    if (currentStage === 4 && !strawmanPreviewUrl && !isGeneratingStrawman) {
+      setIsGeneratingStrawman(true)
+      console.log('🎨 Strawman generation started - showing loader')
+    }
+  }, [currentStage, strawmanPreviewUrl, isGeneratingStrawman])
+
+  // Clear strawman generation flag when URL arrives
+  useEffect(() => {
+    if (strawmanPreviewUrl && isGeneratingStrawman) {
+      setIsGeneratingStrawman(false)
+      console.log('✅ Strawman presentation ready - hiding loader')
+    }
+  }, [strawmanPreviewUrl, isGeneratingStrawman])
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
