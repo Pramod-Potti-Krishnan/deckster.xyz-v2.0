@@ -2,6 +2,8 @@
  * Gemini File Search Store Manager
  *
  * Manages Google Gemini File Search Stores for RAG-based content generation.
+ * Uses the Gemini Developer API (not Vertex AI) for File Search functionality.
+ *
  * Handles:
  * - Creating stores per user session
  * - Uploading files to stores
@@ -9,8 +11,22 @@
  * - Cleaning up stores
  */
 
-import { getVertexAIClient, GEMINI_CONFIG } from './vertexai-client';
 import { readFile } from 'fs/promises';
+
+// Gemini Developer API configuration
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+
+// Get API key from environment
+function getGeminiApiKey(): string {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      'GEMINI_API_KEY is not configured. Please add it to your .env.local file. ' +
+      'Get your API key from https://aistudio.google.com/app/apikey'
+    );
+  }
+  return apiKey;
+}
 
 export interface CreateStoreOptions {
   sessionId: string;
@@ -43,28 +59,19 @@ export async function createFileSearchStore(
   options: CreateStoreOptions
 ): Promise<{ storeName: string; storeId: string }> {
   try {
-    const vertexAI = getVertexAIClient();
+    const apiKey = getGeminiApiKey();
     const displayName = options.displayName || `Session_${options.sessionId.substring(0, 8)}`;
 
-    // Note: The exact API may vary based on Vertex AI SDK version
-    // This follows the typical pattern for creating resources
+    // Create File Search Store using Gemini Developer API
     const response = await fetch(
-      `https://${GEMINI_CONFIG.location}-aiplatform.googleapis.com/v1/` +
-      `projects/${GEMINI_CONFIG.project}/locations/${GEMINI_CONFIG.location}/fileSearchStores`,
+      `${GEMINI_API_BASE}/fileSearchStores?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await getAccessToken()}`,
         },
         body: JSON.stringify({
           displayName,
-          metadata: {
-            session_id: options.sessionId,
-            user_id: options.userId,
-            created_at: new Date().toISOString(),
-            created_by: 'deckster-frontend',
-          },
         }),
       }
     );
@@ -92,7 +99,8 @@ export async function createFileSearchStore(
 /**
  * Upload a file to a File Search Store
  *
- * This performs both upload and indexing in a single operation.
+ * This performs both upload and indexing in a single operation using
+ * the uploadToFileSearchStore endpoint.
  *
  * @param options Upload options including store name and file path
  * @returns Object with fileUri and fileName
@@ -101,7 +109,7 @@ export async function uploadFileToStore(
   options: UploadFileToStoreOptions
 ): Promise<{ fileUri: string; fileName: string }> {
   try {
-    const vertexAI = getVertexAIClient();
+    const apiKey = getGeminiApiKey();
 
     // Read file from filesystem
     const fileBuffer = await readFile(options.filePath);
@@ -113,22 +121,30 @@ export async function uploadFileToStore(
       size: fileBuffer.length,
     });
 
-    // Upload file using multipart form data
+    // Prepare multipart form data
     const formData = new FormData();
     formData.append('file', fileBlob, options.displayName);
-    formData.append('displayName', options.displayName);
+
+    // Build config object for upload
+    const config: any = {
+      display_name: options.displayName,
+    };
+
+    // Add custom metadata if provided
     if (options.metadata) {
-      formData.append('metadata', JSON.stringify(options.metadata));
+      config.custom_metadata = Object.entries(options.metadata).map(([key, value]) => ({
+        key,
+        string_value: value,
+      }));
     }
 
+    formData.append('config', JSON.stringify(config));
+
+    // Upload using the uploadToFileSearchStore endpoint
     const response = await fetch(
-      `https://${GEMINI_CONFIG.location}-aiplatform.googleapis.com/v1/` +
-      `${options.storeName}/files:upload`,
+      `${GEMINI_API_BASE}/upload/${options.storeName}:uploadToFileSearchStore?key=${apiKey}`,
       {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${await getAccessToken()}`,
-        },
         body: formData,
       }
     );
@@ -161,13 +177,14 @@ export async function uploadFileToStore(
  */
 export async function listStoreFiles(storeName: string): Promise<StoreFileInfo[]> {
   try {
+    const apiKey = getGeminiApiKey();
+
     const response = await fetch(
-      `https://${GEMINI_CONFIG.location}-aiplatform.googleapis.com/v1/` +
-      `${storeName}/files`,
+      `${GEMINI_API_BASE}/${storeName}/files?key=${apiKey}`,
       {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${await getAccessToken()}`,
+          'Content-Type': 'application/json',
         },
       }
     );
@@ -198,12 +215,14 @@ export async function listStoreFiles(storeName: string): Promise<StoreFileInfo[]
  */
 export async function deleteFileSearchStore(storeName: string): Promise<void> {
   try {
+    const apiKey = getGeminiApiKey();
+
     const response = await fetch(
-      `https://${GEMINI_CONFIG.location}-aiplatform.googleapis.com/v1/${storeName}`,
+      `${GEMINI_API_BASE}/${storeName}?key=${apiKey}`,
       {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${await getAccessToken()}`,
+          'Content-Type': 'application/json',
         },
       }
     );
@@ -217,38 +236,6 @@ export async function deleteFileSearchStore(storeName: string): Promise<void> {
   } catch (error) {
     console.error('[Gemini Store] Error deleting store:', error);
     throw error;
-  }
-}
-
-/**
- * Get Google Cloud access token for API authentication
- *
- * This uses the service account credentials configured via GOOGLE_APPLICATION_CREDENTIALS_BASE64 or file path
- */
-async function getAccessToken(): Promise<string> {
-  try {
-    const { GoogleAuth } = await import('google-auth-library');
-    const { getGoogleCredentials } = await import('./vertexai-client');
-
-    // Get credentials object from vertexai-client (decoded from base64)
-    const credentials = getGoogleCredentials();
-
-    const auth = new GoogleAuth({
-      credentials: credentials, // Pass credentials directly (null falls back to env var/default)
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    });
-
-    const client = await auth.getClient();
-    const tokenResponse = await client.getAccessToken();
-
-    if (!tokenResponse.token) {
-      throw new Error('Failed to obtain access token');
-    }
-
-    return tokenResponse.token;
-  } catch (error) {
-    console.error('[Gemini Store] Error getting access token:', error);
-    throw new Error('Failed to authenticate with Google Cloud. Check your service account configuration.');
   }
 }
 
