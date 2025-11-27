@@ -162,6 +162,7 @@ model SessionStateCache {
   // Cached state from WebSocket hook
   currentStatus          Json?     @map("current_status")  // Last StatusUpdate payload
   slideStructure         Json?     @map("slide_structure") // Last SlideUpdate payload
+  activeVersion          String?   @map("active_version")  // Which presentation version is active: "strawman" or "final"
 
   // Timestamps
   updatedAt              DateTime  @updatedAt @map("updated_at")
