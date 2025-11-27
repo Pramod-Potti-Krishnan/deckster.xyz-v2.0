@@ -158,6 +158,7 @@ function BuilderContent() {
 
   // FIXED: Track when generating final presentation to show loading animation
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
+  const [isGeneratingStrawman, setIsGeneratingStrawman] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
 
   // File upload state (feature flag controlled)
@@ -182,6 +183,22 @@ function BuilderContent() {
       console.log('✅ Final presentation ready - hiding loader')
     }
   }, [finalPresentationUrl, isGeneratingFinal])
+
+  // Set strawman generation flag when stage is 4 and no URL yet
+  useEffect(() => {
+    if (currentStage === 4 && !strawmanPreviewUrl && !isGeneratingStrawman) {
+      setIsGeneratingStrawman(true)
+      console.log('🎨 Strawman generation started - showing loader')
+    }
+  }, [currentStage, strawmanPreviewUrl, isGeneratingStrawman])
+
+  // Clear strawman generation flag when URL arrives
+  useEffect(() => {
+    if (strawmanPreviewUrl && isGeneratingStrawman) {
+      setIsGeneratingStrawman(false)
+      console.log('✅ Strawman presentation ready - hiding loader')
+    }
+  }, [strawmanPreviewUrl, isGeneratingStrawman])
 
   // Track if we've generated a title from user message yet
   const hasTitleFromUserMessageRef = useRef(false)
@@ -498,6 +515,7 @@ function BuilderContent() {
     setUserMessages([]) // Clear user messages
     clearMessages() // Clear WebSocket state (messages, presentations, etc.)
     setIsGeneratingFinal(false) // Reset final generation flag
+    setIsGeneratingStrawman(false) // Reset strawman generation flag
 
     setShowChatHistory(false)
     setIsLoadingSession(true)
@@ -1557,10 +1575,16 @@ function BuilderContent() {
               />
             ) : (
               <div className="flex-1 flex items-center justify-center">
-                {(currentStatus || isGeneratingFinal) ? (
-                  // FIXED: Show slide building animation when actively processing OR generating final
+                {(currentStatus || isGeneratingFinal || isGeneratingStrawman) ? (
+                  // FIXED: Show slide building animation when actively processing OR generating final OR generating strawman
                   <SlideBuildingLoader
-                    statusText={isGeneratingFinal ? "Generating your final presentation..." : currentStatus?.text}
+                    statusText={
+                      isGeneratingFinal
+                        ? "Generating your final presentation..."
+                        : isGeneratingStrawman
+                        ? "Building your strawman presentation..."
+                        : currentStatus?.text
+                    }
                     estimatedTime={currentStatus?.estimated_time ?? undefined}
                     className="w-full px-8"
                     mode={isGeneratingFinal ? 'default' : 'strawman'}

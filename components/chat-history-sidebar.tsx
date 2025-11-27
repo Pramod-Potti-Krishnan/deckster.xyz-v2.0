@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Search, CheckSquare, Trash2 } from 'lucide-react';
+import { X, Plus, Search, CheckSquare, Trash2, Check } from 'lucide-react';
 import { useChatSessions, SessionListItem as SessionType } from '@/hooks/use-chat-sessions';
 import { SessionListItem } from './session-list-item';
 import { Button } from './ui/button';
@@ -9,6 +9,15 @@ import { Input } from './ui/input';
 import { Checkbox } from './ui/checkbox';
 import { DeleteConfirmModal } from './delete-confirm-modal';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 
 export interface ChatHistorySidebarProps {
   isOpen: boolean;
@@ -37,6 +46,10 @@ export function ChatHistorySidebar({
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [deletionProgress, setDeletionProgress] = useState({ current: 0, total: 0 });
+
+  // Success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [deletionSummary, setDeletionSummary] = useState({ count: 0 });
 
   // Load sessions when sidebar opens
   useEffect(() => {
@@ -167,19 +180,9 @@ export function ChatHistorySidebar({
       setIsSelectionMode(false);
       setShowBulkDeleteModal(false);
 
-      // Show success toast
-      if (failedCount === 0) {
-        toast({
-          title: "Sessions deleted",
-          description: `Successfully deleted ${successCount} session${successCount > 1 ? 's' : ''}.`,
-        });
-      } else {
-        toast({
-          title: "Partial success",
-          description: `Deleted ${successCount} session${successCount > 1 ? 's' : ''}, ${failedCount} failed.`,
-          variant: "destructive",
-        });
-      }
+      // Show success modal instead of toast
+      setDeletionSummary({ count: successCount });
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Bulk delete error:', error);
       toast({
@@ -376,6 +379,28 @@ export function ChatHistorySidebar({
         isDeleting={isDeletingBulk}
         deletionProgress={deletionProgress}
       />
+
+      {/* Success Modal */}
+      <AlertDialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-green-100 dark:bg-green-900/20 p-2">
+                <Check className="h-5 w-5 text-green-600 dark:text-green-500" />
+              </div>
+              <AlertDialogTitle>Sessions Deleted</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="pt-2">
+              Successfully deleted {deletionSummary.count} session{deletionSummary.count !== 1 ? 's' : ''}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowSuccessModal(false)}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
