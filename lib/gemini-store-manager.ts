@@ -15,6 +15,8 @@ import { readFile } from 'fs/promises';
 
 // Gemini Developer API configuration
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+// Upload endpoint has different base URL (upload subdomain before version)
+const GEMINI_UPLOAD_BASE = 'https://generativelanguage.googleapis.com/upload/v1beta';
 
 // Get API key from environment
 function getGeminiApiKey(): string {
@@ -141,8 +143,9 @@ export async function uploadFileToStore(
     formData.append('config', JSON.stringify(config));
 
     // Upload using the uploadToFileSearchStore endpoint
+    // Note: Upload uses different base URL (upload subdomain before v1beta)
     const response = await fetch(
-      `${GEMINI_API_BASE}/upload/${options.storeName}:uploadToFileSearchStore?key=${apiKey}`,
+      `${GEMINI_UPLOAD_BASE}/${options.storeName}:uploadToFileSearchStore?key=${apiKey}`,
       {
         method: 'POST',
         body: formData,
