@@ -47,7 +47,21 @@ function BuilderContent() {
 
   // Session management
   const { loadSession, createSession } = useChatSessions()
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+
+  // CRITICAL FIX: Initialize session ID from URL parameter on first mount
+  // This prevents WebSocket from generating a new ID while database session is loading
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => {
+    // Try to get session_id from URL on initial render
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const urlSessionId = params.get('session_id')
+      if (urlSessionId && urlSessionId !== 'new') {
+        console.log('🔍 Detected session ID from URL on mount:', urlSessionId)
+        return urlSessionId
+      }
+    }
+    return null
+  })
   const currentSessionIdRef = useRef(currentSessionId)
   const [isLoadingSession, setIsLoadingSession] = useState(false)
   const [showChatHistory, setShowChatHistory] = useState(false)
@@ -87,8 +101,8 @@ function BuilderContent() {
   }, [currentSessionId])
 
   // WebSocket v2 integration with session support
-  // NOTE: We never pass existingSessionId - always use fresh WebSocket session ID
-  // This prevents Director from sending welcome messages when reconnecting to existing sessions
+  // CRITICAL: Pass existingSessionId to enable Director's session restoration feature
+  // When reconnecting to existing sessions, Director will restore full conversation history
   const {
     connected,
     connecting,

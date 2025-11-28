@@ -158,12 +158,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const sessionIdRef = useRef<string>();
   const userIdRef = useRef<string>();
 
-  // Update session ID if a new one is provided from database
+  // CRITICAL FIX: Initialize session ID with priority order:
+  // 1. Use existing session ID from database/URL (if provided)
+  // 2. Otherwise generate new UUID
+  // This prevents generating new IDs on every page refresh
+  if (!sessionIdRef.current) {
+    if (options.existingSessionId) {
+      console.log('✅ Initializing with existing session ID:', options.existingSessionId);
+      sessionIdRef.current = options.existingSessionId;
+    } else {
+      const newId = crypto.randomUUID();
+      console.log('🆕 Generating new session ID:', newId);
+      sessionIdRef.current = newId;
+    }
+  }
+
+  // Handle session ID changes after initialization (e.g., when database session is created)
   if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
     console.log('🔄 Session ID changed:', { old: sessionIdRef.current, new: options.existingSessionId });
     sessionIdRef.current = options.existingSessionId;
-  } else if (!sessionIdRef.current) {
-    sessionIdRef.current = crypto.randomUUID();
+    // Reconnect with new session ID (existing logic handles this via useEffect)
   }
 
   if (!userIdRef.current) {
