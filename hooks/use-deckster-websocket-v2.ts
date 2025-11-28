@@ -431,12 +431,25 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
                 // Notify session state change for persistence
                 if (options.onSessionStateChange) {
-                  options.onSessionStateChange({
-                    presentationUrl: message.payload.url,
-                    presentationId: message.payload.presentation_id,
+                  console.log('🔔 Calling onSessionStateChange for FINAL presentation:', {
+                    url: message.payload.url,
+                    id: message.payload.presentation_id,
                     slideCount: message.payload.slide_count,
-                    currentStage: 6, // Stage 6 - final presentation
+                    callbackDefined: typeof options.onSessionStateChange
                   });
+                  try {
+                    options.onSessionStateChange({
+                      presentationUrl: message.payload.url,
+                      presentationId: message.payload.presentation_id,
+                      slideCount: message.payload.slide_count,
+                      currentStage: 6, // Stage 6 - final presentation
+                    });
+                    console.log('✅ onSessionStateChange completed (final)');
+                  } catch (error) {
+                    console.error('❌ onSessionStateChange threw error (final):', error);
+                  }
+                } else {
+                  console.warn('⚠️ onSessionStateChange NOT defined for final presentation!');
                 }
                 break;
 
@@ -487,12 +500,25 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
                   // Notify session state change for persistence
                   if (options.onSessionStateChange) {
-                    options.onSessionStateChange({
-                      presentationUrl: previewUrl,
-                      presentationId: previewPresentationId || undefined,
-                      slideCount: message.payload.slides?.length || undefined,
-                      currentStage: 4, // Stage 4 - strawman preview
+                    console.log('🔔 Calling onSessionStateChange for STRAWMAN:', {
+                      url: previewUrl,
+                      id: previewPresentationId,
+                      slideCount: message.payload.slides?.length,
+                      callbackDefined: typeof options.onSessionStateChange
                     });
+                    try {
+                      options.onSessionStateChange({
+                        presentationUrl: previewUrl,
+                        presentationId: previewPresentationId || undefined,
+                        slideCount: message.payload.slides?.length || undefined,
+                        currentStage: 4, // Stage 4 - strawman preview
+                      });
+                      console.log('✅ onSessionStateChange completed (strawman)');
+                    } catch (error) {
+                      console.error('❌ onSessionStateChange threw error (strawman):', error);
+                    }
+                  } else {
+                    console.warn('⚠️ onSessionStateChange NOT defined for strawman!');
                   }
                 } else {
                   console.log('⚠️ No preview URL found in slide_update message');

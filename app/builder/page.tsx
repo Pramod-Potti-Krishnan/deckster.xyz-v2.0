@@ -113,6 +113,15 @@ function BuilderContent() {
     reconnectDelay: 5000,
     onSessionStateChange: (state) => {
       // Session state changed - update metadata in database
+      console.log('🔔 CALLBACK INVOKED!', {
+        currentSessionId,
+        hasPersistence: !!persistenceRef.current,
+        persistenceEnabled: persistenceRef.current?.enabled,
+        currentStage: state.currentStage,
+        hasUrl: !!state.presentationUrl,
+        hasPresentationId: !!state.presentationId
+      });
+
       // CRITICAL: Use persistenceRef.current to avoid stale closure
       if (currentSessionId && persistenceRef.current) {
         // FIXED: Use currentStage to determine which URL fields to update
@@ -147,6 +156,13 @@ function BuilderContent() {
         }
 
         persistenceRef.current.updateMetadata(updates)
+      } else {
+        console.error('❌ PERSISTENCE BLOCKED:', {
+          reason: !currentSessionId ? 'No currentSessionId' : 'No persistenceRef.current',
+          currentSessionId,
+          hasPersistenceRef: !!persistenceRef.current,
+          persistenceEnabled: persistenceRef.current?.enabled
+        });
       }
     }
   })
