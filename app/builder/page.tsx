@@ -48,6 +48,7 @@ function BuilderContent() {
   // Session management
   const { loadSession, createSession } = useChatSessions()
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  const currentSessionIdRef = useRef(currentSessionId)
   const [isLoadingSession, setIsLoadingSession] = useState(false)
   const [showChatHistory, setShowChatHistory] = useState(false)
 
@@ -77,6 +78,13 @@ function BuilderContent() {
   useEffect(() => {
     persistenceRef.current = persistence
   }, [persistence])
+
+  // CRITICAL FIX: Use ref to avoid stale closure for currentSessionId
+  // Same issue as persistence - the callback captures currentSessionId at mount (null for unsaved sessions)
+  // When the database session is created, currentSessionId updates, but the callback still has the old value
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId
+  }, [currentSessionId])
 
   // WebSocket v2 integration with session support
   // NOTE: We never pass existingSessionId - always use fresh WebSocket session ID
@@ -114,7 +122,7 @@ function BuilderContent() {
     onSessionStateChange: (state) => {
       // Session state changed - update metadata in database
       console.log('🔔 CALLBACK INVOKED!', {
-        currentSessionId,
+        currentSessionId: currentSessionIdRef.current,
         hasPersistence: !!persistenceRef.current,
         persistenceEnabled: persistenceRef.current?.enabled,
         currentStage: state.currentStage,
@@ -122,8 +130,8 @@ function BuilderContent() {
         hasPresentationId: !!state.presentationId
       });
 
-      // CRITICAL: Use persistenceRef.current to avoid stale closure
-      if (currentSessionId && persistenceRef.current) {
+      // CRITICAL: Use refs to avoid stale closure
+      if (currentSessionIdRef.current && persistenceRef.current) {
         // FIXED: Use currentStage to determine which URL fields to update
         // Stage 4 = strawman, Stage 6 = final presentation
         const isStrawman = state.currentStage === 4
@@ -158,8 +166,8 @@ function BuilderContent() {
         persistenceRef.current.updateMetadata(updates)
       } else {
         console.error('❌ PERSISTENCE BLOCKED:', {
-          reason: !currentSessionId ? 'No currentSessionId' : 'No persistenceRef.current',
-          currentSessionId,
+          reason: !currentSessionIdRef.current ? 'No currentSessionId' : 'No persistenceRef.current',
+          currentSessionId: currentSessionIdRef.current,
           hasPersistenceRef: !!persistenceRef.current,
           persistenceEnabled: persistenceRef.current?.enabled
         });
