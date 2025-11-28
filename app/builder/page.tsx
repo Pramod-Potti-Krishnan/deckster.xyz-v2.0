@@ -272,6 +272,13 @@ function BuilderContent() {
     const initializeSession = async () => {
       if (!user || isAuthLoading) return
 
+      // FIXED: Skip re-initialization if session already loaded and valid
+      // Prevents creating new session when auth completes if we already have one
+      if (currentSessionId && !isLoadingSession) {
+        console.log('⏭️ Session already initialized, skipping re-init:', currentSessionId)
+        return
+      }
+
       setIsLoadingSession(true)
 
       // Reset title tracking refs for new/loaded session
@@ -284,7 +291,14 @@ function BuilderContent() {
       console.log('🔄 Cleared answeredActionsRef for session initialization')
 
       try {
-        const sessionParam = searchParams?.get('session_id')
+        // FIXED: Fallback to window.location when searchParams is null during Next.js hydration
+        // This prevents race conditions where searchParams is not ready but URL has session_id
+        let sessionParam = searchParams?.get('session_id')
+        if (!sessionParam && typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search)
+          sessionParam = params.get('session_id')
+          console.log('🔄 searchParams not ready, using window.location fallback:', sessionParam)
+        }
 
         if (sessionParam && sessionParam !== 'new') {
           // FIXED: Skip re-initialization if we already loaded this session

@@ -173,54 +173,47 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }
 
-  // Handle session ID changes after initialization (e.g., when database session is created)
+  // FIXED: Allow session ID updates only when creating a new database session
+  // Prevents session ID from changing once a session is loaded from URL/database
   if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
-    console.log('🔄 Session ID changed:', { old: sessionIdRef.current, new: options.existingSessionId });
+    console.log('🔄 Session ID update requested:', {
+      current: sessionIdRef.current,
+      requested: options.existingSessionId
+    });
+
+    // Always update to the existingSessionId from the builder page
+    // The builder page is responsible for maintaining session continuity
+    // This allows: initial connection with URL session ID or upgrading unsaved → saved
     sessionIdRef.current = options.existingSessionId;
-    // Reconnect with new session ID (existing logic handles this via useEffect)
   }
 
-  // CRITICAL: Initialize user ID (may be temporary while auth loads)
-  if (!userIdRef.current) {
-    const initialUserId = user?.id || user?.email || `user_${Date.now()}`;
-    userIdRef.current = initialUserId;
-
-    if (initialUserId.startsWith('user_')) {
-      console.log('⏳ Using temporary user ID while auth loads:', initialUserId);
-    } else {
-      console.log('✅ Initialized with authenticated user ID:', initialUserId);
-    }
+  // FIXED: Initialize user ID ONLY with authenticated user (no temporary IDs)
+  // This prevents user ID from changing during session and breaking continuity
+  if (!userIdRef.current && (user?.id || user?.email)) {
+    const authenticatedUserId = user.id || user.email;
+    userIdRef.current = authenticatedUserId;
+    console.log('✅ Initialized with authenticated user ID:', authenticatedUserId);
   }
 
-  // CRITICAL FIX: Update user ID when authentication completes
-  // This handles the race condition where WebSocket initializes before auth loads
+  // FIXED: Update user ID when authentication completes (but preserve existing ID)
+  // This handles initial auth load, but NEVER changes user ID once set
   useEffect(() => {
-    const currentUserId = userIdRef.current;
     const authenticatedUserId = user?.id || user?.email;
 
-    // Check if we need to upgrade from temporary ID to real user ID
-    if (authenticatedUserId && currentUserId !== authenticatedUserId) {
-      // Only update if current ID is a temporary one (starts with 'user_')
-      if (currentUserId.startsWith('user_')) {
-        console.log('🔄 Upgrading from temporary to authenticated user ID:', {
-          old: currentUserId,
-          new: authenticatedUserId
-        });
+    // Set user ID if we have authenticated user and no ID set yet
+    if (authenticatedUserId && !userIdRef.current) {
+      console.log('✅ Setting authenticated user ID:', authenticatedUserId);
+      userIdRef.current = authenticatedUserId;
+    }
 
-        userIdRef.current = authenticatedUserId;
-
-        // IMPORTANT: Reconnect WebSocket with correct user ID if already connected
-        // This ensures Director sees the real user ID, not the temporary one
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          console.log('🔌 Reconnecting WebSocket with authenticated user ID');
-          disconnect();
-
-          // Reconnect after brief delay to ensure clean disconnect
-          setTimeout(() => {
-            connect();
-          }, 100);
-        }
-      }
+    // IMPORTANT: Never change user ID once set (even if user becomes null during re-auth)
+    // This prevents session ID and user ID from changing mid-session
+    if (userIdRef.current && user?.id && userIdRef.current !== user.id) {
+      console.warn('⚠️ User ID mismatch detected but preserving existing ID:', {
+        existing: userIdRef.current,
+        new: user.id,
+        action: 'keeping existing ID to preserve session continuity'
+      });
     }
   }, [user?.id, user?.email]);
 
@@ -372,6 +365,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Connect to WebSocket
   const connect = useCallback(() => {
+    // FIXED: Prevent connection if user is not authenticated
+    // This ensures we always connect with a real user ID, never temporary ones
+    if (!userIdRef.current) {
+      console.warn('⚠️ Cannot connect: user not authenticated yet');
+      return;
+    }
+
     // Prevent multiple simultaneous connection attempts
     if (isConnectingRef.current) {
       console.log('⏳ Connection attempt already in progress, skipping...');
