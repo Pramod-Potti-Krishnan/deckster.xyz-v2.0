@@ -270,13 +270,44 @@ function BuilderContent() {
   // Session initialization - load or create session
   useEffect(() => {
     const initializeSession = async () => {
-      if (!user || isAuthLoading) return
+      // DEBUG: Log entry point with all relevant state
+      console.log('🔍 [SESSION-INIT] Effect triggered', {
+        hasUser: !!user,
+        isAuthLoading,
+        currentSessionId,
+        isLoadingSession,
+        searchParams: searchParams?.toString(),
+        windowLocation: typeof window !== 'undefined' ? window.location.search : 'N/A'
+      })
+
+      if (!user || isAuthLoading) {
+        console.log('⏭️ [SESSION-INIT] Waiting for auth', { hasUser: !!user, isAuthLoading })
+        return
+      }
 
       // FIXED: Skip re-initialization if session already loaded and valid
       // Prevents creating new session when auth completes if we already have one
       if (currentSessionId && !isLoadingSession) {
-        console.log('⏭️ Session already initialized, skipping re-init:', currentSessionId)
-        return
+        // DEBUG: Get URL session to verify it matches
+        const urlSessionId = searchParams?.get('session_id') ||
+                           (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('session_id') : null)
+
+        console.log('✅ [SESSION-GUARD] Session already initialized', {
+          currentSessionId,
+          urlSessionId,
+          matches: urlSessionId === currentSessionId,
+          action: urlSessionId === currentSessionId ? 'SKIP' : 'PROCEED'
+        })
+
+        // Only skip if URL matches current session
+        if (urlSessionId === currentSessionId || !urlSessionId) {
+          return
+        }
+
+        console.log('⚠️ [SESSION-GUARD] URL session differs from current, will re-initialize', {
+          current: currentSessionId,
+          url: urlSessionId
+        })
       }
 
       setIsLoadingSession(true)
@@ -294,13 +325,39 @@ function BuilderContent() {
         // FIXED: Fallback to window.location when searchParams is null during Next.js hydration
         // This prevents race conditions where searchParams is not ready but URL has session_id
         let sessionParam = searchParams?.get('session_id')
-        if (!sessionParam && typeof window !== 'undefined') {
+        const usedFallback = !sessionParam && typeof window !== 'undefined'
+
+        if (usedFallback) {
           const params = new URLSearchParams(window.location.search)
           sessionParam = params.get('session_id')
-          console.log('🔄 searchParams not ready, using window.location fallback:', sessionParam)
+          console.log('🔄 [SESSION-PARAM] Using window.location fallback', {
+            searchParamsAvailable: !!searchParams,
+            sessionParam,
+            fullURL: window.location.search
+          })
+        } else {
+          console.log('📍 [SESSION-PARAM] Using searchParams', {
+            sessionParam,
+            searchParamsValue: searchParams?.toString()
+          })
+        }
+
+        // FIXED: Early return if URL session matches current session
+        // Prevents unnecessary reloading of the same session
+        if (sessionParam && sessionParam !== 'new' && sessionParam === currentSessionId) {
+          console.log('✅ [SESSION-MATCH] URL session matches current, skipping reload', {
+            sessionId: sessionParam,
+            reason: 'already loaded'
+          })
+          setIsLoadingSession(false)
+          return
         }
 
         if (sessionParam && sessionParam !== 'new') {
+          console.log('📂 [SESSION-BRANCH] Loading existing session', {
+            sessionParam,
+            isNew: sessionParam === 'new'
+          })
           // FIXED: Skip re-initialization if we already loaded this session
           // This prevents duplicate initialization when searchParams changes (e.g., navigation events)
           if (lastLoadedSessionRef.current === sessionParam) {
@@ -339,6 +396,10 @@ function BuilderContent() {
               return
             }
 
+            console.log('💾 [SESSION-SET] Setting session ID from database', {
+              old: currentSessionId,
+              new: session.id
+            })
             setCurrentSessionId(session.id)
             console.log('✅ Session loaded successfully')
 
@@ -455,10 +516,28 @@ function BuilderContent() {
         } else {
           // No session in URL - DON'T create database session yet
           // Wait until user sends first message
-          console.log('🆕 Starting new session (unsaved until first message)')
-          setIsUnsavedSession(true)
-          setIsResumedSession(false)
-          setCurrentSessionId(null) // No session ID yet
+          console.log('🆕 [SESSION-BRANCH] No session in URL', {
+            currentSessionId,
+            willClear: !currentSessionId,
+            action: currentSessionId ? 'PRESERVE existing' : 'SET to null'
+          })
+
+          // CRITICAL FIX: Never clear currentSessionId if it's already set
+          // This prevents losing the session ID during hydration delays or navigation
+          if (!currentSessionId) {
+            console.log('💾 [SESSION-SET] Setting session ID to null (new unsaved session)', {
+              old: currentSessionId,
+              new: null
+            })
+            setIsUnsavedSession(true)
+            setIsResumedSession(false)
+            setCurrentSessionId(null)
+          } else {
+            console.log('✅ [SESSION-PRESERVE] Keeping existing session ID despite no URL param', {
+              currentSessionId,
+              reason: 'prevent accidental clearing during hydration'
+            })
+          }
         }
       } catch (error) {
         console.error('❌ Error initializing session:', error)

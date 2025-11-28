@@ -176,23 +176,31 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // FIXED: Allow session ID updates only when creating a new database session
   // Prevents session ID from changing once a session is loaded from URL/database
   if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
-    console.log('🔄 Session ID update requested:', {
-      current: sessionIdRef.current,
-      requested: options.existingSessionId
+    console.log('🔄 [WEBSOCKET-SESSION] Session ID update requested', {
+      old: sessionIdRef.current,
+      new: options.existingSessionId,
+      source: 'builder page (existingSessionId prop)'
     });
 
     // Always update to the existingSessionId from the builder page
     // The builder page is responsible for maintaining session continuity
     // This allows: initial connection with URL session ID or upgrading unsaved → saved
     sessionIdRef.current = options.existingSessionId;
+
+    console.log('✅ [WEBSOCKET-SESSION] Session ID updated', {
+      sessionId: sessionIdRef.current
+    });
   }
 
   // FIXED: Initialize user ID ONLY with authenticated user (no temporary IDs)
   // This prevents user ID from changing during session and breaking continuity
   if (!userIdRef.current && (user?.id || user?.email)) {
     const authenticatedUserId = user.id || user.email;
+    console.log('✅ [WEBSOCKET-USER] Initializing with authenticated user ID', {
+      user_id: authenticatedUserId,
+      source: user.id ? 'user.id' : 'user.email'
+    });
     userIdRef.current = authenticatedUserId;
-    console.log('✅ Initialized with authenticated user ID:', authenticatedUserId);
   }
 
   // FIXED: Update user ID when authentication completes (but preserve existing ID)
@@ -202,14 +210,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     // Set user ID if we have authenticated user and no ID set yet
     if (authenticatedUserId && !userIdRef.current) {
-      console.log('✅ Setting authenticated user ID:', authenticatedUserId);
+      console.log('✅ [WEBSOCKET-USER] Setting authenticated user ID from effect', {
+        user_id: authenticatedUserId,
+        source: user.id ? 'user.id' : 'user.email'
+      });
       userIdRef.current = authenticatedUserId;
     }
 
     // IMPORTANT: Never change user ID once set (even if user becomes null during re-auth)
     // This prevents session ID and user ID from changing mid-session
     if (userIdRef.current && user?.id && userIdRef.current !== user.id) {
-      console.warn('⚠️ User ID mismatch detected but preserving existing ID:', {
+      console.warn('⚠️ [WEBSOCKET-USER] User ID mismatch detected but preserving existing ID', {
         existing: userIdRef.current,
         new: user.id,
         action: 'keeping existing ID to preserve session continuity'
@@ -395,6 +406,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     try {
       const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}`;
+
+      // DEBUG: Comprehensive logging of connection parameters
+      console.log('🔌 [WEBSOCKET] Initiating connection to Director', {
+        session_id: sessionIdRef.current,
+        user_id: userIdRef.current,
+        wsUrl: wsUrl,
+        timestamp: new Date().toISOString()
+      });
       console.log(`🔌 Connecting to Director v3.4: ${wsUrl}`);
 
       const ws = new WebSocket(wsUrl);
