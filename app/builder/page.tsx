@@ -832,7 +832,7 @@ function BuilderContent() {
       // For unsaved sessions, create database session first
       if (isUnsavedSession && !currentSessionId) {
         console.log('💾 Creating database session for first message')
-        const newSessionId = crypto.randomUUID()
+        const newSessionId = wsSessionId // Use existing WebSocket session ID
 
         try {
           const session = await createSession(newSessionId)
