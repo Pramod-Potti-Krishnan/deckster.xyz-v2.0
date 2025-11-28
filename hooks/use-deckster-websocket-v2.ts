@@ -180,10 +180,49 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     // Reconnect with new session ID (existing logic handles this via useEffect)
   }
 
+  // CRITICAL: Initialize user ID (may be temporary while auth loads)
   if (!userIdRef.current) {
-    // Use authenticated user ID or mock user ID or generate one
-    userIdRef.current = user?.id || user?.email || `user_${Date.now()}`;
+    const initialUserId = user?.id || user?.email || `user_${Date.now()}`;
+    userIdRef.current = initialUserId;
+
+    if (initialUserId.startsWith('user_')) {
+      console.log('⏳ Using temporary user ID while auth loads:', initialUserId);
+    } else {
+      console.log('✅ Initialized with authenticated user ID:', initialUserId);
+    }
   }
+
+  // CRITICAL FIX: Update user ID when authentication completes
+  // This handles the race condition where WebSocket initializes before auth loads
+  useEffect(() => {
+    const currentUserId = userIdRef.current;
+    const authenticatedUserId = user?.id || user?.email;
+
+    // Check if we need to upgrade from temporary ID to real user ID
+    if (authenticatedUserId && currentUserId !== authenticatedUserId) {
+      // Only update if current ID is a temporary one (starts with 'user_')
+      if (currentUserId.startsWith('user_')) {
+        console.log('🔄 Upgrading from temporary to authenticated user ID:', {
+          old: currentUserId,
+          new: authenticatedUserId
+        });
+
+        userIdRef.current = authenticatedUserId;
+
+        // IMPORTANT: Reconnect WebSocket with correct user ID if already connected
+        // This ensures Director sees the real user ID, not the temporary one
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          console.log('🔌 Reconnecting WebSocket with authenticated user ID');
+          disconnect();
+
+          // Reconnect after brief delay to ensure clean disconnect
+          setTimeout(() => {
+            connect();
+          }, 100);
+        }
+      }
+    }
+  }, [user?.id, user?.email]);
 
   // Initialize browser cache for this session
   const sessionCache = useSessionCache({
