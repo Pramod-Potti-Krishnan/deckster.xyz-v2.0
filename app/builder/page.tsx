@@ -251,6 +251,10 @@ function BuilderContent() {
   // Track user message IDs to distinguish from bot chat_messages
   const userMessageIdsRef = useRef<Set<string>>(new Set())
 
+  // WORKAROUND: Map user message content to IDs to identify Director's historical messages
+  // Director sends historical messages without role info, so we match by content
+  const userMessageContentMapRef = useRef<Map<string, string>>(new Map())
+
   // Track which action_request messages have been answered by the user
   // Prevents duplicate action buttons from re-appearing on page refresh
   const answeredActionsRef = useRef<Set<string>>(new Set())
@@ -480,6 +484,16 @@ function BuilderContent() {
               })
               console.log(`✅ Repopulated userMessageIdsRef with ${userMsgs.length} user message IDs`)
               console.log('📊 Total user message IDs tracked:', userMessageIdsRef.current.size)
+
+              // WORKAROUND: Create content map to identify Director's historical user messages
+              // Director sends historical messages without role/userText fields, so we match by content
+              userMessageContentMapRef.current.clear(); // Clear previous mappings
+              userMsgs.forEach(msg => {
+                const normalizedContent = msg.text.trim().toLowerCase();
+                userMessageContentMapRef.current.set(normalizedContent, msg.id);
+                console.log('🗺️ Mapped user message content:', normalizedContent.substring(0, 30), '→', msg.id);
+              })
+              console.log('🗺️ Created content map with', userMessageContentMapRef.current.size, 'user messages')
 
               // Restore bot messages and session state
               // FIXED: Pass both strawman and final URLs separately for version toggle
@@ -1161,8 +1175,25 @@ function BuilderContent() {
                   const combined = [
                     ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
                     ...messages.map(m => {
-                      // Check if this message ID is tracked as a user message (handles Director's historical messages)
-                      const isUserMessage = userMessageIdsRef.current.has(m.message_id);
+                      // Check if this message ID is tracked as a user message
+                      let isUserMessage = userMessageIdsRef.current.has(m.message_id);
+
+                      // WORKAROUND: If not in IDs, check content map for Director's historical user messages
+                      if (!isUserMessage && m.payload?.text) {
+                        const normalizedContent = (typeof m.payload.text === 'string' ? m.payload.text : '').trim().toLowerCase();
+                        const matchingUserId = userMessageContentMapRef.current.get(normalizedContent);
+                        if (matchingUserId) {
+                          isUserMessage = true;
+                          // Add this message ID to tracking for future renders
+                          userMessageIdsRef.current.add(m.message_id);
+                          console.log('🎯 Matched Director historical message to user message:', {
+                            directorMessageId: m.message_id,
+                            matchedUserId: matchingUserId,
+                            content: normalizedContent.substring(0, 30)
+                          });
+                        }
+                      }
+
                       console.log('🔍 Checking message type:', {
                         message_id: m.message_id,
                         payload: m.payload?.text?.substring(0, 30),
@@ -1177,8 +1208,9 @@ function BuilderContent() {
 
                   // Deduplicate messages by ID (prevents duplicate display)
                   // Also deduplicate by content for cases where Director sends historical messages with new IDs
+                  // WORKAROUND: Prefer user messages from database over Director's bot-classified versions
                   const seenIds = new Set<string>();
-                  const seenContent = new Set<string>();
+                  const seenContent = new Map<string, any>(); // content → first message seen
 
                   const deduplicated = combined.filter(item => {
                     const id = item.messageType === 'user' ? item.id : (item as any).message_id;
@@ -1192,15 +1224,37 @@ function BuilderContent() {
                       return false;
                     }
 
-                    // Skip if we've seen this exact content (handles Director re-sending with different IDs)
-                    const contentKey = `${item.messageType}:${content}`;
-                    if (seenContent.has(contentKey)) {
-                      console.log('🚫 Skipping duplicate message content:', contentKey.substring(0, 50));
-                      return false;
+                    // Check content duplication with preference for user messages
+                    const contentKey = `${content}`.trim().toLowerCase();
+                    const existingMessage = seenContent.get(contentKey);
+
+                    if (existingMessage) {
+                      // If we already have this content, prefer user message over bot message
+                      if (item.messageType === 'user' && existingMessage.messageType !== 'user') {
+                        // Current is user, existing is bot → replace with user version
+                        console.log('🔄 Replacing bot message with user message:', {
+                          content: contentKey.substring(0, 30),
+                          botId: existingMessage.id || existingMessage.message_id,
+                          userId: id
+                        });
+                        // Remove the bot version from seen IDs so we can add user version
+                        seenIds.delete(existingMessage.id || existingMessage.message_id);
+                        seenContent.set(contentKey, item);
+                        seenIds.add(id);
+                        return true; // Keep this user message, will remove bot version later
+                      } else if (item.messageType !== 'user' && existingMessage.messageType === 'user') {
+                        // Current is bot, existing is user → skip bot version
+                        console.log('🚫 Skipping bot version of user message:', contentKey.substring(0, 50));
+                        return false;
+                      } else {
+                        // Both same type → skip duplicate
+                        console.log('🚫 Skipping duplicate message content:', contentKey.substring(0, 50));
+                        return false;
+                      }
                     }
 
                     seenIds.add(id);
-                    seenContent.add(contentKey);
+                    seenContent.set(contentKey, item);
                     return true;
                   });
 
