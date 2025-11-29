@@ -1135,20 +1135,43 @@ function BuilderContent() {
                 {(() => {
                   const combined = [
                     ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
-                    ...messages.map(m => ({ ...m, messageType: 'bot' as const }))
+                    ...messages.map(m => {
+                      // Check if this message ID is tracked as a user message (handles Director's historical messages)
+                      const isUserMessage = userMessageIdsRef.current.has(m.message_id);
+                      return { ...m, messageType: (isUserMessage ? 'user' : 'bot') as const };
+                    })
                   ];
 
                   console.log('📊 Message rendering - userMessages:', userMessages.length, 'botMessages:', messages.length, 'combined:', combined.length);
 
                   // Deduplicate messages by ID (prevents duplicate display)
-                  const deduplicated = Array.from(
-                    new Map(
-                      combined.map(item => [
-                        item.messageType === 'user' ? item.id : (item as any).message_id,
-                        item
-                      ])
-                    ).values()
-                  );
+                  // Also deduplicate by content for cases where Director sends historical messages with new IDs
+                  const seenIds = new Set<string>();
+                  const seenContent = new Set<string>();
+
+                  const deduplicated = combined.filter(item => {
+                    const id = item.messageType === 'user' ? item.id : (item as any).message_id;
+                    const content = item.messageType === 'user'
+                      ? item.text
+                      : (item as any).payload?.text || JSON.stringify((item as any).payload);
+
+                    // Skip if we've seen this exact ID
+                    if (seenIds.has(id)) {
+                      console.log('🚫 Skipping duplicate message ID:', id);
+                      return false;
+                    }
+
+                    // Skip if we've seen this exact content (handles Director re-sending with different IDs)
+                    const contentKey = `${item.messageType}:${content}`;
+                    if (seenContent.has(contentKey)) {
+                      console.log('🚫 Skipping duplicate message content:', contentKey.substring(0, 50));
+                      return false;
+                    }
+
+                    seenIds.add(id);
+                    seenContent.add(contentKey);
+                    return true;
+                  });
 
                   console.log('📊 After deduplication:', deduplicated.length);
 
