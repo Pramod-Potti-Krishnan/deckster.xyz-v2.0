@@ -58,9 +58,9 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         messageQueueRef.current.clear();
         console.log('🗑️ Message queue cleared');
       } else {
-        console.warn('⚠️ Failed to save messages - result was null (keeping in queue)');
+        console.error('❌ FAILED to save messages to database - check authentication and network');
         if (onError) {
-          onError(new Error('Failed to save messages'));
+          onError(new Error('Failed to save messages - check authentication'));
         }
       }
     } catch (error) {

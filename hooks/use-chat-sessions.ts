@@ -263,7 +263,9 @@ export function useChatSessions() {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save messages: ${response.statusText}`);
+        const errorText = await response.text().catch(() => '');
+        console.error(`❌ Message save failed: ${response.status} ${response.statusText}`, errorText);
+        throw new Error(`Failed to save messages: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();

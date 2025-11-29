@@ -772,6 +772,12 @@ function BuilderContent() {
     if (e) e.preventDefault()
     if (!inputMessage.trim()) return
 
+    // GUARD: Check authentication before sending
+    if (!user) {
+      console.warn('⚠️ Cannot send message: user not authenticated')
+      return
+    }
+
     // GUARD: Prevent concurrent executions (fixes React Strict Mode double-execution)
     if (isExecutingSendRef.current) {
       console.log('🚫 Already executing send, skipping duplicate call')
@@ -1675,7 +1681,9 @@ function BuilderContent() {
                       }
                     }}
                     placeholder={
-                      isLoadingSession
+                      !user
+                        ? "Authenticating..."
+                        : isLoadingSession
                         ? "Loading session..."
                         : !connected && !connecting
                           ? "Disconnected - send a message to reconnect"
@@ -1685,7 +1693,7 @@ function BuilderContent() {
                               ? `Type your changes here... (ESC to cancel)`
                               : "Type your message... (Shift+Enter for new line)"
                     }
-                    disabled={isLoadingSession}
+                    disabled={!user || isLoadingSession}
                     className="resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-xl shadow-sm"
                     rows={3}
                   />
