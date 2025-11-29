@@ -421,8 +421,17 @@ function BuilderContent() {
               let lastActionRequestId: string | null = null
 
               session.messages.forEach((msg: any) => {
+                console.log('📥 Loading message from DB:', {
+                  id: msg.id,
+                  messageType: msg.messageType,
+                  hasUserText: !!msg.userText,
+                  userText: msg.userText?.substring(0, 30),
+                  timestamp: msg.timestamp
+                });
+
                 if (msg.userText) {
                   // User message
+                  console.log('👤 Classified as USER message');
                   console.log('👤 Loading user message:', { id: msg.id, text: msg.userText.substring(0, 50), timestamp: msg.timestamp });
 
                   // FIXED: Don't mark actions as answered during restoration
@@ -441,6 +450,7 @@ function BuilderContent() {
                 } else {
                   // Bot message - convert from DB format to WebSocket format
                   // IMPORTANT: Add clientTimestamp for proper sorting with user messages
+                  console.log('🤖 Classified as BOT message');
                   console.log('🤖 Loading bot message:', { id: msg.id, type: msg.messageType, timestamp: msg.timestamp });
 
                   // Track action_request messages
@@ -466,8 +476,10 @@ function BuilderContent() {
               // This prevents user messages from being misidentified as bot messages
               userMsgs.forEach(msg => {
                 userMessageIdsRef.current.add(msg.id)
+                console.log('✅ Added to userMessageIdsRef:', msg.id, msg.text.substring(0, 30));
               })
               console.log(`✅ Repopulated userMessageIdsRef with ${userMsgs.length} user message IDs`)
+              console.log('📊 Total user message IDs tracked:', userMessageIdsRef.current.size)
 
               // Restore bot messages and session state
               // FIXED: Pass both strawman and final URLs separately for version toggle
@@ -870,7 +882,13 @@ function BuilderContent() {
             // where message is lost if user navigates away before queue flushes
             // FIXED: Pass messageText as second argument to save userText field
             if (persistence) {
-              console.log('💾 Persisting user message for new session (synchronous):', messageId)
+              console.log('💾 About to save first message:', {
+                messageId,
+                messageText,
+                userText: messageText,
+                sessionId: session.id,
+                timestamp: new Date(timestamp).toISOString()
+              })
               await persistence.saveBatch([{
                 message_id: messageId,
                 session_id: session.id,
@@ -878,6 +896,7 @@ function BuilderContent() {
                 type: 'chat_message',
                 payload: { text: messageText }
               } as DirectorMessage], messageText) // FIXED: Pass userText as 2nd arg
+              console.log('✅ First message saved via saveBatch')
 
               // Generate title from first user message
               const generatedTitle = persistence.generateTitle(messageText)
@@ -1144,6 +1163,12 @@ function BuilderContent() {
                     ...messages.map(m => {
                       // Check if this message ID is tracked as a user message (handles Director's historical messages)
                       const isUserMessage = userMessageIdsRef.current.has(m.message_id);
+                      console.log('🔍 Checking message type:', {
+                        message_id: m.message_id,
+                        payload: m.payload?.text?.substring(0, 30),
+                        isInUserMessageIds: isUserMessage,
+                        classifiedAs: isUserMessage ? 'USER' : 'BOT'
+                      });
                       return { ...m, messageType: (isUserMessage ? 'user' : 'bot') as const };
                     })
                   ];
@@ -1192,6 +1217,16 @@ function BuilderContent() {
                     const timeB = b.messageType === 'user'
                       ? b.timestamp
                       : (b as any).clientTimestamp || new Date((b as any).timestamp).getTime() || 0;
+
+                    console.log('⏰ Comparing timestamps:', {
+                      messageA: a.messageType === 'user' ? (a as any).text?.substring(0, 20) : (a as any).payload?.text?.substring(0, 20),
+                      typeA: a.messageType,
+                      timeA,
+                      messageB: b.messageType === 'user' ? (b as any).text?.substring(0, 20) : (b as any).payload?.text?.substring(0, 20),
+                      typeB: b.messageType,
+                      timeB,
+                      order: timeA - timeB
+                    });
 
                     return timeA - timeB;
                   });
