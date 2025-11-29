@@ -292,5 +292,81 @@ The frontend team is implementing a temporary workaround that matches message co
 
 ## Status Updates
 
-**2025-11-29:** Issue identified and documented
-**Next Steps:** Awaiting Director team implementation of role field in historical messages
+**2025-11-29 (Morning):** Issue identified and documented
+**2025-11-29 (Afternoon):** ✅ **RESOLVED** - Director team implemented fix
+
+---
+
+## Resolution - FIXED ✅
+
+**Date:** 2025-11-29
+**Fixed By:** Director Team
+**Commit:** 9408b24 (feature/session-history-restoration)
+**Deployed To:** Railway (auto-deployment)
+
+### Changes Implemented by Director Team
+
+**1. src/models/websocket_messages.py:**
+- Added optional `role` field to BaseMessage model
+- Updated `create_chat_message()` helper to accept role parameter
+- Backward compatible (role is optional)
+
+**2. src/handlers/websocket.py:**
+- Updated `_restore_conversation_history()` to pass `role='user'` for user messages
+- Added comment explaining critical nature of role field
+
+**3. src/utils/streamlined_packager.py:**
+- Updated 8 locations to properly set role field
+- Ensures all message types include role information
+
+### Frontend Integration
+
+**Frontend changes (commit 44457e7):**
+- Added support for Director's `role` field (priority 1 classification method)
+- Kept content-matching workaround for backward compatibility
+- Enhanced logging to track which classification method is used
+
+**Classification Priority:**
+1. **ROLE_FIELD** - Use Director's `role` field (new messages)
+2. **USER_MESSAGE_IDS_REF** - Use tracked message IDs (existing logic)
+3. **CONTENT_MATCH** - Content matching fallback (old sessions)
+
+### Expected Message Format
+
+**New Format (with role field):**
+```json
+{
+  "message_id": "abc123",
+  "type": "chat_message",
+  "payload": {"text": "Krishna"},
+  "timestamp": "2025-11-29T...",
+  "role": "user"  ← ADDED BY DIRECTOR FIX
+}
+```
+
+### Verification
+
+**Test Results:**
+- ✅ User messages appear on RIGHT with user icon
+- ✅ Assistant messages appear on LEFT with bot icon
+- ✅ Conversation history properly restored after refresh
+- ✅ Backward compatible with old sessions
+
+**Workaround Status:**
+- Maintained for backward compatibility
+- New sessions use `role` field (fast, reliable)
+- Old sessions fall back to content matching
+- Can be removed after old sessions expire (~1-2 weeks)
+
+### Lessons Learned
+
+1. **Two-Database Issue:** Frontend and Director each have their own databases - changes must be coordinated
+2. **WebSocket Message Format:** Critical to include semantic information (role, type) in WebSocket messages
+3. **Backward Compatibility:** Always maintain fallback for existing data
+4. **Collaboration:** Quick turnaround when frontend and backend teams work together
+
+---
+
+## Final Status: **CLOSED** ✅
+
+Issue fully resolved. Frontend and backend now properly handle user/bot message classification on session restoration.

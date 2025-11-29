@@ -1175,18 +1175,37 @@ function BuilderContent() {
                   const combined = [
                     ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
                     ...messages.map(m => {
-                      // Check if this message ID is tracked as a user message
-                      let isUserMessage = userMessageIdsRef.current.has(m.message_id);
+                      let classificationMethod = 'DEFAULT';
 
-                      // WORKAROUND: If not in IDs, check content map for Director's historical user messages
+                      // PRIORITY 1: Check Director's role field (proper fix from Director team)
+                      if ((m as any).role === 'user') {
+                        userMessageIdsRef.current.add(m.message_id);
+                        classificationMethod = 'ROLE_FIELD';
+                        console.log('✅ Director role field detected:', {
+                          message_id: m.message_id,
+                          role: (m as any).role,
+                          method: 'ROLE_FIELD (Director fix)',
+                          classifiedAs: 'USER'
+                        });
+                        return { ...m, messageType: 'user' as const };
+                      }
+
+                      // PRIORITY 2: Check if message ID is in our tracking ref
+                      let isUserMessage = userMessageIdsRef.current.has(m.message_id);
+                      if (isUserMessage) {
+                        classificationMethod = 'USER_MESSAGE_IDS_REF';
+                      }
+
+                      // PRIORITY 3: Content matching fallback (backward compatibility workaround)
                       if (!isUserMessage && m.payload?.text) {
                         const normalizedContent = (typeof m.payload.text === 'string' ? m.payload.text : '').trim().toLowerCase();
                         const matchingUserId = userMessageContentMapRef.current.get(normalizedContent);
                         if (matchingUserId) {
                           isUserMessage = true;
+                          classificationMethod = 'CONTENT_MATCH';
                           // Add this message ID to tracking for future renders
                           userMessageIdsRef.current.add(m.message_id);
-                          console.log('🎯 Matched Director historical message to user message:', {
+                          console.log('🎯 Content match fallback (pre-Director-fix message):', {
                             directorMessageId: m.message_id,
                             matchedUserId: matchingUserId,
                             content: normalizedContent.substring(0, 30)
@@ -1194,10 +1213,13 @@ function BuilderContent() {
                         }
                       }
 
-                      console.log('🔍 Checking message type:', {
+                      console.log('🔍 Message classification:', {
                         message_id: m.message_id,
                         payload: m.payload?.text?.substring(0, 30),
-                        isInUserMessageIds: isUserMessage,
+                        hasRole: !!(m as any).role,
+                        role: (m as any).role,
+                        method: classificationMethod,
+                        isInUserMessageIds: userMessageIdsRef.current.has(m.message_id),
                         classifiedAs: isUserMessage ? 'USER' : 'BOT'
                       });
                       return { ...m, messageType: (isUserMessage ? 'user' : 'bot') as const };
