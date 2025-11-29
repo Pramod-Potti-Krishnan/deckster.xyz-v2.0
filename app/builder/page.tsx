@@ -1181,13 +1181,30 @@ function BuilderContent() {
                       if ((m as any).role === 'user') {
                         userMessageIdsRef.current.add(m.message_id);
                         classificationMethod = 'ROLE_FIELD';
-                        console.log('✅ Director role field detected:', {
+
+                        // Extract text from Director's message format
+                        // Director sends either {payload: {text: '...'}} or {content: '...'}
+                        const text = m.payload?.text || (m as any).content || '';
+
+                        // Convert ISO timestamp to numeric milliseconds for proper sorting
+                        const timestamp = new Date(m.timestamp).getTime();
+
+                        console.log('✅ Director role field detected, transforming to user message format:', {
                           message_id: m.message_id,
                           role: (m as any).role,
+                          text: text.substring(0, 30),
+                          timestamp,
                           method: 'ROLE_FIELD (Director fix)',
                           classifiedAs: 'USER'
                         });
-                        return { ...m, messageType: 'user' as const };
+
+                        // Transform to user message format that renderer expects
+                        return {
+                          id: m.message_id,
+                          text: text,
+                          timestamp: timestamp,
+                          messageType: 'user' as const
+                        };
                       }
 
                       // PRIORITY 2: Check if message ID is in our tracking ref
