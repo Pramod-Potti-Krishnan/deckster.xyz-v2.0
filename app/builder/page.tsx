@@ -1187,7 +1187,9 @@ function BuilderContent() {
                         const text = m.payload?.text || (m as any).content || '';
 
                         // Convert ISO timestamp to numeric milliseconds for proper sorting
-                        const timestamp = new Date(m.timestamp).getTime();
+                        // IMPORTANT: Append 'Z' to ensure UTC parsing (Director sends without timezone suffix)
+                        // Without 'Z', JavaScript treats timestamp as local time, causing timezone offset bugs
+                        const timestamp = new Date(m.timestamp + 'Z').getTime();
 
                         console.log('✅ Director role field detected, transforming to user message format:', {
                           message_id: m.message_id,
