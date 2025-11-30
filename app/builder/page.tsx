@@ -468,7 +468,10 @@ function BuilderContent() {
                     timestamp: msg.timestamp,
                     type: msg.messageType as any,
                     payload: msg.payload,
-                    clientTimestamp: new Date(msg.timestamp).getTime() // Convert ISO to numeric timestamp
+                    // FIX: Ensure 'Z' suffix for UTC parsing - timestamps may be stored without timezone indicator
+                    clientTimestamp: new Date(
+                      msg.timestamp?.endsWith('Z') ? msg.timestamp : msg.timestamp + 'Z'
+                    ).getTime()
                   } as any)
                 }
               })
@@ -709,11 +712,24 @@ function BuilderContent() {
 
   // Persist bot messages received from WebSocket
   // FIXED: Persist all bot messages including bot chat_messages (welcome messages)
+  // FIXED: Also handle Director-replayed user messages with role: 'user' field
   useEffect(() => {
     if (!currentSessionId || !persistence || messages.length === 0) return
 
     // Get the last message
     const lastMessage = messages[messages.length - 1]
+
+    // FIX: Check if Director is replaying a user message (has role: 'user')
+    // These should be saved with userText to be recognized as user messages on reload
+    if ((lastMessage as any).role === 'user') {
+      const userText = lastMessage.payload?.text || (lastMessage as any).content || '';
+      console.log('💾 Persisting Director-replayed user message:', lastMessage.message_id, userText.substring(0, 30))
+      // Add to userMessageIdsRef so it's not duplicated
+      userMessageIdsRef.current.add(lastMessage.message_id)
+      // Persist with userText field
+      persistence.queueMessage(lastMessage, userText)
+      return
+    }
 
     // Persist non-chat_message types (action_request, slide_update, etc.)
     if (lastMessage.type !== 'chat_message') {
@@ -1187,9 +1203,10 @@ function BuilderContent() {
                         const text = m.payload?.text || (m as any).content || '';
 
                         // Convert ISO timestamp to numeric milliseconds for proper sorting
-                        // IMPORTANT: Append 'Z' to ensure UTC parsing (Director sends without timezone suffix)
+                        // IMPORTANT: Ensure 'Z' suffix for UTC parsing (Director sends without timezone suffix)
                         // Without 'Z', JavaScript treats timestamp as local time, causing timezone offset bugs
-                        const timestamp = new Date(m.timestamp + 'Z').getTime();
+                        const normalizedTimestamp = m.timestamp?.endsWith('Z') ? m.timestamp : m.timestamp + 'Z';
+                        const timestamp = new Date(normalizedTimestamp).getTime();
 
                         console.log('✅ Director role field detected, transforming to user message format:', {
                           message_id: m.message_id,
@@ -1305,13 +1322,21 @@ function BuilderContent() {
                     // User messages have numeric timestamps
                     // Bot messages should have clientTimestamp (added in hook or when restoring)
                     // Fallback: parse ISO timestamp if clientTimestamp missing
+                    // FIX: Always append 'Z' suffix to ensure UTC parsing when Director sends timestamps without timezone
+                    const parseTimestamp = (ts: string | undefined): number => {
+                      if (!ts) return 0;
+                      // Ensure 'Z' suffix for UTC parsing - Director may send timestamps without timezone indicator
+                      const normalized = ts.endsWith('Z') ? ts : ts + 'Z';
+                      return new Date(normalized).getTime();
+                    };
+
                     const timeA = a.messageType === 'user'
                       ? a.timestamp
-                      : (a as any).clientTimestamp || new Date((a as any).timestamp).getTime() || 0;
+                      : (a as any).clientTimestamp || parseTimestamp((a as any).timestamp);
 
                     const timeB = b.messageType === 'user'
                       ? b.timestamp
-                      : (b as any).clientTimestamp || new Date((b as any).timestamp).getTime() || 0;
+                      : (b as any).clientTimestamp || parseTimestamp((b as any).timestamp);
 
                     console.log('⏰ Comparing timestamps:', {
                       messageA: a.messageType === 'user' ? (a as any).text?.substring(0, 20) : (a as any).payload?.text?.substring(0, 20),
