@@ -19,13 +19,6 @@ import { UserProfileMenu } from "@/components/user-profile-menu"
 import { Textarea } from "@/components/ui/textarea"
 import { ChatHistorySidebar } from "@/components/chat-history-sidebar"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
   Sparkles,
   Settings,
   Menu,
@@ -35,7 +28,6 @@ import {
   Loader2,
   Bot,
   User,
-  LayoutDashboard,
 } from "lucide-react"
 import Link from "next/link"
 import { OnboardingModal } from "@/components/onboarding-modal"
@@ -1121,31 +1113,15 @@ function BuilderContent() {
         <header className="bg-white border-b h-16 flex-shrink-0">
           <div className="h-full px-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              {/* Hamburger Menu Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="flex-shrink-0"
-                  >
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem asChild>
-                    <Link href="/dashboard" className="flex items-center cursor-pointer">
-                      <LayoutDashboard className="mr-2 h-4 w-4" />
-                      <span>Dashboard</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowChatHistory(true)}>
-                    <History className="mr-2 h-4 w-4" />
-                    <span>Chat History</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* Hamburger Menu - Chat History */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowChatHistory(true)}
+                className="flex-shrink-0"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
 
               <Link href="/" className="flex items-center gap-2 group">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 transition-transform group-hover:scale-105">
