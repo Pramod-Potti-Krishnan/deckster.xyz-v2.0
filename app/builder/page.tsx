@@ -268,6 +268,81 @@ function BuilderContent() {
     }
   }, [userMessages, updateCacheUserMessages])
 
+  // FIX 9: Retroactive recovery of missing user messages from Director's history
+  // When Director sends historical messages with role='user', save them to database
+  // This fixes sessions where the first message wasn't saved due to stale closure bug
+  useEffect(() => {
+    if (!currentSessionId || messages.length === 0) return;
+
+    // Find messages from Director that have role='user' (user messages from history)
+    const directorUserMessages = messages.filter((m: any) => m.role === 'user');
+
+    if (directorUserMessages.length === 0) return;
+
+    // Check which of these are missing from our userMessages array
+    const existingUserMessageIds = new Set(userMessages.map(um => um.id));
+    const existingUserMessageTexts = new Set(userMessages.map(um => um.text.trim().toLowerCase()));
+
+    const missingUserMessages = directorUserMessages.filter((m: any) => {
+      const text = m.payload?.text || m.content || '';
+      const normalizedText = text.trim().toLowerCase();
+      // Check if message already exists by ID or content
+      return !existingUserMessageIds.has(m.message_id) && !existingUserMessageTexts.has(normalizedText);
+    });
+
+    if (missingUserMessages.length > 0) {
+      console.log('🔄 [FIX 9] Recovering missing user messages from Director history:', missingUserMessages.length);
+
+      // Add missing messages to userMessages state
+      const recoveredMessages = missingUserMessages.map((m: any) => {
+        const text = m.payload?.text || m.content || '';
+        return {
+          id: m.message_id,
+          text: text,
+          timestamp: new Date(m.timestamp).getTime()
+        };
+      });
+
+      // Add to state (will trigger cache sync and DB save via persistence)
+      setUserMessages(prev => {
+        // Avoid duplicates
+        const existingIds = new Set(prev.map(p => p.id));
+        const newMessages = recoveredMessages.filter(rm => !existingIds.has(rm.id));
+        if (newMessages.length === 0) return prev;
+
+        console.log('✅ [FIX 9] Adding recovered user messages to state:', newMessages.length);
+        return [...prev, ...newMessages].sort((a, b) => a.timestamp - b.timestamp);
+      });
+
+      // Also save to database via persistence
+      if (persistence) {
+        missingUserMessages.forEach((m: any) => {
+          const text = m.payload?.text || m.content || '';
+          console.log('💾 [FIX 9] Saving recovered user message to database:', {
+            id: m.message_id,
+            text: text.substring(0, 50)
+          });
+          persistence.queueMessage({
+            message_id: m.message_id,
+            session_id: currentSessionId,
+            timestamp: m.timestamp,
+            type: 'chat_message',
+            payload: { text }
+          } as DirectorMessage, text);
+        });
+      }
+
+      // Update tracking refs
+      missingUserMessages.forEach((m: any) => {
+        userMessageIdsRef.current.add(m.message_id);
+        const text = m.payload?.text || m.content || '';
+        userMessageContentMapRef.current.set(text.trim().toLowerCase(), m.message_id);
+      });
+
+      console.log('✅ [FIX 9] Recovery complete - recovered', missingUserMessages.length, 'user messages');
+    }
+  }, [currentSessionId, messages, userMessages, persistence]);
+
   // Track if we've generated a title from user message yet
   const hasTitleFromUserMessageRef = useRef(false)
   const hasTitleFromPresentationRef = useRef(false)
