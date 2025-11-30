@@ -317,9 +317,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     setState(prev => {
       const newState = updateFn(prev);
 
+      // CRITICAL: Deduplicate messages before caching to prevent cache corruption
+      // This prevents the same message from being stored multiple times (causing 4x duplicates)
+      const uniqueMessages = Array.from(
+        new Map(newState.messages.map(m => [m.message_id, m])).values()
+      );
+
       // Write to sessionStorage cache (synchronous, instant)
       sessionCache.setCachedState({
-        messages: newState.messages,
+        messages: uniqueMessages,
         presentationUrl: newState.presentationUrl,
         strawmanPreviewUrl: newState.strawmanPreviewUrl,
         finalPresentationUrl: newState.finalPresentationUrl,
@@ -330,7 +336,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         slideCount: newState.slideCount,
         currentStatus: newState.currentStatus,
         slideStructure: newState.slideStructure,
-        userMessages: [], // Will be updated from page.tsx
+        userMessages: [], // Will be updated from page.tsx via updateCacheUserMessages
       });
 
       return newState;
@@ -422,18 +428,32 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     try {
       // Check if we have cached messages to enable sync protocol
+      // CRITICAL: Must check BOTH user messages AND bot messages to determine cache completeness
+      // If cache only has bot messages (userMessages empty), cache is incomplete and we should NOT skip history
       const cached = sessionCache.getCachedState();
-      const hasCachedMessages = cached && cached.messages && cached.messages.length > 0;
-      const skipHistory = hasCachedMessages ? 'true' : 'false';
+      const hasCachedBotMessages = cached && cached.messages && cached.messages.length > 0;
+      const hasCachedUserMessages = cached && cached.userMessages && cached.userMessages.length > 0;
+      const botMessageCount = cached?.messages?.length || 0;
+      const userMessageCount = cached?.userMessages?.length || 0;
+      const totalMessageCount = botMessageCount + userMessageCount;
 
-      const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}&skip_history=${skipHistory}`;
+      // Only skip history if we have BOTH user and bot messages cached
+      // This prevents sending skip_history=true when cache is incomplete (e.g., after corrupted cache)
+      const skipHistory = (hasCachedBotMessages && hasCachedUserMessages) ? 'true' : 'false';
+
+      // Include message_count so Director can validate cache completeness
+      // If count doesn't match Supabase, Director should send full history regardless of skip_history
+      const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}`;
 
       // DEBUG: Comprehensive logging of connection parameters
       console.log('🔌 [WEBSOCKET] Initiating connection to Director', {
         session_id: sessionIdRef.current,
         user_id: userIdRef.current,
         skip_history: skipHistory,
-        cached_message_count: cached?.messages?.length || 0,
+        cached_bot_messages: botMessageCount,
+        cached_user_messages: userMessageCount,
+        total_message_count: totalMessageCount,
+        cache_complete: hasCachedBotMessages && hasCachedUserMessages,
         wsUrl: wsUrl,
         timestamp: new Date().toISOString()
       });
@@ -932,6 +952,21 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
 
+  // Update user messages in session cache (called from page.tsx when user messages are loaded/updated)
+  // This is critical for the sync protocol to work correctly - skip_history needs to know about user messages
+  const updateCacheUserMessages = useCallback((
+    userMessages: Array<{ id: string; text: string; timestamp: number }>
+  ) => {
+    console.log('💾 Updating cache with user messages:', userMessages.length);
+
+    // Get current cached state and update just the userMessages
+    const cached = sessionCache.getCachedState();
+    sessionCache.setCachedState({
+      ...cached,
+      userMessages: userMessages,
+    });
+  }, [sessionCache]);
+
   return {
     // State
     ...state,
@@ -943,6 +978,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     clearMessages,
     restoreMessages,
     switchVersion,
+    updateCacheUserMessages,
 
     // Utility
     isReady: state.connected,

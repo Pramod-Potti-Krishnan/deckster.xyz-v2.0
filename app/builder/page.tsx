@@ -126,7 +126,8 @@ function BuilderContent() {
     connect,
     disconnect,
     isReady,
-    sessionId: wsSessionId
+    sessionId: wsSessionId,
+    updateCacheUserMessages
   } = useDecksterWebSocketV2({
     autoConnect: false, // We'll control connection manually
     existingSessionId: currentSessionId || undefined, // Use database session ID for WebSocket
@@ -231,6 +232,14 @@ function BuilderContent() {
       console.log('✅ Final presentation ready - hiding loader')
     }
   }, [finalPresentationUrl, isGeneratingFinal])
+
+  // CRITICAL: Sync user messages to session cache whenever they change
+  // This ensures the cache has user messages for the sync protocol (skip_history check)
+  useEffect(() => {
+    if (userMessages.length > 0) {
+      updateCacheUserMessages(userMessages)
+    }
+  }, [userMessages, updateCacheUserMessages])
 
   // Track if we've generated a title from user message yet
   const hasTitleFromUserMessageRef = useRef(false)
@@ -476,7 +485,7 @@ function BuilderContent() {
                 }
               })
 
-              // Restore user messages
+              // Restore user messages (cache update handled by useEffect that watches userMessages)
               setUserMessages(userMsgs)
 
               // FIXED: Repopulate userMessageIdsRef with restored user message IDs

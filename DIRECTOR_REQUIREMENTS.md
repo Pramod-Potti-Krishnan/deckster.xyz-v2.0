@@ -166,6 +166,46 @@ Ensure historical messages are sent in timestamp order (earliest first).
 
 **Expected**: Messages should be sent in strict chronological order to allow frontend to render progressively.
 
+### Change 5: Validate Message Count for Cache Integrity (NEW)
+
+**Priority**: HIGH
+
+**Date Added**: November 30, 2025
+
+The frontend now sends a `message_count` query parameter in the WebSocket URL. Director should validate this count against Supabase and override `skip_history` if there's a mismatch.
+
+**WebSocket URL Format**:
+```
+wss://director.../ws?session_id=xxx&user_id=yyy&skip_history=true&message_count=8
+```
+
+**Implementation**:
+
+```python
+# Parse query parameters
+message_count = int(query_params.get('message_count', 0))
+skip_history = query_params.get('skip_history', 'false') == 'true'
+
+# Get actual count from Supabase
+supabase_count = len(session.conversation_history)
+
+# Validate cache completeness
+if skip_history and message_count != supabase_count:
+    print(f"⚠️ Cache mismatch: frontend={message_count}, supabase={supabase_count}")
+    skip_history = False  # Force history replay - cache is incomplete/corrupt
+
+if not skip_history:
+    await send_full_history(websocket, session)
+else:
+    # Send sync_response to confirm skip
+    await send_sync_response(websocket, action='skip_history', message_count=supabase_count)
+```
+
+**Why This Is Critical**:
+- Frontend's sessionStorage cache can become corrupt or incomplete
+- Without validation, `skip_history=true` would cause data loss
+- This provides a safety net - Director has the source of truth (Supabase)
+
 ---
 
 ## WebSocket Message Schema (Updated)
