@@ -96,8 +96,10 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
    * CRITICAL FIX: Uses sessionIdRef.current to always get latest sessionId
    */
   const getCachedState = useCallback((): CachedSessionState | null => {
+    // FIX 8: Remove 'enabled' check - sessionIdRef.current is sufficient
+    // The 'enabled' flag was creating stale closure issues for first message saves
     const currentSessionId = sessionIdRef.current
-    if (!enabled || !currentSessionId) return null
+    if (!currentSessionId) return null
 
     try {
       const key = CACHE_KEYS.SESSION_STATE(currentSessionId)
@@ -113,7 +115,7 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
       console.error('❌ Failed to read from cache:', error)
       return null
     }
-  }, [enabled])  // Note: sessionId removed from deps - we use ref instead
+  }, [])  // FIX 8: Remove 'enabled' from deps
 
   /**
    * Check if cached data is still valid (not expired)
@@ -187,9 +189,10 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
    * CRITICAL FIX: Uses sessionIdRef.current to always get latest sessionId
    */
   const setCachedState = useCallback((state: Partial<CachedSessionState>): void => {
+    // FIX 8: Remove 'enabled' check - sessionIdRef.current is sufficient
     const currentSessionId = sessionIdRef.current
-    if (!enabled || !currentSessionId) {
-      console.warn('⚠️ setCachedState skipped - no sessionId:', { enabled, sessionId: currentSessionId, messagesCount: state.messages?.length })
+    if (!currentSessionId) {
+      console.warn('⚠️ setCachedState skipped - no sessionId:', { sessionId: currentSessionId, messagesCount: state.messages?.length })
       return
     }
 
@@ -248,15 +251,19 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
         console.error('❌ Failed to write to cache:', error)
       }
     }
-  }, [enabled, getCachedState, trimCache])  // Note: sessionId removed from deps
+  }, [getCachedState, trimCache])  // FIX 8: Remove 'enabled' from deps
 
   /**
    * Append a single message to cache (optimized for frequent writes)
    * Uses sessionIdRef.current for latest sessionId
    */
   const appendMessage = useCallback((message: DirectorMessage, userText?: string): void => {
+    // FIX 8: Remove 'enabled' check - sessionIdRef.current is sufficient
     const currentSessionId = sessionIdRef.current
-    if (!enabled || !currentSessionId) return
+    if (!currentSessionId) {
+      console.warn('⚠️ appendMessage skipped - no sessionId')
+      return
+    }
 
     try {
       const existing = getCachedState() || {} as CachedSessionState
@@ -287,18 +294,22 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
     } catch (error) {
       console.error('❌ Failed to append message to cache:', error)
     }
-  }, [enabled, getCachedState, setCachedState])  // Note: sessionId removed from deps
+  }, [getCachedState, setCachedState])  // FIX 8: Remove 'enabled' from deps
 
   /**
    * Update metadata only (presentation URLs, slide counts, etc.)
    * Uses sessionIdRef.current for latest sessionId
    */
   const updateMetadata = useCallback((updates: Partial<CachedSessionState>): void => {
+    // FIX 8: Remove 'enabled' check - sessionIdRef.current is sufficient
     const currentSessionId = sessionIdRef.current
-    if (!enabled || !currentSessionId) return
+    if (!currentSessionId) {
+      console.warn('⚠️ updateMetadata skipped - no sessionId')
+      return
+    }
 
     setCachedState(updates)
-  }, [enabled, setCachedState])  // Note: sessionId removed from deps
+  }, [setCachedState])  // FIX 8: Remove 'enabled' from deps
 
   /**
    * Clear the cache for this session

@@ -14,6 +14,17 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
   const { sessionId, enabled = true, debounceMs = 3000, onError } = options;
   const { saveMessages, updateSession } = useChatSessions();
 
+  // FIX 8: Use ref for sessionId to avoid stale closure issues
+  // Same pattern as Fix 7 in use-session-cache.ts
+  const sessionIdRef = useRef(sessionId);
+
+  // FIX 8: Update ref SYNCHRONOUSLY during render, not in useEffect
+  // This ensures callbacks always have the latest sessionId
+  if (sessionIdRef.current !== sessionId && sessionId) {
+    console.log(`🔄 [Persistence] Session ID updated: ${sessionIdRef.current || '(empty)'} → ${sessionId}`);
+    sessionIdRef.current = sessionId;
+  }
+
   // Initialize browser cache
   const sessionCache = useSessionCache({
     sessionId,
@@ -28,14 +39,23 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
 
   /**
    * Flush all pending messages to database
+   * FIX 8: Uses sessionIdRef.current to avoid stale closure
    */
   const flushMessages = useCallback(async () => {
+    // FIX 8: Use ref instead of closure value
+    const currentSessionId = sessionIdRef.current;
+
     if (messageQueueRef.current.size === 0 || isSavingRef.current) {
       if (messageQueueRef.current.size === 0) {
         console.log('✅ No messages to flush (queue empty)');
       } else {
         console.log('⏳ Already saving messages, skipping duplicate flush');
       }
+      return;
+    }
+
+    if (!currentSessionId) {
+      console.warn('⚠️ flushMessages skipped - no sessionId');
       return;
     }
 
@@ -50,7 +70,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         userTextPreview: m.userText ? m.userText.substring(0, 30) : null
       })));
 
-      const result = await saveMessages(sessionId, messages);
+      const result = await saveMessages(currentSessionId, messages);
 
       if (result) {
         console.log(`✅ Successfully saved ${result.saved}/${result.total} messages to database`);
@@ -71,13 +91,19 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     } finally {
       isSavingRef.current = false;
     }
-  }, [sessionId, saveMessages, onError]);
+  }, [saveMessages, onError]);  // FIX 8: Remove sessionId from deps
 
   /**
    * Add a message to the save queue
+   * FIX 8: Uses sessionIdRef to avoid stale closure
    */
   const queueMessage = useCallback((message: DirectorMessage, userText?: string) => {
-    if (!enabled) return;
+    // FIX 8: Check sessionIdRef instead of enabled flag
+    const currentSessionId = sessionIdRef.current;
+    if (!currentSessionId) {
+      console.warn('⚠️ queueMessage skipped - no sessionId');
+      return;
+    }
 
     console.log('📥 Queueing message:', {
       id: message.message_id,
@@ -118,14 +144,23 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     saveTimeoutRef.current = setTimeout(() => {
       flushMessages();
     }, debounceMs);
-  }, [enabled, debounceMs, flushMessages, sessionCache]);
+  }, [debounceMs, flushMessages, sessionCache]);  // FIX 8: Remove 'enabled' from deps
 
   /**
    * Save a batch of messages
    * FIXED: Now accepts optional userText parameter to save user messages correctly
+   * FIX 8: Uses sessionIdRef to avoid stale closure
    */
   const saveBatch = useCallback(async (messages: DirectorMessage[], userText?: string) => {
-    if (!enabled || messages.length === 0) return;
+    // FIX 8: Use ref instead of closure value
+    const currentSessionId = sessionIdRef.current;
+
+    if (!currentSessionId || messages.length === 0) {
+      if (!currentSessionId) {
+        console.warn('⚠️ saveBatch skipped - no sessionId');
+      }
+      return;
+    }
 
     try {
       // STEP 1: Write to browser cache FIRST (synchronous)
@@ -142,10 +177,10 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         userText: userText || null, // FIXED: Use provided userText instead of hardcoded null
       }));
 
-      console.log(`💾 Batch saving ${formattedMessages.length} messages`);
+      console.log(`💾 Batch saving ${formattedMessages.length} messages to session ${currentSessionId}`);
       console.log(`📝 userText parameter:`, userText ? `"${userText.substring(0, 50)}..."` : 'NULL');
       console.log(`📝 First message userText field:`, formattedMessages[0]?.userText ? `"${formattedMessages[0].userText.substring(0, 30)}..."` : 'NULL');
-      const result = await saveMessages(sessionId, formattedMessages);
+      const result = await saveMessages(currentSessionId, formattedMessages);
 
       if (result) {
         console.log(`✅ Batch saved ${result.saved}/${result.total} messages`);
@@ -156,10 +191,11 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         onError(error instanceof Error ? error : new Error('Unknown error'));
       }
     }
-  }, [enabled, sessionId, saveMessages, onError, sessionCache]);
+  }, [saveMessages, onError, sessionCache]);  // FIX 8: Remove 'enabled' and 'sessionId' from deps
 
   /**
    * Update session metadata
+   * FIX 8: Uses sessionIdRef to avoid stale closure
    */
   const updateMetadata = useCallback(async (updates: {
     title?: string;
@@ -171,18 +207,23 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     slideCount?: number;
     lastMessageAt?: Date;
   }) => {
-    if (!enabled) return;
+    // FIX 8: Use ref instead of closure value
+    const currentSessionId = sessionIdRef.current;
+    if (!currentSessionId) {
+      console.warn('⚠️ updateMetadata skipped - no sessionId');
+      return;
+    }
 
     try {
       console.log('📝 Updating session metadata:', updates);
-      await updateSession(sessionId, updates);
+      await updateSession(currentSessionId, updates);
     } catch (error) {
       console.error('❌ Error updating session metadata:', error);
       if (onError) {
         onError(error instanceof Error ? error : new Error('Unknown error'));
       }
     }
-  }, [enabled, sessionId, updateSession, onError]);
+  }, [updateSession, onError]);  // FIX 8: Remove 'enabled' and 'sessionId' from deps
 
   /**
    * Generate title from first user message or presentation metadata
@@ -221,10 +262,13 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
   }, [flushMessages]);
 
   // Flush on window beforeunload
+  // FIX 8: Use sessionIdRef to get current session ID
   useEffect(() => {
-    if (!enabled) return;
-
     const handleBeforeUnload = () => {
+      // FIX 8: Use ref instead of closure value
+      const currentSessionId = sessionIdRef.current;
+      if (!currentSessionId) return;
+
       // Synchronous flush attempt
       if (messageQueueRef.current.size > 0) {
         console.log(`🚨 beforeunload: Attempting to save ${messageQueueRef.current.size} pending messages via sendBeacon`);
@@ -236,7 +280,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         });
 
         // Best effort - may or may not work depending on browser
-        const success = navigator.sendBeacon(`/api/sessions/${sessionId}/messages`, blob);
+        const success = navigator.sendBeacon(`/api/sessions/${currentSessionId}/messages`, blob);
         console.log(`🚨 sendBeacon ${success ? 'succeeded' : 'failed'} for ${messages.length} messages`);
       } else {
         console.log('✅ beforeunload: No pending messages to save');
@@ -248,7 +292,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [enabled, sessionId]);
+  }, []);  // FIX 8: No deps needed - uses ref
 
   return {
     queueMessage,
