@@ -192,7 +192,34 @@ function BuilderContent() {
 
   // Local UI state
   const [inputMessage, setInputMessage] = useState("")
-  const [userMessages, setUserMessages] = useState<Array<{ id: string; text: string; timestamp: number }>>([])
+  // CRITICAL: Initialize userMessages from sessionStorage cache on mount
+  // This is essential for the sync protocol to work correctly - when skip_history=true is sent,
+  // we need to have user messages already loaded from cache, not wait for DB load
+  const [userMessages, setUserMessages] = useState<Array<{ id: string; text: string; timestamp: number }>>(() => {
+    if (typeof window === 'undefined') return [];
+
+    // Get session ID from URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+
+    if (!sessionId) return [];
+
+    try {
+      const cacheKey = `deckster_session_${sessionId}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.userMessages?.length > 0) {
+          console.log('⚡ Initialized userMessages from cache:', parsed.userMessages.length);
+          return parsed.userMessages;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to restore userMessages from cache:', e);
+    }
+
+    return [];
+  })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [pendingActionInput, setPendingActionInput] = useState<{
