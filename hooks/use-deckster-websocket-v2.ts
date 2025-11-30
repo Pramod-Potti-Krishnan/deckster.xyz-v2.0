@@ -8,8 +8,24 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_url' | 'status_update';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_url' | 'status_update' | 'sync_response';
   payload: any;
+}
+
+// Sync response from Director when connecting with skip_history=true
+export interface SyncResponse {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'sync_response';
+  role: 'assistant';
+  payload: {
+    action: 'skip_history' | 'send_history' | 'send_delta';
+    message_count: number;
+    current_state: string;
+    has_strawman: boolean;
+    presentation_url?: string;
+  };
 }
 
 export interface ChatMessage {
@@ -99,7 +115,7 @@ export interface SlideUpdate {
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationURL | StatusUpdate;
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationURL | StatusUpdate | SyncResponse;
 
 // User message to send to server
 export interface UserMessage {
@@ -405,12 +421,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }));
 
     try {
-      const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}`;
+      // Check if we have cached messages to enable sync protocol
+      const cached = sessionCache.getCachedState();
+      const hasCachedMessages = cached && cached.messages && cached.messages.length > 0;
+      const skipHistory = hasCachedMessages ? 'true' : 'false';
+
+      const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}&skip_history=${skipHistory}`;
 
       // DEBUG: Comprehensive logging of connection parameters
       console.log('🔌 [WEBSOCKET] Initiating connection to Director', {
         session_id: sessionIdRef.current,
         user_id: userIdRef.current,
+        skip_history: skipHistory,
+        cached_message_count: cached?.messages?.length || 0,
         wsUrl: wsUrl,
         timestamp: new Date().toISOString()
       });
@@ -459,8 +482,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // Prevent duplicate messages by checking message_id
             const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
 
-            // Don't add status_update messages to chat - they're only for the status bar
-            const shouldAddToMessages = message.type !== 'status_update' && !isDuplicate;
+            // Don't add status_update or sync_response messages to chat - they're only for state management
+            const shouldAddToMessages = message.type !== 'status_update' && message.type !== 'sync_response' && !isDuplicate;
 
             const newState = {
               ...prev,
@@ -479,6 +502,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     setState(s => ({ ...s, currentStatus: null }));
                   }, 2000);
                 }
+                break;
+
+              case 'sync_response':
+                // Sync protocol response - Director confirms whether to skip history
+                console.log('🔄 Sync response received:', {
+                  action: message.payload.action,
+                  message_count: message.payload.message_count,
+                  current_state: message.payload.current_state,
+                  has_strawman: message.payload.has_strawman,
+                  presentation_url: message.payload.presentation_url
+                });
+                // No state changes needed - frontend already has messages in cache
+                // This message confirms Director acknowledged skip_history request
                 break;
 
               case 'presentation_url':
