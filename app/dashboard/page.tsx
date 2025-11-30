@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
+import { useChatSessions } from "@/hooks/use-chat-sessions"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { Plus, Search, Filter, MoreVertical, Sparkles, Calendar, Users, Crown, Folder, Tag, X, ChevronDown } from "lucide-react"
 import Link from "next/link"
@@ -27,6 +29,9 @@ interface Presentation {
   thumbnail: string
   folder?: string
   tags: string[]
+  strawmanPreviewUrl?: string | null
+  finalPresentationUrl?: string | null
+  currentStage?: number
 }
 
 interface Folder {
@@ -38,6 +43,7 @@ interface Folder {
 
 export default function DashboardPage() {
   const { user, logout, isLoading } = useAuth()
+  const { loadSessions } = useChatSessions()
   const [presentations, setPresentations] = useState<Presentation[]>([])
   const [folders, setFolders] = useState<Folder[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -45,82 +51,77 @@ export default function DashboardPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
+  const [activeTab, setActiveTab] = useState<"completed" | "strawman">("completed")
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true)
   const router = useRouter()
 
-  useEffect(() => {
-    // Mock presentations data
-    setPresentations([
-      {
-        id: "1",
-        title: "Q4 Marketing Strategy",
-        description: "Comprehensive marketing plan for the fourth quarter",
-        createdAt: "2024-01-15",
-        updatedAt: "2024-01-16",
-        slideCount: 12,
-        status: "completed",
-        thumbnail: "/placeholder.svg?height=200&width=300",
-        folder: "marketing",
-        tags: ["marketing", "strategy", "quarterly"],
-      },
-      {
-        id: "2",
-        title: "Product Launch Presentation",
-        description: "Introducing our new product line to stakeholders",
-        createdAt: "2024-01-14",
-        updatedAt: "2024-01-14",
-        slideCount: 8,
-        status: "in-progress",
-        thumbnail: "/placeholder.svg?height=200&width=300",
-        folder: "products",
-        tags: ["product", "launch", "stakeholders"],
-      },
-      {
-        id: "3",
-        title: "Team Performance Review",
-        description: "Monthly team performance and goals assessment",
-        createdAt: "2024-01-13",
-        updatedAt: "2024-01-13",
-        slideCount: 6,
-        status: "draft",
-        thumbnail: "/placeholder.svg?height=200&width=300",
-        folder: "internal",
-        tags: ["team", "performance", "monthly"],
-      },
-      {
-        id: "4",
-        title: "Investor Pitch Deck",
-        description: "Series A fundraising presentation",
-        createdAt: "2024-01-12",
-        updatedAt: "2024-01-12",
-        slideCount: 15,
-        status: "completed",
-        thumbnail: "/placeholder.svg?height=200&width=300",
-        folder: "sales",
-        tags: ["investor", "funding", "pitch"],
-      },
-      {
-        id: "5",
-        title: "Customer Success Stories",
-        description: "Showcase of client testimonials and case studies",
-        createdAt: "2024-01-11",
-        updatedAt: "2024-01-15",
-        slideCount: 10,
-        status: "completed",
-        thumbnail: "/placeholder.svg?height=200&width=300",
-        folder: "marketing",
-        tags: ["customers", "testimonials", "case-studies"],
-      },
-    ])
+  // Helper functions
+  const getStatusFromStage = (stage: number): "draft" | "completed" | "in-progress" => {
+    if (stage === 6) return "completed"
+    if (stage >= 4) return "in-progress"
+    return "draft"
+  }
 
-    // Mock folders data
+  const getFirstMessage = (session: any): string => {
+    return session.messages?.[0]?.userText || session.title || 'No description available'
+  }
+
+  // Load sessions from API
+  useEffect(() => {
+    const fetchSessions = async () => {
+      if (!user) {
+        setIsLoadingSessions(false)
+        return
+      }
+
+      try {
+        setIsLoadingSessions(true)
+        const result = await loadSessions({
+          limit: 100,
+          status: 'active'
+        })
+
+        if (result) {
+          // Filter to only show sessions with strawman or final presentations (stage >= 4)
+          const sessionsWithPresentations = result.sessions.filter(
+            session => session.currentStage >= 4
+          )
+
+          const transformedPresentations = sessionsWithPresentations.map(session => ({
+            id: session.id,
+            title: session.title || 'Untitled Presentation',
+            description: getFirstMessage(session),
+            createdAt: session.createdAt,
+            updatedAt: session.updatedAt,
+            slideCount: session.slideCount || 0,
+            status: getStatusFromStage(session.currentStage),
+            thumbnail: session.finalPresentationUrl || session.strawmanPreviewUrl || '/placeholder.svg',
+            folder: 'general',
+            tags: [],
+            strawmanPreviewUrl: session.strawmanPreviewUrl,
+            finalPresentationUrl: session.finalPresentationUrl,
+            currentStage: session.currentStage,
+          }))
+
+          setPresentations(transformedPresentations)
+        }
+      } catch (error) {
+        console.error('Error loading sessions:', error)
+      } finally {
+        setIsLoadingSessions(false)
+      }
+    }
+
+    fetchSessions()
+  }, [user, loadSessions])
+
+  // Keep folder structure for future use
+  useEffect(() => {
     setFolders([
-      { id: "all", name: "All Presentations", color: "slate", count: 5 },
-      { id: "marketing", name: "Marketing", color: "purple", count: 2 },
-      { id: "sales", name: "Sales", color: "blue", count: 1 },
-      { id: "products", name: "Products", color: "green", count: 1 },
-      { id: "internal", name: "Internal", color: "orange", count: 1 },
+      { id: "all", name: "All Presentations", color: "slate", count: presentations.length },
+      { id: "general", name: "General", color: "purple", count: presentations.length },
     ])
-  }, [router])
+  }, [presentations])
 
   const handleSignOut = async () => {
     await logout()
@@ -139,11 +140,30 @@ export default function DashboardPage() {
     }
   }
 
+  const getStageName = (stage: number): string => {
+    switch (stage) {
+      case 1: return 'Starting'
+      case 2: return 'Planning'
+      case 3: return 'Outlining'
+      case 4: return 'Preview Ready'
+      case 5: return 'Refining'
+      case 6: return 'Complete'
+      default: return 'Unknown'
+    }
+  }
+
   // Get all unique tags from presentations
   const allTags = Array.from(new Set(presentations.flatMap(p => p.tags)))
 
+  // Tab-based filtering: split presentations by completion status
+  const completedPresentations = presentations.filter(p => p.finalPresentationUrl)
+  const strawmanPresentations = presentations.filter(p => p.strawmanPreviewUrl && !p.finalPresentationUrl)
+
+  // Get the presentations for the active tab
+  const tabPresentations = activeTab === "completed" ? completedPresentations : strawmanPresentations
+
   // Advanced filtering logic
-  const filteredPresentations = presentations.filter((p) => {
+  const filteredPresentations = tabPresentations.filter((p) => {
     // Search filter
     const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -380,17 +400,41 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Presentations Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPresentations.map((presentation) => (
-            <Card key={presentation.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-              <div className="aspect-video bg-slate-100 rounded-t-lg overflow-hidden">
-                <img
-                  src={presentation.thumbnail || "/placeholder.svg"}
-                  alt={presentation.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
+        {/* Tabs for Completed vs Strawman Presentations */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "completed" | "strawman")} className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="completed">
+              Completed Presentations ({completedPresentations.length})
+            </TabsTrigger>
+            <TabsTrigger value="strawman">
+              Strawman Previews ({strawmanPresentations.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="completed" className="space-y-6">
+            {/* Presentations Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredPresentations.map((presentation) => (
+                <Card
+                  key={presentation.id}
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => router.push(`/builder?session_id=${presentation.id}`)}
+                >
+                  <div className="aspect-video bg-slate-100 rounded-t-lg overflow-hidden">
+                    {presentation.finalPresentationUrl || presentation.strawmanPreviewUrl ? (
+                      <iframe
+                        src={presentation.finalPresentationUrl || presentation.strawmanPreviewUrl || ''}
+                        className="w-full h-full pointer-events-none"
+                        title={presentation.title}
+                      />
+                    ) : (
+                      <img
+                        src={presentation.thumbnail || "/placeholder.svg"}
+                        alt={presentation.title}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -420,7 +464,14 @@ export default function DashboardPage() {
                       <span>{presentation.slideCount} slides</span>
                       <span>Updated {new Date(presentation.updatedAt).toLocaleDateString()}</span>
                     </div>
-                    <Badge className={getStatusColor(presentation.status)}>{presentation.status}</Badge>
+                    <div className="flex gap-2">
+                      <Badge className={getStatusColor(presentation.status)}>{presentation.status}</Badge>
+                      {presentation.currentStage && (
+                        <Badge variant="outline" className="text-xs">
+                          Stage {presentation.currentStage}: {getStageName(presentation.currentStage)}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   {presentation.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1">
@@ -443,22 +494,125 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Empty State */}
-        {filteredPresentations.length === 0 && (
-          <div className="text-center py-12">
-            <Sparkles className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No presentations found</h3>
-            <p className="text-slate-600 mb-4">
-              {searchQuery ? "Try adjusting your search terms" : "Create your first presentation to get started"}
-            </p>
-            <Button asChild>
-              <Link href="/builder">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Presentation
-              </Link>
-            </Button>
-          </div>
-        )}
+            {/* Empty State */}
+            {filteredPresentations.length === 0 && (
+              <div className="text-center py-12">
+                <Sparkles className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No completed presentations found</h3>
+                <p className="text-slate-600 mb-4">
+                  {searchQuery ? "Try adjusting your search terms" : "Complete a strawman preview to create your first presentation"}
+                </p>
+                <Button asChild>
+                  <Link href="/builder">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Presentation
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="strawman" className="space-y-6">
+            {/* Strawman Presentations Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredPresentations.map((presentation) => (
+                <Card
+                  key={presentation.id}
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => router.push(`/builder?session_id=${presentation.id}`)}
+                >
+                  <div className="aspect-video bg-slate-100 rounded-t-lg overflow-hidden">
+                    {presentation.finalPresentationUrl || presentation.strawmanPreviewUrl ? (
+                      <iframe
+                        src={presentation.finalPresentationUrl || presentation.strawmanPreviewUrl || ''}
+                        className="w-full h-full pointer-events-none"
+                        title={presentation.title}
+                      />
+                    ) : (
+                      <img
+                        src={presentation.thumbnail || "/placeholder.svg"}
+                        alt={presentation.title}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg line-clamp-1">{presentation.title}</CardTitle>
+                        <CardDescription className="line-clamp-2 mt-1">{presentation.description}</CardDescription>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/builder/${presentation.id}`}>Edit</Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4 text-sm text-slate-500">
+                          <span>{presentation.slideCount} slides</span>
+                          <span>Updated {new Date(presentation.updatedAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <Badge className={getStatusColor(presentation.status)}>{presentation.status}</Badge>
+                          {presentation.currentStage && (
+                            <Badge variant="outline" className="text-xs">
+                              Stage {presentation.currentStage}: {getStageName(presentation.currentStage)}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      {presentation.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {presentation.tags.slice(0, 3).map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-xs">
+                              <Tag className="h-3 w-3 mr-1" />
+                              {tag}
+                            </Badge>
+                          ))}
+                          {presentation.tags.length > 3 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{presentation.tags.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Empty State */}
+            {filteredPresentations.length === 0 && (
+              <div className="text-center py-12">
+                <Sparkles className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No strawman previews found</h3>
+                <p className="text-slate-600 mb-4">
+                  {searchQuery ? "Try adjusting your search terms" : "Create a presentation to generate a strawman preview"}
+                </p>
+                <Button asChild>
+                  <Link href="/builder">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Presentation
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   )
