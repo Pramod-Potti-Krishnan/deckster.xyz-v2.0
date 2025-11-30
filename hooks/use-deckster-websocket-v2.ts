@@ -317,13 +317,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     setState(prev => {
       const newState = updateFn(prev);
 
-      // CRITICAL: Deduplicate messages before caching to prevent cache corruption
-      // This prevents the same message from being stored multiple times (causing 4x duplicates)
+      // CRITICAL FIX: Get existing cached messages to preserve them
+      // This prevents cache corruption when React state updates are pending (async)
+      // but cache writes are synchronous. Without this merge, WebSocket messages
+      // arriving before React applies restoreMessages update would overwrite
+      // the 140+ DB-loaded messages with just the few WS messages.
+      const existingCached = sessionCache.getCachedState();
+      const existingMessages = existingCached?.messages || [];
+      const existingUserMessages = existingCached?.userMessages || [];
+
+      // Merge: existing cached messages + new state messages
+      // This ensures we never lose messages due to React's async state batching
+      const allMessages = [...existingMessages, ...newState.messages];
+
+      // Deduplicate by message_id (Map keeps last occurrence for duplicate keys)
       const uniqueMessages = Array.from(
-        new Map(newState.messages.map(m => [m.message_id, m])).values()
+        new Map(allMessages.map(m => [m.message_id, m])).values()
       );
 
       // Write to sessionStorage cache (synchronous, instant)
+      // Preserve existing userMessages - they're managed by page.tsx via updateCacheUserMessages
       sessionCache.setCachedState({
         messages: uniqueMessages,
         presentationUrl: newState.presentationUrl,
@@ -336,7 +349,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         slideCount: newState.slideCount,
         currentStatus: newState.currentStatus,
         slideStructure: newState.slideStructure,
-        userMessages: [], // Will be updated from page.tsx via updateCacheUserMessages
+        userMessages: existingUserMessages, // Preserve existing userMessages from cache
       });
 
       return newState;
