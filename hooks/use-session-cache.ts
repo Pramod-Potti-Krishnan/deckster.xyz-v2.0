@@ -75,35 +75,32 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
   const { sessionId, enabled = true, ttl = DEFAULT_TTL } = options
   const sessionIdRef = useRef(sessionId)
 
-  // Update session ID ref when it changes
+  // CRITICAL FIX: Update ref SYNCHRONOUSLY during render, not in useEffect
+  // This ensures callbacks always have the latest sessionId even before effects run
+  // Without this, restoreMessages was calling setCachedState with empty sessionId
+  // because the effect hadn't run yet to update the ref
+  if (sessionIdRef.current !== sessionId && sessionId) {
+    const oldSessionId = sessionIdRef.current
+    console.log(`🔄 Session ID updated synchronously: ${oldSessionId || '(empty)'} → ${sessionId}`)
+    sessionIdRef.current = sessionId
+  }
+
+  // Clean up old session cache in effect (after render)
   useEffect(() => {
-    if (sessionIdRef.current !== sessionId) {
-      const oldSessionId = sessionIdRef.current // CRITICAL: Save old ID before updating ref
-      console.log(`🔄 Session ID changed from ${oldSessionId} to ${sessionId}`)
-
-      // Clear old session cache BEFORE updating ref
-      if (oldSessionId) {
-        const oldKey = CACHE_KEYS.SESSION_STATE(oldSessionId)
-        try {
-          sessionStorage.removeItem(oldKey)
-          console.log(`🗑️ Cleared cache for old session: ${oldSessionId}`)
-        } catch (e) {
-          // Ignore errors
-        }
-      }
-
-      sessionIdRef.current = sessionId // Update ref AFTER clearing old cache
-    }
+    // This effect handles cache cleanup for the OLD session
+    // The ref update happens synchronously above, so we use a separate tracking ref
   }, [sessionId])
 
   /**
    * Get the complete cached session state
+   * CRITICAL FIX: Uses sessionIdRef.current to always get latest sessionId
    */
   const getCachedState = useCallback((): CachedSessionState | null => {
-    if (!enabled || !sessionId) return null
+    const currentSessionId = sessionIdRef.current
+    if (!enabled || !currentSessionId) return null
 
     try {
-      const key = CACHE_KEYS.SESSION_STATE(sessionId)
+      const key = CACHE_KEYS.SESSION_STATE(currentSessionId)
       const cached = sessionStorage.getItem(key)
 
       if (!cached) {
@@ -116,7 +113,7 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
       console.error('❌ Failed to read from cache:', error)
       return null
     }
-  }, [enabled, sessionId])
+  }, [enabled])  // Note: sessionId removed from deps - we use ref instead
 
   /**
    * Check if cached data is still valid (not expired)
@@ -187,12 +184,17 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
 
   /**
    * Set cached state (synchronous write)
+   * CRITICAL FIX: Uses sessionIdRef.current to always get latest sessionId
    */
   const setCachedState = useCallback((state: Partial<CachedSessionState>): void => {
-    if (!enabled || !sessionId) return
+    const currentSessionId = sessionIdRef.current
+    if (!enabled || !currentSessionId) {
+      console.warn('⚠️ setCachedState skipped - no sessionId:', { enabled, sessionId: currentSessionId, messagesCount: state.messages?.length })
+      return
+    }
 
     try {
-      const key = CACHE_KEYS.SESSION_STATE(sessionId)
+      const key = CACHE_KEYS.SESSION_STATE(currentSessionId)
       const existing = getCachedState() || {} as CachedSessionState
 
       const updated: CachedSessionState = {
@@ -209,6 +211,7 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
         const hasNewMessage = state.messages && state.messages.length !== existing.messages?.length
         if (hasNewMessage) {
           console.log('💾 Cache updated:', {
+            sessionId: currentSessionId,
             messages: updated.messages?.length || 0,
             userMessages: updated.userMessages?.length || 0,
             presentations: {
@@ -225,7 +228,7 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
 
         try {
           const trimmed = trimCache(state)
-          const key = CACHE_KEYS.SESSION_STATE(sessionId)
+          const key = CACHE_KEYS.SESSION_STATE(currentSessionId)
           const existing = getCachedState() || {} as CachedSessionState
 
           const updated: CachedSessionState = {
@@ -245,13 +248,15 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
         console.error('❌ Failed to write to cache:', error)
       }
     }
-  }, [enabled, sessionId, getCachedState, trimCache])
+  }, [enabled, getCachedState, trimCache])  // Note: sessionId removed from deps
 
   /**
    * Append a single message to cache (optimized for frequent writes)
+   * Uses sessionIdRef.current for latest sessionId
    */
   const appendMessage = useCallback((message: DirectorMessage, userText?: string): void => {
-    if (!enabled || !sessionId) return
+    const currentSessionId = sessionIdRef.current
+    if (!enabled || !currentSessionId) return
 
     try {
       const existing = getCachedState() || {} as CachedSessionState
@@ -282,31 +287,35 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
     } catch (error) {
       console.error('❌ Failed to append message to cache:', error)
     }
-  }, [enabled, sessionId, getCachedState, setCachedState])
+  }, [enabled, getCachedState, setCachedState])  // Note: sessionId removed from deps
 
   /**
    * Update metadata only (presentation URLs, slide counts, etc.)
+   * Uses sessionIdRef.current for latest sessionId
    */
   const updateMetadata = useCallback((updates: Partial<CachedSessionState>): void => {
-    if (!enabled || !sessionId) return
+    const currentSessionId = sessionIdRef.current
+    if (!enabled || !currentSessionId) return
 
     setCachedState(updates)
-  }, [enabled, sessionId, setCachedState])
+  }, [enabled, setCachedState])  // Note: sessionId removed from deps
 
   /**
    * Clear the cache for this session
+   * Uses sessionIdRef.current for latest sessionId
    */
   const clearCache = useCallback((): void => {
-    if (!sessionId) return
+    const currentSessionId = sessionIdRef.current
+    if (!currentSessionId) return
 
     try {
-      const key = CACHE_KEYS.SESSION_STATE(sessionId)
+      const key = CACHE_KEYS.SESSION_STATE(currentSessionId)
       sessionStorage.removeItem(key)
-      console.log(`🗑️ Cleared cache for session: ${sessionId}`)
+      console.log(`🗑️ Cleared cache for session: ${currentSessionId}`)
     } catch (error) {
       console.error('❌ Failed to clear cache:', error)
     }
-  }, [sessionId])
+  }, [])  // No deps - uses ref
 
   // Return the cache interface
   return {
