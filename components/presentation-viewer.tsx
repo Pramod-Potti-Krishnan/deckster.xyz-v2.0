@@ -919,7 +919,7 @@ export function PresentationViewer({
   }, [])
 
   return (
-    <div ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-gray-900' : ''}`}>
+    <div ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
       {/* Fullscreen toolbar trigger zone - at top, below Chrome's fullscreen bar */}
       {isFullscreen && (
         <div
@@ -1108,19 +1108,19 @@ export function PresentationViewer({
       )}
 
       {/* Main Content Area - Flex container for slide and thumbnails */}
-      <div className={`flex-1 flex min-h-0 overflow-hidden ${isFullscreen ? 'bg-gray-900' : ''}`}>
+      <div className={`flex-1 flex min-h-0 overflow-hidden ${isFullscreen ? 'bg-black' : ''}`}>
         {/* Left: Presentation Area */}
-        <div className={`flex-1 flex flex-col min-w-0 ${isFullscreen ? 'bg-gray-900' : ''}`}>
+        <div className={`flex-1 flex flex-col min-w-0 ${isFullscreen ? 'bg-black' : ''}`}>
           {/* Presentation Iframe */}
-          <div className={`flex-1 relative flex items-center justify-center ${isFullscreen ? 'bg-gray-900 p-4' : 'bg-gray-800 p-8'}`}>
+          <div className={`flex-1 relative flex items-center justify-center ${isFullscreen ? 'bg-black p-2' : 'bg-gray-800 p-8'}`}>
             {presentationUrl ? (
               <div
                 className={isFullscreen ? '' : 'w-full max-w-7xl'}
                 style={isFullscreen ? {
                   aspectRatio: '16/9',
-                  // Use min() to pick the dimension that fits: either full width or height-based width
-                  width: 'min(calc(100vw - 32px), calc((100vh - 80px) * 16 / 9))',
-                  maxHeight: 'calc(100vh - 80px)'
+                  // Fill full width, let height be calculated from aspect ratio
+                  width: 'calc(100vw - 16px)',
+                  maxHeight: 'calc(100vh - 16px)'
                 } : {
                   aspectRatio: '16/9',
                   width: '100%'
