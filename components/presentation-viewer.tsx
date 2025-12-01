@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Edit3, Maximize2, Minimize2, Save, X, Layers, PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Edit3, Maximize2, Minimize2, Save, X, Layers, PanelRightClose, PanelRightOpen, Type, Square, Table2, BarChart3, SlidersHorizontal } from 'lucide-react'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 import { SaveStatusIndicator, SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutId } from './slide-layout-picker'
@@ -24,6 +24,9 @@ interface PresentationViewerProps {
   finalPresentationUrl?: string | null
   activeVersion?: 'strawman' | 'final'
   onVersionSwitch?: (version: 'strawman' | 'final') => void
+  // Format panel toggle
+  onFormatPanelToggle?: () => void
+  isFormatPanelOpen?: boolean
 }
 
 interface SlideInfo {
@@ -88,7 +91,9 @@ export function PresentationViewer({
   strawmanPreviewUrl,
   finalPresentationUrl,
   activeVersion = 'final',
-  onVersionSwitch
+  onVersionSwitch,
+  onFormatPanelToggle,
+  isFormatPanelOpen = false
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -668,70 +673,47 @@ export function PresentationViewer({
 
   return (
     <div ref={containerRef} className={`flex flex-col h-full ${className} ${isFullscreen ? 'bg-gray-800' : ''}`}>
-      {/* Control Toolbar */}
+      {/* Control Toolbar - Keynote-Inspired Layout */}
       {showControls && (
         <div className={`flex items-center justify-between px-4 py-2 bg-gray-50 border-b transition-all duration-300 ${
           isFullscreen && !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
         }`}>
-          <div className="flex items-center gap-2">
-            {/* Navigation */}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handlePrevSlide}
-              disabled={false}
-              className="h-8"
-            >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Prev
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleNextSlide}
-              disabled={totalSlides ? currentSlide >= totalSlides : false}
-              className="h-8"
-            >
-              Next
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
+          {/* Left Group: Navigation + Insert + Edit */}
+          <div className="flex items-center gap-1">
+            {/* Navigation Group */}
+            <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handlePrevSlide}
+                disabled={currentSlide <= 1}
+                className="h-8 rounded-none border-0 px-2 hover:bg-gray-100"
+                title="Previous slide"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="w-px h-5 bg-gray-200" />
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleNextSlide}
+                disabled={totalSlides ? currentSlide >= totalSlides : false}
+                className="h-8 rounded-none border-0 px-2 hover:bg-gray-100"
+                title="Next slide"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
 
-            {/* Add Slide - Always available */}
+            <div className="w-px h-6 bg-gray-300 mx-2" />
+
+            {/* Add Slide */}
             <SlideLayoutPicker
               onAddSlide={handleAddSlide}
               disabled={!presentationUrl}
             />
 
-            {/* Version Toggle - Only show when both versions are available */}
-            {strawmanPreviewUrl && finalPresentationUrl && (
-              <div className="flex items-center gap-0 border border-gray-300 rounded-md overflow-hidden h-8">
-                <button
-                  onClick={() => onVersionSwitch?.('strawman')}
-                  className={`px-3 py-1 text-xs font-medium transition-colors ${
-                    activeVersion === 'strawman'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                  title="View strawman preview"
-                >
-                  <Layers className="h-3 w-3 inline mr-1" />
-                  Strawman
-                </button>
-                <div className="w-px h-full bg-gray-300" />
-                <button
-                  onClick={() => onVersionSwitch?.('final')}
-                  className={`px-3 py-1 text-xs font-medium transition-colors ${
-                    activeVersion === 'final'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                  title="View final presentation"
-                >
-                  <Layers className="h-3 w-3 inline mr-1" />
-                  Final
-                </button>
-              </div>
-            )}
+            <div className="w-px h-6 bg-gray-300 mx-2" />
 
             {/* Edit Mode Toggle */}
             {!isEditMode ? (
@@ -745,7 +727,7 @@ export function PresentationViewer({
                 Edit
               </Button>
             ) : (
-              <>
+              <div className="flex items-center gap-1">
                 <Button
                   size="sm"
                   variant="default"
@@ -766,21 +748,104 @@ export function PresentationViewer({
                   <X className="h-4 w-4 mr-1" />
                   Cancel
                 </Button>
-              </>
+              </div>
             )}
 
-            {/* Save Status Indicator - Always visible */}
-            <SaveStatusIndicator
-              status={saveStatus}
-              onRetry={saveStatus === 'error' ? handleForceSave : undefined}
-            />
+            {/* Format Panel Toggle */}
+            {onFormatPanelToggle && (
+              <>
+                <div className="w-px h-6 bg-gray-300 mx-2" />
+                <Button
+                  size="sm"
+                  variant={isFormatPanelOpen ? "default" : "outline"}
+                  onClick={onFormatPanelToggle}
+                  className="h-8"
+                  title="Format slide"
+                >
+                  <SlidersHorizontal className="h-4 w-4 mr-1" />
+                  Format
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Center Group: Format Tools (inactive - awaiting Layout Service) */}
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled
+              className="h-8 px-2 opacity-50 cursor-not-allowed"
+              title="Text formatting - Coming soon"
+            >
+              <Type className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled
+              className="h-8 px-2 opacity-50 cursor-not-allowed"
+              title="Insert shape - Coming soon"
+            >
+              <Square className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled
+              className="h-8 px-2 opacity-50 cursor-not-allowed"
+              title="Insert table - Coming soon"
+            >
+              <Table2 className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled
+              className="h-8 px-2 opacity-50 cursor-not-allowed"
+              title="Insert chart - Coming soon"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Right Group: View + Save + Counter */}
+          <div className="flex items-center gap-2">
+            {/* Version Toggle - Only show when both versions are available */}
+            {strawmanPreviewUrl && finalPresentationUrl && (
+              <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white h-8">
+                <button
+                  onClick={() => onVersionSwitch?.('strawman')}
+                  className={`px-3 py-1 text-xs font-medium transition-colors ${
+                    activeVersion === 'strawman'
+                      ? 'bg-blue-500 text-white'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title="View strawman preview"
+                >
+                  Strawman
+                </button>
+                <div className="w-px h-full bg-gray-200" />
+                <button
+                  onClick={() => onVersionSwitch?.('final')}
+                  className={`px-3 py-1 text-xs font-medium transition-colors ${
+                    activeVersion === 'final'
+                      ? 'bg-blue-500 text-white'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title="View final presentation"
+                >
+                  Final
+                </button>
+              </div>
+            )}
 
             {/* Fullscreen */}
             <Button
               size="sm"
-              variant="outline"
+              variant="ghost"
               onClick={handleFullscreen}
-              className="h-8"
+              className="h-8 px-2"
               title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
             >
               {isFullscreen ? (
@@ -790,16 +855,19 @@ export function PresentationViewer({
               )}
             </Button>
 
-            {/* Divider */}
-            {downloadControls && <div className="h-6 w-px bg-gray-300 mx-2" />}
+            {/* Save Status Indicator */}
+            <SaveStatusIndicator
+              status={saveStatus}
+              onRetry={saveStatus === 'error' ? handleForceSave : undefined}
+            />
 
             {/* Download Controls */}
             {downloadControls}
-          </div>
 
-          {/* Slide Counter */}
-          <div className="text-sm font-medium text-gray-600">
-            Slide {currentSlide} / {totalSlides || '?'}
+            {/* Slide Counter */}
+            <div className="text-sm font-medium text-gray-600 ml-2 min-w-[80px] text-right">
+              Slide {currentSlide} / {totalSlides || '?'}
+            </div>
           </div>
         </div>
       )}

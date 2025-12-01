@@ -36,6 +36,8 @@ import { FileUploadButton } from '@/components/file-upload-button'
 import { FileChip } from '@/components/file-chip'
 import { useFileUpload } from '@/hooks/use-file-upload'
 import { features } from '@/lib/config'
+import { FormatPanel } from '@/components/format-panel'
+import { SlideLayoutId } from '@/components/slide-layout-picker'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -231,6 +233,7 @@ function BuilderContent() {
   const [showSettings, setShowSettings] = useState(false)
   const [showVersions, setShowVersions] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showFormatPanel, setShowFormatPanel] = useState(false)
 
   // FIXED: Track when generating final presentation to show loading animation
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
@@ -1312,7 +1315,18 @@ function BuilderContent() {
         {/* Main Content Area - 25/75 Split */}
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel - Chat (25%) */}
-          <div className="w-1/4 flex flex-col bg-white border-r">
+          <div className="w-1/4 flex flex-col bg-white border-r relative">
+            {/* Format Panel - Overlays chat when open */}
+            <FormatPanel
+              isOpen={showFormatPanel}
+              onClose={() => setShowFormatPanel(false)}
+              currentSlide={1} // TODO: Get from PresentationViewer state
+              onLayoutChange={async (layout: SlideLayoutId) => {
+                console.log('Layout change requested:', layout)
+                // TODO: Implement via postMessage to iframe
+              }}
+            />
+
             {/* Chat Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
@@ -2028,6 +2042,8 @@ function BuilderContent() {
                 onEditModeChange={(isEditing) => {
                   console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
                 }}
+                onFormatPanelToggle={() => setShowFormatPanel(prev => !prev)}
+                isFormatPanelOpen={showFormatPanel}
                 className="flex-1"
               />
             ) : (
