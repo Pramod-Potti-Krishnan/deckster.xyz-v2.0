@@ -1,8 +1,18 @@
 "use client"
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
-import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Edit3, Maximize2, Minimize2, Save, X, Layers, PanelRightClose, PanelRightOpen, SlidersHorizontal } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Edit3,
+  Minimize2,
+  Save,
+  X,
+  PanelRightClose,
+  PanelRightOpen,
+  SlidersHorizontal,
+  Play
+} from 'lucide-react'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 import { SaveStatusIndicator, SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutId } from './slide-layout-picker'
@@ -910,169 +920,166 @@ export function PresentationViewer({
         />
       )}
 
-      {/* Control Toolbar - Keynote-Inspired Layout */}
+      {/* Control Toolbar - Keynote-Style Layout */}
       {showControls && (
-        <div className={`${isFullscreen ? 'absolute top-12 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl border border-gray-200' : ''} flex items-center justify-between px-4 py-2 bg-gray-50 border-b transition-all duration-300 ${
+        <div className={`${isFullscreen ? 'absolute top-12 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl border border-gray-200' : ''} flex items-center justify-between px-6 py-2 bg-gray-50 border-b transition-all duration-300 ${
           isFullscreen && !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
         }`}>
-          {/* Left Group: Navigation + Insert + Edit */}
-          <div className="flex items-center gap-1">
-            {/* Navigation Group */}
-            <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handlePrevSlide}
-                disabled={currentSlide <= 1}
-                className="h-8 rounded-none border-0 px-2 hover:bg-gray-100"
-                title="Previous slide"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="w-px h-5 bg-gray-200" />
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleNextSlide}
-                disabled={totalSlides ? currentSlide >= totalSlides : false}
-                className="h-8 rounded-none border-0 px-2 hover:bg-gray-100"
-                title="Next slide"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+          {/* Left Group: Navigation + Add Slide + Edit */}
+          <div className="flex items-center gap-4">
+            {/* Navigation */}
+            <button
+              onClick={handlePrevSlide}
+              disabled={currentSlide <= 1}
+              className="flex flex-col items-center gap-0.5 px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Previous slide"
+            >
+              <ChevronLeft className="h-5 w-5 text-gray-700" />
+              <span className="text-[10px] text-gray-500">Prev</span>
+            </button>
+            <button
+              onClick={handleNextSlide}
+              disabled={totalSlides ? currentSlide >= totalSlides : false}
+              className="flex flex-col items-center gap-0.5 px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Next slide"
+            >
+              <ChevronRight className="h-5 w-5 text-gray-700" />
+              <span className="text-[10px] text-gray-500">Next</span>
+            </button>
 
-            <div className="w-px h-6 bg-gray-300 mx-2" />
+            <div className="w-px h-10 bg-gray-200" />
 
-            {/* Add Slide */}
+            {/* Add Slide - Updated to match style */}
             <SlideLayoutPicker
               onAddSlide={handleAddSlide}
               disabled={!presentationUrl}
             />
 
-            <div className="w-px h-6 bg-gray-300 mx-2" />
+            <div className="w-px h-10 bg-gray-200" />
 
             {/* Edit Mode Toggle */}
             {!isEditMode ? (
-              <Button
-                size="sm"
-                variant="outline"
+              <button
                 onClick={handleToggleEditMode}
-                className="h-8"
+                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
+                title="Enter edit mode"
               >
-                <Edit3 className="h-4 w-4 mr-1" />
-                Edit
-              </Button>
+                <Edit3 className="h-5 w-5 text-gray-700" />
+                <span className="text-[10px] text-gray-500">Edit</span>
+              </button>
             ) : (
-              <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="default"
+              <div className="flex items-center gap-2">
+                <button
                   onClick={handleSaveChanges}
                   disabled={isSaving}
-                  className="h-8 bg-green-600 hover:bg-green-700"
+                  className="flex flex-col items-center gap-0.5 px-3 py-1 rounded bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
+                  title="Save changes"
                 >
-                  <Save className="h-4 w-4 mr-1" />
-                  {isSaving ? 'Saving...' : 'Save'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
+                  <Save className="h-5 w-5 text-green-600" />
+                  <span className="text-[10px] text-green-600 font-medium">{isSaving ? 'Saving' : 'Save'}</span>
+                </button>
+                <button
                   onClick={handleCancelEdits}
                   disabled={isSaving}
-                  className="h-8"
+                  className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                  title="Cancel edits"
                 >
-                  <X className="h-4 w-4 mr-1" />
-                  Cancel
-                </Button>
+                  <X className="h-5 w-5 text-gray-500" />
+                  <span className="text-[10px] text-gray-500">Cancel</span>
+                </button>
               </div>
-            )}
-
-            {/* Format Panel Toggle */}
-            {onFormatPanelToggle && (
-              <>
-                <div className="w-px h-6 bg-gray-300 mx-2" />
-                <Button
-                  size="sm"
-                  variant={isFormatPanelOpen ? "default" : "outline"}
-                  onClick={onFormatPanelToggle}
-                  className="h-8"
-                  title="Format slide"
-                >
-                  <SlidersHorizontal className="h-4 w-4 mr-1" />
-                  Format
-                </Button>
-              </>
             )}
           </div>
 
-          {/* Center Group: Format Tools (Layout Service v7.5.3) */}
+          {/* Center Group: Insert & Format Tools */}
           <div className="flex items-center gap-1">
-            <TextFormatPopover
-              onFormat={handleFormatText}
-              disabled={!presentationUrl || !isEditMode}
-            />
-            <ShapePickerPopover
-              onInsertShape={handleInsertShape}
-              disabled={!presentationUrl || !isEditMode}
-            />
+            {/* Fullscreen / Play */}
+            <button
+              onClick={handleFullscreen}
+              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
+              title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
+            >
+              {isFullscreen ? (
+                <Minimize2 className="h-5 w-5 text-gray-700" />
+              ) : (
+                <Play className="h-5 w-5 text-gray-700" />
+              )}
+              <span className="text-[10px] text-gray-500">Play</span>
+            </button>
+
+            <div className="w-px h-10 bg-gray-200 mx-2" />
+
+            {/* Table */}
             <TableInsertPopover
               onInsertTable={handleInsertTable}
               disabled={!presentationUrl || !isEditMode}
             />
+
+            {/* Chart */}
             <ChartPickerPopover
               onInsertChart={handleInsertChart}
               disabled={!presentationUrl || !isEditMode}
             />
+
+            {/* Text */}
+            <TextFormatPopover
+              onFormat={handleFormatText}
+              disabled={!presentationUrl || !isEditMode}
+            />
+
+            {/* Shape */}
+            <ShapePickerPopover
+              onInsertShape={handleInsertShape}
+              disabled={!presentationUrl || !isEditMode}
+            />
+
+            {/* Format Panel Toggle */}
+            {onFormatPanelToggle && (
+              <button
+                onClick={onFormatPanelToggle}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded transition-colors ${
+                  isFormatPanelOpen ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-100'
+                }`}
+                title="Format slide"
+              >
+                <SlidersHorizontal className={`h-5 w-5 ${isFormatPanelOpen ? 'text-blue-600' : 'text-gray-700'}`} />
+                <span className={`text-[10px] ${isFormatPanelOpen ? 'text-blue-600 font-medium' : 'text-gray-500'}`}>Format</span>
+              </button>
+            )}
           </div>
 
-          {/* Right Group: View + Save + Counter */}
-          <div className="flex items-center gap-2">
-            {/* Version Toggle - Only show when both versions are available */}
+          {/* Right Group: Version + Status + Download + Counter */}
+          <div className="flex items-center gap-3">
+            {/* Version Toggle */}
             {strawmanPreviewUrl && finalPresentationUrl && (
-              <div className="flex items-center border border-gray-300 rounded-md overflow-hidden bg-white h-8">
-                <button
-                  onClick={() => onVersionSwitch?.('strawman')}
-                  className={`px-3 py-1 text-xs font-medium transition-colors ${
-                    activeVersion === 'strawman'
-                      ? 'bg-blue-500 text-white'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                  title="View strawman preview"
-                >
-                  Strawman
-                </button>
-                <div className="w-px h-full bg-gray-200" />
-                <button
-                  onClick={() => onVersionSwitch?.('final')}
-                  className={`px-3 py-1 text-xs font-medium transition-colors ${
-                    activeVersion === 'final'
-                      ? 'bg-blue-500 text-white'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                  title="View final presentation"
-                >
-                  Final
-                </button>
+              <div className="flex flex-col items-center gap-0.5">
+                <div className="flex items-center border border-gray-200 rounded overflow-hidden bg-white">
+                  <button
+                    onClick={() => onVersionSwitch?.('strawman')}
+                    className={`px-2 py-1 text-[10px] font-medium transition-colors ${
+                      activeVersion === 'strawman'
+                        ? 'bg-blue-500 text-white'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Strawman
+                  </button>
+                  <button
+                    onClick={() => onVersionSwitch?.('final')}
+                    className={`px-2 py-1 text-[10px] font-medium transition-colors ${
+                      activeVersion === 'final'
+                        ? 'bg-blue-500 text-white'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Final
+                  </button>
+                </div>
+                <span className="text-[10px] text-gray-500">Version</span>
               </div>
             )}
 
-            {/* Fullscreen */}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleFullscreen}
-              className="h-8 px-2"
-              title={isFullscreen ? "Exit fullscreen (ESC)" : "Enter fullscreen"}
-            >
-              {isFullscreen ? (
-                <Minimize2 className="h-4 w-4" />
-              ) : (
-                <Maximize2 className="h-4 w-4" />
-              )}
-            </Button>
-
-            {/* Save Status Indicator */}
+            {/* Save Status */}
             <SaveStatusIndicator
               status={saveStatus}
               onRetry={saveStatus === 'error' ? handleForceSave : undefined}
@@ -1082,8 +1089,9 @@ export function PresentationViewer({
             {downloadControls}
 
             {/* Slide Counter */}
-            <div className="text-sm font-medium text-gray-600 ml-2 min-w-[80px] text-right">
-              Slide {currentSlide} / {totalSlides || '?'}
+            <div className="flex flex-col items-center gap-0.5 px-2">
+              <span className="text-sm font-semibold text-gray-700">{currentSlide} / {totalSlides || '?'}</span>
+              <span className="text-[10px] text-gray-500">Slide</span>
             </div>
           </div>
         </div>

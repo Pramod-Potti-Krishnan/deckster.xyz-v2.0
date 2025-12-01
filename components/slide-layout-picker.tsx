@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, ChevronDown, Type, Layout, Columns, Image, Quote, Presentation } from 'lucide-react'
+import { Plus, Type, Layout, Columns, Image, Quote, Presentation } from 'lucide-react'
 
 export type SlideLayoutId = 'L01' | 'L02' | 'L03' | 'L25' | 'L27' | 'L29'
 
@@ -94,16 +93,13 @@ export function SlideLayoutPicker({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button
-          size="sm"
-          variant="outline"
+        <button
           disabled={disabled || isAdding}
-          className={`h-8 ${className}`}
+          className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${className}`}
         >
-          <Plus className="h-4 w-4 mr-1" />
-          {isAdding ? 'Adding...' : 'Add'}
-          <ChevronDown className="h-3 w-3 ml-1" />
-        </Button>
+          <Plus className="h-5 w-5 text-gray-700" />
+          <span className="text-[10px] text-gray-500">{isAdding ? 'Adding' : 'Add Slide'}</span>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
         <DropdownMenuLabel>Select Layout</DropdownMenuLabel>

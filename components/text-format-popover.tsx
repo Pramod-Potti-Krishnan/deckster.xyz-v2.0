@@ -1,12 +1,12 @@
 "use client"
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -69,15 +69,14 @@ export function TextFormatPopover({ onFormat, disabled = false }: TextFormatPopo
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          size="sm"
-          variant="ghost"
+        <button
           disabled={disabled}
-          className="h-8 px-2"
+          className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           title="Text formatting"
         >
-          <Type className="h-4 w-4" />
-        </Button>
+          <Type className="h-5 w-5 text-gray-700" />
+          <span className="text-[10px] text-gray-500">Text</span>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-3" align="center">
         <div className="space-y-3">

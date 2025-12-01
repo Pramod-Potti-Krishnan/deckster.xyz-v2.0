@@ -64,15 +64,14 @@ export function ShapePickerPopover({ onInsertShape, disabled = false }: ShapePic
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          size="sm"
-          variant="ghost"
+        <button
           disabled={disabled}
-          className="h-8 px-2"
+          className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           title="Insert shape"
         >
-          <Square className="h-4 w-4" />
-        </Button>
+          <Square className="h-5 w-5 text-gray-700" />
+          <span className="text-[10px] text-gray-500">Shape</span>
+        </button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-3" align="center">
         <div className="space-y-3">
