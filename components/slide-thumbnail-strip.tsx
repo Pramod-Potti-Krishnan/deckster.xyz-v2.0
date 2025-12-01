@@ -186,50 +186,71 @@ export function SlideThumbnailStrip({
     const isDragging = draggedSlide === slide.slideNumber
     const isDropTarget = dropTarget === slide.slideNumber
     const isItemProcessing = isProcessing === slide.slideNumber
+    const canDelete = onDeleteSlide && slidesTotal > 1 && !isItemProcessing
 
     const thumbnailContent = (
-      <button
-        onClick={() => onSlideClick(slide.slideNumber)}
-        draggable={enableDragDrop && onReorderSlides && !isItemProcessing}
-        onDragStart={(e) => handleDragStart(e, slide.slideNumber)}
-        onDragOver={(e) => handleDragOver(e, slide.slideNumber)}
-        onDragLeave={handleDragLeave}
-        onDrop={(e) => handleDrop(e, slide.slideNumber)}
-        onDragEnd={handleDragEnd}
-        className={cn(
-          isVertical
-            ? "flex-shrink-0 w-24 h-16 rounded-md border-2 transition-all duration-200"
-            : "flex-shrink-0 w-32 h-20 rounded-md border-2 transition-all duration-200",
-          "flex flex-col items-center justify-center p-2",
-          "hover:border-blue-400 hover:shadow-md",
-          "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-          isActive
-            ? "border-blue-600 bg-blue-50 shadow-lg ring-2 ring-blue-500"
-            : "border-gray-300 bg-white hover:bg-gray-50",
-          isDragging && "opacity-50 scale-95",
-          isDropTarget && "border-green-500 bg-green-50",
-          isItemProcessing && "opacity-70 pointer-events-none",
-          enableDragDrop && onReorderSlides && "cursor-grab active:cursor-grabbing"
-        )}
-        title={slide.title || `Slide ${slide.slideNumber}`}
-        disabled={isItemProcessing}
+      <div
+        className="relative group"
+        title="Drag to reorder • Right-click for options"
       >
-        {/* Slide Number */}
-        <div className={cn(
-          "text-xs font-semibold mb-1",
-          isActive ? "text-blue-700" : "text-gray-500"
-        )}>
-          {slide.slideNumber}
-        </div>
+        {/* Delete button - appears on hover */}
+        {canDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onDeleteSlide(slide.slideNumber - 1)
+            }}
+            className="absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full bg-red-500 text-white
+                       flex items-center justify-center opacity-0 group-hover:opacity-100
+                       transition-opacity duration-150 hover:bg-red-600 shadow-sm"
+            title="Delete slide"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        )}
 
-        {/* Slide Title/Preview */}
-        <div className={cn(
-          "text-[10px] leading-tight text-center line-clamp-2 w-full",
-          isActive ? "text-blue-900 font-medium" : "text-gray-600"
-        )}>
-          {slide.title || 'Untitled Slide'}
-        </div>
-      </button>
+        <button
+          onClick={() => onSlideClick(slide.slideNumber)}
+          draggable={enableDragDrop && onReorderSlides && !isItemProcessing}
+          onDragStart={(e) => handleDragStart(e, slide.slideNumber)}
+          onDragOver={(e) => handleDragOver(e, slide.slideNumber)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, slide.slideNumber)}
+          onDragEnd={handleDragEnd}
+          className={cn(
+            isVertical
+              ? "flex-shrink-0 w-24 h-16 rounded-md border-2 transition-all duration-200"
+              : "flex-shrink-0 w-32 h-20 rounded-md border-2 transition-all duration-200",
+            "flex flex-col items-center justify-center p-2",
+            "hover:border-blue-400 hover:shadow-md",
+            "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+            isActive
+              ? "border-blue-600 bg-blue-50 shadow-lg ring-2 ring-blue-500"
+              : "border-gray-300 bg-white hover:bg-gray-50",
+            isDragging && "opacity-50 scale-95",
+            isDropTarget && "border-green-500 bg-green-50",
+            isItemProcessing && "opacity-70 pointer-events-none",
+            enableDragDrop && onReorderSlides && "cursor-grab active:cursor-grabbing"
+          )}
+          disabled={isItemProcessing}
+        >
+          {/* Slide Number */}
+          <div className={cn(
+            "text-xs font-semibold mb-1",
+            isActive ? "text-blue-700" : "text-gray-500"
+          )}>
+            {slide.slideNumber}
+          </div>
+
+          {/* Slide Title/Preview */}
+          <div className={cn(
+            "text-[10px] leading-tight text-center line-clamp-2 w-full",
+            isActive ? "text-blue-900 font-medium" : "text-gray-600"
+          )}>
+            {slide.title || 'Untitled Slide'}
+          </div>
+        </button>
+      </div>
     )
 
     // Wrap with context menu if CRUD actions are available

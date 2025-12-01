@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Grid3x3, Edit3, Maximize2, Minimize2, Save, X, Layers } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Edit3, Maximize2, Minimize2, Save, X, Layers, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 import { SaveStatusIndicator, SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutId } from './slide-layout-picker'
@@ -98,7 +98,7 @@ export function PresentationViewer({
   const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [showThumbnails, setShowThumbnails] = useState(false)
+  const [showThumbnails, setShowThumbnails] = useState(true) // Show by default
   const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
   const [iframeReady, setIframeReady] = useState(false)
   const [pollingFailureCount, setPollingFailureCount] = useState(0)
@@ -696,17 +696,6 @@ export function PresentationViewer({
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
 
-            {/* Overview */}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleToggleOverview}
-              className="h-8"
-              title="Grid view (Esc)"
-            >
-              <Grid3x3 className="h-4 w-4" />
-            </Button>
-
             {/* Add Slide - Always available */}
             <SlideLayoutPicker
               onAddSlide={handleAddSlide}
@@ -850,24 +839,42 @@ export function PresentationViewer({
           )}
         </div>
 
-        {/* Right: Slide Thumbnail Navigation Strip (Vertical) */}
-        {showThumbnails && slideThumbnails.length > 0 && !isFullscreen && (
-          <div className="w-32 flex-shrink-0">
-            <SlideThumbnailStrip
-              slides={slideThumbnails}
-              currentSlide={currentSlide}
-              onSlideClick={(slideNumber) => {
-                handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
-              }}
-              orientation="vertical"
-              // CRUD handlers
-              onDuplicateSlide={handleDuplicateSlide}
-              onDeleteSlide={handleOpenDeleteDialog}
-              onChangeLayout={handleChangeLayout}
-              onReorderSlides={handleReorderSlides}
-              enableDragDrop={true}
-              totalSlides={totalSlides}
-            />
+        {/* Right: Slide Thumbnail Panel with Toggle */}
+        {!isFullscreen && (
+          <div className={`flex-shrink-0 flex flex-col border-l border-gray-200 bg-gray-50 transition-all duration-200 ${showThumbnails ? 'w-32' : 'w-10'}`}>
+            {/* Panel Header with Toggle */}
+            <div className="flex items-center justify-center py-2 border-b border-gray-200">
+              <button
+                onClick={handleToggleOverview}
+                className="p-1.5 rounded-md hover:bg-gray-200 transition-colors"
+                title={showThumbnails ? "Hide thumbnails" : "Show thumbnails"}
+              >
+                {showThumbnails ? (
+                  <PanelRightClose className="h-4 w-4 text-gray-600" />
+                ) : (
+                  <PanelRightOpen className="h-4 w-4 text-gray-600" />
+                )}
+              </button>
+            </div>
+
+            {/* Thumbnail Strip */}
+            {showThumbnails && slideThumbnails.length > 0 && (
+              <SlideThumbnailStrip
+                slides={slideThumbnails}
+                currentSlide={currentSlide}
+                onSlideClick={(slideNumber) => {
+                  handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
+                }}
+                orientation="vertical"
+                // CRUD handlers
+                onDuplicateSlide={handleDuplicateSlide}
+                onDeleteSlide={handleOpenDeleteDialog}
+                onChangeLayout={handleChangeLayout}
+                onReorderSlides={handleReorderSlides}
+                enableDragDrop={true}
+                totalSlides={totalSlides}
+              />
+            )}
           </div>
         )}
       </div>
