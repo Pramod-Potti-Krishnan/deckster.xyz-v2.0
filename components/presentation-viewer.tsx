@@ -141,10 +141,15 @@ export function PresentationViewer({
   }, [])
 
   // Extract slide thumbnails from slideStructure
-  // After CRUD operations, slideStructure becomes stale so we use totalSlides instead
+  // Use totalSlides when: CRUD ops occurred, OR slideStructure is stale/missing
   const slideThumbnails = useMemo<SlideThumbnail[]>(() => {
-    // If CRUD ops have modified slides, ignore stale slideStructure and use totalSlides
-    if (slidesModifiedByCrud || !slideStructure || !slideStructure.slides) {
+    // Detect if slideStructure count doesn't match totalSlides (stale data)
+    const structureCountMismatch = slideStructure?.slides &&
+      totalSlides > 0 &&
+      slideStructure.slides.length !== totalSlides
+
+    // Use totalSlides when: CRUD modified, count mismatch, or no structure
+    if (slidesModifiedByCrud || structureCountMismatch || !slideStructure || !slideStructure.slides) {
       if (totalSlides > 0) {
         return Array.from({ length: totalSlides }, (_, i) => ({
           slideNumber: i + 1,
@@ -154,7 +159,7 @@ export function PresentationViewer({
       return []
     }
 
-    // Extract titles from slide structure (only when fresh from WebSocket)
+    // slideStructure is fresh and matches totalSlides - use rich data
     return slideStructure.slides.map((slide: any, index: number) => ({
       slideNumber: index + 1,
       title: slide.title || slide.slide_type || `Slide ${index + 1}`,
