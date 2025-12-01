@@ -811,12 +811,12 @@ export function PresentationViewer({
   }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent])
 
   const handleFullscreen = useCallback(async () => {
-    if (!iframeRef.current) return
+    if (!containerRef.current) return
 
     try {
       if (!document.fullscreenElement) {
-        // Enter fullscreen on iframe directly - lets Layout Service handle fullscreen natively
-        await iframeRef.current.requestFullscreen()
+        // Enter fullscreen on container - we control the UI with black backgrounds
+        await containerRef.current.requestFullscreen()
         setIsFullscreen(true)
         console.log('🖥️ Entered fullscreen mode')
       } else {
@@ -901,10 +901,10 @@ export function PresentationViewer({
   }, [])
 
   return (
-    <div ref={containerRef} className={`flex flex-col h-full ${className} ${isFullscreen ? 'bg-gray-800' : ''}`}>
+    <div ref={containerRef} className={`flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
       {/* Control Toolbar - Keynote-Inspired Layout */}
       {showControls && (
-        <div className={`flex items-center justify-between px-4 py-2 bg-gray-50 border-b transition-all duration-300 ${
+        <div className={`${isFullscreen ? 'absolute top-0 left-0 right-0 z-50' : ''} flex items-center justify-between px-4 py-2 bg-gray-50 border-b transition-all duration-300 ${
           isFullscreen && !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
         }`}>
           {/* Left Group: Navigation + Insert + Edit */}
@@ -1082,11 +1082,11 @@ export function PresentationViewer({
       )}
 
       {/* Main Content Area - Flex container for slide and thumbnails */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div className={`flex-1 flex min-h-0 overflow-hidden ${isFullscreen ? 'bg-black' : ''}`}>
         {/* Left: Presentation Area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Presentation Iframe */}
-          <div className={`flex-1 relative bg-gray-800 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-8'}`}>
+          <div className={`flex-1 relative flex items-center justify-center ${isFullscreen ? 'bg-black p-0' : 'bg-gray-800 p-8'}`}>
             {presentationUrl ? (
               <div className={`w-full ${isFullscreen ? 'h-full' : 'max-w-7xl'}`} style={isFullscreen ? undefined : { aspectRatio: '16/9' }}>
                 <iframe
