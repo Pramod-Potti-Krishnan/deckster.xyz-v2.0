@@ -73,10 +73,10 @@ export function FormatPanel({
         onClick={onClose}
       />
 
-      {/* Panel */}
+      {/* Panel - fills entire chat section */}
       <div
         className={cn(
-          "absolute top-0 left-0 h-full w-80 bg-white shadow-xl z-20",
+          "absolute inset-0 bg-white shadow-xl z-20",
           "transform transition-transform duration-200 ease-out",
           "border-r border-gray-200",
           isOpen ? "translate-x-0" : "-translate-x-full"
