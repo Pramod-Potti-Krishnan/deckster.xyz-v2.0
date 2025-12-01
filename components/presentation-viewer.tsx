@@ -430,8 +430,8 @@ export function PresentationViewer({
 
     try {
       const result = await sendCommand(iframeRef.current, 'duplicateSlide', {
-        slideIndex,
-        insertAfter: true
+        index: slideIndex,      // snake_case to match backend
+        insert_after: true
       })
 
       if (result.success) {
@@ -514,9 +514,9 @@ export function PresentationViewer({
 
     try {
       const result = await sendCommand(iframeRef.current, 'changeSlideLayout', {
-        slideIndex,
-        newLayout,
-        preserveContent: true
+        index: slideIndex,       // snake_case to match backend
+        new_layout: newLayout,
+        preserve_content: true
       })
 
       if (result.success) {
@@ -543,8 +543,8 @@ export function PresentationViewer({
 
     try {
       const result = await sendCommand(iframeRef.current, 'reorderSlides', {
-        fromIndex,
-        toIndex
+        from_index: fromIndex,   // snake_case to match backend
+        to_index: toIndex
       })
 
       if (result.success) {
