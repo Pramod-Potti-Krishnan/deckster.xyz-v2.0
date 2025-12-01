@@ -902,18 +902,18 @@ export function PresentationViewer({
 
   return (
     <div ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-gray-900' : ''}`}>
-      {/* Fullscreen toolbar trigger zone - at bottom to avoid Chrome's fullscreen bar */}
+      {/* Fullscreen toolbar trigger zone - at top, below Chrome's fullscreen bar */}
       {isFullscreen && (
         <div
-          className="absolute bottom-0 left-0 right-0 h-16 z-40"
+          className="absolute top-0 left-0 right-0 h-20 z-40"
           onMouseEnter={() => setShowToolbar(true)}
         />
       )}
 
       {/* Control Toolbar - Keynote-Inspired Layout */}
       {showControls && (
-        <div className={`${isFullscreen ? 'absolute bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl' : ''} flex items-center justify-between px-4 py-2 bg-gray-50 border-b transition-all duration-300 ${
-          isFullscreen && !showToolbar ? 'opacity-0 translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
+        <div className={`${isFullscreen ? 'absolute top-12 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl border border-gray-200' : ''} flex items-center justify-between px-4 py-2 bg-gray-50 border-b transition-all duration-300 ${
+          isFullscreen && !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
         }`}>
           {/* Left Group: Navigation + Insert + Edit */}
           <div className="flex items-center gap-1">
