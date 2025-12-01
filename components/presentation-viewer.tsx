@@ -811,12 +811,12 @@ export function PresentationViewer({
   }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent])
 
   const handleFullscreen = useCallback(async () => {
-    if (!containerRef.current) return
+    if (!iframeRef.current) return
 
     try {
       if (!document.fullscreenElement) {
-        // Enter fullscreen
-        await containerRef.current.requestFullscreen()
+        // Enter fullscreen on iframe directly - lets Layout Service handle fullscreen natively
+        await iframeRef.current.requestFullscreen()
         setIsFullscreen(true)
         console.log('🖥️ Entered fullscreen mode')
       } else {
