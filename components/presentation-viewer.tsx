@@ -1115,8 +1115,13 @@ export function PresentationViewer({
           <div className={`flex-1 relative flex items-center justify-center ${isFullscreen ? 'bg-gray-900 p-4' : 'bg-gray-800 p-8'}`}>
             {presentationUrl ? (
               <div
-                className={`${isFullscreen ? 'max-w-full max-h-full' : 'w-full max-w-7xl'}`}
-                style={{ aspectRatio: '16/9', width: isFullscreen ? 'auto' : '100%', height: isFullscreen ? '100%' : 'auto' }}
+                className={isFullscreen ? '' : 'w-full max-w-7xl'}
+                style={{
+                  aspectRatio: '16/9',
+                  width: isFullscreen ? 'auto' : '100%',
+                  maxWidth: isFullscreen ? '100%' : undefined,
+                  maxHeight: isFullscreen ? '100%' : undefined
+                }}
               >
                 <iframe
                   ref={iframeRef}
