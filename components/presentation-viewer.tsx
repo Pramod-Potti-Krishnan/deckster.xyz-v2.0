@@ -1108,7 +1108,7 @@ export function PresentationViewer({
       )}
 
       {/* Main Content Area - Flex container for slide and thumbnails */}
-      <div className={`flex-1 flex min-h-0 overflow-hidden ${isFullscreen ? 'bg-black' : ''}`}>
+      <div className={`flex-1 flex min-h-0 ${isFullscreen ? 'bg-black' : 'overflow-hidden'}`}>
         {/* Left: Presentation Area */}
         <div className={`flex-1 flex flex-col min-w-0 ${isFullscreen ? 'bg-black' : ''}`}>
           {/* Presentation Iframe */}
@@ -1118,9 +1118,9 @@ export function PresentationViewer({
                 className={isFullscreen ? '' : 'w-full max-w-7xl'}
                 style={isFullscreen ? {
                   aspectRatio: '16/9',
-                  // Fill full width, let height be calculated from aspect ratio
-                  width: 'calc(100vw - 16px)',
-                  maxHeight: 'calc(100vh - 16px)'
+                  // Use min() to ensure width never creates height exceeding available space
+                  // This maintains true 16:9 at maximum possible size
+                  width: 'min(calc(100vw - 16px), calc((100vh - 16px) * 16 / 9))'
                 } : {
                   aspectRatio: '16/9',
                   width: '100%'
