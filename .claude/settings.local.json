@@ -16,7 +16,15 @@
       "Bash(npm run build:*)",
       "WebSearch",
       "Bash(git mv:*)",
-      "WebFetch(domain:supabase.com)"
+      "WebFetch(domain:supabase.com)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(npx dotenv:*)",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(npx prisma:*)",
+      "Bash(node scripts/run-stripe-migration.js:*)",
+      "Bash(node scripts/stripe-migration-v2.js:*)",
+      "Bash(node:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

@@ -4,10 +4,11 @@ declare module "next-auth" {
   interface User {
     id: string
     tier?: "free" | "pro" | "enterprise"
-    subscriptionStatus?: string | null
-    subscriptionId?: string | null
-    subscriptionEndDate?: Date | null
-    trialEndsAt?: Date | null
+    subscription?: {
+      status: string
+      tier: string
+      currentPeriodEnd: string
+    } | null
     approved?: boolean
   }
 
@@ -15,7 +16,11 @@ declare module "next-auth" {
     user: {
       id: string
       tier: "free" | "pro" | "enterprise"
-      subscriptionStatus: string | null
+      subscription: {
+        status: string
+        tier: string
+        currentPeriodEnd: string
+      } | null
       approved: boolean
     } & DefaultSession["user"]
   }
@@ -25,7 +30,11 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string
     tier: "free" | "pro" | "enterprise"
-    subscriptionStatus: string | null
+    subscription: {
+      status: string
+      tier: string
+      currentPeriodEnd: string
+    } | null
     approved: boolean
   }
 }

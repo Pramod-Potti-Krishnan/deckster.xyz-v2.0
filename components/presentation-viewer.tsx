@@ -902,10 +902,18 @@ export function PresentationViewer({
 
   return (
     <div ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-gray-900' : ''}`}>
+      {/* Fullscreen toolbar trigger zone - at bottom to avoid Chrome's fullscreen bar */}
+      {isFullscreen && (
+        <div
+          className="absolute bottom-0 left-0 right-0 h-16 z-40"
+          onMouseEnter={() => setShowToolbar(true)}
+        />
+      )}
+
       {/* Control Toolbar - Keynote-Inspired Layout */}
       {showControls && (
-        <div className={`${isFullscreen ? 'absolute top-0 left-0 right-0 z-50' : ''} flex items-center justify-between px-4 py-2 bg-gray-50 border-b transition-all duration-300 ${
-          isFullscreen && !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
+        <div className={`${isFullscreen ? 'absolute bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl' : ''} flex items-center justify-between px-4 py-2 bg-gray-50 border-b transition-all duration-300 ${
+          isFullscreen && !showToolbar ? 'opacity-0 translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
         }`}>
           {/* Left Group: Navigation + Insert + Edit */}
           <div className="flex items-center gap-1">
@@ -1084,16 +1092,19 @@ export function PresentationViewer({
       {/* Main Content Area - Flex container for slide and thumbnails */}
       <div className={`flex-1 flex min-h-0 overflow-hidden ${isFullscreen ? 'bg-gray-900' : ''}`}>
         {/* Left: Presentation Area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className={`flex-1 flex flex-col min-w-0 ${isFullscreen ? 'bg-gray-900' : ''}`}>
           {/* Presentation Iframe */}
-          <div className={`flex-1 relative flex items-center justify-center ${isFullscreen ? 'bg-gray-900 p-0' : 'bg-gray-800 p-8'}`}>
+          <div className={`flex-1 relative flex items-center justify-center ${isFullscreen ? 'bg-gray-900 p-4' : 'bg-gray-800 p-8'}`}>
             {presentationUrl ? (
-              <div className={`w-full ${isFullscreen ? 'h-full' : 'max-w-7xl'}`} style={isFullscreen ? undefined : { aspectRatio: '16/9' }}>
+              <div
+                className={`${isFullscreen ? 'max-w-full max-h-full' : 'w-full max-w-7xl'}`}
+                style={{ aspectRatio: '16/9', width: isFullscreen ? 'auto' : '100%', height: isFullscreen ? '100%' : 'auto' }}
+              >
                 <iframe
                   ref={iframeRef}
                   src={presentationUrl}
                   onLoad={handleIframeLoad}
-                  className={`w-full h-full border-0 ${isFullscreen ? '' : 'rounded-sm shadow-2xl'}`}
+                  className={`w-full h-full border-0 ${isFullscreen ? 'shadow-2xl' : 'rounded-sm shadow-2xl'}`}
                   title="Presentation Viewer"
                   allow="fullscreen"
                 />

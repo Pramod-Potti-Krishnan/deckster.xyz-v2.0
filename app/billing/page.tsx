@@ -4,6 +4,9 @@ import { useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { useSubscription } from "@/hooks/use-subscription"
+import { ManageSubscriptionButton } from "@/components/billing/ManageSubscriptionButton"
+import { UpgradeButton } from "@/components/billing/UpgradeButton"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -36,27 +39,9 @@ interface Invoice {
 export default function BillingPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
-  const [isChangingPlan, setIsChangingPlan] = useState(false)
+  const { subscription, isLoading: isLoadingSubscription, isActive, isPro } = useSubscription()
 
-  // Mock invoice data
-  const invoices: Invoice[] = user?.tier !== "free" ? [
-    {
-      id: "inv_001",
-      date: "2024-01-15",
-      amount: user?.tier === "enterprise" ? 99 : 29,
-      status: "paid",
-      downloadUrl: "#"
-    },
-    {
-      id: "inv_002",
-      date: "2023-12-15",
-      amount: user?.tier === "enterprise" ? 99 : 29,
-      status: "paid",
-      downloadUrl: "#"
-    }
-  ] : []
-
-  if (isLoading) {
+  if (isLoading || isLoadingSubscription) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -74,11 +59,6 @@ export default function BillingPage() {
 
   const handleUpgrade = () => {
     router.push("/pricing")
-  }
-
-  const handleManageSubscription = () => {
-    // TODO: Implement Stripe customer portal redirect
-    console.log("Opening Stripe customer portal...")
   }
 
   return (
@@ -134,25 +114,31 @@ export default function BillingPage() {
                        "Free Plan"}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      {user.tier === "enterprise" ? "$99/month" : 
-                       user.tier === "pro" ? "$29/month" : 
-                       "No charge"}
+                      {subscription ?
+                        (subscription.billingCycle === 'yearly' ? '$290/year' : '$29/month') :
+                        user.tier !== "free" ? "$29/month" : "No charge"}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  {user.tier !== "free" ? (
+                  {isPro && subscription ? (
                     <>
-                      <Badge variant="outline" className="text-green-700">Active</Badge>
+                      <Badge variant="outline" className={subscription.status === 'active' ? "text-green-700" : "text-orange-700"}>
+                        {subscription.status === 'active' ? 'Active' : subscription.status}
+                      </Badge>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Renews Feb 15, 2024
+                        {subscription.cancelAtPeriodEnd ?
+                          `Cancels ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}` :
+                          `Renews ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`}
                       </p>
                     </>
-                  ) : (
-                    <Button onClick={handleUpgrade}>
-                      Upgrade Now
-                    </Button>
-                  )}
+                  ) : user.tier === "free" ? (
+                    <UpgradeButton
+                      priceId={process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID!}
+                      billingCycle="monthly"
+                      label="Upgrade Now"
+                    />
+                  ) : null}
                 </div>
               </div>
 
@@ -233,11 +219,9 @@ export default function BillingPage() {
                 </div>
               </div>
 
-              {user.tier !== "free" && (
+              {isPro && subscription && (
                 <div className="flex gap-2 pt-2">
-                  <Button variant="outline" onClick={handleManageSubscription}>
-                    Manage Subscription
-                  </Button>
+                  <ManageSubscriptionButton />
                   {user.tier === "pro" && (
                     <Button variant="outline" onClick={handleUpgrade}>
                       Upgrade to Enterprise

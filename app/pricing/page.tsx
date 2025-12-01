@@ -35,6 +35,7 @@ import {
   Zap
 } from "lucide-react"
 import Link from "next/link"
+import { UpgradeButton } from "@/components/billing/UpgradeButton"
 
 export default function PricingPage() {
   const { user, isLoading } = useAuth()
@@ -390,16 +391,27 @@ export default function PricingPage() {
                   </CardHeader>
 
                   <CardContent className="space-y-6">
-                    <Button
-                      className={`w-full ${plan.popular ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" : ""}`}
-                      variant={isCurrentPlan ? "outline" : plan.popular ? "default" : "outline"}
-                      disabled={isCurrentPlan}
-                      onClick={() => handleSelectPlan(plan.id)}
-                      size="lg"
-                    >
-                      {getCtaText(plan.id)}
-                      {!isCurrentPlan && <ArrowRight className="ml-2 h-4 w-4" />}
-                    </Button>
+                    {plan.id === 'pro' && user && currentPlanId !== 'pro' ? (
+                      <UpgradeButton
+                        priceId={billingPeriod === 'yearly'
+                          ? process.env.NEXT_PUBLIC_STRIPE_PRO_YEARLY_PRICE_ID!
+                          : process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID!}
+                        billingCycle={billingPeriod}
+                        label={getCtaText(plan.id)}
+                        className={`w-full ${plan.popular ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" : ""}`}
+                      />
+                    ) : (
+                      <Button
+                        className={`w-full ${plan.popular ? "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" : ""}`}
+                        variant={isCurrentPlan ? "outline" : plan.popular ? "default" : "outline"}
+                        disabled={isCurrentPlan}
+                        onClick={() => handleSelectPlan(plan.id)}
+                        size="lg"
+                      >
+                        {getCtaText(plan.id)}
+                        {!isCurrentPlan && <ArrowRight className="ml-2 h-4 w-4" />}
+                      </Button>
+                    )}
 
                     {/* Perfect For Section */}
                     <div className="bg-muted/50 rounded-lg p-4">

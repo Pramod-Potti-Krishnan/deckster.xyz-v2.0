@@ -3,6 +3,7 @@ import GoogleProvider from "next-auth/providers/google"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import type { Adapter } from "next-auth/adapters"
 import { prisma } from "./prisma"
+import { getUserSubscription } from "@/lib/stripe/stripe-utils"
 
 // Validate required environment variables (only at runtime, not during build)
 if (typeof window === 'undefined' && process.env.NODE_ENV !== 'development') {
@@ -105,12 +106,19 @@ export const authOptions: NextAuthOptions = {
               select: { id: true, approved: true, tier: true }
             })
 
+            // Fetch subscription data
+            const subscription = await getUserSubscription(dbUser?.id || user.id)
+
             return {
               ...token,
               id: dbUser?.id || user.id,
               tier: dbUser?.tier || "free",
               approved: dbUser?.approved || false,
-              subscriptionStatus: null,
+              subscription: subscription ? {
+                status: subscription.status,
+                tier: subscription.tier,
+                currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+              } : null,
               exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60), // 30 days
             }
           } catch (dbError) {
@@ -122,7 +130,7 @@ export const authOptions: NextAuthOptions = {
               id: user.id,
               tier: "free" as const,
               approved: false, // Default to false for safety
-              subscriptionStatus: null,
+              subscription: null,
               exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
             }
           }
@@ -139,7 +147,7 @@ export const authOptions: NextAuthOptions = {
         if (session.user && token) {
           session.user.id = token.id as string
           session.user.tier = token.tier as "free" | "pro" | "enterprise"
-          session.user.subscriptionStatus = token.subscriptionStatus as string | null
+          session.user.subscription = token.subscription as { status: string; tier: string; currentPeriodEnd: string } | null
           session.user.approved = token.approved as boolean
         }
         return session
