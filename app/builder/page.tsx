@@ -1018,34 +1018,53 @@ function BuilderContent() {
               timestamp: timestamp
             }])
 
-            // Persist user message to database IMMEDIATELY (synchronous)
-            // FIXED: Use saveBatch instead of queueMessage to prevent race condition
-            // where message is lost if user navigates away before queue flushes
-            // FIXED: Pass messageText as second argument to save userText field
-            if (persistence) {
-              console.log('💾 About to save first message:', {
-                messageId,
-                messageText,
-                userText: messageText,
-                sessionId: session.id,
-                timestamp: new Date(timestamp).toISOString()
-              })
-              await persistence.saveBatch([{
-                message_id: messageId,
-                session_id: session.id,
+            // FIX 11: Save first message directly via API
+            // The persistence hook has stale sessionIdRef (empty string) because
+            // setCurrentSessionId() queues a state update that hasn't executed yet.
+            // We bypass the hook and call the API directly since we have session.id.
+            try {
+              const firstMessagePayload = {
+                id: messageId,
+                messageType: 'chat_message',
                 timestamp: new Date(timestamp).toISOString(),
-                type: 'chat_message',
-                payload: { text: messageText }
-              } as DirectorMessage], messageText) // FIXED: Pass userText as 2nd arg
-              console.log('✅ First message saved via saveBatch')
+                payload: { text: messageText },
+                userText: messageText,
+              }
 
-              // Generate title from first user message
-              const generatedTitle = persistence.generateTitle(messageText)
-              console.log('📝 Setting initial title from first message:', generatedTitle)
-              persistence.updateMetadata({
-                title: generatedTitle
+              console.log('💾 [FIX 11] Saving first message directly via API:', {
+                sessionId: session.id,
+                messageId,
+                userText: messageText.substring(0, 30)
               })
-              hasTitleFromUserMessageRef.current = true
+
+              const response = await fetch(`/api/sessions/${session.id}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages: [firstMessagePayload] }),
+              })
+
+              if (response.ok) {
+                const result = await response.json()
+                console.log('✅ [FIX 11] First message saved:', result)
+              } else {
+                console.error('❌ [FIX 11] Failed to save first message:', response.status)
+              }
+
+              // Generate and save title from first user message
+              if (persistence) {
+                const generatedTitle = persistence.generateTitle(messageText)
+                console.log('📝 Setting initial title from first message:', generatedTitle)
+
+                // Also save title directly via API (persistence hook may have stale ref)
+                await fetch(`/api/sessions/${session.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ title: generatedTitle }),
+                })
+                hasTitleFromUserMessageRef.current = true
+              }
+            } catch (error) {
+              console.error('❌ [FIX 11] Error saving first message:', error)
             }
 
             // Clear input field immediately
