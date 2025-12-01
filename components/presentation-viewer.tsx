@@ -472,7 +472,7 @@ export function PresentationViewer({
     setIsDeleting(true)
     try {
       const result = await sendCommand(iframeRef.current, 'deleteSlide', {
-        slideIndex: slideToDelete
+        index: slideToDelete  // Backend expects 'index', not 'slideIndex'
       })
 
       if (result.success) {
