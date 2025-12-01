@@ -4,6 +4,10 @@ import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, Grid3x3, Edit3, Maximize2, Minimize2, Save, X, Layers } from 'lucide-react'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
+import { SaveStatusIndicator, SaveStatus } from './save-status-indicator'
+import { SlideLayoutPicker, SlideLayoutId } from './slide-layout-picker'
+import { DeleteSlideDialog } from './delete-slide-dialog'
+import { useToast } from '@/hooks/use-toast'
 
 interface PresentationViewerProps {
   presentationUrl: string
@@ -88,6 +92,7 @@ export function PresentationViewer({
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { toast } = useToast()
   const [isEditMode, setIsEditMode] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
@@ -97,6 +102,11 @@ export function PresentationViewer({
   const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
   const [iframeReady, setIframeReady] = useState(false)
   const [pollingFailureCount, setPollingFailureCount] = useState(0)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
+  // Delete dialog state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [slideToDelete, setSlideToDelete] = useState<number | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Sync totalSlides with slideCount prop changes
   useEffect(() => {
@@ -259,6 +269,15 @@ export function PresentationViewer({
         return
       }
 
+      // Ctrl+S / Cmd+S - Force save (in edit mode)
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        if (isEditMode) {
+          handleForceSave()
+        }
+        return
+      }
+
       switch (e.key) {
         case 'ArrowRight':
         case 'ArrowDown':
@@ -279,7 +298,7 @@ export function PresentationViewer({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNextSlide, handlePrevSlide, handleToggleOverview])
+  }, [handleNextSlide, handlePrevSlide, handleToggleOverview, isEditMode, handleForceSave])
 
   const handleToggleEditMode = useCallback(async () => {
     console.log('🔘 Edit button clicked!')
@@ -335,6 +354,206 @@ export function PresentationViewer({
       console.error('Error canceling edits:', error)
     }
   }, [onEditModeChange])
+
+  // Force save handler (for Ctrl+S and retry on error)
+  const handleForceSave = useCallback(async () => {
+    if (!iframeRef.current) return
+
+    setSaveStatus('saving')
+    try {
+      await sendCommand(iframeRef.current, 'forceSave')
+      setSaveStatus('saved')
+      console.log('💾 Force save completed')
+    } catch (error) {
+      console.error('Error forcing save:', error)
+      setSaveStatus('error')
+    }
+  }, [])
+
+  // Add slide handler
+  const handleAddSlide = useCallback(async (layoutId: SlideLayoutId) => {
+    if (!iframeRef.current) {
+      toast({
+        title: 'Error',
+        description: 'Presentation not ready',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'addSlide', {
+        layout: layoutId,
+        position: currentSlide // Insert after current slide (0-based in iframe)
+      })
+
+      if (result.success) {
+        const newSlideIndex = result.data?.slideIndex ?? currentSlide
+        const newTotal = result.data?.slideCount ?? totalSlides + 1
+
+        setTotalSlides(newTotal)
+        setCurrentSlide(newSlideIndex + 1) // Navigate to new slide (1-based)
+
+        toast({
+          title: 'Slide Added',
+          description: `New slide inserted at position ${newSlideIndex + 1}`
+        })
+
+        console.log(`➕ Added ${layoutId} slide at position ${newSlideIndex + 1}`)
+      }
+    } catch (error) {
+      console.error('Error adding slide:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to add slide. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [currentSlide, totalSlides, toast])
+
+  // Duplicate slide handler
+  const handleDuplicateSlide = useCallback(async (slideIndex: number) => {
+    if (!iframeRef.current) return
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'duplicateSlide', {
+        slideIndex,
+        insertAfter: true
+      })
+
+      if (result.success) {
+        const newSlideIndex = result.data?.newSlideIndex ?? slideIndex + 1
+        const newTotal = result.data?.slideCount ?? totalSlides + 1
+
+        setTotalSlides(newTotal)
+        setCurrentSlide(newSlideIndex + 1)
+
+        toast({
+          title: 'Slide Duplicated',
+          description: `Slide copied to position ${newSlideIndex + 1}`
+        })
+
+        console.log(`📋 Duplicated slide ${slideIndex + 1} → ${newSlideIndex + 1}`)
+      }
+    } catch (error) {
+      console.error('Error duplicating slide:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to duplicate slide. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [totalSlides, toast])
+
+  // Open delete dialog
+  const handleOpenDeleteDialog = useCallback((slideIndex: number) => {
+    setSlideToDelete(slideIndex)
+    setShowDeleteDialog(true)
+  }, [])
+
+  // Confirm delete slide
+  const handleConfirmDelete = useCallback(async () => {
+    if (slideToDelete === null || !iframeRef.current) return
+
+    setIsDeleting(true)
+    try {
+      const result = await sendCommand(iframeRef.current, 'deleteSlide', {
+        slideIndex: slideToDelete
+      })
+
+      if (result.success) {
+        const newTotal = result.data?.slideCount ?? totalSlides - 1
+        setTotalSlides(newTotal)
+
+        // Adjust current slide if needed
+        if (currentSlide > newTotal) {
+          setCurrentSlide(newTotal)
+        } else if (currentSlide > slideToDelete + 1) {
+          setCurrentSlide(currentSlide - 1)
+        }
+
+        toast({
+          title: 'Slide Deleted',
+          description: `Slide ${slideToDelete + 1} has been removed`
+        })
+
+        console.log(`🗑️ Deleted slide ${slideToDelete + 1}`)
+      }
+    } catch (error) {
+      console.error('Error deleting slide:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to delete slide. Please try again.',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteDialog(false)
+      setSlideToDelete(null)
+    }
+  }, [slideToDelete, totalSlides, currentSlide, toast])
+
+  // Change slide layout handler
+  const handleChangeLayout = useCallback(async (slideIndex: number, newLayout: SlideLayoutId) => {
+    if (!iframeRef.current) return
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'changeSlideLayout', {
+        slideIndex,
+        newLayout,
+        preserveContent: true
+      })
+
+      if (result.success) {
+        toast({
+          title: 'Layout Changed',
+          description: `Slide ${slideIndex + 1} layout updated`
+        })
+
+        console.log(`🔄 Changed slide ${slideIndex + 1} layout to ${newLayout}`)
+      }
+    } catch (error) {
+      console.error('Error changing layout:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to change layout. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [toast])
+
+  // Reorder slides handler
+  const handleReorderSlides = useCallback(async (fromIndex: number, toIndex: number) => {
+    if (!iframeRef.current) return
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'reorderSlides', {
+        fromIndex,
+        toIndex
+      })
+
+      if (result.success) {
+        // Update current slide if it was moved
+        if (currentSlide === fromIndex + 1) {
+          setCurrentSlide(toIndex + 1)
+        }
+
+        toast({
+          title: 'Slide Moved',
+          description: `Slide moved from position ${fromIndex + 1} to ${toIndex + 1}`
+        })
+
+        console.log(`↕️ Moved slide ${fromIndex + 1} → ${toIndex + 1}`)
+      }
+    } catch (error) {
+      console.error('Error reordering slides:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to reorder slides. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [currentSlide, toast])
 
   const handleFullscreen = useCallback(async () => {
     if (!containerRef.current) return
@@ -409,6 +628,23 @@ export function PresentationViewer({
     }
   }, [isFullscreen])
 
+  // Listen for save status events from iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== VIEWER_ORIGIN) return
+
+      // Handle save status updates from auto-save system
+      if (event.data.type === 'save_status') {
+        const status = event.data.status as SaveStatus
+        setSaveStatus(status)
+        console.log(`💾 Save status: ${status}`)
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
+
   return (
     <div ref={containerRef} className={`flex flex-col h-full ${className} ${isFullscreen ? 'bg-gray-800' : ''}`}>
       {/* Control Toolbar */}
@@ -449,6 +685,12 @@ export function PresentationViewer({
             >
               <Grid3x3 className="h-4 w-4" />
             </Button>
+
+            {/* Add Slide - Always available */}
+            <SlideLayoutPicker
+              onAddSlide={handleAddSlide}
+              disabled={!presentationUrl}
+            />
 
             {/* Version Toggle - Only show when both versions are available */}
             {strawmanPreviewUrl && finalPresentationUrl && (
@@ -517,6 +759,12 @@ export function PresentationViewer({
               </>
             )}
 
+            {/* Save Status Indicator - Always visible */}
+            <SaveStatusIndicator
+              status={saveStatus}
+              onRetry={saveStatus === 'error' ? handleForceSave : undefined}
+            />
+
             {/* Fullscreen */}
             <Button
               size="sm"
@@ -573,7 +821,10 @@ export function PresentationViewer({
           {/* Edit Mode Instructions */}
           {isEditMode && !isFullscreen && (
             <div className="px-4 py-2 bg-yellow-50 border-t border-yellow-200 text-sm text-yellow-800">
-              <strong>Edit Mode:</strong> Click on any text in the presentation to edit. Click "Save" when done or "Cancel" to discard changes.
+              <strong>Edit Mode:</strong> Click on any text to edit. Select text for formatting toolbar.
+              <span className="ml-2 text-xs text-yellow-600">
+                Shortcuts: Ctrl+B (Bold), Ctrl+I (Italic), Ctrl+U (Underline), Ctrl+S (Save)
+              </span>
             </div>
           )}
         </div>
@@ -588,10 +839,26 @@ export function PresentationViewer({
                 handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
               }}
               orientation="vertical"
+              // CRUD handlers
+              onDuplicateSlide={handleDuplicateSlide}
+              onDeleteSlide={handleOpenDeleteDialog}
+              onChangeLayout={handleChangeLayout}
+              onReorderSlides={handleReorderSlides}
+              enableDragDrop={true}
+              totalSlides={totalSlides}
             />
           </div>
         )}
       </div>
+
+      {/* Delete Slide Confirmation Dialog */}
+      <DeleteSlideDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        slideNumber={slideToDelete !== null ? slideToDelete + 1 : 0}
+        onConfirm={handleConfirmDelete}
+        isDeleting={isDeleting}
+      />
     </div>
   )
 }
