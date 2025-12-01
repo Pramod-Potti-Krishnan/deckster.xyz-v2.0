@@ -259,6 +259,22 @@ export function PresentationViewer({
     return () => clearInterval(interval)
   }, [iframeReady, pollingFailureCount, onSlideChange])
 
+  // Force save handler (for Ctrl+S and retry on error)
+  // IMPORTANT: Must be declared BEFORE the keyboard shortcuts useEffect that references it
+  const handleForceSave = useCallback(async () => {
+    if (!iframeRef.current) return
+
+    setSaveStatus('saving')
+    try {
+      await sendCommand(iframeRef.current, 'forceSave')
+      setSaveStatus('saved')
+      console.log('💾 Force save completed')
+    } catch (error) {
+      console.error('Error forcing save:', error)
+      setSaveStatus('error')
+    }
+  }, [])
+
   // Keyboard shortcuts (handlers are now defined above)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -354,21 +370,6 @@ export function PresentationViewer({
       console.error('Error canceling edits:', error)
     }
   }, [onEditModeChange])
-
-  // Force save handler (for Ctrl+S and retry on error)
-  const handleForceSave = useCallback(async () => {
-    if (!iframeRef.current) return
-
-    setSaveStatus('saving')
-    try {
-      await sendCommand(iframeRef.current, 'forceSave')
-      setSaveStatus('saved')
-      console.log('💾 Force save completed')
-    } catch (error) {
-      console.error('Error forcing save:', error)
-      setSaveStatus('error')
-    }
-  }, [])
 
   // Add slide handler
   const handleAddSlide = useCallback(async (layoutId: SlideLayoutId) => {
