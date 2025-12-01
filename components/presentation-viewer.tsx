@@ -11,8 +11,16 @@ import {
   PanelRightClose,
   PanelRightOpen,
   SlidersHorizontal,
-  Play
+  Play,
+  Layers,
+  Check
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 import { SaveStatusIndicator, SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutId } from './slide-layout-picker'
@@ -1050,33 +1058,41 @@ export function PresentationViewer({
 
           {/* Right Group: Version + Status + Download + Counter */}
           <div className="flex items-center gap-3">
-            {/* Version Toggle */}
+            {/* Version Dropdown */}
             {strawmanPreviewUrl && finalPresentationUrl && (
-              <div className="flex flex-col items-center gap-0.5">
-                <div className="flex items-center border border-gray-200 rounded overflow-hidden bg-white">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <button
+                    className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
+                    title="Switch version"
+                  >
+                    <Layers className="h-5 w-5 text-gray-700" />
+                    <span className="text-[10px] text-gray-500">
+                      {activeVersion === 'final' ? 'Final' : 'Strawman'}
+                    </span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem
                     onClick={() => onVersionSwitch?.('strawman')}
-                    className={`px-2 py-1 text-[10px] font-medium transition-colors ${
-                      activeVersion === 'strawman'
-                        ? 'bg-blue-500 text-white'
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
+                    className="cursor-pointer"
                   >
-                    Strawman
-                  </button>
-                  <button
+                    <div className="flex items-center justify-between w-full">
+                      <span>Strawman</span>
+                      {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     onClick={() => onVersionSwitch?.('final')}
-                    className={`px-2 py-1 text-[10px] font-medium transition-colors ${
-                      activeVersion === 'final'
-                        ? 'bg-blue-500 text-white'
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
+                    className="cursor-pointer"
                   >
-                    Final
-                  </button>
-                </div>
-                <span className="text-[10px] text-gray-500">Version</span>
-              </div>
+                    <div className="flex items-center justify-between w-full">
+                      <span>Final</span>
+                      {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
 
             {/* Save Status */}

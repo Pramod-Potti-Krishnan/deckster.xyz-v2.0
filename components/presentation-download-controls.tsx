@@ -1,14 +1,13 @@
 "use client"
 
 import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Download, FileText, Presentation, ChevronDown } from 'lucide-react';
+import { Download, FileText, Presentation } from 'lucide-react';
 import { downloadPDF, downloadPPTX, DownloadQuality } from '@/lib/api/download-service';
 import { useToast } from '@/hooks/use-toast';
 
@@ -146,29 +145,17 @@ export function PresentationDownloadControls({
   const isDownloading = isDownloadingPDF || isDownloadingPPTX;
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div className={`flex items-center ${className}`}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
+          <button
             disabled={!isDownloadEnabled || isDownloading}
-            size="sm"
-            variant="outline"
-            className="h-8"
+            className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             title={!isDownloadEnabled ? 'Waiting for presentation...' : 'Download as PDF or PPTX'}
           >
-            {isDownloading ? (
-              <>
-                <Download className="mr-1 h-3.5 w-3.5 animate-spin" />
-                Converting...
-              </>
-            ) : (
-              <>
-                <Download className="mr-1 h-3.5 w-3.5" />
-                Download
-                <ChevronDown className="ml-1 h-3 w-3" />
-              </>
-            )}
-          </Button>
+            <Download className={`h-5 w-5 text-gray-700 ${isDownloading ? 'animate-pulse' : ''}`} />
+            <span className="text-[10px] text-gray-500">{isDownloading ? 'Converting' : 'Download'}</span>
+          </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem
@@ -189,13 +176,6 @@ export function PresentationDownloadControls({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      {/* Loading hint */}
-      {isDownloading && (
-        <span className="text-xs text-muted-foreground">
-          (5-15 sec)
-        </span>
-      )}
     </div>
   );
 }
