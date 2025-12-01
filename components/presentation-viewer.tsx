@@ -2,12 +2,24 @@
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Edit3, Maximize2, Minimize2, Save, X, Layers, PanelRightClose, PanelRightOpen, Type, Square, Table2, BarChart3, SlidersHorizontal } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Edit3, Maximize2, Minimize2, Save, X, Layers, PanelRightClose, PanelRightOpen, SlidersHorizontal } from 'lucide-react'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 import { SaveStatusIndicator, SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutId } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
 import { useToast } from '@/hooks/use-toast'
+import { TextFormatPopover, FormatTextParams } from './text-format-popover'
+import { ShapePickerPopover, InsertShapeParams } from './shape-picker-popover'
+import { TableInsertPopover, generateTableHTML } from './table-insert-popover'
+import { ChartPickerPopover, InsertChartParams, generateChartConfig } from './chart-picker-popover'
+
+// Selection info from Layout Service
+export interface SelectionInfo {
+  hasSelection: boolean
+  selectedText?: string
+  sectionId?: string
+  slideIndex?: number
+}
 
 interface PresentationViewerProps {
   presentationUrl: string
@@ -27,6 +39,11 @@ interface PresentationViewerProps {
   // Format panel toggle
   onFormatPanelToggle?: () => void
   isFormatPanelOpen?: boolean
+  // Expose Layout Service API handlers for external use (e.g., Format Panel)
+  onApiReady?: (apis: {
+    getSelectionInfo: () => Promise<SelectionInfo | null>
+    updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
+  }) => void
 }
 
 interface SlideInfo {
@@ -93,7 +110,8 @@ export function PresentationViewer({
   activeVersion = 'final',
   onVersionSwitch,
   onFormatPanelToggle,
-  isFormatPanelOpen = false
+  isFormatPanelOpen = false,
+  onApiReady
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -581,6 +599,217 @@ export function PresentationViewer({
     }
   }, [currentSlide, toast])
 
+  // === Layout Service v7.5.3 API Handlers ===
+
+  // Text Formatting handler
+  const handleFormatText = useCallback(async (params: FormatTextParams): Promise<boolean> => {
+    if (!iframeRef.current) {
+      toast({
+        title: 'Error',
+        description: 'Presentation not ready',
+        variant: 'destructive'
+      })
+      return false
+    }
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'formatText', params)
+      if (result.success) {
+        console.log('✏️ Text formatted:', params)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Error formatting text:', error)
+      toast({
+        title: 'Format Failed',
+        description: 'Select text in the slide first, then apply formatting.',
+        variant: 'destructive'
+      })
+      return false
+    }
+  }, [toast])
+
+  // Shape insertion handler
+  const handleInsertShape = useCallback(async (params: InsertShapeParams): Promise<void> => {
+    if (!iframeRef.current) {
+      toast({
+        title: 'Error',
+        description: 'Presentation not ready',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'insertShape', {
+        slideIndex: currentSlide - 1, // Convert to 0-based
+        type: params.type,
+        gridRow: '8/12',    // Center-ish default position
+        gridColumn: '14/20',
+        fill: params.fill || '#3b82f6',
+        stroke: params.stroke || '#1e40af',
+        strokeWidth: params.strokeWidth || 2
+      })
+
+      if (result.success) {
+        toast({
+          title: 'Shape Added',
+          description: `${params.type} shape inserted on slide`
+        })
+        console.log(`🔷 Inserted ${params.type} shape`)
+      }
+    } catch (error) {
+      console.error('Error inserting shape:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to insert shape. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [currentSlide, toast])
+
+  // Table insertion handler
+  const handleInsertTable = useCallback(async (rows: number, cols: number): Promise<void> => {
+    if (!iframeRef.current) {
+      toast({
+        title: 'Error',
+        description: 'Presentation not ready',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'insertTable', {
+        slideIndex: currentSlide - 1,
+        gridRow: '5/15',
+        gridColumn: '3/30',
+        tableHtml: generateTableHTML(rows, cols)
+      })
+
+      if (result.success) {
+        toast({
+          title: 'Table Added',
+          description: `${rows}×${cols} table inserted on slide`
+        })
+        console.log(`📊 Inserted ${rows}×${cols} table`)
+      }
+    } catch (error) {
+      console.error('Error inserting table:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to insert table. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [currentSlide, toast])
+
+  // Chart insertion handler
+  const handleInsertChart = useCallback(async (params: InsertChartParams): Promise<void> => {
+    if (!iframeRef.current) {
+      toast({
+        title: 'Error',
+        description: 'Presentation not ready',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'insertChart', {
+        slideIndex: currentSlide - 1,
+        gridRow: '3/16',
+        gridColumn: '2/20',
+        chartConfig: generateChartConfig(params)
+      })
+
+      if (result.success) {
+        toast({
+          title: 'Chart Added',
+          description: `${params.type} chart inserted on slide`
+        })
+        console.log(`📈 Inserted ${params.type} chart`)
+      }
+    } catch (error) {
+      console.error('Error inserting chart:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to insert chart. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [currentSlide, toast])
+
+  // Get selection info from Layout Service (for AI regeneration)
+  const handleGetSelectionInfo = useCallback(async (): Promise<SelectionInfo | null> => {
+    if (!iframeRef.current) return null
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'getSelectionInfo')
+      if (result.success && result.data) {
+        return {
+          hasSelection: result.data.hasSelection,
+          selectedText: result.data.selectedText,
+          sectionId: result.data.sectionId,
+          slideIndex: result.data.slideIndex
+        }
+      }
+      return { hasSelection: false }
+    } catch (error) {
+      console.error('Error getting selection info:', error)
+      return null
+    }
+  }, [])
+
+  // Update section content via Layout Service (for AI regeneration)
+  const handleUpdateSectionContent = useCallback(async (
+    slideIndex: number,
+    sectionId: string,
+    content: string
+  ): Promise<boolean> => {
+    if (!iframeRef.current) {
+      toast({
+        title: 'Error',
+        description: 'Presentation not ready',
+        variant: 'destructive'
+      })
+      return false
+    }
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'updateSectionContent', {
+        slideIndex,
+        sectionId,
+        content
+      })
+
+      if (result.success) {
+        console.log(`✅ Updated section ${sectionId} on slide ${slideIndex + 1}`)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Error updating section content:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to update section content. Please try again.',
+        variant: 'destructive'
+      })
+      return false
+    }
+  }, [toast])
+
+  // Expose APIs to parent component when iframe is ready
+  useEffect(() => {
+    if (iframeReady && onApiReady) {
+      onApiReady({
+        getSelectionInfo: handleGetSelectionInfo,
+        updateSectionContent: handleUpdateSectionContent
+      })
+    }
+  }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent])
+
   const handleFullscreen = useCallback(async () => {
     if (!containerRef.current) return
 
@@ -769,44 +998,24 @@ export function PresentationViewer({
             )}
           </div>
 
-          {/* Center Group: Format Tools (inactive - awaiting Layout Service) */}
+          {/* Center Group: Format Tools (Layout Service v7.5.3) */}
           <div className="flex items-center gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled
-              className="h-8 px-2 opacity-50 cursor-not-allowed"
-              title="Text formatting - Coming soon"
-            >
-              <Type className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled
-              className="h-8 px-2 opacity-50 cursor-not-allowed"
-              title="Insert shape - Coming soon"
-            >
-              <Square className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled
-              className="h-8 px-2 opacity-50 cursor-not-allowed"
-              title="Insert table - Coming soon"
-            >
-              <Table2 className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled
-              className="h-8 px-2 opacity-50 cursor-not-allowed"
-              title="Insert chart - Coming soon"
-            >
-              <BarChart3 className="h-4 w-4" />
-            </Button>
+            <TextFormatPopover
+              onFormat={handleFormatText}
+              disabled={!presentationUrl || !isEditMode}
+            />
+            <ShapePickerPopover
+              onInsertShape={handleInsertShape}
+              disabled={!presentationUrl || !isEditMode}
+            />
+            <TableInsertPopover
+              onInsertTable={handleInsertTable}
+              disabled={!presentationUrl || !isEditMode}
+            />
+            <ChartPickerPopover
+              onInsertChart={handleInsertChart}
+              disabled={!presentationUrl || !isEditMode}
+            />
           </div>
 
           {/* Right Group: View + Save + Counter */}

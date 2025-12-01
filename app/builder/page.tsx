@@ -234,6 +234,12 @@ function BuilderContent() {
   const [showVersions, setShowVersions] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showFormatPanel, setShowFormatPanel] = useState(false)
+  // Layout Service API handlers (set by PresentationViewer when iframe is ready)
+  const [layoutServiceApis, setLayoutServiceApis] = useState<{
+    getSelectionInfo: () => Promise<{ hasSelection: boolean; selectedText?: string; sectionId?: string; slideIndex?: number } | null>
+    updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
+  } | null>(null)
+  const [isAIRegenerating, setIsAIRegenerating] = useState(false)
 
   // FIXED: Track when generating final presentation to show loading animation
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
@@ -1325,6 +1331,24 @@ function BuilderContent() {
                 console.log('Layout change requested:', layout)
                 // TODO: Implement via postMessage to iframe
               }}
+              // Layout Service v7.5.3 API integration
+              onGetSelectionInfo={layoutServiceApis?.getSelectionInfo}
+              onUpdateSectionContent={layoutServiceApis?.updateSectionContent}
+              onAIRegenerate={async (instruction, sectionId, currentContent) => {
+                // Simple AI regeneration using Claude API
+                // In production, this would call the Director Service
+                setIsAIRegenerating(true)
+                try {
+                  // For now, return a placeholder - will be connected to Director Service
+                  console.log('🤖 AI Regenerate request:', { instruction, sectionId, currentContent })
+                  // Simulate AI response with instruction-based modification
+                  const modifiedContent = `<p>${instruction}: ${currentContent}</p>`
+                  return modifiedContent
+                } finally {
+                  setIsAIRegenerating(false)
+                }
+              }}
+              isRegenerating={isAIRegenerating}
             />
 
             {/* Chat Messages */}
@@ -2044,6 +2068,7 @@ function BuilderContent() {
                 }}
                 onFormatPanelToggle={() => setShowFormatPanel(prev => !prev)}
                 isFormatPanelOpen={showFormatPanel}
+                onApiReady={setLayoutServiceApis}
                 className="flex-1"
               />
             ) : (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -9,9 +9,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { X, Sparkles, Layout, Palette } from 'lucide-react'
+import { X, Sparkles, Layout, Palette, MousePointer2, RefreshCw } from 'lucide-react'
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { cn } from '@/lib/utils'
+
+export interface SelectedSection {
+  sectionId: string
+  slideIndex: number
+  content: string
+}
 
 interface FormatPanelProps {
   isOpen: boolean
@@ -19,8 +25,10 @@ interface FormatPanelProps {
   currentSlide: number
   currentLayout?: SlideLayoutId
   onLayoutChange: (layout: SlideLayoutId) => Promise<void>
-  // Future: AI regeneration props
-  onAIRegenerate?: (instruction: string) => Promise<void>
+  // AI regeneration with Layout Service v7.5.3 APIs
+  onGetSelectionInfo?: () => Promise<{ hasSelection: boolean; selectedText?: string; sectionId?: string; slideIndex?: number } | null>
+  onUpdateSectionContent?: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
+  onAIRegenerate?: (instruction: string, sectionId: string, currentContent: string) => Promise<string | null>
   isRegenerating?: boolean
 }
 
@@ -41,11 +49,15 @@ export function FormatPanel({
   currentSlide,
   currentLayout,
   onLayoutChange,
+  onGetSelectionInfo,
+  onUpdateSectionContent,
   onAIRegenerate,
   isRegenerating = false
 }: FormatPanelProps) {
   const [isChangingLayout, setIsChangingLayout] = useState(false)
   const [aiInstruction, setAiInstruction] = useState('')
+  const [selectedSection, setSelectedSection] = useState<SelectedSection | null>(null)
+  const [isCapturing, setIsCapturing] = useState(false)
 
   const handleLayoutChange = async (value: string) => {
     setIsChangingLayout(true)
@@ -56,10 +68,49 @@ export function FormatPanel({
     }
   }
 
+  // Capture the currently selected section from the slide
+  const handleCaptureSelection = useCallback(async () => {
+    if (!onGetSelectionInfo) return
+
+    setIsCapturing(true)
+    try {
+      const info = await onGetSelectionInfo()
+      if (info?.hasSelection && info.sectionId) {
+        setSelectedSection({
+          sectionId: info.sectionId,
+          slideIndex: info.slideIndex ?? currentSlide - 1,
+          content: info.selectedText || ''
+        })
+        console.log('📌 Captured section:', info.sectionId)
+      } else {
+        setSelectedSection(null)
+      }
+    } finally {
+      setIsCapturing(false)
+    }
+  }, [onGetSelectionInfo, currentSlide])
+
   const handleAIRegenerate = async () => {
-    if (!onAIRegenerate || !aiInstruction.trim()) return
-    await onAIRegenerate(aiInstruction.trim())
-    setAiInstruction('')
+    if (!onAIRegenerate || !aiInstruction.trim() || !selectedSection) return
+
+    const newContent = await onAIRegenerate(
+      aiInstruction.trim(),
+      selectedSection.sectionId,
+      selectedSection.content
+    )
+
+    if (newContent && onUpdateSectionContent) {
+      const success = await onUpdateSectionContent(
+        selectedSection.slideIndex,
+        selectedSection.sectionId,
+        newContent
+      )
+      if (success) {
+        setAiInstruction('')
+        setSelectedSection(null)
+        console.log('✅ Section content updated')
+      }
+    }
   }
 
   return (
@@ -144,19 +195,65 @@ export function FormatPanel({
               <h4 className="text-sm font-medium text-gray-900">AI Regenerate</h4>
             </div>
 
-            {onAIRegenerate ? (
-              <>
-                <textarea
-                  value={aiInstruction}
-                  onChange={(e) => setAiInstruction(e.target.value)}
-                  placeholder="Describe how you want to change this slide..."
-                  className="w-full h-20 px-3 py-2 text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  disabled={isRegenerating}
-                />
+            {onGetSelectionInfo && onUpdateSectionContent && onAIRegenerate ? (
+              <div className="space-y-3">
+                {/* Step 1: Capture Selection */}
+                <div>
+                  <p className="text-xs text-gray-600 mb-2">
+                    1. Select text in the slide, then capture:
+                  </p>
+                  <Button
+                    onClick={handleCaptureSelection}
+                    disabled={isCapturing || isRegenerating}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    {isCapturing ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Capturing...
+                      </>
+                    ) : (
+                      <>
+                        <MousePointer2 className="h-4 w-4 mr-2" />
+                        Capture Selection
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Selected Section Display */}
+                {selectedSection && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-md p-2">
+                    <p className="text-xs font-medium text-purple-700 mb-1">
+                      Selected: {selectedSection.sectionId}
+                    </p>
+                    <p className="text-xs text-purple-600 line-clamp-2">
+                      {selectedSection.content || '(empty section)'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Step 2: Enter Instructions */}
+                <div>
+                  <p className="text-xs text-gray-600 mb-2">
+                    2. Describe how to regenerate:
+                  </p>
+                  <textarea
+                    value={aiInstruction}
+                    onChange={(e) => setAiInstruction(e.target.value)}
+                    placeholder="e.g., Make this more concise, add bullet points, make it more professional..."
+                    className="w-full h-20 px-3 py-2 text-sm border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    disabled={isRegenerating || !selectedSection}
+                  />
+                </div>
+
+                {/* Regenerate Button */}
                 <Button
                   onClick={handleAIRegenerate}
-                  disabled={!aiInstruction.trim() || isRegenerating}
-                  className="w-full mt-2 bg-purple-600 hover:bg-purple-700"
+                  disabled={!aiInstruction.trim() || !selectedSection || isRegenerating}
+                  className="w-full bg-purple-600 hover:bg-purple-700"
                   size="sm"
                 >
                   {isRegenerating ? (
@@ -171,7 +268,7 @@ export function FormatPanel({
                     </>
                   )}
                 </Button>
-              </>
+              </div>
             ) : (
               <div className="bg-gray-50 rounded-lg p-4 text-center">
                 <Sparkles className="h-8 w-8 text-gray-300 mx-auto mb-2" />
