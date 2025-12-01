@@ -107,6 +107,8 @@ export function PresentationViewer({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [slideToDelete, setSlideToDelete] = useState<number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  // Track when CRUD operations have modified slides (invalidates stale slideStructure)
+  const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
 
   // Sync totalSlides with slideCount prop changes
   useEffect(() => {
@@ -115,6 +117,14 @@ export function PresentationViewer({
       setTotalSlides(slideCount)
     }
   }, [slideCount])
+
+  // Reset CRUD modification flag when fresh slideStructure arrives from WebSocket
+  useEffect(() => {
+    if (slideStructure?.slides) {
+      setSlidesModifiedByCrud(false)
+      console.log('📡 Fresh slideStructure received, reset CRUD flag')
+    }
+  }, [slideStructure])
 
   // Reset iframe ready state when presentation URL changes
   useEffect(() => {
@@ -131,9 +141,10 @@ export function PresentationViewer({
   }, [])
 
   // Extract slide thumbnails from slideStructure
+  // After CRUD operations, slideStructure becomes stale so we use totalSlides instead
   const slideThumbnails = useMemo<SlideThumbnail[]>(() => {
-    if (!slideStructure || !slideStructure.slides) {
-      // If no slide structure, generate basic thumbnails based on slideCount
+    // If CRUD ops have modified slides, ignore stale slideStructure and use totalSlides
+    if (slidesModifiedByCrud || !slideStructure || !slideStructure.slides) {
       if (totalSlides > 0) {
         return Array.from({ length: totalSlides }, (_, i) => ({
           slideNumber: i + 1,
@@ -143,13 +154,13 @@ export function PresentationViewer({
       return []
     }
 
-    // Extract titles from slide structure
+    // Extract titles from slide structure (only when fresh from WebSocket)
     return slideStructure.slides.map((slide: any, index: number) => ({
       slideNumber: index + 1,
       title: slide.title || slide.slide_type || `Slide ${index + 1}`,
       content: slide.narrative || slide.key_points?.join(', ')
     }))
-  }, [slideStructure, totalSlides])
+  }, [slideStructure, totalSlides, slidesModifiedByCrud])
 
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
@@ -394,6 +405,7 @@ export function PresentationViewer({
 
         setTotalSlides(newTotal)
         setCurrentSlide(newSlideIndex + 1) // Navigate to new slide (1-based)
+        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
 
         toast({
           title: 'Slide Added',
@@ -428,6 +440,7 @@ export function PresentationViewer({
 
         setTotalSlides(newTotal)
         setCurrentSlide(newSlideIndex + 1)
+        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
 
         toast({
           title: 'Slide Duplicated',
@@ -465,6 +478,7 @@ export function PresentationViewer({
       if (result.success) {
         const newTotal = result.data?.slideCount ?? totalSlides - 1
         setTotalSlides(newTotal)
+        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
 
         // Adjust current slide if needed
         if (currentSlide > newTotal) {
@@ -538,6 +552,7 @@ export function PresentationViewer({
         if (currentSlide === fromIndex + 1) {
           setCurrentSlide(toIndex + 1)
         }
+        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
 
         toast({
           title: 'Slide Moved',
