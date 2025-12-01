@@ -22,7 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
-import { SaveStatusIndicator, SaveStatus } from './save-status-indicator'
+import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutId } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
 import { useToast } from '@/hooks/use-toast'
@@ -1094,12 +1094,6 @@ export function PresentationViewer({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-
-            {/* Save Status */}
-            <SaveStatusIndicator
-              status={saveStatus}
-              onRetry={saveStatus === 'error' ? handleForceSave : undefined}
-            />
 
             {/* Download Controls */}
             {downloadControls}
