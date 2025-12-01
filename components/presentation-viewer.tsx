@@ -1116,11 +1116,14 @@ export function PresentationViewer({
             {presentationUrl ? (
               <div
                 className={isFullscreen ? '' : 'w-full max-w-7xl'}
-                style={{
+                style={isFullscreen ? {
                   aspectRatio: '16/9',
-                  width: isFullscreen ? 'auto' : '100%',
-                  maxWidth: isFullscreen ? '100%' : undefined,
-                  maxHeight: isFullscreen ? '100%' : undefined
+                  // Use min() to pick the dimension that fits: either full width or height-based width
+                  width: 'min(calc(100vw - 32px), calc((100vh - 80px) * 16 / 9))',
+                  maxHeight: 'calc(100vh - 80px)'
+                } : {
+                  aspectRatio: '16/9',
+                  width: '100%'
                 }}
               >
                 <iframe
