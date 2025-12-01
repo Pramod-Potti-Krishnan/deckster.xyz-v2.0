@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import {
   ContextMenu,
@@ -65,6 +65,29 @@ export function SlideThumbnailStrip({
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
   const [isProcessing, setIsProcessing] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const slidesTotal = totalSlides ?? slides.length
+
+  // Keyboard support: Delete/Backspace to delete currently selected slide
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle Delete/Backspace when focused on the thumbnail strip
+      if (!containerRef.current?.contains(document.activeElement)) return
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && onDeleteSlide) {
+        // Prevent if only one slide or already processing
+        if (slidesTotal <= 1 || isProcessing !== null) return
+
+        e.preventDefault()
+        // Delete the currently selected (active) slide
+        onDeleteSlide(currentSlide - 1) // 0-based index
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentSlide, onDeleteSlide, slidesTotal, isProcessing])
 
   if (slides.length === 0) {
     return null
@@ -72,7 +95,6 @@ export function SlideThumbnailStrip({
 
   const isVertical = orientation === 'vertical'
   const hasCrudActions = onDuplicateSlide || onDeleteSlide || onChangeLayout || onReorderSlides
-  const slidesTotal = totalSlides ?? slides.length
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, slideNumber: number) => {
@@ -221,7 +243,7 @@ export function SlideThumbnailStrip({
             {/* Duplicate */}
             {onDuplicateSlide && (
               <ContextMenuItem
-                onClick={() => handleDuplicate(slide.slideNumber)}
+                onSelect={() => handleDuplicate(slide.slideNumber)}
                 disabled={isItemProcessing}
               >
                 <Copy className="mr-2 h-4 w-4" />
@@ -240,7 +262,7 @@ export function SlideThumbnailStrip({
                   {SLIDE_LAYOUTS.map((layout) => (
                     <ContextMenuItem
                       key={layout.id}
-                      onClick={() => handleChangeLayout(slide.slideNumber, layout.id)}
+                      onSelect={() => handleChangeLayout(slide.slideNumber, layout.id)}
                       disabled={isItemProcessing}
                     >
                       {layout.icon}
@@ -256,14 +278,14 @@ export function SlideThumbnailStrip({
               <>
                 <ContextMenuSeparator />
                 <ContextMenuItem
-                  onClick={() => handleMoveUp(slide.slideNumber)}
+                  onSelect={() => handleMoveUp(slide.slideNumber)}
                   disabled={isItemProcessing || slide.slideNumber <= 1}
                 >
                   <ChevronUp className="mr-2 h-4 w-4" />
                   Move Up
                 </ContextMenuItem>
                 <ContextMenuItem
-                  onClick={() => handleMoveDown(slide.slideNumber)}
+                  onSelect={() => handleMoveDown(slide.slideNumber)}
                   disabled={isItemProcessing || slide.slideNumber >= slidesTotal}
                 >
                   <ChevronDown className="mr-2 h-4 w-4" />
@@ -277,7 +299,7 @@ export function SlideThumbnailStrip({
               <>
                 <ContextMenuSeparator />
                 <ContextMenuItem
-                  onClick={() => onDeleteSlide(slide.slideNumber - 1)} // 0-based
+                  onSelect={() => onDeleteSlide(slide.slideNumber - 1)}
                   disabled={isItemProcessing || slidesTotal <= 1}
                   className="text-red-600 focus:text-red-600 focus:bg-red-50"
                 >
@@ -295,12 +317,17 @@ export function SlideThumbnailStrip({
   }
 
   return (
-    <div className={cn(
-      isVertical
-        ? "h-full bg-gray-50 border-l border-gray-200 py-4 px-2"
-        : "w-full bg-gray-50 border-t border-gray-200 py-3 px-4",
-      className
-    )}>
+    <div
+      ref={containerRef}
+      tabIndex={0}
+      className={cn(
+        isVertical
+          ? "h-full bg-gray-50 border-l border-gray-200 py-4 px-2"
+          : "w-full bg-gray-50 border-t border-gray-200 py-3 px-4",
+        "focus:outline-none",
+        className
+      )}
+    >
       <div className={cn(
         isVertical
           ? "flex flex-col items-center gap-2 overflow-y-auto h-full scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
