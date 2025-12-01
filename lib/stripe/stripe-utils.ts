@@ -1,4 +1,4 @@
-import { stripe } from './stripe'
+import { getStripe } from './stripe'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -20,7 +20,7 @@ export async function getOrCreateStripeCustomer(
   }
 
   // Create new Stripe customer
-  const customer = await stripe.customers.create({
+  const customer = await getStripe().customers.create({
     email,
     name: name || undefined,
     metadata: {
