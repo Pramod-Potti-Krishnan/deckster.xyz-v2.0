@@ -19,7 +19,7 @@ import {
   ChevronUp
 } from 'lucide-react'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
-import { ColorPicker } from '@/components/ui/color-picker'
+import { CompactColorPicker } from '@/components/ui/color-picker'
 import { cn } from '@/lib/utils'
 import {
   Collapsible,
@@ -64,13 +64,6 @@ const LINE_HEIGHTS = [
   { label: '2.0', value: '2' }
 ]
 
-// Text color swatches
-const TEXT_COLOR_SWATCHES = [
-  '#000000', '#1f2937', '#374151', '#6b7280', '#9ca3af', '#ffffff',
-  '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6',
-  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#be185d', '#7c3aed'
-]
-
 export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: StyleTabProps) {
   const [fontFamily, setFontFamily] = useState(formatting?.fontFamily || 'Inter')
   const [fontWeight, setFontWeight] = useState(formatting?.fontWeight || '400')
@@ -79,7 +72,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
   const [isFontDropdownOpen, setIsFontDropdownOpen] = useState(false)
   const [isWeightDropdownOpen, setIsWeightDropdownOpen] = useState(false)
   const [isSizeDropdownOpen, setIsSizeDropdownOpen] = useState(false)
-  const [isSpacingOpen, setIsSpacingOpen] = useState(true)
+  const [isSpacingOpen, setIsSpacingOpen] = useState(false)
   const [isBulletsOpen, setIsBulletsOpen] = useState(false)
   const [lineHeight, setLineHeight] = useState('1.15')
   const [beforeParagraph, setBeforeParagraph] = useState('0')
@@ -170,71 +163,69 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 space-y-3">
+      {/* Font Section Label */}
+      <label className="text-xs text-gray-400 uppercase tracking-wide">Font</label>
+
       {/* Font Family */}
-      <div className="space-y-2">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Font</label>
-        <div className="relative">
-          <button
-            onClick={() => setIsFontDropdownOpen(!isFontDropdownOpen)}
-            disabled={isApplying}
-            className="w-full flex items-center justify-between px-3 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition-colors"
-          >
-            <span style={{ fontFamily }}>{fontFamily}</span>
-            <ChevronDown className="h-4 w-4 text-gray-400" />
-          </button>
-          {isFontDropdownOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-xl z-10 max-h-48 overflow-y-auto">
-              {FONT_FAMILIES.map((font) => (
-                <button
-                  key={font}
-                  onClick={() => handleFontChange(font)}
-                  className={cn(
-                    "w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors",
-                    font === fontFamily && "bg-gray-700"
-                  )}
-                  style={{ fontFamily: font }}
-                >
-                  {font}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="relative">
+        <button
+          onClick={() => setIsFontDropdownOpen(!isFontDropdownOpen)}
+          disabled={isApplying}
+          className="w-full flex items-center justify-between px-3 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition-colors"
+        >
+          <span style={{ fontFamily }}>{fontFamily}</span>
+          <ChevronDown className="h-4 w-4 text-gray-400" />
+        </button>
+        {isFontDropdownOpen && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-xl z-10 max-h-48 overflow-y-auto">
+            {FONT_FAMILIES.map((font) => (
+              <button
+                key={font}
+                onClick={() => handleFontChange(font)}
+                className={cn(
+                  "w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors",
+                  font === fontFamily && "bg-gray-700"
+                )}
+                style={{ fontFamily: font }}
+              >
+                {font}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Font Weight */}
-      <div className="space-y-2">
-        <div className="relative">
-          <button
-            onClick={() => setIsWeightDropdownOpen(!isWeightDropdownOpen)}
-            disabled={isApplying}
-            className="w-full flex items-center justify-between px-3 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition-colors"
-          >
-            <span>{FONT_WEIGHTS.find(w => w.value === fontWeight)?.label || 'Regular'}</span>
-            <ChevronDown className="h-4 w-4 text-gray-400" />
-          </button>
-          {isWeightDropdownOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-xl z-10">
-              {FONT_WEIGHTS.map(({ label, value }) => (
-                <button
-                  key={value}
-                  onClick={() => handleWeightChange(value)}
-                  className={cn(
-                    "w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors",
-                    value === fontWeight && "bg-gray-700"
-                  )}
-                  style={{ fontWeight: value }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="relative">
+        <button
+          onClick={() => setIsWeightDropdownOpen(!isWeightDropdownOpen)}
+          disabled={isApplying}
+          className="w-full flex items-center justify-between px-3 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition-colors"
+        >
+          <span>{FONT_WEIGHTS.find(w => w.value === fontWeight)?.label || 'Regular'}</span>
+          <ChevronDown className="h-4 w-4 text-gray-400" />
+        </button>
+        {isWeightDropdownOpen && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-xl z-10">
+            {FONT_WEIGHTS.map(({ label, value }) => (
+              <button
+                key={value}
+                onClick={() => handleWeightChange(value)}
+                className={cn(
+                  "w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors",
+                  value === fontWeight && "bg-gray-700"
+                )}
+                style={{ fontWeight: value }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Font Size (type-in) + B/I/U/S Buttons */}
+      {/* Font Size + B/I/U/S - Compact Row */}
       <div className="flex gap-2">
         {/* Font Size - Type-in with dropdown */}
         <div className="relative flex-1">
@@ -247,16 +238,16 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
               onBlur={handleSizeInputBlur}
               onKeyDown={handleSizeInputKeyDown}
               disabled={isApplying}
-              className="w-14 px-3 py-2 bg-transparent text-sm text-white focus:outline-none"
+              className="w-12 px-2 py-1.5 bg-transparent text-sm text-white focus:outline-none text-center"
               placeholder="16"
             />
-            <span className="text-xs text-gray-400 pr-1">pt</span>
+            <span className="text-xs text-gray-400">pt</span>
             <button
               onClick={() => setIsSizeDropdownOpen(!isSizeDropdownOpen)}
               disabled={isApplying}
-              className="px-2 py-2 hover:bg-gray-700 rounded-r-lg transition-colors"
+              className="px-1.5 py-1.5 hover:bg-gray-700 rounded-r-lg transition-colors"
             >
-              <ChevronDown className="h-4 w-4 text-gray-400" />
+              <ChevronDown className="h-3 w-3 text-gray-400" />
             </button>
           </div>
           {isSizeDropdownOpen && (
@@ -266,47 +257,47 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
                   key={size}
                   onClick={() => handleSizeChange(size)}
                   className={cn(
-                    "w-full px-3 py-2 text-left text-sm hover:bg-gray-700 transition-colors",
+                    "w-full px-3 py-1.5 text-left text-sm hover:bg-gray-700 transition-colors",
                     size === fontSize && "bg-gray-700"
                   )}
                 >
-                  {size} pt
+                  {size}
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Text Style Buttons */}
-        <div className="flex bg-gray-800 rounded-lg p-1">
+        {/* Text Style Buttons - Compact */}
+        <div className="flex bg-gray-800 rounded-lg">
           <button
             onClick={() => handleFormatCommand('bold')}
             disabled={isApplying}
-            className="p-2 rounded hover:bg-gray-700 transition-colors"
-            title="Bold (Ctrl+B)"
+            className="p-1.5 rounded hover:bg-gray-700 transition-colors"
+            title="Bold"
           >
             <Bold className="h-4 w-4" />
           </button>
           <button
             onClick={() => handleFormatCommand('italic')}
             disabled={isApplying}
-            className="p-2 rounded hover:bg-gray-700 transition-colors"
-            title="Italic (Ctrl+I)"
+            className="p-1.5 rounded hover:bg-gray-700 transition-colors"
+            title="Italic"
           >
             <Italic className="h-4 w-4" />
           </button>
           <button
             onClick={() => handleFormatCommand('underline')}
             disabled={isApplying}
-            className="p-2 rounded hover:bg-gray-700 transition-colors"
-            title="Underline (Ctrl+U)"
+            className="p-1.5 rounded hover:bg-gray-700 transition-colors"
+            title="Underline"
           >
             <Underline className="h-4 w-4" />
           </button>
           <button
             onClick={() => handleFormatCommand('strikethrough')}
             disabled={isApplying}
-            className="p-2 rounded hover:bg-gray-700 transition-colors"
+            className="p-1.5 rounded hover:bg-gray-700 transition-colors"
             title="Strikethrough"
           >
             <Strikethrough className="h-4 w-4" />
@@ -314,146 +305,136 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
         </div>
       </div>
 
-      {/* Text Color */}
-      <ColorPicker
+      {/* Text Color - Compact */}
+      <CompactColorPicker
         label="Text Color"
         value={textColor}
         onChange={handleColorChange}
-        swatches={TEXT_COLOR_SWATCHES}
         disabled={isApplying}
-        showCurrentColor={true}
       />
 
+      {/* Alignment Section Label */}
+      <label className="text-xs text-gray-400 uppercase tracking-wide">Alignment</label>
+
       {/* Horizontal Alignment */}
-      <div className="space-y-2">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Alignment</label>
-        <div className="flex bg-gray-800 rounded-lg p-1">
-          <button
-            onClick={() => handleAlignment('left')}
-            disabled={isApplying}
-            className="flex-1 p-2 rounded hover:bg-gray-700 transition-colors"
-            title="Align Left"
-          >
-            <AlignLeft className="h-4 w-4 mx-auto" />
-          </button>
-          <button
-            onClick={() => handleAlignment('center')}
-            disabled={isApplying}
-            className="flex-1 p-2 rounded hover:bg-gray-700 transition-colors"
-            title="Align Center"
-          >
-            <AlignCenter className="h-4 w-4 mx-auto" />
-          </button>
-          <button
-            onClick={() => handleAlignment('right')}
-            disabled={isApplying}
-            className="flex-1 p-2 rounded hover:bg-gray-700 transition-colors"
-            title="Align Right"
-          >
-            <AlignRight className="h-4 w-4 mx-auto" />
-          </button>
-          <button
-            onClick={() => handleAlignment('justify')}
-            disabled={isApplying}
-            className="flex-1 p-2 rounded hover:bg-gray-700 transition-colors"
-            title="Justify"
-          >
-            <AlignJustify className="h-4 w-4 mx-auto" />
-          </button>
-        </div>
+      <div className="flex bg-gray-800 rounded-lg p-0.5">
+        <button
+          onClick={() => handleAlignment('left')}
+          disabled={isApplying}
+          className="flex-1 p-1.5 rounded hover:bg-gray-700 transition-colors"
+          title="Align Left"
+        >
+          <AlignLeft className="h-4 w-4 mx-auto" />
+        </button>
+        <button
+          onClick={() => handleAlignment('center')}
+          disabled={isApplying}
+          className="flex-1 p-1.5 rounded hover:bg-gray-700 transition-colors"
+          title="Align Center"
+        >
+          <AlignCenter className="h-4 w-4 mx-auto" />
+        </button>
+        <button
+          onClick={() => handleAlignment('right')}
+          disabled={isApplying}
+          className="flex-1 p-1.5 rounded hover:bg-gray-700 transition-colors"
+          title="Align Right"
+        >
+          <AlignRight className="h-4 w-4 mx-auto" />
+        </button>
+        <button
+          onClick={() => handleAlignment('justify')}
+          disabled={isApplying}
+          className="flex-1 p-1.5 rounded hover:bg-gray-700 transition-colors"
+          title="Justify"
+        >
+          <AlignJustify className="h-4 w-4 mx-auto" />
+        </button>
       </div>
 
       {/* Vertical Alignment */}
-      <div className="space-y-2">
-        <div className="flex bg-gray-800 rounded-lg p-1">
-          <button
-            onClick={() => handleVerticalAlignment('top')}
-            disabled={isApplying}
-            className="flex-1 p-2 rounded hover:bg-gray-700 transition-colors"
-            title="Align Top"
-          >
-            <AlignVerticalJustifyStart className="h-4 w-4 mx-auto" />
-          </button>
-          <button
-            onClick={() => handleVerticalAlignment('middle')}
-            disabled={isApplying}
-            className="flex-1 p-2 rounded hover:bg-gray-700 transition-colors"
-            title="Align Middle"
-          >
-            <AlignVerticalJustifyCenter className="h-4 w-4 mx-auto" />
-          </button>
-          <button
-            onClick={() => handleVerticalAlignment('bottom')}
-            disabled={isApplying}
-            className="flex-1 p-2 rounded hover:bg-gray-700 transition-colors"
-            title="Align Bottom"
-          >
-            <AlignVerticalJustifyEnd className="h-4 w-4 mx-auto" />
-          </button>
-        </div>
+      <div className="flex bg-gray-800 rounded-lg p-0.5">
+        <button
+          onClick={() => handleVerticalAlignment('top')}
+          disabled={isApplying}
+          className="flex-1 p-1.5 rounded hover:bg-gray-700 transition-colors"
+          title="Align Top"
+        >
+          <AlignVerticalJustifyStart className="h-4 w-4 mx-auto" />
+        </button>
+        <button
+          onClick={() => handleVerticalAlignment('middle')}
+          disabled={isApplying}
+          className="flex-1 p-1.5 rounded hover:bg-gray-700 transition-colors"
+          title="Align Middle"
+        >
+          <AlignVerticalJustifyCenter className="h-4 w-4 mx-auto" />
+        </button>
+        <button
+          onClick={() => handleVerticalAlignment('bottom')}
+          disabled={isApplying}
+          className="flex-1 p-1.5 rounded hover:bg-gray-700 transition-colors"
+          title="Align Bottom"
+        >
+          <AlignVerticalJustifyEnd className="h-4 w-4 mx-auto" />
+        </button>
       </div>
 
-      {/* Spacing Section (Collapsible) */}
+      {/* Spacing Section (Collapsible) - Compact inline layout */}
       <Collapsible open={isSpacingOpen} onOpenChange={setIsSpacingOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs text-gray-400 uppercase tracking-wide hover:text-white transition-colors">
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs text-gray-400 uppercase tracking-wide hover:text-white transition-colors">
           <span>Spacing</span>
           {isSpacingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3 pt-2">
-          {/* Line Spacing */}
-          <div className="space-y-1">
-            <label className="text-xs text-gray-500">Lines</label>
-            <div className="flex bg-gray-800 rounded-lg p-1">
+        <CollapsibleContent className="space-y-2 pt-2">
+          {/* Lines - Inline */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">Lines</span>
+            <select
+              value={lineHeight}
+              onChange={(e) => handleLineHeight(e.target.value)}
+              disabled={isApplying}
+              className="w-20 px-2 py-1 bg-gray-800 rounded text-xs text-white focus:outline-none"
+            >
               {LINE_HEIGHTS.map(({ label, value }) => (
-                <button
-                  key={value}
-                  onClick={() => handleLineHeight(value)}
-                  disabled={isApplying}
-                  className={cn(
-                    "flex-1 py-1.5 text-xs rounded transition-colors",
-                    lineHeight === value ? "bg-gray-600" : "hover:bg-gray-700"
-                  )}
-                  title={`Line height: ${value}`}
-                >
-                  {label}
-                </button>
+                <option key={value} value={value}>{label}</option>
               ))}
+            </select>
+          </div>
+
+          {/* Before Paragraph - Inline */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">Before Paragraph</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                value={beforeParagraph}
+                onChange={(e) => setBeforeParagraph(e.target.value)}
+                onBlur={() => handleParagraphSpacing(beforeParagraph, afterParagraph)}
+                disabled={isApplying}
+                min="0"
+                max="100"
+                className="w-12 px-2 py-1 bg-gray-800 rounded text-xs text-white text-right focus:outline-none"
+              />
+              <span className="text-xs text-gray-500">pt</span>
             </div>
           </div>
 
-          {/* Before/After Paragraph */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500">Before Paragraph</label>
-              <div className="flex items-center bg-gray-800 rounded-lg">
-                <input
-                  type="number"
-                  value={beforeParagraph}
-                  onChange={(e) => setBeforeParagraph(e.target.value)}
-                  onBlur={() => handleParagraphSpacing(beforeParagraph, afterParagraph)}
-                  disabled={isApplying}
-                  min="0"
-                  max="100"
-                  className="w-full px-2 py-1.5 bg-transparent text-sm text-white focus:outline-none"
-                />
-                <span className="text-xs text-gray-400 pr-2">pt</span>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500">After Paragraph</label>
-              <div className="flex items-center bg-gray-800 rounded-lg">
-                <input
-                  type="number"
-                  value={afterParagraph}
-                  onChange={(e) => setAfterParagraph(e.target.value)}
-                  onBlur={() => handleParagraphSpacing(beforeParagraph, afterParagraph)}
-                  disabled={isApplying}
-                  min="0"
-                  max="100"
-                  className="w-full px-2 py-1.5 bg-transparent text-sm text-white focus:outline-none"
-                />
-                <span className="text-xs text-gray-400 pr-2">pt</span>
-              </div>
+          {/* After Paragraph - Inline */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">After Paragraph</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                value={afterParagraph}
+                onChange={(e) => setAfterParagraph(e.target.value)}
+                onBlur={() => handleParagraphSpacing(beforeParagraph, afterParagraph)}
+                disabled={isApplying}
+                min="0"
+                max="100"
+                className="w-12 px-2 py-1 bg-gray-800 rounded text-xs text-white text-right focus:outline-none"
+              />
+              <span className="text-xs text-gray-500">pt</span>
             </div>
           </div>
         </CollapsibleContent>
@@ -461,7 +442,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
 
       {/* Bullets & Lists Section (Collapsible) */}
       <Collapsible open={isBulletsOpen} onOpenChange={setIsBulletsOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs text-gray-400 uppercase tracking-wide hover:text-white transition-colors">
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs text-gray-400 uppercase tracking-wide hover:text-white transition-colors">
           <span>Bullets & Lists</span>
           {isBulletsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </CollapsibleTrigger>
@@ -470,7 +451,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
             <button
               onClick={() => handleFormatCommand('insertUnorderedList')}
               disabled={isApplying}
-              className="flex-1 flex items-center justify-center gap-2 py-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
               title="Bullet list"
             >
               <List className="h-4 w-4" />
@@ -479,7 +460,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
             <button
               onClick={() => handleFormatCommand('insertOrderedList')}
               disabled={isApplying}
-              className="flex-1 flex items-center justify-center gap-2 py-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors"
               title="Numbered list"
             >
               <ListOrdered className="h-4 w-4" />

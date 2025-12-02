@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from 'react'
-import { X, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Trash2, ChevronRight } from 'lucide-react'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { StyleTab } from './style-tab'
 import { LayoutTab } from './layout-tab'
@@ -54,35 +54,26 @@ export function TextBoxFormatPanel({
 
   return (
     <>
-      {/* Panel Container - Absolute positioned within chat container */}
+      {/* Panel Container - Absolute positioned, fully hidden when collapsed */}
       <div
         className={cn(
           "absolute inset-0 bg-gray-900 text-white shadow-2xl z-20 flex flex-col",
           "transform transition-transform duration-200 ease-out",
-          isCollapsed ? "-translate-x-[calc(100%-32px)]" : "translate-x-0"
+          isCollapsed ? "-translate-x-full" : "translate-x-0"
         )}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
           <h2 className="text-sm font-semibold">Text Box</h2>
-          <div className="flex items-center gap-2">
-            {onDelete && (
-              <button
-                onClick={onDelete}
-                className="p-1.5 rounded hover:bg-red-600/20 text-red-400 hover:text-red-300 transition-colors"
-                title="Delete text box"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            )}
+          {onDelete && (
             <button
-              onClick={() => onCollapsedChange(true)}
-              className="p-1.5 rounded hover:bg-gray-700 transition-colors"
-              title="Collapse panel"
+              onClick={onDelete}
+              className="p-1.5 rounded hover:bg-red-600/20 text-red-400 hover:text-red-300 transition-colors"
+              title="Delete text box"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <Trash2 className="h-4 w-4" />
             </button>
-          </div>
+          )}
         </div>
 
         {/* Tab Headers - Keynote-style segmented control */}
@@ -157,25 +148,25 @@ export function TextBoxFormatPanel({
             Applying...
           </div>
         )}
-
-        {/* Expand Arrow - shown on right edge when collapsed */}
-        <button
-          onClick={() => onCollapsedChange(!isCollapsed)}
-          className={cn(
-            "absolute right-0 top-1/2 -translate-y-1/2 w-8 h-16",
-            "bg-gray-800 hover:bg-gray-700 rounded-r-lg",
-            "flex items-center justify-center transition-colors",
-            "border-l border-gray-700"
-          )}
-          title={isCollapsed ? "Expand panel" : "Collapse panel"}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="h-5 w-5 text-gray-400" />
-          ) : (
-            <ChevronLeft className="h-5 w-5 text-gray-400" />
-          )}
-        </button>
       </div>
+
+      {/* Prominent floating arrow tab - visible when collapsed */}
+      {isCollapsed && (
+        <button
+          onClick={() => onCollapsedChange(false)}
+          className={cn(
+            "absolute left-0 top-1/2 -translate-y-1/2 z-20",
+            "w-8 h-20 bg-gray-800 hover:bg-gray-700",
+            "rounded-r-xl shadow-lg",
+            "flex items-center justify-center",
+            "border-y border-r border-gray-600",
+            "transition-colors"
+          )}
+          title="Expand format panel"
+        >
+          <ChevronRight className="h-6 w-6 text-gray-300" />
+        </button>
+      )}
     </>
   )
 }

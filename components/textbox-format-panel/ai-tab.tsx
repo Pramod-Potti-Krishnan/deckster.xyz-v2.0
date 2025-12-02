@@ -12,35 +12,62 @@ interface AITabProps {
   slideIndex?: number
 }
 
-type ContentStyle = 'professional' | 'casual' | 'creative'
-
-const STYLE_OPTIONS: { value: ContentStyle; label: string; description: string }[] = [
-  { value: 'professional', label: 'Professional', description: 'Formal, business-appropriate tone' },
-  { value: 'casual', label: 'Casual', description: 'Friendly, conversational tone' },
-  { value: 'creative', label: 'Creative', description: 'Engaging, imaginative style' }
+// Quick action chips - execute immediately on existing text
+const QUICK_ACTIONS = [
+  { label: 'Make shorter', action: 'shorten' },
+  { label: 'Make longer', action: 'expand' },
+  { label: 'Fix grammar', action: 'grammar' },
+  { label: 'Add bullets', action: 'bulletize' },
+  { label: 'Simplify', action: 'simplify' },
+  { label: 'Professional', action: 'professional' },
 ]
 
-const MAX_LENGTH_OPTIONS = [
-  { label: 'Brief', value: 50 },
-  { label: 'Medium', value: 150 },
-  { label: 'Detailed', value: 300 }
+// Tone presets
+const TONE_PRESETS = [
+  { label: 'Prof', value: 'professional', fullLabel: 'Professional' },
+  { label: 'Casual', value: 'casual', fullLabel: 'Casual' },
+  { label: 'Pers', value: 'persuasive', fullLabel: 'Persuasive' },
+  { label: 'Tech', value: 'technical', fullLabel: 'Technical' },
 ]
 
-const QUICK_PROMPTS = [
-  'Write a compelling headline',
-  'Create a bullet list of key points',
-  'Write an executive summary',
-  'Generate a call-to-action',
-  'Create a product description'
+// Style presets
+const STYLE_PRESETS = [
+  { label: 'Expand', value: 'expand' },
+  { label: 'Summarize', value: 'summarize' },
+  { label: 'Rewrite', value: 'rewrite' },
 ]
 
 export function AITab({ onSendCommand, isApplying, elementId, presentationId, slideIndex }: AITabProps) {
   const [prompt, setPrompt] = useState('')
-  const [style, setStyle] = useState<ContentStyle>('professional')
-  const [maxLength, setMaxLength] = useState(150)
+  const [tone, setTone] = useState<string | null>(null)
+  const [style, setStyle] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Execute quick action on existing text
+  const handleQuickAction = async (action: string) => {
+    setError(null)
+    setIsGenerating(true)
+
+    try {
+      const result = await onSendCommand('generateTextBoxContent', {
+        action,
+        elementId,
+        presentationId,
+        slideIndex
+      })
+
+      if (!result.success) {
+        setError(result.error || 'Action failed')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Action failed')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  // Generate content from prompt
   const handleGenerate = async () => {
     if (!prompt.trim()) {
       setError('Please enter a prompt')
@@ -53,8 +80,8 @@ export function AITab({ onSendCommand, isApplying, elementId, presentationId, sl
     try {
       const result = await onSendCommand('generateTextBoxContent', {
         prompt: prompt.trim(),
-        style,
-        maxLength,
+        tone: tone || undefined,
+        style: style || undefined,
         elementId,
         presentationId,
         slideIndex
@@ -72,97 +99,91 @@ export function AITab({ onSendCommand, isApplying, elementId, presentationId, sl
     }
   }
 
-  const handleQuickPrompt = (quickPrompt: string) => {
-    setPrompt(quickPrompt)
-  }
-
   return (
-    <div className="p-4 space-y-5">
+    <div className="p-3 space-y-3">
       {/* Header */}
       <div className="flex items-center gap-2 text-blue-400">
         <Sparkles className="h-4 w-4" />
-        <span className="text-sm font-medium">AI Content Generator</span>
+        <span className="text-sm font-medium">AI Content</span>
       </div>
 
-      {/* Prompt Input */}
-      <div className="space-y-2">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">What would you like to write?</label>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Describe the content you want to generate..."
-          disabled={isGenerating}
-          className="w-full h-24 px-3 py-2 bg-gray-800 rounded-lg text-sm placeholder:text-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      {/* Quick Prompts */}
-      <div className="space-y-2">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Quick prompts</label>
+      {/* Quick Actions - Chips Grid */}
+      <div className="space-y-1.5">
+        <label className="text-xs text-gray-400 uppercase tracking-wide">Quick Actions</label>
         <div className="flex flex-wrap gap-1.5">
-          {QUICK_PROMPTS.map((quickPrompt) => (
+          {QUICK_ACTIONS.map(({ label, action }) => (
             <button
-              key={quickPrompt}
-              onClick={() => handleQuickPrompt(quickPrompt)}
-              disabled={isGenerating}
-              className="px-2 py-1 bg-gray-800 rounded text-xs hover:bg-gray-700 transition-colors"
+              key={action}
+              onClick={() => handleQuickAction(action)}
+              disabled={isGenerating || isApplying}
+              className={cn(
+                "px-2.5 py-1 bg-gray-800 rounded-full text-xs",
+                "hover:bg-gray-700 transition-colors",
+                "disabled:opacity-50 disabled:cursor-not-allowed"
+              )}
             >
-              {quickPrompt}
+              {label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Style Selection */}
-      <div className="space-y-2">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Writing Style</label>
-        <div className="space-y-1">
-          {STYLE_OPTIONS.map((option) => (
+      {/* Divider */}
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-px bg-gray-700" />
+        <span className="text-xs text-gray-500">or write a prompt</span>
+        <div className="flex-1 h-px bg-gray-700" />
+      </div>
+
+      {/* Prompt Input - Compact */}
+      <textarea
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        placeholder="Describe what you want..."
+        disabled={isGenerating}
+        className={cn(
+          "w-full h-16 px-3 py-2 bg-gray-800 rounded-lg text-sm",
+          "placeholder:text-gray-500 resize-none",
+          "focus:outline-none focus:ring-1 focus:ring-blue-500"
+        )}
+      />
+
+      {/* Tone Presets - Compact row */}
+      <div className="space-y-1.5">
+        <label className="text-xs text-gray-400">Tone</label>
+        <div className="flex bg-gray-800 rounded-lg p-0.5">
+          {TONE_PRESETS.map(({ label, value, fullLabel }) => (
             <button
-              key={option.value}
-              onClick={() => setStyle(option.value)}
+              key={value}
+              onClick={() => setTone(tone === value ? null : value)}
               disabled={isGenerating}
               className={cn(
-                "w-full flex items-start gap-3 p-3 rounded-lg text-left transition-colors",
-                style === option.value
-                  ? "bg-blue-600/20 border border-blue-500"
-                  : "bg-gray-800 hover:bg-gray-700"
+                "flex-1 py-1 text-xs rounded transition-colors",
+                tone === value ? "bg-blue-600" : "hover:bg-gray-700"
               )}
+              title={fullLabel}
             >
-              <div
-                className={cn(
-                  "w-4 h-4 mt-0.5 rounded-full border-2 flex items-center justify-center",
-                  style === option.value ? "border-blue-500" : "border-gray-500"
-                )}
-              >
-                {style === option.value && (
-                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                )}
-              </div>
-              <div>
-                <div className="text-sm font-medium">{option.label}</div>
-                <div className="text-xs text-gray-400">{option.description}</div>
-              </div>
+              {label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Length Selection */}
-      <div className="space-y-2">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Content Length</label>
-        <div className="flex bg-gray-800 rounded-lg p-1">
-          {MAX_LENGTH_OPTIONS.map((option) => (
+      {/* Style Presets - Compact row */}
+      <div className="space-y-1.5">
+        <label className="text-xs text-gray-400">Style</label>
+        <div className="flex bg-gray-800 rounded-lg p-0.5">
+          {STYLE_PRESETS.map(({ label, value }) => (
             <button
-              key={option.value}
-              onClick={() => setMaxLength(option.value)}
+              key={value}
+              onClick={() => setStyle(style === value ? null : value)}
               disabled={isGenerating}
               className={cn(
-                "flex-1 py-2 text-xs rounded transition-colors",
-                maxLength === option.value ? "bg-gray-600" : "hover:bg-gray-700"
+                "flex-1 py-1 text-xs rounded transition-colors",
+                style === value ? "bg-blue-600" : "hover:bg-gray-700"
               )}
             >
-              {option.label}
+              {label}
             </button>
           ))}
         </div>
@@ -170,7 +191,7 @@ export function AITab({ onSendCommand, isApplying, elementId, presentationId, sl
 
       {/* Error Message */}
       {error && (
-        <div className="p-3 bg-red-600/20 border border-red-500 rounded-lg text-sm text-red-400">
+        <div className="px-2 py-1.5 bg-red-600/20 border border-red-500 rounded text-xs text-red-400">
           {error}
         </div>
       )}
@@ -180,7 +201,7 @@ export function AITab({ onSendCommand, isApplying, elementId, presentationId, sl
         onClick={handleGenerate}
         disabled={isGenerating || isApplying || !prompt.trim()}
         className={cn(
-          "w-full flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors",
+          "w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors",
           isGenerating || isApplying || !prompt.trim()
             ? "bg-gray-700 text-gray-400 cursor-not-allowed"
             : "bg-blue-600 hover:bg-blue-700 text-white"
@@ -201,7 +222,7 @@ export function AITab({ onSendCommand, isApplying, elementId, presentationId, sl
 
       {/* Info Text */}
       <p className="text-xs text-gray-500 text-center">
-        AI-generated content will replace existing text in the text box
+        Output: HTML, CSS & JS content
       </p>
     </div>
   )

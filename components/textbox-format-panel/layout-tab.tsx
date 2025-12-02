@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, Minus, Plus } from 'lucide-react'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
-import { ColorPicker } from '@/components/ui/color-picker'
+import { CompactColorPicker } from '@/components/ui/color-picker'
 import { cn } from '@/lib/utils'
 import {
   Collapsible,
@@ -21,22 +21,6 @@ interface LayoutTabProps {
 const BORDER_STYLES = [
   { label: 'None', value: 'none' },
   { label: 'Line', value: 'solid' }
-]
-
-// Background color swatches
-const BACKGROUND_SWATCHES = [
-  'transparent',
-  '#ffffff', '#f9fafb', '#f3f4f6', '#e5e7eb', '#d1d5db',
-  '#fef3c7', '#dcfce7', '#dbeafe', '#fce7f3', '#e0e7ff',
-  '#fef2f2', '#ecfdf5', '#eff6ff', '#fdf4ff', '#f5f3ff',
-  '#000000', '#1f2937', '#374151'
-]
-
-// Border color swatches
-const BORDER_SWATCHES = [
-  '#000000', '#1f2937', '#374151', '#6b7280', '#9ca3af', '#d1d5db',
-  '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6',
-  '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#be185d', '#7c3aed'
 ]
 
 export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: LayoutTabProps) {
@@ -61,7 +45,7 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
   const [roundedCorners, setRoundedCorners] = useState(false)
 
   // Background state
-  const [backgroundColor, setBackgroundColor] = useState('transparent')
+  const [backgroundColor, setBackgroundColor] = useState('#ffffff')
 
   // Handlers
   const handleColumnsChange = async (delta: number) => {
@@ -154,33 +138,33 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
   }
 
   return (
-    <div className="p-4 space-y-4">
-      {/* Columns */}
-      <div className="space-y-2">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Columns</label>
-        <div className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+    <div className="p-3 space-y-3">
+      {/* Columns - Compact */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-300">Columns</span>
+        <div className="flex items-center bg-gray-800 rounded-lg">
           <button
             onClick={() => handleColumnsChange(-1)}
             disabled={isApplying || columns <= 1}
-            className="p-1 rounded hover:bg-gray-700 disabled:opacity-40 transition-colors"
+            className="p-1.5 rounded-l-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
           >
-            <Minus className="h-4 w-4" />
+            <Minus className="h-3 w-3" />
           </button>
-          <span className="text-sm font-medium">{columns}</span>
+          <span className="w-8 text-center text-sm">{columns}</span>
           <button
             onClick={() => handleColumnsChange(1)}
             disabled={isApplying || columns >= 4}
-            className="p-1 rounded hover:bg-gray-700 disabled:opacity-40 transition-colors"
+            className="p-1.5 rounded-r-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3 w-3" />
           </button>
         </div>
       </div>
 
-      {/* Text Inset */}
-      <div className="space-y-2">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Text Inset</label>
-        <div className="flex items-center bg-gray-800 rounded-lg">
+      {/* Text Inset - Compact */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-300">Text Inset</span>
+        <div className="flex items-center gap-1">
           <input
             type="number"
             value={textInset}
@@ -189,27 +173,27 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
             disabled={isApplying}
             min="0"
             max="100"
-            className="w-full px-3 py-2 bg-transparent text-sm text-white focus:outline-none"
+            className="w-12 px-2 py-1 bg-gray-800 rounded text-xs text-white text-right focus:outline-none"
           />
-          <span className="text-xs text-gray-400 pr-3">pt</span>
+          <span className="text-xs text-gray-500">pt</span>
         </div>
       </div>
 
-      {/* Autosize Text */}
-      <div className="flex items-center justify-between py-2">
-        <label className="text-sm">Autosize Text</label>
+      {/* Autosize Text - Compact */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-300">Autosize Text</span>
         <button
           onClick={() => handleAutosizeChange(!autosizeText)}
           disabled={isApplying}
           className={cn(
-            "w-10 h-6 rounded-full transition-colors relative",
+            "w-9 h-5 rounded-full transition-colors relative",
             autosizeText ? "bg-blue-600" : "bg-gray-700"
           )}
         >
           <div
             className={cn(
-              "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-              autosizeText ? "left-5" : "left-1"
+              "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform",
+              autosizeText ? "left-[18px]" : "left-0.5"
             )}
           />
         </button>
@@ -217,53 +201,54 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
 
       {/* Indents Section (Collapsible) */}
       <Collapsible open={isIndentsOpen} onOpenChange={setIsIndentsOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs text-gray-400 uppercase tracking-wide hover:text-white transition-colors">
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs text-gray-400 uppercase tracking-wide hover:text-white transition-colors">
           <span>Indents</span>
           {isIndentsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3 pt-2">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500">First</label>
-              <div className="flex items-center bg-gray-800 rounded-lg">
-                <input
-                  type="number"
-                  value={firstIndent}
-                  onChange={(e) => setFirstIndent(e.target.value)}
-                  onBlur={() => handleIndentChange('first', firstIndent)}
-                  disabled={isApplying}
-                  className="w-full px-2 py-1.5 bg-transparent text-sm text-white focus:outline-none"
-                />
-                <span className="text-xs text-gray-400 pr-2">pt</span>
-              </div>
+        <CollapsibleContent className="space-y-2 pt-2">
+          {/* First Indent */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">First</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                value={firstIndent}
+                onChange={(e) => setFirstIndent(e.target.value)}
+                onBlur={() => handleIndentChange('first', firstIndent)}
+                disabled={isApplying}
+                className="w-12 px-2 py-1 bg-gray-800 rounded text-xs text-white text-right focus:outline-none"
+              />
+              <span className="text-xs text-gray-500">pt</span>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500">Left</label>
-              <div className="flex items-center bg-gray-800 rounded-lg">
-                <input
-                  type="number"
-                  value={leftIndent}
-                  onChange={(e) => setLeftIndent(e.target.value)}
-                  onBlur={() => handleIndentChange('left', leftIndent)}
-                  disabled={isApplying}
-                  className="w-full px-2 py-1.5 bg-transparent text-sm text-white focus:outline-none"
-                />
-                <span className="text-xs text-gray-400 pr-2">pt</span>
-              </div>
+          </div>
+          {/* Left Indent */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">Left</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                value={leftIndent}
+                onChange={(e) => setLeftIndent(e.target.value)}
+                onBlur={() => handleIndentChange('left', leftIndent)}
+                disabled={isApplying}
+                className="w-12 px-2 py-1 bg-gray-800 rounded text-xs text-white text-right focus:outline-none"
+              />
+              <span className="text-xs text-gray-500">pt</span>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500">Right</label>
-              <div className="flex items-center bg-gray-800 rounded-lg">
-                <input
-                  type="number"
-                  value={rightIndent}
-                  onChange={(e) => setRightIndent(e.target.value)}
-                  onBlur={() => handleIndentChange('right', rightIndent)}
-                  disabled={isApplying}
-                  className="w-full px-2 py-1.5 bg-transparent text-sm text-white focus:outline-none"
-                />
-                <span className="text-xs text-gray-400 pr-2">pt</span>
-              </div>
+          </div>
+          {/* Right Indent */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">Right</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                value={rightIndent}
+                onChange={(e) => setRightIndent(e.target.value)}
+                onBlur={() => handleIndentChange('right', rightIndent)}
+                disabled={isApplying}
+                className="w-12 px-2 py-1 bg-gray-800 rounded text-xs text-white text-right focus:outline-none"
+              />
+              <span className="text-xs text-gray-500">pt</span>
             </div>
           </div>
         </CollapsibleContent>
@@ -271,111 +256,120 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
 
       {/* Paragraph Borders Section (Collapsible) */}
       <Collapsible open={isBordersOpen} onOpenChange={setIsBordersOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-xs text-gray-400 uppercase tracking-wide hover:text-white transition-colors">
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 text-xs text-gray-400 uppercase tracking-wide hover:text-white transition-colors">
           <span>Paragraph Borders</span>
           {isBordersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3 pt-2">
-          {/* Border Style */}
-          <div className="flex bg-gray-800 rounded-lg p-1">
-            {BORDER_STYLES.map(({ label, value }) => (
-              <button
-                key={value}
-                onClick={() => handleBorderStyleChange(value)}
-                disabled={isApplying}
-                className={cn(
-                  "flex-1 py-2 text-xs rounded transition-colors",
-                  borderStyle === value ? "bg-gray-600" : "hover:bg-gray-700"
-                )}
-              >
-                {label}
-              </button>
-            ))}
+        <CollapsibleContent className="space-y-2 pt-2">
+          {/* Border Style + Color + Width - Compact Row */}
+          <div className="flex items-center gap-2">
+            <select
+              value={borderStyle}
+              onChange={(e) => handleBorderStyleChange(e.target.value)}
+              disabled={isApplying}
+              className="w-20 px-2 py-1 bg-gray-800 rounded text-xs text-white focus:outline-none"
+            >
+              {BORDER_STYLES.map(({ label, value }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+
+            {borderStyle !== 'none' && (
+              <>
+                {/* Border Color - Inline swatch + rainbow */}
+                <div className="flex items-center gap-1">
+                  <div
+                    className="w-8 h-5 rounded border border-gray-600"
+                    style={{ backgroundColor: borderColor }}
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.createElement('input')
+                      input.type = 'color'
+                      input.value = borderColor
+                      input.onchange = (e) => handleBorderColorChange((e.target as HTMLInputElement).value)
+                      input.click()
+                    }}
+                    disabled={isApplying}
+                    className="w-5 h-5 rounded-full bg-[conic-gradient(red,yellow,lime,aqua,blue,magenta,red)] border border-gray-500 hover:scale-110 transition-transform"
+                  />
+                </div>
+
+                {/* Border Width */}
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={borderWidth}
+                    onChange={(e) => setBorderWidth(e.target.value)}
+                    onBlur={() => handleBorderWidthChange(borderWidth)}
+                    disabled={isApplying}
+                    min="1"
+                    max="10"
+                    className="w-10 px-1 py-1 bg-gray-800 rounded text-xs text-white text-center focus:outline-none"
+                  />
+                  <span className="text-xs text-gray-500">pt</span>
+                </div>
+              </>
+            )}
           </div>
 
           {borderStyle !== 'none' && (
             <>
-              {/* Border Color */}
-              <ColorPicker
-                value={borderColor}
-                onChange={handleBorderColorChange}
-                swatches={BORDER_SWATCHES}
-                disabled={isApplying}
-                showCurrentColor={false}
-              />
-
-              {/* Border Width */}
-              <div className="flex items-center bg-gray-800 rounded-lg">
-                <input
-                  type="number"
-                  value={borderWidth}
-                  onChange={(e) => setBorderWidth(e.target.value)}
-                  onBlur={() => handleBorderWidthChange(borderWidth)}
-                  disabled={isApplying}
-                  min="1"
-                  max="10"
-                  className="w-full px-3 py-2 bg-transparent text-sm text-white focus:outline-none"
-                />
-                <span className="text-xs text-gray-400 pr-3">pt</span>
-              </div>
-
-              {/* Border Position Buttons */}
-              <div className="space-y-2">
-                <div className="flex bg-gray-800 rounded-lg p-1">
-                  {['left', 'top', 'right', 'bottom'].map((pos) => (
-                    <button
-                      key={pos}
-                      onClick={() => toggleBorderPosition(pos)}
-                      disabled={isApplying}
-                      className={cn(
-                        "flex-1 py-2 text-xs rounded transition-colors capitalize",
-                        borderPositions.includes(pos) ? "bg-blue-600" : "hover:bg-gray-700"
-                      )}
-                    >
-                      {pos.charAt(0).toUpperCase()}
-                    </button>
-                  ))}
+              {/* Border Position Buttons - Compact */}
+              <div className="flex bg-gray-800 rounded-lg p-0.5">
+                {['left', 'top', 'right', 'bottom'].map((pos) => (
                   <button
-                    onClick={() => {
-                      const allPositions = ['left', 'top', 'right', 'bottom']
-                      setBorderPositions(allPositions)
-                      onSendCommand('setTextBoxBorderPositions', { positions: allPositions })
-                    }}
+                    key={pos}
+                    onClick={() => toggleBorderPosition(pos)}
                     disabled={isApplying}
                     className={cn(
-                      "flex-1 py-2 text-xs rounded transition-colors",
-                      borderPositions.length === 4 ? "bg-blue-600" : "hover:bg-gray-700"
+                      "flex-1 py-1 text-xs rounded transition-colors",
+                      borderPositions.includes(pos) ? "bg-blue-600" : "hover:bg-gray-700"
                     )}
                   >
-                    All
+                    {pos.charAt(0).toUpperCase()}
                   </button>
-                </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const allPositions = ['left', 'top', 'right', 'bottom']
+                    setBorderPositions(allPositions)
+                    onSendCommand('setTextBoxBorderPositions', { positions: allPositions })
+                  }}
+                  disabled={isApplying}
+                  className={cn(
+                    "flex-1 py-1 text-xs rounded transition-colors",
+                    borderPositions.length === 4 ? "bg-blue-600" : "hover:bg-gray-700"
+                  )}
+                >
+                  All
+                </button>
               </div>
 
-              {/* Border Offset */}
-              <div className="space-y-1">
-                <label className="text-xs text-gray-500">Border Offset</label>
-                <div className="flex items-center bg-gray-800 rounded-lg">
+              {/* Border Offset - Inline */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">Border Offset</span>
+                <div className="flex items-center gap-1">
                   <input
                     type="number"
                     value={borderOffset}
                     onChange={(e) => setBorderOffset(e.target.value)}
                     onBlur={() => handleBorderOffsetChange(borderOffset)}
                     disabled={isApplying}
-                    className="w-full px-3 py-2 bg-transparent text-sm text-white focus:outline-none"
+                    className="w-12 px-2 py-1 bg-gray-800 rounded text-xs text-white text-right focus:outline-none"
                   />
-                  <span className="text-xs text-gray-400 pr-3">pt</span>
+                  <span className="text-xs text-gray-500">pt</span>
                 </div>
               </div>
 
-              {/* Rounded Corners */}
-              <div className="flex items-center justify-between py-1">
-                <label className="text-xs text-gray-400">Rounded Corners</label>
+              {/* Rounded Corners - Compact */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">Rounded Corners</span>
                 <button
                   onClick={() => handleRoundedCornersChange(!roundedCorners)}
                   disabled={isApplying}
                   className={cn(
-                    "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                    "w-4 h-4 rounded border flex items-center justify-center transition-colors",
                     roundedCorners ? "bg-blue-600 border-blue-600" : "border-gray-500"
                   )}
                 >
@@ -387,14 +381,12 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Paragraph Background */}
-      <ColorPicker
+      {/* Paragraph Background - Compact */}
+      <CompactColorPicker
         label="Paragraph Background"
         value={backgroundColor}
         onChange={handleBackgroundChange}
-        swatches={BACKGROUND_SWATCHES}
         disabled={isApplying}
-        showCurrentColor={true}
       />
     </div>
   )
