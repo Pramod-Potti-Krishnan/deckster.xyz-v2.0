@@ -4,7 +4,6 @@ import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
-  Edit3,
   Minimize2,
   Save,
   X,
@@ -406,23 +405,30 @@ export function PresentationViewer({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleNextSlide, handlePrevSlide, handleToggleOverview, isEditMode, handleForceSave])
 
-  const handleToggleEditMode = useCallback(async () => {
-    console.log('🔘 Edit button clicked!')
+  // Lazy edit mode: automatically enter edit mode when needed
+  const ensureEditMode = useCallback(async (): Promise<boolean> => {
+    // Already in edit mode? Return immediately
+    if (isEditMode) return true
+
     if (!iframeRef.current) {
-      console.log('❌ Iframe not ready')
-      return
+      console.log('❌ Iframe not ready for edit mode')
+      return false
     }
+
     try {
       const result = await sendCommand(iframeRef.current, 'toggleEditMode')
-      const newEditMode = result.isEditing
-      setIsEditMode(newEditMode)
-      onEditModeChange?.(newEditMode)
-
-      console.log(`✏️ Edit mode: ${newEditMode ? 'ON' : 'OFF'}`)
+      if (result.isEditing) {
+        setIsEditMode(true)
+        onEditModeChange?.(true)
+        console.log('✏️ Auto-entered edit mode')
+        return true
+      }
+      return false
     } catch (error) {
-      console.error('Error toggling edit mode:', error)
+      console.error('Error entering edit mode:', error)
+      return false
     }
-  }, [onEditModeChange])
+  }, [isEditMode, onEditModeChange])
 
   const handleSaveChanges = useCallback(async () => {
     if (!iframeRef.current) return
@@ -648,7 +654,7 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     }
-  }, [currentSlide, toast])
+  }, [currentSlide, toast, ensureEditMode])
 
   // === Layout Service v7.5.3 API Handlers ===
 
@@ -683,17 +689,18 @@ export function PresentationViewer({
 
   // Shape insertion handler
   const handleInsertShape = useCallback(async (params: InsertShapeParams): Promise<void> => {
-    if (!iframeRef.current) {
+    // Auto-enter edit mode if needed
+    if (!await ensureEditMode()) {
       toast({
         title: 'Error',
-        description: 'Presentation not ready',
+        description: 'Could not enter edit mode',
         variant: 'destructive'
       })
       return
     }
 
     try {
-      const result = await sendCommand(iframeRef.current, 'insertShape', {
+      const result = await sendCommand(iframeRef.current!, 'insertShape', {
         slideIndex: currentSlide - 1, // Convert to 0-based
         type: params.type,
         gridRow: '8/12',    // Center-ish default position
@@ -718,10 +725,20 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     }
-  }, [currentSlide, toast])
+  }, [currentSlide, toast, ensureEditMode])
 
   // Table insertion handler - opens panel for AI table generation
   const handleInsertTable = useCallback(async (rows: number, cols: number): Promise<void> => {
+    // Auto-enter edit mode if needed
+    if (!await ensureEditMode()) {
+      toast({
+        title: 'Error',
+        description: 'Could not enter edit mode',
+        variant: 'destructive'
+      })
+      return
+    }
+
     // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
     const mockElementId = `table-${Date.now()}`
 
@@ -767,10 +784,20 @@ export function PresentationViewer({
       title: 'Table Panel',
       description: `Configure your ${rows}×${cols} table with AI`
     })
-  }, [currentSlide, toast, onElementSelected])
+  }, [currentSlide, toast, onElementSelected, ensureEditMode])
 
   // Chart insertion handler - opens panel for AI chart generation
   const handleInsertChart = useCallback(async (params: InsertChartParams): Promise<void> => {
+    // Auto-enter edit mode if needed
+    if (!await ensureEditMode()) {
+      toast({
+        title: 'Error',
+        description: 'Could not enter edit mode',
+        variant: 'destructive'
+      })
+      return
+    }
+
     // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
     const mockElementId = `chart-${Date.now()}`
 
@@ -815,10 +842,20 @@ export function PresentationViewer({
       title: 'Chart Panel',
       description: `Configure your ${params.type} chart with AI`
     })
-  }, [currentSlide, toast, onElementSelected])
+  }, [currentSlide, toast, onElementSelected, ensureEditMode])
 
   // Image insertion handler
   const handleInsertImage = useCallback(async (): Promise<void> => {
+    // Auto-enter edit mode if needed
+    if (!await ensureEditMode()) {
+      toast({
+        title: 'Error',
+        description: 'Could not enter edit mode',
+        variant: 'destructive'
+      })
+      return
+    }
+
     // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
     const mockElementId = `image-${Date.now()}`
 
@@ -862,10 +899,20 @@ export function PresentationViewer({
       title: 'Image Panel',
       description: 'Configure your AI-generated image'
     })
-  }, [currentSlide, toast, onElementSelected])
+  }, [currentSlide, toast, onElementSelected, ensureEditMode])
 
   // Infographic insertion handler
   const handleInsertInfographic = useCallback(async (): Promise<void> => {
+    // Auto-enter edit mode if needed
+    if (!await ensureEditMode()) {
+      toast({
+        title: 'Error',
+        description: 'Could not enter edit mode',
+        variant: 'destructive'
+      })
+      return
+    }
+
     // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
     const mockElementId = `infographic-${Date.now()}`
 
@@ -909,10 +956,20 @@ export function PresentationViewer({
       title: 'Infographic Panel',
       description: 'Choose an infographic type and generate content'
     })
-  }, [currentSlide, toast, onElementSelected])
+  }, [currentSlide, toast, onElementSelected, ensureEditMode])
 
   // Diagram insertion handler
   const handleInsertDiagram = useCallback(async (): Promise<void> => {
+    // Auto-enter edit mode if needed
+    if (!await ensureEditMode()) {
+      toast({
+        title: 'Error',
+        description: 'Could not enter edit mode',
+        variant: 'destructive'
+      })
+      return
+    }
+
     // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
     const mockElementId = `diagram-${Date.now()}`
 
@@ -960,21 +1017,22 @@ export function PresentationViewer({
       title: 'Diagram Panel',
       description: 'Select a diagram type and generate with AI'
     })
-  }, [currentSlide, toast, onElementSelected])
+  }, [currentSlide, toast, onElementSelected, ensureEditMode])
 
   // Insert text box handler
   const handleInsertTextBox = useCallback(async () => {
-    if (!iframeRef.current) {
+    // Auto-enter edit mode if needed
+    if (!await ensureEditMode()) {
       toast({
         title: 'Error',
-        description: 'Presentation not ready',
+        description: 'Could not enter edit mode',
         variant: 'destructive'
       })
       return
     }
 
     try {
-      const result = await sendCommand(iframeRef.current, 'insertTextBox', {
+      const result = await sendCommand(iframeRef.current!, 'insertTextBox', {
         slideIndex: currentSlide - 1, // Convert to 0-based
         gridRow: '6/12',      // Center position
         gridColumn: '8/24',
@@ -1001,7 +1059,7 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     }
-  }, [currentSlide, toast, onTextBoxSelected])
+  }, [currentSlide, toast, onTextBoxSelected, ensureEditMode])
 
   // Delete text box handler
   const handleDeleteTextBox = useCallback(async () => {
@@ -1235,13 +1293,17 @@ export function PresentationViewer({
 
   // Listen for text box selection events from iframe
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       if (event.origin !== VIEWER_ORIGIN) return
 
-      // Handle text box selection
+      // Handle text box selection - auto-enter edit mode
       if (event.data.type === 'textBoxSelected') {
         const elementId = event.data.elementId
         const formatting = event.data.formatting as TextBoxFormatting | null
+
+        // Auto-enter edit mode when user clicks on a text box
+        await ensureEditMode()
+
         setSelectedTextBoxId(elementId)
         onTextBoxSelected?.(elementId, formatting)
         console.log(`📦 Text box selected: ${elementId}`)
@@ -1257,7 +1319,7 @@ export function PresentationViewer({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [onTextBoxSelected, onTextBoxDeselected])
+  }, [onTextBoxSelected, onTextBoxDeselected, ensureEditMode])
 
   return (
     <div ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
@@ -1304,39 +1366,31 @@ export function PresentationViewer({
               disabled={!presentationUrl}
             />
 
-            <div className="w-px h-10 bg-gray-200" />
-
-            {/* Edit Mode Toggle */}
-            {!isEditMode ? (
-              <button
-                onClick={handleToggleEditMode}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
-                title="Enter edit mode"
-              >
-                <Edit3 className="h-5 w-5 text-gray-700" />
-                <span className="text-[10px] text-gray-500">Edit</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleSaveChanges}
-                  disabled={isSaving}
-                  className="flex flex-col items-center gap-0.5 px-3 py-1 rounded bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
-                  title="Save changes"
-                >
-                  <Save className="h-5 w-5 text-green-600" />
-                  <span className="text-[10px] text-green-600 font-medium">{isSaving ? 'Saving' : 'Save'}</span>
-                </button>
-                <button
-                  onClick={handleCancelEdits}
-                  disabled={isSaving}
-                  className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-50 transition-colors"
-                  title="Cancel edits"
-                >
-                  <X className="h-5 w-5 text-gray-500" />
-                  <span className="text-[10px] text-gray-500">Cancel</span>
-                </button>
-              </div>
+            {/* Save/Cancel - only shown when in edit mode (edit mode is entered automatically) */}
+            {isEditMode && (
+              <>
+                <div className="w-px h-10 bg-gray-200" />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSaveChanges}
+                    disabled={isSaving}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1 rounded bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
+                    title="Save changes"
+                  >
+                    <Save className="h-5 w-5 text-green-600" />
+                    <span className="text-[10px] text-green-600 font-medium">{isSaving ? 'Saving' : 'Save'}</span>
+                  </button>
+                  <button
+                    onClick={handleCancelEdits}
+                    disabled={isSaving}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                    title="Cancel edits"
+                  >
+                    <X className="h-5 w-5 text-gray-500" />
+                    <span className="text-[10px] text-gray-500">Cancel</span>
+                  </button>
+                </div>
+              </>
             )}
           </div>
 
@@ -1361,19 +1415,19 @@ export function PresentationViewer({
             {/* Table */}
             <TableInsertPopover
               onInsertTable={handleInsertTable}
-              disabled={!presentationUrl || !isEditMode}
+              disabled={!presentationUrl}
             />
 
             {/* Chart */}
             <ChartPickerPopover
               onInsertChart={handleInsertChart}
-              disabled={!presentationUrl || !isEditMode}
+              disabled={!presentationUrl}
             />
 
             {/* Text Box */}
             <button
               onClick={handleInsertTextBox}
-              disabled={!presentationUrl || !isEditMode}
+              disabled={!presentationUrl}
               className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Insert text box"
             >
@@ -1384,13 +1438,13 @@ export function PresentationViewer({
             {/* Shape */}
             <ShapePickerPopover
               onInsertShape={handleInsertShape}
-              disabled={!presentationUrl || !isEditMode}
+              disabled={!presentationUrl}
             />
 
             {/* Image */}
             <button
               onClick={handleInsertImage}
-              disabled={!presentationUrl || !isEditMode}
+              disabled={!presentationUrl}
               className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Insert image (AI generated)"
             >
@@ -1401,7 +1455,7 @@ export function PresentationViewer({
             {/* Infographic */}
             <button
               onClick={handleInsertInfographic}
-              disabled={!presentationUrl || !isEditMode}
+              disabled={!presentationUrl}
               className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Insert infographic"
             >
@@ -1412,7 +1466,7 @@ export function PresentationViewer({
             {/* Diagram */}
             <button
               onClick={handleInsertDiagram}
-              disabled={!presentationUrl || !isEditMode}
+              disabled={!presentationUrl}
               className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Insert diagram (Mermaid)"
             >
