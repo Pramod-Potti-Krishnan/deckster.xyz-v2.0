@@ -76,6 +76,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
   const [fontWeight, setFontWeight] = useState(formatting?.fontWeight || '400')
   const [fontSize, setFontSize] = useState(parseFontSize(formatting?.fontSize))
   const [textColor, setTextColor] = useState(formatting?.color || '#000000')
+  const [highlightColor, setHighlightColor] = useState(formatting?.backgroundColor || 'transparent')
   const [isFontDropdownOpen, setIsFontDropdownOpen] = useState(false)
   const [isWeightDropdownOpen, setIsWeightDropdownOpen] = useState(false)
   const [isSizeDropdownOpen, setIsSizeDropdownOpen] = useState(false)
@@ -141,6 +142,12 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
   const handleColorChange = async (color: string) => {
     setTextColor(color)
     await onSendCommand('setTextBoxColor', { color })
+  }
+
+  // Set text highlight/background color
+  const handleHighlightChange = async (color: string) => {
+    setHighlightColor(color)
+    await onSendCommand('setTextBoxBackgroundColor', { backgroundColor: color })
   }
 
   // Set horizontal alignment
@@ -318,6 +325,15 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
         value={textColor}
         onChange={handleColorChange}
         disabled={isApplying}
+      />
+
+      {/* Highlight Color - Compact with No Fill option */}
+      <CompactColorPicker
+        label="Highlight"
+        value={highlightColor}
+        onChange={handleHighlightChange}
+        disabled={isApplying}
+        allowNoFill={true}
       />
 
       {/* Alignment Section Label */}
