@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from 'react'
-import { Trash2, ChevronRight } from 'lucide-react'
+import { Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { StyleTab } from './style-tab'
 import { LayoutTab } from './layout-tab'
@@ -150,23 +150,26 @@ export function TextBoxFormatPanel({
         )}
       </div>
 
-      {/* Prominent floating arrow tab - visible when collapsed */}
-      {isCollapsed && (
-        <button
-          onClick={() => onCollapsedChange(false)}
-          className={cn(
-            "absolute left-0 top-1/2 -translate-y-1/2 z-20",
-            "w-8 h-20 bg-gray-800 hover:bg-gray-700",
-            "rounded-r-xl shadow-lg",
-            "flex items-center justify-center",
-            "border-y border-r border-gray-600",
-            "transition-colors"
-          )}
-          title="Expand format panel"
-        >
-          <ChevronRight className="h-6 w-6 text-gray-300" />
-        </button>
-      )}
+      {/* Collapse/Expand arrow tab - fixed position, always visible on right edge */}
+      <button
+        onClick={() => onCollapsedChange(!isCollapsed)}
+        className={cn(
+          "absolute top-1/2 -translate-y-1/2 z-30",
+          "w-6 h-16 bg-gray-800 hover:bg-gray-700",
+          "rounded-r-lg shadow-lg",
+          "flex items-center justify-center",
+          "border-y border-r border-gray-600",
+          "transition-all duration-200",
+          isCollapsed ? "left-0" : "right-0 translate-x-full"
+        )}
+        title={isCollapsed ? "Expand panel" : "Collapse panel"}
+      >
+        {isCollapsed ? (
+          <ChevronRight className="h-5 w-5 text-gray-300" />
+        ) : (
+          <ChevronLeft className="h-5 w-5 text-gray-300" />
+        )}
+      </button>
     </>
   )
 }
