@@ -32,10 +32,10 @@ await onSendCommand('setTextBoxColor', { elementId, color })
 
 | Tab | Total Commands | Working | Needs Implementation |
 |-----|----------------|---------|----------------------|
-| Style Tab | 12 | 7 | 5 |
+| Style Tab | 13 | 7 | 6 |
 | Layout Tab | 8 | 3 | 5 |
 | AI Tab | 1 | Partial | Enhanced version needed |
-| **Total** | **21** | **10** | **11** |
+| **Total** | **22** | **10** | **12** |
 
 ---
 
@@ -57,6 +57,7 @@ await onSendCommand('setTextBoxColor', { elementId, color })
 
 | Command | Parameters | Priority | Description |
 |---------|------------|----------|-------------|
+| `setTextHighlightColor` | `{ elementId, color: string }` | 🔴 High | **Inline text highlight** - applies background color to selected text only (like a highlighter pen), NOT the entire text box. Different from `setTextBoxBackground` which colors the whole box. |
 | `setTextBoxFontWeight` | `{ elementId, fontWeight: string }` | 🔴 High | Font weight dropdown (400/500/600/700). Currently sends command but Layout Service doesn't process it. |
 | `setTextBoxVerticalAlignment` | `{ elementId, verticalAlignment: 'top'|'middle'|'bottom' }` | 🔴 High | Vertical text alignment buttons. Very common need. |
 | `setTextBoxParagraphSpacing` | `{ elementId, marginTop: string, marginBottom: string }` | 🟡 Medium | Before/After Paragraph inputs in Spacing section. |
@@ -130,11 +131,34 @@ The frontend sends these action types via `generateTextBoxContent`:
 
 ## Command-by-Command Implementation Guide
 
-### 1. setTextBoxFontWeight (Priority: HIGH)
+### 1. setTextHighlightColor (Priority: HIGH) ⭐ NEW
 
 **Frontend sends:**
 ```typescript
-await onSendCommand('setTextBoxFontWeight', { fontWeight: '700' })
+await onSendCommand('setTextHighlightColor', { elementId, color: '#ffff00' })
+```
+
+**Expected Layout Service behavior:**
+- Apply background color to **selected text only** (inline highlight)
+- This is different from `setTextBoxBackground` which colors the entire text box
+- Works like a highlighter pen - only the selected/current text gets the background
+- Support 'transparent' or 'none' value to remove highlight
+- Persist in presentation model
+
+**Implementation hint:**
+- Use `document.execCommand('hiliteColor', false, color)` for contenteditable
+- Or wrap selected text in `<span style="background-color: ${color}">...</span>`
+- Similar to how bold/italic works but applies background-color instead
+
+**Use case:** User selects a word or sentence and wants to highlight just that text, not the entire text box.
+
+---
+
+### 2. setTextBoxFontWeight (Priority: HIGH)
+
+**Frontend sends:**
+```typescript
+await onSendCommand('setTextBoxFontWeight', { elementId, fontWeight: '700' })
 ```
 
 **Expected Layout Service behavior:**
@@ -146,7 +170,7 @@ await onSendCommand('setTextBoxFontWeight', { fontWeight: '700' })
 
 ---
 
-### 2. setTextBoxVerticalAlignment (Priority: HIGH)
+### 3. setTextBoxVerticalAlignment (Priority: HIGH)
 
 **Frontend sends:**
 ```typescript
@@ -272,6 +296,7 @@ await onSendCommand('setTextBoxBorderOffset', { offset: '6pt' })
 After Layout Service implements each command:
 
 ### Style Tab Tests
+- [ ] Select text, apply highlight color → Only selected text gets background color → Reload → Persists
 - [ ] Change font weight → Reload → Font weight persists
 - [ ] Click vertical align middle → Text centers vertically → Reload → Persists
 - [ ] Set paragraph spacing → Reload → Spacing persists
@@ -300,9 +325,11 @@ The frontend TextBoxFormatPanel is fully implemented and sends all commands corr
 
 | Priority | Commands Needed |
 |----------|----------------|
-| 🔴 HIGH | `setTextBoxFontWeight`, `setTextBoxVerticalAlignment`, `setTextBoxColumns` |
+| 🔴 HIGH | `setTextHighlightColor` ⭐, `setTextBoxFontWeight`, `setTextBoxVerticalAlignment`, `setTextBoxColumns` |
 | 🟡 MEDIUM | `setTextBoxParagraphSpacing`, `setTextBoxAutosize`, `setTextBoxIndents`, `setTextBoxBorderPositions` |
 | 🟢 LOW | `setTextBoxBorderOffset` |
 | ⚠️ ENHANCEMENT | `generateTextBoxContent` (full action/tone/style support) |
+
+⭐ **NEW: `setTextHighlightColor`** - Inline text highlighting (like a highlighter pen). Different from `setTextBoxBackground` which colors the entire text box.
 
 Once these are implemented, users will have full PowerPoint/Keynote-equivalent text formatting capabilities.
