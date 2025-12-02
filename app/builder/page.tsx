@@ -238,6 +238,7 @@ function BuilderContent() {
   const [showFormatPanel, setShowFormatPanel] = useState(false)
   // Text box selection state
   const [showTextBoxPanel, setShowTextBoxPanel] = useState(false)
+  const [isTextBoxPanelCollapsed, setIsTextBoxPanelCollapsed] = useState(true)
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   const [selectedTextBoxFormatting, setSelectedTextBoxFormatting] = useState<TextBoxFormatting | null>(null)
   // Layout Service API handlers (set by PresentationViewer when iframe is ready)
@@ -1361,6 +1362,8 @@ function BuilderContent() {
             {/* Text Box Format Panel - Overlays chat when text box selected */}
             <TextBoxFormatPanel
               isOpen={showTextBoxPanel}
+              isCollapsed={isTextBoxPanelCollapsed}
+              onCollapsedChange={setIsTextBoxPanelCollapsed}
               onClose={() => {
                 setShowTextBoxPanel(false)
                 setSelectedTextBoxId(null)
@@ -2115,13 +2118,15 @@ function BuilderContent() {
                   setSelectedTextBoxId(elementId)
                   setSelectedTextBoxFormatting(formatting)
                   setShowTextBoxPanel(true)
+                  setIsTextBoxPanelCollapsed(false) // Auto-expand on selection
                   // Close format panel when text box is selected
                   setShowFormatPanel(false)
                 }}
                 onTextBoxDeselected={() => {
                   setSelectedTextBoxId(null)
                   setSelectedTextBoxFormatting(null)
-                  setShowTextBoxPanel(false)
+                  setIsTextBoxPanelCollapsed(true) // Auto-collapse on deselection
+                  // Keep panel in DOM but collapsed
                 }}
                 onApiReady={setLayoutServiceApis}
                 className="flex-1"
