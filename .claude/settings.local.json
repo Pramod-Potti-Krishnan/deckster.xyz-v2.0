@@ -24,7 +24,8 @@
       "Bash(node scripts/run-stripe-migration.js:*)",
       "Bash(node scripts/stripe-migration-v2.js:*)",
       "Bash(node:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

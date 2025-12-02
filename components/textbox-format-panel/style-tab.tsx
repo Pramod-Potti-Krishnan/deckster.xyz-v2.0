@@ -64,10 +64,17 @@ const LINE_HEIGHTS = [
   { label: '2.0', value: '2' }
 ]
 
+// Helper to parse fontSize which may come as number or string (with px/pt suffix)
+const parseFontSize = (size: string | number | undefined | null): string => {
+  if (size === undefined || size === null) return '16'
+  const str = String(size)
+  return str.replace('px', '').replace('pt', '')
+}
+
 export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: StyleTabProps) {
   const [fontFamily, setFontFamily] = useState(formatting?.fontFamily || 'Inter')
   const [fontWeight, setFontWeight] = useState(formatting?.fontWeight || '400')
-  const [fontSize, setFontSize] = useState(formatting?.fontSize?.replace('px', '').replace('pt', '') || '16')
+  const [fontSize, setFontSize] = useState(parseFontSize(formatting?.fontSize))
   const [textColor, setTextColor] = useState(formatting?.color || '#000000')
   const [isFontDropdownOpen, setIsFontDropdownOpen] = useState(false)
   const [isWeightDropdownOpen, setIsWeightDropdownOpen] = useState(false)
