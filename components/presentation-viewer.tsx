@@ -133,8 +133,11 @@ export function PresentationViewer({
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const slideContainerRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   const [isEditMode, setIsEditMode] = useState(false)
+  // Fullscreen slide dimensions (calculated via JS for accuracy)
+  const [fullscreenSlideSize, setFullscreenSlideSize] = useState<{ width: number; height: number } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
@@ -865,12 +868,47 @@ export function PresentationViewer({
         setShowToolbar(false)
       } else {
         setShowToolbar(true)
+        setFullscreenSlideSize(null) // Reset when exiting fullscreen
       }
     }
 
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
+
+  // Calculate optimal slide dimensions in fullscreen mode
+  useEffect(() => {
+    if (!isFullscreen || !slideContainerRef.current) return
+
+    const calculateSize = () => {
+      const container = slideContainerRef.current
+      if (!container) return
+
+      // Get actual container dimensions (accounts for all padding/margins)
+      const containerWidth = container.clientWidth
+      const containerHeight = container.clientHeight
+
+      // Calculate optimal 16:9 dimensions that fit within container
+      const aspectRatio = 16 / 9
+      let width = containerWidth
+      let height = width / aspectRatio
+
+      // If calculated height exceeds container, constrain by height instead
+      if (height > containerHeight) {
+        height = containerHeight
+        width = height * aspectRatio
+      }
+
+      console.log(`📐 Fullscreen slide size: ${Math.round(width)}x${Math.round(height)} (container: ${containerWidth}x${containerHeight})`)
+      setFullscreenSlideSize({ width, height })
+    }
+
+    // Calculate immediately and on resize
+    calculateSize()
+    window.addEventListener('resize', calculateSize)
+
+    return () => window.removeEventListener('resize', calculateSize)
+  }, [isFullscreen])
 
   // Auto-hide toolbar in fullscreen mode
   useEffect(() => {
@@ -1112,15 +1150,17 @@ export function PresentationViewer({
         {/* Left: Presentation Area */}
         <div className={`flex-1 flex flex-col min-w-0 ${isFullscreen ? 'bg-black' : ''}`}>
           {/* Presentation Iframe */}
-          <div className={`flex-1 relative flex items-center justify-center ${isFullscreen ? 'bg-black p-2' : 'bg-gray-800 p-8'}`}>
+          <div
+            ref={slideContainerRef}
+            className={`flex-1 relative flex items-center justify-center ${isFullscreen ? 'bg-black' : 'bg-gray-800 p-8'}`}
+          >
             {presentationUrl ? (
               <div
                 className={isFullscreen ? '' : 'w-full max-w-7xl'}
-                style={isFullscreen ? {
-                  aspectRatio: '16/9',
-                  // Use min() to ensure width never creates height exceeding available space
-                  // This maintains true 16:9 at maximum possible size
-                  width: 'min(calc(100vw - 16px), calc((100vh - 16px) * 16 / 9))'
+                style={isFullscreen && fullscreenSlideSize ? {
+                  // Use JavaScript-calculated dimensions for accuracy
+                  width: fullscreenSlideSize.width,
+                  height: fullscreenSlideSize.height
                 } : {
                   aspectRatio: '16/9',
                   width: '100%'
