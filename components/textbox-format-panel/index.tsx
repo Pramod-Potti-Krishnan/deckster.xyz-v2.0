@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react'
 import { Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { StyleTab } from './style-tab'
-import { LayoutTab } from './layout-tab'
 import { AITab } from './ai-tab'
 import { cn } from '@/lib/utils'
 
@@ -21,7 +20,7 @@ export interface TextBoxFormatPanelProps {
   slideIndex?: number
 }
 
-type TabType = 'style' | 'layout' | 'ai'
+type TabType = 'style' | 'ai'
 
 export function TextBoxFormatPanel({
   isOpen,
@@ -90,17 +89,6 @@ export function TextBoxFormatPanel({
             Style
           </button>
           <button
-            onClick={() => setActiveTab('layout')}
-            className={cn(
-              "flex-1 py-1.5 text-xs font-medium rounded-md transition-colors",
-              activeTab === 'layout'
-                ? 'bg-gray-600 text-white'
-                : 'text-gray-400 hover:text-white'
-            )}
-          >
-            Layout
-          </button>
-          <button
             onClick={() => setActiveTab('ai')}
             className={cn(
               "flex-1 py-1.5 text-xs font-medium rounded-md transition-colors",
@@ -117,14 +105,6 @@ export function TextBoxFormatPanel({
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'style' && (
             <StyleTab
-              formatting={formatting}
-              onSendCommand={handleSendCommand}
-              isApplying={isApplying}
-              elementId={elementId || ''}
-            />
-          )}
-          {activeTab === 'layout' && (
-            <LayoutTab
               formatting={formatting}
               onSendCommand={handleSendCommand}
               isApplying={isApplying}
