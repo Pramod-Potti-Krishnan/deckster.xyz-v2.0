@@ -720,231 +720,246 @@ export function PresentationViewer({
     }
   }, [currentSlide, toast])
 
-  // Table insertion handler
+  // Table insertion handler - opens panel for AI table generation
   const handleInsertTable = useCallback(async (rows: number, cols: number): Promise<void> => {
-    if (!iframeRef.current) {
-      toast({
-        title: 'Error',
-        description: 'Presentation not ready',
-        variant: 'destructive'
-      })
-      return
+    // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
+    const mockElementId = `table-${Date.now()}`
+
+    // Create default properties for new table
+    const properties: ElementProperties = {
+      type: 'table',
+      elementId: mockElementId,
+      position: { x: 10, y: 20 },
+      size: { width: 80, height: 50 },
+      rotation: 0,
+      locked: false,
+      zIndex: 1,
+      cols: cols,
+      rows: rows,
+      hasHeaderRow: true
     }
 
-    try {
-      const result = await sendCommand(iframeRef.current, 'insertTable', {
-        slideIndex: currentSlide - 1,
-        gridRow: '5/15',
-        gridColumn: '3/30',
-        tableHtml: generateTableHTML(rows, cols)
-      })
-
-      if (result.success) {
-        toast({
-          title: 'Table Added',
-          description: `${rows}×${cols} table inserted on slide`
+    // Try to insert via Layout Service if iframe is ready
+    if (iframeRef.current) {
+      try {
+        const result = await sendCommand(iframeRef.current, 'insertTable', {
+          slideIndex: currentSlide - 1,
+          gridRow: '5/15',
+          gridColumn: '3/30',
+          tableHtml: generateTableHTML(rows, cols)
         })
-        console.log(`📊 Inserted ${rows}×${cols} table`)
-      }
-    } catch (error) {
-      console.error('Error inserting table:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to insert table. Please try again.',
-        variant: 'destructive'
-      })
-    }
-  }, [currentSlide, toast])
 
-  // Chart insertion handler
+        if (result.success) {
+          const elementId = result.elementId || result.data?.elementId
+          if (elementId) {
+            properties.elementId = elementId
+          }
+          console.log(`📊 Table element inserted via Layout Service: ${properties.elementId}`)
+        }
+      } catch (error) {
+        console.warn('Layout Service insertTable not available, showing panel in mock mode:', error)
+      }
+    }
+
+    // Always show the panel (even in mock mode for UI preview)
+    onElementSelected?.(properties.elementId, 'table', properties)
+    toast({
+      title: 'Table Panel',
+      description: `Configure your ${rows}×${cols} table with AI`
+    })
+  }, [currentSlide, toast, onElementSelected])
+
+  // Chart insertion handler - opens panel for AI chart generation
   const handleInsertChart = useCallback(async (params: InsertChartParams): Promise<void> => {
-    if (!iframeRef.current) {
-      toast({
-        title: 'Error',
-        description: 'Presentation not ready',
-        variant: 'destructive'
-      })
-      return
+    // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
+    const mockElementId = `chart-${Date.now()}`
+
+    // Create default properties for new chart
+    const properties: ElementProperties = {
+      type: 'chart',
+      elementId: mockElementId,
+      position: { x: 5, y: 15 },
+      size: { width: 60, height: 60 },
+      rotation: 0,
+      locked: false,
+      zIndex: 1,
+      chartType: params.type,
+      colorPalette: 'default'
     }
 
-    try {
-      const result = await sendCommand(iframeRef.current, 'insertChart', {
-        slideIndex: currentSlide - 1,
-        gridRow: '3/16',
-        gridColumn: '2/20',
-        chartConfig: generateChartConfig(params)
-      })
-
-      if (result.success) {
-        toast({
-          title: 'Chart Added',
-          description: `${params.type} chart inserted on slide`
+    // Try to insert via Layout Service if iframe is ready
+    if (iframeRef.current) {
+      try {
+        const result = await sendCommand(iframeRef.current, 'insertChart', {
+          slideIndex: currentSlide - 1,
+          gridRow: '3/16',
+          gridColumn: '2/20',
+          chartConfig: generateChartConfig(params)
         })
-        console.log(`📈 Inserted ${params.type} chart`)
+
+        if (result.success) {
+          const elementId = result.elementId || result.data?.elementId
+          if (elementId) {
+            properties.elementId = elementId
+          }
+          console.log(`📈 Chart element inserted via Layout Service: ${properties.elementId}`)
+        }
+      } catch (error) {
+        console.warn('Layout Service insertChart not available, showing panel in mock mode:', error)
       }
-    } catch (error) {
-      console.error('Error inserting chart:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to insert chart. Please try again.',
-        variant: 'destructive'
-      })
     }
-  }, [currentSlide, toast])
+
+    // Always show the panel (even in mock mode for UI preview)
+    onElementSelected?.(properties.elementId, 'chart', properties)
+    toast({
+      title: 'Chart Panel',
+      description: `Configure your ${params.type} chart with AI`
+    })
+  }, [currentSlide, toast, onElementSelected])
 
   // Image insertion handler
   const handleInsertImage = useCallback(async (): Promise<void> => {
-    if (!iframeRef.current) {
-      toast({
-        title: 'Error',
-        description: 'Presentation not ready',
-        variant: 'destructive'
-      })
-      return
+    // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
+    const mockElementId = `image-${Date.now()}`
+
+    // Create default properties for new image
+    const properties: ElementProperties = {
+      type: 'image',
+      elementId: mockElementId,
+      position: { x: 25, y: 20 },
+      size: { width: 50, height: 50 },
+      rotation: 0,
+      locked: false,
+      zIndex: 1
     }
 
-    try {
-      const result = await sendCommand(iframeRef.current, 'insertImage', {
-        slideIndex: currentSlide - 1,
-        gridRow: '4/14',
-        gridColumn: '8/24',
-        imageUrl: '', // Placeholder - will be generated via AI
-        alt: 'Generated image'
-      })
-
-      if (result.success) {
-        const elementId = result.elementId || result.data?.elementId
-        if (elementId) {
-          // Create default properties for new image
-          const properties: ElementProperties = {
-            type: 'image',
-            elementId,
-            position: { x: 0, y: 0 },
-            size: { width: 600, height: 400 },
-            rotation: 0,
-            locked: false,
-            zIndex: 1
-          }
-          onElementSelected?.(elementId, 'image', properties)
-        }
-        toast({
-          title: 'Image Added',
-          description: 'Use the panel to generate an image with AI'
+    // Try to insert via Layout Service if iframe is ready
+    if (iframeRef.current) {
+      try {
+        const result = await sendCommand(iframeRef.current, 'insertImage', {
+          slideIndex: currentSlide - 1,
+          gridRow: '4/14',
+          gridColumn: '8/24',
+          imageUrl: '', // Placeholder - will be generated via AI
+          alt: 'Generated image'
         })
-        console.log(`Image element inserted: ${elementId}`)
+
+        if (result.success) {
+          const elementId = result.elementId || result.data?.elementId
+          if (elementId) {
+            properties.elementId = elementId
+          }
+          console.log(`📷 Image element inserted via Layout Service: ${properties.elementId}`)
+        }
+      } catch (error) {
+        console.warn('Layout Service insertImage not available, showing panel in mock mode:', error)
       }
-    } catch (error) {
-      console.error('Error inserting image:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to insert image. Please try again.',
-        variant: 'destructive'
-      })
     }
+
+    // Always show the panel (even in mock mode for UI preview)
+    onElementSelected?.(properties.elementId, 'image', properties)
+    toast({
+      title: 'Image Panel',
+      description: 'Configure your AI-generated image'
+    })
   }, [currentSlide, toast, onElementSelected])
 
   // Infographic insertion handler
   const handleInsertInfographic = useCallback(async (): Promise<void> => {
-    if (!iframeRef.current) {
-      toast({
-        title: 'Error',
-        description: 'Presentation not ready',
-        variant: 'destructive'
-      })
-      return
+    // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
+    const mockElementId = `infographic-${Date.now()}`
+
+    // Create default properties for new infographic
+    const properties: ElementProperties = {
+      type: 'infographic',
+      elementId: mockElementId,
+      position: { x: 5, y: 15 },
+      size: { width: 90, height: 70 },
+      rotation: 0,
+      locked: false,
+      zIndex: 1,
+      infographicType: 'process'
     }
 
-    try {
-      const result = await sendCommand(iframeRef.current, 'insertInfographic', {
-        slideIndex: currentSlide - 1,
-        gridRow: '3/16',
-        gridColumn: '2/31',
-        infographicType: 'process' // Default type
-      })
-
-      if (result.success) {
-        const elementId = result.elementId || result.data?.elementId
-        if (elementId) {
-          const properties: ElementProperties = {
-            type: 'infographic',
-            elementId,
-            position: { x: 0, y: 0 },
-            size: { width: 800, height: 500 },
-            rotation: 0,
-            locked: false,
-            zIndex: 1,
-            infographicType: 'process'
-          }
-          onElementSelected?.(elementId, 'infographic', properties)
-        }
-        toast({
-          title: 'Infographic Added',
-          description: 'Use the panel to customize your infographic'
+    // Try to insert via Layout Service if iframe is ready
+    if (iframeRef.current) {
+      try {
+        const result = await sendCommand(iframeRef.current, 'insertInfographic', {
+          slideIndex: currentSlide - 1,
+          gridRow: '3/16',
+          gridColumn: '2/31',
+          infographicType: 'process' // Default type
         })
-        console.log(`Infographic element inserted: ${elementId}`)
+
+        if (result.success) {
+          const elementId = result.elementId || result.data?.elementId
+          if (elementId) {
+            properties.elementId = elementId
+          }
+          console.log(`📊 Infographic element inserted via Layout Service: ${properties.elementId}`)
+        }
+      } catch (error) {
+        console.warn('Layout Service insertInfographic not available, showing panel in mock mode:', error)
       }
-    } catch (error) {
-      console.error('Error inserting infographic:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to insert infographic. Please try again.',
-        variant: 'destructive'
-      })
     }
+
+    // Always show the panel (even in mock mode for UI preview)
+    onElementSelected?.(properties.elementId, 'infographic', properties)
+    toast({
+      title: 'Infographic Panel',
+      description: 'Choose an infographic type and generate content'
+    })
   }, [currentSlide, toast, onElementSelected])
 
   // Diagram insertion handler
   const handleInsertDiagram = useCallback(async (): Promise<void> => {
-    if (!iframeRef.current) {
-      toast({
-        title: 'Error',
-        description: 'Presentation not ready',
-        variant: 'destructive'
-      })
-      return
+    // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
+    const mockElementId = `diagram-${Date.now()}`
+
+    // Create default properties for new diagram
+    const properties: ElementProperties = {
+      type: 'diagram',
+      elementId: mockElementId,
+      position: { x: 10, y: 15 },
+      size: { width: 80, height: 70 },
+      rotation: 0,
+      locked: false,
+      zIndex: 1,
+      diagramType: 'flowchart',
+      direction: 'TB',
+      theme: 'default'
     }
 
-    try {
-      const result = await sendCommand(iframeRef.current, 'insertDiagram', {
-        slideIndex: currentSlide - 1,
-        gridRow: '3/16',
-        gridColumn: '4/28',
-        diagramType: 'flowchart', // Default type
-        direction: 'TB',
-        theme: 'default'
-      })
-
-      if (result.success) {
-        const elementId = result.elementId || result.data?.elementId
-        if (elementId) {
-          const properties: ElementProperties = {
-            type: 'diagram',
-            elementId,
-            position: { x: 0, y: 0 },
-            size: { width: 700, height: 500 },
-            rotation: 0,
-            locked: false,
-            zIndex: 1,
-            diagramType: 'flowchart',
-            direction: 'TB',
-            theme: 'default'
-          }
-          onElementSelected?.(elementId, 'diagram', properties)
-        }
-        toast({
-          title: 'Diagram Added',
-          description: 'Use the panel to generate a Mermaid diagram'
+    // Try to insert via Layout Service if iframe is ready
+    if (iframeRef.current) {
+      try {
+        const result = await sendCommand(iframeRef.current, 'insertDiagram', {
+          slideIndex: currentSlide - 1,
+          gridRow: '3/16',
+          gridColumn: '4/28',
+          diagramType: 'flowchart', // Default type
+          direction: 'TB',
+          theme: 'default'
         })
-        console.log(`Diagram element inserted: ${elementId}`)
+
+        if (result.success) {
+          const elementId = result.elementId || result.data?.elementId
+          if (elementId) {
+            properties.elementId = elementId
+          }
+          console.log(`🔀 Diagram element inserted via Layout Service: ${properties.elementId}`)
+        }
+      } catch (error) {
+        console.warn('Layout Service insertDiagram not available, showing panel in mock mode:', error)
       }
-    } catch (error) {
-      console.error('Error inserting diagram:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to insert diagram. Please try again.',
-        variant: 'destructive'
-      })
     }
+
+    // Always show the panel (even in mock mode for UI preview)
+    onElementSelected?.(properties.elementId, 'diagram', properties)
+    toast({
+      title: 'Diagram Panel',
+      description: 'Select a diagram type and generate with AI'
+    })
   }, [currentSlide, toast, onElementSelected])
 
   // Insert text box handler
