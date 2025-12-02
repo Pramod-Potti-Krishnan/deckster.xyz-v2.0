@@ -40,6 +40,8 @@ import { FormatPanel } from '@/components/format-panel'
 import { SlideLayoutId } from '@/components/slide-layout-picker'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
+import { ElementFormatPanel } from '@/components/element-format-panel'
+import { ElementType, ElementProperties } from '@/types/elements'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -241,6 +243,12 @@ function BuilderContent() {
   const [isTextBoxPanelCollapsed, setIsTextBoxPanelCollapsed] = useState(true)
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   const [selectedTextBoxFormatting, setSelectedTextBoxFormatting] = useState<TextBoxFormatting | null>(null)
+  // Element selection state (Image, Table, Chart, Infographic, Diagram)
+  const [showElementPanel, setShowElementPanel] = useState(false)
+  const [isElementPanelCollapsed, setIsElementPanelCollapsed] = useState(true)
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
+  const [selectedElementType, setSelectedElementType] = useState<ElementType | null>(null)
+  const [selectedElementProperties, setSelectedElementProperties] = useState<ElementProperties | null>(null)
   // Layout Service API handlers (set by PresentationViewer when iframe is ready)
   const [layoutServiceApis, setLayoutServiceApis] = useState<{
     getSelectionInfo: () => Promise<{ hasSelection: boolean; selectedText?: string; sectionId?: string; slideIndex?: number } | null>
@@ -1397,6 +1405,51 @@ function BuilderContent() {
               slideIndex={1} // TODO: Get current slide from PresentationViewer
             />
 
+            {/* Element Format Panel - Overlays chat when element selected */}
+            {selectedElementType && (
+              <ElementFormatPanel
+                isOpen={showElementPanel}
+                isCollapsed={isElementPanelCollapsed}
+                onCollapsedChange={setIsElementPanelCollapsed}
+                onClose={() => {
+                  setShowElementPanel(false)
+                  setSelectedElementId(null)
+                  setSelectedElementType(null)
+                  setSelectedElementProperties(null)
+                }}
+                elementId={selectedElementId}
+                elementType={selectedElementType}
+                properties={selectedElementProperties}
+                onSendCommand={async (action, params) => {
+                  if (!layoutServiceApis?.sendTextBoxCommand) {
+                    throw new Error('Layout Service not ready')
+                  }
+                  // Use existing sendTextBoxCommand API for element commands
+                  // TODO: Add dedicated sendElementCommand to Layout Service
+                  return layoutServiceApis.sendTextBoxCommand(action, {
+                    elementId: selectedElementId,
+                    ...params
+                  })
+                }}
+                onDelete={async () => {
+                  if (!layoutServiceApis?.sendTextBoxCommand || !selectedElementId) return
+                  try {
+                    await layoutServiceApis.sendTextBoxCommand('deleteElement', {
+                      elementId: selectedElementId
+                    })
+                    setShowElementPanel(false)
+                    setSelectedElementId(null)
+                    setSelectedElementType(null)
+                    setSelectedElementProperties(null)
+                  } catch (error) {
+                    console.error('Failed to delete element:', error)
+                  }
+                }}
+                presentationId={presentationId}
+                slideIndex={1} // TODO: Get current slide from PresentationViewer
+              />
+            )}
+
             {/* Chat Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
@@ -2112,14 +2165,13 @@ function BuilderContent() {
                 onEditModeChange={(isEditing) => {
                   console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
                 }}
-                onFormatPanelToggle={() => setShowFormatPanel(prev => !prev)}
-                isFormatPanelOpen={showFormatPanel}
                 onTextBoxSelected={(elementId, formatting) => {
                   setSelectedTextBoxId(elementId)
                   setSelectedTextBoxFormatting(formatting)
                   setShowTextBoxPanel(true)
                   setIsTextBoxPanelCollapsed(false) // Auto-expand on selection
-                  // Close format panel when text box is selected
+                  // Close element panel when text box is selected
+                  setShowElementPanel(false)
                   setShowFormatPanel(false)
                 }}
                 onTextBoxDeselected={() => {
@@ -2127,6 +2179,22 @@ function BuilderContent() {
                   setSelectedTextBoxFormatting(null)
                   setIsTextBoxPanelCollapsed(true) // Auto-collapse on deselection
                   // Keep panel in DOM but collapsed
+                }}
+                onElementSelected={(elementId, elementType, properties) => {
+                  setSelectedElementId(elementId)
+                  setSelectedElementType(elementType)
+                  setSelectedElementProperties(properties)
+                  setShowElementPanel(true)
+                  setIsElementPanelCollapsed(false) // Auto-expand on selection
+                  // Close text box panel when element is selected
+                  setShowTextBoxPanel(false)
+                  setShowFormatPanel(false)
+                }}
+                onElementDeselected={() => {
+                  setSelectedElementId(null)
+                  setSelectedElementType(null)
+                  setSelectedElementProperties(null)
+                  setIsElementPanelCollapsed(true) // Auto-collapse on deselection
                 }}
                 onApiReady={setLayoutServiceApis}
                 className="flex-1"

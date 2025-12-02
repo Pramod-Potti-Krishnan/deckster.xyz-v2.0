@@ -10,11 +10,13 @@ import {
   X,
   PanelRightClose,
   PanelRightOpen,
-  SlidersHorizontal,
   Play,
   Layers,
   Check,
-  Type
+  Type,
+  Image,
+  LayoutGrid,
+  GitBranch
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -33,6 +35,7 @@ import { FormatTextParams } from './text-format-popover'
 import { ShapePickerPopover, InsertShapeParams } from './shape-picker-popover'
 import { TableInsertPopover, generateTableHTML } from './table-insert-popover'
 import { ChartPickerPopover, InsertChartParams, generateChartConfig } from './chart-picker-popover'
+import { ElementType, ElementProperties, BaseElementProperties } from '@/types/elements'
 
 // Selection info from Layout Service
 export interface SelectionInfo {
@@ -73,12 +76,12 @@ interface PresentationViewerProps {
   finalPresentationUrl?: string | null
   activeVersion?: 'strawman' | 'final'
   onVersionSwitch?: (version: 'strawman' | 'final') => void
-  // Format panel toggle
-  onFormatPanelToggle?: () => void
-  isFormatPanelOpen?: boolean
   // Text box panel callbacks
   onTextBoxSelected?: (elementId: string, formatting: TextBoxFormatting | null) => void
   onTextBoxDeselected?: () => void
+  // Element panel callbacks (Image, Table, Chart, Infographic, Diagram)
+  onElementSelected?: (elementId: string, elementType: ElementType, properties: ElementProperties) => void
+  onElementDeselected?: () => void
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -150,10 +153,10 @@ export function PresentationViewer({
   finalPresentationUrl,
   activeVersion = 'final',
   onVersionSwitch,
-  onFormatPanelToggle,
-  isFormatPanelOpen = false,
   onTextBoxSelected,
   onTextBoxDeselected,
+  onElementSelected,
+  onElementDeselected,
   onApiReady
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -789,6 +792,161 @@ export function PresentationViewer({
     }
   }, [currentSlide, toast])
 
+  // Image insertion handler
+  const handleInsertImage = useCallback(async (): Promise<void> => {
+    if (!iframeRef.current) {
+      toast({
+        title: 'Error',
+        description: 'Presentation not ready',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'insertImage', {
+        slideIndex: currentSlide - 1,
+        gridRow: '4/14',
+        gridColumn: '8/24',
+        imageUrl: '', // Placeholder - will be generated via AI
+        alt: 'Generated image'
+      })
+
+      if (result.success) {
+        const elementId = result.elementId || result.data?.elementId
+        if (elementId) {
+          // Create default properties for new image
+          const properties: ElementProperties = {
+            type: 'image',
+            elementId,
+            position: { x: 0, y: 0 },
+            size: { width: 600, height: 400 },
+            rotation: 0,
+            locked: false,
+            zIndex: 1
+          }
+          onElementSelected?.(elementId, 'image', properties)
+        }
+        toast({
+          title: 'Image Added',
+          description: 'Use the panel to generate an image with AI'
+        })
+        console.log(`Image element inserted: ${elementId}`)
+      }
+    } catch (error) {
+      console.error('Error inserting image:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to insert image. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [currentSlide, toast, onElementSelected])
+
+  // Infographic insertion handler
+  const handleInsertInfographic = useCallback(async (): Promise<void> => {
+    if (!iframeRef.current) {
+      toast({
+        title: 'Error',
+        description: 'Presentation not ready',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'insertInfographic', {
+        slideIndex: currentSlide - 1,
+        gridRow: '3/16',
+        gridColumn: '2/31',
+        infographicType: 'process' // Default type
+      })
+
+      if (result.success) {
+        const elementId = result.elementId || result.data?.elementId
+        if (elementId) {
+          const properties: ElementProperties = {
+            type: 'infographic',
+            elementId,
+            position: { x: 0, y: 0 },
+            size: { width: 800, height: 500 },
+            rotation: 0,
+            locked: false,
+            zIndex: 1,
+            infographicType: 'process'
+          }
+          onElementSelected?.(elementId, 'infographic', properties)
+        }
+        toast({
+          title: 'Infographic Added',
+          description: 'Use the panel to customize your infographic'
+        })
+        console.log(`Infographic element inserted: ${elementId}`)
+      }
+    } catch (error) {
+      console.error('Error inserting infographic:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to insert infographic. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [currentSlide, toast, onElementSelected])
+
+  // Diagram insertion handler
+  const handleInsertDiagram = useCallback(async (): Promise<void> => {
+    if (!iframeRef.current) {
+      toast({
+        title: 'Error',
+        description: 'Presentation not ready',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'insertDiagram', {
+        slideIndex: currentSlide - 1,
+        gridRow: '3/16',
+        gridColumn: '4/28',
+        diagramType: 'flowchart', // Default type
+        direction: 'TB',
+        theme: 'default'
+      })
+
+      if (result.success) {
+        const elementId = result.elementId || result.data?.elementId
+        if (elementId) {
+          const properties: ElementProperties = {
+            type: 'diagram',
+            elementId,
+            position: { x: 0, y: 0 },
+            size: { width: 700, height: 500 },
+            rotation: 0,
+            locked: false,
+            zIndex: 1,
+            diagramType: 'flowchart',
+            direction: 'TB',
+            theme: 'default'
+          }
+          onElementSelected?.(elementId, 'diagram', properties)
+        }
+        toast({
+          title: 'Diagram Added',
+          description: 'Use the panel to generate a Mermaid diagram'
+        })
+        console.log(`Diagram element inserted: ${elementId}`)
+      }
+    } catch (error) {
+      console.error('Error inserting diagram:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to insert diagram. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [currentSlide, toast, onElementSelected])
+
   // Insert text box handler
   const handleInsertTextBox = useCallback(async () => {
     if (!iframeRef.current) {
@@ -1214,19 +1372,38 @@ export function PresentationViewer({
               disabled={!presentationUrl || !isEditMode}
             />
 
-            {/* Format Panel Toggle */}
-            {onFormatPanelToggle && (
-              <button
-                onClick={onFormatPanelToggle}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded transition-colors ${
-                  isFormatPanelOpen ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-100'
-                }`}
-                title="Format slide"
-              >
-                <SlidersHorizontal className={`h-5 w-5 ${isFormatPanelOpen ? 'text-blue-600' : 'text-gray-700'}`} />
-                <span className={`text-[10px] ${isFormatPanelOpen ? 'text-blue-600 font-medium' : 'text-gray-500'}`}>Format</span>
-              </button>
-            )}
+            {/* Image */}
+            <button
+              onClick={handleInsertImage}
+              disabled={!presentationUrl || !isEditMode}
+              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Insert image (AI generated)"
+            >
+              <Image className="h-5 w-5 text-gray-700" />
+              <span className="text-[10px] text-gray-500">Image</span>
+            </button>
+
+            {/* Infographic */}
+            <button
+              onClick={handleInsertInfographic}
+              disabled={!presentationUrl || !isEditMode}
+              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Insert infographic"
+            >
+              <LayoutGrid className="h-5 w-5 text-gray-700" />
+              <span className="text-[10px] text-gray-500">Infographic</span>
+            </button>
+
+            {/* Diagram */}
+            <button
+              onClick={handleInsertDiagram}
+              disabled={!presentationUrl || !isEditMode}
+              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Insert diagram (Mermaid)"
+            >
+              <GitBranch className="h-5 w-5 text-gray-700" />
+              <span className="text-[10px] text-gray-500">Diagram</span>
+            </button>
           </div>
 
           {/* Right Group: Version + Status + Download + Counter */}
