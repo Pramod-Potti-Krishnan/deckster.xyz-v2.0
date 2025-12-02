@@ -90,21 +90,21 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
 
   // Apply text format command (bold, italic, etc.)
   const handleFormatCommand = async (command: string) => {
-    await onSendCommand('applyTextFormatCommand', { command })
+    await onSendCommand('applyTextFormatCommand', { elementId, command })
   }
 
   // Set font family
   const handleFontChange = async (font: string) => {
     setFontFamily(font)
     setIsFontDropdownOpen(false)
-    await onSendCommand('setTextBoxFont', { fontFamily: font })
+    await onSendCommand('setTextBoxFont', { elementId, fontFamily: font })
   }
 
   // Set font weight
   const handleWeightChange = async (weight: string) => {
     setFontWeight(weight)
     setIsWeightDropdownOpen(false)
-    await onSendCommand('setTextBoxFontWeight', { fontWeight: weight })
+    await onSendCommand('setTextBoxFontWeight', { elementId, fontWeight: weight })
   }
 
   // Set font size - validates input (1-200pt)
@@ -114,7 +114,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
     const clampedSize = Math.min(Math.max(numSize, 1), 200)
     setFontSize(String(clampedSize))
     setIsSizeDropdownOpen(false)
-    await onSendCommand('setTextBoxFontSize', { fontSize: `${clampedSize}pt` })
+    await onSendCommand('setTextBoxFontSize', { elementId, fontSize: `${clampedSize}pt` })
   }
 
   // Handle font size input change (live validation)
@@ -141,29 +141,31 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
   // Set text color
   const handleColorChange = async (color: string) => {
     setTextColor(color)
-    await onSendCommand('setTextBoxColor', { color })
+    await onSendCommand('setTextBoxColor', { elementId, color })
   }
 
   // Set text highlight/background color
+  // Note: Uses same command as Layout Tab's paragraph background since
+  // setTextBoxBackgroundColor is not yet implemented in Layout Service
   const handleHighlightChange = async (color: string) => {
     setHighlightColor(color)
-    await onSendCommand('setTextBoxBackgroundColor', { backgroundColor: color })
+    await onSendCommand('setTextBoxBackground', { elementId, backgroundColor: color })
   }
 
   // Set horizontal alignment
   const handleAlignment = async (alignment: string) => {
-    await onSendCommand('setTextBoxAlignment', { alignment })
+    await onSendCommand('setTextBoxAlignment', { elementId, alignment })
   }
 
   // Set vertical alignment
   const handleVerticalAlignment = async (alignment: string) => {
-    await onSendCommand('setTextBoxVerticalAlignment', { verticalAlignment: alignment })
+    await onSendCommand('setTextBoxVerticalAlignment', { elementId, verticalAlignment: alignment })
   }
 
   // Set line height
   const handleLineHeight = async (value: string) => {
     setLineHeight(value)
-    await onSendCommand('setTextBoxLineHeight', { lineHeight: value })
+    await onSendCommand('setTextBoxLineHeight', { elementId, lineHeight: value })
   }
 
   // Set paragraph spacing
@@ -171,6 +173,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
     setBeforeParagraph(before)
     setAfterParagraph(after)
     await onSendCommand('setTextBoxParagraphSpacing', {
+      elementId,
       marginTop: `${before}pt`,
       marginBottom: `${after}pt`
     })

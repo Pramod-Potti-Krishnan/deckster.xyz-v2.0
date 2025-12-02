@@ -51,17 +51,17 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
   const handleColumnsChange = async (delta: number) => {
     const newColumns = Math.max(1, Math.min(4, columns + delta))
     setColumns(newColumns)
-    await onSendCommand('setTextBoxColumns', { columns: newColumns })
+    await onSendCommand('setTextBoxColumns', { elementId, columns: newColumns })
   }
 
   const handleTextInsetChange = async (value: string) => {
     setTextInset(value)
-    await onSendCommand('setTextBoxPadding', { padding: `${value}pt` })
+    await onSendCommand('setTextBoxPadding', { elementId, padding: `${value}pt` })
   }
 
   const handleAutosizeChange = async (checked: boolean) => {
     setAutosizeText(checked)
-    await onSendCommand('setTextBoxAutosize', { autosize: checked })
+    await onSendCommand('setTextBoxAutosize', { elementId, autosize: checked })
   }
 
   const handleIndentChange = async (type: 'first' | 'left' | 'right', value: string) => {
@@ -70,6 +70,7 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
     if (type === 'right') setRightIndent(value)
 
     await onSendCommand('setTextBoxIndents', {
+      elementId,
       firstIndent: type === 'first' ? `${value}pt` : `${firstIndent}pt`,
       leftIndent: type === 'left' ? `${value}pt` : `${leftIndent}pt`,
       rightIndent: type === 'right' ? `${value}pt` : `${rightIndent}pt`
@@ -82,6 +83,7 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
       setBorderPositions([])
     }
     await onSendCommand('setTextBoxBorder', {
+      elementId,
       borderStyle: style,
       borderWidth: `${borderWidth}pt`,
       borderColor,
@@ -92,6 +94,7 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
   const handleBorderColorChange = async (color: string) => {
     setBorderColor(color)
     await onSendCommand('setTextBoxBorder', {
+      elementId,
       borderStyle,
       borderWidth: `${borderWidth}pt`,
       borderColor: color,
@@ -102,6 +105,7 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
   const handleBorderWidthChange = async (value: string) => {
     setBorderWidth(value)
     await onSendCommand('setTextBoxBorder', {
+      elementId,
       borderStyle,
       borderWidth: `${value}pt`,
       borderColor,
@@ -114,17 +118,18 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
       ? borderPositions.filter(p => p !== position)
       : [...borderPositions, position]
     setBorderPositions(newPositions)
-    await onSendCommand('setTextBoxBorderPositions', { positions: newPositions })
+    await onSendCommand('setTextBoxBorderPositions', { elementId, positions: newPositions })
   }
 
   const handleBorderOffsetChange = async (value: string) => {
     setBorderOffset(value)
-    await onSendCommand('setTextBoxBorderOffset', { offset: `${value}pt` })
+    await onSendCommand('setTextBoxBorderOffset', { elementId, offset: `${value}pt` })
   }
 
   const handleRoundedCornersChange = async (checked: boolean) => {
     setRoundedCorners(checked)
     await onSendCommand('setTextBoxBorder', {
+      elementId,
       borderStyle,
       borderWidth: `${borderWidth}pt`,
       borderColor,
@@ -134,7 +139,7 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
 
   const handleBackgroundChange = async (color: string) => {
     setBackgroundColor(color)
-    await onSendCommand('setTextBoxBackground', { backgroundColor: color })
+    await onSendCommand('setTextBoxBackground', { elementId, backgroundColor: color })
   }
 
   return (
@@ -334,7 +339,7 @@ export function LayoutTab({ formatting, onSendCommand, isApplying, elementId }: 
                   onClick={() => {
                     const allPositions = ['left', 'top', 'right', 'bottom']
                     setBorderPositions(allPositions)
-                    onSendCommand('setTextBoxBorderPositions', { positions: allPositions })
+                    onSendCommand('setTextBoxBorderPositions', { elementId, positions: allPositions })
                   }}
                   disabled={isApplying}
                   className={cn(
