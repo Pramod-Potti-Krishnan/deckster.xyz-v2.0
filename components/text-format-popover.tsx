@@ -43,6 +43,8 @@ export interface FormatTextParams {
 interface TextFormatPopoverProps {
   onFormat: (params: FormatTextParams) => Promise<boolean>
   disabled?: boolean
+  /** Feature flag to hide this component when text box insertion is enabled */
+  hidden?: boolean
 }
 
 const FONT_SIZES = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px']
@@ -53,9 +55,12 @@ const COLORS = [
   '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899'
 ]
 
-export function TextFormatPopover({ onFormat, disabled = false }: TextFormatPopoverProps) {
+export function TextFormatPopover({ onFormat, disabled = false, hidden = false }: TextFormatPopoverProps) {
   const [open, setOpen] = useState(false)
   const [isApplying, setIsApplying] = useState(false)
+
+  // Hide component when text box feature is enabled
+  if (hidden) return null
 
   const handleFormat = async (params: FormatTextParams) => {
     setIsApplying(true)

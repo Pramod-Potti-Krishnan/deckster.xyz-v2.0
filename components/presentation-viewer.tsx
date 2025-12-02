@@ -13,7 +13,8 @@ import {
   SlidersHorizontal,
   Play,
   Layers,
-  Check
+  Check,
+  Type
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -26,7 +27,9 @@ import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutId } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
 import { useToast } from '@/hooks/use-toast'
-import { TextFormatPopover, FormatTextParams } from './text-format-popover'
+// TextFormatPopover is now replaced by simple text box insertion button
+// Keeping FormatTextParams for backward compatibility if needed
+import { FormatTextParams } from './text-format-popover'
 import { ShapePickerPopover, InsertShapeParams } from './shape-picker-popover'
 import { TableInsertPopover, generateTableHTML } from './table-insert-popover'
 import { ChartPickerPopover, InsertChartParams, generateChartConfig } from './chart-picker-popover'
@@ -37,6 +40,22 @@ export interface SelectionInfo {
   selectedText?: string
   sectionId?: string
   slideIndex?: number
+}
+
+// Text box formatting info from Layout Service
+export interface TextBoxFormatting {
+  fontFamily?: string
+  fontSize?: string
+  fontWeight?: string
+  fontStyle?: string
+  textDecoration?: string
+  color?: string
+  backgroundColor?: string
+  textAlign?: string
+  lineHeight?: string
+  padding?: string
+  border?: string
+  borderRadius?: string
 }
 
 interface PresentationViewerProps {
@@ -57,10 +76,14 @@ interface PresentationViewerProps {
   // Format panel toggle
   onFormatPanelToggle?: () => void
   isFormatPanelOpen?: boolean
+  // Text box panel callbacks
+  onTextBoxSelected?: (elementId: string, formatting: TextBoxFormatting | null) => void
+  onTextBoxDeselected?: () => void
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
+    sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
   }) => void
 }
 
@@ -129,6 +152,8 @@ export function PresentationViewer({
   onVersionSwitch,
   onFormatPanelToggle,
   isFormatPanelOpen = false,
+  onTextBoxSelected,
+  onTextBoxDeselected,
   onApiReady
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -153,6 +178,8 @@ export function PresentationViewer({
   const [isDeleting, setIsDeleting] = useState(false)
   // Track when CRUD operations have modified slides (invalidates stale slideStructure)
   const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
+  // Text box selection state
+  const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
 
   // Sync totalSlides with slideCount prop changes
   useEffect(() => {
@@ -762,6 +789,74 @@ export function PresentationViewer({
     }
   }, [currentSlide, toast])
 
+  // Insert text box handler
+  const handleInsertTextBox = useCallback(async () => {
+    if (!iframeRef.current) {
+      toast({
+        title: 'Error',
+        description: 'Presentation not ready',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'insertTextBox', {
+        slideIndex: currentSlide - 1, // Convert to 0-based
+        gridRow: '6/12',      // Center position
+        gridColumn: '8/24',
+        content: '<p>Click to edit text</p>'
+      })
+
+      if (result.success) {
+        const elementId = result.elementId || result.data?.elementId
+        if (elementId) {
+          setSelectedTextBoxId(elementId)
+          onTextBoxSelected?.(elementId, null)
+        }
+        toast({
+          title: 'Text Box Added',
+          description: 'Click to edit your text'
+        })
+        console.log(`📝 Inserted text box: ${elementId}`)
+      }
+    } catch (error) {
+      console.error('Error inserting text box:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to add text box. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }, [currentSlide, toast, onTextBoxSelected])
+
+  // Delete text box handler
+  const handleDeleteTextBox = useCallback(async () => {
+    if (!selectedTextBoxId || !iframeRef.current) return
+
+    try {
+      const result = await sendCommand(iframeRef.current, 'deleteTextBox', {
+        elementId: selectedTextBoxId
+      })
+
+      if (result.success) {
+        setSelectedTextBoxId(null)
+        onTextBoxDeselected?.()
+        toast({
+          title: 'Text Box Deleted'
+        })
+        console.log(`🗑️ Deleted text box: ${selectedTextBoxId}`)
+      }
+    } catch (error) {
+      console.error('Error deleting text box:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to delete text box',
+        variant: 'destructive'
+      })
+    }
+  }, [selectedTextBoxId, toast, onTextBoxDeselected])
+
   // Get selection info from Layout Service (for AI regeneration)
   const handleGetSelectionInfo = useCallback(async (): Promise<SelectionInfo | null> => {
     if (!iframeRef.current) return null
@@ -821,15 +916,24 @@ export function PresentationViewer({
     }
   }, [toast])
 
+  // Send text box command to iframe (for TextBoxFormatPanel)
+  const handleSendTextBoxCommand = useCallback(async (action: string, params: Record<string, any>) => {
+    if (!iframeRef.current) {
+      throw new Error('Iframe not ready')
+    }
+    return sendCommand(iframeRef.current, action, params)
+  }, [])
+
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {
     if (iframeReady && onApiReady) {
       onApiReady({
         getSelectionInfo: handleGetSelectionInfo,
-        updateSectionContent: handleUpdateSectionContent
+        updateSectionContent: handleUpdateSectionContent,
+        sendTextBoxCommand: handleSendTextBoxCommand
       })
     }
-  }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent])
+  }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand])
 
   const handleFullscreen = useCallback(async () => {
     if (!containerRef.current) return
@@ -956,6 +1060,32 @@ export function PresentationViewer({
     return () => window.removeEventListener('message', handleMessage)
   }, [])
 
+  // Listen for text box selection events from iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== VIEWER_ORIGIN) return
+
+      // Handle text box selection
+      if (event.data.type === 'textBoxSelected') {
+        const elementId = event.data.elementId
+        const formatting = event.data.formatting as TextBoxFormatting | null
+        setSelectedTextBoxId(elementId)
+        onTextBoxSelected?.(elementId, formatting)
+        console.log(`📦 Text box selected: ${elementId}`)
+      }
+
+      // Handle text box deselection
+      if (event.data.type === 'textBoxDeselected') {
+        setSelectedTextBoxId(null)
+        onTextBoxDeselected?.()
+        console.log('📦 Text box deselected')
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [onTextBoxSelected, onTextBoxDeselected])
+
   return (
     <div ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
       {/* Fullscreen toolbar trigger zone - at top, below Chrome's fullscreen bar */}
@@ -1067,11 +1197,16 @@ export function PresentationViewer({
               disabled={!presentationUrl || !isEditMode}
             />
 
-            {/* Text */}
-            <TextFormatPopover
-              onFormat={handleFormatText}
+            {/* Text Box */}
+            <button
+              onClick={handleInsertTextBox}
               disabled={!presentationUrl || !isEditMode}
-            />
+              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Insert text box"
+            >
+              <Type className="h-5 w-5 text-gray-700" />
+              <span className="text-[10px] text-gray-500">Text</span>
+            </button>
 
             {/* Shape */}
             <ShapePickerPopover

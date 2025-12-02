@@ -38,6 +38,8 @@ import { useFileUpload } from '@/hooks/use-file-upload'
 import { features } from '@/lib/config'
 import { FormatPanel } from '@/components/format-panel'
 import { SlideLayoutId } from '@/components/slide-layout-picker'
+import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
+import { TextBoxFormatting } from '@/components/presentation-viewer'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -234,10 +236,15 @@ function BuilderContent() {
   const [showVersions, setShowVersions] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showFormatPanel, setShowFormatPanel] = useState(false)
+  // Text box selection state
+  const [showTextBoxPanel, setShowTextBoxPanel] = useState(false)
+  const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
+  const [selectedTextBoxFormatting, setSelectedTextBoxFormatting] = useState<TextBoxFormatting | null>(null)
   // Layout Service API handlers (set by PresentationViewer when iframe is ready)
   const [layoutServiceApis, setLayoutServiceApis] = useState<{
     getSelectionInfo: () => Promise<{ hasSelection: boolean; selectedText?: string; sectionId?: string; slideIndex?: number } | null>
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
+    sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
   } | null>(null)
   const [isAIRegenerating, setIsAIRegenerating] = useState(false)
 
@@ -1351,6 +1358,42 @@ function BuilderContent() {
               isRegenerating={isAIRegenerating}
             />
 
+            {/* Text Box Format Panel - Overlays chat when text box selected */}
+            <TextBoxFormatPanel
+              isOpen={showTextBoxPanel}
+              onClose={() => {
+                setShowTextBoxPanel(false)
+                setSelectedTextBoxId(null)
+                setSelectedTextBoxFormatting(null)
+              }}
+              elementId={selectedTextBoxId}
+              formatting={selectedTextBoxFormatting}
+              onSendCommand={async (action, params) => {
+                if (!layoutServiceApis?.sendTextBoxCommand) {
+                  throw new Error('Layout Service not ready')
+                }
+                return layoutServiceApis.sendTextBoxCommand(action, {
+                  elementId: selectedTextBoxId,
+                  ...params
+                })
+              }}
+              onDelete={async () => {
+                if (!layoutServiceApis?.sendTextBoxCommand || !selectedTextBoxId) return
+                try {
+                  await layoutServiceApis.sendTextBoxCommand('deleteTextBox', {
+                    elementId: selectedTextBoxId
+                  })
+                  setShowTextBoxPanel(false)
+                  setSelectedTextBoxId(null)
+                  setSelectedTextBoxFormatting(null)
+                } catch (error) {
+                  console.error('Failed to delete text box:', error)
+                }
+              }}
+              presentationId={presentationId}
+              slideIndex={1} // TODO: Get current slide from PresentationViewer
+            />
+
             {/* Chat Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
@@ -2068,6 +2111,18 @@ function BuilderContent() {
                 }}
                 onFormatPanelToggle={() => setShowFormatPanel(prev => !prev)}
                 isFormatPanelOpen={showFormatPanel}
+                onTextBoxSelected={(elementId, formatting) => {
+                  setSelectedTextBoxId(elementId)
+                  setSelectedTextBoxFormatting(formatting)
+                  setShowTextBoxPanel(true)
+                  // Close format panel when text box is selected
+                  setShowFormatPanel(false)
+                }}
+                onTextBoxDeselected={() => {
+                  setSelectedTextBoxId(null)
+                  setSelectedTextBoxFormatting(null)
+                  setShowTextBoxPanel(false)
+                }}
                 onApiReady={setLayoutServiceApis}
                 className="flex-1"
               />
