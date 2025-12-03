@@ -578,16 +578,10 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
             <div className="flex items-center justify-between pl-12">
               <div className="flex items-center gap-2">
                 {/* Border Color */}
-                <div
-                  className="w-6 h-4 rounded border border-gray-600 cursor-pointer hover:border-gray-400 shadow-sm"
-                  style={{ backgroundColor: borderColor }}
-                  onClick={() => {
-                    const input = document.createElement('input')
-                    input.type = 'color'
-                    input.value = borderColor
-                    input.onchange = (e) => handleBorderColorChange((e.target as HTMLInputElement).value)
-                    input.click()
-                  }}
+                <CompactColorPicker
+                  value={borderColor}
+                  onChange={handleBorderColorChange}
+                  disabled={isApplying}
                 />
                 {/* Border Width */}
                 <div className="flex items-center gap-0.5 bg-gray-800 rounded px-1 border border-transparent hover:border-gray-600">
@@ -627,30 +621,12 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
           {/* Box Background */}
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-gray-400">Fill</span>
-            <div className="flex items-center gap-1.5">
-              <div
-                className="w-12 h-5 rounded border border-gray-600 cursor-pointer hover:border-gray-400 shadow-sm"
-                style={{ backgroundColor: boxBackground }}
-                onClick={() => {
-                  const input = document.createElement('input')
-                  input.type = 'color'
-                  input.value = boxBackground
-                  input.onchange = (e) => handleBoxBackgroundChange((e.target as HTMLInputElement).value)
-                  input.click()
-                }}
-              />
-              <button
-                onClick={() => {
-                  const input = document.createElement('input')
-                  input.type = 'color'
-                  input.value = boxBackground
-                  input.onchange = (e) => handleBoxBackgroundChange((e.target as HTMLInputElement).value)
-                  input.click()
-                }}
-                disabled={isApplying}
-                className="w-5 h-5 rounded-full bg-[conic-gradient(red,yellow,lime,aqua,blue,magenta,red)] border border-gray-500 hover:scale-110 transition-transform shadow-sm"
-              />
-            </div>
+            <CompactColorPicker
+              value={boxBackground}
+              onChange={handleBoxBackgroundChange}
+              disabled={isApplying}
+              allowNoFill={true}
+            />
           </div>
         </CollapsibleContent>
       </Collapsible>
