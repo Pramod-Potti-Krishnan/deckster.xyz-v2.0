@@ -254,6 +254,7 @@ function BuilderContent() {
     getSelectionInfo: () => Promise<{ hasSelection: boolean; selectedText?: string; sectionId?: string; slideIndex?: number } | null>
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
+    sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
   } | null>(null)
   const [isAIRegenerating, setIsAIRegenerating] = useState(false)
 
@@ -1421,20 +1422,19 @@ function BuilderContent() {
                 elementType={selectedElementType}
                 properties={selectedElementProperties}
                 onSendCommand={async (action, params) => {
-                  if (!layoutServiceApis?.sendTextBoxCommand) {
+                  if (!layoutServiceApis?.sendElementCommand) {
                     throw new Error('Layout Service not ready')
                   }
-                  // Use existing sendTextBoxCommand API for element commands
-                  // TODO: Add dedicated sendElementCommand to Layout Service
-                  return layoutServiceApis.sendTextBoxCommand(action, {
+                  // Use sendElementCommand which routes to AI backend or Layout Service as appropriate
+                  return layoutServiceApis.sendElementCommand(action, {
                     elementId: selectedElementId,
                     ...params
                   })
                 }}
                 onDelete={async () => {
-                  if (!layoutServiceApis?.sendTextBoxCommand || !selectedElementId) return
+                  if (!layoutServiceApis?.sendElementCommand || !selectedElementId) return
                   try {
-                    await layoutServiceApis.sendTextBoxCommand('deleteElement', {
+                    await layoutServiceApis.sendElementCommand('deleteElement', {
                       elementId: selectedElementId
                     })
                     setShowElementPanel(false)

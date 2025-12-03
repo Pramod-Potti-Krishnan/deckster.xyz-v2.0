@@ -37,6 +37,12 @@ import { TableInsertPopover, generateTableHTML } from './table-insert-popover'
 import { ChartPickerPopover, InsertChartParams, generateChartConfig } from './chart-picker-popover'
 import { ElementType, ElementProperties, BaseElementProperties } from '@/types/elements'
 import { VersionHistoryPanel } from './version-history-panel'
+import {
+  LAYOUT_SERVICE_COMMANDS,
+  AI_GENERATION_COMMANDS,
+  getCommandType,
+  getAICommandMapping
+} from '@/lib/element-command-router'
 
 // Selection info from Layout Service
 export interface SelectionInfo {
@@ -88,6 +94,7 @@ interface PresentationViewerProps {
     getSelectionInfo: () => Promise<SelectionInfo | null>
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
+    sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
   }) => void
 }
 
@@ -1159,16 +1166,80 @@ export function PresentationViewer({
     return sendCommand(iframeRef.current, action, params)
   }, [])
 
+  // Send element command - routes to Layout Service or AI backend as appropriate
+  const handleSendElementCommand = useCallback(async (action: string, params: Record<string, any>) => {
+    if (!iframeRef.current) {
+      throw new Error('Iframe not ready')
+    }
+
+    const commandType = getCommandType(action)
+
+    // Direct Layout Service command - send to iframe
+    if (commandType === 'layout-service') {
+      console.log(`[ElementCommand] Layout Service: ${action}`, params)
+      return sendCommand(iframeRef.current, action, params)
+    }
+
+    // AI Generation command - call backend first, then inject result
+    if (commandType === 'ai-generation') {
+      const mapping = getAICommandMapping(action)
+      if (!mapping) {
+        throw new Error(`No mapping found for AI command: ${action}`)
+      }
+
+      console.log(`[ElementCommand] AI Generation: ${action} -> ${mapping.apiEndpoint}`)
+
+      try {
+        // Step 1: Call AI backend
+        const response = await fetch(mapping.apiEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params)
+        })
+
+        if (!response.ok) {
+          throw new Error(`AI API error: ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        if (!data.success) {
+          return { success: false, error: data.error || 'AI generation failed' }
+        }
+
+        console.log(`[ElementCommand] AI result received, injecting via ${mapping.resultCommand}`)
+
+        // Step 2: Transform and inject result into Layout Service
+        const transformedResult = mapping.transformResult(data.result)
+        return sendCommand(iframeRef.current!, mapping.resultCommand, {
+          elementId: params.elementId,
+          ...transformedResult
+        })
+      } catch (error) {
+        console.error(`[ElementCommand] AI generation failed:`, error)
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'AI generation failed'
+        }
+      }
+    }
+
+    // Unknown command - try sending to iframe anyway (backwards compatibility)
+    console.warn(`[ElementCommand] Unknown command type: ${action}, sending to iframe`)
+    return sendCommand(iframeRef.current, action, params)
+  }, [])
+
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {
     if (iframeReady && onApiReady) {
       onApiReady({
         getSelectionInfo: handleGetSelectionInfo,
         updateSectionContent: handleUpdateSectionContent,
-        sendTextBoxCommand: handleSendTextBoxCommand
+        sendTextBoxCommand: handleSendTextBoxCommand,
+        sendElementCommand: handleSendElementCommand
       })
     }
-  }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand])
+  }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand])
 
   const handleFullscreen = useCallback(async () => {
     if (!containerRef.current) return
