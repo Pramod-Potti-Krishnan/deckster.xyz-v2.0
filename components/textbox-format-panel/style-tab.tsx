@@ -161,10 +161,12 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
     await onSendCommand('setTextBoxColor', { elementId, color })
   }
 
-  // Set text highlight/background color
+  // Set text highlight color (inline highlighting for selected text)
   const handleHighlightChange = async (color: string) => {
     setHighlightColor(color)
-    await onSendCommand('setTextBoxBackground', { elementId, backgroundColor: color })
+    // Use setTextHighlightColor for inline text highlighting (like a highlighter pen)
+    // User must select text first - this applies background to selected text only
+    await onSendCommand('setTextHighlightColor', { elementId, color })
   }
 
   // Set horizontal alignment

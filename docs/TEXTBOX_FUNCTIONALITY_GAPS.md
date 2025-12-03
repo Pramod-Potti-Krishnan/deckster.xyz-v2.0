@@ -1,98 +1,63 @@
-# TextBox Functionality Gaps Analysis
+# TextBox Functionality - Complete Implementation
 
-This document provides a complete analysis of all TextBox formatting commands sent by the frontend LHS Panel vs. what the Layout Service backend currently supports.
+This document provides a complete analysis of all TextBox formatting commands. **All commands are now implemented and working.**
 
-**Document Date:** 2024-12-02 (Updated)
+**Document Date:** 2024-12-02 (Final)
 **Frontend Component:** `components/textbox-format-panel/` (style-tab, ai-tab)
 
 ---
 
-## Recent Changes
+## Status: All Commands Working ✅
 
-**2024-12-02 - Simplified Panel Structure:**
-- Removed Layout Tab entirely
-- Merged essential box styling features (padding, border, fill) into Style Tab
-- Removed unnecessary features: Columns, Autosize Text, Indents, Border Positions, Border Offset
-
-**2024-12-02 - Bug Fix:**
-- Added `elementId` to all commands - Layout Service must use this to identify target element
-
----
-
-## Overview
-
-| Category | Total Commands | Working | Needs Implementation |
-|----------|----------------|---------|----------------------|
-| Font & Text | 8 | 6 | 2 |
-| Alignment | 2 | 1 | 1 |
-| Spacing | 2 | 1 | 1 |
-| Box Styling | 3 | 3 | 0 |
-| AI | 1 | Partial | Enhanced |
-| **Total** | **16** | **11** | **5** |
+All TextBox formatting commands are now fully implemented in the Layout Service.
 
 ---
 
 ## Style Tab Commands
 
-### Font & Text - Working
+### Font & Text
 
-| Command | Parameters | Status | Notes |
-|---------|------------|--------|-------|
-| `setTextBoxFont` | `{ elementId, fontFamily: string }` | ✅ Working | Font family dropdown |
-| `setTextBoxFontSize` | `{ elementId, fontSize: string }` | ✅ Working | Font size input/dropdown |
-| `setTextBoxColor` | `{ elementId, color: string }` | ✅ Working | Text color picker |
-| `setTextBoxLineHeight` | `{ elementId, lineHeight: string }` | ✅ Working | Line spacing |
-| `applyTextFormatCommand` | `{ elementId, command: string }` | ✅ Working | bold, italic, underline, strikethrough |
-| `setTextBoxBackground` | `{ elementId, backgroundColor: string }` | ✅ Working | Box fill color |
+| Command | Parameters | Status |
+|---------|------------|--------|
+| `setTextBoxFont` | `{ elementId, fontFamily }` | ✅ Working |
+| `setTextBoxFontSize` | `{ elementId, fontSize }` | ✅ Working |
+| `setTextBoxFontWeight` | `{ elementId, fontWeight }` | ✅ Working |
+| `setTextBoxColor` | `{ elementId, color }` | ✅ Working |
+| `setTextHighlightColor` | `{ elementId, color }` | ✅ Working |
+| `setTextBoxLineHeight` | `{ elementId, lineHeight }` | ✅ Working |
+| `applyTextFormatCommand` | `{ elementId, command }` | ✅ Working |
 
-### Font & Text - Needs Implementation
+### Alignment
 
-| Command | Parameters | Priority | Description |
-|---------|------------|----------|-------------|
-| `setTextHighlightColor` | `{ elementId, color: string }` | 🔴 High | **Inline text highlight** - applies background to selected text only (like a highlighter pen). Different from box background. |
-| `setTextBoxFontWeight` | `{ elementId, fontWeight: string }` | 🔴 High | Font weight dropdown (400/500/600/700) |
+| Command | Parameters | Status |
+|---------|------------|--------|
+| `setTextBoxAlignment` | `{ elementId, alignment }` | ✅ Working |
+| `setTextBoxVerticalAlignment` | `{ elementId, verticalAlignment }` | ✅ Working |
 
-### Alignment - Working
+### Spacing
 
-| Command | Parameters | Status | Notes |
-|---------|------------|--------|-------|
-| `setTextBoxAlignment` | `{ elementId, alignment: string }` | ✅ Working | left, center, right, justify |
+| Command | Parameters | Status |
+|---------|------------|--------|
+| `setTextBoxLineHeight` | `{ elementId, lineHeight }` | ✅ Working |
+| `setTextBoxParagraphSpacing` | `{ elementId, marginTop, marginBottom }` | ✅ Working |
 
-### Alignment - Needs Implementation
+### Box Styling
 
-| Command | Parameters | Priority | Description |
-|---------|------------|----------|-------------|
-| `setTextBoxVerticalAlignment` | `{ elementId, verticalAlignment: string }` | 🔴 High | top, middle, bottom |
-
-### Spacing - Working
-
-| Command | Parameters | Status | Notes |
-|---------|------------|--------|-------|
-| `setTextBoxLineHeight` | `{ elementId, lineHeight: string }` | ✅ Working | Line height (0.8, 1.0, 1.15, 1.5, 2.0) |
-
-### Spacing - Needs Implementation
-
-| Command | Parameters | Priority | Description |
-|---------|------------|----------|-------------|
-| `setTextBoxParagraphSpacing` | `{ elementId, marginTop, marginBottom }` | 🟡 Medium | Before/After paragraph spacing |
-
-### Box Styling - All Working
-
-| Command | Parameters | Status | Notes |
-|---------|------------|--------|-------|
-| `setTextBoxPadding` | `{ elementId, padding: string }` | ✅ Working | Space between border and text |
-| `setTextBoxBorder` | `{ elementId, borderStyle, borderWidth, borderColor, borderRadius }` | ✅ Working | Border style, color, width, rounded corners |
-| `setTextBoxBackground` | `{ elementId, backgroundColor: string }` | ✅ Working | Box fill color |
+| Command | Parameters | Status |
+|---------|------------|--------|
+| `setTextBoxPadding` | `{ elementId, padding }` | ✅ Working |
+| `setTextBoxBorder` | `{ elementId, borderStyle, borderWidth, borderColor, borderRadius }` | ✅ Working |
+| `setTextBoxBackground` | `{ elementId, backgroundColor }` | ✅ Working |
 
 ---
 
 ## AI Tab Commands
 
-| Command | Parameters | Status | Notes |
-|---------|------------|--------|-------|
-| `generateTextBoxContent` | `{ elementId, action?, prompt?, tone?, style?, presentationId, slideIndex }` | ⚠️ Partial | Basic generation may work, full action/tone/style support needed |
+| Command | Parameters | Status |
+|---------|------------|--------|
+| `generateTextBoxContent` | `{ elementId, action?, prompt?, tone?, style?, presentationId, slideIndex }` | ✅ Working |
 
-### Quick Actions Needed
+### Quick Actions
 - `shorten` - Make text shorter
 - `expand` - Make text longer
 - `grammar` - Fix grammar
@@ -101,113 +66,104 @@ This document provides a complete analysis of all TextBox formatting commands se
 - `professional` - Make more professional
 
 ### Tone/Style Options
-- Tone: professional, casual, persuasive, technical
-- Style: expand, summarize, rewrite
+- Tone: `professional`, `casual`, `persuasive`, `technical`
+- Style: `expand`, `summarize`, `rewrite`
 
 ---
 
-## Command Implementation Guide
+## Command Reference
 
-### 1. setTextHighlightColor (Priority: HIGH)
+### setTextHighlightColor
 
-**Frontend sends:**
+Applies inline text highlighting (like a highlighter pen).
+
 ```typescript
-await onSendCommand('setTextHighlightColor', { elementId, color: '#ffff00' })
+await onSendCommand('setTextHighlightColor', {
+  elementId: 'textbox-xxx',
+  color: '#ffff00'  // or 'transparent' to remove
+})
 ```
 
-**Expected behavior:**
-- Apply background color to **selected text only** (inline highlight)
-- Different from `setTextBoxBackground` which colors the entire box
-- Works like a highlighter pen
-- Support 'transparent' value to remove highlight
-- Persist in presentation model
-
-**Implementation hint:**
-- Use `document.execCommand('hiliteColor', false, color)` for contenteditable
-- Or wrap selected text in `<span style="background-color: ${color}">...</span>`
+**Note:** User must select text first. This applies background color to selected text only, not the entire box.
 
 ---
 
-### 2. setTextBoxFontWeight (Priority: HIGH)
+### setTextBoxFontWeight
 
-**Frontend sends:**
+Sets the font weight for the text box.
+
 ```typescript
-await onSendCommand('setTextBoxFontWeight', { elementId, fontWeight: '700' })
+await onSendCommand('setTextBoxFontWeight', {
+  elementId: 'textbox-xxx',
+  fontWeight: '700'  // 400, 500, 600, or 700
+})
 ```
 
-**Expected behavior:**
-- Apply font-weight CSS to text box content
-- Values: '400' (Regular), '500' (Medium), '600' (Semibold), '700' (Bold)
-- Persist in presentation model
-
 ---
 
-### 3. setTextBoxVerticalAlignment (Priority: HIGH)
+### setTextBoxVerticalAlignment
 
-**Frontend sends:**
+Sets vertical text alignment within the box.
+
 ```typescript
-await onSendCommand('setTextBoxVerticalAlignment', { elementId, verticalAlignment: 'middle' })
+await onSendCommand('setTextBoxVerticalAlignment', {
+  elementId: 'textbox-xxx',
+  verticalAlignment: 'middle'  // top, middle, or bottom
+})
 ```
 
-**Expected behavior:**
-- Align text vertically within the text box
-- Values: 'top', 'middle', 'bottom'
-- Persist in presentation model
-
-**Implementation hint:** CSS flexbox with `align-items` or `vertical-align` on table-cell
-
 ---
 
-### 4. setTextBoxParagraphSpacing (Priority: MEDIUM)
+### setTextBoxParagraphSpacing
 
-**Frontend sends:**
+Sets spacing before and after paragraphs.
+
 ```typescript
 await onSendCommand('setTextBoxParagraphSpacing', {
-  elementId,
+  elementId: 'textbox-xxx',
   marginTop: '10pt',
   marginBottom: '10pt'
 })
 ```
 
-**Expected behavior:**
-- Apply margin to paragraph elements within text box
-- Persist in presentation model
+---
+
+### generateTextBoxContent
+
+AI-powered content generation and transformation.
+
+```typescript
+await onSendCommand('generateTextBoxContent', {
+  elementId: 'textbox-xxx',
+  action: 'shorten',           // Quick action
+  tone: 'professional',        // Tone control
+  style: 'rewrite',            // Style control
+  prompt: 'Custom prompt',     // Optional custom prompt
+  presentationId: 'xxx',
+  slideIndex: 0
+})
+```
 
 ---
 
-## Testing Checklist
+## Implementation Notes
 
-After Layout Service implements each command:
+1. **All commands require `elementId`** - The Layout Service uses this to identify which text box to modify.
 
-- [ ] Select text, apply highlight color → Only selected text gets background → Reload → Persists
-- [ ] Change font weight → Reload → Font weight persists
-- [ ] Click vertical align middle → Text centers vertically → Reload → Persists
-- [ ] Set paragraph spacing → Reload → Spacing persists
-- [ ] Set box padding → Reload → Persists
-- [ ] Set box border (style, color, width, rounded) → Reload → Persists
-- [ ] Set box fill color → Reload → Persists
+2. **Highlight vs Background:**
+   - `setTextHighlightColor` - Highlights selected text inline (like a highlighter pen)
+   - `setTextBoxBackground` - Sets the entire box's background color
+
+3. **Persistence:** All formatting changes are automatically persisted in the presentation model.
 
 ---
 
-## Summary
+## Features Not Implemented (By Design)
 
-The frontend TextBoxFormatPanel has been simplified to a single Style tab (plus AI). Commands needed from Layout Service:
+These features were intentionally removed to simplify the interface:
 
-| Priority | Commands |
-|----------|----------|
-| 🔴 HIGH | `setTextHighlightColor`, `setTextBoxFontWeight`, `setTextBoxVerticalAlignment` |
-| 🟡 MEDIUM | `setTextBoxParagraphSpacing` |
-| ⚠️ ENHANCE | `generateTextBoxContent` (full action/tone/style support) |
-
-### Features Removed (No Longer Needed):
-- ~~Columns~~ (`setTextBoxColumns`)
-- ~~Autosize Text~~ (`setTextBoxAutosize`)
-- ~~Indents~~ (`setTextBoxIndents`)
-- ~~Border Positions~~ (`setTextBoxBorderPositions`)
-- ~~Border Offset~~ (`setTextBoxBorderOffset`)
-
-### Working Features:
-- Font family, font size, text color
-- Horizontal alignment, line height
-- Bold/italic/underline/strikethrough
-- Box padding, border (style/color/width/rounded), fill color
+- ~~Columns~~ - Not needed for agent deck builder
+- ~~Autosize Text~~ - Not needed
+- ~~Indents~~ - Not needed
+- ~~Border Positions~~ - Simplified to all-or-nothing border
+- ~~Border Offset~~ - Not needed
