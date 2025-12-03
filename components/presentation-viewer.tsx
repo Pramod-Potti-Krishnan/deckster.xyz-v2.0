@@ -15,7 +15,8 @@ import {
   Type,
   Image,
   LayoutGrid,
-  GitBranch
+  GitBranch,
+  History
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -35,6 +36,7 @@ import { ShapePickerPopover, InsertShapeParams } from './shape-picker-popover'
 import { TableInsertPopover, generateTableHTML } from './table-insert-popover'
 import { ChartPickerPopover, InsertChartParams, generateChartConfig } from './chart-picker-popover'
 import { ElementType, ElementProperties, BaseElementProperties } from '@/types/elements'
+import { VersionHistoryPanel } from './version-history-panel'
 
 // Selection info from Layout Service
 export interface SelectionInfo {
@@ -182,6 +184,8 @@ export function PresentationViewer({
   const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
   // Text box selection state
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
+  // Version history panel state
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
 
   // Sync totalSlides with slideCount prop changes
   useEffect(() => {
@@ -1336,31 +1340,9 @@ export function PresentationViewer({
         <div className={`${isFullscreen ? 'absolute top-12 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl border border-gray-200' : ''} flex items-center justify-between px-6 py-2 bg-gray-50 border-b transition-all duration-300 ${
           isFullscreen && !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
         }`}>
-          {/* Left Group: Navigation + Add Slide + Edit */}
+          {/* Left Group: Add Slide + Edit */}
           <div className="flex items-center gap-4">
-            {/* Navigation */}
-            <button
-              onClick={handlePrevSlide}
-              disabled={currentSlide <= 1}
-              className="flex flex-col items-center gap-0.5 px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Previous slide"
-            >
-              <ChevronLeft className="h-5 w-5 text-gray-700" />
-              <span className="text-[10px] text-gray-500">Prev</span>
-            </button>
-            <button
-              onClick={handleNextSlide}
-              disabled={totalSlides ? currentSlide >= totalSlides : false}
-              className="flex flex-col items-center gap-0.5 px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Next slide"
-            >
-              <ChevronRight className="h-5 w-5 text-gray-700" />
-              <span className="text-[10px] text-gray-500">Next</span>
-            </button>
-
-            <div className="w-px h-10 bg-gray-200" />
-
-            {/* Add Slide - Updated to match style */}
+            {/* Add Slide */}
             <SlideLayoutPicker
               onAddSlide={handleAddSlide}
               disabled={!presentationUrl}
@@ -1379,15 +1361,6 @@ export function PresentationViewer({
                   >
                     <Save className="h-5 w-5 text-green-600" />
                     <span className="text-[10px] text-green-600 font-medium">{isSaving ? 'Saving' : 'Save'}</span>
-                  </button>
-                  <button
-                    onClick={handleCancelEdits}
-                    disabled={isSaving}
-                    className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-50 transition-colors"
-                    title="Cancel edits"
-                  >
-                    <X className="h-5 w-5 text-gray-500" />
-                    <span className="text-[10px] text-gray-500">Cancel</span>
                   </button>
                 </div>
               </>
@@ -1475,8 +1448,19 @@ export function PresentationViewer({
             </button>
           </div>
 
-          {/* Right Group: Version + Status + Download + Counter */}
+          {/* Right Group: Version History + Version + Status + Download + Counter */}
           <div className="flex items-center gap-3">
+            {/* Version History */}
+            <button
+              onClick={() => setShowVersionHistory(true)}
+              disabled={!presentationUrl}
+              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Version history"
+            >
+              <History className="h-5 w-5 text-gray-700" />
+              <span className="text-[10px] text-gray-500">History</span>
+            </button>
+
             {/* Version Dropdown */}
             {strawmanPreviewUrl && finalPresentationUrl && (
               <DropdownMenu>
@@ -1621,6 +1605,14 @@ export function PresentationViewer({
         slideNumber={slideToDelete !== null ? slideToDelete + 1 : 0}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
+      />
+
+      {/* Version History Panel */}
+      <VersionHistoryPanel
+        isOpen={showVersionHistory}
+        onClose={() => setShowVersionHistory(false)}
+        iframeRef={iframeRef}
+        viewerOrigin={VIEWER_ORIGIN}
       />
     </div>
   )
