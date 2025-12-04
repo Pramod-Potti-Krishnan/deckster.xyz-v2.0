@@ -39,10 +39,15 @@ import { ElementType, ElementProperties, BaseElementProperties } from '@/types/e
 import { VersionHistoryPanel } from './version-history-panel'
 import {
   LAYOUT_SERVICE_COMMANDS,
-  AI_GENERATION_COMMANDS,
   getCommandType,
-  getAICommandMapping
+  isElementorCommand
 } from '@/lib/element-command-router'
+import {
+  ELEMENTOR_BASE_URL,
+  getElementorEndpoint,
+  ElementorContext,
+  ElementorPosition
+} from '@/lib/elementor-client'
 
 // Selection info from Layout Service
 export interface SelectionInfo {
@@ -1166,7 +1171,19 @@ export function PresentationViewer({
     return sendCommand(iframeRef.current, action, params)
   }, [])
 
-  // Send element command - routes to Layout Service or AI backend as appropriate
+  // Trigger iframe refresh after Elementor auto-injection
+  const triggerIframeRefresh = useCallback(() => {
+    if (!iframeRef.current) return
+
+    // Send refreshSlide command to iframe - Layout Service will reload current slide
+    iframeRef.current.contentWindow?.postMessage(
+      { action: 'refreshSlide' },
+      VIEWER_ORIGIN
+    )
+    console.log('[Elementor] Triggered iframe refresh after auto-injection')
+  }, [])
+
+  // Send element command - routes to Layout Service or Elementor as appropriate
   const handleSendElementCommand = useCallback(async (action: string, params: Record<string, any>) => {
     if (!iframeRef.current) {
       throw new Error('Iframe not ready')
@@ -1180,46 +1197,84 @@ export function PresentationViewer({
       return sendCommand(iframeRef.current, action, params)
     }
 
-    // AI Generation command - call backend first, then inject result
-    if (commandType === 'ai-generation') {
-      const mapping = getAICommandMapping(action)
-      if (!mapping) {
-        throw new Error(`No mapping found for AI command: ${action}`)
+    // Elementor command - call Elementor API (auto-injects into Layout Service)
+    if (commandType === 'elementor') {
+      const endpoint = getElementorEndpoint(action)
+      if (!endpoint) {
+        throw new Error(`No Elementor endpoint found for: ${action}`)
       }
 
-      console.log(`[ElementCommand] AI Generation: ${action} -> ${mapping.apiEndpoint}`)
+      console.log(`[ElementCommand] Elementor: ${action} -> ${endpoint}`)
 
       try {
-        // Step 1: Call AI backend
-        const response = await fetch(mapping.apiEndpoint, {
+        // Build Elementor request with context and position
+        const elementorRequest = {
+          element_id: params.elementId,
+          context: {
+            presentation_id: presentationId || 'unknown',
+            presentation_title: 'Untitled', // TODO: Get from props if available
+            slide_id: `slide-${currentSlide}`,
+            slide_index: currentSlide - 1,
+          } as ElementorContext,
+          position: params.position || {
+            grid_row: '4/14',
+            grid_column: '2/30'
+          } as ElementorPosition,
+          prompt: params.prompt,
+          // Pass through element-specific params
+          ...(params.style && { style: params.style }),
+          ...(params.aspectRatio && { aspect_ratio: params.aspectRatio }),
+          ...(params.quality && { quality: params.quality }),
+          ...(params.chartType && { chart_type: params.chartType }),
+          ...(params.colorPalette && { palette: params.colorPalette }),
+          ...(params.diagramType && { diagram_type: params.diagramType }),
+          ...(params.direction && { direction: params.direction }),
+          ...(params.theme && { theme: params.theme }),
+          ...(params.infographicType && { infographic_type: params.infographicType }),
+          ...(params.colorScheme && { color_scheme: params.colorScheme }),
+          ...(params.iconStyle && { icon_style: params.iconStyle }),
+          ...(params.rows && { rows: params.rows }),
+          ...(params.cols && { columns: params.cols }),
+          ...(params.hasHeaderRow !== undefined && { has_header: params.hasHeaderRow }),
+        }
+
+        const response = await fetch(`${ELEMENTOR_BASE_URL}${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params)
+          body: JSON.stringify(elementorRequest)
         })
 
         if (!response.ok) {
-          throw new Error(`AI API error: ${response.status}`)
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error?.message || `Elementor API error: ${response.status}`)
         }
 
         const data = await response.json()
 
         if (!data.success) {
-          return { success: false, error: data.error || 'AI generation failed' }
+          return {
+            success: false,
+            error: data.error?.message || 'Elementor generation failed'
+          }
         }
 
-        console.log(`[ElementCommand] AI result received, injecting via ${mapping.resultCommand}`)
+        console.log(`[ElementCommand] Elementor generated and auto-injected: ${data.element_id}`)
 
-        // Step 2: Transform and inject result into Layout Service
-        const transformedResult = mapping.transformResult(data.result)
-        return sendCommand(iframeRef.current!, mapping.resultCommand, {
-          elementId: params.elementId,
-          ...transformedResult
-        })
+        // Elementor auto-injects content - trigger iframe refresh to show it
+        if (data.injected) {
+          triggerIframeRefresh()
+        }
+
+        return {
+          success: true,
+          elementId: data.element_id,
+          injected: data.injected
+        }
       } catch (error) {
-        console.error(`[ElementCommand] AI generation failed:`, error)
+        console.error(`[ElementCommand] Elementor generation failed:`, error)
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'AI generation failed'
+          error: error instanceof Error ? error.message : 'Elementor generation failed'
         }
       }
     }
@@ -1227,7 +1282,7 @@ export function PresentationViewer({
     // Unknown command - try sending to iframe anyway (backwards compatibility)
     console.warn(`[ElementCommand] Unknown command type: ${action}, sending to iframe`)
     return sendCommand(iframeRef.current, action, params)
-  }, [])
+  }, [presentationId, currentSlide, triggerIframeRefresh])
 
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {

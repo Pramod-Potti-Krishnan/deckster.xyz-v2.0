@@ -3,7 +3,7 @@
  *
  * Routes element commands to either:
  * 1. Layout Service (iframe) - for direct element manipulation
- * 2. AI Backend APIs - for content generation, then injects result into Layout Service
+ * 2. Elementor API - for AI content generation (auto-injects into Layout Service)
  */
 
 // Commands that go directly to Layout Service iframe
@@ -17,13 +17,14 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   'insertTable',
   'insertShape',
 
-  // Content updates (after AI generation)
+  // Content updates (manual updates, not from AI)
   'updateImageSource',
   'updateChartConfig',
   'setChartHtml',
   'updateInfographicContent',
   'updateDiagramSvg',
   'updateDiagramMermaid',
+  'updateTableData',
 
   // Element management
   'deleteElement',
@@ -53,70 +54,39 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   'groupElements',
   'ungroupElements',
   'alignElement',
+
+  // Slide refresh
+  'refreshSlide',
+  'goToSlide',
 ])
 
-// AI generation commands that need backend API call first
-export interface AICommandMapping {
-  apiEndpoint: string
-  resultCommand: string
-  transformResult: (data: any) => Record<string, any>
-}
-
-export const AI_GENERATION_COMMANDS: Record<string, AICommandMapping> = {
-  'generateImage': {
-    apiEndpoint: '/api/ai/image',
-    resultCommand: 'updateImageSource',
-    transformResult: (data) => ({
-      imageUrl: data.imageUrl,
-      alt: data.alt
-    })
-  },
-  'generateChartData': {
-    apiEndpoint: '/api/ai/chart',
-    resultCommand: 'updateChartConfig',
-    transformResult: (data) => ({
-      chartConfig: data.chartConfig
-    })
-  },
-  'generateInfographic': {
-    apiEndpoint: '/api/ai/infographic',
-    resultCommand: 'updateInfographicContent',
-    transformResult: (data) => ({
-      svgContent: data.svgContent
-    })
-  },
-  'generateDiagram': {
-    apiEndpoint: '/api/ai/diagram',
-    resultCommand: 'updateDiagramMermaid',
-    transformResult: (data) => ({
-      mermaidCode: data.mermaidCode
-    })
-  },
-  'generateTableData': {
-    apiEndpoint: '/api/ai/table',
-    resultCommand: 'updateTableData',
-    transformResult: (data) => ({
-      tableHtml: data.tableHtml
-    })
-  }
-}
+// AI generation commands that go to Elementor
+// Elementor auto-injects content into Layout Service, so no resultCommand needed
+export const ELEMENTOR_COMMANDS = new Set([
+  'generateImage',
+  'generateChartData',
+  'generateInfographic',
+  'generateDiagram',
+  'generateTableData',
+  'generateText',
+])
 
 /**
- * Determines if a command should go to Layout Service or AI backend
+ * Determines if a command should go to Layout Service or Elementor
  */
-export function getCommandType(action: string): 'layout-service' | 'ai-generation' | 'unknown' {
+export function getCommandType(action: string): 'layout-service' | 'elementor' | 'unknown' {
   if (LAYOUT_SERVICE_COMMANDS.has(action)) {
     return 'layout-service'
   }
-  if (action in AI_GENERATION_COMMANDS) {
-    return 'ai-generation'
+  if (ELEMENTOR_COMMANDS.has(action)) {
+    return 'elementor'
   }
   return 'unknown'
 }
 
 /**
- * Gets the AI command mapping for a generation command
+ * Checks if a command is an AI generation command
  */
-export function getAICommandMapping(action: string): AICommandMapping | null {
-  return AI_GENERATION_COMMANDS[action] || null
+export function isElementorCommand(action: string): boolean {
+  return ELEMENTOR_COMMANDS.has(action)
 }

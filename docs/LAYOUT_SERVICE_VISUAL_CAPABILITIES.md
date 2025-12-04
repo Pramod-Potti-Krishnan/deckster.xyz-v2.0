@@ -4,7 +4,36 @@ This document specifies all non-AI visual rendering and element manipulation cap
 
 ---
 
-## 1. Grid System
+## Implementation Status Legend
+
+| Status | Meaning |
+|--------|---------|
+| ✅ IMPLEMENTED | Already working in current Layout Service |
+| 🔨 NEEDED | Needs to be implemented |
+
+### Quick Summary
+
+| Section | Status | Notes |
+|---------|--------|-------|
+| 1. Grid System | ✅ IMPLEMENTED | 12×8 grid, snap-to-grid |
+| 2.1 Text Box | ✅ IMPLEMENTED | All formatting commands working |
+| 2.2 Image | 🔨 NEEDED | Image element rendering and controls |
+| 2.3 Table | 🔨 NEEDED | Table element rendering and editing |
+| 2.4 Chart | 🔨 NEEDED | Chart.js integration |
+| 2.5 Infographic | 🔨 NEEDED | SVG rendering for infographics |
+| 2.6 Diagram | 🔨 NEEDED | Mermaid.js integration |
+| 3. Element Manipulation | ✅ PARTIAL | Basic select/move/resize done; advanced alignment needed |
+| 4. Z-Index Management | 🔨 NEEDED | Layer ordering controls |
+| 5. Transform Operations | 🔨 NEEDED | Rotate, flip, scale |
+| 6. Grouping | 🔨 NEEDED | Group/ungroup functionality |
+| 7. Event System | ✅ IMPLEMENTED | postMessage communication |
+| 8. Performance | 🔨 NEEDED | Optimization techniques |
+| 9. Version History | ✅ IMPLEMENTED | Get history, restore version |
+| 10. Accessibility | 🔨 NEEDED | Keyboard nav, screen readers |
+
+---
+
+## 1. Grid System ✅ IMPLEMENTED
 
 ### 1.1 Slide Dimensions
 - **Default Resolution**: 1920 × 1080 pixels (16:9)
@@ -64,7 +93,7 @@ function percentToGrid(percentX: number, percentY: number, config: GridConfig): 
 
 ## 2. Element Rendering by Type
 
-### 2.1 Text Box Rendering
+### 2.1 Text Box Rendering ✅ IMPLEMENTED
 
 | Capability | Implementation | CSS Properties |
 |------------|----------------|----------------|
@@ -77,10 +106,10 @@ function percentToGrid(percentX: number, percentY: number, config: GridConfig): 
 | Alignment (H) | left, center, right, justify | `text-align` |
 | Alignment (V) | top, middle, bottom | `display: flex; align-items` |
 | Line height | 1.0 - 3.0 | `line-height` |
+| Paragraph spacing | margin top/bottom | `margin-top`, `margin-bottom` |
 | Padding | All sides | `padding` |
 | Border | Width, style, color, radius | `border`, `border-radius` |
-| Text overflow | clip, scroll, auto-resize | `overflow`, auto-height calc |
-| Columns | 1-4 columns | `column-count` |
+| Text highlight | Inline text background | `background-color` (on selection) |
 
 **Text Box Commands:**
 ```typescript
@@ -91,16 +120,18 @@ interface TextBoxRenderCommands {
   setTextBoxFontWeight(elementId: string, weight: string): void
   setTextBoxColor(elementId: string, color: string): void
   setTextBoxBackground(elementId: string, background: string): void
-  setTextBoxAlignment(elementId: string, horizontal: string, vertical?: string): void
+  setTextBoxAlignment(elementId: string, alignment: string): void
+  setTextBoxVerticalAlignment(elementId: string, verticalAlignment: string): void
   setTextBoxLineHeight(elementId: string, lineHeight: number): void
+  setTextBoxParagraphSpacing(elementId: string, marginTop: string, marginBottom: string): void
   setTextBoxPadding(elementId: string, padding: string): void
   setTextBoxBorder(elementId: string, border: BorderConfig): void
-  setTextBoxColumns(elementId: string, columns: number): void
-  setTextBoxOverflow(elementId: string, overflow: 'clip' | 'scroll' | 'auto'): void
+  setTextHighlightColor(elementId: string, color: string): void
+  applyTextFormatCommand(elementId: string, command: string): void
 }
 ```
 
-### 2.2 Image Rendering
+### 2.2 Image Rendering 🔨 NEEDED
 
 | Capability | Implementation | Details |
 |------------|----------------|---------|
@@ -135,7 +166,7 @@ interface FilterConfig {
 }
 ```
 
-### 2.3 Table Rendering
+### 2.3 Table Rendering 🔨 NEEDED
 
 | Capability | Implementation | Details |
 |------------|----------------|---------|
@@ -210,7 +241,7 @@ interface TableRenderCommands {
 }
 ```
 
-### 2.4 Chart Rendering
+### 2.4 Chart Rendering 🔨 NEEDED
 
 | Capability | Implementation | Library |
 |------------|----------------|---------|
@@ -270,7 +301,7 @@ interface ChartRenderCommands {
 }
 ```
 
-### 2.5 Infographic Rendering
+### 2.5 Infographic Rendering 🔨 NEEDED
 
 | Capability | Implementation | Details |
 |------------|----------------|---------|
@@ -319,7 +350,7 @@ interface InfographicRenderCommands {
 }
 ```
 
-### 2.6 Diagram Rendering (Mermaid)
+### 2.6 Diagram Rendering (Mermaid) 🔨 NEEDED
 
 | Capability | Implementation | Details |
 |------------|----------------|---------|
@@ -371,7 +402,7 @@ interface DiagramRenderCommands {
 
 ---
 
-## 3. Element Manipulation
+## 3. Element Manipulation ✅ IMPLEMENTED (Basic) / 🔨 NEEDED (Advanced)
 
 ### 3.1 Selection
 
@@ -529,7 +560,7 @@ function detectSnapGuides(
 
 ---
 
-## 4. Z-Index Management
+## 4. Z-Index Management 🔨 NEEDED
 
 ### 4.1 Layer Ordering
 
@@ -590,7 +621,7 @@ class ZIndexManagerImpl implements ZIndexManager {
 
 ---
 
-## 5. Transform Operations
+## 5. Transform Operations 🔨 NEEDED
 
 ### 5.1 Rotation
 
@@ -637,7 +668,7 @@ interface FlipCommands {
 
 ---
 
-## 6. Grouping
+## 6. Grouping 🔨 NEEDED
 
 ### 6.1 Group Creation
 
@@ -684,7 +715,7 @@ interface GroupCommands {
 
 ---
 
-## 7. Event System
+## 7. Event System ✅ IMPLEMENTED
 
 ### 7.1 Element Events
 
@@ -719,7 +750,7 @@ type SelectionEvent =
 
 ---
 
-## 8. Performance Considerations
+## 8. Performance Considerations 🔨 NEEDED
 
 ### 8.1 Rendering Optimization
 
@@ -740,9 +771,72 @@ type SelectionEvent =
 
 ---
 
-## 9. Accessibility
+## 9. Version History ✅ IMPLEMENTED
 
-### 9.1 Keyboard Navigation
+### 9.1 Version Commands
+
+The Layout Service supports version history management via postMessage API.
+
+**Get Version History:**
+```typescript
+// Request
+iframeRef.contentWindow.postMessage({
+  command: 'getVersionHistory'
+}, viewerOrigin)
+
+// Response
+interface VersionHistoryResponse {
+  command: 'getVersionHistory'
+  success: boolean
+  presentationId: string
+  currentVersionId: string
+  versions: Array<{
+    version_id: string
+    created_at: string      // ISO 8601 timestamp
+    created_by: string      // 'user', 'auto-save', 'system', 'restore'
+    change_summary?: string
+    presentation_id: string
+  }>
+  error?: string
+}
+```
+
+**Restore Version:**
+```typescript
+// Request
+iframeRef.contentWindow.postMessage({
+  command: 'restoreVersion',
+  params: {
+    versionId: string       // Required - version to restore
+    createBackup: boolean   // Optional - default true
+    reload: boolean         // Optional - default true
+  }
+}, viewerOrigin)
+
+// Response
+interface RestoreVersionResponse {
+  command: 'restoreVersion'
+  success: boolean
+  message?: string
+  backupVersionId?: string  // ID of backup created before restore
+  error?: string
+}
+```
+
+### 9.2 Version Behavior
+
+| Feature | Behavior |
+|---------|----------|
+| Auto-save | Creates version on each save |
+| Backup on restore | Current state backed up before restore |
+| Page reload | Automatic reload after restore (configurable) |
+| Version limit | Keep last 50 versions per presentation |
+
+---
+
+## 10. Accessibility 🔨 NEEDED
+
+### 10.1 Keyboard Navigation
 
 | Key | Action |
 |-----|--------|
@@ -754,7 +848,7 @@ type SelectionEvent =
 | Ctrl/Cmd+A | Select all |
 | Escape | Deselect / Cancel operation |
 
-### 9.2 Screen Reader Support
+### 10.2 Screen Reader Support
 
 - ARIA labels on all interactive elements
 - Announce selection changes

@@ -281,6 +281,51 @@ CREATE INDEX idx_history_element ON element_history(element_id);
 CREATE INDEX idx_history_element_version ON element_history(element_id, version DESC);
 ```
 
+### 2.5 Presentation Versions Table (for version history)
+
+```sql
+CREATE TABLE presentation_versions (
+  version_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  presentation_id UUID NOT NULL REFERENCES presentations(id) ON DELETE CASCADE,
+
+  -- Version snapshot (complete presentation state)
+  snapshot JSONB NOT NULL,
+
+  -- Metadata
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by VARCHAR(20) NOT NULL CHECK (created_by IN (
+    'user', 'auto-save', 'system', 'restore'
+  )),
+  change_summary TEXT,
+
+  -- For ordering
+  version_number INT NOT NULL
+);
+
+CREATE INDEX idx_versions_presentation ON presentation_versions(presentation_id);
+CREATE INDEX idx_versions_created ON presentation_versions(presentation_id, created_at DESC);
+
+-- Keep only last 50 versions per presentation
+CREATE OR REPLACE FUNCTION cleanup_old_versions()
+RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM presentation_versions
+  WHERE presentation_id = NEW.presentation_id
+  AND version_id NOT IN (
+    SELECT version_id FROM presentation_versions
+    WHERE presentation_id = NEW.presentation_id
+    ORDER BY created_at DESC
+    LIMIT 50
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_cleanup_versions
+AFTER INSERT ON presentation_versions
+FOR EACH ROW EXECUTE FUNCTION cleanup_old_versions();
+```
+
 ---
 
 ## 3. Element-Specific Content Schemas (JSONB)
@@ -309,26 +354,23 @@ CREATE INDEX idx_history_element_version ON element_history(element_id, version 
 
   "paragraph": {
     "marginTop": "0",
-    "marginBottom": "12pt",
-    "firstLineIndent": "0",
-    "leftIndent": "0",
-    "rightIndent": "0"
+    "marginBottom": "12pt"
   },
 
   "layout": {
-    "columns": 1,
-    "columnGap": "20px",
-    "autosize": false,
-    "overflow": "clip",
-    "padding": "12px"
+    "padding": "12px",
+    "verticalAlignment": "top"
   },
 
   "border": {
     "width": "0",
     "style": "solid",
     "color": "#000000",
-    "radius": "0",
-    "positions": ["all"]
+    "radius": "0"
+  },
+
+  "highlight": {
+    "color": null
   }
 }
 ```
