@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 import { SaveStatus } from './save-status-indicator'
-import { SlideLayoutPicker, SlideLayoutId } from './slide-layout-picker'
+import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
 import { useToast } from '@/hooks/use-toast'
 // TextFormatPopover is now replaced by simple text box insertion button
@@ -484,7 +484,7 @@ export function PresentationViewer({
   }, [onEditModeChange])
 
   // Add slide handler
-  const handleAddSlide = useCallback(async (layoutId: SlideLayoutId) => {
+  const handleAddSlide = useCallback(async (layoutId: SlideLayoutType) => {
     if (!iframeRef.current) {
       toast({
         title: 'Error',
@@ -610,7 +610,7 @@ export function PresentationViewer({
   }, [slideToDelete, totalSlides, currentSlide, toast])
 
   // Change slide layout handler
-  const handleChangeLayout = useCallback(async (slideIndex: number, newLayout: SlideLayoutId) => {
+  const handleChangeLayout = useCallback(async (slideIndex: number, newLayout: SlideLayoutType) => {
     if (!iframeRef.current) return
 
     try {
