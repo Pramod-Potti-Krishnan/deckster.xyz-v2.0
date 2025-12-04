@@ -1,21 +1,18 @@
 "use client"
 
-import { useState } from 'react'
-import { BarChart3, Loader2, Sparkles } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { BarChart3, Loader2, Sparkles, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BaseAITabProps } from '../types'
 import { PromptInput } from '../shared/prompt-input'
-import { TypeSelector } from '../shared/type-selector'
-import { CHART_TYPES, ChartType, ChartPalette, CHART_PALETTES } from '@/types/elements'
-
-// Chart palette presets for UI
-const PALETTE_OPTIONS: { type: ChartPalette; label: string }[] = [
-  { type: 'default', label: 'Default' },
-  { type: 'professional', label: 'Professional' },
-  { type: 'vibrant', label: 'Vibrant' },
-  { type: 'pastel', label: 'Pastel' },
-  { type: 'monochrome', label: 'Mono' },
-]
+import {
+  ChartType,
+  ChartTheme,
+  ChartDataFormat,
+  CHART_TYPES,
+  CHART_THEMES,
+  CHART_DATA_FORMATS,
+} from '@/types/elements'
 
 export function ChartAITab({
   onSendCommand,
@@ -24,11 +21,21 @@ export function ChartAITab({
   presentationId,
   slideIndex,
 }: BaseAITabProps) {
-  const [chartType, setChartType] = useState<ChartType>('bar')
-  const [colorPalette, setColorPalette] = useState<ChartPalette>('default')
+  const [chartType, setChartType] = useState<ChartType>('bar_vertical')
+  const [chartTheme, setChartTheme] = useState<ChartTheme>('professional')
+  const [dataFormat, setDataFormat] = useState<ChartDataFormat>('number')
+  const [useSynthetic, setUseSynthetic] = useState(false)
   const [prompt, setPrompt] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
+  // Group chart types for display
+  const standardCharts = useMemo(() => CHART_TYPES.filter(c => c.group === 'standard'), [])
+  const d3Charts = useMemo(() => CHART_TYPES.filter(c => c.group === 'd3'), [])
+
+  // Check if data format should be disabled (for certain D3 charts)
+  const isDataFormatDisabled = chartType === 'd3_choropleth_usa' || chartType === 'd3_sankey'
 
   // Change chart type
   const handleChartTypeChange = async (type: ChartType) => {
@@ -43,24 +50,10 @@ export function ChartAITab({
     }
   }
 
-  // Change color palette
-  const handlePaletteChange = async (palette: ChartPalette) => {
-    setColorPalette(palette)
-    try {
-      await onSendCommand('setChartColors', {
-        elementId,
-        palette,
-        customColors: CHART_PALETTES[palette],
-      })
-    } catch (err) {
-      // Silently handle
-    }
-  }
-
   // Generate chart data with AI
   const handleGenerateData = async () => {
-    if (!prompt.trim()) {
-      setError('Please describe the data you want to visualize')
+    if (!prompt.trim() && !useSynthetic) {
+      setError('Please describe the data you want to visualize or enable synthetic data')
       return
     }
 
@@ -71,7 +64,9 @@ export function ChartAITab({
       const result = await onSendCommand('generateChartData', {
         prompt: prompt.trim(),
         chartType,
-        colorPalette,
+        theme: chartTheme,
+        dataFormat,
+        useSynthetic,
         elementId,
         presentationId,
         slideIndex,
@@ -94,65 +89,154 @@ export function ChartAITab({
       {/* Header */}
       <div className="flex items-center gap-2 text-amber-400">
         <BarChart3 className="h-4 w-4" />
-        <span className="text-sm font-medium">Chart</span>
+        <span className="text-sm font-medium">Analytics / Chart</span>
       </div>
 
-      {/* Chart Type Selector */}
-      <TypeSelector
-        label="Type"
-        options={CHART_TYPES}
-        value={chartType}
-        onChange={handleChartTypeChange}
-        disabled={isGenerating || isApplying}
-        columns={4}
-      />
-
-      {/* Color Palette */}
+      {/* Chart Type Selector - Standard */}
       <div className="space-y-1.5">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Color Scheme</label>
-        <div className="grid grid-cols-5 gap-1.5">
-          {PALETTE_OPTIONS.map(({ type, label }) => (
+        <label className="text-xs text-gray-400 uppercase tracking-wide">Standard Charts</label>
+        <div className="grid grid-cols-4 gap-1">
+          {standardCharts.slice(0, 8).map(({ type, label }) => (
             <button
               key={type}
-              onClick={() => handlePaletteChange(type)}
+              onClick={() => handleChartTypeChange(type)}
               disabled={isGenerating || isApplying}
               className={cn(
-                "py-1.5 rounded-md text-xs font-medium transition-colors",
-                colorPalette === type
-                  ? "bg-blue-600 text-white"
+                "py-1.5 px-1 rounded text-xs font-medium transition-colors truncate",
+                chartType === type
+                  ? "bg-amber-600 text-white"
                   : "bg-gray-800 text-gray-300 hover:bg-gray-700"
               )}
+              title={label}
             >
               {label}
             </button>
           ))}
         </div>
-        {/* Color preview */}
-        <div className="flex gap-1 pt-1">
-          {CHART_PALETTES[colorPalette].slice(0, 6).map((color, idx) => (
-            <div
-              key={idx}
-              className="w-6 h-4 rounded"
-              style={{ backgroundColor: color }}
-            />
+        {/* Second row of standard charts */}
+        <div className="grid grid-cols-3 gap-1">
+          {standardCharts.slice(8).map(({ type, label }) => (
+            <button
+              key={type}
+              onClick={() => handleChartTypeChange(type)}
+              disabled={isGenerating || isApplying}
+              className={cn(
+                "py-1.5 px-1 rounded text-xs font-medium transition-colors truncate",
+                chartType === type
+                  ? "bg-amber-600 text-white"
+                  : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+              )}
+              title={label}
+            >
+              {label}
+            </button>
           ))}
         </div>
       </div>
 
+      {/* Chart Type Selector - D3 Advanced */}
+      <div className="space-y-1.5">
+        <label className="text-xs text-gray-400 uppercase tracking-wide">Advanced (D3)</label>
+        <div className="grid grid-cols-4 gap-1">
+          {d3Charts.map(({ type, label }) => (
+            <button
+              key={type}
+              onClick={() => handleChartTypeChange(type)}
+              disabled={isGenerating || isApplying}
+              className={cn(
+                "py-1.5 px-1 rounded text-xs font-medium transition-colors truncate",
+                chartType === type
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+              )}
+              title={label}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Theme Selector */}
+      <div className="space-y-1.5">
+        <label className="text-xs text-gray-400 uppercase tracking-wide">Theme</label>
+        <select
+          value={chartTheme}
+          onChange={(e) => setChartTheme(e.target.value as ChartTheme)}
+          disabled={isGenerating || isApplying}
+          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+        >
+          {CHART_THEMES.map(({ theme, label }) => (
+            <option key={theme} value={theme}>{label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Data Format Selector */}
+      {!isDataFormatDisabled && (
+        <div className="space-y-1.5">
+          <label className="text-xs text-gray-400 uppercase tracking-wide">Data Format</label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {CHART_DATA_FORMATS.map(({ format, label, symbol }) => (
+              <button
+                key={format}
+                onClick={() => setDataFormat(format)}
+                disabled={isGenerating || isApplying}
+                className={cn(
+                  "py-1.5 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1",
+                  dataFormat === format
+                    ? "bg-amber-600 text-white"
+                    : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                )}
+              >
+                <span className="text-amber-300">{symbol}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Divider */}
       <div className="flex items-center gap-2">
         <div className="flex-1 h-px bg-gray-700" />
-        <span className="text-xs text-gray-500">generate data with AI</span>
+        <span className="text-xs text-gray-500">generate with AI</span>
         <div className="flex-1 h-px bg-gray-700" />
+      </div>
+
+      {/* Synthetic Data Toggle */}
+      <div className="flex items-center justify-between">
+        <label className="text-xs text-gray-400">Use synthetic/demo data</label>
+        <button
+          onClick={() => setUseSynthetic(!useSynthetic)}
+          disabled={isGenerating || isApplying}
+          className={cn(
+            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+            useSynthetic ? "bg-amber-600" : "bg-gray-700"
+          )}
+        >
+          <span
+            className={cn(
+              "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform",
+              useSynthetic ? "translate-x-5" : "translate-x-1"
+            )}
+          />
+        </button>
       </div>
 
       {/* AI Prompt */}
       <div className="space-y-1.5">
-        <label className="text-xs text-gray-400">Describe the data</label>
+        <label className="text-xs text-gray-400">
+          {useSynthetic ? 'Describe the chart topic (optional)' : 'Describe the data'}
+        </label>
         <PromptInput
           value={prompt}
           onChange={setPrompt}
-          placeholder="E.g., Monthly revenue for 2024 showing growth trend..."
+          placeholder={
+            useSynthetic
+              ? "E.g., Quarterly revenue growth for a tech company..."
+              : "E.g., Monthly revenue for 2024 showing growth trend..."
+          }
           disabled={isGenerating}
           rows={3}
         />
@@ -168,10 +252,10 @@ export function ChartAITab({
       {/* Generate Button */}
       <button
         onClick={handleGenerateData}
-        disabled={isGenerating || isApplying || !prompt.trim()}
+        disabled={isGenerating || isApplying || (!prompt.trim() && !useSynthetic)}
         className={cn(
           "w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors",
-          isGenerating || isApplying || !prompt.trim()
+          isGenerating || isApplying || (!prompt.trim() && !useSynthetic)
             ? "bg-gray-700 text-gray-400 cursor-not-allowed"
             : "bg-amber-600 hover:bg-amber-700 text-white"
         )}
@@ -191,7 +275,9 @@ export function ChartAITab({
 
       {/* Info Text */}
       <p className="text-xs text-gray-500 text-center">
-        AI will generate data and update the chart
+        {useSynthetic
+          ? "AI will generate realistic demo data for your chart"
+          : "AI will generate data based on your description"}
       </p>
     </div>
   )
