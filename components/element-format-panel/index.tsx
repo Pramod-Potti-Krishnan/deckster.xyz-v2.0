@@ -137,7 +137,7 @@ export function ElementFormatPanel({
         >
           <SlideFormatPanel
             slideIndex={slideIndex}
-            presentationId={presentationId}
+            presentationId={presentationId || ''}
             onSendCommand={handleSlideCommand}
             isApplying={isApplying}
           />

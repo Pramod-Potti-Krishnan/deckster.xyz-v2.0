@@ -236,10 +236,35 @@ export type TableStyle =
   | 'colorful'
 
 // ============================================================================
-// HERO SLIDE TYPES
+// SLIDE LAYOUT TYPES (Layout Service v7.5)
 // ============================================================================
 
-// Hero types (6 types)
+// Slide layout types (15 total)
+export type SlideLayoutType =
+  // Hero Slides (Full-Bleed) - 4 types
+  | 'H1-generated'   // Title Slide (AI) - Full canvas for AI-generated content
+  | 'H1-structured'  // Title Slide (Manual) - Editable title, subtitle, background
+  | 'H2-section'     // Section Divider - Chapter/section breaks
+  | 'H3-closing'     // Closing Slide - Thank you with contact info
+  // Content Slides (Single Content Area) - 6 types
+  | 'C1-text'        // Text Content - Body text with title/subtitle
+  | 'C2-table'       // Table Slide - Data table area
+  | 'C3-chart'       // Single Chart - Chart visualization
+  | 'C4-infographic' // Single Infographic - Infographic area
+  | 'C5-diagram'     // Single Diagram - Diagram area
+  | 'C6-image'       // Single Image - Image with caption
+  // Split Layout Slides (Two Columns) - 4 types
+  | 'S1-visual-text'   // Visual + Text - Chart/diagram left, text right
+  | 'S2-image-content' // Image + Content - Full-height image left, content right
+  | 'S3-two-visuals'   // Two Visuals - Side-by-side visuals
+  | 'S4-comparison'    // Comparison - Two columns with headers
+  // Blank Slides - 1 type
+  | 'B1-blank'         // Blank Canvas - Empty slide for free placement
+
+// Slide layout categories
+export type SlideLayoutCategory = 'hero' | 'content' | 'split' | 'blank'
+
+// Legacy hero types (kept for backward compatibility during transition)
 export type HeroType =
   | 'title'
   | 'title_with_image'
@@ -248,7 +273,7 @@ export type HeroType =
   | 'closing'
   | 'closing_with_image'
 
-// Hero visual styles (for image variants)
+// Hero visual styles (for image variants - kept for backward compatibility)
 export type HeroVisualStyle = 'illustrated' | 'professional' | 'kids'
 
 // ============================================================================
@@ -650,12 +675,230 @@ export const HERO_TYPES: { type: HeroType; label: string; hasImage: boolean }[] 
   { type: 'closing_with_image', label: 'Closing with Image', hasImage: true },
 ]
 
-// Hero visual styles for UI
+// Hero visual styles for UI (legacy - kept for backward compatibility)
 export const HERO_VISUAL_STYLES: { style: HeroVisualStyle; label: string }[] = [
   { style: 'illustrated', label: 'Illustrated' },
   { style: 'professional', label: 'Professional' },
   { style: 'kids', label: 'Playful / Kids' },
 ]
+
+// ============================================================================
+// SLIDE LAYOUT UI ARRAYS (Layout Service v7.5)
+// ============================================================================
+
+// Slide layouts for UI (15 types, grouped by category)
+export const SLIDE_LAYOUTS: {
+  layout: SlideLayoutType
+  label: string
+  category: SlideLayoutCategory
+  description: string
+  icon?: string
+}[] = [
+  // Hero Slides
+  { layout: 'H1-generated', label: 'Title (AI)', category: 'hero', description: 'AI-generated title design', icon: 'Sparkles' },
+  { layout: 'H1-structured', label: 'Title (Manual)', category: 'hero', description: 'Editable title & subtitle', icon: 'Layout' },
+  { layout: 'H2-section', label: 'Section Divider', category: 'hero', description: 'Chapter breaks', icon: 'Milestone' },
+  { layout: 'H3-closing', label: 'Closing', category: 'hero', description: 'Thank you slide', icon: 'CheckCircle' },
+  // Content Slides
+  { layout: 'C1-text', label: 'Text', category: 'content', description: 'Body text content', icon: 'Type' },
+  { layout: 'C2-table', label: 'Table', category: 'content', description: 'Data table', icon: 'Table' },
+  { layout: 'C3-chart', label: 'Chart', category: 'content', description: 'Chart visualization', icon: 'BarChart3' },
+  { layout: 'C4-infographic', label: 'Infographic', category: 'content', description: 'Visual data', icon: 'LayoutGrid' },
+  { layout: 'C5-diagram', label: 'Diagram', category: 'content', description: 'Process/flow diagram', icon: 'GitBranch' },
+  { layout: 'C6-image', label: 'Image', category: 'content', description: 'Image with caption', icon: 'Image' },
+  // Split Slides
+  { layout: 'S1-visual-text', label: 'Visual + Text', category: 'split', description: 'Visual left, text right', icon: 'Columns' },
+  { layout: 'S2-image-content', label: 'Image + Content', category: 'split', description: 'Image left, content right', icon: 'LayoutPanelLeft' },
+  { layout: 'S3-two-visuals', label: 'Two Visuals', category: 'split', description: 'Side-by-side visuals', icon: 'LayoutGrid' },
+  { layout: 'S4-comparison', label: 'Comparison', category: 'split', description: 'Two columns comparison', icon: 'ArrowLeftRight' },
+  // Blank Slides
+  { layout: 'B1-blank', label: 'Blank', category: 'blank', description: 'Empty canvas', icon: 'Square' },
+]
+
+// Slide layout category labels
+export const SLIDE_LAYOUT_CATEGORIES: { category: SlideLayoutCategory; label: string }[] = [
+  { category: 'hero', label: 'Hero Slides' },
+  { category: 'content', label: 'Content Slides' },
+  { category: 'split', label: 'Split Layouts' },
+  { category: 'blank', label: 'Blank' },
+]
+
+// Default content schemas per layout (based on SLIDE_TYPES.md)
+export const SLIDE_LAYOUT_DEFAULTS: Record<SlideLayoutType, Record<string, string>> = {
+  // Hero Slides
+  'H1-generated': {
+    hero_content: '',
+    background_color: '#1f2937',
+  },
+  'H1-structured': {
+    slide_title: 'Presentation Title',
+    subtitle: 'Your tagline or subtitle here',
+    footer_text: '',
+    background_color: '#1e3a5f',
+  },
+  'H2-section': {
+    section_number: 'SECTION 01',
+    slide_title: 'Section Title',
+    subtitle: '',
+    background_color: '#374151',
+  },
+  'H3-closing': {
+    slide_title: 'Thank You',
+    subtitle: 'Questions & Discussion',
+    contact_info: '',
+    background_color: '#1e3a5f',
+  },
+  // Content Slides
+  'C1-text': {
+    slide_title: 'Slide Title',
+    subtitle: '',
+    body: '',
+  },
+  'C2-table': {
+    slide_title: 'Table Title',
+    subtitle: '',
+    table_html: '',
+  },
+  'C3-chart': {
+    slide_title: 'Chart Title',
+    subtitle: '',
+    chart_html: '',
+  },
+  'C4-infographic': {
+    slide_title: 'Infographic Title',
+    subtitle: '',
+    infographic_svg: '',
+  },
+  'C5-diagram': {
+    slide_title: 'Diagram Title',
+    subtitle: '',
+    diagram_svg: '',
+  },
+  'C6-image': {
+    slide_title: 'Image Title',
+    subtitle: '',
+    image_url: '',
+  },
+  // Split Slides
+  'S1-visual-text': {
+    slide_title: 'Visual + Text',
+    subtitle: '',
+    element_3: '',  // Visual content (left)
+    element_2: '',  // Text content (right)
+  },
+  'S2-image-content': {
+    slide_title: 'Image + Content',
+    subtitle: '',
+    image_url: '',
+    main_content: '',
+  },
+  'S3-two-visuals': {
+    slide_title: 'Comparison',
+    subtitle: '',
+    element_4: '',  // Left visual label
+    element_2: '',  // Left visual
+    element_3: '',  // Right visual label
+    element_5: '',  // Right visual
+  },
+  'S4-comparison': {
+    slide_title: 'Comparison',
+    subtitle: '',
+    header_left: 'Option A',
+    header_right: 'Option B',
+    content_left: '',
+    content_right: '',
+  },
+  // Blank Slides
+  'B1-blank': {
+    slide_title: '',
+    subtitle: '',
+    canvas_content: '',
+  },
+}
+
+// Content field definitions per layout (for dynamic form generation)
+export interface SlideContentField {
+  key: string
+  label: string
+  type: 'text' | 'textarea' | 'color' | 'richtext'
+  placeholder?: string
+  rows?: number
+}
+
+export const SLIDE_LAYOUT_FIELDS: Record<SlideLayoutType, SlideContentField[]> = {
+  // Hero Slides
+  'H1-generated': [
+    { key: 'prompt', label: 'AI Prompt', type: 'textarea', placeholder: 'Describe your title slide...', rows: 3 },
+  ],
+  'H1-structured': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Presentation Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Your tagline here' },
+    { key: 'footer_text', label: 'Footer', type: 'text', placeholder: 'Optional footer text' },
+    { key: 'background_color', label: 'Background', type: 'color' },
+  ],
+  'H2-section': [
+    { key: 'section_number', label: 'Section #', type: 'text', placeholder: 'SECTION 01' },
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Section Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+    { key: 'background_color', label: 'Background', type: 'color' },
+  ],
+  'H3-closing': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Thank You' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Questions & Discussion' },
+    { key: 'contact_info', label: 'Contact Info', type: 'textarea', placeholder: 'Email, website, etc.', rows: 2 },
+    { key: 'background_color', label: 'Background', type: 'color' },
+  ],
+  // Content Slides
+  'C1-text': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+    { key: 'body', label: 'Body', type: 'richtext', placeholder: 'Enter your content...', rows: 6 },
+  ],
+  'C2-table': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Table Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+  ],
+  'C3-chart': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Chart Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+  ],
+  'C4-infographic': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Infographic Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+  ],
+  'C5-diagram': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Diagram Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+  ],
+  'C6-image': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Image Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Caption or description' },
+  ],
+  // Split Slides
+  'S1-visual-text': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+  ],
+  'S2-image-content': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+    { key: 'main_content', label: 'Content', type: 'richtext', placeholder: 'Right side content...', rows: 6 },
+  ],
+  'S3-two-visuals': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Comparison Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+  ],
+  'S4-comparison': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Comparison Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+    { key: 'header_left', label: 'Left Header', type: 'text', placeholder: 'Option A' },
+    { key: 'header_right', label: 'Right Header', type: 'text', placeholder: 'Option B' },
+    { key: 'content_left', label: 'Left Content', type: 'richtext', placeholder: 'Left column content...', rows: 4 },
+    { key: 'content_right', label: 'Right Content', type: 'richtext', placeholder: 'Right column content...', rows: 4 },
+  ],
+  // Blank Slides
+  'B1-blank': [],
+}
 
 // Chart color palettes (kept for backward compatibility)
 export const CHART_PALETTES: Record<ChartPalette, string[]> = {

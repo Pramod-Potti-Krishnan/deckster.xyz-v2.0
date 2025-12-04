@@ -27,6 +27,7 @@ import {
   TableStyle,
   HeroType,
   HeroVisualStyle,
+  SlideLayoutType,
 } from '@/types/elements'
 
 const ELEMENTOR_BASE_URL = process.env.NEXT_PUBLIC_ELEMENTOR_URL || 'https://web-production-3b42.up.railway.app'
@@ -151,8 +152,10 @@ export async function generateText(params: TextRequest): Promise<ElementorRespon
 }
 
 // ============================================================================
-// HERO SLIDE GENERATION (6 types)
+// HERO SLIDE GENERATION (Supports both legacy HeroType and new SlideLayoutType)
 // ============================================================================
+
+// Legacy HeroRequest for backward compatibility
 export interface HeroRequest {
   context: ElementorContext
   prompt: string
@@ -160,8 +163,45 @@ export interface HeroRequest {
   visual_style?: HeroVisualStyle
 }
 
+// New SlideHeroRequest using SlideLayoutType
+export interface SlideHeroRequest {
+  context: ElementorContext
+  prompt: string
+  layout: SlideLayoutType  // H1-generated, H1-structured, H2-section, H3-closing
+  visual_style?: HeroVisualStyle
+}
+
+// Map new SlideLayoutType to legacy HeroType for backend compatibility
+function mapLayoutToHeroType(layout: SlideLayoutType): HeroType {
+  switch (layout) {
+    case 'H1-generated':
+      return 'title_with_image' // AI-generated uses image variant
+    case 'H1-structured':
+      return 'title'
+    case 'H2-section':
+      return 'section'
+    case 'H3-closing':
+      return 'closing'
+    default:
+      return 'title'
+  }
+}
+
+// Generate hero slide using legacy HeroType
 export async function generateHero(params: HeroRequest): Promise<ElementorResponse> {
   return elementorRequest('/api/generate/hero', params as unknown as ElementorBaseRequest)
+}
+
+// Generate hero slide using new SlideLayoutType
+export async function generateSlideHero(params: SlideHeroRequest): Promise<ElementorResponse> {
+  // Map to legacy format for backend
+  const legacyParams: HeroRequest = {
+    context: params.context,
+    prompt: params.prompt,
+    hero_type: mapLayoutToHeroType(params.layout),
+    visual_style: params.visual_style,
+  }
+  return elementorRequest('/api/generate/hero', legacyParams as unknown as ElementorBaseRequest)
 }
 
 // ============================================================================
@@ -226,8 +266,10 @@ export const ELEMENTOR_ENDPOINTS: Record<string, string> = {
   'generateDiagram': '/api/generate/diagram',
   'generateTableData': '/api/generate/table',
   'generateText': '/api/generate/text',
-  // Hero/Slide generation
+  // Hero/Slide generation (legacy and new)
+  'generateHero': '/api/generate/hero',
   'generateHeroSlide': '/api/generate/hero',
+  'generateSlideHero': '/api/generate/hero',
   'setSlideBackground': '/api/slide/background',
 }
 
