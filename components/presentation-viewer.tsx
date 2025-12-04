@@ -501,8 +501,9 @@ export function PresentationViewer({
       })
 
       if (result.success) {
-        const newSlideIndex = result.data?.slideIndex ?? currentSlide
-        const newTotal = result.data?.slideCount ?? totalSlides + 1
+        // Backend sends slide_index and slide_count directly (not nested in data)
+        const newSlideIndex = result.slide_index ?? result.data?.slideIndex ?? currentSlide
+        const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides + 1
 
         setTotalSlides(newTotal)
         setCurrentSlide(newSlideIndex + 1) // Navigate to new slide (1-based)
@@ -536,8 +537,9 @@ export function PresentationViewer({
       })
 
       if (result.success) {
-        const newSlideIndex = result.data?.newSlideIndex ?? slideIndex + 1
-        const newTotal = result.data?.slideCount ?? totalSlides + 1
+        // Backend sends new_slide_index directly (not nested in data)
+        const newSlideIndex = result.new_slide_index ?? result.data?.newSlideIndex ?? slideIndex + 1
+        const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides + 1
 
         setTotalSlides(newTotal)
         setCurrentSlide(newSlideIndex + 1)
@@ -577,7 +579,8 @@ export function PresentationViewer({
       })
 
       if (result.success) {
-        const newTotal = result.data?.slideCount ?? totalSlides - 1
+        // Backend may send slide_count directly or we calculate it
+        const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides - 1
         setTotalSlides(newTotal)
         setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
 
