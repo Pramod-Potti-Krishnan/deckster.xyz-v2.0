@@ -280,6 +280,9 @@ export type HeroVisualStyle = 'illustrated' | 'professional' | 'kids'
 // ELEMENT PROPERTIES
 // ============================================================================
 
+// Text transform options (CSS text-transform property)
+export type TextTransform = 'none' | 'uppercase' | 'lowercase' | 'capitalize'
+
 // Base properties shared by all elements
 export interface BaseElementProperties {
   elementId: string
@@ -289,6 +292,7 @@ export interface BaseElementProperties {
   locked: boolean
   zIndex: number
   flipped?: { horizontal: boolean; vertical: boolean }
+  cssClasses?: string[]  // Custom CSS classes applied to the element
 }
 
 // Image-specific properties
@@ -393,6 +397,7 @@ export interface TextElementProperties extends BaseElementProperties {
   bulletStyle?: BulletStyle
   includeEmoji?: boolean
   content?: string
+  textTransform?: TextTransform
 }
 
 // Hero-specific properties
@@ -653,6 +658,14 @@ export const BULLET_STYLES: { style: BulletStyle; label: string; symbol: string 
   { style: 'dash', label: 'Dash', symbol: '—' },
   { style: 'arrow', label: 'Arrow', symbol: '→' },
   { style: 'check', label: 'Check', symbol: '✓' },
+]
+
+// Text transform options for UI
+export const TEXT_TRANSFORMS: { transform: TextTransform; label: string; example: string }[] = [
+  { transform: 'none', label: 'None', example: 'Hello World' },
+  { transform: 'uppercase', label: 'UPPERCASE', example: 'HELLO WORLD' },
+  { transform: 'lowercase', label: 'lowercase', example: 'hello world' },
+  { transform: 'capitalize', label: 'Capitalize', example: 'Hello World' },
 ]
 
 // Table styles for UI

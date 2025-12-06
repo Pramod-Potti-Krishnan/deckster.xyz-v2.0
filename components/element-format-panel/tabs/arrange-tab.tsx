@@ -8,6 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { CSSClassesInput } from '@/components/ui/css-classes-input'
 import { ArrangeTabProps, ALIGN_OPTIONS, DISTRIBUTE_OPTIONS } from '../types'
 
 export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }: ArrangeTabProps) {
@@ -33,6 +34,9 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
   // Lock state
   const [isLocked, setIsLocked] = useState(properties?.locked ?? false)
 
+  // CSS classes state
+  const [cssClasses, setCssClasses] = useState<string[]>(properties?.cssClasses ?? [])
+
   // Update local state when properties change
   useEffect(() => {
     if (properties) {
@@ -45,6 +49,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
       setIsLocked(properties.locked ?? false)
       setFlippedH(properties.flipped?.horizontal ?? false)
       setFlippedV(properties.flipped?.vertical ?? false)
+      setCssClasses(properties.cssClasses ?? [])
       // Calculate initial aspect ratio
       if (properties.size?.width && properties.size?.height) {
         setAspectRatio(properties.size.width / properties.size.height)
@@ -167,6 +172,12 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
 
   const handleUngroup = async () => {
     await onSendCommand('ungroupElements', { groupId: elementId })
+  }
+
+  // CSS classes handler
+  const handleCssClassesChange = async (classes: string[]) => {
+    setCssClasses(classes)
+    await onSendCommand('setElementClasses', { elementId, classes })
   }
 
   return (
@@ -421,6 +432,17 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
         >
           Group
         </button>
+      </div>
+
+      {/* CSS Classes Section */}
+      <div className="space-y-2 pt-3 border-t border-gray-700 mt-3">
+        <label className="text-xs text-gray-400 uppercase tracking-wide">CSS Classes</label>
+        <CSSClassesInput
+          value={cssClasses}
+          onChange={handleCssClassesChange}
+          disabled={isApplying || isLocked}
+          placeholder="Add class name..."
+        />
       </div>
     </div>
   )

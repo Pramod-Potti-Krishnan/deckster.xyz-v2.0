@@ -61,6 +61,10 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
 
   // UI toggle commands
   'toggleBorderHighlight',
+
+  // Element property commands
+  'setElementClasses',
+  'setTextBoxTextTransform',
 ])
 
 // AI generation commands that go to Elementor

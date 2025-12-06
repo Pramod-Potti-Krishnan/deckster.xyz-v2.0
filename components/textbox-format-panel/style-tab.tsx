@@ -20,7 +20,9 @@ import {
 } from 'lucide-react'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { CompactColorPicker } from '@/components/ui/color-picker'
+import { CSSClassesInput } from '@/components/ui/css-classes-input'
 import { cn } from '@/lib/utils'
+import { TEXT_TRANSFORMS, TextTransform } from '@/types/elements'
 import {
   Collapsible,
   CollapsibleContent,
@@ -102,6 +104,10 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
   const [borderWidth, setBorderWidth] = useState('1')
   const [roundedCorners, setRoundedCorners] = useState(false)
   const [boxBackground, setBoxBackground] = useState('#ffffff')
+
+  // Text transform and CSS classes state
+  const [textTransform, setTextTransform] = useState<TextTransform>('none')
+  const [cssClasses, setCssClasses] = useState<string[]>([])
 
   const fontSizeInputRef = useRef<HTMLInputElement>(null)
 
@@ -249,6 +255,18 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
   const handleBoxBackgroundChange = async (color: string) => {
     setBoxBackground(color)
     await onSendCommand('setTextBoxBackground', { elementId, backgroundColor: color })
+  }
+
+  // Text transform handler
+  const handleTextTransformChange = async (value: TextTransform) => {
+    setTextTransform(value)
+    await onSendCommand('setTextBoxTextTransform', { elementId, textTransform: value })
+  }
+
+  // CSS classes handler
+  const handleCssClassesChange = async (classes: string[]) => {
+    setCssClasses(classes)
+    await onSendCommand('setElementClasses', { elementId, classes })
   }
 
   return (
@@ -440,6 +458,21 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
         </div>
       </div>
 
+      {/* Text Transform */}
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-[10px] text-gray-400">Transform</span>
+        <select
+          value={textTransform}
+          onChange={(e) => handleTextTransformChange(e.target.value as TextTransform)}
+          disabled={isApplying}
+          className="w-24 px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-white focus:outline-none border border-transparent hover:border-gray-600"
+        >
+          {TEXT_TRANSFORMS.map(({ transform, label }) => (
+            <option key={transform} value={transform}>{label}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="h-px bg-gray-800 my-2" />
 
       {/* Spacing Section (Collapsible) */}
@@ -626,6 +659,17 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
               onChange={handleBoxBackgroundChange}
               disabled={isApplying}
               allowNoFill={true}
+            />
+          </div>
+
+          {/* CSS Classes */}
+          <div className="space-y-1 pt-2 border-t border-gray-700 mt-2">
+            <label className="text-[10px] text-gray-400">CSS Classes</label>
+            <CSSClassesInput
+              value={cssClasses}
+              onChange={handleCssClassesChange}
+              disabled={isApplying}
+              placeholder="Add class name..."
             />
           </div>
         </CollapsibleContent>
