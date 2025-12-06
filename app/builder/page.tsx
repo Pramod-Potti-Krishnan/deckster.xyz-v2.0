@@ -2195,18 +2195,18 @@ function BuilderContent() {
                       </DropdownMenu>
                     </div>
 
-                    {/* Right: Claude-style send button (circular, only visible when text present) */}
-                    <div className="flex items-center gap-2">
-                      {inputMessage.trim() && (
-                        <button
-                          type="submit"
-                          disabled={!isReady}
-                          className="h-7 w-7 rounded-full bg-black hover:bg-gray-800 disabled:bg-gray-300 flex items-center justify-center transition-colors"
-                        >
-                          <ArrowUp className="h-4 w-4 text-white" />
-                        </button>
-                      )}
-                    </div>
+                    {/* Right: Send button - rounded square with up arrow */}
+                    <button
+                      type="submit"
+                      disabled={!isReady || !inputMessage.trim()}
+                      className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
+                        inputMessage.trim()
+                          ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                          : 'bg-purple-100 text-purple-300 cursor-not-allowed'
+                      }`}
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </button>
                   </div>
 
                   {/* Only show loading overlay when actually loading session */}
