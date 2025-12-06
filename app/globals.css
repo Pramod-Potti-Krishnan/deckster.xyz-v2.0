@@ -58,6 +58,29 @@ body {
     background-color: rgb(147 197 253);
   }
 
+  /* Chat scrollbar - very subtle */
+  .chat-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(229 231 235) transparent;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgb(229 231 235);
+    border-radius: 3px;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(209 213 219);
+  }
+
   /* Radial gradient for hero vignette effect */
   .bg-radial-gradient {
     background: radial-gradient(ellipse at center, var(--tw-gradient-stops));

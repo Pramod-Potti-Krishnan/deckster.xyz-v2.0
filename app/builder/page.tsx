@@ -1451,8 +1451,8 @@ function BuilderContent() {
             )}
 
             {/* Chat Messages */}
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4">
+            <ScrollArea className="flex-1">
+              <div className="px-3 py-4 space-y-4">
                 {/* Interleave user messages and bot messages by timestamp */}
                 {(() => {
                   const combined = [
@@ -1718,16 +1718,13 @@ function BuilderContent() {
                     if (item.messageType === 'user') {
                       // Render user message
                       return (
-                        <div key={item.id} className="flex gap-3 justify-end animate-in slide-in-from-right duration-300">
-                          <div className="flex-1 max-w-[85%]">
-                            <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
-                              <p className="text-sm leading-relaxed whitespace-pre-wrap">{item.text}</p>
-                            </div>
+                        <div key={item.id} className="flex gap-3 justify-end animate-in fade-in duration-200">
+                          <div className="flex-1 max-w-[85%] text-right">
+                            <p className="text-[11px] font-medium text-gray-500 mb-0.5">You</p>
+                            <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{item.text}</p>
                           </div>
-                          <div className="flex-shrink-0 mt-1">
-                            <div className="bg-blue-100 rounded-full p-1.5">
-                              <User className="h-4 w-4 text-blue-600" />
-                            </div>
+                          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center">
+                            <User className="h-3 w-3 text-white" />
                           </div>
                         </div>
                       )
@@ -1743,99 +1740,77 @@ function BuilderContent() {
                             const { slideUpdate, presentationUrl, actionRequest } = msg;
 
                             return (
-                              <div className="flex gap-3 animate-in slide-in-from-left duration-300">
-                                <div className="flex-shrink-0 mt-1">
-                                  <div className="bg-green-100 rounded-full p-1.5">
-                                    <Bot className="h-4 w-4 text-green-600" />
-                                  </div>
+                              <div className="flex gap-3 animate-in fade-in duration-200">
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center">
+                                  <Bot className="h-3 w-3 text-white" />
                                 </div>
-                                <div className="flex-1 max-w-[85%]">
-                                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl rounded-tl-sm shadow-sm overflow-hidden">
-                                    {/* Slide Structure Section */}
-                                    <div className="px-4 py-3 border-b border-green-200">
-                                      <div className="flex items-start gap-2">
-                                        <span className="text-xl">📊</span>
-                                        <div className="flex-1">
-                                          <p className="text-sm font-semibold text-green-900">
-                                            {slideUpdate?.payload.metadata.main_title}
-                                          </p>
-                                          <p className="text-xs text-green-700 mt-1 flex items-center gap-2 flex-wrap">
-                                            <span className="font-medium">{slideUpdate?.payload.slides.length} slides</span>
-                                            <span className="text-green-400">•</span>
-                                            <span>{slideUpdate?.payload.metadata.presentation_duration} min</span>
-                                            <span className="text-green-400">•</span>
-                                            <span className="capitalize">{slideUpdate?.payload.metadata.overall_theme}</span>
-                                          </p>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Deckster</p>
+
+                                  {/* Slide Structure Card */}
+                                  <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      <span className="text-sm">📊</span>
+                                      <p className="text-xs font-medium text-gray-900">
+                                        {slideUpdate?.payload.metadata.main_title}
+                                      </p>
+                                    </div>
+                                    <p className="text-[11px] text-gray-500 mb-2">
+                                      {slideUpdate?.payload.slides.length} slides · {slideUpdate?.payload.metadata.presentation_duration} min · {slideUpdate?.payload.metadata.overall_theme}
+                                    </p>
+                                    <div className="space-y-1 max-h-36 overflow-y-auto">
+                                      {slideUpdate?.payload.slides.map((slide, i) => (
+                                        <div key={i} className="text-[11px] py-1 px-2 bg-white rounded border border-gray-100">
+                                          <span className="text-gray-400 mr-1.5">{slide.slide_number}.</span>
+                                          <span className="text-gray-700">{slide.title}</span>
+                                          <span className="text-gray-400 text-[10px] uppercase ml-1.5">{slide.slide_type}</span>
                                         </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Presentation Ready */}
+                                  {presentationUrl && (
+                                    <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                                      <span className="text-sm">✅</span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs text-gray-700">{presentationUrl.payload.message}</p>
+                                        <p className="text-[10px] text-gray-500">{presentationUrl.payload.slide_count} slides</p>
                                       </div>
-                                      <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
-                                        {slideUpdate?.payload.slides.map((slide, i) => (
-                                          <div key={i} className="text-xs bg-white/80 backdrop-blur rounded-lg px-3 py-2 border border-green-100">
-                                            <div className="flex items-center gap-2">
-                                              <span className="font-semibold text-green-700 min-w-[1.5rem]">
-                                                {slide.slide_number}.
-                                              </span>
-                                              <span className="font-medium text-gray-800 flex-1">
-                                                {slide.title}
-                                              </span>
-                                              <span className="text-gray-500 text-[10px] uppercase tracking-wide">
-                                                {slide.slide_type}
-                                              </span>
-                                            </div>
-                                          </div>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-[11px] h-7 px-2 border-gray-200 hover:bg-white"
+                                        onClick={() => window.open(presentationUrl.payload.url, '_blank')}
+                                      >
+                                        <ExternalLink className="h-3 w-3 mr-1" />
+                                        Open
+                                      </Button>
+                                    </div>
+                                  )}
+
+                                  {/* Action Buttons */}
+                                  {actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                                    <div className="mt-3">
+                                      <p className="text-xs text-gray-700 mb-2">{actionRequest.payload.prompt_text}</p>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {actionRequest.payload.actions.map((action, i) => (
+                                          <Button
+                                            key={i}
+                                            size="sm"
+                                            variant={action.primary ? "default" : "outline"}
+                                            onClick={() => handleActionClick(action, actionRequest.message_id)}
+                                            className={action.primary
+                                              ? "text-xs h-7 bg-gray-900 hover:bg-gray-800"
+                                              : "text-xs h-7 border-gray-200 hover:bg-gray-50"
+                                            }
+                                          >
+                                            {action.label}
+                                          </Button>
                                         ))}
                                       </div>
                                     </div>
-
-                                    {/* Presentation Ready Section */}
-                                    {presentationUrl && (
-                                      <div className="px-4 py-3 border-b border-green-200 bg-white/40">
-                                        <div className="flex items-start gap-2">
-                                          <span className="text-xl">✅</span>
-                                          <div className="flex-1">
-                                            <p className="text-sm font-semibold text-green-900">
-                                              {presentationUrl.payload.message}
-                                            </p>
-                                            <p className="text-xs text-green-700 mt-1">
-                                              {presentationUrl.payload.slide_count} slides ready to view
-                                            </p>
-                                          </div>
-                                        </div>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="mt-3 w-full bg-white hover:bg-green-50 border-green-300 text-green-700 hover:text-green-800"
-                                          onClick={() => window.open(presentationUrl.payload.url, '_blank')}
-                                        >
-                                          <ExternalLink className="h-3 w-3 mr-1" />
-                                          Open presentation
-                                        </Button>
-                                      </div>
-                                    )}
-
-                                    {/* Action Buttons Section */}
-                                    {actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
-                                      <div className="px-4 py-3 bg-white/60">
-                                        <p className="text-sm font-medium text-gray-900 mb-3">{actionRequest.payload.prompt_text}</p>
-                                        <div className="flex flex-wrap gap-2">
-                                          {actionRequest.payload.actions.map((action, i) => (
-                                            <Button
-                                              key={i}
-                                              size="sm"
-                                              variant={action.primary ? "default" : "outline"}
-                                              onClick={() => handleActionClick(action, actionRequest.message_id)}
-                                              className={action.primary
-                                                ? "bg-green-600 hover:bg-green-700 shadow-sm"
-                                                : "hover:bg-gray-50 border-gray-300"
-                                              }
-                                            >
-                                              {action.label}
-                                            </Button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
+                                  )}
                                 </div>
                               </div>
                             );
@@ -1846,48 +1821,42 @@ function BuilderContent() {
                               chatMsg.payload.text.toLowerCase().includes('preview');
 
                             return (
-                              <div className="flex gap-3 animate-in slide-in-from-left duration-300">
-                                <div className="flex-shrink-0 mt-1">
-                                  <div className="bg-purple-100 rounded-full p-1.5">
-                                    <Bot className="h-4 w-4 text-purple-600" />
-                                  </div>
+                              <div className="flex gap-3 animate-in fade-in duration-200">
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center">
+                                  <Bot className="h-3 w-3 text-white" />
                                 </div>
-                                <div className="flex-1 max-w-[85%]">
-                                  <div className={`rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm ${isPreviewLink
-                                    ? 'bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200'
-                                    : 'bg-white border border-gray-200'
-                                    }`}>
-                                    <div className="text-sm max-w-none text-gray-800" style={{ fontSize: '0.875rem' }}>
-                                      <ReactMarkdown
-                                        components={{
-                                          a: ({ node, ...props }) => (
-                                            <a
-                                              {...props}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
-                                            />
-                                          ),
-                                          p: ({ node, ...props }) => <p {...props} className="leading-relaxed mb-0" style={{ fontSize: 'inherit' }} />,
-                                          strong: ({ node, ...props }) => <strong {...props} className="font-semibold text-gray-900" style={{ fontSize: 'inherit' }} />,
-                                          ul: ({ node, ...props }) => <ul {...props} className="space-y-1 my-2" style={{ fontSize: 'inherit' }} />,
-                                          li: ({ node, ...props }) => <li {...props} className="leading-relaxed" style={{ fontSize: 'inherit' }} />
-                                        }}
-                                      >
-                                        {chatMsg.payload.text}
-                                      </ReactMarkdown>
-                                    </div>
-                                    {chatMsg.payload.sub_title && (
-                                      <p className="text-xs text-gray-600 mt-1">{chatMsg.payload.sub_title}</p>
-                                    )}
-                                    {chatMsg.payload.list_items && chatMsg.payload.list_items.length > 0 && (
-                                      <ul className="text-xs mt-2 space-y-1">
-                                        {chatMsg.payload.list_items.map((item, i) => (
-                                          <li key={i} className="ml-4 list-disc">{item}</li>
-                                        ))}
-                                      </ul>
-                                    )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Deckster</p>
+                                  <div className="text-xs text-gray-700 leading-relaxed">
+                                    <ReactMarkdown
+                                      components={{
+                                        a: ({ node, ...props }) => (
+                                          <a
+                                            {...props}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+                                          />
+                                        ),
+                                        p: ({ node, ...props }) => <p {...props} className="leading-relaxed mb-1 last:mb-0" />,
+                                        strong: ({ node, ...props }) => <strong {...props} className="font-semibold text-gray-900" />,
+                                        ul: ({ node, ...props }) => <ul {...props} className="list-disc pl-4 mb-1 space-y-0.5" />,
+                                        li: ({ node, ...props }) => <li {...props} className="leading-relaxed" />
+                                      }}
+                                    >
+                                      {chatMsg.payload.text}
+                                    </ReactMarkdown>
                                   </div>
+                                  {chatMsg.payload.sub_title && (
+                                    <p className="text-[11px] text-gray-500 mt-1">{chatMsg.payload.sub_title}</p>
+                                  )}
+                                  {chatMsg.payload.list_items && chatMsg.payload.list_items.length > 0 && (
+                                    <ul className="text-[11px] mt-1.5 space-y-0.5">
+                                      {chatMsg.payload.list_items.map((item, i) => (
+                                        <li key={i} className="ml-4 list-disc text-gray-600">{item}</li>
+                                      ))}
+                                    </ul>
+                                  )}
                                 </div>
                               </div>
                             )
@@ -1898,77 +1867,57 @@ function BuilderContent() {
                               return null
                             }
                             return (
-                              <div className="space-y-3 animate-in slide-in-from-left duration-300">
-                                <div className="flex gap-3">
-                                  <div className="flex-shrink-0 mt-1">
-                                    <div className="bg-purple-100 rounded-full p-1.5">
-                                      <Bot className="h-4 w-4 text-purple-600" />
-                                    </div>
-                                  </div>
-                                  <div className="flex-1 max-w-[85%]">
-                                    <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
-                                      <p className="text-sm font-medium text-gray-900">{actionMsg.payload.prompt_text}</p>
-                                    </div>
-                                  </div>
+                              <div className="flex gap-3 animate-in fade-in duration-200">
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center">
+                                  <Bot className="h-3 w-3 text-white" />
                                 </div>
-                                <div className="ml-11 flex flex-wrap gap-2">
-                                  {actionMsg.payload.actions.map((action, i) => (
-                                    <Button
-                                      key={i}
-                                      size="sm"
-                                      variant={action.primary ? "default" : "outline"}
-                                      onClick={() => handleActionClick(action, actionMsg.message_id)}
-                                      className={action.primary
-                                        ? "bg-blue-600 hover:bg-blue-700 shadow-sm"
-                                        : "hover:bg-gray-50 border-gray-300"
-                                      }
-                                    >
-                                      {action.label}
-                                    </Button>
-                                  ))}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Deckster</p>
+                                  <p className="text-xs text-gray-700 mb-2">{actionMsg.payload.prompt_text}</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {actionMsg.payload.actions.map((action, i) => (
+                                      <Button
+                                        key={i}
+                                        size="sm"
+                                        variant={action.primary ? "default" : "outline"}
+                                        onClick={() => handleActionClick(action, actionMsg.message_id)}
+                                        className={action.primary
+                                          ? "text-xs h-7 bg-gray-900 hover:bg-gray-800"
+                                          : "text-xs h-7 border-gray-200 hover:bg-gray-50"
+                                        }
+                                      >
+                                        {action.label}
+                                      </Button>
+                                    ))}
+                                  </div>
                                 </div>
                               </div>
                             )
                           } else if (msg.type === 'slide_update') {
                             const slideMsg = msg as SlideUpdate
                             return (
-                              <div className="flex gap-3 animate-in slide-in-from-left duration-300">
-                                <div className="flex-shrink-0 mt-1">
-                                  <div className="bg-purple-100 rounded-full p-1.5">
-                                    <Bot className="h-4 w-4 text-purple-600" />
-                                  </div>
+                              <div className="flex gap-3 animate-in fade-in duration-200">
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center">
+                                  <Bot className="h-3 w-3 text-white" />
                                 </div>
-                                <div className="flex-1 max-w-[85%]">
-                                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-xl">📊</span>
-                                      <div className="flex-1">
-                                        <p className="text-sm font-semibold text-blue-900">
-                                          {slideMsg.payload.metadata.main_title}
-                                        </p>
-                                        <p className="text-xs text-blue-700 mt-1 flex items-center gap-2 flex-wrap">
-                                          <span className="font-medium">{slideMsg.payload.slides.length} slides</span>
-                                          <span className="text-blue-400">•</span>
-                                          <span>{slideMsg.payload.metadata.presentation_duration} min</span>
-                                          <span className="text-blue-400">•</span>
-                                          <span className="capitalize">{slideMsg.payload.metadata.overall_theme}</span>
-                                        </p>
-                                      </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Deckster</p>
+                                  <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      <span className="text-sm">📊</span>
+                                      <p className="text-xs font-medium text-gray-900">
+                                        {slideMsg.payload.metadata.main_title}
+                                      </p>
                                     </div>
-                                    <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                                    <p className="text-[11px] text-gray-500 mb-2">
+                                      {slideMsg.payload.slides.length} slides · {slideMsg.payload.metadata.presentation_duration} min · {slideMsg.payload.metadata.overall_theme}
+                                    </p>
+                                    <div className="space-y-1 max-h-36 overflow-y-auto">
                                       {slideMsg.payload.slides.map((slide, i) => (
-                                        <div key={i} className="text-xs bg-white/80 backdrop-blur rounded-lg px-3 py-2 border border-blue-100">
-                                          <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-blue-700 min-w-[1.5rem]">
-                                              {slide.slide_number}.
-                                            </span>
-                                            <span className="font-medium text-gray-800 flex-1">
-                                              {slide.title}
-                                            </span>
-                                            <span className="text-gray-500 text-[10px] uppercase tracking-wide">
-                                              {slide.slide_type}
-                                            </span>
-                                          </div>
+                                        <div key={i} className="text-[11px] py-1 px-2 bg-white rounded border border-gray-100">
+                                          <span className="text-gray-400 mr-1.5">{slide.slide_number}.</span>
+                                          <span className="text-gray-700">{slide.title}</span>
+                                          <span className="text-gray-400 text-[10px] uppercase ml-1.5">{slide.slide_type}</span>
                                         </div>
                                       ))}
                                     </div>
@@ -1979,33 +1928,26 @@ function BuilderContent() {
                           } else if (msg.type === 'presentation_url') {
                             const presMsg = msg as PresentationURL
                             return (
-                              <div className="flex gap-3 animate-in slide-in-from-left duration-300">
-                                <div className="flex-shrink-0 mt-1">
-                                  <div className="bg-green-100 rounded-full p-1.5">
-                                    <Bot className="h-4 w-4 text-green-600" />
-                                  </div>
+                              <div className="flex gap-3 animate-in fade-in duration-200">
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center">
+                                  <Bot className="h-3 w-3 text-white" />
                                 </div>
-                                <div className="flex-1 max-w-[85%]">
-                                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-xl">✅</span>
-                                      <div className="flex-1">
-                                        <p className="text-sm font-semibold text-green-900">
-                                          {presMsg.payload.message}
-                                        </p>
-                                        <p className="text-xs text-green-700 mt-1">
-                                          {presMsg.payload.slide_count} slides ready to view
-                                        </p>
-                                      </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Deckster</p>
+                                  <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                                    <span className="text-sm">✅</span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs text-gray-700">{presMsg.payload.message}</p>
+                                      <p className="text-[10px] text-gray-500">{presMsg.payload.slide_count} slides</p>
                                     </div>
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className="mt-3 w-full bg-white hover:bg-green-50 border-green-300 text-green-700 hover:text-green-800"
+                                      className="text-[11px] h-7 px-2 border-gray-200 hover:bg-white"
                                       onClick={() => window.open(presMsg.payload.url, '_blank')}
                                     >
                                       <ExternalLink className="h-3 w-3 mr-1" />
-                                      Open presentation
+                                      Open
                                     </Button>
                                   </div>
                                 </div>
@@ -2023,7 +1965,7 @@ function BuilderContent() {
             </ScrollArea>
 
             {/* Chat Input */}
-            <div className="p-4 border-t bg-gray-50/50">
+            <div className="p-3 border-t border-gray-100 bg-white">
               {/* File Upload UI (Feature Flag Controlled) */}
               {features.enableFileUploads && (
                 <>
@@ -2063,13 +2005,13 @@ function BuilderContent() {
 
               {/* Action Input Banner */}
               {pendingActionInput && (
-                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                <div className="mb-2 p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-blue-600 font-medium text-sm">
+                    <span className="text-gray-700 font-medium text-xs">
                       {pendingActionInput.action.label}
                     </span>
-                    <span className="text-blue-500 text-xs">
-                      - Type your input below and press Enter
+                    <span className="text-gray-500 text-[11px]">
+                      Type your input and press Enter
                     </span>
                   </div>
                   <Button
@@ -2079,14 +2021,14 @@ function BuilderContent() {
                       setPendingActionInput(null)
                       setInputMessage("")
                     }}
-                    className="h-6 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                    className="h-5 text-[11px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-1.5"
                   >
                     Cancel
                   </Button>
                 </div>
               )}
-              <form onSubmit={handleSendMessage} className="flex gap-3">
-                <div className="flex-1 relative">
+              <form onSubmit={handleSendMessage}>
+                <div className="relative flex items-end gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all">
                   <Textarea
                     ref={textareaRef}
                     value={inputMessage}
@@ -2106,34 +2048,37 @@ function BuilderContent() {
                       !user
                         ? "Authenticating..."
                         : isLoadingSession
-                        ? "Loading session..."
+                        ? "Loading..."
                         : !connected && !connecting
-                          ? "Disconnected - send a message to reconnect"
+                          ? "Disconnected - send to reconnect"
                           : connecting
-                            ? "Connecting to Director..."
+                            ? "Connecting..."
                             : pendingActionInput
-                              ? `Type your changes here... (ESC to cancel)`
-                              : "Type your message... (Shift+Enter for new line)"
+                              ? "Type your changes... (ESC to cancel)"
+                              : "Message Deckster..."
                     }
                     disabled={!user || isLoadingSession}
-                    className="resize-none border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-xl shadow-sm"
-                    rows={3}
+                    className="flex-1 resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0 min-h-[20px] max-h-[120px] text-xs placeholder:text-gray-400"
+                    rows={1}
                   />
+                  <Button
+                    type="submit"
+                    disabled={!isReady || !inputMessage.trim()}
+                    size="icon"
+                    className="flex-shrink-0 h-7 w-7 rounded-md bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </Button>
                   {/* Only show loading overlay when actually loading session, not when WebSocket disconnected */}
                   {isLoadingSession && (
-                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] rounded-xl flex items-center justify-center">
-                      <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] rounded-lg flex items-center justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
                     </div>
                   )}
                 </div>
-                <Button
-                  type="submit"
-                  disabled={!isReady || !inputMessage.trim()}
-                  size="icon"
-                  className="self-end bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-sm h-10 w-10"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+                <p className="text-[10px] text-gray-400 mt-1.5 text-center">
+                  Enter to send · Shift+Enter for new line
+                </p>
               </form>
             </div>
           </div>
