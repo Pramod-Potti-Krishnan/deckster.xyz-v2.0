@@ -1424,8 +1424,8 @@ function BuilderContent() {
               slideIndex={1} // TODO: Get current slide from PresentationViewer
             />
 
-            {/* Element Format Panel - Overlays chat when element selected */}
-            {selectedElementType && (
+            {/* Element/Slide Format Panel - Shows slide panel when no element selected */}
+            {presentationId && (
               <ElementFormatPanel
                 isOpen={showElementPanel}
                 isCollapsed={isElementPanelCollapsed}
@@ -2276,7 +2276,8 @@ function BuilderContent() {
                   setSelectedElementId(null)
                   setSelectedElementType(null)
                   setSelectedElementProperties(null)
-                  setIsElementPanelCollapsed(true) // Auto-collapse on deselection
+                  // Keep panel open to show slide format panel
+                  setIsElementPanelCollapsed(false)
                 }}
                 onApiReady={setLayoutServiceApis}
                 className="flex-1"

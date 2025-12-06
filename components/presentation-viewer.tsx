@@ -190,8 +190,10 @@ export function PresentationViewer({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   // Delete dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [slideToDelete, setSlideToDelete] = useState<number | null>(null)
+  const [slidesToDelete, setSlidesToDelete] = useState<number[] | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  // Multi-select state for slide thumbnails
+  const [selectedSlideIndices, setSelectedSlideIndices] = useState<number[]>([])
   // Track when CRUD operations have modified slides (invalidates stale slideStructure)
   const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
   // Text box selection state
@@ -571,55 +573,87 @@ export function PresentationViewer({
     }
   }, [totalSlides, toast])
 
-  // Open delete dialog
+  // Open delete dialog for single slide
   const handleOpenDeleteDialog = useCallback((slideIndex: number) => {
-    setSlideToDelete(slideIndex)
+    setSlidesToDelete([slideIndex])
     setShowDeleteDialog(true)
   }, [])
 
-  // Confirm delete slide
+  // Open delete dialog for multiple slides (bulk delete)
+  const handleOpenBulkDeleteDialog = useCallback((slideIndices: number[]) => {
+    if (slideIndices.length === 0) return
+    // Cannot delete all slides
+    if (slideIndices.length >= totalSlides) {
+      toast({
+        title: 'Cannot delete all slides',
+        description: 'At least one slide must remain in the presentation.',
+        variant: 'destructive'
+      })
+      return
+    }
+    setSlidesToDelete(slideIndices)
+    setShowDeleteDialog(true)
+  }, [totalSlides, toast])
+
+  // Confirm delete slide(s)
   const handleConfirmDelete = useCallback(async () => {
-    if (slideToDelete === null || !iframeRef.current) return
+    if (!slidesToDelete || slidesToDelete.length === 0 || !iframeRef.current) return
 
     setIsDeleting(true)
     try {
-      const result = await sendCommand(iframeRef.current, 'deleteSlide', {
-        index: slideToDelete  // Backend expects 'index', not 'slideIndex'
-      })
+      // Delete in reverse order to maintain correct indices
+      const sortedIndices = [...slidesToDelete].sort((a, b) => b - a)
 
-      if (result.success) {
-        // Backend may send slide_count directly or we calculate it
-        const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides - 1
-        setTotalSlides(newTotal)
-        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
-
-        // Adjust current slide if needed
-        if (currentSlide > newTotal) {
-          setCurrentSlide(newTotal)
-        } else if (currentSlide > slideToDelete + 1) {
-          setCurrentSlide(currentSlide - 1)
-        }
-
-        toast({
-          title: 'Slide Deleted',
-          description: `Slide ${slideToDelete + 1} has been removed`
+      for (const slideIndex of sortedIndices) {
+        const result = await sendCommand(iframeRef.current, 'deleteSlide', {
+          index: slideIndex  // Backend expects 'index', not 'slideIndex'
         })
 
-        console.log(`🗑️ Deleted slide ${slideToDelete + 1}`)
+        if (!result.success) {
+          throw new Error(`Failed to delete slide ${slideIndex + 1}`)
+        }
       }
+
+      // Calculate new total
+      const newTotal = totalSlides - slidesToDelete.length
+      setTotalSlides(newTotal)
+      setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+      setSelectedSlideIndices([]) // Clear selection after delete
+
+      // Adjust current slide if needed
+      if (currentSlide > newTotal) {
+        setCurrentSlide(newTotal)
+      } else {
+        // Find how many deleted slides were before current
+        const deletedBefore = slidesToDelete.filter(i => i < currentSlide - 1).length
+        if (deletedBefore > 0) {
+          setCurrentSlide(currentSlide - deletedBefore)
+        }
+      }
+
+      const message = slidesToDelete.length === 1
+        ? `Slide ${slidesToDelete[0] + 1} has been removed`
+        : `${slidesToDelete.length} slides have been removed`
+
+      toast({
+        title: slidesToDelete.length === 1 ? 'Slide Deleted' : 'Slides Deleted',
+        description: message
+      })
+
+      console.log(`🗑️ Deleted ${slidesToDelete.length} slide(s)`)
     } catch (error) {
-      console.error('Error deleting slide:', error)
+      console.error('Error deleting slides:', error)
       toast({
         title: 'Error',
-        description: 'Failed to delete slide. Please try again.',
+        description: 'Failed to delete slides. Please try again.',
         variant: 'destructive'
       })
     } finally {
       setIsDeleting(false)
       setShowDeleteDialog(false)
-      setSlideToDelete(null)
+      setSlidesToDelete(null)
     }
-  }, [slideToDelete, totalSlides, currentSlide, toast])
+  }, [slidesToDelete, totalSlides, currentSlide, toast])
 
   // Change slide layout handler
   const handleChangeLayout = useCallback(async (slideIndex: number, newLayout: SlideLayoutType) => {
@@ -1761,9 +1795,13 @@ export function PresentationViewer({
                   handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
                 }}
                 orientation="vertical"
+                // Multi-select support
+                selectedSlides={selectedSlideIndices}
+                onSelectionChange={setSelectedSlideIndices}
                 // CRUD handlers
                 onDuplicateSlide={handleDuplicateSlide}
                 onDeleteSlide={handleOpenDeleteDialog}
+                onDeleteSlides={handleOpenBulkDeleteDialog}
                 onChangeLayout={handleChangeLayout}
                 onReorderSlides={handleReorderSlides}
                 enableDragDrop={true}
@@ -1778,7 +1816,7 @@ export function PresentationViewer({
       <DeleteSlideDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
-        slideNumber={slideToDelete !== null ? slideToDelete + 1 : 0}
+        slideNumbers={slidesToDelete ? slidesToDelete.map(i => i + 1) : []}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
       />

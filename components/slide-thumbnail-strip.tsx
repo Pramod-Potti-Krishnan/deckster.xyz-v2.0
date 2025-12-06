@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import {
   ContextMenu,
@@ -12,7 +12,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { Copy, Trash2, Layout, ChevronUp, ChevronDown } from 'lucide-react'
+import { Copy, Trash2, Layout, ChevronUp, ChevronDown, Check } from 'lucide-react'
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 
 export interface SlideThumbnail {
@@ -27,9 +27,13 @@ export interface SlideThumbnailStripProps {
   onSlideClick: (slideNumber: number) => void
   className?: string
   orientation?: 'horizontal' | 'vertical'
+  // Multi-select support
+  selectedSlides?: number[]  // Array of selected slide indices (0-based)
+  onSelectionChange?: (selectedSlides: number[]) => void
   // CRUD handlers (optional - context menu only shows if handlers provided)
   onDuplicateSlide?: (slideIndex: number) => Promise<void>
-  onDeleteSlide?: (slideIndex: number) => void // Opens confirmation dialog
+  onDeleteSlide?: (slideIndex: number) => void // Opens confirmation dialog for single slide
+  onDeleteSlides?: (slideIndices: number[]) => void // Opens confirmation dialog for multiple slides
   onChangeLayout?: (slideIndex: number, layout: SlideLayoutId) => Promise<void>
   onReorderSlides?: (fromIndex: number, toIndex: number) => Promise<void>
   enableDragDrop?: boolean
@@ -55,8 +59,11 @@ export function SlideThumbnailStrip({
   onSlideClick,
   className = '',
   orientation = 'horizontal',
+  selectedSlides = [],
+  onSelectionChange,
   onDuplicateSlide,
   onDeleteSlide,
+  onDeleteSlides,
   onChangeLayout,
   onReorderSlides,
   enableDragDrop = false,
@@ -65,29 +72,80 @@ export function SlideThumbnailStrip({
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
   const [isProcessing, setIsProcessing] = useState<number | null>(null)
+  const [selectionAnchor, setSelectionAnchor] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const slidesTotal = totalSlides ?? slides.length
 
-  // Keyboard support: Delete/Backspace to delete currently selected slide
+  // Handle slide click with multi-select support (Ctrl/Cmd + Click, Shift + Click)
+  const handleSlideSelect = useCallback((slideIndex: number, e: React.MouseEvent) => {
+    const isCtrlOrCmd = e.ctrlKey || e.metaKey
+    const isShift = e.shiftKey
+
+    if (isCtrlOrCmd) {
+      // Toggle individual selection
+      e.preventDefault()
+      const newSelection = selectedSlides.includes(slideIndex)
+        ? selectedSlides.filter(i => i !== slideIndex)
+        : [...selectedSlides, slideIndex]
+      onSelectionChange?.(newSelection)
+      setSelectionAnchor(slideIndex)
+    } else if (isShift && selectionAnchor !== null) {
+      // Range select from anchor to clicked
+      e.preventDefault()
+      const start = Math.min(selectionAnchor, slideIndex)
+      const end = Math.max(selectionAnchor, slideIndex)
+      const range = Array.from({ length: end - start + 1 }, (_, i) => start + i)
+      onSelectionChange?.(range)
+    } else {
+      // Normal click - single select and navigate
+      onSelectionChange?.([slideIndex])
+      setSelectionAnchor(slideIndex)
+      onSlideClick(slideIndex + 1)  // Navigate (1-indexed)
+    }
+  }, [selectedSlides, selectionAnchor, onSelectionChange, onSlideClick])
+
+  // Keyboard support: Delete/Backspace, Ctrl+A, Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle Delete/Backspace when focused on the thumbnail strip
+      // Only handle keys when focused on the thumbnail strip
       if (!containerRef.current?.contains(document.activeElement)) return
 
-      if ((e.key === 'Delete' || e.key === 'Backspace') && onDeleteSlide) {
+      // Delete/Backspace - delete selected slides
+      if ((e.key === 'Delete' || e.key === 'Backspace')) {
         // Prevent if only one slide or already processing
         if (slidesTotal <= 1 || isProcessing !== null) return
 
         e.preventDefault()
-        // Delete the currently selected (active) slide
-        onDeleteSlide(currentSlide - 1) // 0-based index
+
+        if (selectedSlides.length > 0 && onDeleteSlides) {
+          // Cannot delete all slides
+          if (selectedSlides.length >= slidesTotal) return
+          onDeleteSlides(selectedSlides)
+        } else if (onDeleteSlide) {
+          // Fallback: delete current slide
+          onDeleteSlide(currentSlide - 1)
+        }
+      }
+
+      // Ctrl/Cmd + A - select all slides
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault()
+        const allSlides = Array.from({ length: slidesTotal }, (_, i) => i)
+        onSelectionChange?.(allSlides)
+      }
+
+      // Escape - clear selection
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onSelectionChange?.([])
+        setSelectionAnchor(null)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentSlide, onDeleteSlide, slidesTotal, isProcessing])
+  }, [currentSlide, onDeleteSlide, onDeleteSlides, selectedSlides, slidesTotal, isProcessing, onSelectionChange])
 
   if (slides.length === 0) {
     return null
@@ -182,7 +240,9 @@ export function SlideThumbnailStrip({
   }
 
   const renderThumbnail = (slide: SlideThumbnail) => {
+    const slideIndex = slide.slideNumber - 1  // 0-based index
     const isActive = slide.slideNumber === currentSlide
+    const isSelected = selectedSlides.includes(slideIndex)
     const isDragging = draggedSlide === slide.slideNumber
     const isDropTarget = dropTarget === slide.slideNumber
     const isItemProcessing = isProcessing === slide.slideNumber
@@ -191,8 +251,16 @@ export function SlideThumbnailStrip({
     const thumbnailContent = (
       <div
         className="relative group"
-        title="Drag to reorder • Right-click for options"
+        title="Click to navigate • Ctrl+Click to multi-select • Shift+Click for range • Right-click for options"
       >
+        {/* Selection checkmark indicator */}
+        {isSelected && (
+          <div className="absolute -top-1 -left-1 z-10 w-5 h-5 rounded-full bg-blue-600 text-white
+                         flex items-center justify-center shadow-sm">
+            <Check className="h-3 w-3" />
+          </div>
+        )}
+
         {/* Delete button - appears on hover */}
         {canDelete && (
           <button
@@ -210,7 +278,7 @@ export function SlideThumbnailStrip({
         )}
 
         <button
-          onClick={() => onSlideClick(slide.slideNumber)}
+          onClick={(e) => handleSlideSelect(slideIndex, e)}
           draggable={enableDragDrop && onReorderSlides && !isItemProcessing}
           onDragStart={(e) => handleDragStart(e, slide.slideNumber)}
           onDragOver={(e) => handleDragOver(e, slide.slideNumber)}
@@ -224,8 +292,11 @@ export function SlideThumbnailStrip({
             "flex flex-col items-center justify-center p-2",
             "hover:border-blue-400 hover:shadow-md",
             "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+            // Visual states priority: Active > Selected > Default
             isActive
               ? "border-blue-600 bg-blue-50 shadow-lg ring-2 ring-blue-500"
+              : isSelected
+              ? "border-blue-400 bg-blue-100 shadow-md"
               : "border-gray-300 bg-white hover:bg-gray-50",
             isDragging && "opacity-50 scale-95",
             isDropTarget && "border-green-500 bg-green-50",
@@ -237,7 +308,7 @@ export function SlideThumbnailStrip({
           {/* Slide Number */}
           <div className={cn(
             "text-xs font-semibold mb-1",
-            isActive ? "text-blue-700" : "text-gray-500"
+            isActive ? "text-blue-700" : isSelected ? "text-blue-600" : "text-gray-500"
           )}>
             {slide.slideNumber}
           </div>
@@ -245,7 +316,7 @@ export function SlideThumbnailStrip({
           {/* Slide Title/Preview */}
           <div className={cn(
             "text-[10px] leading-tight text-center line-clamp-2 w-full",
-            isActive ? "text-blue-900 font-medium" : "text-gray-600"
+            isActive ? "text-blue-900 font-medium" : isSelected ? "text-blue-800" : "text-gray-600"
           )}>
             {slide.title || 'Untitled Slide'}
           </div>
