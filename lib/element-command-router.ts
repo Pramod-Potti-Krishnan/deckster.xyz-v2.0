@@ -58,6 +58,9 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   // Slide refresh
   'refreshSlide',
   'goToSlide',
+
+  // UI toggle commands
+  'toggleBorderHighlight',
 ])
 
 // AI generation commands that go to Elementor

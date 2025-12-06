@@ -506,8 +506,17 @@ export function PresentationViewer({
         const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides + 1
 
         setTotalSlides(newTotal)
-        setCurrentSlide(newSlideIndex + 1) // Navigate to new slide (1-based)
+        setCurrentSlide(newSlideIndex + 1) // Update local state (1-based)
         setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+
+        // Navigate iframe to the new slide (PowerPoint/Keynote behavior)
+        await sendCommand(iframeRef.current, 'goToSlide', { index: newSlideIndex })
+
+        // Activate element borders for editing (like pressing 'B')
+        await sendCommand(iframeRef.current, 'toggleBorderHighlight')
+
+        // Auto-enter edit mode after adding a slide
+        await ensureEditMode()
 
         toast({
           title: 'Slide Added',
@@ -524,7 +533,7 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     }
-  }, [currentSlide, totalSlides, toast])
+  }, [currentSlide, totalSlides, toast, ensureEditMode])
 
   // Duplicate slide handler
   const handleDuplicateSlide = useCallback(async (slideIndex: number) => {
@@ -1453,6 +1462,36 @@ export function PresentationViewer({
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [onTextBoxSelected, onTextBoxDeselected, ensureEditMode])
+
+  // Listen for element selection events from iframe (Image, Chart, Table, Infographic, Diagram)
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.origin !== VIEWER_ORIGIN) return
+
+      // Handle element selection - auto-enter edit mode and show format panel
+      if (event.data.type === 'elementSelected') {
+        const elementId = event.data.elementId as string
+        const elementType = event.data.elementType as ElementType
+        const properties = event.data.properties as ElementProperties
+
+        // Auto-enter edit mode when user clicks on an element
+        await ensureEditMode()
+
+        // Notify parent to show the appropriate format panel
+        onElementSelected?.(elementId, elementType, properties)
+        console.log(`🎯 Element selected: ${elementType} (${elementId})`)
+      }
+
+      // Handle element deselection
+      if (event.data.type === 'elementDeselected') {
+        onElementDeselected?.()
+        console.log('🎯 Element deselected')
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [onElementSelected, onElementDeselected, ensureEditMode])
 
   return (
     <div ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
