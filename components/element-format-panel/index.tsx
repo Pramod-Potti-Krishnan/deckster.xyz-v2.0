@@ -24,6 +24,17 @@ const ELEMENT_ICONS: Record<ElementType, React.ComponentType<{ className?: strin
   hero: Layout,
 }
 
+// Map element types to their accent colors
+const ELEMENT_ACCENT_COLORS: Record<ElementType, string> = {
+  image: 'text-green-400',
+  table: 'text-blue-400',
+  chart: 'text-amber-400',
+  infographic: 'text-purple-400',
+  diagram: 'text-pink-400',
+  text: 'text-indigo-400',
+  hero: 'text-teal-400',
+}
+
 export function ElementFormatPanel({
   isOpen,
   isCollapsed,
@@ -71,6 +82,7 @@ export function ElementFormatPanel({
   // Get element info for display
   const elementInfo = elementType ? ELEMENT_INFO[elementType] : null
   const ElementIcon = elementType ? ELEMENT_ICONS[elementType] : null
+  const accentColor = elementType ? ELEMENT_ACCENT_COLORS[elementType] : 'text-gray-400'
 
   // Get the appropriate tab label based on element type
   const getAITabLabel = () => {
@@ -142,32 +154,36 @@ export function ElementFormatPanel({
             isApplying={isApplying}
           />
 
-          {/* Applying indicator */}
+          {/* Applying indicator - refined */}
           {isApplying && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-teal-600 rounded-full text-xs">
+            <div className={cn(
+              "absolute bottom-4 left-1/2 -translate-x-1/2",
+              "px-4 py-2 bg-teal-600 rounded-full",
+              "text-[11px] font-medium text-white shadow-lg"
+            )}>
               Applying...
             </div>
           )}
         </div>
 
-        {/* Collapse/Expand arrow tab */}
+        {/* Collapse/Expand toggle - refined */}
         <button
           onClick={() => onCollapsedChange(!isCollapsed)}
           className={cn(
             "absolute top-1/2 -translate-y-1/2 z-30",
-            "w-6 h-16 bg-gray-800 hover:bg-gray-700",
-            "rounded-r-lg shadow-lg",
+            "w-5 h-14 bg-gray-800 hover:bg-gray-700",
+            "rounded-r-md shadow-lg",
             "flex items-center justify-center",
-            "border-y border-r border-gray-600",
-            "transition-all duration-200",
+            "border-y border-r border-gray-700",
+            "transition-all duration-150",
             isCollapsed ? "left-0" : "right-0 translate-x-full"
           )}
           title={isCollapsed ? "Expand panel" : "Collapse panel"}
         >
           {isCollapsed ? (
-            <ChevronRight className="h-5 w-5 text-gray-300" />
+            <ChevronRight className="h-4 w-4 text-gray-400" />
           ) : (
-            <ChevronLeft className="h-5 w-5 text-gray-300" />
+            <ChevronLeft className="h-4 w-4 text-gray-400" />
           )}
         </button>
       </>
@@ -176,7 +192,7 @@ export function ElementFormatPanel({
 
   return (
     <>
-      {/* Panel Container - Absolute positioned, fully hidden when collapsed */}
+      {/* Panel Container */}
       <div
         className={cn(
           "absolute inset-0 bg-gray-900 text-white shadow-2xl z-20 flex flex-col",
@@ -184,62 +200,59 @@ export function ElementFormatPanel({
           isCollapsed ? "-translate-x-full" : "translate-x-0"
         )}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+        {/* Header - Refined with icon and better spacing */}
+        <div className="flex items-center justify-between h-11 px-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
             {ElementIcon && (
-              <ElementIcon
-                className={cn(
-                  "h-4 w-4",
-                  elementType === 'image' && "text-green-400",
-                  elementType === 'table' && "text-blue-400",
-                  elementType === 'chart' && "text-amber-400",
-                  elementType === 'infographic' && "text-purple-400",
-                  elementType === 'diagram' && "text-pink-400",
-                  elementType === 'text' && "text-indigo-400",
-                  elementType === 'hero' && "text-teal-400"
-                )}
-              />
+              <ElementIcon className={cn("h-4 w-4", accentColor)} />
             )}
-            <h2 className="text-sm font-semibold">
+            <h2 className="text-[13px] font-medium text-white">
               {elementInfo?.label || 'Element'}
             </h2>
           </div>
           {onDelete && (
             <button
               onClick={onDelete}
-              className="p-1.5 rounded hover:bg-red-600/20 text-red-400 hover:text-red-300 transition-colors"
+              className={cn(
+                "flex items-center justify-center w-7 h-7 rounded-md",
+                "text-gray-500 hover:text-red-400 hover:bg-red-500/10",
+                "transition-colors"
+              )}
               title="Delete element"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
-        {/* Tab Headers - Keynote-style segmented control */}
-        <div className="flex mx-4 mt-3 bg-gray-800 rounded-lg p-1">
-          <button
-            onClick={() => setActiveTab('ai')}
-            className={cn(
-              "flex-1 py-1.5 text-xs font-medium rounded-md transition-colors",
-              activeTab === 'ai'
-                ? 'bg-gray-600 text-white'
-                : 'text-gray-400 hover:text-white'
-            )}
-          >
-            {getAITabLabel()}
-          </button>
-          <button
-            onClick={() => setActiveTab('arrange')}
-            className={cn(
-              "flex-1 py-1.5 text-xs font-medium rounded-md transition-colors",
-              activeTab === 'arrange'
-                ? 'bg-gray-600 text-white'
-                : 'text-gray-400 hover:text-white'
-            )}
-          >
-            Arrange
-          </button>
+        {/* Tab Switcher - Keynote-style segmented control */}
+        <div className="px-4 pt-3">
+          <div className="flex h-8 bg-gray-800/50 rounded-lg p-[3px]">
+            <button
+              onClick={() => setActiveTab('ai')}
+              className={cn(
+                "flex-1 flex items-center justify-center rounded-md",
+                "text-[11px] font-medium transition-all duration-150",
+                activeTab === 'ai'
+                  ? "bg-gray-700 text-white shadow-sm"
+                  : "text-gray-400 hover:text-gray-200"
+              )}
+            >
+              {getAITabLabel()}
+            </button>
+            <button
+              onClick={() => setActiveTab('arrange')}
+              className={cn(
+                "flex-1 flex items-center justify-center rounded-md",
+                "text-[11px] font-medium transition-all duration-150",
+                activeTab === 'arrange'
+                  ? "bg-gray-700 text-white shadow-sm"
+                  : "text-gray-400 hover:text-gray-200"
+              )}
+            >
+              Arrange
+            </button>
+          </div>
         </div>
 
         {/* Tab Content */}
@@ -255,32 +268,36 @@ export function ElementFormatPanel({
           )}
         </div>
 
-        {/* Applying indicator */}
+        {/* Applying indicator - refined */}
         {isApplying && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-blue-600 rounded-full text-xs">
+          <div className={cn(
+            "absolute bottom-4 left-1/2 -translate-x-1/2",
+            "px-4 py-2 bg-blue-600 rounded-full",
+            "text-[11px] font-medium text-white shadow-lg"
+          )}>
             Applying...
           </div>
         )}
       </div>
 
-      {/* Collapse/Expand arrow tab - fixed position, always visible on right edge */}
+      {/* Collapse/Expand toggle - refined */}
       <button
         onClick={() => onCollapsedChange(!isCollapsed)}
         className={cn(
           "absolute top-1/2 -translate-y-1/2 z-30",
-          "w-6 h-16 bg-gray-800 hover:bg-gray-700",
-          "rounded-r-lg shadow-lg",
+          "w-5 h-14 bg-gray-800 hover:bg-gray-700",
+          "rounded-r-md shadow-lg",
           "flex items-center justify-center",
-          "border-y border-r border-gray-600",
-          "transition-all duration-200",
+          "border-y border-r border-gray-700",
+          "transition-all duration-150",
           isCollapsed ? "left-0" : "right-0 translate-x-full"
         )}
         title={isCollapsed ? "Expand panel" : "Collapse panel"}
       >
         {isCollapsed ? (
-          <ChevronRight className="h-5 w-5 text-gray-300" />
+          <ChevronRight className="h-4 w-4 text-gray-400" />
         ) : (
-          <ChevronLeft className="h-5 w-5 text-gray-300" />
+          <ChevronLeft className="h-4 w-4 text-gray-400" />
         )}
       </button>
     </>

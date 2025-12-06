@@ -19,6 +19,13 @@ import { UserProfileMenu } from "@/components/user-profile-menu"
 import { Textarea } from "@/components/ui/textarea"
 import { ChatHistorySidebar } from "@/components/chat-history-sidebar"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Switch } from "@/components/ui/switch"
+import {
   Sparkles,
   Settings,
   Menu,
@@ -29,6 +36,12 @@ import {
   Bot,
   User,
   Globe,
+  Plus,
+  SlidersHorizontal,
+  Camera,
+  Folder,
+  Paperclip,
+  ArrowUp,
 } from "lucide-react"
 import Link from "next/link"
 import { OnboardingModal } from "@/components/onboarding-modal"
@@ -73,6 +86,7 @@ function BuilderContent() {
   const [isLoadingSession, setIsLoadingSession] = useState(false)
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [researchEnabled, setResearchEnabled] = useState(false)
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
 
   // Track if this is a resumed session with existing messages
@@ -231,6 +245,7 @@ function BuilderContent() {
   })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [pendingActionInput, setPendingActionInput] = useState<{
     action: ActionRequest['payload']['actions'][0];
     messageId: string;
@@ -1998,42 +2013,44 @@ function BuilderContent() {
                 </div>
               )}
 
-              {/* File Upload UI (Feature Flag Controlled) */}
-              {features.enableFileUploads && !isDraggingFiles && (
-                <>
-                  <div className="flex items-center gap-2 mb-3">
-                    <FileUploadButton
-                      onFilesSelected={handleFilesSelected}
-                      maxFiles={5}
-                      currentFileCount={uploadedFiles.length}
-                      disabled={features.enableEarlySessionCreation ? isLoadingSession : (!currentSessionId || isLoadingSession)}
-                      onRequestSession={features.enableEarlySessionCreation ? handleRequestSession : undefined}
-                      isCreatingSession={features.enableEarlySessionCreation ? isCreatingSession : false}
+              {/* File chips (when files attached) */}
+              {features.enableFileUploads && uploadedFiles.length > 0 && !isDraggingFiles && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {uploadedFiles.map((file) => (
+                    <FileChip
+                      key={file.id}
+                      file={file}
+                      onRemove={() => removeFile(file.id)}
                     />
-                    {uploadedFiles.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={clearAllFiles}
-                        className="text-gray-600 hover:text-gray-800"
-                      >
-                        Clear All
-                      </Button>
-                    )}
-                  </div>
-                  {uploadedFiles.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {uploadedFiles.map((file) => (
-                        <FileChip
-                          key={file.id}
-                          file={file}
-                          onRemove={() => removeFile(file.id)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </>
+                  ))}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllFiles}
+                    className="text-[11px] text-gray-500 hover:text-gray-700 h-6 px-2"
+                  >
+                    Clear all
+                  </Button>
+                </div>
               )}
+
+              {/* Hidden file input for dropdown menu */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.py,.js,.ts,.java,.go,.rs"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || [])
+                  if (files.length > 0) {
+                    handleFilesSelected(files)
+                  }
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = ''
+                  }
+                }}
+                className="hidden"
+              />
 
               {/* Action Input Banner */}
               {pendingActionInput && (
@@ -2059,8 +2076,10 @@ function BuilderContent() {
                   </Button>
                 </div>
               )}
+              {/* Main input container - Claude style */}
               <form onSubmit={handleSendMessage}>
-                <div className="relative flex items-end gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all">
+                <div className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all">
+                  {/* Textarea */}
                   <Textarea
                     ref={textareaRef}
                     value={inputMessage}
@@ -2090,42 +2109,114 @@ function BuilderContent() {
                               : "Message Director..."
                     }
                     disabled={!user || isLoadingSession}
-                    className="flex-1 resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0 min-h-[20px] max-h-[120px] text-xs placeholder:text-gray-400"
+                    className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-12 min-h-[60px] max-h-[200px] text-xs placeholder:text-gray-400"
                     rows={1}
                   />
-                  <Button
-                    type="submit"
-                    disabled={!isReady || !inputMessage.trim()}
-                    size="icon"
-                    className="flex-shrink-0 h-7 w-7 rounded-md bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                  </Button>
-                  {/* Only show loading overlay when actually loading session, not when WebSocket disconnected */}
+
+                  {/* Bottom toolbar inside input */}
+                  <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+                    {/* Left: Action buttons */}
+                    <div className="flex items-center gap-1">
+                      {/* + Menu for attachments */}
+                      {features.enableFileUploads && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors"
+                              disabled={uploadedFiles.length >= 5}
+                            >
+                              <Plus className="h-4 w-4 text-gray-500" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-48">
+                            <DropdownMenuItem
+                              onClick={async () => {
+                                if (features.enableEarlySessionCreation && !currentSessionId) {
+                                  try {
+                                    await handleRequestSession()
+                                  } catch {
+                                    return
+                                  }
+                                }
+                                fileInputRef.current?.click()
+                              }}
+                              className="gap-2 text-xs"
+                            >
+                              <Paperclip className="h-4 w-4" />
+                              Upload a file
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="gap-2 text-xs text-gray-400" disabled>
+                              <Camera className="h-4 w-4" />
+                              Take a screenshot
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="gap-2 text-xs text-gray-400" disabled>
+                              <Folder className="h-4 w-4" />
+                              Use a project
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+
+                      {/* Settings/Options Menu */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors"
+                          >
+                            <SlidersHorizontal className="h-4 w-4 text-gray-500" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-48">
+                          <div className="flex items-center justify-between px-2 py-2">
+                            <div className="flex items-center gap-2">
+                              <Globe className="h-4 w-4 text-gray-500" />
+                              <span className="text-xs">Research</span>
+                            </div>
+                            <Switch
+                              checked={researchEnabled}
+                              onCheckedChange={setResearchEnabled}
+                              className="scale-75"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between px-2 py-2">
+                            <div className="flex items-center gap-2">
+                              <Globe className="h-4 w-4 text-gray-500" />
+                              <span className="text-xs">Web search</span>
+                            </div>
+                            <Switch
+                              checked={webSearchEnabled}
+                              onCheckedChange={setWebSearchEnabled}
+                              className="scale-75"
+                            />
+                          </div>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {/* Right: Claude-style send button (circular, only visible when text present) */}
+                    <div className="flex items-center gap-2">
+                      {inputMessage.trim() && (
+                        <button
+                          type="submit"
+                          disabled={!isReady}
+                          className="h-7 w-7 rounded-full bg-black hover:bg-gray-800 disabled:bg-gray-300 flex items-center justify-center transition-colors"
+                        >
+                          <ArrowUp className="h-4 w-4 text-white" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Only show loading overlay when actually loading session */}
                   {isLoadingSession && (
-                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] rounded-lg flex items-center justify-center">
+                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] rounded-xl flex items-center justify-center">
                       <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
                     </div>
                   )}
                 </div>
               </form>
-              <div className="flex items-center justify-between mt-2 px-1">
-                <button
-                  type="button"
-                  onClick={() => setResearchEnabled(!researchEnabled)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
-                    researchEnabled
-                      ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                      : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-150'
-                  }`}
-                >
-                  <Globe className="h-3 w-3" />
-                  Research
-                </button>
-                <p className="text-[10px] text-gray-400">
-                  Enter to send · Shift+Enter for new line
-                </p>
-              </div>
             </div>
           </div>
 
