@@ -28,6 +28,7 @@ import {
   Loader2,
   Bot,
   User,
+  Globe,
 } from "lucide-react"
 import Link from "next/link"
 import { OnboardingModal } from "@/components/onboarding-modal"
@@ -71,6 +72,8 @@ function BuilderContent() {
   const currentSessionIdRef = useRef(currentSessionId)
   const [isLoadingSession, setIsLoadingSession] = useState(false)
   const [showChatHistory, setShowChatHistory] = useState(false)
+  const [researchEnabled, setResearchEnabled] = useState(false)
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
 
   // Track if this is a resumed session with existing messages
   // If true, we DON'T auto-connect WebSocket (to avoid duplicate welcome messages)
@@ -1741,11 +1744,11 @@ function BuilderContent() {
 
                             return (
                               <div className="flex gap-3 animate-in fade-in duration-200">
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center">
-                                  <Bot className="h-3 w-3 text-white" />
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                                  <Sparkles className="h-3 w-3 text-white" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Deckster</p>
+                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
 
                                   {/* Slide Structure Card */}
                                   <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
@@ -1822,11 +1825,11 @@ function BuilderContent() {
 
                             return (
                               <div className="flex gap-3 animate-in fade-in duration-200">
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center">
-                                  <Bot className="h-3 w-3 text-white" />
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                                  <Sparkles className="h-3 w-3 text-white" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Deckster</p>
+                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
                                   <div className="text-xs text-gray-700 leading-relaxed">
                                     <ReactMarkdown
                                       components={{
@@ -1868,11 +1871,11 @@ function BuilderContent() {
                             }
                             return (
                               <div className="flex gap-3 animate-in fade-in duration-200">
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center">
-                                  <Bot className="h-3 w-3 text-white" />
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                                  <Sparkles className="h-3 w-3 text-white" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Deckster</p>
+                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
                                   <p className="text-xs text-gray-700 mb-2">{actionMsg.payload.prompt_text}</p>
                                   <div className="flex flex-wrap gap-1.5">
                                     {actionMsg.payload.actions.map((action, i) => (
@@ -1897,11 +1900,11 @@ function BuilderContent() {
                             const slideMsg = msg as SlideUpdate
                             return (
                               <div className="flex gap-3 animate-in fade-in duration-200">
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center">
-                                  <Bot className="h-3 w-3 text-white" />
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                                  <Sparkles className="h-3 w-3 text-white" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Deckster</p>
+                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
                                   <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
                                     <div className="flex items-center gap-2 mb-1.5">
                                       <span className="text-sm">📊</span>
@@ -1929,11 +1932,11 @@ function BuilderContent() {
                             const presMsg = msg as PresentationURL
                             return (
                               <div className="flex gap-3 animate-in fade-in duration-200">
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center">
-                                  <Bot className="h-3 w-3 text-white" />
+                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                                  <Sparkles className="h-3 w-3 text-white" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Deckster</p>
+                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
                                   <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
                                     <span className="text-sm">✅</span>
                                     <div className="flex-1 min-w-0">
@@ -1965,9 +1968,38 @@ function BuilderContent() {
             </ScrollArea>
 
             {/* Chat Input */}
-            <div className="p-3 border-t border-gray-100 bg-white">
+            <div
+              className={`p-3 border-t border-gray-100 bg-white transition-colors ${
+                isDraggingFiles ? 'bg-purple-50 border-purple-200' : ''
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault()
+                if (features.enableFileUploads) setIsDraggingFiles(true)
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault()
+                setIsDraggingFiles(false)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                setIsDraggingFiles(false)
+                if (features.enableFileUploads) {
+                  const files = Array.from(e.dataTransfer.files)
+                  if (files.length > 0) {
+                    handleFilesSelected(files)
+                  }
+                }
+              }}
+            >
+              {/* Drop zone indicator */}
+              {isDraggingFiles && (
+                <div className="mb-3 p-4 border-2 border-dashed border-purple-300 rounded-lg bg-purple-50 text-center">
+                  <p className="text-xs text-purple-600 font-medium">Drop files here to attach</p>
+                </div>
+              )}
+
               {/* File Upload UI (Feature Flag Controlled) */}
-              {features.enableFileUploads && (
+              {features.enableFileUploads && !isDraggingFiles && (
                 <>
                   <div className="flex items-center gap-2 mb-3">
                     <FileUploadButton
@@ -2055,7 +2087,7 @@ function BuilderContent() {
                             ? "Connecting..."
                             : pendingActionInput
                               ? "Type your changes... (ESC to cancel)"
-                              : "Message Deckster..."
+                              : "Message Director..."
                     }
                     disabled={!user || isLoadingSession}
                     className="flex-1 resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0 min-h-[20px] max-h-[120px] text-xs placeholder:text-gray-400"
@@ -2076,10 +2108,24 @@ function BuilderContent() {
                     </div>
                   )}
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1.5 text-center">
+              </form>
+              <div className="flex items-center justify-between mt-2 px-1">
+                <button
+                  type="button"
+                  onClick={() => setResearchEnabled(!researchEnabled)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                    researchEnabled
+                      ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                      : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-150'
+                  }`}
+                >
+                  <Globe className="h-3 w-3" />
+                  Research
+                </button>
+                <p className="text-[10px] text-gray-400">
                   Enter to send · Shift+Enter for new line
                 </p>
-              </form>
+              </div>
             </div>
           </div>
 
