@@ -108,8 +108,14 @@ export function SlideThumbnailStrip({
   // Keyboard support: Delete/Backspace, Ctrl+A, Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle keys when focused on the thumbnail strip
-      if (!containerRef.current?.contains(document.activeElement)) return
+      // Only handle keys when the thumbnail strip has focus (container or any child)
+      const container = containerRef.current
+      if (!container) return
+
+      // Check if container itself is focused OR contains the active element
+      const hasFocus = container === document.activeElement ||
+                       container.contains(document.activeElement)
+      if (!hasFocus) return
 
       // Delete/Backspace - delete selected slides
       if ((e.key === 'Delete' || e.key === 'Backspace')) {
@@ -387,17 +393,29 @@ export function SlideThumbnailStrip({
             )}
 
             {/* Delete - Always last, with separator */}
-            {onDeleteSlide && (
+            {/* If multiple slides selected, delete all; otherwise delete just this slide */}
+            {(onDeleteSlide || onDeleteSlides) && (
               <>
                 <ContextMenuSeparator />
-                <ContextMenuItem
-                  onSelect={() => onDeleteSlide(slide.slideNumber - 1)}
-                  disabled={isItemProcessing || slidesTotal <= 1}
-                  className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Slide
-                </ContextMenuItem>
+                {selectedSlides.length > 1 && onDeleteSlides ? (
+                  <ContextMenuItem
+                    onSelect={() => onDeleteSlides(selectedSlides)}
+                    disabled={isItemProcessing || selectedSlides.length >= slidesTotal}
+                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete {selectedSlides.length} Slides
+                  </ContextMenuItem>
+                ) : onDeleteSlide && (
+                  <ContextMenuItem
+                    onSelect={() => onDeleteSlide(slide.slideNumber - 1)}
+                    disabled={isItemProcessing || slidesTotal <= 1}
+                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Slide
+                  </ContextMenuItem>
+                )}
               </>
             )}
           </ContextMenuContent>
