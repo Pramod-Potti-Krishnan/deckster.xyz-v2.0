@@ -1,10 +1,9 @@
 "use client"
 
 import { useState } from 'react'
-import { Table, Type, Loader2, Sparkles, Minus, Plus } from 'lucide-react'
+import { Table, Type, Loader2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BaseAITabProps } from '../types'
-import { PromptInput } from '../shared/prompt-input'
 import {
   TextFormat,
   TextTone,
@@ -15,6 +14,12 @@ import {
   BULLET_STYLES,
   TABLE_STYLES,
 } from '@/types/elements'
+import {
+  PanelSection,
+  Stepper,
+  Toggle,
+  Divider,
+} from '@/components/ui/panel'
 
 type GenerationMode = 'text' | 'table'
 
@@ -62,29 +67,16 @@ export function TableAITab({
     }
   }
 
-  // Add/remove rows
-  const handleRowChange = (delta: number) => {
-    const newRows = Math.max(1, Math.min(20, rows + delta))
-    setRows(newRows)
-  }
-
-  // Add/remove columns
-  const handleColChange = (delta: number) => {
-    const newCols = Math.max(1, Math.min(10, cols + delta))
-    setCols(newCols)
-  }
-
   // Toggle header row
-  const handleHeaderToggle = async () => {
-    const newHasHeader = !hasHeaderRow
-    setHasHeaderRow(newHasHeader)
+  const handleHeaderToggle = async (value: boolean) => {
+    setHasHeaderRow(value)
     try {
       await onSendCommand('setTableHeaderStyle', {
         elementId,
-        hasHeader: newHasHeader,
+        hasHeader: value,
       })
     } catch (err) {
-      // Silently handle - will be retried on update
+      // Silently handle
     }
   }
 
@@ -142,32 +134,32 @@ export function TableAITab({
   }
 
   return (
-    <div className="p-3 space-y-4">
+    <div className="p-4 space-y-5">
       {/* Mode Selector */}
-      <div className="flex bg-gray-800 rounded-lg p-0.5">
+      <div className="flex bg-gray-800/50 rounded-lg p-[3px]">
         <button
           onClick={() => setMode('text')}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-md transition-colors",
+            "flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium rounded-md transition-all",
             mode === 'text'
-              ? "bg-indigo-600 text-white"
+              ? "bg-indigo-600 text-white shadow-sm"
               : "text-gray-400 hover:text-white"
           )}
         >
           <Type className="h-3.5 w-3.5" />
-          Generate Text
+          Text
         </button>
         <button
           onClick={() => setMode('table')}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-md transition-colors",
+            "flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium rounded-md transition-all",
             mode === 'table'
-              ? "bg-blue-600 text-white"
+              ? "bg-blue-600 text-white shadow-sm"
               : "text-gray-400 hover:text-white"
           )}
         >
           <Table className="h-3.5 w-3.5" />
-          Generate Table
+          Table
         </button>
       </div>
 
@@ -175,8 +167,7 @@ export function TableAITab({
       {mode === 'text' && (
         <>
           {/* Text Format */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-gray-400 uppercase tracking-wide">Format</label>
+          <PanelSection title="Format">
             <div className="grid grid-cols-3 gap-1">
               {TEXT_FORMATS.map(({ format, label }) => (
                 <button
@@ -184,21 +175,20 @@ export function TableAITab({
                   onClick={() => setTextFormat(format)}
                   disabled={isGenerating || isApplying}
                   className={cn(
-                    "py-1.5 rounded text-xs font-medium transition-colors",
+                    "py-1.5 rounded-md text-[10px] font-medium transition-all",
                     textFormat === format
-                      ? "bg-indigo-600 text-white"
-                      : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                   )}
                 >
                   {label}
                 </button>
               ))}
             </div>
-          </div>
+          </PanelSection>
 
           {/* Text Tone */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-gray-400 uppercase tracking-wide">Tone</label>
+          <PanelSection title="Tone">
             <div className="grid grid-cols-3 gap-1">
               {TEXT_TONES.map(({ tone, label }) => (
                 <button
@@ -206,22 +196,21 @@ export function TableAITab({
                   onClick={() => setTextTone(tone)}
                   disabled={isGenerating || isApplying}
                   className={cn(
-                    "py-1.5 rounded text-xs font-medium transition-colors",
+                    "py-1.5 rounded-md text-[10px] font-medium transition-all",
                     textTone === tone
-                      ? "bg-indigo-600 text-white"
-                      : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                   )}
                 >
                   {label}
                 </button>
               ))}
             </div>
-          </div>
+          </PanelSection>
 
           {/* Bullet Style (conditional) */}
           {showBulletStyle && (
-            <div className="space-y-1.5">
-              <label className="text-xs text-gray-400 uppercase tracking-wide">Bullet Style</label>
+            <PanelSection title="Bullet Style">
               <div className="grid grid-cols-6 gap-1">
                 {BULLET_STYLES.map(({ style, label, symbol }) => (
                   <button
@@ -229,10 +218,10 @@ export function TableAITab({
                     onClick={() => setBulletStyle(style)}
                     disabled={isGenerating || isApplying}
                     className={cn(
-                      "py-2 rounded text-sm font-medium transition-colors flex flex-col items-center",
+                      "py-2 rounded-md text-sm font-medium transition-all flex flex-col items-center",
                       bulletStyle === style
-                        ? "bg-indigo-600 text-white"
-                        : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50"
                     )}
                     title={label}
                   >
@@ -240,27 +229,18 @@ export function TableAITab({
                   </button>
                 ))}
               </div>
-            </div>
+            </PanelSection>
           )}
 
-          {/* Include Emoji Toggle */}
+          {/* Include Emoji */}
           <div className="flex items-center justify-between">
-            <label className="text-xs text-gray-400">Include emoji</label>
-            <button
-              onClick={() => setIncludeEmoji(!includeEmoji)}
+            <span className="text-[11px] text-gray-400">Include emoji</span>
+            <Toggle
+              checked={includeEmoji}
+              onChange={setIncludeEmoji}
               disabled={isGenerating || isApplying}
-              className={cn(
-                "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                includeEmoji ? "bg-indigo-600" : "bg-gray-700"
-              )}
-            >
-              <span
-                className={cn(
-                  "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform",
-                  includeEmoji ? "translate-x-5" : "translate-x-1"
-                )}
-              />
-            </button>
+              accentColor="indigo"
+            />
           </div>
         </>
       )}
@@ -269,81 +249,52 @@ export function TableAITab({
       {mode === 'table' && (
         <>
           {/* Table Size */}
-          <div className="space-y-3">
-            <label className="text-xs text-gray-400 uppercase tracking-wide">Size</label>
-
-            {/* Rows Stepper */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-300">Rows</span>
-              <div className="flex items-center bg-gray-800 rounded-lg">
-                <button
-                  onClick={() => handleRowChange(-1)}
-                  disabled={isApplying || rows <= 1}
-                  className="p-1.5 rounded-l-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
-                >
-                  <Minus className="h-3 w-3" />
-                </button>
-                <span className="w-10 text-center text-sm">{rows}</span>
-                <button
-                  onClick={() => handleRowChange(1)}
-                  disabled={isApplying || rows >= 20}
-                  className="p-1.5 rounded-r-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
-                >
-                  <Plus className="h-3 w-3" />
-                </button>
-              </div>
-            </div>
-
-            {/* Columns Stepper */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-300">Columns</span>
-              <div className="flex items-center bg-gray-800 rounded-lg">
-                <button
-                  onClick={() => handleColChange(-1)}
-                  disabled={isApplying || cols <= 1}
-                  className="p-1.5 rounded-l-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
-                >
-                  <Minus className="h-3 w-3" />
-                </button>
-                <span className="w-10 text-center text-sm">{cols}</span>
-                <button
-                  onClick={() => handleColChange(1)}
-                  disabled={isApplying || cols >= 10}
-                  className="p-1.5 rounded-r-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
-                >
-                  <Plus className="h-3 w-3" />
-                </button>
-              </div>
-            </div>
-
-            {/* Header Row Toggle */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-300">Header Row</span>
-              <button
-                onClick={handleHeaderToggle}
-                disabled={isApplying}
-                className={cn(
-                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                  hasHeaderRow ? "bg-blue-600" : "bg-gray-700"
-                )}
-              >
-                <span
-                  className={cn(
-                    "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform",
-                    hasHeaderRow ? "translate-x-5" : "translate-x-1"
-                  )}
+          <PanelSection title="Size">
+            <div className="space-y-3">
+              {/* Rows Stepper */}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-gray-300">Rows</span>
+                <Stepper
+                  value={rows}
+                  onChange={setRows}
+                  min={1}
+                  max={20}
+                  disabled={isApplying}
                 />
-              </button>
+              </div>
+
+              {/* Columns Stepper */}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-gray-300">Columns</span>
+                <Stepper
+                  value={cols}
+                  onChange={setCols}
+                  min={1}
+                  max={10}
+                  disabled={isApplying}
+                />
+              </div>
+
+              {/* Header Row */}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-gray-300">Header Row</span>
+                <Toggle
+                  checked={hasHeaderRow}
+                  onChange={handleHeaderToggle}
+                  disabled={isApplying}
+                  accentColor="blue"
+                />
+              </div>
             </div>
-          </div>
+          </PanelSection>
 
           {/* Apply Size Button */}
           <button
             onClick={handleUpdateSize}
             disabled={isApplying}
             className={cn(
-              "w-full py-2 rounded-lg text-xs font-medium transition-colors",
-              "bg-gray-800 text-gray-300 hover:bg-gray-700",
+              "w-full py-2 rounded-lg text-[11px] font-medium transition-all",
+              "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white",
               "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           >
@@ -351,8 +302,7 @@ export function TableAITab({
           </button>
 
           {/* Table Style */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-gray-400 uppercase tracking-wide">Table Style</label>
+          <PanelSection title="Style">
             <div className="grid grid-cols-3 gap-1">
               {TABLE_STYLES.map(({ style, label }) => (
                 <button
@@ -360,54 +310,60 @@ export function TableAITab({
                   onClick={() => setTableStyle(style)}
                   disabled={isGenerating || isApplying}
                   className={cn(
-                    "py-1.5 rounded text-xs font-medium transition-colors",
+                    "py-1.5 rounded-md text-[10px] font-medium transition-all",
                     tableStyle === style
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                   )}
                 >
                   {label}
                 </button>
               ))}
             </div>
-          </div>
+          </PanelSection>
         </>
       )}
 
-      {/* Divider */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-px bg-gray-700" />
-        <span className="text-xs text-gray-500">generate with AI</span>
-        <div className="flex-1 h-px bg-gray-700" />
-      </div>
+      <Divider label="generate with AI" />
 
       {/* AI Prompt */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-gray-400">
+      <div className="space-y-2">
+        <span className="text-[10px] text-gray-500">
           {mode === 'text' ? 'Describe the content' : 'Describe the data'}
-        </label>
-        <PromptInput
+        </span>
+        <textarea
           value={prompt}
-          onChange={setPrompt}
+          onChange={(e) => setPrompt(e.target.value)}
           placeholder={
             mode === 'text'
               ? textFormat === 'bullets'
-                ? "E.g., Key benefits of our product for enterprise customers..."
+                ? "E.g., Key benefits of our product..."
                 : textFormat === 'headline'
-                ? "E.g., An attention-grabbing headline for our Q4 results..."
-                : textFormat === 'quote'
-                ? "E.g., An inspiring quote about innovation and leadership..."
-                : "E.g., Introduction paragraph about our company's mission..."
-              : "E.g., Q4 2024 sales by region with revenue and growth percentage..."
+                ? "E.g., Attention-grabbing headline for Q4..."
+                : "E.g., Paragraph about company mission..."
+              : "E.g., Q4 2024 sales by region..."
           }
           disabled={isGenerating}
           rows={3}
+          className={cn(
+            "w-full px-3 py-2 rounded-lg resize-none",
+            "bg-gray-800/60 border border-gray-700/50",
+            "text-[11px] text-white placeholder:text-gray-500",
+            mode === 'text'
+              ? "focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
+              : "focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20",
+            "transition-all duration-150"
+          )}
         />
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="px-2 py-1.5 bg-red-600/20 border border-red-500 rounded text-xs text-red-400">
+        <div className={cn(
+          "px-3 py-2 rounded-lg",
+          "bg-red-500/10 border border-red-500/20",
+          "text-[10px] text-red-400"
+        )}>
           {error}
         </div>
       )}
@@ -417,32 +373,33 @@ export function TableAITab({
         onClick={handleGenerate}
         disabled={isGenerating || isApplying || !prompt.trim()}
         className={cn(
-          "w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors",
+          "w-full flex items-center justify-center gap-2 h-10 rounded-lg",
+          "text-[11px] font-medium transition-all duration-150",
           isGenerating || isApplying || !prompt.trim()
-            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+            ? "bg-gray-800 text-gray-500 cursor-not-allowed"
             : mode === 'text'
-            ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-            : "bg-blue-600 hover:bg-blue-700 text-white"
+            ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20"
+            : "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20"
         )}
       >
         {isGenerating ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Generating...
           </>
         ) : (
           <>
-            <Sparkles className="h-4 w-4" />
-            Generate {mode === 'text' ? 'Text' : 'Table Data'}
+            <Sparkles className="h-3.5 w-3.5" />
+            Generate {mode === 'text' ? 'Text' : 'Table'}
           </>
         )}
       </button>
 
-      {/* Info Text */}
-      <p className="text-xs text-gray-500 text-center">
+      {/* Helper Text */}
+      <p className="text-[9px] text-gray-600 text-center">
         {mode === 'text'
-          ? 'AI will generate text content based on your description'
-          : 'AI will generate table data based on your description'}
+          ? 'AI generates text from your description'
+          : 'AI generates table data from your description'}
       </p>
     </div>
   )

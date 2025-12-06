@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react'
 import { GitBranch, Loader2, Sparkles, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BaseAITabProps } from '../types'
-import { PromptInput } from '../shared/prompt-input'
 import {
   DiagramType,
   DiagramStyle,
@@ -12,6 +11,10 @@ import {
   DIAGRAM_TYPES,
   DIAGRAM_STYLES,
 } from '@/types/elements'
+import {
+  PanelSection,
+  Divider,
+} from '@/components/ui/panel'
 
 // Direction options (for Mermaid diagrams)
 const DIRECTION_OPTIONS: { value: DiagramDirection; label: string; title: string }[] = [
@@ -23,6 +26,9 @@ const DIRECTION_OPTIONS: { value: DiagramDirection; label: string; title: string
 
 // Diagrams that support direction setting
 const DIRECTIONAL_DIAGRAMS: DiagramType[] = ['flowchart', 'sequence', 'state', 'erDiagram']
+
+// Quick color presets
+const COLOR_PRESETS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
 // Group diagram types by their group property
 function groupDiagramTypes() {
@@ -132,60 +138,59 @@ export function DiagramAITab({
   }
 
   return (
-    <div className="p-3 space-y-4">
+    <div className="p-4 space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-2 text-pink-400">
-        <GitBranch className="h-4 w-4" />
-        <span className="text-sm font-medium">Diagram</span>
+      <div className="flex items-center gap-2">
+        <GitBranch className="h-4 w-4 text-pink-400" />
+        <span className="text-[11px] font-medium text-gray-300">Diagram Generator</span>
       </div>
 
       {/* Diagram Type Selector - Grouped */}
-      <div className="space-y-2">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Type</label>
-        <div className="space-y-1 max-h-[280px] overflow-y-auto pr-1">
+      <PanelSection title="Type">
+        <div className="space-y-1 max-h-[240px] overflow-y-auto pr-1">
           {Object.entries(groupedDiagrams).map(([group, diagrams]) => (
-            <div key={group} className="border border-gray-700 rounded-md overflow-hidden">
+            <div key={group} className="border border-gray-700/50 rounded-lg overflow-hidden">
               {/* Group Header */}
               <button
                 onClick={() => toggleGroup(group)}
-                className="w-full flex items-center justify-between px-2 py-1.5 bg-gray-800 hover:bg-gray-750 text-xs font-medium text-gray-300"
+                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-[10px] font-medium text-gray-300 transition-colors"
               >
                 <span className="flex items-center gap-2">
                   {group}
                   {group === 'Coming Soon' && (
-                    <span className="px-1.5 py-0.5 bg-yellow-600/20 text-yellow-400 rounded text-[10px]">
+                    <span className="px-1.5 py-0.5 bg-yellow-600/20 text-yellow-400 rounded text-[9px]">
                       Soon
                     </span>
                   )}
                 </span>
                 <ChevronDown
                   className={cn(
-                    "h-3.5 w-3.5 transition-transform",
+                    "h-3 w-3 transition-transform",
                     expandedGroups.has(group) ? "rotate-180" : ""
                   )}
                 />
               </button>
               {/* Group Content */}
               {expandedGroups.has(group) && (
-                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-900">
+                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-900/50">
                   {diagrams.map(({ type, label, comingSoon }) => (
                     <button
                       key={type}
                       onClick={() => handleDiagramTypeChange(type, comingSoon)}
                       disabled={isGenerating || isApplying || comingSoon}
                       className={cn(
-                        "px-2 py-1.5 rounded text-xs font-medium transition-colors text-left truncate",
+                        "px-2 py-1.5 rounded-md text-[10px] font-medium transition-all text-left truncate",
                         comingSoon
-                          ? "bg-gray-800/50 text-gray-500 cursor-not-allowed"
+                          ? "bg-gray-800/30 text-gray-500 cursor-not-allowed"
                           : diagramType === type
-                          ? "bg-pink-600 text-white"
-                          : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                          ? "bg-pink-600 text-white shadow-sm"
+                          : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                       )}
                       title={comingSoon ? `${label} - Coming Soon` : label}
                     >
                       {label}
                       {comingSoon && (
-                        <span className="ml-1 text-[9px] text-yellow-400">●</span>
+                        <span className="ml-1 text-[8px] text-yellow-400">●</span>
                       )}
                     </button>
                   ))}
@@ -194,15 +199,15 @@ export function DiagramAITab({
             </div>
           ))}
         </div>
-      </div>
+      </PanelSection>
 
       {/* Selected type indicator */}
       {selectedDiagram && (
         <div className={cn(
-          "px-2 py-1.5 rounded text-xs",
+          "px-3 py-2 rounded-lg text-[10px]",
           selectedDiagram.comingSoon
-            ? "bg-yellow-600/10 border border-yellow-600/30 text-yellow-300"
-            : "bg-pink-600/10 border border-pink-600/30 text-pink-300"
+            ? "bg-yellow-600/10 border border-yellow-600/20 text-yellow-300"
+            : "bg-pink-600/10 border border-pink-600/20 text-pink-300"
         )}>
           Selected: <span className="font-medium">{selectedDiagram.label}</span>
           {selectedDiagram.comingSoon && " (Coming Soon)"}
@@ -210,8 +215,7 @@ export function DiagramAITab({
       )}
 
       {/* Style Selector */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Style</label>
+      <PanelSection title="Style">
         <div className="grid grid-cols-4 gap-1">
           {DIAGRAM_STYLES.map(({ style, label }) => (
             <button
@@ -219,47 +223,52 @@ export function DiagramAITab({
               onClick={() => setDiagramStyle(style)}
               disabled={isGenerating || isApplying}
               className={cn(
-                "py-1.5 rounded text-xs font-medium transition-colors",
+                "py-1.5 rounded-md text-[10px] font-medium transition-all",
                 diagramStyle === style
-                  ? "bg-pink-600 text-white"
-                  : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                  ? "bg-pink-600 text-white shadow-sm"
+                  : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
               )}
             >
               {label}
             </button>
           ))}
         </div>
-      </div>
+      </PanelSection>
 
       {/* Primary Color Picker */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Primary Color</label>
+      <PanelSection title="Primary Color">
         <div className="flex items-center gap-2">
           <input
             type="color"
             value={primaryColor}
             onChange={(e) => setPrimaryColor(e.target.value)}
             disabled={isGenerating || isApplying}
-            className="w-10 h-8 rounded border border-gray-700 cursor-pointer bg-transparent"
+            className="w-9 h-7 rounded-md border border-gray-700/50 cursor-pointer bg-transparent"
           />
           <input
             type="text"
             value={primaryColor}
             onChange={(e) => setPrimaryColor(e.target.value)}
             disabled={isGenerating || isApplying}
-            className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-gray-200 font-mono"
+            className={cn(
+              "flex-1 px-2 py-1.5 rounded-lg",
+              "bg-gray-800/60 border border-gray-700/50",
+              "text-[11px] text-gray-200 font-mono",
+              "focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20",
+              "transition-all duration-150"
+            )}
             placeholder="#3b82f6"
           />
           {/* Quick color presets */}
           <div className="flex gap-1">
-            {['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'].map(color => (
+            {COLOR_PRESETS.map(color => (
               <button
                 key={color}
                 onClick={() => setPrimaryColor(color)}
                 disabled={isGenerating || isApplying}
                 className={cn(
-                  "w-6 h-6 rounded border-2 transition-all",
-                  primaryColor === color ? "border-white scale-110" : "border-transparent"
+                  "w-5 h-5 rounded-md border-2 transition-all",
+                  primaryColor === color ? "border-white scale-110" : "border-transparent hover:scale-105"
                 )}
                 style={{ backgroundColor: color }}
                 title={color}
@@ -267,22 +276,21 @@ export function DiagramAITab({
             ))}
           </div>
         </div>
-      </div>
+      </PanelSection>
 
       {/* Direction (for directional diagrams) */}
       {showDirectionSelector && (
-        <div className="space-y-1.5">
-          <label className="text-xs text-gray-400 uppercase tracking-wide">Direction</label>
-          <div className="flex bg-gray-800 rounded-lg p-0.5">
+        <PanelSection title="Direction">
+          <div className="flex bg-gray-800/50 rounded-lg p-[3px]">
             {DIRECTION_OPTIONS.map(({ value, label, title }) => (
               <button
                 key={value}
                 onClick={() => setDirection(value)}
                 disabled={isGenerating || isApplying}
                 className={cn(
-                  "flex-1 py-1.5 text-xs font-medium rounded-md transition-colors",
+                  "flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all",
                   direction === value
-                    ? "bg-pink-600 text-white"
+                    ? "bg-pink-600 text-white shadow-sm"
                     : "text-gray-400 hover:text-white"
                 )}
                 title={title}
@@ -291,22 +299,17 @@ export function DiagramAITab({
               </button>
             ))}
           </div>
-        </div>
+        </PanelSection>
       )}
 
-      {/* Divider */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-px bg-gray-700" />
-        <span className="text-xs text-gray-500">generate with AI</span>
-        <div className="flex-1 h-px bg-gray-700" />
-      </div>
+      <Divider label="generate with AI" />
 
       {/* AI Prompt */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-gray-400">Describe your diagram</label>
-        <PromptInput
+      <div className="space-y-2">
+        <span className="text-[10px] text-gray-500">Describe your diagram</span>
+        <textarea
           value={prompt}
-          onChange={setPrompt}
+          onChange={(e) => setPrompt(e.target.value)}
           placeholder={
             diagramType === 'flowchart' || diagramType === 'process_flow_3' || diagramType === 'process_flow_5'
               ? "E.g., User login flow with password reset option..."
@@ -328,12 +331,23 @@ export function DiagramAITab({
           }
           disabled={isGenerating}
           rows={4}
+          className={cn(
+            "w-full px-3 py-2 rounded-lg resize-none",
+            "bg-gray-800/60 border border-gray-700/50",
+            "text-[11px] text-white placeholder:text-gray-500",
+            "focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20",
+            "transition-all duration-150"
+          )}
         />
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="px-2 py-1.5 bg-red-600/20 border border-red-500 rounded text-xs text-red-400">
+        <div className={cn(
+          "px-3 py-2 rounded-lg",
+          "bg-red-500/10 border border-red-500/20",
+          "text-[10px] text-red-400"
+        )}>
           {error}
         </div>
       )}
@@ -343,27 +357,28 @@ export function DiagramAITab({
         onClick={handleGenerate}
         disabled={isGenerating || isApplying || !diagramType || !prompt.trim() || selectedDiagram?.comingSoon}
         className={cn(
-          "w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors",
+          "w-full flex items-center justify-center gap-2 h-10 rounded-lg",
+          "text-[11px] font-medium transition-all duration-150",
           isGenerating || isApplying || !diagramType || !prompt.trim() || selectedDiagram?.comingSoon
-            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-            : "bg-pink-600 hover:bg-pink-700 text-white"
+            ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+            : "bg-pink-600 hover:bg-pink-500 text-white shadow-lg shadow-pink-900/20"
         )}
       >
         {isGenerating ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Generating...
           </>
         ) : (
           <>
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-3.5 w-3.5" />
             Generate Diagram
           </>
         )}
       </button>
 
-      {/* Info Text */}
-      <p className="text-xs text-gray-500 text-center">
+      {/* Helper Text */}
+      <p className="text-[9px] text-gray-600 text-center">
         AI generates diagrams from your description
       </p>
     </div>

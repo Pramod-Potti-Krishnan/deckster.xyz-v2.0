@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react'
 import { LayoutGrid, Loader2, Sparkles, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BaseAITabProps } from '../types'
-import { PromptInput } from '../shared/prompt-input'
 import {
   InfographicType,
   InfographicColorScheme,
@@ -13,6 +12,11 @@ import {
   INFOGRAPHIC_COLOR_SCHEMES,
   INFOGRAPHIC_ICON_STYLES,
 } from '@/types/elements'
+import {
+  PanelSection,
+  Toggle,
+  Divider,
+} from '@/components/ui/panel'
 
 // Infographics where item count doesn't apply (fixed layout)
 const FIXED_COUNT_TYPES: InfographicType[] = ['concept_spread'] // Fixed at 6 hexagons
@@ -125,45 +129,44 @@ export function InfographicAITab({
   }
 
   return (
-    <div className="p-3 space-y-4">
+    <div className="p-4 space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-2 text-purple-400">
-        <LayoutGrid className="h-4 w-4" />
-        <span className="text-sm font-medium">Infographic</span>
+      <div className="flex items-center gap-2">
+        <LayoutGrid className="h-4 w-4 text-purple-400" />
+        <span className="text-[11px] font-medium text-gray-300">Infographic Generator</span>
       </div>
 
       {/* Infographic Type Selector - Grouped */}
-      <div className="space-y-2">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Type</label>
-        <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
+      <PanelSection title="Type">
+        <div className="space-y-1 max-h-[180px] overflow-y-auto pr-1">
           {Object.entries(groupedInfographics).map(([group, infographics]) => (
-            <div key={group} className="border border-gray-700 rounded-md overflow-hidden">
+            <div key={group} className="border border-gray-700/50 rounded-lg overflow-hidden">
               {/* Group Header */}
               <button
                 onClick={() => toggleGroup(group)}
-                className="w-full flex items-center justify-between px-2 py-1.5 bg-gray-800 hover:bg-gray-750 text-xs font-medium text-gray-300"
+                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-[10px] font-medium text-gray-300 transition-colors"
               >
                 <span>{group}</span>
                 <ChevronDown
                   className={cn(
-                    "h-3.5 w-3.5 transition-transform",
+                    "h-3 w-3 transition-transform",
                     expandedGroups.has(group) ? "rotate-180" : ""
                   )}
                 />
               </button>
               {/* Group Content */}
               {expandedGroups.has(group) && (
-                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-900">
+                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-900/50">
                   {infographics.map(({ type, label, description }) => (
                     <button
                       key={type}
                       onClick={() => handleInfographicTypeChange(type)}
                       disabled={isGenerating || isApplying}
                       className={cn(
-                        "px-2 py-1.5 rounded text-xs font-medium transition-colors text-left truncate",
+                        "px-2 py-1.5 rounded-md text-[10px] font-medium transition-all text-left truncate",
                         infographicType === type
-                          ? "bg-purple-600 text-white"
-                          : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                          ? "bg-purple-600 text-white shadow-sm"
+                          : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                       )}
                       title={description}
                     >
@@ -175,11 +178,11 @@ export function InfographicAITab({
             </div>
           ))}
         </div>
-      </div>
+      </PanelSection>
 
       {/* Selected type indicator */}
       {selectedInfographic && (
-        <div className="px-2 py-1.5 bg-purple-600/10 border border-purple-600/30 rounded text-xs text-purple-300">
+        <div className="px-3 py-2 rounded-lg bg-purple-600/10 border border-purple-600/20 text-[10px] text-purple-300">
           <span className="font-medium">{selectedInfographic.label}</span>
           <span className="text-purple-400 ml-1">— {selectedInfographic.description}</span>
         </div>
@@ -187,35 +190,36 @@ export function InfographicAITab({
 
       {/* Item Count Slider */}
       {showItemCount && (
-        <div className="space-y-1.5">
-          <div className="flex justify-between">
-            <label className="text-xs text-gray-400 uppercase tracking-wide">Item Count</label>
-            <span className="text-xs text-purple-400 font-medium">{itemCount}</span>
+        <PanelSection title="Item Count">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-[10px] text-gray-400">Number of items</span>
+              <span className="text-[11px] text-purple-400 font-medium">{itemCount}</span>
+            </div>
+            <input
+              type="range"
+              min={3}
+              max={10}
+              value={itemCount}
+              onChange={(e) => setItemCount(Number(e.target.value))}
+              disabled={isGenerating || isApplying}
+              className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+            />
+            <div className="flex justify-between text-[9px] text-gray-600">
+              <span>3</span>
+              <span>10</span>
+            </div>
           </div>
-          <input
-            type="range"
-            min={3}
-            max={10}
-            value={itemCount}
-            onChange={(e) => setItemCount(Number(e.target.value))}
-            disabled={isGenerating || isApplying}
-            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
-          />
-          <div className="flex justify-between text-[10px] text-gray-500">
-            <span>3</span>
-            <span>10</span>
-          </div>
-        </div>
+        </PanelSection>
       )}
       {infographicType && FIXED_COUNT_TYPES.includes(infographicType) && (
-        <div className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-400">
+        <div className="px-3 py-2 bg-gray-800/60 rounded-lg text-[10px] text-gray-400">
           Item count is fixed for {selectedInfographic?.label}
         </div>
       )}
 
       {/* Color Scheme */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Color Scheme</label>
+      <PanelSection title="Color Scheme">
         <div className="grid grid-cols-5 gap-1">
           {INFOGRAPHIC_COLOR_SCHEMES.map(({ scheme, label }) => (
             <button
@@ -223,10 +227,10 @@ export function InfographicAITab({
               onClick={() => setColorScheme(scheme)}
               disabled={isGenerating || isApplying}
               className={cn(
-                "py-1.5 rounded text-[10px] font-medium transition-colors truncate",
+                "py-1.5 rounded-md text-[9px] font-medium transition-all truncate",
                 colorScheme === scheme
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                  ? "bg-purple-600 text-white shadow-sm"
+                  : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
               )}
               title={label}
             >
@@ -234,11 +238,10 @@ export function InfographicAITab({
             </button>
           ))}
         </div>
-      </div>
+      </PanelSection>
 
       {/* Icon Style */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-gray-400 uppercase tracking-wide">Icon Style</label>
+      <PanelSection title="Icon Style">
         <div className="grid grid-cols-4 gap-1">
           {INFOGRAPHIC_ICON_STYLES.map(({ style, label }) => (
             <button
@@ -246,51 +249,37 @@ export function InfographicAITab({
               onClick={() => setIconStyle(style)}
               disabled={isGenerating || isApplying}
               className={cn(
-                "py-1.5 rounded text-xs font-medium transition-colors",
+                "py-1.5 rounded-md text-[10px] font-medium transition-all",
                 iconStyle === style
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                  ? "bg-purple-600 text-white shadow-sm"
+                  : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
               )}
             >
               {label}
             </button>
           ))}
         </div>
-      </div>
+      </PanelSection>
 
       {/* Include Descriptions Toggle */}
       <div className="flex items-center justify-between">
-        <label className="text-xs text-gray-400">Include descriptions</label>
-        <button
-          onClick={() => setIncludeDescriptions(!includeDescriptions)}
+        <span className="text-[11px] text-gray-400">Include descriptions</span>
+        <Toggle
+          checked={includeDescriptions}
+          onChange={setIncludeDescriptions}
           disabled={isGenerating || isApplying}
-          className={cn(
-            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-            includeDescriptions ? "bg-purple-600" : "bg-gray-700"
-          )}
-        >
-          <span
-            className={cn(
-              "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform",
-              includeDescriptions ? "translate-x-5" : "translate-x-1"
-            )}
-          />
-        </button>
+          accentColor="purple"
+        />
       </div>
 
-      {/* Divider */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-px bg-gray-700" />
-        <span className="text-xs text-gray-500">generate with AI</span>
-        <div className="flex-1 h-px bg-gray-700" />
-      </div>
+      <Divider label="generate with AI" />
 
       {/* AI Prompt */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-gray-400">Describe your infographic</label>
-        <PromptInput
+      <div className="space-y-2">
+        <span className="text-[10px] text-gray-500">Describe your infographic</span>
+        <textarea
           value={prompt}
-          onChange={setPrompt}
+          onChange={(e) => setPrompt(e.target.value)}
           placeholder={
             infographicType === 'timeline'
               ? "E.g., Company milestones from 2020 to 2024..."
@@ -312,12 +301,23 @@ export function InfographicAITab({
           }
           disabled={isGenerating}
           rows={3}
+          className={cn(
+            "w-full px-3 py-2 rounded-lg resize-none",
+            "bg-gray-800/60 border border-gray-700/50",
+            "text-[11px] text-white placeholder:text-gray-500",
+            "focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20",
+            "transition-all duration-150"
+          )}
         />
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="px-2 py-1.5 bg-red-600/20 border border-red-500 rounded text-xs text-red-400">
+        <div className={cn(
+          "px-3 py-2 rounded-lg",
+          "bg-red-500/10 border border-red-500/20",
+          "text-[10px] text-red-400"
+        )}>
           {error}
         </div>
       )}
@@ -327,28 +327,29 @@ export function InfographicAITab({
         onClick={handleGenerate}
         disabled={isGenerating || isApplying || !infographicType || !prompt.trim()}
         className={cn(
-          "w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors",
+          "w-full flex items-center justify-center gap-2 h-10 rounded-lg",
+          "text-[11px] font-medium transition-all duration-150",
           isGenerating || isApplying || !infographicType || !prompt.trim()
-            ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-            : "bg-purple-600 hover:bg-purple-700 text-white"
+            ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+            : "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20"
         )}
       >
         {isGenerating ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Generating...
           </>
         ) : (
           <>
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-3.5 w-3.5" />
             Generate Infographic
           </>
         )}
       </button>
 
-      {/* Info Text */}
-      <p className="text-xs text-gray-500 text-center">
-        AI will create a visual infographic based on your description
+      {/* Helper Text */}
+      <p className="text-[9px] text-gray-600 text-center">
+        AI creates visual infographics from your description
       </p>
     </div>
   )
