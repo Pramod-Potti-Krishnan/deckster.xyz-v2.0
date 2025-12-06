@@ -1313,6 +1313,14 @@ export function PresentationViewer({
 
     try {
       if (!document.fullscreenElement) {
+        // Exit edit mode before entering fullscreen (presentation mode should not be editable)
+        if (isEditMode && iframeRef.current) {
+          await sendCommand(iframeRef.current, 'toggleEditMode')
+          setIsEditMode(false)
+          onEditModeChange?.(false)
+          console.log('✏️ Exited edit mode for fullscreen presentation')
+        }
+
         // Enter fullscreen on container - we control the UI with black backgrounds
         await containerRef.current.requestFullscreen()
         setIsFullscreen(true)
@@ -1326,7 +1334,7 @@ export function PresentationViewer({
     } catch (error) {
       console.error('❌ Fullscreen error:', error)
     }
-  }, [])
+  }, [isEditMode, onEditModeChange])
 
   // Debug: Log button states
   useEffect(() => {
