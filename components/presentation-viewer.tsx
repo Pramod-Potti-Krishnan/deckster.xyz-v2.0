@@ -671,13 +671,23 @@ export function PresentationViewer({
 
     setIsDeleting(true)
     try {
+      console.log('🗑️ Attempting bulk delete with indices:', slidesToDelete)
+
       // Use bulk delete endpoint - pass all indices at once
       const result = await sendCommand(iframeRef.current, 'deleteSlides', {
-        indices: slidesToDelete  // Backend handles sorting/validation
+        indices: slidesToDelete  // 0-based indices
       })
 
+      console.log('🗑️ Bulk delete response:', result)
+
       if (!result.success) {
-        throw new Error(result.message || 'Failed to delete slides')
+        // Extract error message from various possible response formats
+        const errorMsg = result.message
+          || result.error
+          || (typeof result.detail === 'string' ? result.detail : null)
+          || (result.detail?.msg)
+          || JSON.stringify(result)
+        throw new Error(errorMsg)
       }
 
       // Update local state based on response
