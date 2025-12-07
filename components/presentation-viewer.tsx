@@ -665,34 +665,32 @@ export function PresentationViewer({
     setShowDeleteDialog(true)
   }, [totalSlides, toast])
 
-  // Confirm delete slide(s)
+  // Confirm delete slide(s) - uses bulk deleteSlides endpoint
   const handleConfirmDelete = useCallback(async () => {
     if (!slidesToDelete || slidesToDelete.length === 0 || !iframeRef.current) return
 
     setIsDeleting(true)
     try {
-      // Delete in reverse order to maintain correct indices
-      const sortedIndices = [...slidesToDelete].sort((a, b) => b - a)
+      // Use bulk delete endpoint - pass all indices at once
+      const result = await sendCommand(iframeRef.current, 'deleteSlides', {
+        indices: slidesToDelete  // Backend handles sorting/validation
+      })
 
-      for (const slideIndex of sortedIndices) {
-        const result = await sendCommand(iframeRef.current, 'deleteSlide', {
-          index: slideIndex  // Backend expects 'index', not 'slideIndex'
-        })
-
-        if (!result.success) {
-          throw new Error(`Failed to delete slide ${slideIndex + 1}`)
-        }
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to delete slides')
       }
 
-      // Calculate new total
-      const newTotal = totalSlides - slidesToDelete.length
-      setTotalSlides(newTotal)
+      // Update local state based on response
+      const deletedCount = result.deleted_count || slidesToDelete.length
+      const remainingCount = result.remaining_slide_count || (totalSlides - deletedCount)
+
+      setTotalSlides(remainingCount)
       setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
       setSelectedSlideIndices([]) // Clear selection after delete
 
       // Adjust current slide if needed
-      if (currentSlide > newTotal) {
-        setCurrentSlide(newTotal)
+      if (currentSlide > remainingCount) {
+        setCurrentSlide(remainingCount)
       } else {
         // Find how many deleted slides were before current
         const deletedBefore = slidesToDelete.filter(i => i < currentSlide - 1).length
@@ -701,21 +699,21 @@ export function PresentationViewer({
         }
       }
 
-      const message = slidesToDelete.length === 1
+      const message = deletedCount === 1
         ? `Slide ${slidesToDelete[0] + 1} has been removed`
-        : `${slidesToDelete.length} slides have been removed`
+        : `${deletedCount} slides have been removed`
 
       toast({
-        title: slidesToDelete.length === 1 ? 'Slide Deleted' : 'Slides Deleted',
+        title: deletedCount === 1 ? 'Slide Deleted' : 'Slides Deleted',
         description: message
       })
 
-      console.log(`🗑️ Deleted ${slidesToDelete.length} slide(s)`)
+      console.log(`🗑️ Bulk deleted ${deletedCount} slide(s), ${remainingCount} remaining`)
     } catch (error) {
       console.error('Error deleting slides:', error)
       toast({
         title: 'Error',
-        description: 'Failed to delete slides. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to delete slides. Please try again.',
         variant: 'destructive'
       })
     } finally {
