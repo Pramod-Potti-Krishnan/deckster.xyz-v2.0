@@ -16,7 +16,10 @@ import {
   Image,
   LayoutGrid,
   GitBranch,
-  History
+  History,
+  Grid2x2,
+  Square,
+  Pencil
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -200,6 +203,9 @@ export function PresentationViewer({
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   // Version history panel state
   const [showVersionHistory, setShowVersionHistory] = useState(false)
+  // View mode toggles (grid, borders, edit) - only shown in non-fullscreen
+  const [isGridActive, setIsGridActive] = useState(false)
+  const [isBordersActive, setIsBordersActive] = useState(false)
 
   // Sync totalSlides with slideCount prop changes
   useEffect(() => {
@@ -306,6 +312,55 @@ export function PresentationViewer({
     console.log('🔘 Grid button clicked - toggling thumbnail strip!')
     setShowThumbnails(prev => !prev)
   }, [])
+
+  // Toggle grid overlay via postMessage
+  const handleToggleGrid = useCallback(async () => {
+    if (!iframeRef.current) return
+    try {
+      if (isGridActive) {
+        await sendCommand(iframeRef.current, 'hideGridOverlay')
+      } else {
+        await sendCommand(iframeRef.current, 'showGridOverlay')
+      }
+      setIsGridActive(prev => !prev)
+      console.log(`📐 Grid overlay: ${!isGridActive ? 'ON' : 'OFF'}`)
+    } catch (error) {
+      console.error('Error toggling grid:', error)
+    }
+  }, [isGridActive])
+
+  // Toggle border highlight via postMessage
+  const handleToggleBorders = useCallback(async () => {
+    if (!iframeRef.current) return
+    try {
+      if (isBordersActive) {
+        await sendCommand(iframeRef.current, 'hideBorderHighlight')
+      } else {
+        await sendCommand(iframeRef.current, 'showBorderHighlight')
+      }
+      setIsBordersActive(prev => !prev)
+      console.log(`🔲 Borders: ${!isBordersActive ? 'ON' : 'OFF'}`)
+    } catch (error) {
+      console.error('Error toggling borders:', error)
+    }
+  }, [isBordersActive])
+
+  // Toggle edit mode via postMessage (button version)
+  const handleToggleEditModeButton = useCallback(async () => {
+    if (!iframeRef.current) return
+    try {
+      if (isEditMode) {
+        await sendCommand(iframeRef.current, 'exitEditMode')
+      } else {
+        await sendCommand(iframeRef.current, 'enterEditMode')
+      }
+      setIsEditMode(prev => !prev)
+      onEditModeChange?.(!isEditMode)
+      console.log(`✏️ Edit mode: ${!isEditMode ? 'ON' : 'OFF'}`)
+    } catch (error) {
+      console.error('Error toggling edit mode:', error)
+    }
+  }, [isEditMode, onEditModeChange])
 
   const handleGoToSlide = useCallback(async (slideIndex: number) => {
     console.log(`🎯 Navigating to slide ${slideIndex + 1}`)
@@ -416,12 +471,27 @@ export function PresentationViewer({
           e.preventDefault()
           handleToggleOverview()
           break
+        case 'g':
+        case 'G':
+          e.preventDefault()
+          handleToggleGrid()
+          break
+        case 'b':
+        case 'B':
+          e.preventDefault()
+          handleToggleBorders()
+          break
+        case 'e':
+        case 'E':
+          e.preventDefault()
+          handleToggleEditModeButton()
+          break
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNextSlide, handlePrevSlide, handleToggleOverview, isEditMode, handleForceSave])
+  }, [handleNextSlide, handlePrevSlide, handleToggleOverview, isEditMode, handleForceSave, handleToggleGrid, handleToggleBorders, handleToggleEditModeButton])
 
   // Lazy edit mode: automatically enter edit mode when needed
   const ensureEditMode = useCallback(async (): Promise<boolean> => {
@@ -1349,10 +1419,24 @@ export function PresentationViewer({
       if (!document.fullscreenElement) {
         // Exit edit mode before entering fullscreen (presentation mode should not be editable)
         if (isEditMode && iframeRef.current) {
-          await sendCommand(iframeRef.current, 'toggleEditMode')
+          await sendCommand(iframeRef.current, 'exitEditMode')
           setIsEditMode(false)
           onEditModeChange?.(false)
           console.log('✏️ Exited edit mode for fullscreen presentation')
+        }
+
+        // Hide grid overlay before entering fullscreen
+        if (isGridActive && iframeRef.current) {
+          await sendCommand(iframeRef.current, 'hideGridOverlay')
+          setIsGridActive(false)
+          console.log('📐 Hid grid overlay for fullscreen presentation')
+        }
+
+        // Hide border highlight before entering fullscreen
+        if (isBordersActive && iframeRef.current) {
+          await sendCommand(iframeRef.current, 'hideBorderHighlight')
+          setIsBordersActive(false)
+          console.log('🔲 Hid borders for fullscreen presentation')
         }
 
         // Enter fullscreen on container - we control the UI with black backgrounds
@@ -1368,7 +1452,7 @@ export function PresentationViewer({
     } catch (error) {
       console.error('❌ Fullscreen error:', error)
     }
-  }, [isEditMode, onEditModeChange])
+  }, [isEditMode, onEditModeChange, isGridActive, isBordersActive])
 
   // Debug: Log button states
   useEffect(() => {
@@ -1764,6 +1848,55 @@ export function PresentationViewer({
               <span className="ml-2 text-xs text-yellow-600">
                 Shortcuts: Ctrl+B (Bold), Ctrl+I (Italic), Ctrl+U (Underline), Ctrl+S (Save)
               </span>
+            </div>
+          )}
+
+          {/* View Mode Controls - Grid, Borders, Edit (below slide, non-fullscreen only) */}
+          {!isFullscreen && (
+            <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 flex items-center gap-4">
+              <span className="text-xs text-gray-500 font-medium">View:</span>
+
+              {/* Grid Toggle */}
+              <button
+                onClick={handleToggleGrid}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  isGridActive
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+                title="Toggle grid overlay (G)"
+              >
+                <Grid2x2 className="h-3.5 w-3.5" />
+                Grid
+              </button>
+
+              {/* Borders Toggle */}
+              <button
+                onClick={handleToggleBorders}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  isBordersActive
+                    ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+                title="Toggle element borders (B)"
+              >
+                <Square className="h-3.5 w-3.5" />
+                Borders
+              </button>
+
+              {/* Edit Mode Toggle */}
+              <button
+                onClick={handleToggleEditModeButton}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  isEditMode
+                    ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+                title="Toggle edit mode (E)"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
             </div>
           )}
         </div>
