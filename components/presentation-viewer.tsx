@@ -19,7 +19,8 @@ import {
   History,
   Grid2x2,
   Square,
-  Pencil
+  Pencil,
+  Settings
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -40,6 +41,7 @@ import { TableInsertPopover, generateTableHTML } from './table-insert-popover'
 import { ChartPickerPopover, InsertChartParams, generateChartConfig } from './chart-picker-popover'
 import { ElementType, ElementProperties, BaseElementProperties } from '@/types/elements'
 import { VersionHistoryPanel } from './version-history-panel'
+import { PresentationSettingsPanel } from './presentation-settings-panel'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
@@ -203,6 +205,7 @@ export function PresentationViewer({
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   // Version history panel state
   const [showVersionHistory, setShowVersionHistory] = useState(false)
+  const [showPresentationSettings, setShowPresentationSettings] = useState(false)
   // View mode toggles (grid, borders, edit) - only shown in non-fullscreen
   const [isGridActive, setIsGridActive] = useState(false)
   const [isBordersActive, setIsBordersActive] = useState(false)
@@ -1905,6 +1908,20 @@ export function PresentationViewer({
                 <Pencil className="h-3.5 w-3.5" />
                 Edit
               </button>
+
+              {/* Presentation Settings */}
+              <button
+                onClick={() => setShowPresentationSettings(true)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  showPresentationSettings
+                    ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+                title="Presentation settings (footer, logo)"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Settings
+              </button>
             </div>
           )}
         </div>
@@ -1968,6 +1985,17 @@ export function PresentationViewer({
         onClose={() => setShowVersionHistory(false)}
         iframeRef={iframeRef}
         viewerOrigin={VIEWER_ORIGIN}
+      />
+
+      {/* Presentation Settings Panel (Footer, Logo) */}
+      <PresentationSettingsPanel
+        isOpen={showPresentationSettings}
+        onClose={() => setShowPresentationSettings(false)}
+        iframeRef={iframeRef}
+        viewerOrigin={VIEWER_ORIGIN}
+        currentSlide={currentSlide}
+        totalSlides={totalSlides}
+        presentationId={presentationId}
       />
     </div>
   )
