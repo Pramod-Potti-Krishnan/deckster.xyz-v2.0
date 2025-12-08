@@ -239,30 +239,35 @@ export type TableStyle =
 // SLIDE LAYOUT TYPES (Layout Service v7.5)
 // ============================================================================
 
-// Slide layout types (15 total)
+// Slide layout types (19 total - Layout Service v7.5.1)
 export type SlideLayoutType =
   // Hero Slides (Full-Bleed) - 4 types
   | 'H1-generated'   // Title Slide (AI) - Full canvas for AI-generated content
   | 'H1-structured'  // Title Slide (Manual) - Editable title, subtitle, background
   | 'H2-section'     // Section Divider - Chapter/section breaks
   | 'H3-closing'     // Closing Slide - Thank you with contact info
-  // Content Slides (Single Content Area) - 6 types
+  // Content Slides (Single Content Area) - 4 types
   | 'C1-text'        // Text Content - Body text with title/subtitle
-  | 'C2-table'       // Table Slide - Data table area
   | 'C3-chart'       // Single Chart - Chart visualization
   | 'C4-infographic' // Single Infographic - Infographic area
   | 'C5-diagram'     // Single Diagram - Diagram area
-  | 'C6-image'       // Single Image - Image with caption
-  // Split Layout Slides (Two Columns) - 4 types
-  | 'S1-visual-text'   // Visual + Text - Chart/diagram left, text right
-  | 'S2-image-content' // Image + Content - Full-height image left, content right
+  // Visual + Text Slides - 4 types (visual left, text insights right)
+  | 'V1-image-text'       // Image + Text insights
+  | 'V2-chart-text'       // Chart + Text insights
+  | 'V3-diagram-text'     // Diagram + Text insights
+  | 'V4-infographic-text' // Infographic + Text insights
+  // Image Split Slides - 4 types (full-height image with content)
+  | 'I1-image-left'        // Wide image left (12 cols)
+  | 'I2-image-right'       // Wide image right (12 cols)
+  | 'I3-image-left-narrow' // Narrow image left (6 cols)
+  | 'I4-image-right-narrow'// Narrow image right (6 cols)
+  // Other Slides - 3 types
   | 'S3-two-visuals'   // Two Visuals - Side-by-side visuals
   | 'S4-comparison'    // Comparison - Two columns with headers
-  // Blank Slides - 1 type
   | 'B1-blank'         // Blank Canvas - Empty slide for free placement
 
 // Slide layout categories
-export type SlideLayoutCategory = 'hero' | 'content' | 'split' | 'blank'
+export type SlideLayoutCategory = 'hero' | 'content' | 'visual' | 'image' | 'other'
 
 // Legacy hero types (kept for backward compatibility during transition)
 export type HeroType =
@@ -699,7 +704,7 @@ export const HERO_VISUAL_STYLES: { style: HeroVisualStyle; label: string }[] = [
 // SLIDE LAYOUT UI ARRAYS (Layout Service v7.5)
 // ============================================================================
 
-// Slide layouts for UI (15 types, grouped by category)
+// Slide layouts for UI (19 types, grouped by category)
 export const SLIDE_LAYOUTS: {
   layout: SlideLayoutType
   label: string
@@ -707,33 +712,39 @@ export const SLIDE_LAYOUTS: {
   description: string
   icon?: string
 }[] = [
-  // Hero Slides
+  // Hero Slides (4)
   { layout: 'H1-generated', label: 'Title (AI)', category: 'hero', description: 'AI-generated title design', icon: 'Sparkles' },
   { layout: 'H1-structured', label: 'Title (Manual)', category: 'hero', description: 'Editable title & subtitle', icon: 'Layout' },
   { layout: 'H2-section', label: 'Section Divider', category: 'hero', description: 'Chapter breaks', icon: 'Milestone' },
   { layout: 'H3-closing', label: 'Closing', category: 'hero', description: 'Thank you slide', icon: 'CheckCircle' },
-  // Content Slides
+  // Content Slides (4)
   { layout: 'C1-text', label: 'Text', category: 'content', description: 'Body text content', icon: 'Type' },
-  { layout: 'C2-table', label: 'Table', category: 'content', description: 'Data table', icon: 'Table' },
   { layout: 'C3-chart', label: 'Chart', category: 'content', description: 'Chart visualization', icon: 'BarChart3' },
   { layout: 'C4-infographic', label: 'Infographic', category: 'content', description: 'Visual data', icon: 'LayoutGrid' },
   { layout: 'C5-diagram', label: 'Diagram', category: 'content', description: 'Process/flow diagram', icon: 'GitBranch' },
-  { layout: 'C6-image', label: 'Image', category: 'content', description: 'Image with caption', icon: 'Image' },
-  // Split Slides
-  { layout: 'S1-visual-text', label: 'Visual + Text', category: 'split', description: 'Visual left, text right', icon: 'Columns' },
-  { layout: 'S2-image-content', label: 'Image + Content', category: 'split', description: 'Image left, content right', icon: 'LayoutPanelLeft' },
-  { layout: 'S3-two-visuals', label: 'Two Visuals', category: 'split', description: 'Side-by-side visuals', icon: 'LayoutGrid' },
-  { layout: 'S4-comparison', label: 'Comparison', category: 'split', description: 'Two columns comparison', icon: 'ArrowLeftRight' },
-  // Blank Slides
-  { layout: 'B1-blank', label: 'Blank', category: 'blank', description: 'Empty canvas', icon: 'Square' },
+  // Visual + Text Slides (4)
+  { layout: 'V1-image-text', label: 'Image + Text', category: 'visual', description: 'Image left, text insights right', icon: 'Image' },
+  { layout: 'V2-chart-text', label: 'Chart + Text', category: 'visual', description: 'Chart left, text insights right', icon: 'BarChart3' },
+  { layout: 'V3-diagram-text', label: 'Diagram + Text', category: 'visual', description: 'Diagram left, text insights right', icon: 'GitBranch' },
+  { layout: 'V4-infographic-text', label: 'Infographic + Text', category: 'visual', description: 'Infographic left, text insights right', icon: 'LayoutGrid' },
+  // Image Split Slides (4)
+  { layout: 'I1-image-left', label: 'Image Left', category: 'image', description: 'Wide image left with content', icon: 'PanelLeft' },
+  { layout: 'I2-image-right', label: 'Image Right', category: 'image', description: 'Wide image right with content', icon: 'PanelRight' },
+  { layout: 'I3-image-left-narrow', label: 'Narrow Left', category: 'image', description: 'Narrow image left with content', icon: 'SidebarOpen' },
+  { layout: 'I4-image-right-narrow', label: 'Narrow Right', category: 'image', description: 'Narrow image right with content', icon: 'SidebarClose' },
+  // Other Slides (3)
+  { layout: 'S3-two-visuals', label: 'Two Visuals', category: 'other', description: 'Side-by-side visuals', icon: 'Columns' },
+  { layout: 'S4-comparison', label: 'Comparison', category: 'other', description: 'Two columns comparison', icon: 'ArrowLeftRight' },
+  { layout: 'B1-blank', label: 'Blank', category: 'other', description: 'Empty canvas', icon: 'Square' },
 ]
 
 // Slide layout category labels
 export const SLIDE_LAYOUT_CATEGORIES: { category: SlideLayoutCategory; label: string }[] = [
   { category: 'hero', label: 'Hero Slides' },
   { category: 'content', label: 'Content Slides' },
-  { category: 'split', label: 'Split Layouts' },
-  { category: 'blank', label: 'Blank' },
+  { category: 'visual', label: 'Visual + Text' },
+  { category: 'image', label: 'Image Split' },
+  { category: 'other', label: 'Other' },
 ]
 
 // Default content schemas per layout (based on SLIDE_TYPES.md)
@@ -767,11 +778,6 @@ export const SLIDE_LAYOUT_DEFAULTS: Record<SlideLayoutType, Record<string, strin
     subtitle: '',
     body: '',
   },
-  'C2-table': {
-    slide_title: 'Table Title',
-    subtitle: '',
-    table_html: '',
-  },
   'C3-chart': {
     slide_title: 'Chart Title',
     subtitle: '',
@@ -787,24 +793,57 @@ export const SLIDE_LAYOUT_DEFAULTS: Record<SlideLayoutType, Record<string, strin
     subtitle: '',
     diagram_svg: '',
   },
-  'C6-image': {
-    slide_title: 'Image Title',
+  // Visual + Text Slides
+  'V1-image-text': {
+    slide_title: 'Image + Insights',
     subtitle: '',
-    image_url: '',
+    content_left: '',  // Image (left)
+    content_right: '', // Text insights (right)
   },
-  // Split Slides
-  'S1-visual-text': {
-    slide_title: 'Visual + Text',
+  'V2-chart-text': {
+    slide_title: 'Chart + Insights',
     subtitle: '',
-    element_3: '',  // Visual content (left)
-    element_2: '',  // Text content (right)
+    content_left: '',  // Chart (left)
+    content_right: '', // Text insights (right)
   },
-  'S2-image-content': {
-    slide_title: 'Image + Content',
+  'V3-diagram-text': {
+    slide_title: 'Diagram + Insights',
     subtitle: '',
-    image_url: '',
-    main_content: '',
+    content_left: '',  // Diagram (left)
+    content_right: '', // Text insights (right)
   },
+  'V4-infographic-text': {
+    slide_title: 'Infographic + Insights',
+    subtitle: '',
+    content_left: '',  // Infographic (left)
+    content_right: '', // Text insights (right)
+  },
+  // Image Split Slides
+  'I1-image-left': {
+    slide_title: 'Slide Title',
+    subtitle: '',
+    image: '',    // Full-height image (left)
+    content: '',  // Content area (right)
+  },
+  'I2-image-right': {
+    slide_title: 'Slide Title',
+    subtitle: '',
+    content: '',  // Content area (left)
+    image: '',    // Full-height image (right)
+  },
+  'I3-image-left-narrow': {
+    slide_title: 'Slide Title',
+    subtitle: '',
+    image: '',    // Narrow image (left)
+    content: '',  // Content area (right)
+  },
+  'I4-image-right-narrow': {
+    slide_title: 'Slide Title',
+    subtitle: '',
+    content: '',  // Content area (left)
+    image: '',    // Narrow image (right)
+  },
+  // Other Slides
   'S3-two-visuals': {
     slide_title: 'Comparison',
     subtitle: '',
@@ -821,7 +860,6 @@ export const SLIDE_LAYOUT_DEFAULTS: Record<SlideLayoutType, Record<string, strin
     content_left: '',
     content_right: '',
   },
-  // Blank Slides
   'B1-blank': {
     slide_title: '',
     subtitle: '',
@@ -867,10 +905,6 @@ export const SLIDE_LAYOUT_FIELDS: Record<SlideLayoutType, SlideContentField[]> =
     { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
     { key: 'body', label: 'Body', type: 'richtext', placeholder: 'Enter your content...', rows: 6 },
   ],
-  'C2-table': [
-    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Table Title' },
-    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
-  ],
   'C3-chart': [
     { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Chart Title' },
     { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
@@ -883,20 +917,45 @@ export const SLIDE_LAYOUT_FIELDS: Record<SlideLayoutType, SlideContentField[]> =
     { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Diagram Title' },
     { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
   ],
-  'C6-image': [
-    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Image Title' },
-    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Caption or description' },
-  ],
-  // Split Slides
-  'S1-visual-text': [
+  // Visual + Text Slides
+  'V1-image-text': [
     { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
     { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
   ],
-  'S2-image-content': [
+  'V2-chart-text': [
     { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
     { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
-    { key: 'main_content', label: 'Content', type: 'richtext', placeholder: 'Right side content...', rows: 6 },
   ],
+  'V3-diagram-text': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+  ],
+  'V4-infographic-text': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+  ],
+  // Image Split Slides
+  'I1-image-left': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+    { key: 'content', label: 'Content', type: 'richtext', placeholder: 'Right side content...', rows: 6 },
+  ],
+  'I2-image-right': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+    { key: 'content', label: 'Content', type: 'richtext', placeholder: 'Left side content...', rows: 6 },
+  ],
+  'I3-image-left-narrow': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+    { key: 'content', label: 'Content', type: 'richtext', placeholder: 'Right side content...', rows: 6 },
+  ],
+  'I4-image-right-narrow': [
+    { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Slide Title' },
+    { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },
+    { key: 'content', label: 'Content', type: 'richtext', placeholder: 'Left side content...', rows: 6 },
+  ],
+  // Other Slides
   'S3-two-visuals': [
     { key: 'slide_title', label: 'Title', type: 'text', placeholder: 'Comparison Title' },
     { key: 'subtitle', label: 'Subtitle', type: 'text', placeholder: 'Optional subtitle' },

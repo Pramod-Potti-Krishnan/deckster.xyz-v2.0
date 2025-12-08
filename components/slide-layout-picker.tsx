@@ -12,16 +12,18 @@ import {
   Layout,
   Columns,
   Image,
-  Table,
   BarChart3,
   LayoutGrid,
   GitBranch,
   Sparkles,
   Milestone,
   CheckCircle,
-  LayoutPanelLeft,
   ArrowLeftRight,
   Square,
+  PanelLeft,
+  PanelRight,
+  SidebarOpen,
+  SidebarClose,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -55,15 +57,17 @@ const getLayoutIcon = (iconName: string | undefined, size: 'sm' | 'md' | 'lg' = 
     'Milestone': <Milestone className={sizeClass} />,
     'CheckCircle': <CheckCircle className={sizeClass} />,
     'Type': <Type className={sizeClass} />,
-    'Table': <Table className={sizeClass} />,
     'BarChart3': <BarChart3 className={sizeClass} />,
     'LayoutGrid': <LayoutGrid className={sizeClass} />,
     'GitBranch': <GitBranch className={sizeClass} />,
     'Image': <Image className={sizeClass} />,
     'Columns': <Columns className={sizeClass} />,
-    'LayoutPanelLeft': <LayoutPanelLeft className={sizeClass} />,
     'ArrowLeftRight': <ArrowLeftRight className={sizeClass} />,
     'Square': <Square className={sizeClass} />,
+    'PanelLeft': <PanelLeft className={sizeClass} />,
+    'PanelRight': <PanelRight className={sizeClass} />,
+    'SidebarOpen': <SidebarOpen className={sizeClass} />,
+    'SidebarClose': <SidebarClose className={sizeClass} />,
   }
 
   return iconName && icons[iconName] ? icons[iconName] : <Layout className={sizeClass} />
@@ -93,7 +97,7 @@ interface SlideLayoutPickerProps {
  * SlideLayoutPicker Component
  *
  * Popover with grid layout for adding new slides.
- * Supports 15 layout types aligned with Layout Service v7.5.
+ * Supports 19 layout types aligned with Layout Service v7.5.1.
  */
 export function SlideLayoutPicker({
   onAddSlide,
@@ -117,8 +121,9 @@ export function SlideLayoutPicker({
   const layoutsByCategory = useMemo(() => ({
     hero: getLayoutsByCategory('hero'),
     content: getLayoutsByCategory('content'),
-    split: getLayoutsByCategory('split'),
-    blank: getLayoutsByCategory('blank'),
+    visual: getLayoutsByCategory('visual'),
+    image: getLayoutsByCategory('image'),
+    other: getLayoutsByCategory('other'),
   }), [])
 
   return (
@@ -171,10 +176,10 @@ export function SlideLayoutPicker({
             </div>
           </div>
 
-          {/* Content Slides - 6 items in 2 rows of 3 */}
+          {/* Content Slides - 4 items in a row */}
           <div>
             <h4 className="text-xs font-medium text-blue-600 mb-2 px-1">Content Slides</h4>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {layoutsByCategory.content.map((layout) => (
                 <button
                   key={layout.layout}
@@ -200,11 +205,11 @@ export function SlideLayoutPicker({
             </div>
           </div>
 
-          {/* Split Slides - 4 items in a row */}
+          {/* Visual + Text Slides - 4 items in a row */}
           <div>
-            <h4 className="text-xs font-medium text-purple-600 mb-2 px-1">Split Layouts</h4>
+            <h4 className="text-xs font-medium text-green-600 mb-2 px-1">Visual + Text</h4>
             <div className="grid grid-cols-4 gap-2">
-              {layoutsByCategory.split.map((layout) => (
+              {layoutsByCategory.visual.map((layout) => (
                 <button
                   key={layout.layout}
                   onClick={() => handleSelectLayout(layout.layout)}
@@ -212,7 +217,7 @@ export function SlideLayoutPicker({
                   className={cn(
                     "flex flex-col items-center gap-1.5 p-2 rounded-lg",
                     "border border-gray-200 bg-white",
-                    "hover:border-purple-400 hover:bg-purple-50",
+                    "hover:border-green-400 hover:bg-green-50",
                     "transition-all duration-150",
                     "disabled:opacity-50 disabled:cursor-not-allowed"
                   )}
@@ -229,11 +234,40 @@ export function SlideLayoutPicker({
             </div>
           </div>
 
-          {/* Blank Slide - single item */}
+          {/* Image Split Slides - 4 items in a row */}
+          <div>
+            <h4 className="text-xs font-medium text-teal-600 mb-2 px-1">Image Split</h4>
+            <div className="grid grid-cols-4 gap-2">
+              {layoutsByCategory.image.map((layout) => (
+                <button
+                  key={layout.layout}
+                  onClick={() => handleSelectLayout(layout.layout)}
+                  disabled={isAdding}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 p-2 rounded-lg",
+                    "border border-gray-200 bg-white",
+                    "hover:border-teal-400 hover:bg-teal-50",
+                    "transition-all duration-150",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                  title={layout.description}
+                >
+                  <div className="w-full aspect-[16/10] rounded bg-gray-100 flex items-center justify-center border border-gray-200">
+                    {getLayoutIcon(layout.icon, 'md')}
+                  </div>
+                  <span className="text-[10px] text-gray-600 text-center leading-tight line-clamp-2">
+                    {layout.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Other Slides - 3 items (Two Visuals, Comparison, Blank) */}
           <div>
             <h4 className="text-xs font-medium text-gray-500 mb-2 px-1">Other</h4>
             <div className="grid grid-cols-4 gap-2">
-              {layoutsByCategory.blank.map((layout) => (
+              {layoutsByCategory.other.map((layout) => (
                 <button
                   key={layout.layout}
                   onClick={() => handleSelectLayout(layout.layout)}
@@ -268,8 +302,8 @@ export const LEGACY_LAYOUT_MAP: Record<string, SlideLayoutType> = {
   'L01': 'H1-structured',  // Title Slide
   'L02': 'H2-section',     // Section Header
   'L03': 'C1-text',        // Content
-  'L25': 'S1-visual-text', // Two Column
-  'L27': 'C6-image',       // Image Focus
+  'L25': 'V1-image-text',  // Two Column -> Visual + Text
+  'L27': 'I1-image-left',  // Image Focus -> Image Split Left
   'L29': 'H1-generated',   // Hero
 }
 
