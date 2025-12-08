@@ -130,6 +130,7 @@ export function ThemePanel({
 
         if (event.data.action === action) {
           window.removeEventListener('message', handler)
+          console.log(`[ThemePanel] Received response for ${action}:`, event.data)
 
           if (event.data.success) {
             resolve(event.data)
@@ -146,6 +147,7 @@ export function ThemePanel({
         reject(new Error('Command timeout'))
       }, 10000)
 
+      console.log(`[ThemePanel] Sending postMessage:`, { action, params })
       iframeRef.current.contentWindow?.postMessage({ action, params }, viewerOrigin)
     })
   }, [iframeRef, viewerOrigin])
@@ -189,15 +191,22 @@ export function ThemePanel({
    * Preview theme in iframe
    */
   const previewTheme = useCallback(async (themeId: string, overrides?: Record<string, string>) => {
+    console.log('[ThemePanel] previewTheme called:', { themeId, overrides })
     try {
-      await sendCommand('previewTheme', {
+      const result = await sendCommand('previewTheme', {
         themeId,
         colorOverrides: overrides && Object.keys(overrides).length > 0 ? overrides : undefined
       })
+      console.log('[ThemePanel] previewTheme success:', result)
     } catch (error) {
-      console.error('Failed to preview theme:', error)
+      console.error('[ThemePanel] previewTheme failed:', error)
+      toast({
+        title: 'Preview failed',
+        description: error instanceof Error ? error.message : 'Could not preview theme',
+        variant: 'destructive'
+      })
     }
-  }, [sendCommand])
+  }, [sendCommand, toast])
 
   /**
    * Handle theme selection
