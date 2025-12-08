@@ -440,7 +440,7 @@ export function SlideThumbnailStrip({
     >
       <div className={cn(
         isVertical
-          ? "flex flex-col items-center gap-2 overflow-y-auto h-full scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
+          ? "flex flex-col items-center gap-2 overflow-y-auto h-full pt-2 pb-12 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
           : "flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
       )}>
         {slides.map(renderThumbnail)}
