@@ -20,7 +20,8 @@ import {
   Grid2x2,
   Square,
   Pencil,
-  Settings
+  Settings,
+  Palette
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -42,6 +43,7 @@ import { ChartPickerPopover, InsertChartParams, generateChartConfig } from './ch
 import { ElementType, ElementProperties, BaseElementProperties } from '@/types/elements'
 import { VersionHistoryPanel } from './version-history-panel'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
+import { ThemePanel } from './theme-panel'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
@@ -206,6 +208,7 @@ export function PresentationViewer({
   // Version history panel state
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPresentationSettings, setShowPresentationSettings] = useState(false)
+  const [showThemePanel, setShowThemePanel] = useState(false)
   // View mode toggles (grid, borders, edit) - only shown in non-fullscreen
   const [isGridActive, setIsGridActive] = useState(false)
   const [isBordersActive, setIsBordersActive] = useState(false)
@@ -1922,6 +1925,20 @@ export function PresentationViewer({
                 <Settings className="h-3.5 w-3.5" />
                 Settings
               </button>
+
+              {/* Theme */}
+              <button
+                onClick={() => setShowThemePanel(true)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  showThemePanel
+                    ? 'bg-pink-100 text-pink-700 hover:bg-pink-200'
+                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+                title="Presentation theme"
+              >
+                <Palette className="h-3.5 w-3.5" />
+                Theme
+              </button>
             </div>
           )}
         </div>
@@ -1995,6 +2012,15 @@ export function PresentationViewer({
         viewerOrigin={VIEWER_ORIGIN}
         currentSlide={currentSlide}
         totalSlides={totalSlides}
+        presentationId={presentationId}
+      />
+
+      {/* Theme Panel */}
+      <ThemePanel
+        isOpen={showThemePanel}
+        onClose={() => setShowThemePanel(false)}
+        iframeRef={iframeRef}
+        viewerOrigin={VIEWER_ORIGIN}
         presentationId={presentationId}
       />
     </div>
