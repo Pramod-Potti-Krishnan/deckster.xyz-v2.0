@@ -1850,17 +1850,17 @@ export function PresentationViewer({
                 <p>No presentation to display</p>
               </div>
             )}
-          </div>
 
-          {/* Edit Mode Instructions */}
-          {isEditMode && !isFullscreen && (
-            <div className="px-4 py-2 bg-yellow-50 border-t border-yellow-200 text-sm text-yellow-800">
-              <strong>Edit Mode:</strong> Click on any text to edit. Select text for formatting toolbar.
-              <span className="ml-2 text-xs text-yellow-600">
-                Shortcuts: Ctrl+B (Bold), Ctrl+I (Italic), Ctrl+U (Underline), Ctrl+S (Save)
-              </span>
-            </div>
-          )}
+            {/* Edit Mode Instructions - positioned absolutely to not shift slide */}
+            {isEditMode && !isFullscreen && (
+              <div className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-yellow-50/95 backdrop-blur-sm border-t border-yellow-200 text-sm text-yellow-800">
+                <strong>Edit Mode:</strong> Click on any text to edit. Select text for formatting toolbar.
+                <span className="ml-2 text-xs text-yellow-600">
+                  Shortcuts: Ctrl+B (Bold), Ctrl+I (Italic), Ctrl+U (Underline), Ctrl+S (Save)
+                </span>
+              </div>
+            )}
+          </div>
 
           {/* View Mode Controls - Grid, Borders, Edit (below slide, non-fullscreen only) */}
           {!isFullscreen && (
