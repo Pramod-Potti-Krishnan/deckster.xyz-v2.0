@@ -1,32 +1,96 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Check, Loader2, RotateCcw } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { X, Check, Loader2, RotateCcw, ChevronDown, ChevronRight, Palette, Wand2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { CompactColorPicker } from '@/components/ui/color-picker'
 import { cn } from '@/lib/utils'
 
-// Data models matching backend API
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
 interface PresentationThemeConfig {
   theme_id: string
   color_overrides?: Record<string, string> | null
+}
+
+// Full 14-color theme interface matching backend API
+interface FullThemeColors {
+  // Brand Colors
+  primary: string
+  primary_light: string
+  primary_dark: string
+  accent: string
+  // Background Colors
+  background: string
+  background_alt: string
+  hero_background: string
+  // Text Colors
+  text_primary: string
+  text_secondary: string
+  text_body: string
+  hero_text_primary: string
+  hero_text_secondary: string
+  footer_text: string
+  // Border
+  border: string
 }
 
 interface ThemePreview {
   id: string
   name: string
   description: string
-  colors: {
-    primary: string
-    accent: string
-    background: string
-    text_primary: string
-  }
+  colors: FullThemeColors
 }
 
-// Predefined theme previews with colors
+type ThemeMode = 'preset' | 'custom'
+
+// ============================================================================
+// Color Configuration
+// ============================================================================
+
+// Organize colors into logical groups for the UI
+const COLOR_GROUPS = {
+  brand: {
+    label: 'Brand Colors',
+    keys: ['primary', 'primary_light', 'primary_dark', 'accent'] as const
+  },
+  background: {
+    label: 'Background Colors',
+    keys: ['background', 'background_alt', 'hero_background'] as const
+  },
+  text: {
+    label: 'Text Colors',
+    keys: ['text_primary', 'text_secondary', 'text_body', 'hero_text_primary', 'hero_text_secondary', 'footer_text'] as const
+  },
+  border: {
+    label: 'Border',
+    keys: ['border'] as const
+  }
+} as const
+
+// Human-friendly labels for each color property
+const COLOR_LABELS: Record<keyof FullThemeColors, string> = {
+  primary: 'Primary',
+  primary_light: 'Primary Light',
+  primary_dark: 'Primary Dark',
+  accent: 'Accent',
+  background: 'Main Background',
+  background_alt: 'Alternate Background',
+  hero_background: 'Hero Background',
+  text_primary: 'Primary Text',
+  text_secondary: 'Secondary Text',
+  text_body: 'Body Text',
+  hero_text_primary: 'Hero Title',
+  hero_text_secondary: 'Hero Subtitle',
+  footer_text: 'Footer Text',
+  border: 'Border Color'
+}
+
+// Full theme definitions with all 14 colors
 const THEME_PREVIEWS: Record<string, ThemePreview> = {
   'corporate-blue': {
     id: 'corporate-blue',
@@ -34,9 +98,19 @@ const THEME_PREVIEWS: Record<string, ThemePreview> = {
     description: 'Professional blue theme for business presentations',
     colors: {
       primary: '#1e40af',
+      primary_light: '#3b82f6',
+      primary_dark: '#1e3a8a',
       accent: '#f59e0b',
       background: '#ffffff',
-      text_primary: '#1f2937'
+      background_alt: '#f8fafc',
+      hero_background: '#1e40af',
+      text_primary: '#1f2937',
+      text_secondary: '#6b7280',
+      text_body: '#374151',
+      hero_text_primary: '#ffffff',
+      hero_text_secondary: '#e0e7ff',
+      footer_text: '#9ca3af',
+      border: '#e5e7eb'
     }
   },
   'minimal-gray': {
@@ -45,9 +119,19 @@ const THEME_PREVIEWS: Record<string, ThemePreview> = {
     description: 'Clean, minimalist gray theme',
     colors: {
       primary: '#374151',
+      primary_light: '#6b7280',
+      primary_dark: '#1f2937',
       accent: '#6366f1',
       background: '#f9fafb',
-      text_primary: '#111827'
+      background_alt: '#f3f4f6',
+      hero_background: '#374151',
+      text_primary: '#111827',
+      text_secondary: '#6b7280',
+      text_body: '#4b5563',
+      hero_text_primary: '#ffffff',
+      hero_text_secondary: '#d1d5db',
+      footer_text: '#9ca3af',
+      border: '#e5e7eb'
     }
   },
   'vibrant-orange': {
@@ -56,9 +140,19 @@ const THEME_PREVIEWS: Record<string, ThemePreview> = {
     description: 'Energetic orange theme for creative presentations',
     colors: {
       primary: '#ea580c',
+      primary_light: '#fb923c',
+      primary_dark: '#c2410c',
       accent: '#0891b2',
       background: '#fffbeb',
-      text_primary: '#1c1917'
+      background_alt: '#fef3c7',
+      hero_background: '#ea580c',
+      text_primary: '#1c1917',
+      text_secondary: '#78716c',
+      text_body: '#44403c',
+      hero_text_primary: '#ffffff',
+      hero_text_secondary: '#fed7aa',
+      footer_text: '#a8a29e',
+      border: '#e7e5e4'
     }
   },
   'dark-mode': {
@@ -67,14 +161,125 @@ const THEME_PREVIEWS: Record<string, ThemePreview> = {
     description: 'Dark theme for low-light environments',
     colors: {
       primary: '#60a5fa',
+      primary_light: '#93c5fd',
+      primary_dark: '#3b82f6',
       accent: '#f472b6',
       background: '#1f2937',
-      text_primary: '#f9fafb'
+      background_alt: '#374151',
+      hero_background: '#111827',
+      text_primary: '#f9fafb',
+      text_secondary: '#d1d5db',
+      text_body: '#e5e7eb',
+      hero_text_primary: '#ffffff',
+      hero_text_secondary: '#93c5fd',
+      footer_text: '#9ca3af',
+      border: '#4b5563'
     }
   }
 }
 
 const THEME_IDS = ['corporate-blue', 'minimal-gray', 'vibrant-orange', 'dark-mode'] as const
+
+// ============================================================================
+// Collapsible Color Section Component
+// ============================================================================
+
+interface ColorSectionProps {
+  title: string
+  colorKeys: readonly string[]
+  colors: Record<string, string>
+  baseColors: FullThemeColors
+  onColorChange: (key: string, value: string) => void
+  onResetSection: () => void
+  hasOverrides: boolean
+  defaultExpanded?: boolean
+}
+
+function ColorSection({
+  title,
+  colorKeys,
+  colors,
+  baseColors,
+  onColorChange,
+  onResetSection,
+  hasOverrides,
+  defaultExpanded = false
+}: ColorSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded)
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      {/* Section Header */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4 text-gray-500" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-gray-500" />
+          )}
+          <span className="text-sm font-medium text-gray-700">{title}</span>
+          {hasOverrides && (
+            <span className="w-2 h-2 rounded-full bg-blue-500" title="Has customizations" />
+          )}
+        </div>
+        {hasOverrides && isExpanded && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onResetSection()
+            }}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-0.5 rounded hover:bg-gray-200"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Reset
+          </button>
+        )}
+      </button>
+
+      {/* Section Content */}
+      {isExpanded && (
+        <div className="p-3 space-y-2 bg-white">
+          {colorKeys.map((key) => {
+            const colorKey = key as keyof FullThemeColors
+            const currentValue = colors[key] || baseColors[colorKey]
+            const isOverridden = colors[key] !== undefined
+
+            return (
+              <div key={key} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm text-gray-600">
+                    {COLOR_LABELS[colorKey]}
+                  </Label>
+                  {isOverridden && (
+                    <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                      Custom
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 font-mono">
+                    {currentValue}
+                  </span>
+                  <CompactColorPicker
+                    value={currentValue}
+                    onChange={(color) => onColorChange(key, color)}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// Main Theme Panel Component
+// ============================================================================
 
 interface ThemePanelProps {
   isOpen: boolean
@@ -84,11 +289,6 @@ interface ThemePanelProps {
   presentationId?: string | null
 }
 
-/**
- * ThemePanel Component
- *
- * Slide-out panel for managing presentation themes with live preview.
- */
 export function ThemePanel({
   isOpen,
   onClose,
@@ -101,6 +301,9 @@ export function ThemePanel({
   // Loading states
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Mode toggle
+  const [themeMode, setThemeMode] = useState<ThemeMode>('preset')
 
   // Theme state
   const [selectedTheme, setSelectedTheme] = useState<string>('corporate-blue')
@@ -167,9 +370,14 @@ export function ThemePanel({
       setColorOverrides(config.color_overrides || {})
       setOriginalTheme(config)
       setHasChanges(false)
+
+      // If there are significant color overrides, default to custom mode
+      const overrideCount = Object.keys(config.color_overrides || {}).length
+      if (overrideCount > 2) {
+        setThemeMode('custom')
+      }
     } catch (error) {
       console.error('Failed to load theme:', error)
-      // Default to corporate-blue if no theme set
       setSelectedTheme('corporate-blue')
       setColorOverrides({})
       setOriginalTheme({ theme_id: 'corporate-blue' })
@@ -209,12 +417,12 @@ export function ThemePanel({
   }, [sendCommand, toast])
 
   /**
-   * Handle theme selection
+   * Handle theme selection (preset mode)
    */
   const handleSelectTheme = async (themeId: string) => {
     setSelectedTheme(themeId)
     setHasChanges(true)
-    // Clear overrides when switching themes
+    // Clear overrides when switching base themes
     setColorOverrides({})
     await previewTheme(themeId)
   }
@@ -230,9 +438,22 @@ export function ThemePanel({
   }
 
   /**
-   * Reset color overrides
+   * Reset specific color group
    */
-  const handleResetColors = async () => {
+  const handleResetSection = async (keys: readonly string[]) => {
+    const newOverrides = { ...colorOverrides }
+    keys.forEach(key => {
+      delete newOverrides[key]
+    })
+    setColorOverrides(newOverrides)
+    setHasChanges(true)
+    await previewTheme(selectedTheme, Object.keys(newOverrides).length > 0 ? newOverrides : undefined)
+  }
+
+  /**
+   * Reset all color overrides
+   */
+  const handleResetAll = async () => {
     setColorOverrides({})
     setHasChanges(true)
     await previewTheme(selectedTheme)
@@ -281,19 +502,25 @@ export function ThemePanel({
   }
 
   /**
-   * Get current colors (theme base + overrides)
+   * Get current colors (theme base merged with overrides)
    */
-  const getCurrentColors = () => {
+  const getCurrentColors = (): Record<string, string> => {
     const baseColors = THEME_PREVIEWS[selectedTheme]?.colors || THEME_PREVIEWS['corporate-blue'].colors
-    return {
-      primary: colorOverrides.primary || baseColors.primary,
-      accent: colorOverrides.accent || baseColors.accent
-    }
+    return { ...baseColors, ...colorOverrides }
+  }
+
+  /**
+   * Check if a color group has overrides
+   */
+  const hasGroupOverrides = (keys: readonly string[]): boolean => {
+    return keys.some(key => colorOverrides[key] !== undefined)
   }
 
   if (!isOpen) return null
 
+  const baseColors = THEME_PREVIEWS[selectedTheme]?.colors || THEME_PREVIEWS['corporate-blue'].colors
   const currentColors = getCurrentColors()
+  const totalOverrides = Object.keys(colorOverrides).length
 
   return (
     <div className="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200">
@@ -309,15 +536,46 @@ export function ThemePanel({
         </button>
       </div>
 
+      {/* Mode Toggle */}
+      <div className="px-4 py-3 border-b border-gray-200">
+        <div className="flex rounded-lg bg-gray-100 p-1">
+          <button
+            onClick={() => setThemeMode('preset')}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+              themeMode === 'preset'
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            )}
+          >
+            <Palette className="h-4 w-4" />
+            Preset Themes
+          </button>
+          <button
+            onClick={() => setThemeMode('custom')}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+              themeMode === 'custom'
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            )}
+          >
+            <Wand2 className="h-4 w-4" />
+            Build Custom
+          </button>
+        </div>
+      </div>
+
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
           </div>
-        ) : (
+        ) : themeMode === 'preset' ? (
+          /* ============ PRESET THEMES MODE ============ */
           <>
-            {/* Theme Selection */}
+            {/* Theme Selection Grid */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Select Theme
@@ -373,44 +631,54 @@ export function ThemePanel({
             {/* Divider */}
             <div className="border-t border-gray-200" />
 
-            {/* Color Customization */}
+            {/* Quick Color Customization */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Customize Colors
+                  Quick Customize
                 </h3>
-                {Object.keys(colorOverrides).length > 0 && (
+                {totalOverrides > 0 && (
                   <button
-                    onClick={handleResetColors}
+                    onClick={handleResetAll}
                     className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
                   >
                     <RotateCcw className="h-3 w-3" />
-                    Reset
+                    Reset All
                   </button>
                 )}
               </div>
 
               <p className="text-xs text-gray-500">
-                Override the base theme colors to match your brand.
+                Quickly adjust the main colors. Switch to "Build Custom" for full control.
               </p>
 
               <div className="space-y-3">
                 {/* Primary Color */}
                 <div className="flex items-center justify-between">
                   <Label className="text-sm text-gray-700">Primary</Label>
-                  <CompactColorPicker
-                    value={currentColors.primary}
-                    onChange={(color) => handleColorChange('primary', color)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 font-mono">
+                      {currentColors.primary}
+                    </span>
+                    <CompactColorPicker
+                      value={currentColors.primary}
+                      onChange={(color) => handleColorChange('primary', color)}
+                    />
+                  </div>
                 </div>
 
                 {/* Accent Color */}
                 <div className="flex items-center justify-between">
                   <Label className="text-sm text-gray-700">Accent</Label>
-                  <CompactColorPicker
-                    value={currentColors.accent}
-                    onChange={(color) => handleColorChange('accent', color)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 font-mono">
+                      {currentColors.accent}
+                    </span>
+                    <CompactColorPicker
+                      value={currentColors.accent}
+                      onChange={(color) => handleColorChange('accent', color)}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -420,10 +688,113 @@ export function ThemePanel({
               <div className="text-xs text-gray-500 mb-1">Current theme:</div>
               <div className="text-sm font-medium text-gray-800">
                 {THEME_PREVIEWS[selectedTheme]?.name}
+                {totalOverrides > 0 && (
+                  <span className="text-xs text-blue-600 ml-2">
+                    ({totalOverrides} customization{totalOverrides !== 1 ? 's' : ''})
+                  </span>
+                )}
               </div>
               <div className="text-xs text-gray-500 mt-1">
                 {THEME_PREVIEWS[selectedTheme]?.description}
               </div>
+            </div>
+          </>
+        ) : (
+          /* ============ BUILD CUSTOM MODE ============ */
+          <>
+            {/* Base Theme Selector */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Base Theme
+              </h3>
+              <p className="text-xs text-gray-500">
+                Start from a preset theme and customize all colors below.
+              </p>
+              <select
+                value={selectedTheme}
+                onChange={(e) => handleSelectTheme(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {THEME_IDS.map((themeId) => (
+                  <option key={themeId} value={themeId}>
+                    {THEME_PREVIEWS[themeId].name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Reset All Button */}
+            {totalOverrides > 0 && (
+              <div className="flex justify-end">
+                <button
+                  onClick={handleResetAll}
+                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Reset All Colors ({totalOverrides})
+                </button>
+              </div>
+            )}
+
+            {/* Color Sections */}
+            <div className="space-y-3">
+              {/* Brand Colors */}
+              <ColorSection
+                title={COLOR_GROUPS.brand.label}
+                colorKeys={COLOR_GROUPS.brand.keys}
+                colors={colorOverrides}
+                baseColors={baseColors}
+                onColorChange={handleColorChange}
+                onResetSection={() => handleResetSection(COLOR_GROUPS.brand.keys)}
+                hasOverrides={hasGroupOverrides(COLOR_GROUPS.brand.keys)}
+                defaultExpanded={true}
+              />
+
+              {/* Background Colors */}
+              <ColorSection
+                title={COLOR_GROUPS.background.label}
+                colorKeys={COLOR_GROUPS.background.keys}
+                colors={colorOverrides}
+                baseColors={baseColors}
+                onColorChange={handleColorChange}
+                onResetSection={() => handleResetSection(COLOR_GROUPS.background.keys)}
+                hasOverrides={hasGroupOverrides(COLOR_GROUPS.background.keys)}
+              />
+
+              {/* Text Colors */}
+              <ColorSection
+                title={COLOR_GROUPS.text.label}
+                colorKeys={COLOR_GROUPS.text.keys}
+                colors={colorOverrides}
+                baseColors={baseColors}
+                onColorChange={handleColorChange}
+                onResetSection={() => handleResetSection(COLOR_GROUPS.text.keys)}
+                hasOverrides={hasGroupOverrides(COLOR_GROUPS.text.keys)}
+              />
+
+              {/* Border */}
+              <ColorSection
+                title={COLOR_GROUPS.border.label}
+                colorKeys={COLOR_GROUPS.border.keys}
+                colors={colorOverrides}
+                baseColors={baseColors}
+                onColorChange={handleColorChange}
+                onResetSection={() => handleResetSection(COLOR_GROUPS.border.keys)}
+                hasOverrides={hasGroupOverrides(COLOR_GROUPS.border.keys)}
+              />
+            </div>
+
+            {/* Summary */}
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <div className="text-xs text-gray-500 mb-1">Building from:</div>
+              <div className="text-sm font-medium text-gray-800">
+                {THEME_PREVIEWS[selectedTheme]?.name}
+              </div>
+              {totalOverrides > 0 && (
+                <div className="text-xs text-blue-600 mt-1">
+                  {totalOverrides} color{totalOverrides !== 1 ? 's' : ''} customized
+                </div>
+              )}
             </div>
           </>
         )}
