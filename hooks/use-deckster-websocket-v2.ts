@@ -117,11 +117,27 @@ export interface SlideUpdate {
 
 export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationURL | StatusUpdate | SyncResponse;
 
+// Content context for Director - affects content generation
+export interface ContentContextPayload {
+  audience: {
+    audience_type: string;
+  };
+  purpose: {
+    purpose_type: string;
+  };
+  time: {
+    duration_minutes: number;
+  };
+}
+
 // User message to send to server
 export interface UserMessage {
   type: 'user_message';
   data: {
     text: string;
+    store_name?: string;
+    file_count?: number;
+    content_context?: ContentContextPayload;
   };
 }
 
@@ -778,7 +794,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const sendMessage = useCallback((
     text: string,
     storeName?: string,  // NEW: Gemini File Search Store resource name
-    fileCount?: number   // NEW: Number of files in the store (for logging)
+    fileCount?: number,  // NEW: Number of files in the store (for logging)
+    contentContext?: ContentContextPayload  // NEW: Content context for Director
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send message: WebSocket not connected');
@@ -794,6 +811,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(storeName && {
             store_name: storeName,
             file_count: fileCount || 0
+          }),
+          // NEW: Pass content_context to Director for content generation
+          ...(contentContext && {
+            content_context: contentContext
           })
         },
       };
@@ -801,7 +822,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       console.log(
         '📤 Sending message:',
         text,
-        storeName ? `with File Search Store: ${storeName} (${fileCount || 0} files)` : ''
+        storeName ? `with File Search Store: ${storeName} (${fileCount || 0} files)` : '',
+        contentContext ? `with content context: ${JSON.stringify(contentContext)}` : ''
       );
       wsRef.current.send(JSON.stringify(message));
 

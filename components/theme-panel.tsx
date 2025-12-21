@@ -17,26 +17,40 @@ interface PresentationThemeConfig {
   color_overrides?: Record<string, string> | null
 }
 
-// Full 14-color theme interface matching backend API
+// Full 25-color theme interface matching backend API
 interface FullThemeColors {
-  // Brand Colors
+  // Brand Colors (4)
   primary: string
   primary_light: string
   primary_dark: string
   accent: string
-  // Background Colors
+  // Accent Variants (2) - for hover states, subtle highlights
+  accent_light: string
+  accent_dark: string
+  // Tertiary Colors (3) - for groupings, borders, dividers
+  tertiary_1: string
+  tertiary_2: string
+  tertiary_3: string
+  // Background Colors (3)
   background: string
-  background_alt: string
+  surface: string  // renamed from background_alt
   hero_background: string
-  // Text Colors
+  // Text Colors (6)
   text_primary: string
   text_secondary: string
   text_body: string
+  text_muted: string  // renamed from footer_text
   hero_text_primary: string
   hero_text_secondary: string
-  footer_text: string
-  // Border
+  // Border (1)
   border: string
+  // Chart Colors (6) - for data visualization
+  chart_1: string
+  chart_2: string
+  chart_3: string
+  chart_4: string
+  chart_5: string
+  chart_6: string
 }
 
 interface ThemePreview {
@@ -56,82 +70,141 @@ type ThemeMode = 'preset' | 'custom'
 const COLOR_GROUPS = {
   brand: {
     label: 'Brand Colors',
-    keys: ['primary', 'primary_light', 'primary_dark', 'accent'] as const
+    keys: ['primary', 'primary_light', 'primary_dark', 'accent', 'accent_light', 'accent_dark'] as const
+  },
+  tertiary: {
+    label: 'Tertiary Colors',
+    keys: ['tertiary_1', 'tertiary_2', 'tertiary_3'] as const
   },
   background: {
     label: 'Background Colors',
-    keys: ['background', 'background_alt', 'hero_background'] as const
+    keys: ['background', 'surface', 'hero_background'] as const
   },
   text: {
     label: 'Text Colors',
-    keys: ['text_primary', 'text_secondary', 'text_body', 'hero_text_primary', 'hero_text_secondary', 'footer_text'] as const
+    keys: ['text_primary', 'text_secondary', 'text_body', 'text_muted', 'hero_text_primary', 'hero_text_secondary'] as const
   },
   border: {
     label: 'Border',
     keys: ['border'] as const
+  },
+  chart: {
+    label: 'Chart Colors',
+    keys: ['chart_1', 'chart_2', 'chart_3', 'chart_4', 'chart_5', 'chart_6'] as const
   }
 } as const
 
 // Human-friendly labels for each color property
 const COLOR_LABELS: Record<keyof FullThemeColors, string> = {
+  // Brand Colors
   primary: 'Primary',
   primary_light: 'Primary Light',
   primary_dark: 'Primary Dark',
   accent: 'Accent',
+  accent_light: 'Accent Light',
+  accent_dark: 'Accent Dark',
+  // Tertiary Colors
+  tertiary_1: 'Tertiary 1',
+  tertiary_2: 'Tertiary 2',
+  tertiary_3: 'Tertiary 3',
+  // Background Colors
   background: 'Main Background',
-  background_alt: 'Alternate Background',
+  surface: 'Surface',
   hero_background: 'Hero Background',
+  // Text Colors
   text_primary: 'Primary Text',
   text_secondary: 'Secondary Text',
   text_body: 'Body Text',
+  text_muted: 'Muted Text',
   hero_text_primary: 'Hero Title',
   hero_text_secondary: 'Hero Subtitle',
-  footer_text: 'Footer Text',
-  border: 'Border Color'
+  // Border
+  border: 'Border Color',
+  // Chart Colors
+  chart_1: 'Chart 1',
+  chart_2: 'Chart 2',
+  chart_3: 'Chart 3',
+  chart_4: 'Chart 4',
+  chart_5: 'Chart 5',
+  chart_6: 'Chart 6'
 }
 
-// Full theme definitions with all 14 colors
+// Full theme definitions with all 25 colors
 const THEME_PREVIEWS: Record<string, ThemePreview> = {
   'corporate-blue': {
     id: 'corporate-blue',
     name: 'Corporate Blue',
     description: 'Professional blue theme for business presentations',
     colors: {
+      // Brand Colors
       primary: '#1e40af',
       primary_light: '#3b82f6',
       primary_dark: '#1e3a8a',
       accent: '#f59e0b',
+      accent_light: '#fef3c7',
+      accent_dark: '#b45309',
+      // Tertiary Colors
+      tertiary_1: '#3b82f6',
+      tertiary_2: '#60a5fa',
+      tertiary_3: '#93c5fd',
+      // Background Colors
       background: '#ffffff',
-      background_alt: '#f8fafc',
+      surface: '#f8fafc',
       hero_background: '#1e40af',
+      // Text Colors
       text_primary: '#1f2937',
       text_secondary: '#6b7280',
       text_body: '#374151',
+      text_muted: '#9ca3af',
       hero_text_primary: '#ffffff',
       hero_text_secondary: '#e0e7ff',
-      footer_text: '#9ca3af',
-      border: '#e5e7eb'
+      // Border
+      border: '#e5e7eb',
+      // Chart Colors
+      chart_1: '#3b82f6',
+      chart_2: '#10b981',
+      chart_3: '#f59e0b',
+      chart_4: '#ef4444',
+      chart_5: '#8b5cf6',
+      chart_6: '#ec4899'
     }
   },
-  'minimal-gray': {
-    id: 'minimal-gray',
-    name: 'Minimal Gray',
-    description: 'Clean, minimalist gray theme',
+  'elegant-emerald': {
+    id: 'elegant-emerald',
+    name: 'Elegant Emerald',
+    description: 'Sophisticated green theme with classic typography',
     colors: {
-      primary: '#374151',
-      primary_light: '#6b7280',
-      primary_dark: '#1f2937',
-      accent: '#6366f1',
-      background: '#f9fafb',
-      background_alt: '#f3f4f6',
-      hero_background: '#374151',
-      text_primary: '#111827',
-      text_secondary: '#6b7280',
-      text_body: '#4b5563',
+      // Brand Colors
+      primary: '#065f46',
+      primary_light: '#10b981',
+      primary_dark: '#064e3b',
+      accent: '#d97706',
+      accent_light: '#fef3c7',
+      accent_dark: '#92400e',
+      // Tertiary Colors
+      tertiary_1: '#10b981',
+      tertiary_2: '#34d399',
+      tertiary_3: '#6ee7b7',
+      // Background Colors
+      background: '#f0fdf4',
+      surface: '#dcfce7',
+      hero_background: '#065f46',
+      // Text Colors
+      text_primary: '#1f2937',
+      text_secondary: '#4b5563',
+      text_body: '#374151',
+      text_muted: '#6b7280',
       hero_text_primary: '#ffffff',
-      hero_text_secondary: '#d1d5db',
-      footer_text: '#9ca3af',
-      border: '#e5e7eb'
+      hero_text_secondary: '#a7f3d0',
+      // Border
+      border: '#d1fae5',
+      // Chart Colors
+      chart_1: '#10b981',
+      chart_2: '#3b82f6',
+      chart_3: '#f59e0b',
+      chart_4: '#ef4444',
+      chart_5: '#8b5cf6',
+      chart_6: '#ec4899'
     }
   },
   'vibrant-orange': {
@@ -139,20 +212,37 @@ const THEME_PREVIEWS: Record<string, ThemePreview> = {
     name: 'Vibrant Orange',
     description: 'Energetic orange theme for creative presentations',
     colors: {
+      // Brand Colors
       primary: '#ea580c',
       primary_light: '#fb923c',
       primary_dark: '#c2410c',
       accent: '#0891b2',
+      accent_light: '#cffafe',
+      accent_dark: '#0e7490',
+      // Tertiary Colors
+      tertiary_1: '#fb923c',
+      tertiary_2: '#fdba74',
+      tertiary_3: '#fed7aa',
+      // Background Colors
       background: '#fffbeb',
-      background_alt: '#fef3c7',
+      surface: '#fef3c7',
       hero_background: '#ea580c',
+      // Text Colors
       text_primary: '#1c1917',
       text_secondary: '#78716c',
       text_body: '#44403c',
+      text_muted: '#a8a29e',
       hero_text_primary: '#ffffff',
       hero_text_secondary: '#fed7aa',
-      footer_text: '#a8a29e',
-      border: '#e7e5e4'
+      // Border
+      border: '#e7e5e4',
+      // Chart Colors
+      chart_1: '#ea580c',
+      chart_2: '#0891b2',
+      chart_3: '#8b5cf6',
+      chart_4: '#10b981',
+      chart_5: '#ec4899',
+      chart_6: '#3b82f6'
     }
   },
   'dark-mode': {
@@ -160,25 +250,42 @@ const THEME_PREVIEWS: Record<string, ThemePreview> = {
     name: 'Dark Mode',
     description: 'Dark theme for low-light environments',
     colors: {
+      // Brand Colors
       primary: '#60a5fa',
       primary_light: '#93c5fd',
       primary_dark: '#3b82f6',
       accent: '#f472b6',
+      accent_light: '#fbcfe8',
+      accent_dark: '#db2777',
+      // Tertiary Colors
+      tertiary_1: '#4b5563',
+      tertiary_2: '#6b7280',
+      tertiary_3: '#9ca3af',
+      // Background Colors
       background: '#1f2937',
-      background_alt: '#374151',
+      surface: '#374151',
       hero_background: '#111827',
+      // Text Colors
       text_primary: '#f9fafb',
       text_secondary: '#d1d5db',
       text_body: '#e5e7eb',
+      text_muted: '#9ca3af',
       hero_text_primary: '#ffffff',
       hero_text_secondary: '#93c5fd',
-      footer_text: '#9ca3af',
-      border: '#4b5563'
+      // Border
+      border: '#4b5563',
+      // Chart Colors
+      chart_1: '#60a5fa',
+      chart_2: '#34d399',
+      chart_3: '#fbbf24',
+      chart_4: '#f87171',
+      chart_5: '#a78bfa',
+      chart_6: '#f472b6'
     }
   }
 }
 
-const THEME_IDS = ['corporate-blue', 'minimal-gray', 'vibrant-orange', 'dark-mode'] as const
+const THEME_IDS = ['corporate-blue', 'elegant-emerald', 'vibrant-orange', 'dark-mode'] as const
 
 // ============================================================================
 // Collapsible Color Section Component
@@ -750,6 +857,17 @@ export function ThemePanel({
                 defaultExpanded={true}
               />
 
+              {/* Tertiary Colors */}
+              <ColorSection
+                title={COLOR_GROUPS.tertiary.label}
+                colorKeys={COLOR_GROUPS.tertiary.keys}
+                colors={colorOverrides}
+                baseColors={baseColors}
+                onColorChange={handleColorChange}
+                onResetSection={() => handleResetSection(COLOR_GROUPS.tertiary.keys)}
+                hasOverrides={hasGroupOverrides(COLOR_GROUPS.tertiary.keys)}
+              />
+
               {/* Background Colors */}
               <ColorSection
                 title={COLOR_GROUPS.background.label}
@@ -781,6 +899,17 @@ export function ThemePanel({
                 onColorChange={handleColorChange}
                 onResetSection={() => handleResetSection(COLOR_GROUPS.border.keys)}
                 hasOverrides={hasGroupOverrides(COLOR_GROUPS.border.keys)}
+              />
+
+              {/* Chart Colors */}
+              <ColorSection
+                title={COLOR_GROUPS.chart.label}
+                colorKeys={COLOR_GROUPS.chart.keys}
+                colors={colorOverrides}
+                baseColors={baseColors}
+                onColorChange={handleColorChange}
+                onResetSection={() => handleResetSection(COLOR_GROUPS.chart.keys)}
+                hasOverrides={hasGroupOverrides(COLOR_GROUPS.chart.keys)}
               />
             </div>
 

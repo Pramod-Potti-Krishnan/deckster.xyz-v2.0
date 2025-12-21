@@ -56,6 +56,17 @@ import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties } from '@/types/elements'
+import {
+  ContentContextForm,
+  ContentContext,
+  DEFAULT_CONTENT_CONTEXT,
+  ContentContextDisplay
+} from '@/components/content-context-form'
+import {
+  RegenerationWarningDialog,
+  useRegenerationWarning
+} from '@/components/regeneration-warning-dialog'
+import { ContentContextPayload } from '@/hooks/use-deckster-websocket-v2'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -96,6 +107,11 @@ function BuilderContent() {
   // Track if this is a brand new session (not yet saved to database)
   // We only save to database when user sends first message
   const [isUnsavedSession, setIsUnsavedSession] = useState(false)
+
+  // Content context for presentation generation (Audience/Purpose/Time)
+  const [contentContext, setContentContext] = useState<ContentContext>(DEFAULT_CONTENT_CONTEXT)
+  const [showContentContextPanel, setShowContentContextPanel] = useState(false)
+  const [hasGeneratedContent, setHasGeneratedContent] = useState(false)
 
   // Session persistence (enabled regardless of WebSocket state to prevent message loss)
   // CRITICAL: Must be declared BEFORE useDecksterWebSocketV2 so the onSessionStateChange callback can reference it
@@ -292,6 +308,25 @@ function BuilderContent() {
     userId: user?.email || '',
     onUploadComplete: (files) => {
       console.log('📎 Files uploaded:', files)
+    }
+  })
+
+  // Helper: Convert ContentContext to ContentContextPayload format for WebSocket
+  const toContentContextPayload = useCallback((ctx: ContentContext): ContentContextPayload => ({
+    audience: { audience_type: ctx.audience_type },
+    purpose: { purpose_type: ctx.purpose_type },
+    time: { duration_minutes: ctx.duration_minutes }
+  }), [])
+
+  // Regeneration warning dialog for content context changes
+  const regenerationWarning = useRegenerationWarning({
+    currentContext: contentContext,
+    onRegenerate: async (newContext: ContentContext) => {
+      console.log('🔄 Regenerating content with new context:', newContext)
+      setContentContext(newContext)
+      setShowContentContextPanel(false)
+      // TODO: Trigger regeneration via WebSocket when backend supports it
+      // For now, just update context - backend will use on next generation
     }
   })
 
@@ -1016,13 +1051,14 @@ function BuilderContent() {
         const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
         const fileCount = successfulFiles.length
 
-        const success = sendMessage(messageText, storeName, fileCount)
+        const success = sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
         if (success) {
           setInputMessage("")
           setPendingActionInput(null)
           if (successfulFiles.length > 0) {
             clearAllFiles() // Clear uploaded files after sending
           }
+          setHasGeneratedContent(true) // Mark that content has been generated
         }
 
         // Reset guard
@@ -1120,7 +1156,8 @@ function BuilderContent() {
             const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
             const fileCount = successfulFiles.length
 
-            sendMessage(messageText, storeName, fileCount)
+            sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
+            setHasGeneratedContent(true) // Mark that content has been generated
             if (successfulFiles.length > 0) {
               clearAllFiles() // Clear uploaded files after sending
             }
@@ -1180,7 +1217,8 @@ function BuilderContent() {
         const fileCount = successfulFiles.length
 
         setTimeout(() => {
-          sendMessage(messageText, storeName, fileCount)
+          sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
+          setHasGeneratedContent(true) // Mark that content has been generated
           if (successfulFiles.length > 0) {
             clearAllFiles() // Clear uploaded files after sending
           }
@@ -1229,9 +1267,10 @@ function BuilderContent() {
       const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
       const fileCount = successfulFiles.length
 
-      const success = sendMessage(messageText, storeName, fileCount)
+      const success = sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
       if (success) {
         setInputMessage("")
+        setHasGeneratedContent(true) // Mark that content has been generated
         if (successfulFiles.length > 0) {
           clearAllFiles() // Clear uploaded files after sending
         }
@@ -1242,7 +1281,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, contentContext, toContentContextPayload])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -1327,6 +1366,10 @@ function BuilderContent() {
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Content Context Display (when set) */}
+              {hasGeneratedContent && (
+                <ContentContextDisplay context={contentContext} className="hidden md:flex text-xs" />
+              )}
               {/* Connection Status */}
               <Badge
                 variant={connected ? "default" : connecting ? "secondary" : "destructive"}
@@ -1334,6 +1377,15 @@ function BuilderContent() {
               >
                 {connecting ? "Connecting..." : connected ? "Connected" : "Disconnected"}
               </Badge>
+              {/* Content Context Settings */}
+              <Button
+                variant={showContentContextPanel ? "secondary" : "ghost"}
+                size="icon"
+                onClick={() => setShowContentContextPanel(!showContentContextPanel)}
+                title="Presentation Settings (Audience, Purpose, Duration)"
+              >
+                <SlidersHorizontal className="h-5 w-5" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -1357,6 +1409,42 @@ function BuilderContent() {
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel - Chat (25%) */}
           <div className="w-1/4 flex flex-col bg-white border-r relative">
+            {/* Content Context Panel - Overlays chat when open */}
+            {showContentContextPanel && (
+              <div className="absolute inset-0 z-30 bg-white flex flex-col">
+                <div className="p-4 border-b flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900">Presentation Settings</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowContentContextPanel(false)}
+                  >
+                    ✕
+                  </Button>
+                </div>
+                <div className="p-4 overflow-auto flex-1">
+                  <ContentContextForm
+                    value={contentContext}
+                    onChange={(newContext) => {
+                      if (hasGeneratedContent) {
+                        // Show warning dialog before changing
+                        regenerationWarning.showWarning(newContext)
+                      } else {
+                        // No content yet, just update
+                        setContentContext(newContext)
+                      }
+                    }}
+                    disabled={regenerationWarning.isRegenerating}
+                  />
+                  {hasGeneratedContent && (
+                    <p className="mt-4 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+                      Changing these settings will regenerate your presentation content.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Format Panel - Overlays chat when open */}
             <FormatPanel
               isOpen={showFormatPanel}
@@ -1422,6 +1510,7 @@ function BuilderContent() {
               }}
               presentationId={presentationId}
               slideIndex={1} // TODO: Get current slide from PresentationViewer
+              sessionId={currentSessionId}
             />
 
             {/* Element/Slide Format Panel - Shows slide panel when no element selected */}
@@ -2325,6 +2414,9 @@ function BuilderContent() {
 
       {/* Onboarding Modal */}
       <OnboardingModal open={showOnboarding} onClose={() => setShowOnboarding(false)} />
+
+      {/* Regeneration Warning Dialog */}
+      <RegenerationWarningDialog {...regenerationWarning.dialogProps} />
     </div>
   )
 }
