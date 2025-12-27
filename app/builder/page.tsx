@@ -999,6 +999,18 @@ function BuilderContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, userMessages])
 
+  // Auto-resize textarea based on content
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      // Reset height to auto to get the correct scrollHeight
+      textarea.style.height = 'auto'
+      // Calculate new height: min 60px, max 120px (~4-5 rows)
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, 60), 120)
+      textarea.style.height = `${newHeight}px`
+    }
+  }, [inputMessage])
+
   // Handle sending messages
   const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -2198,12 +2210,12 @@ function BuilderContent() {
                               : "Message Director..."
                     }
                     disabled={!user || isLoadingSession}
-                    className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-12 min-h-[60px] max-h-[200px] text-xs placeholder:text-gray-400"
+                    className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[60px] max-h-[120px] text-xs placeholder:text-gray-400 overflow-y-auto"
                     rows={1}
                   />
 
                   {/* Bottom toolbar inside input */}
-                  <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
                     {/* Left: Action buttons */}
                     <div className="flex items-center gap-1">
                       {/* + Menu for attachments */}
