@@ -37,7 +37,6 @@ import { useToast } from '@/hooks/use-toast'
 // TextFormatPopover is now replaced by simple text box insertion button
 // Keeping FormatTextParams for backward compatibility if needed
 import { FormatTextParams } from './text-format-popover'
-import { ShapePickerPopover, InsertShapeParams } from './shape-picker-popover'
 import { TableInsertPopover, generateTableHTML } from './table-insert-popover'
 import { ChartPickerPopover, InsertChartParams, generateChartConfig } from './chart-picker-popover'
 import { ElementType, ElementProperties, BaseElementProperties } from '@/types/elements'
@@ -832,46 +831,6 @@ export function PresentationViewer({
       return false
     }
   }, [toast])
-
-  // Shape insertion handler
-  const handleInsertShape = useCallback(async (params: InsertShapeParams): Promise<void> => {
-    // Auto-enter edit mode if needed
-    if (!await ensureEditMode()) {
-      toast({
-        title: 'Error',
-        description: 'Could not enter edit mode',
-        variant: 'destructive'
-      })
-      return
-    }
-
-    try {
-      const result = await sendCommand(iframeRef.current!, 'insertShape', {
-        slideIndex: currentSlide - 1, // Convert to 0-based
-        type: params.type,
-        gridRow: '8/12',    // Center-ish default position
-        gridColumn: '14/20',
-        fill: params.fill || '#3b82f6',
-        stroke: params.stroke || '#1e40af',
-        strokeWidth: params.strokeWidth || 2
-      })
-
-      if (result.success) {
-        toast({
-          title: 'Shape Added',
-          description: `${params.type} shape inserted on slide`
-        })
-        console.log(`🔷 Inserted ${params.type} shape`)
-      }
-    } catch (error) {
-      console.error('Error inserting shape:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to insert shape. Please try again.',
-        variant: 'destructive'
-      })
-    }
-  }, [currentSlide, toast, ensureEditMode])
 
   // Table insertion handler - opens panel for AI table generation
   const handleInsertTable = useCallback(async (rows: number, cols: number): Promise<void> => {
@@ -1715,12 +1674,6 @@ export function PresentationViewer({
               <Type className="h-5 w-5 text-gray-700" />
               <span className="text-[10px] text-gray-500">Text</span>
             </button>
-
-            {/* Shape */}
-            <ShapePickerPopover
-              onInsertShape={handleInsertShape}
-              disabled={!presentationUrl}
-            />
 
             {/* Image */}
             <button
