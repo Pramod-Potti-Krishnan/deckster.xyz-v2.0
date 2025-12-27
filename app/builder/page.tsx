@@ -2215,7 +2215,7 @@ function BuilderContent() {
                   />
 
                   {/* Bottom toolbar inside input */}
-                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                  <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-b-xl">
                     {/* Left: Action buttons */}
                     <div className="flex items-center gap-1">
                       {/* + Menu for attachments */}
