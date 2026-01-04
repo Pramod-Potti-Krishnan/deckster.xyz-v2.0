@@ -89,11 +89,11 @@ interface PresentationViewerProps {
   onSlideChange?: (slideNumber: number) => void
   onEditModeChange?: (isEditing: boolean) => void
   className?: string
-  // Version switching support
+  // Version switching support (Builder V2: now includes 'blank' version)
   strawmanPreviewUrl?: string | null
   finalPresentationUrl?: string | null
-  activeVersion?: 'strawman' | 'final'
-  onVersionSwitch?: (version: 'strawman' | 'final') => void
+  activeVersion?: 'blank' | 'strawman' | 'final'
+  onVersionSwitch?: (version: 'blank' | 'strawman' | 'final') => void
   // Text box panel callbacks
   onTextBoxSelected?: (elementId: string, formatting: TextBoxFormatting | null) => void
   onTextBoxDeselected?: () => void

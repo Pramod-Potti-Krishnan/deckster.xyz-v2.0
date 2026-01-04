@@ -90,6 +90,7 @@ export interface SlideUpdate {
   type: 'slide_update';
   payload: {
     operation: 'full_update' | 'partial_update';
+    is_blank?: boolean;  // NEW: Indicates blank presentation on immediate connect (Builder V2)
     metadata: {
       main_title: string;
       overall_theme: string;
@@ -97,6 +98,7 @@ export interface SlideUpdate {
       target_audience: string;
       presentation_duration: number;
       preview_url?: string;  // Strawman preview URL (may be in metadata)
+      preview_presentation_id?: string;  // Presentation ID for blank/strawman
     };
     slides: Array<{
       slide_id: string;
@@ -112,6 +114,7 @@ export interface SlideUpdate {
     }>;
     affected_slides: string[] | null;
     preview_url?: string;  // Strawman preview URL (may be at payload root)
+    preview_presentation_id?: string;  // Presentation ID (may be at payload root)
   };
 }
 
@@ -150,14 +153,18 @@ export interface UseDecksterWebSocketV2State {
   userId: string;
   error: Error | null;
   messages: DirectorMessage[];
-  // UPDATED: Split presentation URLs to support strawman/final toggle
-  presentationUrl: string | null; // Currently displayed URL (computed from strawman/final)
+  // UPDATED: Split presentation URLs to support blank/strawman/final toggle (Builder V2)
+  presentationUrl: string | null; // Currently displayed URL (computed from blank/strawman/final)
   strawmanPreviewUrl: string | null; // Strawman preview URL
   finalPresentationUrl: string | null; // Final presentation URL
   presentationId: string | null; // Currently displayed presentation ID
   strawmanPresentationId: string | null; // Strawman presentation ID
   finalPresentationId: string | null; // Final presentation ID
-  activeVersion: 'strawman' | 'final'; // Which version is currently being viewed
+  // NEW: Blank presentation state (Builder V2 - immediate connection)
+  blankPresentationUrl: string | null; // Blank presentation URL on connect
+  blankPresentationId: string | null; // Blank presentation ID
+  isBlankPresentation: boolean; // True if currently showing blank presentation
+  activeVersion: 'blank' | 'strawman' | 'final'; // Which version is currently being viewed
   slideCount: number | null;
   currentStatus: StatusUpdate['payload'] | null;
   slideStructure: SlideUpdate['payload'] | null;
@@ -178,6 +185,9 @@ export interface UseDecksterWebSocketV2Options {
     presentationId?: string;
     slideCount?: number;
     currentStage?: number;
+    // Builder V2: Include activeVersion and slideStructure for persistence
+    activeVersion?: 'blank' | 'strawman' | 'final';
+    slideStructure?: any;
   }) => void;
 }
 
@@ -273,13 +283,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     if (cached && sessionCache.isCacheValid()) {
       console.log('⚡ Initializing from sessionStorage cache:', {
         messages: cached.messages?.length || 0,
+        blank: !!cached.blankPresentationUrl,
         strawman: !!cached.strawmanPreviewUrl,
         final: !!cached.finalPresentationUrl,
       });
 
       // Determine activeVersion: use cached value if available, otherwise infer from URLs
-      const cachedActiveVersion = cached.activeVersion ||
-        (cached.finalPresentationUrl ? 'final' : (cached.strawmanPreviewUrl ? 'strawman' : 'final'));
+      // Priority: final > strawman > blank
+      const cachedActiveVersion = (cached.activeVersion as 'blank' | 'strawman' | 'final') ||
+        (cached.finalPresentationUrl ? 'final' :
+         (cached.strawmanPreviewUrl ? 'strawman' :
+          (cached.blankPresentationUrl ? 'blank' : 'final')));
 
       return {
         connected: false,
@@ -295,6 +309,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         presentationId: cached.presentationId || null,
         strawmanPresentationId: cached.strawmanPresentationId || null,
         finalPresentationId: cached.finalPresentationId || null,
+        // NEW: Blank presentation state (Builder V2)
+        blankPresentationUrl: cached.blankPresentationUrl || null,
+        blankPresentationId: cached.blankPresentationId || null,
+        isBlankPresentation: cached.isBlankPresentation || false,
         activeVersion: cachedActiveVersion,
         slideCount: cached.slideCount || null,
         currentStatus: cached.currentStatus || null,
@@ -317,7 +335,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       presentationId: null,
       strawmanPresentationId: null,
       finalPresentationId: null,
-      activeVersion: 'final', // Default to final when available, fallback to strawman
+      // NEW: Blank presentation state (Builder V2)
+      blankPresentationUrl: null,
+      blankPresentationId: null,
+      isBlankPresentation: false,
+      activeVersion: 'final', // Default to final when available, fallback to strawman/blank
       slideCount: null,
       currentStatus: null,
       slideStructure: null,
@@ -361,6 +383,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         presentationId: newState.presentationId,
         strawmanPresentationId: newState.strawmanPresentationId,
         finalPresentationId: newState.finalPresentationId,
+        // NEW: Blank presentation state (Builder V2)
+        blankPresentationUrl: newState.blankPresentationUrl,
+        blankPresentationId: newState.blankPresentationId,
+        isBlankPresentation: newState.isBlankPresentation,
         activeVersion: newState.activeVersion,
         slideCount: newState.slideCount,
         currentStatus: newState.currentStatus,
@@ -614,6 +640,48 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 console.log('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
                 newState.slideStructure = message.payload;
 
+                // NEW: Handle blank presentation on immediate connect (Builder V2)
+                // Director sends is_blank: true when providing the initial blank presentation
+                if (message.payload.is_blank) {
+                  const blankUrl = message.payload.preview_url ||
+                                   message.payload.metadata?.preview_url;
+                  const blankId = message.payload.metadata?.preview_presentation_id ||
+                                  message.payload.preview_presentation_id;
+
+                  console.log('🆕 Blank presentation received (Builder V2):', { blankUrl, blankId });
+
+                  if (blankUrl) {
+                    // Set blank presentation state
+                    newState.blankPresentationUrl = blankUrl;
+                    newState.blankPresentationId = blankId || null;
+                    newState.isBlankPresentation = true;
+
+                    // Set as current presentation (blank is the starting point)
+                    newState.activeVersion = 'blank';
+                    newState.presentationUrl = blankUrl;
+                    newState.presentationId = blankId || null;
+
+                    console.log('✅ Blank presentation ready - all editing tools now active');
+
+                    // Trigger callback for blank presentation ready
+                    if (options.onPresentationReady) {
+                      options.onPresentationReady(blankUrl);
+                    }
+
+                    // Notify session state change for persistence (Stage 0 - blank)
+                    if (options.onSessionStateChange) {
+                      options.onSessionStateChange({
+                        presentationUrl: blankUrl,
+                        presentationId: blankId || undefined,
+                        slideCount: 1, // Blank has 1 title slide
+                        currentStage: 0, // Stage 0 - blank presentation
+                      });
+                    }
+                  }
+                  break; // Exit early - don't process as strawman
+                }
+
+                // EXISTING: Handle regular slide_update (strawman preview)
                 // Extract preview URL if present (strawman preview)
                 // Check multiple possible locations
                 const previewUrl = message.payload.preview_url ||
@@ -834,14 +902,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, []);
 
-  // Switch between strawman and final versions
-  const switchVersion = useCallback((version: 'strawman' | 'final') => {
+  // Switch between blank, strawman and final versions (Builder V2)
+  const switchVersion = useCallback((version: 'blank' | 'strawman' | 'final') => {
     setStateWithCache(prev => {
       const newActiveVersion = version;
       let newPresentationUrl = null;
       let newPresentationId = null;
 
-      if (version === 'strawman' && prev.strawmanPreviewUrl) {
+      if (version === 'blank' && prev.blankPresentationUrl) {
+        newPresentationUrl = prev.blankPresentationUrl;
+        newPresentationId = prev.blankPresentationId;
+      } else if (version === 'strawman' && prev.strawmanPreviewUrl) {
         newPresentationUrl = prev.strawmanPreviewUrl;
         newPresentationId = prev.strawmanPresentationId;
       } else if (version === 'final' && prev.finalPresentationUrl) {
@@ -877,6 +948,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       presentationId: null,
       strawmanPresentationId: null,
       finalPresentationId: null,
+      // NEW: Reset blank presentation state (Builder V2)
+      blankPresentationUrl: null,
+      blankPresentationId: null,
+      isBlankPresentation: false,
       activeVersion: 'final',
       slideCount: null,
       currentStatus: null,
@@ -892,15 +967,20 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     strawmanPresentationId?: string | null;
     finalPresentationUrl?: string | null;
     finalPresentationId?: string | null;
+    // NEW: Blank presentation state (Builder V2)
+    blankPresentationUrl?: string | null;
+    blankPresentationId?: string | null;
+    isBlankPresentation?: boolean;
     slideCount?: number | null;
     slideStructure?: any;
     currentStage?: number | null;
-    activeVersion?: 'strawman' | 'final' | null;
+    activeVersion?: 'blank' | 'strawman' | 'final' | null;
   }) => {
     console.log(`🔄 Restoring ${historicalMessages.length} messages from database`);
     console.log(`📊 Restoration data:`, {
       presentationUrl: sessionState?.presentationUrl || '(none)',
       presentationId: sessionState?.presentationId || '(none)',
+      blankPresentationUrl: sessionState?.blankPresentationUrl || '(none)',
       strawmanPreviewUrl: sessionState?.strawmanPreviewUrl || '(none)',
       finalPresentationUrl: sessionState?.finalPresentationUrl || '(none)',
       slideCount: sessionState?.slideCount || 0,
@@ -910,7 +990,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     // CRITICAL FIX: Determine activeVersion based on explicit value or infer from URLs
     // This preserves user's choice when switching tabs or sessions
-    let activeVersion: 'strawman' | 'final' = 'final';
+    // Priority: final > strawman > blank
+    let activeVersion: 'blank' | 'strawman' | 'final' = 'final';
 
     if (sessionState?.activeVersion) {
       // If activeVersion is explicitly provided (from database or cache), use it
@@ -922,21 +1003,30 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // Stage 6 = final presentation
       activeVersion = 'final';
     } else {
-      // Fallback: infer from which URLs are available (prefer final)
+      // Fallback: infer from which URLs are available (prefer final > strawman > blank)
       if (sessionState?.finalPresentationUrl) {
         activeVersion = 'final';
       } else if (sessionState?.strawmanPreviewUrl) {
         activeVersion = 'strawman';
+      } else if (sessionState?.blankPresentationUrl) {
+        activeVersion = 'blank';
       }
     }
 
     // Compute the display URL based on the determined activeVersion
-    const displayUrl = activeVersion === 'strawman'
-      ? sessionState?.strawmanPreviewUrl || null
-      : sessionState?.finalPresentationUrl || null;
-    const displayId = activeVersion === 'strawman'
-      ? sessionState?.strawmanPresentationId || null
-      : sessionState?.finalPresentationId || null;
+    let displayUrl: string | null = null;
+    let displayId: string | null = null;
+
+    if (activeVersion === 'blank') {
+      displayUrl = sessionState?.blankPresentationUrl || null;
+      displayId = sessionState?.blankPresentationId || null;
+    } else if (activeVersion === 'strawman') {
+      displayUrl = sessionState?.strawmanPreviewUrl || null;
+      displayId = sessionState?.strawmanPresentationId || null;
+    } else {
+      displayUrl = sessionState?.finalPresentationUrl || null;
+      displayId = sessionState?.finalPresentationId || null;
+    }
 
     console.log(`✅ Determined activeVersion: ${activeVersion} (display URL: ${displayUrl ? 'present' : 'none'})`);
 
@@ -951,6 +1041,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       strawmanPresentationId: sessionState?.strawmanPresentationId || null,
       finalPresentationUrl: sessionState?.finalPresentationUrl || null,
       finalPresentationId: sessionState?.finalPresentationId || null,
+      // NEW: Blank presentation state (Builder V2)
+      blankPresentationUrl: sessionState?.blankPresentationUrl || null,
+      blankPresentationId: sessionState?.blankPresentationId || null,
+      isBlankPresentation: sessionState?.isBlankPresentation || false,
       activeVersion: activeVersion,
       slideCount: sessionState?.slideCount || null,
       slideStructure: sessionState?.slideStructure || null,

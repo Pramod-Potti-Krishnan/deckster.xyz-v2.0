@@ -157,6 +157,10 @@ function BuilderContent() {
     finalPresentationUrl,
     strawmanPresentationId,
     finalPresentationId,
+    // NEW: Blank presentation state (Builder V2)
+    blankPresentationUrl,
+    blankPresentationId,
+    isBlankPresentation,
     activeVersion,
     sendMessage,
     clearMessages,
@@ -168,7 +172,8 @@ function BuilderContent() {
     sessionId: wsSessionId,
     updateCacheUserMessages
   } = useDecksterWebSocketV2({
-    autoConnect: false, // We'll control connection manually
+    // Builder V2: Connect immediately when feature flag enabled, show blank presentation
+    autoConnect: features.immediateConnection,
     existingSessionId: currentSessionId || undefined, // Use database session ID for WebSocket
     reconnectOnError: false,
     maxReconnectAttempts: 0,
@@ -733,29 +738,50 @@ function BuilderContent() {
             await createNewSession()
           }
         } else {
-          // No session in URL - DON'T create database session yet
-          // Wait until user sends first message
+          // No session in URL
           console.log('🆕 [SESSION-BRANCH] No session in URL', {
             currentSessionId,
-            willClear: !currentSessionId,
-            action: currentSessionId ? 'PRESERVE existing' : 'SET to null'
+            immediateConnection: features.immediateConnection,
+            action: features.immediateConnection ? 'GENERATE new ID' : (currentSessionId ? 'PRESERVE existing' : 'SET to null')
           })
 
-          // CRITICAL FIX: Never clear currentSessionId if it's already set
-          // This prevents losing the session ID during hydration delays or navigation
-          if (!currentSessionId) {
-            console.log('💾 [SESSION-SET] Setting session ID to null (new unsaved session)', {
-              old: currentSessionId,
-              new: null
-            })
-            setIsUnsavedSession(true)
-            setIsResumedSession(false)
-            setCurrentSessionId(null)
+          // Builder V2: If immediateConnection enabled, generate session ID immediately
+          // WebSocket will auto-connect and Director will create the session
+          if (features.immediateConnection) {
+            if (!currentSessionId) {
+              const newSessionId = crypto.randomUUID()
+              console.log('🚀 [BUILDER-V2] Generating immediate session ID:', newSessionId)
+              setCurrentSessionId(newSessionId)
+              setIsUnsavedSession(true)
+              setIsResumedSession(false)
+              // Update URL with session ID for bookmarking/sharing
+              router.replace(`/builder?session_id=${newSessionId}`, { scroll: false })
+            } else {
+              console.log('✅ [BUILDER-V2] Session ID already exists:', currentSessionId)
+              // Ensure URL has the session ID
+              if (typeof window !== 'undefined' && !window.location.search.includes('session_id=')) {
+                router.replace(`/builder?session_id=${currentSessionId}`, { scroll: false })
+              }
+            }
           } else {
-            console.log('✅ [SESSION-PRESERVE] Keeping existing session ID despite no URL param', {
-              currentSessionId,
-              reason: 'prevent accidental clearing during hydration'
-            })
+            // Original behavior: DON'T create database session yet
+            // Wait until user sends first message
+            // CRITICAL FIX: Never clear currentSessionId if it's already set
+            // This prevents losing the session ID during hydration delays or navigation
+            if (!currentSessionId) {
+              console.log('💾 [SESSION-SET] Setting session ID to null (new unsaved session)', {
+                old: currentSessionId,
+                new: null
+              })
+              setIsUnsavedSession(true)
+              setIsResumedSession(false)
+              setCurrentSessionId(null)
+            } else {
+              console.log('✅ [SESSION-PRESERVE] Keeping existing session ID despite no URL param', {
+                currentSessionId,
+                reason: 'prevent accidental clearing during hydration'
+              })
+            }
           }
         }
       } catch (error) {

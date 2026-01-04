@@ -31,6 +31,10 @@ export const config = {
     enableEarlySessionCreation: process.env.NEXT_PUBLIC_ENABLE_EARLY_SESSION_CREATION === 'true',
     enableInternetSearch: process.env.NEXT_PUBLIC_ENABLE_INTERNET_SEARCH === 'true',
     debugMode: process.env.NEXT_PUBLIC_DEBUG_MODE === 'true',
+    // Immediate WebSocket connection on builder page load (Phase 1: Builder V2)
+    // When true: Connect immediately, show blank presentation, enable all tools
+    // When false: Original behavior - wait for user message before connecting
+    immediateConnection: process.env.NEXT_PUBLIC_IMMEDIATE_CONNECTION !== 'false',
   },
 
   // File Upload Configuration

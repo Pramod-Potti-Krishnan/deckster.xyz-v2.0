@@ -29,14 +29,18 @@ export interface CachedSessionState {
   messages: DirectorMessage[]
   userMessages: Array<{ id: string; text: string; timestamp: number }>
 
-  // Presentation URLs (both versions)
+  // Presentation URLs (blank/strawman/final versions - Builder V2)
   presentationUrl: string | null
   strawmanPreviewUrl: string | null
   finalPresentationUrl: string | null
   presentationId: string | null
   strawmanPresentationId: string | null
   finalPresentationId: string | null
-  activeVersion: 'strawman' | 'final'
+  // NEW: Blank presentation state (Builder V2)
+  blankPresentationUrl: string | null
+  blankPresentationId: string | null
+  isBlankPresentation: boolean
+  activeVersion: 'blank' | 'strawman' | 'final'
 
   // Slide metadata
   slideCount: number | null
