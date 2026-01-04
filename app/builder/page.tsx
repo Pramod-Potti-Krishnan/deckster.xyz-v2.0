@@ -930,7 +930,10 @@ function BuilderContent() {
   // FIXED: Persist all bot messages including bot chat_messages (welcome messages)
   // FIXED: Also handle Director-replayed user messages with role: 'user' field
   useEffect(() => {
-    if (!currentSessionId || !persistence || messages.length === 0) return
+    // FIX: Don't persist messages for unsaved sessions (no DB session yet)
+    // This prevents 404 errors when immediateConnection generates a session ID
+    // but the database session hasn't been created yet
+    if (!currentSessionId || !persistence || messages.length === 0 || isUnsavedSession) return
 
     // Get the last message
     const lastMessage = messages[messages.length - 1]
@@ -971,11 +974,12 @@ function BuilderContent() {
         hasTitleFromPresentationRef.current = true
       }
     }
-  }, [messages, currentSessionId, persistence])
+  }, [messages, currentSessionId, persistence, isUnsavedSession])
 
   // Update session title from presentation metadata
   useEffect(() => {
-    if (!currentSessionId || !persistence || messages.length === 0) return
+    // Skip for unsaved sessions (no DB session yet)
+    if (!currentSessionId || !persistence || messages.length === 0 || isUnsavedSession) return
 
     const lastMessage = messages[messages.length - 1]
 
@@ -991,7 +995,7 @@ function BuilderContent() {
         hasTitleFromPresentationRef.current = true
       }
     }
-  }, [messages, currentSessionId, persistence])
+  }, [messages, currentSessionId, persistence, isUnsavedSession])
 
   // Infer current stage from available data
   // Stage 4: slideStructure has slides (strawman generated)
