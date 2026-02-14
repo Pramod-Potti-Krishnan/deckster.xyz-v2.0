@@ -17,6 +17,7 @@ import {
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
+import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.DIAGRAM
 
@@ -75,6 +76,7 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramF
   const [prompt, setPrompt] = useState('')
   const [subtype, setSubtype] = useState<TextLabsDiagramSubtype>('CODE_DISPLAY')
   const [advancedModified, setAdvancedModified] = useState(false)
+  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
 
   // Code Display state
   const [language, setLanguage] = useState('python')
@@ -108,7 +110,7 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramF
   const [ideaPreset, setIdeaPreset] = useState('full_content')
 
   // Cloud Architecture state
-  const [provider, setProvider] = useState<'aws' | 'gcp' | 'azure' | 'generic'>('aws')
+  const [provider, setProvider] = useState<'aws' | 'gcp' | 'azure'>('aws')
   const [showLayers, setShowLayers] = useState(true)
   const [cloudPreset, setCloudPreset] = useState('full_content')
 
@@ -170,11 +172,11 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramF
       count: 1,
       layout: 'horizontal',
       advancedModified,
-      z_index: DEFAULTS.zIndex,
+      z_index: zIndex,
       diagramConfig: buildDiagramConfig(),
     }
     onSubmit(formData)
-  }, [prompt, subtype, advancedModified, buildDiagramConfig, onSubmit])
+  }, [prompt, subtype, advancedModified, zIndex, buildDiagramConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -319,7 +321,7 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramF
                   onChange={(e) => { setColumnCount(Number(e.target.value)); setAdvancedModified(true) }}
                   className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100"
                 >
-                  {[3, 4, 5, 6].map(n => (
+                  {[2, 3, 4, 5, 6].map(n => (
                     <option key={n} value={n}>{n}</option>
                   ))}
                 </select>
@@ -357,7 +359,7 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramF
                   onChange={(e) => { setNumStages(Number(e.target.value)); setAdvancedModified(true) }}
                   className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100"
                 >
-                  {[3, 4, 5, 6, 7].map(n => (
+                  {[3, 4, 5, 6, 7, 8].map(n => (
                     <option key={n} value={n}>{n}</option>
                   ))}
                 </select>
@@ -408,7 +410,6 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramF
                   { value: 'aws', label: 'AWS' },
                   { value: 'gcp', label: 'GCP' },
                   { value: 'azure', label: 'Azure' },
-                  { value: 'generic', label: 'Generic' },
                 ]}
                 onChange={(_, v) => { setProvider(v as CloudArchitectureConfig['provider']); setAdvancedModified(true) }}
               />
@@ -459,6 +460,13 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramF
           )}
         </div>
       </CollapsibleSection>
+
+      {/* Z-Index */}
+      <ZIndexInput
+        value={zIndex}
+        onChange={setZIndex}
+        onAdvancedModified={() => setAdvancedModified(true)}
+      />
     </div>
   )
 }
