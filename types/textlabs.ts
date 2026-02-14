@@ -58,15 +58,15 @@ export interface TextLabsPaddingConfig {
 // ============================================================================
 
 export interface TextBoxConfig {
-  background: 'colored' | 'white' | 'transparent'
+  background: 'colored' | 'transparent'
   shadow: boolean
   corners: 'rounded' | 'square'
   border: boolean
   show_title: boolean
-  title_style: 'plain' | 'underline' | 'bold-line'
-  list_style: 'bullets' | 'numbered' | 'none' | 'dashes'
+  title_style: 'plain' | 'underline'
+  list_style: 'bullets' | 'numbered' | 'plain'
   color_scheme: 'accent'
-  layout: 'horizontal' | 'vertical'
+  layout: 'horizontal' | 'vertical' | 'grid'
   heading_align: 'left' | 'center' | 'right'
   content_align: 'left' | 'center' | 'right'
   placeholder_mode: boolean
@@ -105,7 +105,7 @@ export interface MetricsConfig {
   corners: 'rounded' | 'square'
   border: boolean
   alignment: 'left' | 'center' | 'right'
-  color_scheme: 'gradient' | 'solid' | 'outline' | 'accent'
+  color_scheme: 'gradient' | 'solid' | 'accent'
   color_variant: string | null
   placeholder_mode: boolean
   value_min_chars: number
@@ -146,14 +146,15 @@ export interface TableConfig {
   rows: number          // 2-10
   stripe_rows: boolean
   corners: 'rounded' | 'square'
-  header_style: 'solid' | 'gradient' | 'outline' | 'minimal'
+  header_style: 'solid' | 'minimal' | 'accent'
   alignment: 'left' | 'center' | 'right'
   border_style: 'light' | 'medium' | 'heavy' | 'none'
   header_color: string | null
   first_column_bold: boolean
   last_column_bold: boolean
   show_total_row: boolean
-  col_balance: 'descriptive' | 'equal'
+  col_balance: 'descriptive' | 'data'
+  column_widths: number[]   // per-column width percentages
   placeholder_mode: boolean
   header_min_chars: number
   header_max_chars: number
@@ -182,7 +183,7 @@ export interface TableConfig {
 export type TextLabsChartType =
   | 'line' | 'bar_vertical' | 'bar_horizontal' | 'pie' | 'doughnut'
   | 'scatter' | 'bubble' | 'radar' | 'polar_area' | 'area'
-  | 'area_stacked' | 'bar_grouped' | 'bar_stacked' | 'waterfall' | 'treemap'
+  | 'area_stacked' | 'bar_grouped' | 'bar_stacked' | 'waterfall'
 
 export interface ChartConfig {
   chart_type: TextLabsChartType
@@ -198,13 +199,13 @@ export interface ChartConfig {
 
 export type TextLabsImageStyle =
   | 'realistic' | 'illustration' | 'watercolor' | '3d_render'
-  | 'flat_design' | 'minimalist' | 'abstract' | 'photographic'
-  | 'cinematic' | 'artistic'
+  | 'flat_design' | 'pixel_art' | 'abstract' | 'sketch'
+  | 'oil_painting' | 'pop_art'
 
 export interface ImageConfig {
   style: TextLabsImageStyle
   quality: 'standard' | 'hd'
-  corners: 'square' | 'rounded' | 'pill'
+  corners: 'square' | 'rounded'
   border: boolean
   placeholder_mode: boolean
   auto_position: boolean
@@ -224,8 +225,8 @@ export interface ImageConfig {
 
 export interface IconLabelConfig {
   mode: 'icon' | 'label'
-  size: 'xs' | 'small' | 'medium' | 'large'
-  style: 'flat' | 'pastel' | 'circle' | 'square' | 'circle-outline' | 'square-outline'
+  size: 'small' | 'medium' | 'large'
+  style: 'circle' | 'square' | 'rounded' | 'minimal'
   font: 'poppins' | 'inter' | 'playfair' | 'roboto_mono'
   color: string | null
 }
@@ -235,18 +236,8 @@ export interface IconLabelConfig {
 // ============================================================================
 
 export type TextLabsShapeType =
-  // Basic
-  | 'circle' | 'ellipse' | 'square' | 'rectangle' | 'triangle'
-  // Polygons
-  | 'pentagon' | 'hexagon' | 'heptagon' | 'octagon' | 'polygon'
-  // Quadrilaterals
-  | 'rhombus' | 'parallelogram' | 'trapezoid' | 'kite'
-  // Special
-  | 'star' | 'cross' | 'arrow' | 'heart' | 'cloud' | 'crescent' | 'doughnut'
-  // Lines
-  | 'line-horizontal' | 'line-vertical' | 'line-diagonal'
-  // AI Generated
-  | 'custom'
+  | 'circle' | 'rectangle' | 'triangle' | 'star'
+  | 'diamond' | 'arrow' | 'polygon' | 'custom'
 
 export interface ShapeConfig {
   shape_type: TextLabsShapeType | null   // null when custom
@@ -254,20 +245,20 @@ export interface ShapeConfig {
   sides: number | null                   // 3-12, only for polygon
   fill_color: string
   stroke_color: string
-  stroke_width: number
-  opacity: number         // 0-1
-  rotation: number        // degrees
+  stroke_width: number                   // 0-20
+  opacity: number                        // 0-1
+  rotation: number                       // 0-359 degrees
   size: 'small' | 'medium' | 'large'
-  // Grid-based positioning
+  // Pixel-based positioning (primary)
+  x: number               // 0-1919
+  y: number               // 0-1079
+  width_px: number         // 1-1920
+  height_px: number        // 1-1080
+  // Grid-based positioning (derived from pixel)
   start_col: number
   start_row: number
   position_width: number
   position_height: number
-  // Pixel-based positioning (derived from grid)
-  x: number
-  y: number
-  width_px: number
-  height_px: number
 }
 
 // ============================================================================
@@ -275,9 +266,9 @@ export interface ShapeConfig {
 // ============================================================================
 
 export interface InfographicConfig {
-  aspect_ratio: 'auto' | '16:9' | '4:3' | '1:1' | '3:2'
-  segments: 'auto' | '3' | '4' | '5' | '6' | '7' | '8'
-  crop_mode: 'shape' | 'full'
+  aspect_ratio: 'auto' | '16:9' | '4:3' | '1:1' | '3:2' | '9:16'
+  segments: 'auto' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8'
+  crop_mode: 'shape' | 'rectangle'
   target_background: 'light' | 'dark'
   fill_internal: boolean
   placeholder_mode: boolean
@@ -305,7 +296,7 @@ export interface CodeDisplayConfig {
 }
 
 export interface KanbanConfig {
-  column_count: number    // 3-6
+  column_count: number    // 2-6
   theme: 'default' | 'dark' | 'minimal'
   position_preset: string
 }
@@ -317,7 +308,7 @@ export interface GanttConfig {
 }
 
 export interface ChevronConfig {
-  num_stages: number      // 3-7
+  num_stages: number      // 3-8
   theme: 'default' | 'dark' | 'minimal'
   time_unit: 'months' | 'quarters' | 'years'
   position_preset: string
@@ -330,7 +321,7 @@ export interface IdeaBoardConfig {
 }
 
 export interface CloudArchitectureConfig {
-  provider: 'aws' | 'azure' | 'gcp' | 'generic'
+  provider: 'aws' | 'azure' | 'gcp'
   show_layers: boolean
   position_preset: string
 }
@@ -352,7 +343,7 @@ export interface DataArchitectureConfig {
 export interface TextLabsBaseFormData {
   prompt: string
   count: number
-  layout: 'horizontal' | 'vertical'
+  layout: 'horizontal' | 'vertical' | 'grid'
   advancedModified: boolean
   z_index: number
   positionConfig?: TextLabsPositionConfig
@@ -517,10 +508,134 @@ export const COMPONENT_TYPE_INFO: Record<TextLabsComponentType, {
   TEXT_BOX: { label: 'Text Box', icon: 'Type', description: 'Rich text content with title and bullets' },
   METRICS: { label: 'Metrics', icon: 'TrendingUp', description: 'KPI cards with values and labels' },
   TABLE: { label: 'Table', icon: 'Table', description: 'Data table with headers and rows' },
-  CHART: { label: 'Chart', icon: 'BarChart3', description: '15 chart types with custom data' },
+  CHART: { label: 'Chart', icon: 'BarChart3', description: '14 chart types with custom data' },
   IMAGE: { label: 'Image', icon: 'Image', description: 'AI-generated images in 10 styles' },
   ICON_LABEL: { label: 'Icon/Label', icon: 'Tag', description: 'Icon or text label element' },
-  SHAPE: { label: 'Shape', icon: 'Pentagon', description: 'SVG shapes with 25 types' },
+  SHAPE: { label: 'Shape', icon: 'Pentagon', description: 'SVG shapes with 8 types' },
   INFOGRAPHIC: { label: 'Infographic', icon: 'LayoutGrid', description: 'Visual data representation' },
   DIAGRAM: { label: 'Diagram', icon: 'GitBranch', description: '8 diagram types' },
+}
+
+// ============================================================================
+// TEXT BOX CALCULATION CONSTANTS
+// ============================================================================
+
+export const TEXTBOX_CALC = {
+  GRID_PX: 60,
+  TITLE_CHAR_W: 14,
+  BODY_CHAR_W: 12,
+  BOX_PAD_H: 80,
+  LIST_PAD_PX: 24,
+  VERT_PAD_PX: 100,
+  TITLE_HEIGHT_PX: 60,
+  BULLET_HEIGHT_PX: 37,
+  INSTANCE_GAP: 1,
+  MAX_FACTOR: 0.95,
+  MIN_FACTOR: 0.75,
+  MIN_CHARS: 5,
+  MAX_TITLE_CHARS: 200,
+  MAX_BODY_CHARS: 500,
+  MIN_BULLETS: 1,
+  MAX_BULLETS: 14,
+} as const
+
+export interface TextBoxCalcResult {
+  title_min_chars: number
+  title_max_chars: number
+  item_min_chars: number
+  item_max_chars: number
+  items_per_instance: number
+}
+
+/**
+ * Recalculate text box char limits and items/instance based on position, count,
+ * layout, padding, font size, indent, and line height.
+ * Implements the 10-step chain from the backend reference.
+ */
+export function recalcTextBoxLimits(params: {
+  position_width: number   // grid units
+  position_height: number  // grid units
+  count: number
+  layout: 'horizontal' | 'vertical' | 'grid'
+  grid_cols: number | null
+  padding_left: number     // px
+  padding_right: number    // px
+  padding_top: number      // px
+  padding_bottom: number   // px
+  heading_font_size: string | null  // e.g. '24px'
+  content_font_size: string | null  // e.g. '16px'
+  heading_indent: number   // 0-5
+  content_indent: number   // 0-5
+  content_line_height: string | null // e.g. '1.5' or 'auto'
+}): TextBoxCalcResult {
+  const C = TEXTBOX_CALC
+
+  // Step 1: Total pixel area
+  const totalW = params.position_width * C.GRID_PX
+  const totalH = params.position_height * C.GRID_PX
+
+  // Step 2: Usable area after padding
+  const usableW = totalW - params.padding_left - params.padding_right
+  const usableH = totalH - params.padding_top - params.padding_bottom
+
+  // Step 3: Instance count per row/col based on layout
+  let colsPerRow = params.count
+  let rowsOfInstances = 1
+  if (params.layout === 'vertical') {
+    colsPerRow = 1
+    rowsOfInstances = params.count
+  } else if (params.layout === 'grid' && params.grid_cols) {
+    colsPerRow = params.grid_cols
+    rowsOfInstances = Math.ceil(params.count / params.grid_cols)
+  }
+
+  // Step 4: Per-instance dimensions
+  const gapW = (colsPerRow - 1) * C.INSTANCE_GAP * C.GRID_PX
+  const gapH = (rowsOfInstances - 1) * C.INSTANCE_GAP * C.GRID_PX
+  const instanceW = Math.max(60, (usableW - gapW) / colsPerRow)
+  const instanceH = Math.max(60, (usableH - gapH) / rowsOfInstances)
+
+  // Step 5: Content area within each instance (subtract box padding)
+  const contentW = instanceW - C.BOX_PAD_H
+  const contentH = instanceH - C.VERT_PAD_PX
+
+  // Step 6: Parse font sizes
+  const headingFontPx = params.heading_font_size ? parseInt(params.heading_font_size) : 24
+  const contentFontPx = params.content_font_size ? parseInt(params.content_font_size) : 16
+
+  // Step 7: Derive char widths from font size ratio
+  const titleCharW = C.TITLE_CHAR_W * (headingFontPx / 24)
+  const bodyCharW = C.BODY_CHAR_W * (contentFontPx / 16)
+
+  // Step 8: Indent reduces usable width
+  const headingIndentPx = params.heading_indent * 20
+  const contentIndentPx = params.content_indent * 20
+  const titleLineW = Math.max(60, contentW - headingIndentPx - C.LIST_PAD_PX)
+  const bodyLineW = Math.max(60, contentW - contentIndentPx - C.LIST_PAD_PX)
+
+  // Step 9: Calculate char limits
+  const titleCharsPerLine = Math.floor(titleLineW / titleCharW)
+  const bodyCharsPerLine = Math.floor(bodyLineW / bodyCharW)
+
+  const title_max_chars = Math.min(C.MAX_TITLE_CHARS, Math.max(C.MIN_CHARS, Math.floor(titleCharsPerLine * C.MAX_FACTOR)))
+  const title_min_chars = Math.max(C.MIN_CHARS, Math.floor(titleCharsPerLine * C.MIN_FACTOR))
+
+  const item_max_chars = Math.min(C.MAX_BODY_CHARS, Math.max(C.MIN_CHARS, Math.floor(bodyCharsPerLine * C.MAX_FACTOR)))
+  const item_min_chars = Math.max(C.MIN_CHARS, Math.floor(bodyCharsPerLine * C.MIN_FACTOR))
+
+  // Step 10: Calculate items_per_instance from available height
+  const lineH = params.content_line_height && params.content_line_height !== 'auto'
+    ? contentFontPx * parseFloat(params.content_line_height)
+    : C.BULLET_HEIGHT_PX
+  const availableH = contentH - C.TITLE_HEIGHT_PX
+  const rawItems = Math.floor(availableH / lineH)
+  const items_per_instance = Math.max(C.MIN_BULLETS, Math.min(C.MAX_BULLETS, rawItems))
+
+  return {
+    title_min_chars,
+    title_max_chars,
+    item_min_chars,
+    item_max_chars,
+    items_per_instance,
+  }
 }

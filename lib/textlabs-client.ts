@@ -94,7 +94,7 @@ interface SendMessageOptions {
   zIndex?: number
   textOnlyMode?: boolean
   count?: number
-  layout?: 'horizontal' | 'vertical'
+  layout?: 'horizontal' | 'vertical' | 'grid'
   itemsPerInstance?: number
   // Element-specific configs (only one should be set)
   textboxConfig?: Record<string, unknown>
