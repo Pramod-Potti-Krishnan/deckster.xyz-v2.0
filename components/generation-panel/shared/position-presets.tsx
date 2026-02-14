@@ -1,6 +1,6 @@
 'use client'
 
-import { TextLabsPositionConfig, POSITION_PRESETS, TEXT_LABS_ELEMENT_DEFAULTS, TextLabsComponentType } from '@/types/textlabs'
+import { TextLabsPositionConfig, POSITION_PRESETS, TEXT_LABS_ELEMENT_DEFAULTS, TextLabsComponentType, GRID_CELL_SIZE } from '@/types/textlabs'
 
 interface PositionPresetsProps {
   positionConfig: TextLabsPositionConfig
@@ -29,6 +29,10 @@ export function PositionPresets({
     })
     onAdvancedModified()
   }
+
+  // Calculated pixel size
+  const pixelW = positionConfig.position_width * GRID_CELL_SIZE
+  const pixelH = positionConfig.position_height * GRID_CELL_SIZE
 
   return (
     <div className="space-y-3">
@@ -66,6 +70,11 @@ export function PositionPresets({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Calculated Size Display */}
+      <div className="text-[10px] text-gray-500">
+        Size: {positionConfig.position_width} x {positionConfig.position_height} grid ({pixelW} x {pixelH} px)
       </div>
 
       {!positionConfig.auto_position && (
