@@ -11,6 +11,7 @@ export interface BlankElementInfo {
   startRow: number
   width: number
   height: number
+  status: 'blank' | 'generating'
 }
 
 /**
@@ -48,6 +49,13 @@ export function useBlankElements() {
     }
   }, [])
 
+  const setStatus = useCallback((elementId: string, status: 'blank' | 'generating') => {
+    const info = mapRef.current.get(elementId)
+    if (info) {
+      info.status = status
+    }
+  }, [])
+
   const getElement = useCallback((elementId: string): BlankElementInfo | undefined => {
     return mapRef.current.get(elementId)
   }, [])
@@ -60,6 +68,7 @@ export function useBlankElements() {
     addElement,
     removeElement,
     updatePosition,
+    setStatus,
     getElement,
     isBlankElement,
     version, // subscribe to add/remove changes

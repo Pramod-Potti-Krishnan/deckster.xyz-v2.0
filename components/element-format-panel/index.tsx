@@ -3,14 +3,9 @@
 import { useState, useCallback } from 'react'
 import { Trash2, ChevronLeft, ChevronRight, Image, Table, BarChart3, LayoutGrid, GitBranch, Type, Layout } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ElementFormatPanelProps, PanelTabType } from './types'
+import { ElementFormatPanelProps } from './types'
 import { ElementType, ELEMENT_INFO } from '@/types/elements'
 import { ArrangeTab } from './tabs/arrange-tab'
-import { ImageAITab } from './ai-tabs/image-ai-tab'
-import { TableAITab } from './ai-tabs/table-ai-tab'
-import { ChartAITab } from './ai-tabs/chart-ai-tab'
-import { InfographicAITab } from './ai-tabs/infographic-ai-tab'
-import { DiagramAITab } from './ai-tabs/diagram-ai-tab'
 import { SlideFormatPanel } from './slide-format-panel'
 
 // Map element types to their icons
@@ -48,7 +43,6 @@ export function ElementFormatPanel({
   presentationId,
   slideIndex = 0,
 }: ElementFormatPanelProps) {
-  const [activeTab, setActiveTab] = useState<PanelTabType>('ai')
   const [isApplying, setIsApplying] = useState(false)
 
   // Wrapper for sending commands with loading state
@@ -83,57 +77,6 @@ export function ElementFormatPanel({
   const elementInfo = elementType ? ELEMENT_INFO[elementType] : null
   const ElementIcon = elementType ? ELEMENT_ICONS[elementType] : null
   const accentColor = elementType ? ELEMENT_ACCENT_COLORS[elementType] : 'text-gray-400'
-
-  // Get the appropriate tab label based on element type
-  const getAITabLabel = () => {
-    switch (elementType) {
-      case 'image':
-        return 'Generate'
-      case 'table':
-        return 'Text/Table'
-      case 'chart':
-        return 'Chart'
-      case 'infographic':
-        return 'Design'
-      case 'diagram':
-        return 'Diagram'
-      case 'text':
-        return 'Text'
-      case 'hero':
-        return 'Hero'
-      default:
-        return 'AI'
-    }
-  }
-
-  // Render the appropriate AI tab based on element type
-  const renderAITab = () => {
-    if (!elementType || !elementId) return null
-
-    const commonProps = {
-      onSendCommand: handleSendCommand,
-      isApplying,
-      elementId,
-      presentationId,
-      slideIndex,
-    }
-
-    switch (elementType) {
-      case 'image':
-        return <ImageAITab {...commonProps} />
-      case 'table':
-      case 'text':
-        return <TableAITab {...commonProps} />
-      case 'chart':
-        return <ChartAITab {...commonProps} />
-      case 'infographic':
-        return <InfographicAITab {...commonProps} />
-      case 'diagram':
-        return <DiagramAITab {...commonProps} />
-      default:
-        return null
-    }
-  }
 
   // Render SlideFormatPanel when no element selected
   if (showSlidePanel) {
@@ -225,40 +168,9 @@ export function ElementFormatPanel({
           )}
         </div>
 
-        {/* Tab Switcher - Keynote-style segmented control */}
-        <div className="px-4 pt-3">
-          <div className="flex h-8 bg-gray-800/50 rounded-lg p-[3px]">
-            <button
-              onClick={() => setActiveTab('ai')}
-              className={cn(
-                "flex-1 flex items-center justify-center rounded-md",
-                "text-[11px] font-medium transition-all duration-150",
-                activeTab === 'ai'
-                  ? "bg-gray-700 text-white shadow-sm"
-                  : "text-gray-400 hover:text-gray-200"
-              )}
-            >
-              {getAITabLabel()}
-            </button>
-            <button
-              onClick={() => setActiveTab('arrange')}
-              className={cn(
-                "flex-1 flex items-center justify-center rounded-md",
-                "text-[11px] font-medium transition-all duration-150",
-                activeTab === 'arrange'
-                  ? "bg-gray-700 text-white shadow-sm"
-                  : "text-gray-400 hover:text-gray-200"
-              )}
-            >
-              Arrange
-            </button>
-          </div>
-        </div>
-
-        {/* Tab Content */}
+        {/* Arrange Content */}
         <div className="flex-1 overflow-y-auto">
-          {activeTab === 'ai' && renderAITab()}
-          {activeTab === 'arrange' && properties && (
+          {properties && (
             <ArrangeTab
               properties={properties}
               onSendCommand={handleSendCommand}

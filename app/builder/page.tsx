@@ -1343,6 +1343,24 @@ function BuilderContent() {
     }
   }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, contentContext, toContentContextPayload])
 
+  // Placeholder HTML builder for blank elements on canvas
+  const buildPlaceholderHtml = useCallback((elementId: string, componentType: string) => {
+    const ELEMENT_ICONS: Record<string, string> = {
+      TEXT_BOX: '\u{1F4DD}', METRICS: '\u{1F4CA}', TABLE: '\u25A6', CHART: '\u{1F4C8}',
+      IMAGE: '\u{1F5BC}\uFE0F', ICON_LABEL: '\u{1F3F7}\uFE0F', SHAPE: '\u2B1F',
+      INFOGRAPHIC: '\u{1F3A8}', DIAGRAM: '\u{1F3D7}\uFE0F',
+    }
+    const icon = ELEMENT_ICONS[componentType] || '\u{1F4DD}'
+    const label = componentType.replace(/_/g, ' ')
+    return `<div data-blank-element="${elementId}" data-element-type="${componentType}" style="display:flex;align-items:center;justify-content:center;height:100%;border:2px dashed #c7d2fe;border-radius:8px;background:rgba(238,241,247,0.6);cursor:pointer;"><div style="text-align:center;color:#6366f1;"><div style="font-size:28px;line-height:1;">${icon}</div><div style="font-size:13px;font-weight:600;margin-top:6px;">${label}</div><div style="font-size:11px;margin-top:2px;opacity:0.7;">Click to configure</div></div></div>`
+  }, [])
+
+  // Spinner HTML for generating state
+  const buildSpinnerHtml = useCallback((elementId: string, componentType: string) => {
+    const label = componentType.replace(/_/g, ' ')
+    return `<div data-blank-element="${elementId}" data-element-type="${componentType}" style="display:flex;align-items:center;justify-content:center;height:100%;border:2px solid #a5b4fc;border-radius:8px;background:rgba(238,241,247,0.8);"><div style="text-align:center;color:#6366f1;"><div style="width:24px;height:24px;border:3px solid #c7d2fe;border-top-color:#6366f1;border-radius:50%;margin:0 auto;animation:spin 1s linear infinite;"></div><div style="font-size:12px;font-weight:500;margin-top:8px;">Generating ${label}...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style></div>`
+  }, [])
+
   // Handle Text Labs element generation
   const handleTextLabsGenerate = useCallback(async (formData: TextLabsFormData) => {
     generationPanel.setIsGenerating(true)
@@ -1380,6 +1398,44 @@ function BuilderContent() {
       }
     }
 
+    // Set status to generating and update canvas to spinner
+    if (blankId && blankInfo && layoutServiceApis?.sendElementCommand) {
+      blankElements.setStatus(blankId, 'generating')
+      const spinnerHtml = buildSpinnerHtml(blankId, formData.componentType)
+      const gridRow = `${blankInfo.startRow}/${blankInfo.startRow + blankInfo.height}`
+      const gridColumn = `${blankInfo.startCol}/${blankInfo.startCol + blankInfo.width}`
+      // Delete-and-reinsert to update content (no updateElementContent command)
+      try {
+        await layoutServiceApis.sendElementCommand('deleteElement', { elementId: blankId })
+        const reinsertResponse = await layoutServiceApis.sendElementCommand('insertTextBox', {
+          elementId: blankId,
+          slideIndex: blankInfo.slideIndex,
+          content: spinnerHtml,
+          gridRow,
+          gridColumn,
+          positionWidth: blankInfo.width,
+          positionHeight: blankInfo.height,
+          zIndex: 10,
+          draggable: false,
+          resizable: false,
+          skipAutoSize: true,
+        })
+        // Update tracked ID if layout service assigned a new one
+        const newId = reinsertResponse?.elementId
+        if (newId && newId !== blankId) {
+          blankElements.removeElement(blankId)
+          blankElements.addElement({ ...blankInfo, elementId: newId, status: 'generating' })
+          generationPanel.openPanelForElement(formData.componentType as TextLabsComponentType, newId)
+        }
+      } catch (err) {
+        console.warn('[TextLabs] Failed to update blank to spinner:', err)
+      }
+    }
+
+    // Re-read blankId in case it changed during spinner swap
+    const effectiveBlankId = generationPanel.blankElementId
+    const effectiveBlankInfo = effectiveBlankId ? blankElements.getElement(effectiveBlankId) : blankInfo
+
     // 30-second timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000)
@@ -1414,18 +1470,20 @@ function BuilderContent() {
         throw new Error('No elements returned from API')
       }
 
-      // If blank element exists, delete it first then insert at tracked position
-      if (blankId && blankInfo && layoutServiceApis?.sendElementCommand) {
+      // If blank element exists (now showing spinner), delete it before inserting generated content
+      const deleteBlankId = effectiveBlankId || blankId
+      const deleteBlankInfo = effectiveBlankInfo || blankInfo
+      if (deleteBlankId && deleteBlankInfo && layoutServiceApis?.sendElementCommand) {
         try {
-          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: blankId })
+          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: deleteBlankId })
         } catch (err) {
           console.warn('[TextLabs] Failed to delete blank placeholder:', err)
         }
-        blankElements.removeElement(blankId)
+        blankElements.removeElement(deleteBlankId)
       }
 
       // Insert each element into the canvas
-      const effectiveSlideIndex = blankInfo?.slideIndex ?? currentSlideIndex
+      const effectiveSlideIndex = deleteBlankInfo?.slideIndex ?? currentSlideIndex
       for (const element of elements) {
         const { method, params } = buildInsertionParams(
           element.component_type,
@@ -1459,11 +1517,45 @@ function BuilderContent() {
       }
       generationPanel.setError(errorMessage)
       console.error('[TextLabs] Generation error:', err)
+
+      // Restore placeholder on failure (spinner → placeholder)
+      const restoreId = effectiveBlankId || blankId
+      const restoreInfo = effectiveBlankInfo || blankInfo
+      if (restoreId && restoreInfo && layoutServiceApis?.sendElementCommand) {
+        blankElements.setStatus(restoreId, 'blank')
+        const placeholderHtml = buildPlaceholderHtml(restoreId, formData.componentType)
+        const gridRow = `${restoreInfo.startRow}/${restoreInfo.startRow + restoreInfo.height}`
+        const gridColumn = `${restoreInfo.startCol}/${restoreInfo.startCol + restoreInfo.width}`
+        try {
+          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: restoreId })
+          const restoreResponse = await layoutServiceApis.sendElementCommand('insertTextBox', {
+            elementId: restoreId,
+            slideIndex: restoreInfo.slideIndex,
+            content: placeholderHtml,
+            gridRow,
+            gridColumn,
+            positionWidth: restoreInfo.width,
+            positionHeight: restoreInfo.height,
+            zIndex: 10,
+            draggable: true,
+            resizable: true,
+            skipAutoSize: true,
+          })
+          const newId = restoreResponse?.elementId
+          if (newId && newId !== restoreId) {
+            blankElements.removeElement(restoreId)
+            blankElements.addElement({ ...restoreInfo, elementId: newId, status: 'blank' })
+            generationPanel.openPanelForElement(formData.componentType as TextLabsComponentType, newId)
+          }
+        } catch (restoreErr) {
+          console.warn('[TextLabs] Failed to restore placeholder after error:', restoreErr)
+        }
+      }
     } finally {
       clearTimeout(timeoutId)
       generationPanel.setIsGenerating(false)
     }
-  }, [generationPanel, textLabsSession, layoutServiceApis, toast, currentSlideIndex, blankElements])
+  }, [generationPanel, textLabsSession, layoutServiceApis, toast, currentSlideIndex, blankElements, buildPlaceholderHtml, buildSpinnerHtml])
 
   // Handle opening generation panel from toolbar
   // Flow B: Insert blank placeholder on canvas, then open panel for it
@@ -1482,7 +1574,7 @@ function BuilderContent() {
     try {
       // Build placeholder HTML
       const tempId = `blank_${Date.now()}`
-      const placeholderHtml = `<div data-blank-element="${tempId}" data-element-type="${componentType}" style="display:flex;align-items:center;justify-content:center;height:100%;border:2px dashed rgba(255,255,255,0.3);border-radius:8px;background:rgba(0,0,0,0.05);"><div style="text-align:center;color:rgba(255,255,255,0.5);"><div style="font-size:14px;font-weight:500;">${componentType.replace(/_/g, ' ')}</div><div style="font-size:11px;margin-top:4px;">Generating...</div></div></div>`
+      const placeholderHtml = buildPlaceholderHtml(tempId, componentType)
 
       const gridRow = `${startRow}/${startRow + defaults.height}`
       const gridColumn = `${startCol}/${startCol + defaults.width}`
@@ -1514,6 +1606,7 @@ function BuilderContent() {
         startRow,
         width: defaults.width,
         height: defaults.height,
+        status: 'blank',
       })
 
       // Open panel for this blank element
@@ -1523,7 +1616,7 @@ function BuilderContent() {
       // Fallback: open panel without blank placeholder (Flow A)
       generationPanel.openPanel(componentType)
     }
-  }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex])
+  }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, buildPlaceholderHtml])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -1805,12 +1898,6 @@ function BuilderContent() {
                 isOpen={generationPanel.isOpen}
                 elementType={generationPanel.elementType}
                 onClose={() => {
-                  // If closing with a blank element that hasn't been generated, delete it
-                  const blankId = generationPanel.blankElementId
-                  if (blankId && blankElements.isBlankElement(blankId) && layoutServiceApis?.sendElementCommand) {
-                    layoutServiceApis.sendElementCommand('deleteElement', { elementId: blankId }).catch(() => {})
-                    blankElements.removeElement(blankId)
-                  }
                   generationPanel.closePanel()
                 }}
                 onGenerate={handleTextLabsGenerate}
@@ -2606,6 +2693,15 @@ function BuilderContent() {
                   console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
                 }}
                 onTextBoxSelected={(elementId, formatting) => {
+                  // Blank element? Open GenerationPanel, not old format panel
+                  if (blankElements.isBlankElement(elementId)) {
+                    const info = blankElements.getElement(elementId)
+                    if (info) {
+                      if (info.status === 'generating') return // no panel during generation
+                      generationPanel.openPanelForElement(info.componentType, elementId)
+                    }
+                    return
+                  }
                   setSelectedTextBoxId(elementId)
                   setSelectedTextBoxFormatting(formatting)
                   setShowTextBoxPanel(true)
@@ -2621,6 +2717,15 @@ function BuilderContent() {
                   // Keep panel in DOM but collapsed
                 }}
                 onElementSelected={(elementId, elementType, properties) => {
+                  // Blank element? Open GenerationPanel, not old format panel
+                  if (blankElements.isBlankElement(elementId)) {
+                    const info = blankElements.getElement(elementId)
+                    if (info) {
+                      if (info.status === 'generating') return // no panel during generation
+                      generationPanel.openPanelForElement(info.componentType, elementId)
+                    }
+                    return
+                  }
                   setSelectedElementId(elementId)
                   setSelectedElementType(elementType)
                   setSelectedElementProperties(properties)
