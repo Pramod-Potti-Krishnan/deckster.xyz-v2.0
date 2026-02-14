@@ -6,6 +6,7 @@ import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PositionPresets } from '../shared/position-presets'
+import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.CHART
 
@@ -55,16 +56,10 @@ const CHART_TYPE_GROUPS: { group: string; types: { value: TextLabsChartType; lab
       { value: 'waterfall', label: 'Waterfall Chart' },
     ],
   },
-  {
-    group: 'Treemap',
-    types: [
-      { value: 'treemap', label: 'Treemap' },
-    ],
-  },
 ]
 
 // Chart types that support series names
-const MULTI_SERIES_TYPES: TextLabsChartType[] = ['bar_grouped', 'bar_stacked', 'area_stacked', 'radar']
+const MULTI_SERIES_TYPES: TextLabsChartType[] = ['bar_grouped', 'bar_stacked', 'area_stacked']
 
 // Custom data templates per chart type
 const DATA_TEMPLATES: Partial<Record<TextLabsChartType, string>> = {
@@ -103,6 +98,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating }: ChartFormP
   const [customDataInput, setCustomDataInput] = useState('')
   const [dataError, setDataError] = useState<string | null>(null)
   const [advancedModified, setAdvancedModified] = useState(false)
+  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
 
   // Section visibility
   const [showOptions, setShowOptions] = useState(false)
@@ -152,7 +148,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating }: ChartFormP
       count,
       layout: 'horizontal',
       advancedModified,
-      z_index: DEFAULTS.zIndex,
+      z_index: zIndex,
       chartConfig: {
         chart_type: chartType,
         include_insights: includeInsights,
@@ -163,7 +159,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating }: ChartFormP
       positionConfig: positionConfig.auto_position ? undefined : positionConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, contentSource, chartType, includeInsights, seriesNamesInput, dataSource, customDataInput, advancedModified, positionConfig, onSubmit, validateCustomData])
+  }, [prompt, count, contentSource, chartType, includeInsights, seriesNamesInput, dataSource, customDataInput, advancedModified, zIndex, positionConfig, onSubmit, validateCustomData])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -324,12 +320,19 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating }: ChartFormP
 
       {/* Position (no padding for CHART) */}
       <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(!showPosition)}>
-        <PositionPresets
-          positionConfig={positionConfig}
-          onChange={setPositionConfig}
-          elementType="CHART"
-          onAdvancedModified={() => setAdvancedModified(true)}
-        />
+        <div className="space-y-4">
+          <PositionPresets
+            positionConfig={positionConfig}
+            onChange={setPositionConfig}
+            elementType="CHART"
+            onAdvancedModified={() => setAdvancedModified(true)}
+          />
+          <ZIndexInput
+            value={zIndex}
+            onChange={setZIndex}
+            onAdvancedModified={() => setAdvancedModified(true)}
+          />
+        </div>
       </CollapsibleSection>
     </div>
   )
