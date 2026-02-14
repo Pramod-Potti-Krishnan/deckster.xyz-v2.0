@@ -5,67 +5,31 @@ import { ShapeFormData, ShapeConfig, TextLabsShapeType, TextLabsPaddingConfig, T
 import { PromptInput } from '../shared/prompt-input'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
+import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.SHAPE
 
-// Shape type groupings
-const SHAPE_TYPE_GROUPS: { group: string; types: { value: TextLabsShapeType; label: string }[] }[] = [
-  {
-    group: 'Basic',
-    types: [
-      { value: 'circle', label: 'Circle' },
-      { value: 'ellipse', label: 'Ellipse' },
-      { value: 'square', label: 'Square' },
-      { value: 'rectangle', label: 'Rectangle' },
-      { value: 'triangle', label: 'Triangle' },
-    ],
-  },
-  {
-    group: 'Polygons',
-    types: [
-      { value: 'pentagon', label: 'Pentagon' },
-      { value: 'hexagon', label: 'Hexagon' },
-      { value: 'heptagon', label: 'Heptagon' },
-      { value: 'octagon', label: 'Octagon' },
-      { value: 'polygon', label: 'N-sided Polygon' },
-    ],
-  },
-  {
-    group: 'Quadrilaterals',
-    types: [
-      { value: 'rhombus', label: 'Diamond' },
-      { value: 'parallelogram', label: 'Parallelogram' },
-      { value: 'trapezoid', label: 'Trapezoid' },
-      { value: 'kite', label: 'Kite' },
-    ],
-  },
-  {
-    group: 'Special',
-    types: [
-      { value: 'star', label: 'Star' },
-      { value: 'cross', label: 'Plus / Cross' },
-      { value: 'arrow', label: 'Arrow' },
-      { value: 'heart', label: 'Heart' },
-      { value: 'cloud', label: 'Cloud' },
-      { value: 'crescent', label: 'Crescent' },
-      { value: 'doughnut', label: 'Ring' },
-    ],
-  },
-  {
-    group: 'Lines',
-    types: [
-      { value: 'line-horizontal', label: 'Horizontal Line' },
-      { value: 'line-vertical', label: 'Vertical Line' },
-      { value: 'line-diagonal', label: 'Diagonal Line' },
-    ],
-  },
-  {
-    group: 'AI Generated',
-    types: [
-      { value: 'custom', label: 'Custom (describe in prompt)' },
-    ],
-  },
+// Backend-aligned: 8 shape types
+const SHAPE_TYPES: { value: TextLabsShapeType; label: string }[] = [
+  { value: 'circle', label: 'Circle' },
+  { value: 'rectangle', label: 'Rectangle' },
+  { value: 'triangle', label: 'Triangle' },
+  { value: 'star', label: 'Star' },
+  { value: 'diamond', label: 'Diamond' },
+  { value: 'arrow', label: 'Arrow' },
+  { value: 'polygon', label: 'Polygon' },
+  { value: 'custom', label: 'Custom (describe in prompt)' },
 ]
+
+/** Pixel to grid conversion */
+function pxToGrid(px: number): number {
+  return Math.max(1, Math.round(px / GRID_CELL_SIZE))
+}
+
+/** Grid to pixel conversion */
+function gridToPx(grid: number): number {
+  return grid * GRID_CELL_SIZE
+}
 
 interface ShapeFormProps {
   onSubmit: (formData: ShapeFormData) => void
@@ -85,12 +49,13 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
   const [rotation, setRotation] = useState(0)
   const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium')
   const [advancedModified, setAdvancedModified] = useState(false)
+  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
 
-  // Grid position
-  const [startCol, setStartCol] = useState(2)
-  const [startRow, setStartRow] = useState(4)
-  const [posWidth, setPosWidth] = useState(DEFAULTS.width)
-  const [posHeight, setPosHeight] = useState(DEFAULTS.height)
+  // Pixel-based position (primary)
+  const [x, setX] = useState(60)       // px, 0-1919
+  const [y, setY] = useState(180)      // px, 0-1079
+  const [widthPx, setWidthPx] = useState(gridToPx(DEFAULTS.width))  // px, 1-1920
+  const [heightPx, setHeightPx] = useState(gridToPx(DEFAULTS.height)) // px, 1-1080
 
   // Sections
   const [showStyling, setShowStyling] = useState(false)
@@ -102,11 +67,11 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
     top: 0, right: 0, bottom: 0, left: 0,
   })
 
-  // Pixel calculations
-  const x = (startCol - 1) * GRID_CELL_SIZE
-  const y = (startRow - 1) * GRID_CELL_SIZE
-  const widthPx = posWidth * GRID_CELL_SIZE
-  const heightPx = posHeight * GRID_CELL_SIZE
+  // Derived grid values (for display and API)
+  const gridW = pxToGrid(widthPx)
+  const gridH = pxToGrid(heightPx)
+  const startCol = Math.max(1, Math.round(x / GRID_CELL_SIZE) + 1)
+  const startRow = Math.max(1, Math.round(y / GRID_CELL_SIZE) + 1)
 
   const handleSubmit = useCallback(() => {
     const isCustom = shapeType === 'custom'
@@ -122,14 +87,14 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
       opacity,
       rotation,
       size,
-      start_col: startCol,
-      start_row: startRow,
-      position_width: posWidth,
-      position_height: posHeight,
       x,
       y,
       width_px: widthPx,
       height_px: heightPx,
+      start_col: startCol,
+      start_row: startRow,
+      position_width: gridW,
+      position_height: gridH,
     }
 
     const formData: ShapeFormData = {
@@ -138,19 +103,19 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
       count,
       layout: 'horizontal',
       advancedModified,
-      z_index: DEFAULTS.zIndex,
+      z_index: zIndex,
       shapeConfig,
       positionConfig: {
         start_col: startCol,
         start_row: startRow,
-        position_width: posWidth,
-        position_height: posHeight,
+        position_width: gridW,
+        position_height: gridH,
         auto_position: false,
       },
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation, size, startCol, startRow, posWidth, posHeight, x, y, widthPx, heightPx, advancedModified, paddingConfig, onSubmit])
+  }, [prompt, count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation, size, x, y, widthPx, heightPx, startCol, startRow, gridW, gridH, advancedModified, zIndex, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -180,12 +145,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
           }}
           className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
         >
-          {SHAPE_TYPE_GROUPS.map(group => (
-            <optgroup key={group.group} label={group.group}>
-              {group.types.map(type => (
-                <option key={type.value} value={type.value}>{type.label}</option>
-              ))}
-            </optgroup>
+          {SHAPE_TYPES.map(type => (
+            <option key={type.value} value={type.value}>{type.label}</option>
           ))}
         </select>
       </div>
@@ -245,14 +206,14 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
             </div>
           </div>
 
-          {/* Stroke Width */}
+          {/* Stroke Width (0-20) */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-gray-300">Stroke Width</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
                 min={0}
-                max={10}
+                max={20}
                 value={strokeWidth}
                 onChange={(e) => { setStrokeWidth(Number(e.target.value)); setAdvancedModified(true) }}
                 className="flex-1 accent-purple-500"
@@ -277,14 +238,14 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
             </div>
           </div>
 
-          {/* Rotation */}
+          {/* Rotation (0-359) */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-gray-300">Rotation</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
                 min={0}
-                max={360}
+                max={359}
                 value={rotation}
                 onChange={(e) => { setRotation(Number(e.target.value)); setAdvancedModified(true) }}
                 className="flex-1 accent-purple-500"
@@ -315,58 +276,66 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
         </div>
       </CollapsibleSection>
 
-      {/* Position */}
+      {/* Position (pixel-based primary) */}
       <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(!showPosition)}>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-500">Col</label>
+              <label className="text-[10px] text-gray-500">X (px)</label>
               <input
                 type="number"
-                value={startCol}
-                min={1}
-                max={32}
-                onChange={(e) => { setStartCol(Number(e.target.value)); setAdvancedModified(true) }}
+                value={x}
+                min={0}
+                max={1919}
+                onChange={(e) => { setX(Number(e.target.value)); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-500">Row</label>
+              <label className="text-[10px] text-gray-500">Y (px)</label>
               <input
                 type="number"
-                value={startRow}
-                min={1}
-                max={18}
-                onChange={(e) => { setStartRow(Number(e.target.value)); setAdvancedModified(true) }}
+                value={y}
+                min={0}
+                max={1079}
+                onChange={(e) => { setY(Number(e.target.value)); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-500">Width</label>
+              <label className="text-[10px] text-gray-500">Width (px)</label>
               <input
                 type="number"
-                value={posWidth}
+                value={widthPx}
                 min={1}
-                max={32}
-                onChange={(e) => { setPosWidth(Number(e.target.value)); setAdvancedModified(true) }}
+                max={1920}
+                onChange={(e) => { setWidthPx(Number(e.target.value)); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-500">Height</label>
+              <label className="text-[10px] text-gray-500">Height (px)</label>
               <input
                 type="number"
-                value={posHeight}
+                value={heightPx}
                 min={1}
-                max={18}
-                onChange={(e) => { setPosHeight(Number(e.target.value)); setAdvancedModified(true) }}
+                max={1080}
+                onChange={(e) => { setHeightPx(Number(e.target.value)); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
               />
             </div>
           </div>
+
+          {/* Derived grid display */}
           <div className="text-[10px] text-gray-500">
-            Pixel: {x}x{y} / {widthPx}x{heightPx}px
+            Grid: {gridW} x {gridH} (col {startCol}, row {startRow})
           </div>
+
+          <ZIndexInput
+            value={zIndex}
+            onChange={setZIndex}
+            onAdvancedModified={() => setAdvancedModified(true)}
+          />
         </div>
       </CollapsibleSection>
 
