@@ -1,5 +1,12 @@
 import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 
+export interface ElementContext {
+  startCol: number
+  startRow: number
+  width: number
+  height: number
+}
+
 export interface GenerationPanelProps {
   isOpen: boolean
   elementType: TextLabsComponentType
@@ -9,6 +16,7 @@ export interface GenerationPanelProps {
   isGenerating: boolean
   error: string | null
   slideIndex: number
+  elementContext?: ElementContext | null
 }
 
 export interface ElementFormProps {

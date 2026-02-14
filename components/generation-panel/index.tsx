@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useCallback, useEffect } from 'react'
+import { cn } from '@/lib/utils'
 import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import { GenerationPanelHeader } from './header'
 import { GenerationPanelFooter } from './footer'
@@ -24,6 +25,7 @@ export function GenerationPanel({
   isGenerating,
   error,
   slideIndex,
+  elementContext,
 }: GenerationPanelProps) {
   // Form registers its submit function here
   const submitFnRef = useRef<(() => void) | null>(null)
@@ -57,39 +59,44 @@ export function GenerationPanel({
 
   return (
     <div
-      className={`flex flex-col bg-gray-900 border-r border-gray-700 overflow-hidden transition-all duration-300 ease-in-out ${
-        isOpen ? 'w-[clamp(300px,32vw,380px)] opacity-100' : 'w-0 opacity-0'
-      }`}
-      style={{ minWidth: isOpen ? '300px' : '0' }}
-    >
-      {isOpen && (
-        <>
-          {/* Header */}
-          <GenerationPanelHeader
-            elementType={elementType}
-            onClose={onClose}
-            onElementTypeChange={onElementTypeChange}
-          />
-
-          {/* Scrollable form area */}
-          <div className="flex-1 overflow-y-auto px-4 py-4">
-            <FormRouter
-              elementType={elementType}
-              onSubmit={onGenerate}
-              registerSubmit={registerSubmit}
-              isGenerating={isGenerating}
-              slideIndex={slideIndex}
-            />
-          </div>
-
-          {/* Footer */}
-          <GenerationPanelFooter
-            onGenerate={handleFooterGenerate}
-            isGenerating={isGenerating}
-            error={error}
-          />
-        </>
+      className={cn(
+        "absolute inset-0 bg-gray-900 text-white shadow-2xl z-20 flex flex-col",
+        "transform transition-transform duration-200 ease-out",
+        isOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
       )}
+    >
+      {/* Header */}
+      <GenerationPanelHeader
+        elementType={elementType}
+        onClose={onClose}
+        onElementTypeChange={onElementTypeChange}
+      />
+
+      {/* Canvas position indicator */}
+      {elementContext && (
+        <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 text-xs text-gray-400 flex items-center gap-2">
+          <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+          Position from canvas ({elementContext.width}&times;{elementContext.height} cells)
+        </div>
+      )}
+
+      {/* Scrollable form area */}
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <FormRouter
+          elementType={elementType}
+          onSubmit={onGenerate}
+          registerSubmit={registerSubmit}
+          isGenerating={isGenerating}
+          slideIndex={slideIndex}
+        />
+      </div>
+
+      {/* Footer */}
+      <GenerationPanelFooter
+        onGenerate={handleFooterGenerate}
+        isGenerating={isGenerating}
+        error={error}
+      />
     </div>
   )
 }

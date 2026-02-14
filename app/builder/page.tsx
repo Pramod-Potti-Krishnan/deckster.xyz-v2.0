@@ -59,9 +59,10 @@ import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties } from '@/types/elements'
 import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
+import { useBlankElements, BlankElementInfo } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
 import { TextLabsFormData, TextLabsComponentType } from '@/types/textlabs'
-import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, generateInfographic } from '@/lib/textlabs-client'
+import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
 import {
   ContentContextForm,
   ContentContext,
@@ -306,8 +307,12 @@ function BuilderContent() {
   // Toast notifications
   const { toast } = useToast()
 
+  // Current slide tracking (0-based index for Layout Service)
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
+
   // Text Labs Generation Panel
   const generationPanel = useGenerationPanel()
+  const blankElements = useBlankElements()
   const textLabsSession = useTextLabsSession(presentationId)
 
   // FIXED: Track when generating final presentation to show loading animation
@@ -1343,6 +1348,38 @@ function BuilderContent() {
     generationPanel.setIsGenerating(true)
     generationPanel.setError(null)
 
+    // Check if we're generating for a blank element on canvas
+    const blankId = generationPanel.blankElementId
+    const blankInfo = blankId ? blankElements.getElement(blankId) : null
+
+    // If blank element exists, override position from canvas and force count=1
+    if (blankInfo) {
+      formData.count = 1
+      formData.positionConfig = {
+        start_col: blankInfo.startCol,
+        start_row: blankInfo.startRow,
+        position_width: blankInfo.width,
+        position_height: blankInfo.height,
+        auto_position: false,
+      }
+      // Also override image/infographic position configs if present
+      const fd = formData as any
+      if (fd.imageConfig) {
+        fd.imageConfig.start_col = blankInfo.startCol
+        fd.imageConfig.start_row = blankInfo.startRow
+        fd.imageConfig.width = blankInfo.width
+        fd.imageConfig.height = blankInfo.height
+        fd.imageConfig.position_width = blankInfo.width
+        fd.imageConfig.position_height = blankInfo.height
+      }
+      if (fd.infographicConfig) {
+        fd.infographicConfig.start_col = blankInfo.startCol
+        fd.infographicConfig.start_row = blankInfo.startRow
+        fd.infographicConfig.width = blankInfo.width
+        fd.infographicConfig.height = blankInfo.height
+      }
+    }
+
     // 30-second timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000)
@@ -1377,14 +1414,26 @@ function BuilderContent() {
         throw new Error('No elements returned from API')
       }
 
+      // If blank element exists, delete it first then insert at tracked position
+      if (blankId && blankInfo && layoutServiceApis?.sendElementCommand) {
+        try {
+          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: blankId })
+        } catch (err) {
+          console.warn('[TextLabs] Failed to delete blank placeholder:', err)
+        }
+        blankElements.removeElement(blankId)
+      }
+
       // Insert each element into the canvas
+      const effectiveSlideIndex = blankInfo?.slideIndex ?? currentSlideIndex
       for (const element of elements) {
         const { method, params } = buildInsertionParams(
           element.component_type,
           element,
           formData.positionConfig,
           formData.paddingConfig,
-          formData.z_index
+          formData.z_index,
+          effectiveSlideIndex
         )
 
         // Map insertion method to Layout Service command
@@ -1414,12 +1463,67 @@ function BuilderContent() {
       clearTimeout(timeoutId)
       generationPanel.setIsGenerating(false)
     }
-  }, [generationPanel, textLabsSession, layoutServiceApis, toast])
+  }, [generationPanel, textLabsSession, layoutServiceApis, toast, currentSlideIndex, blankElements])
 
   // Handle opening generation panel from toolbar
-  const handleOpenGenerationPanel = useCallback((type: string) => {
-    generationPanel.openPanel(type as TextLabsComponentType)
-  }, [generationPanel])
+  // Flow B: Insert blank placeholder on canvas, then open panel for it
+  const handleOpenGenerationPanel = useCallback(async (type: string) => {
+    const componentType = type as TextLabsComponentType
+    const defaults = getDefaultSize(componentType)
+    const startCol = 2
+    const startRow = 4
+
+    if (!layoutServiceApis?.sendElementCommand) {
+      // Fallback: open panel without blank placeholder (Flow A)
+      generationPanel.openPanel(componentType)
+      return
+    }
+
+    try {
+      // Build placeholder HTML
+      const tempId = `blank_${Date.now()}`
+      const placeholderHtml = `<div data-blank-element="${tempId}" data-element-type="${componentType}" style="display:flex;align-items:center;justify-content:center;height:100%;border:2px dashed rgba(255,255,255,0.3);border-radius:8px;background:rgba(0,0,0,0.05);"><div style="text-align:center;color:rgba(255,255,255,0.5);"><div style="font-size:14px;font-weight:500;">${componentType.replace(/_/g, ' ')}</div><div style="font-size:11px;margin-top:4px;">Generating...</div></div></div>`
+
+      const gridRow = `${startRow}/${startRow + defaults.height}`
+      const gridColumn = `${startCol}/${startCol + defaults.width}`
+
+      // Insert blank placeholder on canvas
+      const response = await layoutServiceApis.sendElementCommand('insertTextBox', {
+        elementId: tempId,
+        slideIndex: currentSlideIndex,
+        content: placeholderHtml,
+        gridRow,
+        gridColumn,
+        positionWidth: defaults.width,
+        positionHeight: defaults.height,
+        zIndex: defaults.zIndex,
+        draggable: true,
+        resizable: true,
+        skipAutoSize: true,
+      })
+
+      // Use the layout-service-generated ID if available, otherwise use temp ID
+      const layoutElementId = response?.elementId || tempId
+
+      // Track in blank elements map
+      blankElements.addElement({
+        elementId: layoutElementId,
+        componentType,
+        slideIndex: currentSlideIndex,
+        startCol,
+        startRow,
+        width: defaults.width,
+        height: defaults.height,
+      })
+
+      // Open panel for this blank element
+      generationPanel.openPanelForElement(componentType, layoutElementId)
+    } catch (err) {
+      console.warn('[TextLabs] Failed to insert blank placeholder, falling back to direct panel:', err)
+      // Fallback: open panel without blank placeholder (Flow A)
+      generationPanel.openPanel(componentType)
+    }
+  }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -1587,7 +1691,7 @@ function BuilderContent() {
             <FormatPanel
               isOpen={showFormatPanel}
               onClose={() => setShowFormatPanel(false)}
-              currentSlide={1} // TODO: Get from PresentationViewer state
+              currentSlide={currentSlideIndex + 1}
               onLayoutChange={async (layout: SlideLayoutId) => {
                 console.log('Layout change requested:', layout)
                 // TODO: Implement via postMessage to iframe
@@ -1647,7 +1751,7 @@ function BuilderContent() {
                 }
               }}
               presentationId={presentationId}
-              slideIndex={1} // TODO: Get current slide from PresentationViewer
+              slideIndex={currentSlideIndex}
               sessionId={currentSessionId}
             />
 
@@ -1691,7 +1795,34 @@ function BuilderContent() {
                   }
                 }}
                 presentationId={presentationId}
-                slideIndex={1} // TODO: Get current slide from PresentationViewer
+                slideIndex={currentSlideIndex}
+              />
+            )}
+
+            {/* Generation Panel - Overlays chat when open */}
+            {features.useTextLabsGeneration && (
+              <GenerationPanel
+                isOpen={generationPanel.isOpen}
+                elementType={generationPanel.elementType}
+                onClose={() => {
+                  // If closing with a blank element that hasn't been generated, delete it
+                  const blankId = generationPanel.blankElementId
+                  if (blankId && blankElements.isBlankElement(blankId) && layoutServiceApis?.sendElementCommand) {
+                    layoutServiceApis.sendElementCommand('deleteElement', { elementId: blankId }).catch(() => {})
+                    blankElements.removeElement(blankId)
+                  }
+                  generationPanel.closePanel()
+                }}
+                onGenerate={handleTextLabsGenerate}
+                onElementTypeChange={generationPanel.changeElementType}
+                isGenerating={generationPanel.isGenerating}
+                error={generationPanel.error}
+                slideIndex={currentSlideIndex}
+                elementContext={
+                  generationPanel.blankElementId
+                    ? blankElements.getElement(generationPanel.blankElementId) ?? null
+                    : null
+                }
               />
             )}
 
@@ -2447,20 +2578,6 @@ function BuilderContent() {
             </div>
           </div>
 
-          {/* Generation Panel - Conditional, between chat and presentation */}
-          {features.useTextLabsGeneration && (
-            <GenerationPanel
-              isOpen={generationPanel.isOpen}
-              elementType={generationPanel.elementType}
-              onClose={generationPanel.closePanel}
-              onGenerate={handleTextLabsGenerate}
-              onElementTypeChange={generationPanel.changeElementType}
-              isGenerating={generationPanel.isGenerating}
-              error={generationPanel.error}
-              slideIndex={1}
-            />
-          )}
-
           {/* Right Panel - Presentation Display (flex-1) */}
           <div className="flex-1 flex flex-col bg-gray-100">
             {presentationUrl && !isGeneratingFinal ? (
@@ -2483,7 +2600,7 @@ function BuilderContent() {
                   />
                 }
                 onSlideChange={(slideNum) => {
-                  console.log(`📍 Viewing slide ${slideNum}`)
+                  setCurrentSlideIndex(slideNum - 1) // PresentationViewer reports 1-based
                 }}
                 onEditModeChange={(isEditing) => {
                   console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
@@ -2522,6 +2639,21 @@ function BuilderContent() {
                 }}
                 onApiReady={setLayoutServiceApis}
                 onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
+                onElementMoved={(elementId, gridRow, gridColumn) => {
+                  if (blankElements.isBlankElement(elementId)) {
+                    const rowParts = gridRow.split('/').map(Number)
+                    const colParts = gridColumn.split('/').map(Number)
+                    if (rowParts.length === 2 && colParts.length === 2) {
+                      blankElements.updatePosition(
+                        elementId,
+                        colParts[0],              // startCol
+                        rowParts[0],              // startRow
+                        colParts[1] - colParts[0], // width
+                        rowParts[1] - rowParts[0]  // height
+                      )
+                    }
+                  }
+                }}
                 className="flex-1"
               />
             ) : (

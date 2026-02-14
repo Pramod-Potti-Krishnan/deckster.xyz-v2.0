@@ -105,6 +105,8 @@ interface PresentationViewerProps {
   onElementDeselected?: () => void
   // Text Labs Generation Panel - opens generation panel for the given element type
   onOpenGenerationPanel?: (type: string) => void  // Uses string to avoid coupling to TextLabsComponentType
+  // Element moved/resized on canvas (for position sync with GenerationPanel)
+  onElementMoved?: (elementId: string, gridRow: string, gridColumn: string) => void
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -183,6 +185,7 @@ export function PresentationViewer({
   onElementDeselected,
   onApiReady,
   onOpenGenerationPanel,
+  onElementMoved,
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1597,6 +1600,29 @@ export function PresentationViewer({
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [onElementSelected, onElementDeselected, ensureEditMode])
+
+  // Listen for element moved/resized events from iframe
+  useEffect(() => {
+    if (!onElementMoved) return
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== VIEWER_ORIGIN) return
+
+      if (event.data.type === 'elementMoved' || event.data.action === 'elementMoved') {
+        const elementId = event.data.elementId as string
+        const position = event.data.position || event.data
+        const gridRow = position.gridRow as string
+        const gridColumn = position.gridColumn as string
+
+        if (elementId && gridRow && gridColumn) {
+          onElementMoved(elementId, gridRow, gridColumn)
+        }
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [onElementMoved])
 
   return (
     <div ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>

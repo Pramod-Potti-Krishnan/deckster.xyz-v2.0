@@ -290,7 +290,8 @@ export function buildInsertionParams(
   element: { html?: string; image_url?: string },
   positionConfig?: TextLabsPositionConfig,
   paddingConfig?: TextLabsPaddingConfig,
-  zIndex?: number
+  zIndex?: number,
+  slideIndex?: number
 ): {
   method: InsertionMethod
   params: Record<string, unknown>
@@ -311,7 +312,7 @@ export function buildInsertionParams(
 
   const baseParams: Record<string, unknown> = {
     elementId,
-    slideIndex: 0,
+    slideIndex: slideIndex ?? 0,
     gridRow,
     gridColumn,
     positionWidth: width,
