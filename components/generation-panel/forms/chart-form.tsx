@@ -110,7 +110,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating }: ChartFormP
     start_row: 4,
     position_width: DEFAULTS.width,
     position_height: DEFAULTS.height,
-    auto_position: true,
+    auto_position: false,
   })
 
   // Validate custom JSON

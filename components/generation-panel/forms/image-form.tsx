@@ -71,7 +71,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
   const [quality, setQuality] = useState<'standard' | 'hd'>('standard')
   const [corners, setCorners] = useState<'square' | 'rounded'>('square')
   const [border, setBorder] = useState(false)
-  const [autoPosition, setAutoPosition] = useState(true)
+  const [autoPosition, setAutoPosition] = useState(false)
   const [startCol, setStartCol] = useState(2)
   const [startRow, setStartRow] = useState(4)
   const [width, setWidth] = useState(DEFAULTS.width)
@@ -321,20 +321,24 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
                   onChange={(e) => { setStartRow(Number(e.target.value)); setAdvancedModified(true) }}
                   className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Width</label>
-                <input type="number" value={width} min={1} max={32}
-                  onChange={(e) => { setWidth(Number(e.target.value)); setSelectedAspectRatio('custom'); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Height</label>
-                <input type="number" value={height} min={1} max={18}
-                  onChange={(e) => { setHeight(Number(e.target.value)); setSelectedAspectRatio('custom'); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
-              </div>
             </div>
           )}
+
+          {/* Width/Height always visible */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] text-gray-500">Width</label>
+              <input type="number" value={width} min={1} max={32}
+                onChange={(e) => { setWidth(Number(e.target.value)); setSelectedAspectRatio('custom'); setAdvancedModified(true) }}
+                className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-gray-500">Height</label>
+              <input type="number" value={height} min={1} max={18}
+                onChange={(e) => { setHeight(Number(e.target.value)); setSelectedAspectRatio('custom'); setAdvancedModified(true) }}
+                className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
+            </div>
+          </div>
 
           <ZIndexInput
             value={zIndex}

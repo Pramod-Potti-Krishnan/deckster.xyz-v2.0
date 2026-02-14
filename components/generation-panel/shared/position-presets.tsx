@@ -102,13 +102,11 @@ export function PositionPresets({
             </div>
           </div>
 
-          {/* Manual Grid Inputs */}
+          {/* Col/Row Inputs (hidden when auto) */}
           <div className="grid grid-cols-2 gap-2">
             {[
               { label: 'Col', field: 'start_col' as const, min: 1, max: 32 },
               { label: 'Row', field: 'start_row' as const, min: 1, max: 18 },
-              { label: 'Width', field: 'position_width' as const, min: 1, max: 32 },
-              { label: 'Height', field: 'position_height' as const, min: 1, max: 18 },
             ].map(({ label, field, min, max }) => (
               <div key={field} className="space-y-1">
                 <label className="text-[10px] text-gray-500">{label}</label>
@@ -128,6 +126,29 @@ export function PositionPresets({
           </div>
         </>
       )}
+
+      {/* Width/Height Inputs (always visible) */}
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { label: 'Width', field: 'position_width' as const, min: 1, max: 32 },
+          { label: 'Height', field: 'position_height' as const, min: 1, max: 18 },
+        ].map(({ label, field, min, max }) => (
+          <div key={field} className="space-y-1">
+            <label className="text-[10px] text-gray-500">{label}</label>
+            <input
+              type="number"
+              value={positionConfig[field]}
+              min={min}
+              max={max}
+              onChange={(e) => {
+                onChange({ ...positionConfig, [field]: Number(e.target.value) })
+                onAdvancedModified()
+              }}
+              className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+            />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
