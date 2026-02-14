@@ -21,7 +21,8 @@ import {
   Square,
   Pencil,
   Settings,
-  Palette
+  Palette,
+  TrendingUp
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -100,6 +101,8 @@ interface PresentationViewerProps {
   // Element panel callbacks (Image, Table, Chart, Infographic, Diagram)
   onElementSelected?: (elementId: string, elementType: ElementType, properties: ElementProperties) => void
   onElementDeselected?: () => void
+  // Text Labs Generation Panel - opens generation panel for the given element type
+  onOpenGenerationPanel?: (type: string) => void  // Uses string to avoid coupling to TextLabsComponentType
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -176,7 +179,8 @@ export function PresentationViewer({
   onTextBoxDeselected,
   onElementSelected,
   onElementDeselected,
-  onApiReady
+  onApiReady,
+  onOpenGenerationPanel,
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1653,10 +1657,33 @@ export function PresentationViewer({
             <div className="w-px h-10 bg-gray-200 mx-2" />
 
             {/* Table */}
-            <TableInsertPopover
-              onInsertTable={handleInsertTable}
-              disabled={!presentationUrl}
-            />
+            {onOpenGenerationPanel ? (
+              <button
+                onClick={() => onOpenGenerationPanel('TABLE')}
+                disabled={!presentationUrl}
+                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Insert table"
+              >
+                <Grid2x2 className="h-5 w-5 text-gray-700" />
+                <span className="text-[10px] text-gray-500">Table</span>
+              </button>
+            ) : (
+              <TableInsertPopover
+                onInsertTable={handleInsertTable}
+                disabled={!presentationUrl}
+              />
+            )}
+
+            {/* Metrics */}
+            <button
+              onClick={() => onOpenGenerationPanel?.('METRICS')}
+              disabled={!presentationUrl || !onOpenGenerationPanel}
+              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Insert metrics (KPI cards)"
+            >
+              <TrendingUp className="h-5 w-5 text-gray-700" />
+              <span className="text-[10px] text-gray-500">Metrics</span>
+            </button>
 
             {/* Chart */}
             <ChartPickerPopover
@@ -1666,7 +1693,7 @@ export function PresentationViewer({
 
             {/* Text Box */}
             <button
-              onClick={handleInsertTextBox}
+              onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('TEXT_BOX') : handleInsertTextBox()}
               disabled={!presentationUrl}
               className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Insert text box"

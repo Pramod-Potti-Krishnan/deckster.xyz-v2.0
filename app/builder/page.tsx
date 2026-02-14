@@ -56,6 +56,11 @@ import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties } from '@/types/elements'
+import { GenerationPanel } from '@/components/generation-panel'
+import { useGenerationPanel } from '@/hooks/use-generation-panel'
+import { useTextLabsSession } from '@/hooks/use-textlabs-session'
+import { TextLabsFormData, TextLabsComponentType } from '@/types/textlabs'
+import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams } from '@/lib/textlabs-client'
 import {
   ContentContextForm,
   ContentContext,
@@ -296,6 +301,10 @@ function BuilderContent() {
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
   } | null>(null)
   const [isAIRegenerating, setIsAIRegenerating] = useState(false)
+
+  // Text Labs Generation Panel
+  const generationPanel = useGenerationPanel()
+  const textLabsSession = useTextLabsSession(presentationId)
 
   // FIXED: Track when generating final presentation to show loading animation
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
@@ -1325,6 +1334,64 @@ function BuilderContent() {
     }
   }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, contentContext, toContentContextPayload])
 
+  // Handle Text Labs element generation
+  const handleTextLabsGenerate = useCallback(async (formData: TextLabsFormData) => {
+    generationPanel.setIsGenerating(true)
+    generationPanel.setError(null)
+
+    try {
+      // Ensure session exists
+      const sessionId = await textLabsSession.ensureSession()
+
+      // Build API payload
+      const { message, options } = buildApiPayload(sessionId, formData)
+
+      // Call Text Labs API
+      const response = await sendTextLabsMessage(sessionId, message, options)
+
+      if (response.error) {
+        throw new Error(response.error)
+      }
+
+      // Get the element(s) from response
+      const elements = response.elements || (response.element ? [response.element] : [])
+
+      if (elements.length === 0) {
+        throw new Error('No elements returned from API')
+      }
+
+      // Insert each element into the canvas
+      for (const element of elements) {
+        const { method, params } = buildInsertionParams(
+          element.component_type,
+          element,
+          formData.positionConfig,
+          formData.paddingConfig,
+          formData.z_index
+        )
+
+        // Map insertion method to Layout Service command
+        const command = method === 'insertElement' ? 'insertTextBox' : method
+        await layoutServiceApis?.sendElementCommand(command, params as Record<string, any>)
+      }
+
+      // Close panel on success
+      generationPanel.closePanel()
+      console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Generation failed'
+      generationPanel.setError(message)
+      console.error('[TextLabs] Generation error:', err)
+    } finally {
+      generationPanel.setIsGenerating(false)
+    }
+  }, [generationPanel, textLabsSession, layoutServiceApis])
+
+  // Handle opening generation panel from toolbar
+  const handleOpenGenerationPanel = useCallback((type: string) => {
+    generationPanel.openPanel(type as TextLabsComponentType)
+  }, [generationPanel])
+
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
     const messageId = crypto.randomUUID()
@@ -2351,7 +2418,19 @@ function BuilderContent() {
             </div>
           </div>
 
-          {/* Right Panel - Presentation Display (75%) */}
+          {/* Generation Panel - Conditional, between chat and presentation */}
+          <GenerationPanel
+            isOpen={generationPanel.isOpen}
+            elementType={generationPanel.elementType}
+            onClose={generationPanel.closePanel}
+            onGenerate={handleTextLabsGenerate}
+            onElementTypeChange={generationPanel.changeElementType}
+            isGenerating={generationPanel.isGenerating}
+            error={generationPanel.error}
+            slideIndex={1}
+          />
+
+          {/* Right Panel - Presentation Display (flex-1) */}
           <div className="flex-1 flex flex-col bg-gray-100">
             {presentationUrl && !isGeneratingFinal ? (
               <PresentationViewer
@@ -2411,6 +2490,7 @@ function BuilderContent() {
                   setIsElementPanelCollapsed(false)
                 }}
                 onApiReady={setLayoutServiceApis}
+                onOpenGenerationPanel={handleOpenGenerationPanel}
                 className="flex-1"
               />
             ) : (
