@@ -5,16 +5,16 @@ import { IconLabelFormData, IconLabelConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
+import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.ICON_LABEL
 
+// Backend-aligned icon styles
 const ICON_STYLES: { value: IconLabelConfig['style']; label: string }[] = [
-  { value: 'flat', label: 'Flat' },
-  { value: 'pastel', label: 'Pastel' },
   { value: 'circle', label: 'Circle' },
   { value: 'square', label: 'Square' },
-  { value: 'circle-outline', label: 'Circle Outline' },
-  { value: 'square-outline', label: 'Square Outline' },
+  { value: 'rounded', label: 'Rounded' },
+  { value: 'minimal', label: 'Minimal' },
 ]
 
 const LABEL_FONTS: { value: IconLabelConfig['font']; label: string }[] = [
@@ -24,12 +24,9 @@ const LABEL_FONTS: { value: IconLabelConfig['font']; label: string }[] = [
   { value: 'roboto_mono', label: 'Roboto Mono' },
 ]
 
-// Default colors based on style
 function getDefaultColor(mode: 'icon' | 'label', style: IconLabelConfig['style']): string {
   if (mode === 'label') return '#1F2937'
-  if (style === 'circle' || style === 'square' || style === 'circle-outline' || style === 'square-outline') {
-    return '#3B82F6'
-  }
+  if (style === 'circle' || style === 'square' || style === 'rounded') return '#3B82F6'
   return '#1F2937'
 }
 
@@ -48,6 +45,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
   const [font, setFont] = useState<IconLabelConfig['font']>('poppins')
   const [color, setColor] = useState<string | null>(null)
   const [advancedModified, setAdvancedModified] = useState(false)
+  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
 
   const [showOptions, setShowOptions] = useState(false)
 
@@ -60,7 +58,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
       count,
       layout: 'horizontal',
       advancedModified,
-      z_index: DEFAULTS.zIndex,
+      z_index: zIndex,
       iconLabelConfig: {
         mode,
         size,
@@ -70,7 +68,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
       },
     }
     onSubmit(formData)
-  }, [prompt, count, mode, size, style, font, color, advancedModified, onSubmit])
+  }, [prompt, count, mode, size, style, font, color, advancedModified, zIndex, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -121,13 +119,12 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
       {/* Options */}
       <CollapsibleSection title="Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>
         <div className="space-y-3">
-          {/* Size */}
+          {/* Size (no xs) */}
           <ToggleRow
             label="Size"
             field="size"
             value={size}
             options={[
-              { value: 'xs', label: 'XS' },
               { value: 'small', label: 'S' },
               { value: 'medium', label: 'M' },
               { value: 'large', label: 'L' },
@@ -138,7 +135,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
             }}
           />
 
-          {/* Style (icon mode only) */}
+          {/* Style (icon mode only) - 4 backend-aligned options */}
           {mode === 'icon' && (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-gray-300">Style</label>
@@ -200,6 +197,13 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
               )}
             </div>
           </div>
+
+          {/* Z-Index */}
+          <ZIndexInput
+            value={zIndex}
+            onChange={setZIndex}
+            onAdvancedModified={() => setAdvancedModified(true)}
+          />
         </div>
       </CollapsibleSection>
     </div>
