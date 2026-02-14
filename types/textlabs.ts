@@ -475,6 +475,25 @@ export const POSITION_PRESETS: Record<string, {
   'center-square': { label: 'Center Square', start_col: 8, start_row: 4, width: 14, height: 14 },
 }
 
+// IMAGE position presets (same grid system as POSITION_PRESETS)
+export const IMAGE_POSITION_PRESETS: Record<string, {
+  label: string
+  start_col: number
+  start_row: number
+  width: number
+  height: number
+}> = {
+  'full': { label: 'Full', start_col: 2, start_row: 4, width: 30, height: 14 },
+  'half-left': { label: 'Left Half', start_col: 2, start_row: 4, width: 15, height: 14 },
+  'half-right': { label: 'Right Half', start_col: 17, start_row: 4, width: 15, height: 14 },
+  'quarter-tl': { label: 'Top Left', start_col: 2, start_row: 4, width: 15, height: 7 },
+  'quarter-tr': { label: 'Top Right', start_col: 17, start_row: 4, width: 15, height: 7 },
+  'quarter-bl': { label: 'Bottom Left', start_col: 2, start_row: 11, width: 15, height: 7 },
+  'quarter-br': { label: 'Bottom Right', start_col: 17, start_row: 11, width: 15, height: 7 },
+  'center-wide': { label: 'Center Wide', start_col: 4, start_row: 5, width: 24, height: 12 },
+  'center-square': { label: 'Center Square', start_col: 8, start_row: 4, width: 14, height: 14 },
+}
+
 // Canvas insertion method routing
 export type InsertionMethod = 'insertElement' | 'insertChart' | 'insertImage' | 'insertDiagram'
 

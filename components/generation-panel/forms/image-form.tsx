@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { ImageFormData, ImageConfig, TextLabsImageStyle, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
+import { ImageFormData, ImageConfig, TextLabsImageStyle, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE, IMAGE_POSITION_PRESETS } from '@/types/textlabs'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
@@ -77,6 +77,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
   const [width, setWidth] = useState(DEFAULTS.width)
   const [height, setHeight] = useState(DEFAULTS.height)
   const [selectedAspectRatio, setSelectedAspectRatio] = useState('16:9')
+  const [selectedPositionPreset, setSelectedPositionPreset] = useState<string | null>(null)
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
 
@@ -96,6 +97,20 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
     setStartCol(fit.startCol)
     setStartRow(fit.startRow)
     setSelectedAspectRatio(preset.label)
+    setSelectedPositionPreset(null) // Clear position preset when aspect ratio changes
+    setAdvancedModified(true)
+  }, [])
+
+  const applyPositionPreset = useCallback((key: string) => {
+    const preset = IMAGE_POSITION_PRESETS[key]
+    if (!preset) return
+    setStartCol(preset.start_col)
+    setStartRow(preset.start_row)
+    setWidth(preset.width)
+    setHeight(preset.height)
+    setSelectedPositionPreset(key)
+    setSelectedAspectRatio('custom') // Position preset dimensions may not match any ratio
+    setAutoPosition(false)
     setAdvancedModified(true)
   }, [])
 
@@ -307,20 +322,43 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
           />
 
           {!autoPosition && (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Col</label>
-                <input type="number" value={startCol} min={1} max={32}
-                  onChange={(e) => { setStartCol(Number(e.target.value)); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
+            <>
+              {/* Position Presets */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-gray-500">Position Presets</label>
+                <div className="grid grid-cols-3 gap-1">
+                  {Object.entries(IMAGE_POSITION_PRESETS).map(([key, preset]) => (
+                    <button
+                      key={key}
+                      onClick={() => applyPositionPreset(key)}
+                      className={`px-1.5 py-1 rounded text-[10px] transition-colors ${
+                        selectedPositionPreset === key
+                          ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
+                          : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:bg-gray-700'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Row</label>
-                <input type="number" value={startRow} min={1} max={18}
-                  onChange={(e) => { setStartRow(Number(e.target.value)); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
+
+              {/* Col/Row Inputs */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-500">Col</label>
+                  <input type="number" value={startCol} min={1} max={32}
+                    onChange={(e) => { setStartCol(Number(e.target.value)); setSelectedPositionPreset(null); setAdvancedModified(true) }}
+                    className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-500">Row</label>
+                  <input type="number" value={startRow} min={1} max={18}
+                    onChange={(e) => { setStartRow(Number(e.target.value)); setSelectedPositionPreset(null); setAdvancedModified(true) }}
+                    className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* Width/Height always visible */}
@@ -328,13 +366,13 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
             <div className="space-y-1">
               <label className="text-[10px] text-gray-500">Width</label>
               <input type="number" value={width} min={1} max={32}
-                onChange={(e) => { setWidth(Number(e.target.value)); setSelectedAspectRatio('custom'); setAdvancedModified(true) }}
+                onChange={(e) => { setWidth(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] text-gray-500">Height</label>
               <input type="number" value={height} min={1} max={18}
-                onChange={(e) => { setHeight(Number(e.target.value)); setSelectedAspectRatio('custom'); setAdvancedModified(true) }}
+                onChange={(e) => { setHeight(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100" />
             </div>
           </div>

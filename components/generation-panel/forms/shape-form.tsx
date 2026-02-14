@@ -314,8 +314,52 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
           </div>
         </div>
 
-        <div className="text-[10px] text-gray-500">
-          Grid: {gridW} x {gridH} (col {startCol}, row {startRow})
+        {/* Editable grid inputs (bidirectional sync with pixel) */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500">Col (grid)</label>
+            <input
+              type="number"
+              value={startCol}
+              min={1}
+              max={32}
+              onChange={(e) => { setX((Number(e.target.value) - 1) * GRID_CELL_SIZE); setAdvancedModified(true) }}
+              className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500">Row (grid)</label>
+            <input
+              type="number"
+              value={startRow}
+              min={1}
+              max={18}
+              onChange={(e) => { setY((Number(e.target.value) - 1) * GRID_CELL_SIZE); setAdvancedModified(true) }}
+              className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500">Width (grid)</label>
+            <input
+              type="number"
+              value={gridW}
+              min={1}
+              max={32}
+              onChange={(e) => { setWidthPx(Number(e.target.value) * GRID_CELL_SIZE); setAdvancedModified(true) }}
+              className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500">Height (grid)</label>
+            <input
+              type="number"
+              value={gridH}
+              min={1}
+              max={18}
+              onChange={(e) => { setHeightPx(Number(e.target.value) * GRID_CELL_SIZE); setAdvancedModified(true) }}
+              className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+            />
+          </div>
         </div>
 
         <ZIndexInput
