@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { MetricsFormData, MetricsConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
+import { ElementContext } from '../types'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
@@ -49,9 +50,10 @@ interface MetricsFormProps {
   onSubmit: (formData: MetricsFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  elementContext?: ElementContext | null
 }
 
-export function MetricsForm({ onSubmit, registerSubmit, isGenerating }: MetricsFormProps) {
+export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementContext }: MetricsFormProps) {
   const [prompt, setPrompt] = useState('')
   const [count, setCount] = useState(1)
   const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
@@ -81,6 +83,19 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating }: MetricsF
   const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
     top: 0, right: 0, bottom: 0, left: 0,
   })
+
+  // Initialize position from canvas context
+  useEffect(() => {
+    if (elementContext) {
+      setPositionConfig(prev => ({
+        ...prev,
+        start_col: elementContext.startCol,
+        start_row: elementContext.startRow,
+        position_width: elementContext.width,
+        position_height: elementContext.height,
+      }))
+    }
+  }, [elementContext])
 
   const updateConfig = useCallback((field: string, value: unknown) => {
     setConfig(prev => ({ ...prev, [field]: value }))

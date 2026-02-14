@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { TableFormData, TableConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
+import { ElementContext } from '../types'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
@@ -80,9 +81,10 @@ interface TableFormProps {
   onSubmit: (formData: TableFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  elementContext?: ElementContext | null
 }
 
-export function TableForm({ onSubmit, registerSubmit, isGenerating }: TableFormProps) {
+export function TableForm({ onSubmit, registerSubmit, isGenerating, elementContext }: TableFormProps) {
   const [prompt, setPrompt] = useState('')
   const [count, setCount] = useState(1)
   const [columns, setColumns] = useState(4)
@@ -126,6 +128,19 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating }: TableFormP
   useEffect(() => {
     setColumnWidths(autoWidths)
   }, [autoWidths])
+
+  // Initialize position from canvas context
+  useEffect(() => {
+    if (elementContext) {
+      setPositionConfig(prev => ({
+        ...prev,
+        start_col: elementContext.startCol,
+        start_row: elementContext.startRow,
+        position_width: elementContext.width,
+        position_height: elementContext.height,
+      }))
+    }
+  }, [elementContext])
 
   const updateConfig = useCallback((field: string, value: unknown) => {
     setConfig(prev => ({ ...prev, [field]: value }))

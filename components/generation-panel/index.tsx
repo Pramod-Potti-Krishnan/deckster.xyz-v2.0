@@ -14,7 +14,7 @@ import { IconLabelForm } from './forms/icon-label-form'
 import { ShapeForm } from './forms/shape-form'
 import { InfographicForm } from './forms/infographic-form'
 import { DiagramForm } from './forms/diagram-form'
-import { GenerationPanelProps } from './types'
+import { GenerationPanelProps, ElementContext } from './types'
 
 export function GenerationPanel({
   isOpen,
@@ -88,6 +88,7 @@ export function GenerationPanel({
           registerSubmit={registerSubmit}
           isGenerating={isGenerating}
           slideIndex={slideIndex}
+          elementContext={elementContext}
         />
       </div>
 
@@ -108,12 +109,14 @@ function FormRouter({
   registerSubmit,
   isGenerating,
   slideIndex,
+  elementContext,
 }: {
   elementType: TextLabsComponentType
   onSubmit: (formData: TextLabsFormData) => Promise<void>
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   slideIndex: number
+  elementContext?: ElementContext | null
 }) {
   switch (elementType) {
     case 'TEXT_BOX':
@@ -122,6 +125,7 @@ function FormRouter({
           onSubmit={onSubmit}
           registerSubmit={registerSubmit}
           isGenerating={isGenerating}
+          elementContext={elementContext}
         />
       )
     case 'METRICS':
@@ -130,6 +134,7 @@ function FormRouter({
           onSubmit={onSubmit}
           registerSubmit={registerSubmit}
           isGenerating={isGenerating}
+          elementContext={elementContext}
         />
       )
     case 'TABLE':
@@ -138,6 +143,7 @@ function FormRouter({
           onSubmit={onSubmit}
           registerSubmit={registerSubmit}
           isGenerating={isGenerating}
+          elementContext={elementContext}
         />
       )
     case 'CHART':
@@ -146,6 +152,7 @@ function FormRouter({
           onSubmit={onSubmit}
           registerSubmit={registerSubmit}
           isGenerating={isGenerating}
+          elementContext={elementContext}
         />
       )
     case 'IMAGE':
@@ -154,6 +161,7 @@ function FormRouter({
           onSubmit={onSubmit}
           registerSubmit={registerSubmit}
           isGenerating={isGenerating}
+          elementContext={elementContext}
         />
       )
     case 'ICON_LABEL':
@@ -170,6 +178,7 @@ function FormRouter({
           onSubmit={onSubmit}
           registerSubmit={registerSubmit}
           isGenerating={isGenerating}
+          elementContext={elementContext}
         />
       )
     case 'INFOGRAPHIC':
@@ -178,6 +187,7 @@ function FormRouter({
           onSubmit={onSubmit}
           registerSubmit={registerSubmit}
           isGenerating={isGenerating}
+          elementContext={elementContext}
         />
       )
     case 'DIAGRAM':
@@ -186,6 +196,7 @@ function FormRouter({
           onSubmit={onSubmit}
           registerSubmit={registerSubmit}
           isGenerating={isGenerating}
+          elementContext={elementContext}
         />
       )
     default:

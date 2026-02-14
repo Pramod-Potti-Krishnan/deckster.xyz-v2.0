@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { ImageFormData, ImageConfig, TextLabsImageStyle, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE, IMAGE_POSITION_PRESETS } from '@/types/textlabs'
+import { ElementContext } from '../types'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
@@ -59,9 +60,10 @@ interface ImageFormProps {
   onSubmit: (formData: ImageFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  elementContext?: ElementContext | null
 }
 
-export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormProps) {
+export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementContext }: ImageFormProps) {
   const [prompt, setPrompt] = useState('')
   const [count, setCount] = useState(1)
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
@@ -89,6 +91,18 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
   const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
     top: 0, right: 0, bottom: 0, left: 0,
   })
+
+  // Initialize position from canvas context
+  useEffect(() => {
+    if (elementContext) {
+      setStartCol(elementContext.startCol)
+      setStartRow(elementContext.startRow)
+      setWidth(elementContext.width)
+      setHeight(elementContext.height)
+      setSelectedAspectRatio('custom')
+      setSelectedPositionPreset(null)
+    }
+  }, [elementContext])
 
   const applyAspectRatio = useCallback((preset: typeof ASPECT_RATIO_PRESETS[0]) => {
     const fit = scaleToFitAndCenter(preset.ratioW, preset.ratioH)

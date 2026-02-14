@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { InfographicFormData, InfographicConfig, TEXT_LABS_ELEMENT_DEFAULTS, POSITION_PRESETS, GRID_CELL_SIZE } from '@/types/textlabs'
+import { ElementContext } from '../types'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
@@ -17,9 +18,10 @@ interface InfographicFormProps {
   onSubmit: (formData: InfographicFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  elementContext?: ElementContext | null
 }
 
-export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: InfographicFormProps) {
+export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elementContext }: InfographicFormProps) {
   const [prompt, setPrompt] = useState('')
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
@@ -40,6 +42,17 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: Info
   const [startRow, setStartRow] = useState(4)
   const [width, setWidth] = useState(DEFAULTS.width)
   const [height, setHeight] = useState(DEFAULTS.height)
+
+  // Initialize position from canvas context
+  useEffect(() => {
+    if (elementContext) {
+      setStartCol(elementContext.startCol)
+      setStartRow(elementContext.startRow)
+      setWidth(elementContext.width)
+      setHeight(elementContext.height)
+      setPositionPreset('custom')
+    }
+  }, [elementContext])
 
   const [showContent, setShowContent] = useState(true)
   const [showOptions, setShowOptions] = useState(false)

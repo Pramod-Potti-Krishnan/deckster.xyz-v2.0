@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import { ElementContext } from '../types'
 import {
   DiagramFormData,
   TextLabsDiagramSubtype,
@@ -69,9 +70,10 @@ interface DiagramFormProps {
   onSubmit: (formData: DiagramFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  elementContext?: ElementContext | null
 }
 
-export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramFormProps) {
+export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementContext }: DiagramFormProps) {
   const [prompt, setPrompt] = useState('')
   const [subtype, setSubtype] = useState<TextLabsDiagramSubtype>('CODE_DISPLAY')
   const [advancedModified, setAdvancedModified] = useState(false)

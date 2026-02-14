@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { ShapeFormData, ShapeConfig, TextLabsShapeType, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
+import { ElementContext } from '../types'
 import { PromptInput } from '../shared/prompt-input'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
@@ -34,9 +35,10 @@ interface ShapeFormProps {
   onSubmit: (formData: ShapeFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  elementContext?: ElementContext | null
 }
 
-export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormProps) {
+export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementContext }: ShapeFormProps) {
   const [prompt, setPrompt] = useState('')
   const [count, setCount] = useState(1)
   const [shapeType, setShapeType] = useState<TextLabsShapeType>('circle')
@@ -55,6 +57,16 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
   const [y, setY] = useState(180)      // px, 0-1079
   const [widthPx, setWidthPx] = useState(gridToPx(DEFAULTS.width))  // px, 1-1920
   const [heightPx, setHeightPx] = useState(gridToPx(DEFAULTS.height)) // px, 1-1080
+
+  // Initialize from canvas context (grid→pixel)
+  useEffect(() => {
+    if (elementContext) {
+      setX((elementContext.startCol - 1) * GRID_CELL_SIZE)
+      setY((elementContext.startRow - 1) * GRID_CELL_SIZE)
+      setWidthPx(elementContext.width * GRID_CELL_SIZE)
+      setHeightPx(elementContext.height * GRID_CELL_SIZE)
+    }
+  }, [elementContext])
 
   // Padding
   const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({

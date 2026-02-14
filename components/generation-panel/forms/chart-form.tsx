@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { ChartFormData, ChartConfig, TextLabsChartType, TextLabsPositionConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
+import { ElementContext } from '../types'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
@@ -82,9 +83,10 @@ interface ChartFormProps {
   onSubmit: (formData: ChartFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  elementContext?: ElementContext | null
 }
 
-export function ChartForm({ onSubmit, registerSubmit, isGenerating }: ChartFormProps) {
+export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementContext }: ChartFormProps) {
   // Basic fields
   const [prompt, setPrompt] = useState('')
   const [count, setCount] = useState(1)
@@ -113,6 +115,19 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating }: ChartFormP
     position_height: DEFAULTS.height,
     auto_position: false,
   })
+
+  // Initialize position from canvas context
+  useEffect(() => {
+    if (elementContext) {
+      setPositionConfig(prev => ({
+        ...prev,
+        start_col: elementContext.startCol,
+        start_row: elementContext.startRow,
+        position_width: elementContext.width,
+        position_height: elementContext.height,
+      }))
+    }
+  }, [elementContext])
 
   // Validate custom JSON
   const validateCustomData = useCallback((jsonStr: string): unknown[] | null => {

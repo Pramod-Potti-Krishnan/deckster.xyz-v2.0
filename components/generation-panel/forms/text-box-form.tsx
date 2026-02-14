@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { TextBoxFormData, TextBoxConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, recalcTextBoxLimits } from '@/types/textlabs'
+import { ElementContext } from '../types'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
@@ -54,9 +55,10 @@ interface TextBoxFormProps {
   onSubmit: (formData: TextBoxFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  elementContext?: ElementContext | null
 }
 
-export function TextBoxForm({ onSubmit, registerSubmit, isGenerating }: TextBoxFormProps) {
+export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementContext }: TextBoxFormProps) {
   // Basic fields
   const [prompt, setPrompt] = useState('')
   const [count, setCount] = useState(1)
@@ -89,6 +91,19 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating }: TextBoxF
   const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
     top: 0, right: 0, bottom: 0, left: 0,
   })
+
+  // Initialize position from canvas context
+  useEffect(() => {
+    if (elementContext) {
+      setPositionConfig(prev => ({
+        ...prev,
+        start_col: elementContext.startCol,
+        start_row: elementContext.startRow,
+        position_width: elementContext.width,
+        position_height: elementContext.height,
+      }))
+    }
+  }, [elementContext])
 
   const updateConfig = useCallback((field: string, value: unknown) => {
     setConfig(prev => ({ ...prev, [field]: value }))
