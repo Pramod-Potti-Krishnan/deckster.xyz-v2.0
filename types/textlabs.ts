@@ -631,11 +631,16 @@ export function recalcTextBoxLimits(params: {
   const rawItems = Math.floor(availableH / lineH)
   const items_per_instance = Math.max(C.MIN_BULLETS, Math.min(C.MAX_BULLETS, rawItems))
 
+  // Step 11: Tiered multi-line multiplier for body char limits
+  const multiplier = items_per_instance <= 7 ? 1 : items_per_instance <= 15 ? 2 : 3
+  const item_max_chars_scaled = Math.min(C.MAX_BODY_CHARS, item_max_chars * multiplier)
+  const item_min_chars_scaled = Math.max(C.MIN_CHARS, item_min_chars * multiplier)
+
   return {
     title_min_chars,
     title_max_chars,
-    item_min_chars,
-    item_max_chars,
+    item_min_chars: item_min_chars_scaled,
+    item_max_chars: item_max_chars_scaled,
     items_per_instance,
   }
 }

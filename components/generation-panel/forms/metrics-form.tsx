@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { MetricsFormData, MetricsConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
@@ -86,6 +86,22 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating }: MetricsF
     setConfig(prev => ({ ...prev, [field]: value }))
     setAdvancedModified(true)
   }, [])
+
+  // Auto-update font colors when color scheme changes (only null/auto colors)
+  const prevSchemeRef = useRef(config.color_scheme)
+  useEffect(() => {
+    if (prevSchemeRef.current === config.color_scheme) return
+    prevSchemeRef.current = config.color_scheme
+    const isDarkBg = config.color_scheme === 'gradient' || config.color_scheme === 'solid'
+    const autoColor = isDarkBg ? '#FFFFFF' : '#1F2937'
+    setConfig(prev => ({
+      ...prev,
+      value_font_color: prev.value_font_color === null ? autoColor : prev.value_font_color,
+      label_font_color: prev.label_font_color === null ? autoColor : prev.label_font_color,
+      desc_font_color: prev.desc_font_color === null ? autoColor : prev.desc_font_color,
+    }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.color_scheme])
 
   const handleSubmit = useCallback(() => {
     const formData: MetricsFormData = {

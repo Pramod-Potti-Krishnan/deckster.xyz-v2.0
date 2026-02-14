@@ -56,9 +56,11 @@ function rebuildColumnWidths(
 ): number[] {
   const totalPx = positionWidth * GRID_CELL_SIZE
   if (colBalance === 'data') {
-    const equalPct = Math.floor(100 / columns)
-    const widths = Array(columns).fill(equalPct)
-    widths[0] += 100 - equalPct * columns // absorb remainder
+    const minFirstPct = Math.max(10, Math.floor(100 / (columns * 2)))
+    const restPct = Math.floor((100 - minFirstPct) / Math.max(1, columns - 1))
+    const widths = [minFirstPct]
+    for (let i = 1; i < columns; i++) widths.push(restPct)
+    widths[widths.length - 1] += 100 - widths.reduce((a, b) => a + b, 0)
     return widths
   }
   // descriptive: first column gets 40%, rest split evenly
@@ -254,6 +256,9 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating }: TableFormP
                   />
                 </div>
               ))}
+            </div>
+            <div className="text-[10px] text-gray-500">
+              Total: {columnWidths.reduce((a, b) => a + b, 0)}% / {positionConfig.position_width} grids
             </div>
           </div>
 
