@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import { GenerationPanelHeader } from './header'
 import { GenerationPanelFooter } from './footer'
@@ -35,6 +35,25 @@ export function GenerationPanel({
   const handleFooterGenerate = useCallback(() => {
     submitFnRef.current?.()
   }, [])
+
+  // Keyboard shortcuts: Escape to close, Cmd/Ctrl+Enter to generate
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isGenerating) {
+        e.preventDefault()
+        onClose()
+      }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !isGenerating) {
+        e.preventDefault()
+        submitFnRef.current?.()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, isGenerating, onClose])
 
   return (
     <div

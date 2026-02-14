@@ -50,6 +50,7 @@ import { FileUploadButton } from '@/components/file-upload-button'
 import { FileChip } from '@/components/file-chip'
 import { useFileUpload } from '@/hooks/use-file-upload'
 import { features } from '@/lib/config'
+import { useToast } from '@/hooks/use-toast'
 import { FormatPanel } from '@/components/format-panel'
 import { SlideLayoutId } from '@/components/slide-layout-picker'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
@@ -301,6 +302,9 @@ function BuilderContent() {
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
   } | null>(null)
   const [isAIRegenerating, setIsAIRegenerating] = useState(false)
+
+  // Toast notifications
+  const { toast } = useToast()
 
   // Text Labs Generation Panel
   const generationPanel = useGenerationPanel()
@@ -1339,6 +1343,10 @@ function BuilderContent() {
     generationPanel.setIsGenerating(true)
     generationPanel.setError(null)
 
+    // 30-second timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+
     try {
       // Ensure session exists
       const sessionId = await textLabsSession.ensureSession()
@@ -1384,17 +1392,29 @@ function BuilderContent() {
         await layoutServiceApis?.sendElementCommand(command, params as Record<string, any>)
       }
 
-      // Close panel on success
+      // Success: close panel and show toast
       generationPanel.closePanel()
+      toast({
+        title: 'Element generated',
+        description: `${formData.componentType.replace(/_/g, ' ')} added to slide`,
+      })
       console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Generation failed'
-      generationPanel.setError(message)
+      let errorMessage = 'Generation failed'
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        errorMessage = 'Generation timed out after 30 seconds. Try again or simplify your prompt.'
+      } else if (err instanceof TypeError && err.message.includes('fetch')) {
+        errorMessage = 'Network error. Check your connection and try again.'
+      } else if (err instanceof Error) {
+        errorMessage = err.message
+      }
+      generationPanel.setError(errorMessage)
       console.error('[TextLabs] Generation error:', err)
     } finally {
+      clearTimeout(timeoutId)
       generationPanel.setIsGenerating(false)
     }
-  }, [generationPanel, textLabsSession, layoutServiceApis])
+  }, [generationPanel, textLabsSession, layoutServiceApis, toast])
 
   // Handle opening generation panel from toolbar
   const handleOpenGenerationPanel = useCallback((type: string) => {
@@ -2428,16 +2448,18 @@ function BuilderContent() {
           </div>
 
           {/* Generation Panel - Conditional, between chat and presentation */}
-          <GenerationPanel
-            isOpen={generationPanel.isOpen}
-            elementType={generationPanel.elementType}
-            onClose={generationPanel.closePanel}
-            onGenerate={handleTextLabsGenerate}
-            onElementTypeChange={generationPanel.changeElementType}
-            isGenerating={generationPanel.isGenerating}
-            error={generationPanel.error}
-            slideIndex={1}
-          />
+          {features.useTextLabsGeneration && (
+            <GenerationPanel
+              isOpen={generationPanel.isOpen}
+              elementType={generationPanel.elementType}
+              onClose={generationPanel.closePanel}
+              onGenerate={handleTextLabsGenerate}
+              onElementTypeChange={generationPanel.changeElementType}
+              isGenerating={generationPanel.isGenerating}
+              error={generationPanel.error}
+              slideIndex={1}
+            />
+          )}
 
           {/* Right Panel - Presentation Display (flex-1) */}
           <div className="flex-1 flex flex-col bg-gray-100">
@@ -2499,7 +2521,7 @@ function BuilderContent() {
                   setIsElementPanelCollapsed(false)
                 }}
                 onApiReady={setLayoutServiceApis}
-                onOpenGenerationPanel={handleOpenGenerationPanel}
+                onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
                 className="flex-1"
               />
             ) : (

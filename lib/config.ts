@@ -35,6 +35,10 @@ export const config = {
     // When true: Connect immediately, show blank presentation, enable all tools
     // When false: Original behavior - wait for user message before connecting
     immediateConnection: process.env.NEXT_PUBLIC_IMMEDIATE_CONNECTION !== 'false',
+    // Text Labs Generation Panel
+    // When true: Toolbar buttons open the GenerationPanel (Text Labs unified API)
+    // When false: Toolbar buttons use legacy Elementor per-element endpoints
+    useTextLabsGeneration: process.env.NEXT_PUBLIC_USE_TEXTLABS_GENERATION !== 'false',
   },
 
   // File Upload Configuration
