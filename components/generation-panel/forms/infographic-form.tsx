@@ -1,12 +1,17 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { InfographicFormData, InfographicConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
+import { InfographicFormData, InfographicConfig, TEXT_LABS_ELEMENT_DEFAULTS, POSITION_PRESETS, GRID_CELL_SIZE } from '@/types/textlabs'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
+import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.INFOGRAPHIC
+
+function calculateGCD(a: number, b: number): number {
+  return b === 0 ? a : calculateGCD(b, a % b)
+}
 
 interface InfographicFormProps {
   onSubmit: (formData: InfographicFormData) => void
@@ -16,11 +21,11 @@ interface InfographicFormProps {
 
 export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: InfographicFormProps) {
   const [prompt, setPrompt] = useState('')
-  const [count, setCount] = useState(1)
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [advancedModified, setAdvancedModified] = useState(false)
+  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
 
   // Config
   const [aspectRatio, setAspectRatio] = useState<InfographicConfig['aspect_ratio']>('auto')
@@ -29,7 +34,8 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: Info
   const [targetBackground, setTargetBackground] = useState<InfographicConfig['target_background']>('light')
   const [fillInternal, setFillInternal] = useState(false)
 
-  // Position
+  // Position (with preset support)
+  const [positionPreset, setPositionPreset] = useState('full')
   const [startCol, setStartCol] = useState(2)
   const [startRow, setStartRow] = useState(4)
   const [width, setWidth] = useState(DEFAULTS.width)
@@ -37,6 +43,17 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: Info
 
   const [showOptions, setShowOptions] = useState(false)
   const [showPosition, setShowPosition] = useState(false)
+
+  const applyPositionPreset = useCallback((key: string) => {
+    const preset = POSITION_PRESETS[key]
+    if (!preset) return
+    setPositionPreset(key)
+    setStartCol(preset.start_col)
+    setStartRow(preset.start_row)
+    setWidth(preset.width)
+    setHeight(preset.height)
+    setAdvancedModified(true)
+  }, [])
 
   const handleSubmit = useCallback(() => {
     const gridRow = `${startRow}/${startRow + height}`
@@ -64,19 +81,25 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: Info
     const formData: InfographicFormData = {
       componentType: 'INFOGRAPHIC',
       prompt: prompt || defaultPrompt,
-      count,
+      count: 1, // Backend hides count for INFOGRAPHIC
       layout: 'horizontal',
       advancedModified,
-      z_index: DEFAULTS.zIndex,
+      z_index: zIndex,
       infographicConfig,
       referenceImage,
     }
     onSubmit(formData)
-  }, [prompt, count, contentSource, referenceImage, aspectRatio, segments, cropMode, targetBackground, fillInternal, startCol, startRow, width, height, advancedModified, onSubmit])
+  }, [prompt, contentSource, referenceImage, aspectRatio, segments, cropMode, targetBackground, fillInternal, startCol, startRow, width, height, advancedModified, zIndex, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
   }, [registerSubmit, handleSubmit])
+
+  // Pixel + aspect ratio display
+  const pixelW = width * GRID_CELL_SIZE
+  const pixelH = height * GRID_CELL_SIZE
+  const gcd = calculateGCD(pixelW, pixelH)
+  const displayAspect = `${pixelW / gcd}:${pixelH / gcd}`
 
   return (
     <div className="space-y-4">
@@ -134,24 +157,10 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: Info
         />
       </div>
 
-      {/* Count */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-300">Count</label>
-        <select
-          value={count}
-          onChange={(e) => setCount(Number(e.target.value))}
-          className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
-        >
-          {[1, 2].map(n => (
-            <option key={n} value={n}>{n}</option>
-          ))}
-        </select>
-      </div>
-
       {/* Options */}
       <CollapsibleSection title="Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>
         <div className="space-y-3">
-          {/* Aspect Ratio */}
+          {/* Aspect Ratio (with 9:16) */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-gray-300">Aspect Ratio</label>
             <select
@@ -164,10 +173,11 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: Info
               <option value="4:3">4:3</option>
               <option value="1:1">1:1</option>
               <option value="3:2">3:2</option>
+              <option value="9:16">9:16</option>
             </select>
           </div>
 
-          {/* Segments */}
+          {/* Segments (1-8) */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-gray-300">Segments</label>
             <select
@@ -176,20 +186,20 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: Info
               className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
             >
               <option value="auto">Auto</option>
-              {['3', '4', '5', '6', '7', '8'].map(n => (
+              {['1', '2', '3', '4', '5', '6', '7', '8'].map(n => (
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>
           </div>
 
-          {/* Crop Mode */}
+          {/* Crop Mode (shape/rectangle) */}
           <ToggleRow
             label="Crop Mode"
             field="crop_mode"
             value={cropMode}
             options={[
               { value: 'shape', label: 'Shape' },
-              { value: 'full', label: 'Full' },
+              { value: 'rectangle', label: 'Rectangle' },
             ]}
             onChange={(_, v) => { setCropMode(v as InfographicConfig['crop_mode']); setAdvancedModified(true) }}
           />
@@ -222,25 +232,58 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: Info
 
       {/* Position */}
       <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(!showPosition)}>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { label: 'Col', value: startCol, setter: setStartCol, min: 1, max: 32 },
-            { label: 'Row', value: startRow, setter: setStartRow, min: 1, max: 18 },
-            { label: 'Width', value: width, setter: setWidth, min: 1, max: 32 },
-            { label: 'Height', value: height, setter: setHeight, min: 1, max: 18 },
-          ].map(({ label, value, setter, min, max }) => (
-            <div key={label} className="space-y-1">
-              <label className="text-[10px] text-gray-500">{label}</label>
-              <input
-                type="number"
-                value={value}
-                min={min}
-                max={max}
-                onChange={(e) => { setter(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
-              />
+        <div className="space-y-3">
+          {/* 9 Position Presets */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] text-gray-500">Presets</label>
+            <div className="grid grid-cols-3 gap-1">
+              {Object.entries(POSITION_PRESETS).map(([key, preset]) => (
+                <button
+                  key={key}
+                  onClick={() => applyPositionPreset(key)}
+                  className={`px-1.5 py-1 rounded text-[10px] transition-colors ${
+                    positionPreset === key
+                      ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
+                      : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:bg-gray-700'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+
+          {/* Size display */}
+          <div className="text-[10px] text-gray-500">
+            Size: {width} x {height} grid ({pixelW} x {pixelH}px) &mdash; Aspect: {displayAspect}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: 'Col', value: startCol, setter: setStartCol, min: 1, max: 32 },
+              { label: 'Row', value: startRow, setter: setStartRow, min: 1, max: 18 },
+              { label: 'Width', value: width, setter: setWidth, min: 1, max: 32 },
+              { label: 'Height', value: height, setter: setHeight, min: 1, max: 18 },
+            ].map(({ label, value, setter, min, max }) => (
+              <div key={label} className="space-y-1">
+                <label className="text-[10px] text-gray-500">{label}</label>
+                <input
+                  type="number"
+                  value={value}
+                  min={min}
+                  max={max}
+                  onChange={(e) => { setter(Number(e.target.value)); setPositionPreset('custom'); setAdvancedModified(true) }}
+                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+                />
+              </div>
+            ))}
+          </div>
+
+          <ZIndexInput
+            value={zIndex}
+            onChange={setZIndex}
+            onAdvancedModified={() => setAdvancedModified(true)}
+          />
         </div>
       </CollapsibleSection>
     </div>
