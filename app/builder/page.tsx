@@ -315,6 +315,11 @@ function BuilderContent() {
   const blankElements = useBlankElements()
   const textLabsSession = useTextLabsSession(presentationId)
 
+  // Track active blank element for real-time canvas↔modal position sync
+  useEffect(() => {
+    blankElements.trackElement(generationPanel.blankElementId)
+  }, [generationPanel.blankElementId, blankElements])
+
   // FIXED: Track when generating final presentation to show loading animation
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
   const [isGeneratingStrawman, setIsGeneratingStrawman] = useState(false)
@@ -1905,11 +1910,7 @@ function BuilderContent() {
                 isGenerating={generationPanel.isGenerating}
                 error={generationPanel.error}
                 slideIndex={currentSlideIndex}
-                elementContext={
-                  generationPanel.blankElementId
-                    ? blankElements.getElement(generationPanel.blankElementId) ?? null
-                    : null
-                }
+                elementContext={blankElements.activePosition}
               />
             )}
 
