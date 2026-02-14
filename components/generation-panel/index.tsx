@@ -9,6 +9,8 @@ import { MetricsForm } from './forms/metrics-form'
 import { TableForm } from './forms/table-form'
 import { ChartForm } from './forms/chart-form'
 import { ImageForm } from './forms/image-form'
+import { IconLabelForm } from './forms/icon-label-form'
+import { ShapeForm } from './forms/shape-form'
 import { GenerationPanelProps } from './types'
 
 export function GenerationPanel({
@@ -126,9 +128,22 @@ function FormRouter({
           isGenerating={isGenerating}
         />
       )
-    // Phase 4
     case 'ICON_LABEL':
+      return (
+        <IconLabelForm
+          onSubmit={onSubmit}
+          registerSubmit={registerSubmit}
+          isGenerating={isGenerating}
+        />
+      )
     case 'SHAPE':
+      return (
+        <ShapeForm
+          onSubmit={onSubmit}
+          registerSubmit={registerSubmit}
+          isGenerating={isGenerating}
+        />
+      )
     // Phase 5
     case 'INFOGRAPHIC':
     case 'DIAGRAM':

@@ -224,9 +224,9 @@ export interface ImageConfig {
 
 export interface IconLabelConfig {
   mode: 'icon' | 'label'
-  size: 'xs' | 's' | 'm' | 'l'
-  style: 'flat' | 'outlined' | 'gradient' | 'glyph' | 'duotone' | 'isometric'
-  font: 'sans' | 'serif' | 'mono' | 'display'
+  size: 'xs' | 'small' | 'medium' | 'large'
+  style: 'flat' | 'pastel' | 'circle' | 'square' | 'circle-outline' | 'square-outline'
+  font: 'poppins' | 'inter' | 'playfair' | 'roboto_mono'
   color: string | null
 }
 
@@ -235,22 +235,39 @@ export interface IconLabelConfig {
 // ============================================================================
 
 export type TextLabsShapeType =
-  | 'circle' | 'square' | 'rectangle' | 'triangle' | 'diamond'
-  | 'pentagon' | 'hexagon' | 'octagon' | 'star' | 'heart'
-  | 'arrow_right' | 'arrow_left' | 'arrow_up' | 'arrow_down'
-  | 'chevron_right' | 'chevron_left'
-  | 'parallelogram' | 'trapezoid' | 'ellipse' | 'cross'
-  | 'ring' | 'semicircle' | 'arc' | 'polygon' | 'custom'
+  // Basic
+  | 'circle' | 'ellipse' | 'square' | 'rectangle' | 'triangle'
+  // Polygons
+  | 'pentagon' | 'hexagon' | 'heptagon' | 'octagon' | 'polygon'
+  // Quadrilaterals
+  | 'rhombus' | 'parallelogram' | 'trapezoid' | 'kite'
+  // Special
+  | 'star' | 'cross' | 'arrow' | 'heart' | 'cloud' | 'crescent' | 'doughnut'
+  // Lines
+  | 'line-horizontal' | 'line-vertical' | 'line-diagonal'
+  // AI Generated
+  | 'custom'
 
 export interface ShapeConfig {
-  shape_type: TextLabsShapeType
-  sides: number           // 3-12, only for polygon
+  shape_type: TextLabsShapeType | null   // null when custom
+  prompt: string | null                  // used when custom shape
+  sides: number | null                   // 3-12, only for polygon
   fill_color: string
   stroke_color: string
   stroke_width: number
   opacity: number         // 0-1
   rotation: number        // degrees
-  size: number            // pixels
+  size: 'small' | 'medium' | 'large'
+  // Grid-based positioning
+  start_col: number
+  start_row: number
+  position_width: number
+  position_height: number
+  // Pixel-based positioning (derived from grid)
+  x: number
+  y: number
+  width_px: number
+  height_px: number
 }
 
 // ============================================================================

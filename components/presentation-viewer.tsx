@@ -22,7 +22,9 @@ import {
   Pencil,
   Settings,
   Palette,
-  TrendingUp
+  TrendingUp,
+  Tag,
+  Pentagon
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -1727,9 +1729,31 @@ export function PresentationViewer({
               <span className="text-[10px] text-gray-500">Image</span>
             </button>
 
+            {/* Icon/Label */}
+            <button
+              onClick={() => onOpenGenerationPanel?.('ICON_LABEL')}
+              disabled={!presentationUrl || !onOpenGenerationPanel}
+              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Insert icon or label"
+            >
+              <Tag className="h-5 w-5 text-gray-700" />
+              <span className="text-[10px] text-gray-500">Icon</span>
+            </button>
+
+            {/* Shape */}
+            <button
+              onClick={() => onOpenGenerationPanel?.('SHAPE')}
+              disabled={!presentationUrl || !onOpenGenerationPanel}
+              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Insert shape"
+            >
+              <Pentagon className="h-5 w-5 text-gray-700" />
+              <span className="text-[10px] text-gray-500">Shape</span>
+            </button>
+
             {/* Infographic */}
             <button
-              onClick={handleInsertInfographic}
+              onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('INFOGRAPHIC') : handleInsertInfographic()}
               disabled={!presentationUrl}
               className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Insert infographic"
@@ -1740,7 +1764,7 @@ export function PresentationViewer({
 
             {/* Diagram */}
             <button
-              onClick={handleInsertDiagram}
+              onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('DIAGRAM') : handleInsertDiagram()}
               disabled={!presentationUrl}
               className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Insert diagram (Mermaid)"
