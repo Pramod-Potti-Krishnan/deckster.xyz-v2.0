@@ -1686,10 +1686,24 @@ export function PresentationViewer({
             </button>
 
             {/* Chart */}
-            <ChartPickerPopover
-              onInsertChart={handleInsertChart}
-              disabled={!presentationUrl}
-            />
+            {onOpenGenerationPanel ? (
+              <button
+                onClick={() => onOpenGenerationPanel('CHART')}
+                disabled={!presentationUrl}
+                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Insert chart"
+              >
+                <svg className="h-5 w-5 text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
+                </svg>
+                <span className="text-[10px] text-gray-500">Chart</span>
+              </button>
+            ) : (
+              <ChartPickerPopover
+                onInsertChart={handleInsertChart}
+                disabled={!presentationUrl}
+              />
+            )}
 
             {/* Text Box */}
             <button
@@ -1704,7 +1718,7 @@ export function PresentationViewer({
 
             {/* Image */}
             <button
-              onClick={handleInsertImage}
+              onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('IMAGE') : handleInsertImage()}
               disabled={!presentationUrl}
               className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               title="Insert image (AI generated)"

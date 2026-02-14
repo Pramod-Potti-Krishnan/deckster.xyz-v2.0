@@ -182,14 +182,14 @@ export interface TableConfig {
 export type TextLabsChartType =
   | 'line' | 'bar_vertical' | 'bar_horizontal' | 'pie' | 'doughnut'
   | 'scatter' | 'bubble' | 'radar' | 'polar_area' | 'area'
-  | 'area_stacked' | 'bar_grouped' | 'bar_stacked' | 'waterfall' | 'gauge'
+  | 'area_stacked' | 'bar_grouped' | 'bar_stacked' | 'waterfall' | 'treemap'
 
 export interface ChartConfig {
   chart_type: TextLabsChartType
   include_insights: boolean
-  series_names: string | null     // comma-separated
-  data_source: 'ai' | 'custom'
-  custom_data: string | null      // JSON string
+  series_names: string[]          // parsed from comma-separated input
+  placeholder_mode: boolean
+  data: unknown[] | null          // null = AI generates, array = custom JSON data
 }
 
 // ============================================================================
@@ -197,24 +197,25 @@ export interface ChartConfig {
 // ============================================================================
 
 export type TextLabsImageStyle =
-  | 'realistic' | 'illustration' | 'watercolor' | 'oil_painting'
-  | 'pencil_sketch' | 'digital_art' | 'pop_art' | 'minimalist'
-  | 'isometric' | 'flat_design'
+  | 'realistic' | 'illustration' | 'watercolor' | '3d_render'
+  | 'flat_design' | 'minimalist' | 'abstract' | 'photographic'
+  | 'cinematic' | 'artistic'
 
 export interface ImageConfig {
   style: TextLabsImageStyle
   quality: 'standard' | 'hd'
   corners: 'square' | 'rounded' | 'pill'
   border: boolean
-  aspect_ratio: '16:9' | '4:3' | '1:1' | '9:16' | '3:2' | 'custom'
-  custom_width: number | null
-  custom_height: number | null
-  // IMAGE embeds position inside imageConfig
+  placeholder_mode: boolean
+  auto_position: boolean
+  // IMAGE embeds position inside imageConfig (no separate position_config)
   start_col: number
   start_row: number
-  position_width: number
-  position_height: number
-  auto_position: boolean
+  width: number               // grid units
+  height: number              // grid units
+  grid_row: string            // CSS Grid format: "start_row/end_row"
+  grid_column: string         // CSS Grid format: "start_col/end_col"
+  aspect_ratio: string        // GCD-reduced, e.g. "12:7"
 }
 
 // ============================================================================

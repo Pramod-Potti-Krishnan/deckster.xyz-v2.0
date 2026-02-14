@@ -206,7 +206,12 @@ export function buildApiPayload(
     options.paddingConfig = paddingConfig
   }
 
-  // Attach element-specific config
+  // IMAGE always sends its config (position is embedded in imageConfig, not separate)
+  if (formData.componentType === 'IMAGE') {
+    options.imageConfig = formData.imageConfig as Record<string, unknown>
+  }
+
+  // Attach element-specific config when user modified advanced settings
   if (advancedModified) {
     switch (formData.componentType) {
       case 'TEXT_BOX':
@@ -223,7 +228,7 @@ export function buildApiPayload(
         options.chartConfig = formData.chartConfig as Record<string, unknown>
         break
       case 'IMAGE':
-        options.imageConfig = formData.imageConfig as Record<string, unknown>
+        // Already handled above
         break
       case 'ICON_LABEL':
         options.iconLabelConfig = formData.iconLabelConfig as Record<string, unknown>

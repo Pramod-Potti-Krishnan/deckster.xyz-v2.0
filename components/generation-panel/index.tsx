@@ -7,6 +7,8 @@ import { GenerationPanelFooter } from './footer'
 import { TextBoxForm } from './forms/text-box-form'
 import { MetricsForm } from './forms/metrics-form'
 import { TableForm } from './forms/table-form'
+import { ChartForm } from './forms/chart-form'
+import { ImageForm } from './forms/image-form'
 import { GenerationPanelProps } from './types'
 
 export function GenerationPanel({
@@ -108,9 +110,22 @@ function FormRouter({
           isGenerating={isGenerating}
         />
       )
-    // Phase 3
     case 'CHART':
+      return (
+        <ChartForm
+          onSubmit={onSubmit}
+          registerSubmit={registerSubmit}
+          isGenerating={isGenerating}
+        />
+      )
     case 'IMAGE':
+      return (
+        <ImageForm
+          onSubmit={onSubmit}
+          registerSubmit={registerSubmit}
+          isGenerating={isGenerating}
+        />
+      )
     // Phase 4
     case 'ICON_LABEL':
     case 'SHAPE':
