@@ -11,6 +11,8 @@ import { ChartForm } from './forms/chart-form'
 import { ImageForm } from './forms/image-form'
 import { IconLabelForm } from './forms/icon-label-form'
 import { ShapeForm } from './forms/shape-form'
+import { InfographicForm } from './forms/infographic-form'
+import { DiagramForm } from './forms/diagram-form'
 import { GenerationPanelProps } from './types'
 
 export function GenerationPanel({
@@ -144,15 +146,21 @@ function FormRouter({
           isGenerating={isGenerating}
         />
       )
-    // Phase 5
     case 'INFOGRAPHIC':
+      return (
+        <InfographicForm
+          onSubmit={onSubmit}
+          registerSubmit={registerSubmit}
+          isGenerating={isGenerating}
+        />
+      )
     case 'DIAGRAM':
       return (
-        <div className="flex items-center justify-center py-8">
-          <p className="text-sm text-gray-500">
-            {elementType} form coming soon
-          </p>
-        </div>
+        <DiagramForm
+          onSubmit={onSubmit}
+          registerSubmit={registerSubmit}
+          isGenerating={isGenerating}
+        />
       )
     default:
       return null

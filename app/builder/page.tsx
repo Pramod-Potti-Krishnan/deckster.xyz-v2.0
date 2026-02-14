@@ -60,7 +60,7 @@ import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
 import { TextLabsFormData, TextLabsComponentType } from '@/types/textlabs'
-import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams } from '@/lib/textlabs-client'
+import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, generateInfographic } from '@/lib/textlabs-client'
 import {
   ContentContextForm,
   ContentContext,
@@ -1343,11 +1343,20 @@ function BuilderContent() {
       // Ensure session exists
       const sessionId = await textLabsSession.ensureSession()
 
-      // Build API payload
-      const { message, options } = buildApiPayload(sessionId, formData)
-
-      // Call Text Labs API
-      const response = await sendTextLabsMessage(sessionId, message, options)
+      // Build API payload and call Text Labs API
+      let response
+      if (formData.componentType === 'INFOGRAPHIC' && formData.referenceImage) {
+        // Multipart upload for infographic with reference image
+        response = await generateInfographic(
+          sessionId,
+          formData.prompt,
+          formData.referenceImage,
+          formData.infographicConfig as Record<string, unknown>
+        )
+      } else {
+        const { message, options } = buildApiPayload(sessionId, formData)
+        response = await sendTextLabsMessage(sessionId, message, options)
+      }
 
       if (response.error) {
         throw new Error(response.error)

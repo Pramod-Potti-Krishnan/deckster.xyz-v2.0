@@ -275,12 +275,19 @@ export interface ShapeConfig {
 // ============================================================================
 
 export interface InfographicConfig {
-  aspect_ratio: '16:9' | '4:3' | '1:1' | 'custom'
-  segments: number
-  crop_mode: 'fit' | 'fill' | 'stretch'
-  target_background: string | null
+  aspect_ratio: 'auto' | '16:9' | '4:3' | '1:1' | '3:2'
+  segments: 'auto' | '3' | '4' | '5' | '6' | '7' | '8'
+  crop_mode: 'shape' | 'full'
+  target_background: 'light' | 'dark'
   fill_internal: boolean
   placeholder_mode: boolean
+  // Position (embedded like IMAGE)
+  grid_row: string
+  grid_column: string
+  start_col: number
+  start_row: number
+  width: number
+  height: number
 }
 
 // ============================================================================
@@ -289,37 +296,36 @@ export interface InfographicConfig {
 
 export interface CodeDisplayConfig {
   language: string
-  color_theme: 'dark' | 'light' | 'monokai' | 'github'
+  color_theme: 'github_dark' | 'github_light' | 'monokai' | 'dracula' | 'solarized' | 'nord'
   text_size: 'small' | 'medium' | 'large'
   show_line_numbers: boolean
   show_copy_button: boolean
   corner_style: 'rounded' | 'square'
-  size: 'compact' | 'standard' | 'large'
-  position_preset: string
+  position_preset: string        // Mapped from size + position (e.g., 'full_content', 'left_half')
 }
 
 export interface KanbanConfig {
   column_count: number    // 3-6
-  theme: string
+  theme: 'default' | 'dark' | 'minimal'
   position_preset: string
 }
 
 export interface GanttConfig {
   time_unit: 'days' | 'weeks' | 'months' | 'quarters'
-  theme: string
+  theme: 'default' | 'dark' | 'minimal'
   position_preset: string
 }
 
 export interface ChevronConfig {
   num_stages: number      // 3-7
-  theme: string
-  time_unit: 'days' | 'weeks' | 'months' | 'quarters'
+  theme: 'default' | 'dark' | 'minimal'
+  time_unit: 'months' | 'quarters' | 'years'
   position_preset: string
 }
 
 export interface IdeaBoardConfig {
-  axis_preset: 'impact_effort' | 'value_complexity' | 'risk_reward' | 'custom'
-  theme: string
+  axis_preset: 'impact_urgency' | 'impact_effort' | 'risk_reward' | 'custom'
+  theme: 'default' | 'dark' | 'minimal'
   position_preset: string
 }
 
