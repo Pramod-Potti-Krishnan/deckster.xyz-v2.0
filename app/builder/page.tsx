@@ -1370,6 +1370,11 @@ function BuilderContent() {
     const blankId = generationPanel.blankElementId
     const blankInfo = blankId ? blankElements.getElement(blankId) : null
 
+    // Track current element ID locally — React state updates are async,
+    // so we can't re-read generationPanel.blankElementId after spinner swap
+    let currentBlankId = blankId
+    let currentBlankInfo = blankInfo
+
     // If blank element exists, override position from canvas and force count=1
     if (blankInfo) {
       formData.count = 1
@@ -1426,15 +1431,14 @@ function BuilderContent() {
           blankElements.removeElement(blankId)
           blankElements.addElement({ ...blankInfo, elementId: newId, status: 'generating' })
           generationPanel.openPanelForElement(formData.componentType as TextLabsComponentType, newId)
+          // Update local tracking vars synchronously
+          currentBlankId = newId
+          currentBlankInfo = { ...blankInfo, elementId: newId }
         }
       } catch (err) {
         console.warn('[TextLabs] Failed to update blank to spinner:', err)
       }
     }
-
-    // Re-read blankId in case it changed during spinner swap
-    const effectiveBlankId = generationPanel.blankElementId
-    const effectiveBlankInfo = effectiveBlankId ? blankElements.getElement(effectiveBlankId) : blankInfo
 
     // 30-second timeout
     const controller = new AbortController()
@@ -1471,19 +1475,17 @@ function BuilderContent() {
       }
 
       // If blank element exists (now showing spinner), delete it before inserting generated content
-      const deleteBlankId = effectiveBlankId || blankId
-      const deleteBlankInfo = effectiveBlankInfo || blankInfo
-      if (deleteBlankId && deleteBlankInfo && layoutServiceApis?.sendElementCommand) {
+      if (currentBlankId && currentBlankInfo && layoutServiceApis?.sendElementCommand) {
         try {
-          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: deleteBlankId })
+          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: currentBlankId })
         } catch (err) {
           console.warn('[TextLabs] Failed to delete blank placeholder:', err)
         }
-        blankElements.removeElement(deleteBlankId)
+        blankElements.removeElement(currentBlankId)
       }
 
       // Insert each element into the canvas
-      const effectiveSlideIndex = deleteBlankInfo?.slideIndex ?? currentSlideIndex
+      const effectiveSlideIndex = currentBlankInfo?.slideIndex ?? currentSlideIndex
       for (const element of elements) {
         const { method, params } = buildInsertionParams(
           element.component_type,
@@ -1519,32 +1521,30 @@ function BuilderContent() {
       console.error('[TextLabs] Generation error:', err)
 
       // Restore placeholder on failure (spinner → placeholder)
-      const restoreId = effectiveBlankId || blankId
-      const restoreInfo = effectiveBlankInfo || blankInfo
-      if (restoreId && restoreInfo && layoutServiceApis?.sendElementCommand) {
-        blankElements.setStatus(restoreId, 'blank')
-        const placeholderHtml = buildPlaceholderHtml(restoreId, formData.componentType)
-        const gridRow = `${restoreInfo.startRow}/${restoreInfo.startRow + restoreInfo.height}`
-        const gridColumn = `${restoreInfo.startCol}/${restoreInfo.startCol + restoreInfo.width}`
+      if (currentBlankId && currentBlankInfo && layoutServiceApis?.sendElementCommand) {
+        blankElements.setStatus(currentBlankId, 'blank')
+        const placeholderHtml = buildPlaceholderHtml(currentBlankId, formData.componentType)
+        const gridRow = `${currentBlankInfo.startRow}/${currentBlankInfo.startRow + currentBlankInfo.height}`
+        const gridColumn = `${currentBlankInfo.startCol}/${currentBlankInfo.startCol + currentBlankInfo.width}`
         try {
-          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: restoreId })
+          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: currentBlankId })
           const restoreResponse = await layoutServiceApis.sendElementCommand('insertTextBox', {
-            elementId: restoreId,
-            slideIndex: restoreInfo.slideIndex,
+            elementId: currentBlankId,
+            slideIndex: currentBlankInfo.slideIndex,
             content: placeholderHtml,
             gridRow,
             gridColumn,
-            positionWidth: restoreInfo.width,
-            positionHeight: restoreInfo.height,
+            positionWidth: currentBlankInfo.width,
+            positionHeight: currentBlankInfo.height,
             zIndex: 10,
             draggable: true,
             resizable: true,
             skipAutoSize: true,
           })
           const newId = restoreResponse?.elementId
-          if (newId && newId !== restoreId) {
-            blankElements.removeElement(restoreId)
-            blankElements.addElement({ ...restoreInfo, elementId: newId, status: 'blank' })
+          if (newId && newId !== currentBlankId) {
+            blankElements.removeElement(currentBlankId)
+            blankElements.addElement({ ...currentBlankInfo, elementId: newId, status: 'blank' })
             generationPanel.openPanelForElement(formData.componentType as TextLabsComponentType, newId)
           }
         } catch (restoreErr) {
