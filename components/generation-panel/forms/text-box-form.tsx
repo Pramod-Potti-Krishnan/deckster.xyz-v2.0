@@ -1,10 +1,14 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
-import { TextBoxFormData, TextBoxConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import { TextBoxFormData, TextBoxConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, recalcTextBoxLimits } from '@/types/textlabs'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
+import { FontOverrideSection } from '../shared/font-override-section'
+import { PositionPresets } from '../shared/position-presets'
+import { PaddingControl } from '../shared/padding-control'
+import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TEXT_BOX
 
@@ -56,18 +60,21 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating }: TextBoxF
   // Basic fields
   const [prompt, setPrompt] = useState('')
   const [count, setCount] = useState(1)
-  const [itemsPerInstance, setItemsPerInstance] = useState(3)
-  const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
+  const [layout, setLayout] = useState<'horizontal' | 'vertical' | 'grid'>('horizontal')
+  const [gridCols, setGridCols] = useState(2)
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
 
   // Advanced config
   const [config, setConfig] = useState<TextBoxConfig>({ ...DEFAULT_TEXTBOX_CONFIG })
   const [advancedModified, setAdvancedModified] = useState(false)
+  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
 
   // Section visibility
-  const [showEssential, setShowEssential] = useState(false)
-  const [showFontOverrides, setShowFontOverrides] = useState(false)
-  const [showPosition, setShowPosition] = useState(false)
+  const [showInstances, setShowInstances] = useState(false)
+  const [showBoxDesign, setShowBoxDesign] = useState(false)
+  const [showHeading, setShowHeading] = useState(false)
+  const [showContent, setShowContent] = useState(false)
+  const [showPositioning, setShowPositioning] = useState(false)
 
   // Position
   const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
@@ -88,6 +95,36 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating }: TextBoxF
     setAdvancedModified(true)
   }, [])
 
+  // Computed text box limits
+  const calcLimits = useMemo(() => recalcTextBoxLimits({
+    position_width: positionConfig.position_width,
+    position_height: positionConfig.position_height,
+    count,
+    layout,
+    grid_cols: layout === 'grid' ? gridCols : null,
+    padding_left: paddingConfig.left,
+    padding_right: paddingConfig.right,
+    padding_top: paddingConfig.top,
+    padding_bottom: paddingConfig.bottom,
+    heading_font_size: config.heading_font_size,
+    content_font_size: config.content_font_size,
+    heading_indent: config.heading_indent,
+    content_indent: config.content_indent,
+    content_line_height: config.content_line_height,
+  }), [positionConfig.position_width, positionConfig.position_height, count, layout, gridCols, paddingConfig, config.heading_font_size, config.content_font_size, config.heading_indent, config.content_indent, config.content_line_height])
+
+  // Sync calculated limits into config
+  useEffect(() => {
+    setConfig(prev => ({
+      ...prev,
+      title_min_chars: calcLimits.title_min_chars,
+      title_max_chars: calcLimits.title_max_chars,
+      item_min_chars: calcLimits.item_min_chars,
+      item_max_chars: calcLimits.item_max_chars,
+      items_per_instance: calcLimits.items_per_instance,
+    }))
+  }, [calcLimits])
+
   const handleSubmit = useCallback(() => {
     const formData: TextBoxFormData = {
       componentType: 'TEXT_BOX',
@@ -95,21 +132,21 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating }: TextBoxF
       count,
       layout,
       advancedModified,
-      z_index: DEFAULTS.zIndex,
-      itemsPerInstance,
+      z_index: zIndex,
+      itemsPerInstance: config.items_per_instance,
       textboxConfig: {
         ...config,
         placeholder_mode: contentSource === 'placeholder',
         layout,
-        items_per_instance: itemsPerInstance,
+        items_per_instance: config.items_per_instance,
+        grid_cols: layout === 'grid' ? gridCols : null,
       },
       positionConfig: positionConfig.auto_position ? undefined : positionConfig,
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, contentSource, config, advancedModified, itemsPerInstance, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, layout, gridCols, contentSource, config, advancedModified, zIndex, positionConfig, paddingConfig, onSubmit])
 
-  // Register submit function with parent so footer Generate button can trigger it
   useEffect(() => {
     registerSubmit(handleSubmit)
   }, [registerSubmit, handleSubmit])
@@ -138,54 +175,63 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating }: TextBoxF
         onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
       />
 
-      {/* Basic Config */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* Count */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-300">Count</label>
-          <select
-            value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
-            className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
-          >
-            {[1, 2, 3, 4, 5, 6].map(n => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Items per box */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-300">Items/Box</label>
-          <select
-            value={itemsPerInstance}
-            onChange={(e) => { setItemsPerInstance(Number(e.target.value)); setAdvancedModified(true) }}
-            className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
-          >
-            {Array.from({ length: 14 }, (_, i) => i + 1).map(n => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Layout */}
-      <ToggleRow
-        label="Layout"
-        field="layout"
-        value={layout}
-        options={[
-          { value: 'horizontal', label: 'Horizontal' },
-          { value: 'vertical', label: 'Vertical' },
-        ]}
-        onChange={(_, v) => setLayout(v as 'horizontal' | 'vertical')}
-      />
-
-      {/* Advanced: Essential */}
+      {/* Section 1: Instances */}
       <CollapsibleSection
-        title="Style"
-        isOpen={showEssential}
-        onToggle={() => setShowEssential(!showEssential)}
+        title="Instances"
+        isOpen={showInstances}
+        onToggle={() => setShowInstances(!showInstances)}
+      >
+        <div className="space-y-3">
+          {/* Count */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-300">Count</label>
+            <select
+              value={count}
+              onChange={(e) => setCount(Number(e.target.value))}
+              className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            >
+              {[1, 2, 3, 4, 5, 6].map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Layout */}
+          <ToggleRow
+            label="Layout"
+            field="layout"
+            value={layout}
+            options={[
+              { value: 'horizontal', label: 'Horizontal' },
+              { value: 'vertical', label: 'Vertical' },
+              { value: 'grid', label: 'Grid' },
+            ]}
+            onChange={(_, v) => setLayout(v as 'horizontal' | 'vertical' | 'grid')}
+          />
+
+          {/* Grid Columns (visible when layout=grid) */}
+          {layout === 'grid' && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-gray-300">Grid Columns</label>
+              <select
+                value={gridCols}
+                onChange={(e) => { setGridCols(Number(e.target.value)); setAdvancedModified(true) }}
+                className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              >
+                {[2, 3, 4, 5, 6].map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      </CollapsibleSection>
+
+      {/* Section 2: Box Design */}
+      <CollapsibleSection
+        title="Box Design"
+        isOpen={showBoxDesign}
+        onToggle={() => setShowBoxDesign(!showBoxDesign)}
       >
         <div className="space-y-3">
           <ToggleRow
@@ -194,11 +240,35 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating }: TextBoxF
             value={config.background}
             options={[
               { value: 'colored', label: 'Colored' },
-              { value: 'white', label: 'White' },
               { value: 'transparent', label: 'None' },
             ]}
             onChange={(f, v) => updateConfig(f, v)}
           />
+
+          {/* Color Variant (disabled when bg=transparent) */}
+          {config.background === 'colored' && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-gray-300">Box Color</label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="color"
+                  value={config.color_variant || '#3B82F6'}
+                  onChange={(e) => updateConfig('color_variant', e.target.value)}
+                  className="h-7 w-7 rounded border border-gray-600 cursor-pointer"
+                />
+                <span className="text-[10px] text-gray-500">{config.color_variant || 'Auto'}</span>
+                {config.color_variant && (
+                  <button
+                    onClick={() => updateConfig('color_variant', null)}
+                    className="text-[10px] text-gray-500 hover:text-gray-300"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <ToggleRow
             label="Corners"
             field="corners"
@@ -232,6 +302,26 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating }: TextBoxF
             />
           </div>
           <ToggleRow
+            label="Theme"
+            field="theme_mode"
+            value={config.theme_mode}
+            options={[
+              { value: 'light', label: 'Light' },
+              { value: 'dark', label: 'Dark' },
+            ]}
+            onChange={(f, v) => updateConfig(f, v)}
+          />
+        </div>
+      </CollapsibleSection>
+
+      {/* Section 3: Heading */}
+      <CollapsibleSection
+        title="Heading"
+        isOpen={showHeading}
+        onToggle={() => setShowHeading(!showHeading)}
+      >
+        <div className="space-y-3">
+          <ToggleRow
             label="Show Title"
             field="show_title"
             value={config.show_title ? 'true' : 'false'}
@@ -242,18 +332,99 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating }: TextBoxF
             onChange={(f, v) => updateConfig(f, v === 'true')}
           />
           {config.show_title && (
-            <ToggleRow
-              label="Title Style"
-              field="title_style"
-              value={config.title_style}
-              options={[
-                { value: 'plain', label: 'Plain' },
-                { value: 'underline', label: 'Underline' },
-                { value: 'bold-line', label: 'Bold Line' },
-              ]}
-              onChange={(f, v) => updateConfig(f, v)}
-            />
+            <>
+              <ToggleRow
+                label="Title Style"
+                field="title_style"
+                value={config.title_style}
+                options={[
+                  { value: 'plain', label: 'Plain' },
+                  { value: 'underline', label: 'Underline' },
+                ]}
+                onChange={(f, v) => updateConfig(f, v)}
+              />
+              <ToggleRow
+                label="Heading Align"
+                field="heading_align"
+                value={config.heading_align}
+                options={[
+                  { value: 'left', label: 'Left' },
+                  { value: 'center', label: 'Center' },
+                  { value: 'right', label: 'Right' },
+                ]}
+                onChange={(f, v) => updateConfig(f, v)}
+              />
+              {/* Heading Indent */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-300">Heading Indent</label>
+                <select
+                  value={config.heading_indent}
+                  onChange={(e) => updateConfig('heading_indent', Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                >
+                  {[0, 1, 2, 3, 4, 5].map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Title Char Limits (auto-calculated) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-gray-500 font-medium">Title Char Limits (auto-calculated)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500">Min</label>
+                    <input
+                      type="number"
+                      value={config.title_min_chars}
+                      readOnly
+                      className="w-full px-2 py-1 rounded bg-gray-700/30 border border-gray-700 text-xs text-gray-400"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500">Max</label>
+                    <input
+                      type="number"
+                      value={config.title_max_chars}
+                      readOnly
+                      className="w-full px-2 py-1 rounded bg-gray-700/30 border border-gray-700 text-xs text-gray-400"
+                    />
+                  </div>
+                </div>
+              </div>
+              {/* Heading Font Overrides */}
+              <FontOverrideSection
+                label="Heading Font"
+                prefix="heading"
+                config={config as unknown as Record<string, unknown>}
+                onChange={updateConfig}
+                thirdToggle="underline"
+              />
+            </>
           )}
+        </div>
+      </CollapsibleSection>
+
+      {/* Section 4: Content */}
+      <CollapsibleSection
+        title="Content"
+        isOpen={showContent}
+        onToggle={() => setShowContent(!showContent)}
+      >
+        <div className="space-y-3">
+          {/* Items per box */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-300">Items/Box (auto: {calcLimits.items_per_instance})</label>
+            <select
+              value={config.items_per_instance}
+              onChange={(e) => updateConfig('items_per_instance', Number(e.target.value))}
+              className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            >
+              {Array.from({ length: 14 }, (_, i) => i + 1).map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+
           <ToggleRow
             label="List Style"
             field="list_style"
@@ -261,242 +432,113 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating }: TextBoxF
             options={[
               { value: 'bullets', label: 'Bullets' },
               { value: 'numbered', label: 'Numbers' },
-              { value: 'dashes', label: 'Dashes' },
-              { value: 'none', label: 'None' },
+              { value: 'plain', label: 'Plain' },
             ]}
             onChange={(f, v) => updateConfig(f, v)}
           />
+
           <ToggleRow
-            label="Theme"
-            field="theme_mode"
-            value={config.theme_mode}
+            label="Content Align"
+            field="content_align"
+            value={config.content_align}
             options={[
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
+              { value: 'left', label: 'Left' },
+              { value: 'center', label: 'Center' },
+              { value: 'right', label: 'Right' },
             ]}
             onChange={(f, v) => updateConfig(f, v)}
           />
-          <div className="grid grid-cols-2 gap-3">
-            <ToggleRow
-              label="Heading Align"
-              field="heading_align"
-              value={config.heading_align}
-              options={[
-                { value: 'left', label: 'Left' },
-                { value: 'center', label: 'Center' },
-                { value: 'right', label: 'Right' },
-              ]}
-              onChange={(f, v) => updateConfig(f, v)}
-            />
-            <ToggleRow
-              label="Content Align"
-              field="content_align"
-              value={config.content_align}
-              options={[
-                { value: 'left', label: 'Left' },
-                { value: 'center', label: 'Center' },
-                { value: 'right', label: 'Right' },
-              ]}
-              onChange={(f, v) => updateConfig(f, v)}
-            />
+
+          {/* Content Indent */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-300">Content Indent</label>
+            <select
+              value={config.content_indent}
+              onChange={(e) => updateConfig('content_indent', Number(e.target.value))}
+              className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            >
+              {[0, 1, 2, 3, 4, 5].map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
           </div>
-        </div>
-      </CollapsibleSection>
 
-      {/* Advanced: Font Overrides */}
-      <CollapsibleSection
-        title="Font Overrides"
-        isOpen={showFontOverrides}
-        onToggle={() => setShowFontOverrides(!showFontOverrides)}
-      >
-        <div className="space-y-3">
-          <p className="text-[10px] text-gray-500">Leave as default to use theme fonts</p>
+          {/* Line Spacing */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-300">Line Spacing</label>
+            <select
+              value={config.content_line_height || 'auto'}
+              onChange={(e) => updateConfig('content_line_height', e.target.value === 'auto' ? null : e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            >
+              <option value="auto">Auto</option>
+              {['1.0', '1.2', '1.4', '1.5', '1.6', '1.8', '2.0', '2.2', '2.5'].map(v => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </div>
 
-          {/* Heading Font */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-400">Heading Font</label>
+          {/* Item Char Limits (auto-calculated) */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] text-gray-500 font-medium">Item Char Limits (auto-calculated)</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Size</label>
-                <select
-                  value={config.heading_font_size || ''}
-                  onChange={(e) => updateConfig('heading_font_size', e.target.value || null)}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
-                >
-                  <option value="">Auto</option>
-                  {['14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '40px', '48px'].map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                <label className="text-[10px] text-gray-500">Min</label>
+                <input
+                  type="number"
+                  value={config.item_min_chars}
+                  readOnly
+                  className="w-full px-2 py-1 rounded bg-gray-700/30 border border-gray-700 text-xs text-gray-400"
+                />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Family</label>
-                <select
-                  value={config.heading_font_family || ''}
-                  onChange={(e) => updateConfig('heading_font_family', e.target.value || null)}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
-                >
-                  <option value="">Auto</option>
-                  {['Poppins', 'Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Lato', 'Source Sans Pro'].map(f => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
+                <label className="text-[10px] text-gray-500">Max</label>
+                <input
+                  type="number"
+                  value={config.item_max_chars}
+                  readOnly
+                  className="w-full px-2 py-1 rounded bg-gray-700/30 border border-gray-700 text-xs text-gray-400"
+                />
               </div>
-            </div>
-            <div className="flex gap-2">
-              <label className="text-[10px] text-gray-500">Color</label>
-              <input
-                type="color"
-                value={config.heading_font_color || '#333333'}
-                onChange={(e) => updateConfig('heading_font_color', e.target.value)}
-                className="h-6 w-6 rounded border border-gray-600 cursor-pointer"
-              />
-              {config.heading_font_color && (
-                <button
-                  onClick={() => updateConfig('heading_font_color', null)}
-                  className="text-[10px] text-gray-500 hover:text-gray-300"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-            <div className="flex gap-1">
-              {[
-                { field: 'heading_bold', label: 'B', style: 'font-bold' },
-                { field: 'heading_italic', label: 'I', style: 'italic' },
-                { field: 'heading_underline', label: 'U', style: 'underline' },
-              ].map(({ field, label, style }) => (
-                <button
-                  key={field}
-                  onClick={() => updateConfig(field, config[field as keyof TextBoxConfig] ? null : true)}
-                  className={`w-7 h-7 rounded text-xs ${style} transition-colors ${
-                    config[field as keyof TextBoxConfig]
-                      ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
-                      : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:bg-gray-700'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
             </div>
           </div>
 
-          {/* Content Font */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-400">Content Font</label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Size</label>
-                <select
-                  value={config.content_font_size || ''}
-                  onChange={(e) => updateConfig('content_font_size', e.target.value || null)}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
-                >
-                  <option value="">Auto</option>
-                  {['12px', '14px', '16px', '18px', '20px', '24px', '28px'].map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Family</label>
-                <select
-                  value={config.content_font_family || ''}
-                  onChange={(e) => updateConfig('content_font_family', e.target.value || null)}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
-                >
-                  <option value="">Auto</option>
-                  {['Poppins', 'Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Lato', 'Source Sans Pro'].map(f => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <label className="text-[10px] text-gray-500">Color</label>
-              <input
-                type="color"
-                value={config.content_font_color || '#666666'}
-                onChange={(e) => updateConfig('content_font_color', e.target.value)}
-                className="h-6 w-6 rounded border border-gray-600 cursor-pointer"
-              />
-              {config.content_font_color && (
-                <button
-                  onClick={() => updateConfig('content_font_color', null)}
-                  className="text-[10px] text-gray-500 hover:text-gray-300"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-            <div className="flex gap-1">
-              {[
-                { field: 'content_bold', label: 'B', style: 'font-bold' },
-                { field: 'content_italic', label: 'I', style: 'italic' },
-                { field: 'content_underline', label: 'U', style: 'underline' },
-              ].map(({ field, label, style }) => (
-                <button
-                  key={field}
-                  onClick={() => updateConfig(field, config[field as keyof TextBoxConfig] ? null : true)}
-                  className={`w-7 h-7 rounded text-xs ${style} transition-colors ${
-                    config[field as keyof TextBoxConfig]
-                      ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
-                      : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:bg-gray-700'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </CollapsibleSection>
-
-      {/* Advanced: Position */}
-      <CollapsibleSection
-        title="Position"
-        isOpen={showPosition}
-        onToggle={() => setShowPosition(!showPosition)}
-      >
-        <div className="space-y-3">
-          <ToggleRow
-            label="Positioning"
-            field="auto_position"
-            value={positionConfig.auto_position ? 'auto' : 'manual'}
-            options={[
-              { value: 'auto', label: 'Auto' },
-              { value: 'manual', label: 'Manual' },
-            ]}
-            onChange={(_, v) => {
-              setPositionConfig(prev => ({ ...prev, auto_position: v === 'auto' }))
-              setAdvancedModified(true)
-            }}
+          {/* Content Font Overrides */}
+          <FontOverrideSection
+            label="Content Font"
+            prefix="content"
+            config={config as unknown as Record<string, unknown>}
+            onChange={updateConfig}
+            thirdToggle="underline"
           />
-          {!positionConfig.auto_position && (
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: 'Col', field: 'start_col' as const, min: 1, max: 32 },
-                { label: 'Row', field: 'start_row' as const, min: 1, max: 18 },
-                { label: 'Width', field: 'position_width' as const, min: 1, max: 32 },
-                { label: 'Height', field: 'position_height' as const, min: 1, max: 18 },
-              ].map(({ label, field, min, max }) => (
-                <div key={field} className="space-y-1">
-                  <label className="text-[10px] text-gray-500">{label}</label>
-                  <input
-                    type="number"
-                    value={positionConfig[field]}
-                    min={min}
-                    max={max}
-                    onChange={(e) => {
-                      setPositionConfig(prev => ({ ...prev, [field]: Number(e.target.value) }))
-                      setAdvancedModified(true)
-                    }}
-                    className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+        </div>
+      </CollapsibleSection>
+
+      {/* Section 5: Positioning */}
+      <CollapsibleSection
+        title="Positioning"
+        isOpen={showPositioning}
+        onToggle={() => setShowPositioning(!showPositioning)}
+      >
+        <div className="space-y-4">
+          <PositionPresets
+            positionConfig={positionConfig}
+            onChange={setPositionConfig}
+            elementType="TEXT_BOX"
+            onAdvancedModified={() => setAdvancedModified(true)}
+          />
+
+          <PaddingControl
+            paddingConfig={paddingConfig}
+            onChange={setPaddingConfig}
+            onAdvancedModified={() => setAdvancedModified(true)}
+          />
+
+          <ZIndexInput
+            value={zIndex}
+            onChange={setZIndex}
+            onAdvancedModified={() => setAdvancedModified(true)}
+          />
         </div>
       </CollapsibleSection>
     </div>
