@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from 'react'
 import { IconLabelFormData, IconLabelConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
-import { CollapsibleSection } from '../shared/collapsible-section'
 import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.ICON_LABEL
@@ -46,8 +45,6 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
   const [color, setColor] = useState<string | null>(null)
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-
-  const [showOptions, setShowOptions] = useState(false)
 
   const handleSubmit = useCallback(() => {
     const defaultPrompt = mode === 'icon' ? 'shopping cart icon' : 'Label I'
@@ -116,96 +113,91 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
         </select>
       </div>
 
-      {/* Options */}
-      <CollapsibleSection title="Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>
-        <div className="space-y-3">
-          {/* Size (no xs) */}
-          <ToggleRow
-            label="Size"
-            field="size"
-            value={size}
-            options={[
-              { value: 'small', label: 'S' },
-              { value: 'medium', label: 'M' },
-              { value: 'large', label: 'L' },
-            ]}
-            onChange={(_, v) => {
-              setSize(v as IconLabelConfig['size'])
+      {/* Size */}
+      <ToggleRow
+        label="Size"
+        field="size"
+        value={size}
+        options={[
+          { value: 'small', label: 'S' },
+          { value: 'medium', label: 'M' },
+          { value: 'large', label: 'L' },
+        ]}
+        onChange={(_, v) => {
+          setSize(v as IconLabelConfig['size'])
+          setAdvancedModified(true)
+        }}
+      />
+
+      {/* Style (icon mode only) */}
+      {mode === 'icon' && (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-gray-300">Style</label>
+          <select
+            value={style}
+            onChange={(e) => {
+              setStyle(e.target.value as IconLabelConfig['style'])
               setAdvancedModified(true)
             }}
-          />
-
-          {/* Style (icon mode only) - 4 backend-aligned options */}
-          {mode === 'icon' && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-300">Style</label>
-              <select
-                value={style}
-                onChange={(e) => {
-                  setStyle(e.target.value as IconLabelConfig['style'])
-                  setAdvancedModified(true)
-                }}
-                className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
-              >
-                {ICON_STYLES.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Font (label mode only) */}
-          {mode === 'label' && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-300">Font</label>
-              <select
-                value={font}
-                onChange={(e) => {
-                  setFont(e.target.value as IconLabelConfig['font'])
-                  setAdvancedModified(true)
-                }}
-                className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
-              >
-                {LABEL_FONTS.map(f => (
-                  <option key={f.value} value={f.value}>{f.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Color */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-300">Color</label>
-            <div className="flex gap-2 items-center">
-              <input
-                type="color"
-                value={color || getDefaultColor(mode, style)}
-                onChange={(e) => {
-                  setColor(e.target.value)
-                  setAdvancedModified(true)
-                }}
-                className="h-7 w-7 rounded border border-gray-600 cursor-pointer"
-              />
-              <span className="text-[10px] text-gray-500">{color || 'Auto'}</span>
-              {color && (
-                <button
-                  onClick={() => { setColor(null); setAdvancedModified(true) }}
-                  className="text-[10px] text-gray-500 hover:text-gray-300"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Z-Index */}
-          <ZIndexInput
-            value={zIndex}
-            onChange={setZIndex}
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
+            className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          >
+            {ICON_STYLES.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
         </div>
-      </CollapsibleSection>
+      )}
+
+      {/* Font (label mode only) */}
+      {mode === 'label' && (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-gray-300">Font</label>
+          <select
+            value={font}
+            onChange={(e) => {
+              setFont(e.target.value as IconLabelConfig['font'])
+              setAdvancedModified(true)
+            }}
+            className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          >
+            {LABEL_FONTS.map(f => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Color */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-gray-300">Color</label>
+        <div className="flex gap-2 items-center">
+          <input
+            type="color"
+            value={color || getDefaultColor(mode, style)}
+            onChange={(e) => {
+              setColor(e.target.value)
+              setAdvancedModified(true)
+            }}
+            className="h-7 w-7 rounded border border-gray-600 cursor-pointer"
+          />
+          <span className="text-[10px] text-gray-500">{color || 'Auto'}</span>
+          {color && (
+            <button
+              onClick={() => { setColor(null); setAdvancedModified(true) }}
+              className="text-[10px] text-gray-500 hover:text-gray-300"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Z-Index */}
+      <ZIndexInput
+        value={zIndex}
+        onChange={setZIndex}
+        onAdvancedModified={() => setAdvancedModified(true)}
+      />
     </div>
   )
 }

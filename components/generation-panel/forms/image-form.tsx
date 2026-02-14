@@ -83,7 +83,6 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
   // Section visibility
   const [showStyle, setShowStyle] = useState(false)
   const [showPosition, setShowPosition] = useState(false)
-  const [showPadding, setShowPadding] = useState(false)
 
   // Padding
   const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
@@ -183,27 +182,27 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
         </select>
       </div>
 
-      {/* Style Section */}
+      {/* Image Style (promoted to basic area) */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-gray-300">Image Style</label>
+        <select
+          value={style}
+          onChange={(e) => {
+            setStyle(e.target.value as TextLabsImageStyle)
+            setAdvancedModified(true)
+          }}
+          className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+        >
+          {IMAGE_STYLES.map(s => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Style Options */}
       <CollapsibleSection title="Style" isOpen={showStyle} onToggle={() => setShowStyle(!showStyle)}>
         <div className="space-y-3">
-          {/* Style dropdown */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-300">Image Style</label>
-            <select
-              value={style}
-              onChange={(e) => {
-                setStyle(e.target.value as TextLabsImageStyle)
-                setAdvancedModified(true)
-              }}
-              className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
-            >
-              {IMAGE_STYLES.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Quality (dropdown instead of toggle) */}
+          {/* Quality */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-gray-300">Quality</label>
             <select
@@ -219,7 +218,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
             </select>
           </div>
 
-          {/* Corners (no pill) */}
+          {/* Corners */}
           <ToggleRow
             label="Corners"
             field="corners"
@@ -345,16 +344,13 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating }: ImageFormP
             onChange={setZIndex}
             onAdvancedModified={() => setAdvancedModified(true)}
           />
-        </div>
-      </CollapsibleSection>
 
-      {/* Padding */}
-      <CollapsibleSection title="Padding" isOpen={showPadding} onToggle={() => setShowPadding(!showPadding)}>
-        <PaddingControl
-          paddingConfig={paddingConfig}
-          onChange={setPaddingConfig}
-          onAdvancedModified={() => setAdvancedModified(true)}
-        />
+          <PaddingControl
+            paddingConfig={paddingConfig}
+            onChange={setPaddingConfig}
+            onAdvancedModified={() => setAdvancedModified(true)}
+          />
+        </div>
       </CollapsibleSection>
     </div>
   )

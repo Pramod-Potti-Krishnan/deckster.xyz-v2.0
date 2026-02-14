@@ -101,6 +101,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating }: ChartFormP
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
 
   // Section visibility
+  const [showConfig, setShowConfig] = useState(true)
   const [showOptions, setShowOptions] = useState(false)
   const [showPosition, setShowPosition] = useState(false)
 
@@ -196,43 +197,45 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating }: ChartFormP
         onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
       />
 
-      {/* Basic Config */}
-      <div className="space-y-3">
-        {/* Count */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-300">Count</label>
-          <select
-            value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
-            className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
-          >
-            {[1, 2].map(n => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
-        </div>
+      {/* Chart Config */}
+      <CollapsibleSection title="Chart Config" isOpen={showConfig} onToggle={() => setShowConfig(!showConfig)}>
+        <div className="space-y-3">
+          {/* Count */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-300">Count</label>
+            <select
+              value={count}
+              onChange={(e) => setCount(Number(e.target.value))}
+              className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            >
+              {[1, 2].map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
 
-        {/* Chart Type */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-300">Chart Type</label>
-          <select
-            value={chartType}
-            onChange={(e) => {
-              setChartType(e.target.value as TextLabsChartType)
-              setAdvancedModified(true)
-            }}
-            className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
-          >
-            {CHART_TYPE_GROUPS.map(group => (
-              <optgroup key={group.group} label={group.group}>
-                {group.types.map(type => (
-                  <option key={type.value} value={type.value}>{type.label}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+          {/* Chart Type */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-300">Chart Type</label>
+            <select
+              value={chartType}
+              onChange={(e) => {
+                setChartType(e.target.value as TextLabsChartType)
+                setAdvancedModified(true)
+              }}
+              className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            >
+              {CHART_TYPE_GROUPS.map(group => (
+                <optgroup key={group.group} label={group.group}>
+                  {group.types.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* Chart Options */}
       <CollapsibleSection title="Chart Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>

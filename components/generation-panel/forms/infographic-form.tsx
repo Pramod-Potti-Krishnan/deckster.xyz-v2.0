@@ -41,6 +41,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: Info
   const [width, setWidth] = useState(DEFAULTS.width)
   const [height, setHeight] = useState(DEFAULTS.height)
 
+  const [showContent, setShowContent] = useState(true)
   const [showOptions, setShowOptions] = useState(false)
   const [showPosition, setShowPosition] = useState(false)
 
@@ -113,49 +114,54 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating }: Info
         />
       )}
 
-      {/* Content Source Toggle */}
-      <ToggleRow
-        label="Content Source"
-        field="contentSource"
-        value={contentSource}
-        options={[
-          { value: 'ai', label: 'AI Generated' },
-          { value: 'placeholder', label: 'Placeholder' },
-        ]}
-        onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
-      />
+      {/* Content */}
+      <CollapsibleSection title="Content" isOpen={showContent} onToggle={() => setShowContent(!showContent)}>
+        <div className="space-y-3">
+          {/* Content Source Toggle */}
+          <ToggleRow
+            label="Content Source"
+            field="contentSource"
+            value={contentSource}
+            options={[
+              { value: 'ai', label: 'AI Generated' },
+              { value: 'placeholder', label: 'Placeholder' },
+            ]}
+            onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
+          />
 
-      {/* Reference Image Upload */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-300">Reference Image (optional)</label>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isGenerating}
-            className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-600 hover:bg-gray-700 disabled:opacity-40 transition-colors"
-          >
-            {referenceImage ? 'Change' : 'Upload'}
-          </button>
-          {referenceImage && (
-            <>
-              <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{referenceImage.name}</span>
+          {/* Reference Image Upload */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-gray-300">Reference Image (optional)</label>
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setReferenceImage(null)}
-                className="text-[10px] text-gray-500 hover:text-gray-300"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isGenerating}
+                className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-600 hover:bg-gray-700 disabled:opacity-40 transition-colors"
               >
-                Remove
+                {referenceImage ? 'Change' : 'Upload'}
               </button>
-            </>
-          )}
+              {referenceImage && (
+                <>
+                  <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{referenceImage.name}</span>
+                  <button
+                    onClick={() => setReferenceImage(null)}
+                    className="text-[10px] text-gray-500 hover:text-gray-300"
+                  >
+                    Remove
+                  </button>
+                </>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => setReferenceImage(e.target.files?.[0] || null)}
+              className="hidden"
+            />
+          </div>
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={(e) => setReferenceImage(e.target.files?.[0] || null)}
-          className="hidden"
-        />
-      </div>
+      </CollapsibleSection>
 
       {/* Options */}
       <CollapsibleSection title="Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>

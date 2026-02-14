@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { ShapeFormData, ShapeConfig, TextLabsShapeType, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
 import { PromptInput } from '../shared/prompt-input'
-import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
 
@@ -56,11 +55,6 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
   const [y, setY] = useState(180)      // px, 0-1079
   const [widthPx, setWidthPx] = useState(gridToPx(DEFAULTS.width))  // px, 1-1920
   const [heightPx, setHeightPx] = useState(gridToPx(DEFAULTS.height)) // px, 1-1080
-
-  // Sections
-  const [showStyling, setShowStyling] = useState(false)
-  const [showPosition, setShowPosition] = useState(false)
-  const [showPadding, setShowPadding] = useState(false)
 
   // Padding
   const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
@@ -182,171 +176,163 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating }: ShapeFormP
       </div>
 
       {/* SVG Styling */}
-      <CollapsibleSection title="SVG Styling" isOpen={showStyling} onToggle={() => setShowStyling(!showStyling)}>
-        <div className="space-y-3">
-          {/* Colors */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-300">Fill</label>
-              <input
-                type="color"
-                value={fillColor}
-                onChange={(e) => { setFillColor(e.target.value); setAdvancedModified(true) }}
-                className="h-8 w-full rounded border border-gray-600 cursor-pointer"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-300">Stroke</label>
-              <input
-                type="color"
-                value={strokeColor}
-                onChange={(e) => { setStrokeColor(e.target.value); setAdvancedModified(true) }}
-                className="h-8 w-full rounded border border-gray-600 cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* Stroke Width (0-20) */}
+      <div className="border-t border-gray-700 pt-3 space-y-3">
+        <label className="text-xs font-medium text-gray-400">SVG Styling</label>
+        <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-300">Stroke Width</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min={0}
-                max={20}
-                value={strokeWidth}
-                onChange={(e) => { setStrokeWidth(Number(e.target.value)); setAdvancedModified(true) }}
-                className="flex-1 accent-purple-500"
-              />
-              <span className="text-xs text-gray-400 w-8 text-right">{strokeWidth}px</span>
-            </div>
+            <label className="text-xs font-medium text-gray-300">Fill</label>
+            <input
+              type="color"
+              value={fillColor}
+              onChange={(e) => { setFillColor(e.target.value); setAdvancedModified(true) }}
+              className="h-8 w-full rounded border border-gray-600 cursor-pointer"
+            />
           </div>
-
-          {/* Opacity */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-300">Opacity</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={Math.round(opacity * 100)}
-                onChange={(e) => { setOpacity(Number(e.target.value) / 100); setAdvancedModified(true) }}
-                className="flex-1 accent-purple-500"
-              />
-              <span className="text-xs text-gray-400 w-8 text-right">{Math.round(opacity * 100)}%</span>
-            </div>
-          </div>
-
-          {/* Rotation (0-359) */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-300">Rotation</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min={0}
-                max={359}
-                value={rotation}
-                onChange={(e) => { setRotation(Number(e.target.value)); setAdvancedModified(true) }}
-                className="flex-1 accent-purple-500"
-              />
-              <span className="text-xs text-gray-400 w-10 text-right">{rotation}&deg;</span>
-            </div>
-          </div>
-
-          {/* Size */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-300">Size</label>
-            <div className="flex gap-1">
-              {(['small', 'medium', 'large'] as const).map(s => (
-                <button
-                  key={s}
-                  onClick={() => { setSize(s); setAdvancedModified(true) }}
-                  className={`flex-1 px-2 py-1.5 rounded text-xs font-medium capitalize transition-colors ${
-                    size === s
-                      ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
-                      : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:bg-gray-700'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+            <label className="text-xs font-medium text-gray-300">Stroke</label>
+            <input
+              type="color"
+              value={strokeColor}
+              onChange={(e) => { setStrokeColor(e.target.value); setAdvancedModified(true) }}
+              className="h-8 w-full rounded border border-gray-600 cursor-pointer"
+            />
           </div>
         </div>
-      </CollapsibleSection>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-gray-300">Stroke Width</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={0}
+              max={20}
+              value={strokeWidth}
+              onChange={(e) => { setStrokeWidth(Number(e.target.value)); setAdvancedModified(true) }}
+              className="flex-1 accent-purple-500"
+            />
+            <span className="text-xs text-gray-400 w-8 text-right">{strokeWidth}px</span>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-gray-300">Opacity</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(opacity * 100)}
+              onChange={(e) => { setOpacity(Number(e.target.value) / 100); setAdvancedModified(true) }}
+              className="flex-1 accent-purple-500"
+            />
+            <span className="text-xs text-gray-400 w-8 text-right">{Math.round(opacity * 100)}%</span>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-gray-300">Rotation</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={0}
+              max={359}
+              value={rotation}
+              onChange={(e) => { setRotation(Number(e.target.value)); setAdvancedModified(true) }}
+              className="flex-1 accent-purple-500"
+            />
+            <span className="text-xs text-gray-400 w-10 text-right">{rotation}&deg;</span>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-gray-300">Size</label>
+          <div className="flex gap-1">
+            {(['small', 'medium', 'large'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => { setSize(s); setAdvancedModified(true) }}
+                className={`flex-1 px-2 py-1.5 rounded text-xs font-medium capitalize transition-colors ${
+                  size === s
+                    ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
+                    : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:bg-gray-700'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* Position (pixel-based primary) */}
-      <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(!showPosition)}>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-[10px] text-gray-500">X (px)</label>
-              <input
-                type="number"
-                value={x}
-                min={0}
-                max={1919}
-                onChange={(e) => { setX(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] text-gray-500">Y (px)</label>
-              <input
-                type="number"
-                value={y}
-                min={0}
-                max={1079}
-                onChange={(e) => { setY(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] text-gray-500">Width (px)</label>
-              <input
-                type="number"
-                value={widthPx}
-                min={1}
-                max={1920}
-                onChange={(e) => { setWidthPx(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] text-gray-500">Height (px)</label>
-              <input
-                type="number"
-                value={heightPx}
-                min={1}
-                max={1080}
-                onChange={(e) => { setHeightPx(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
-              />
-            </div>
+      <div className="border-t border-gray-700 pt-3 space-y-3">
+        <label className="text-xs font-medium text-gray-400">Position</label>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500">X (px)</label>
+            <input
+              type="number"
+              value={x}
+              min={0}
+              max={1919}
+              onChange={(e) => { setX(Number(e.target.value)); setAdvancedModified(true) }}
+              className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+            />
           </div>
-
-          {/* Derived grid display */}
-          <div className="text-[10px] text-gray-500">
-            Grid: {gridW} x {gridH} (col {startCol}, row {startRow})
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500">Y (px)</label>
+            <input
+              type="number"
+              value={y}
+              min={0}
+              max={1079}
+              onChange={(e) => { setY(Number(e.target.value)); setAdvancedModified(true) }}
+              className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+            />
           </div>
-
-          <ZIndexInput
-            value={zIndex}
-            onChange={setZIndex}
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500">Width (px)</label>
+            <input
+              type="number"
+              value={widthPx}
+              min={1}
+              max={1920}
+              onChange={(e) => { setWidthPx(Number(e.target.value)); setAdvancedModified(true) }}
+              className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500">Height (px)</label>
+            <input
+              type="number"
+              value={heightPx}
+              min={1}
+              max={1080}
+              onChange={(e) => { setHeightPx(Number(e.target.value)); setAdvancedModified(true) }}
+              className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+            />
+          </div>
         </div>
-      </CollapsibleSection>
+
+        <div className="text-[10px] text-gray-500">
+          Grid: {gridW} x {gridH} (col {startCol}, row {startRow})
+        </div>
+
+        <ZIndexInput
+          value={zIndex}
+          onChange={setZIndex}
+          onAdvancedModified={() => setAdvancedModified(true)}
+        />
+      </div>
 
       {/* Padding */}
-      <CollapsibleSection title="Padding" isOpen={showPadding} onToggle={() => setShowPadding(!showPadding)}>
+      <div className="border-t border-gray-700 pt-3">
         <PaddingControl
           paddingConfig={paddingConfig}
           onChange={setPaddingConfig}
           onAdvancedModified={() => setAdvancedModified(true)}
         />
-      </CollapsibleSection>
+      </div>
     </div>
   )
 }

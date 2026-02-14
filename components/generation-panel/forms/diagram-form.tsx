@@ -16,7 +16,6 @@ import {
 } from '@/types/textlabs'
 import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
-import { CollapsibleSection } from '../shared/collapsible-section'
 import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.DIAGRAM
@@ -122,8 +121,6 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramF
   const [showNullable, setShowNullable] = useState(true)
   const [dataPreset, setDataPreset] = useState('full_content')
 
-  const [showOptions, setShowOptions] = useState(false)
-
   const buildDiagramConfig = useCallback((): Partial<
     CodeDisplayConfig | KanbanConfig | GanttConfig | ChevronConfig |
     IdeaBoardConfig | CloudArchitectureConfig | LogicalArchitectureConfig | DataArchitectureConfig
@@ -210,8 +207,7 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramF
       />
 
       {/* Subtype-specific options */}
-      <CollapsibleSection title="Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>
-        <div className="space-y-3">
+      <div className="space-y-3">
           {subtype === 'CODE_DISPLAY' && (
             <>
               <div className="space-y-1.5">
@@ -458,8 +454,7 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating }: DiagramF
               <PositionPresetSelect value={dataPreset} onChange={(v) => { setDataPreset(v); setAdvancedModified(true) }} />
             </>
           )}
-        </div>
-      </CollapsibleSection>
+      </div>
 
       {/* Z-Index */}
       <ZIndexInput
