@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Link2, Unlink2 } from 'lucide-react'
 import { TextLabsPaddingConfig } from '@/types/textlabs'
 
 type PaddingMode = 'uniform' | 'axis' | 'individual'
@@ -37,24 +36,23 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium text-gray-300">Padding</label>
-        <div className="flex gap-0.5">
-          {([
-            { value: 'uniform' as const, icon: <Link2 className="h-3 w-3" />, title: 'Uniform' },
-            { value: 'axis' as const, icon: <span className="text-[9px] font-medium">HV</span>, title: 'Axis (H+V)' },
-            { value: 'individual' as const, icon: <Unlink2 className="h-3 w-3" />, title: 'Individual' },
-          ]).map(opt => (
+        <label className="text-xs font-medium text-gray-700">Padding</label>
+        <div className="flex gap-1">
+          {[
+            { value: 'uniform' as const, label: 'Uniform' },
+            { value: 'axis' as const, label: 'H / V' },
+            { value: 'individual' as const, label: 'Individual' },
+          ].map(opt => (
             <button
               key={opt.value}
               onClick={() => setMode(opt.value)}
-              className={`p-1 rounded transition-colors ${
+              className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
                 mode === opt.value
-                  ? 'text-purple-400 bg-purple-600/20'
-                  : 'text-gray-500 hover:text-gray-400'
+                  ? 'bg-purple-600 text-white border border-purple-600'
+                  : 'bg-gray-100 text-gray-500 border border-gray-300 hover:bg-gray-200'
               }`}
-              title={opt.title}
             >
-              {opt.icon}
+              {opt.label}
             </button>
           ))}
         </div>
@@ -62,44 +60,50 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
 
       {mode === 'uniform' && (
         <div className="space-y-1">
-          <label className="text-[10px] text-gray-500">All Sides</label>
-          <input
-            type="range"
-            min={0}
-            max={60}
-            value={paddingConfig.top}
-            onChange={(e) => handleUniformChange(Number(e.target.value))}
-            className="w-full accent-purple-500"
-          />
-          <div className="text-[10px] text-gray-500 text-right">{paddingConfig.top}px</div>
+          <label className="text-[10px] text-gray-400">All Sides</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={60}
+              value={paddingConfig.top}
+              onChange={(e) => handleUniformChange(Number(e.target.value))}
+              className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+            />
+            <span className="text-[10px] text-gray-400">px</span>
+          </div>
         </div>
       )}
 
       {mode === 'axis' && (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label className="text-[10px] text-gray-500">Horizontal (L+R)</label>
-            <input
-              type="range"
-              min={0}
-              max={60}
-              value={paddingConfig.left}
-              onChange={(e) => handleAxisChange('horizontal', Number(e.target.value))}
-              className="w-full accent-purple-500"
-            />
-            <div className="text-[10px] text-gray-500 text-right">{paddingConfig.left}px</div>
+            <label className="text-[10px] text-gray-400">Horizontal (L+R)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={60}
+                value={paddingConfig.left}
+                onChange={(e) => handleAxisChange('horizontal', Number(e.target.value))}
+                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+              />
+              <span className="text-[10px] text-gray-400">px</span>
+            </div>
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] text-gray-500">Vertical (T+B)</label>
-            <input
-              type="range"
-              min={0}
-              max={60}
-              value={paddingConfig.top}
-              onChange={(e) => handleAxisChange('vertical', Number(e.target.value))}
-              className="w-full accent-purple-500"
-            />
-            <div className="text-[10px] text-gray-500 text-right">{paddingConfig.top}px</div>
+            <label className="text-[10px] text-gray-400">Vertical (T+B)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={60}
+                value={paddingConfig.top}
+                onChange={(e) => handleAxisChange('vertical', Number(e.target.value))}
+                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+              />
+              <span className="text-[10px] text-gray-400">px</span>
+            </div>
           </div>
         </div>
       )}
@@ -108,16 +112,18 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
         <div className="grid grid-cols-2 gap-2">
           {(['top', 'right', 'bottom', 'left'] as const).map(side => (
             <div key={side} className="space-y-1">
-              <label className="text-[10px] text-gray-500 capitalize">{side}</label>
-              <input
-                type="range"
-                min={0}
-                max={60}
-                value={paddingConfig[side]}
-                onChange={(e) => handleIndividualChange(side, Number(e.target.value))}
-                className="w-full accent-purple-500"
-              />
-              <div className="text-[10px] text-gray-500 text-right">{paddingConfig[side]}px</div>
+              <label className="text-[10px] text-gray-400 capitalize">{side}</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={60}
+                  value={paddingConfig[side]}
+                  onChange={(e) => handleIndividualChange(side, Number(e.target.value))}
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                />
+                <span className="text-[10px] text-gray-400">px</span>
+              </div>
             </div>
           ))}
         </div>

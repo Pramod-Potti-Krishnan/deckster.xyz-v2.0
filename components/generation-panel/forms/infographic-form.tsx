@@ -144,12 +144,12 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
 
           {/* Reference Image Upload */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-300">Reference Image (optional)</label>
+            <label className="text-xs font-medium text-gray-700">Reference Image (optional)</label>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isGenerating}
-                className="px-3 py-1.5 rounded text-xs font-medium bg-gray-700/50 text-gray-300 border border-gray-600 hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                className="px-3 py-1.5 rounded text-xs font-medium bg-gray-50 text-gray-700 border border-gray-300 hover:bg-gray-100 disabled:opacity-40 transition-colors"
               >
                 {referenceImage ? 'Change' : 'Upload'}
               </button>
@@ -158,7 +158,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
                   <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{referenceImage.name}</span>
                   <button
                     onClick={() => setReferenceImage(null)}
-                    className="text-[10px] text-gray-500 hover:text-gray-300"
+                    className="text-[10px] text-gray-400 hover:text-gray-700"
                   >
                     Remove
                   </button>
@@ -181,11 +181,11 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
         <div className="space-y-3">
           {/* Aspect Ratio (with 9:16) */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-300">Aspect Ratio</label>
+            <label className="text-xs font-medium text-gray-700">Aspect Ratio</label>
             <select
               value={aspectRatio}
               onChange={(e) => { setAspectRatio(e.target.value as InfographicConfig['aspect_ratio']); setAdvancedModified(true) }}
-              className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
             >
               <option value="auto">Auto</option>
               <option value="16:9">16:9</option>
@@ -198,11 +198,11 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
 
           {/* Segments (1-8) */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-300">Segments</label>
+            <label className="text-xs font-medium text-gray-700">Segments</label>
             <select
               value={segments}
               onChange={(e) => { setSegments(e.target.value as InfographicConfig['segments']); setAdvancedModified(true) }}
-              className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
             >
               <option value="auto">Auto</option>
               {['1', '2', '3', '4', '5', '6', '7', '8'].map(n => (
@@ -254,7 +254,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
         <div className="space-y-3">
           {/* 9 Position Presets */}
           <div className="space-y-1.5">
-            <label className="text-[10px] text-gray-500">Presets</label>
+            <label className="text-[10px] text-gray-400">Presets</label>
             <div className="grid grid-cols-3 gap-1">
               {Object.entries(POSITION_PRESETS).map(([key, preset]) => (
                 <button
@@ -262,8 +262,8 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
                   onClick={() => applyPositionPreset(key)}
                   className={`px-1.5 py-1 rounded text-[10px] transition-colors ${
                     positionPreset === key
-                      ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
-                      : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:bg-gray-700'
+                      ? 'bg-purple-600 text-white border border-purple-600'
+                      : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
                   }`}
                 >
                   {preset.label}
@@ -273,7 +273,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
           </div>
 
           {/* Size display */}
-          <div className="text-[10px] text-gray-500">
+          <div className="text-[10px] text-gray-400">
             Size: {width} x {height} grid ({pixelW} x {pixelH}px) &mdash; Aspect: {displayAspect}
           </div>
 
@@ -285,14 +285,14 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
               { label: 'Height', value: height, setter: setHeight, min: 1, max: 18 },
             ].map(({ label, value, setter, min, max }) => (
               <div key={label} className="space-y-1">
-                <label className="text-[10px] text-gray-500">{label}</label>
+                <label className="text-[10px] text-gray-400">{label}</label>
                 <input
                   type="number"
                   value={value}
                   min={min}
                   max={max}
                   onChange={(e) => { setter(Number(e.target.value)); setPositionPreset('custom'); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 />
               </div>
             ))}

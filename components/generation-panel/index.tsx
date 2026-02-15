@@ -60,7 +60,7 @@ export function GenerationPanel({
   return (
     <div
       className={cn(
-        "absolute inset-0 bg-gray-900 text-white shadow-2xl z-20 flex flex-col",
+        "absolute inset-0 bg-white text-gray-900 shadow-2xl z-20 flex flex-col",
         "transform transition-transform duration-200 ease-out",
         isOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
       )}
@@ -74,7 +74,7 @@ export function GenerationPanel({
 
       {/* Canvas position indicator */}
       {elementContext && (
-        <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 text-xs text-gray-400 flex items-center gap-2">
+        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
           Position from canvas ({elementContext.width}&times;{elementContext.height} cells)
         </div>

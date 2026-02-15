@@ -38,7 +38,7 @@ export function PositionPresets({
     <div className="space-y-3">
       {/* Auto/Manual Toggle */}
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-300">Positioning</label>
+        <label className="text-xs font-medium text-gray-700">Positioning</label>
         <div className="flex gap-1">
           {[
             { value: 'auto', label: 'Auto' },
@@ -62,8 +62,8 @@ export function PositionPresets({
               }}
               className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
                 (positionConfig.auto_position ? 'auto' : 'manual') === option.value
-                  ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
-                  : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:bg-gray-700'
+                  ? 'bg-purple-600 text-white border border-purple-600'
+                  : 'bg-gray-100 text-gray-500 border border-gray-300 hover:bg-gray-200'
               }`}
             >
               {option.label}
@@ -73,7 +73,7 @@ export function PositionPresets({
       </div>
 
       {/* Calculated Size Display */}
-      <div className="text-[10px] text-gray-500">
+      <div className="text-[10px] text-gray-400">
         Size: {positionConfig.position_width} x {positionConfig.position_height} grid ({pixelW} x {pixelH} px)
       </div>
 
@@ -81,7 +81,7 @@ export function PositionPresets({
         <>
           {/* Position Presets Grid */}
           <div className="space-y-1.5">
-            <label className="text-[10px] text-gray-500">Presets</label>
+            <label className="text-[10px] text-gray-400">Presets</label>
             <div className="grid grid-cols-3 gap-1">
               {Object.entries(POSITION_PRESETS).map(([key, preset]) => (
                 <button
@@ -92,8 +92,8 @@ export function PositionPresets({
                     positionConfig.start_row === preset.start_row &&
                     positionConfig.position_width === preset.width &&
                     positionConfig.position_height === preset.height
-                      ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
-                      : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:bg-gray-700'
+                      ? 'bg-purple-600 text-white border border-purple-600'
+                      : 'bg-gray-100 text-gray-500 border border-gray-300 hover:bg-gray-200'
                   }`}
                 >
                   {preset.label}
@@ -109,7 +109,7 @@ export function PositionPresets({
               { label: 'Row', field: 'start_row' as const, min: 1, max: 18 },
             ].map(({ label, field, min, max }) => (
               <div key={field} className="space-y-1">
-                <label className="text-[10px] text-gray-500">{label}</label>
+                <label className="text-[10px] text-gray-400">{label}</label>
                 <input
                   type="number"
                   value={positionConfig[field]}
@@ -119,7 +119,7 @@ export function PositionPresets({
                     onChange({ ...positionConfig, [field]: Number(e.target.value) })
                     onAdvancedModified()
                   }}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 />
               </div>
             ))}
@@ -134,7 +134,7 @@ export function PositionPresets({
           { label: 'Height', field: 'position_height' as const, min: 1, max: 18 },
         ].map(({ label, field, min, max }) => (
           <div key={field} className="space-y-1">
-            <label className="text-[10px] text-gray-500">{label}</label>
+            <label className="text-[10px] text-gray-400">{label}</label>
             <input
               type="number"
               value={positionConfig[field]}
@@ -144,7 +144,7 @@ export function PositionPresets({
                 onChange({ ...positionConfig, [field]: Number(e.target.value) })
                 onAdvancedModified()
               }}
-              className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+              className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
             />
           </div>
         ))}

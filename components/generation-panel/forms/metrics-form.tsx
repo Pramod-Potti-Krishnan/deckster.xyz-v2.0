@@ -169,11 +169,11 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-300">Count</label>
+              <label className="text-xs font-medium text-gray-700">Count</label>
               <select
                 value={count}
                 onChange={(e) => setCount(Number(e.target.value))}
-                className="w-full px-2.5 py-1.5 rounded-md bg-gray-700/50 border border-gray-600 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
               >
                 {[1, 2, 3, 4].map(n => (
                   <option key={n} value={n}>{n}</option>
@@ -181,7 +181,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-300">Layout</label>
+              <label className="text-xs font-medium text-gray-700">Layout</label>
               <div className="flex gap-1">
                 {[
                   { value: 'horizontal', label: 'Horiz' },
@@ -192,8 +192,8 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
                     onClick={() => setLayout(option.value as 'horizontal' | 'vertical')}
                     className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
                       layout === option.value
-                        ? 'bg-purple-600/30 text-purple-300 border border-purple-500/50'
-                        : 'bg-gray-700/50 text-gray-400 border border-gray-600 hover:bg-gray-700'
+                        ? 'bg-purple-600 text-white border border-purple-600'
+                        : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
                     }`}
                   >
                     {option.label}
@@ -252,19 +252,19 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
           />
           {/* Card Color */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-300">Card Color</label>
+            <label className="text-xs font-medium text-gray-700">Card Color</label>
             <div className="flex gap-2 items-center">
               <input
                 type="color"
                 value={config.color_variant || '#3B82F6'}
                 onChange={(e) => updateConfig('color_variant', e.target.value)}
-                className="h-7 w-7 rounded border border-gray-600 cursor-pointer"
+                className="h-7 w-7 rounded border border-gray-300 cursor-pointer"
               />
-              <span className="text-[10px] text-gray-500">{config.color_variant || 'Auto'}</span>
+              <span className="text-[10px] text-gray-400">{config.color_variant || 'Auto'}</span>
               {config.color_variant && (
                 <button
                   onClick={() => updateConfig('color_variant', null)}
-                  className="text-[10px] text-gray-500 hover:text-gray-300"
+                  className="text-[10px] text-gray-400 hover:text-gray-700"
                 >
                   Reset
                 </button>
@@ -278,28 +278,28 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
       <CollapsibleSection title="Value" isOpen={showValue} onToggle={() => setShowValue(!showValue)}>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <label className="text-[10px] text-gray-500 font-medium">Value Char Limits</label>
+            <label className="text-[10px] text-gray-400 font-medium">Value Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Min</label>
+                <label className="text-[10px] text-gray-400">Min</label>
                 <input
                   type="number"
                   value={config.value_min_chars}
                   min={1}
                   max={config.value_max_chars}
                   onChange={(e) => updateConfig('value_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Max</label>
+                <label className="text-[10px] text-gray-400">Max</label>
                 <input
                   type="number"
                   value={config.value_max_chars}
                   min={config.value_min_chars}
                   max={20}
                   onChange={(e) => updateConfig('value_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 />
               </div>
             </div>
@@ -318,28 +318,28 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
       <CollapsibleSection title="Label" isOpen={showLabel} onToggle={() => setShowLabel(!showLabel)}>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <label className="text-[10px] text-gray-500 font-medium">Label Char Limits</label>
+            <label className="text-[10px] text-gray-400 font-medium">Label Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Min</label>
+                <label className="text-[10px] text-gray-400">Min</label>
                 <input
                   type="number"
                   value={config.label_min_chars}
                   min={1}
                   max={config.label_max_chars}
                   onChange={(e) => updateConfig('label_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Max</label>
+                <label className="text-[10px] text-gray-400">Max</label>
                 <input
                   type="number"
                   value={config.label_max_chars}
                   min={config.label_min_chars}
                   max={50}
                   onChange={(e) => updateConfig('label_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 />
               </div>
             </div>
@@ -358,28 +358,28 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
       <CollapsibleSection title="Description" isOpen={showDescription} onToggle={() => setShowDescription(!showDescription)}>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <label className="text-[10px] text-gray-500 font-medium">Description Char Limits</label>
+            <label className="text-[10px] text-gray-400 font-medium">Description Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Min</label>
+                <label className="text-[10px] text-gray-400">Min</label>
                 <input
                   type="number"
                   value={config.description_min_chars}
                   min={1}
                   max={config.description_max_chars}
                   onChange={(e) => updateConfig('description_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-500">Max</label>
+                <label className="text-[10px] text-gray-400">Max</label>
                 <input
                   type="number"
                   value={config.description_max_chars}
                   min={config.description_min_chars}
                   max={200}
                   onChange={(e) => updateConfig('description_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-700/50 border border-gray-600 text-xs text-gray-100"
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 />
               </div>
             </div>
