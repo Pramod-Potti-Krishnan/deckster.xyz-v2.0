@@ -261,13 +261,17 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     };
   }, [flushMessages]);
 
+  // Track enabled state via ref so beforeunload handler has current value
+  const enabledRef = useRef(enabled);
+  if (enabledRef.current !== enabled) enabledRef.current = enabled;
+
   // Flush on window beforeunload
   // FIX 8: Use sessionIdRef to get current session ID
   useEffect(() => {
     const handleBeforeUnload = () => {
       // FIX 8: Use ref instead of closure value
       const currentSessionId = sessionIdRef.current;
-      if (!currentSessionId) return;
+      if (!currentSessionId || !enabledRef.current) return;
 
       // Synchronous flush attempt
       if (messageQueueRef.current.size > 0) {

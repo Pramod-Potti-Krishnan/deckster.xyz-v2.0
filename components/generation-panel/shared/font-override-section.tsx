@@ -1,5 +1,7 @@
 'use client'
 
+import { normalizeColorToHex } from '@/lib/utils'
+
 const FONT_SIZES = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '40px', '48px']
 const FONT_FAMILIES = ['Poppins', 'Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Lato', 'Source Sans Pro']
 
@@ -65,7 +67,7 @@ export function FontOverrideSection({
         <label className="text-[10px] text-gray-500">Color</label>
         <input
           type="color"
-          value={(config[colorField] as string) || '#333333'}
+          value={normalizeColorToHex(config[colorField] as string, '#333333')}
           onChange={(e) => onChange(colorField, e.target.value)}
           className="h-6 w-6 rounded border border-gray-600 cursor-pointer"
         />

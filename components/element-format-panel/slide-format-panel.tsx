@@ -22,7 +22,7 @@ import {
   CheckCircle,
   Milestone,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, normalizeColorToHex } from '@/lib/utils'
 import { PromptInput } from './shared/prompt-input'
 import {
   SlideLayoutType,
@@ -329,7 +329,7 @@ export function SlideFormatPanel({
           <div className="flex items-center gap-2">
             <input
               type="color"
-              value={value || '#1e3a5f'}
+              value={normalizeColorToHex(value, '#1e3a5f')}
               onChange={(e) => handleFieldChange(field.key, e.target.value)}
               disabled={isProcessing}
               className="w-10 h-8 rounded border border-gray-700 cursor-pointer bg-transparent"

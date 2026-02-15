@@ -124,7 +124,7 @@ function BuilderContent() {
   // CRITICAL: Must be declared BEFORE useDecksterWebSocketV2 so the onSessionStateChange callback can reference it
   const persistence = useSessionPersistence({
     sessionId: currentSessionId || '',
-    enabled: !!currentSessionId, // Persist even when WebSocket disconnected
+    enabled: !!currentSessionId && !isUnsavedSession, // Only persist when DB session exists
     debounceMs: 500, // Reduce from default 3000ms to prevent loss on page close
     onError: (error) => {
       console.error('Persistence error:', error)
@@ -316,9 +316,15 @@ function BuilderContent() {
   const textLabsSession = useTextLabsSession(presentationId)
 
   // Track active blank element for real-time canvas↔modal position sync
+  // FIX: Use ref for trackElement to avoid infinite re-render loop.
+  // blankElements is a new object reference every render, so including it
+  // in the dependency array causes an infinite useEffect→setState→render cycle.
+  const trackElementRef = useRef(blankElements.trackElement)
+  trackElementRef.current = blankElements.trackElement
+
   useEffect(() => {
-    blankElements.trackElement(generationPanel.blankElementId)
-  }, [generationPanel.blankElementId, blankElements])
+    trackElementRef.current(generationPanel.blankElementId)
+  }, [generationPanel.blankElementId])
 
   // FIXED: Track when generating final presentation to show loading animation
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
@@ -2009,7 +2015,6 @@ function BuilderContent() {
 
                     // Skip if we've seen this exact ID
                     if (seenIds.has(id)) {
-                      console.log('🚫 Skipping duplicate message ID:', id);
                       return false;
                     }
 
@@ -2021,11 +2026,6 @@ function BuilderContent() {
                       // If we already have this content, prefer user message over bot message
                       if (item.messageType === 'user' && existingMessage.messageType !== 'user') {
                         // Current is user, existing is bot → replace with user version
-                        console.log('🔄 Replacing bot message with user message:', {
-                          content: contentKey.substring(0, 30),
-                          botId: existingMessage.id || existingMessage.message_id,
-                          userId: id
-                        });
                         // Remove the bot version from seen IDs so we can add user version
                         seenIds.delete(existingMessage.id || existingMessage.message_id);
                         seenContent.set(contentKey, item);
@@ -2033,11 +2033,9 @@ function BuilderContent() {
                         return true; // Keep this user message, will remove bot version later
                       } else if (item.messageType !== 'user' && existingMessage.messageType === 'user') {
                         // Current is bot, existing is user → skip bot version
-                        console.log('🚫 Skipping bot version of user message:', contentKey.substring(0, 50));
                         return false;
                       } else {
                         // Both same type → skip duplicate
-                        console.log('🚫 Skipping duplicate message content:', contentKey.substring(0, 50));
                         return false;
                       }
                     }
@@ -2068,16 +2066,6 @@ function BuilderContent() {
                     const timeB = b.messageType === 'user'
                       ? b.timestamp
                       : (b as any).clientTimestamp || parseTimestamp((b as any).timestamp);
-
-                    console.log('⏰ Comparing timestamps:', {
-                      messageA: a.messageType === 'user' ? (a as any).text?.substring(0, 20) : (a as any).payload?.text?.substring(0, 20),
-                      typeA: a.messageType,
-                      timeA,
-                      messageB: b.messageType === 'user' ? (b as any).text?.substring(0, 20) : (b as any).payload?.text?.substring(0, 20),
-                      typeB: b.messageType,
-                      timeB,
-                      order: timeA - timeB
-                    });
 
                     return timeA - timeB;
                   });

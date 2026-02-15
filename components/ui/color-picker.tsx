@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, normalizeColorToHex } from '@/lib/utils'
 import { X } from 'lucide-react'
 
 export interface CompactColorPickerProps {
@@ -103,7 +103,7 @@ export function CompactColorPicker({
         <input
           ref={colorInputRef}
           type="color"
-          value={isTransparent ? '#000000' : value}
+          value={isTransparent ? '#000000' : normalizeColorToHex(value)}
           onChange={handleColorChange}
           disabled={disabled}
           className="sr-only"
