@@ -63,7 +63,7 @@ export interface TextBoxConfig {
   corners: 'rounded' | 'square'
   border: boolean
   show_title: boolean
-  title_style: 'plain' | 'underline'
+  title_style: 'plain' | 'highlighted' | 'colored-bg' | 'neutral'
   list_style: 'bullets' | 'numbered' | 'plain'
   color_scheme: 'accent'
   layout: 'horizontal' | 'vertical' | 'grid'

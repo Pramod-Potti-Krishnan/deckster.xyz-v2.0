@@ -124,6 +124,14 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
     setAdvancedModified(true)
   }, [])
 
+  // Track which char limit fields the user has manually overridden
+  const [charLimitOverrides, setCharLimitOverrides] = useState<Set<string>>(new Set())
+
+  const handleCharLimitChange = useCallback((field: string, value: number) => {
+    updateConfig(field, value)
+    setCharLimitOverrides(prev => new Set(prev).add(field))
+  }, [updateConfig])
+
   // Computed text box limits
   const calcLimits = useMemo(() => recalcTextBoxLimits({
     position_width: positionConfig.position_width,
@@ -142,17 +150,18 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
     content_line_height: config.content_line_height,
   }), [positionConfig.position_width, positionConfig.position_height, count, layout, gridCols, paddingConfig, config.heading_font_size, config.content_font_size, config.heading_indent, config.content_indent, config.content_line_height])
 
-  // Sync calculated limits into config
+  // Sync calculated limits into config (skip fields the user has overridden)
   useEffect(() => {
     setConfig(prev => ({
       ...prev,
-      title_min_chars: calcLimits.title_min_chars,
-      title_max_chars: calcLimits.title_max_chars,
-      item_min_chars: calcLimits.item_min_chars,
-      item_max_chars: calcLimits.item_max_chars,
+      ...(charLimitOverrides.has('title_min_chars') ? {} : { title_min_chars: calcLimits.title_min_chars }),
+      ...(charLimitOverrides.has('title_max_chars') ? {} : { title_max_chars: calcLimits.title_max_chars }),
+      ...(charLimitOverrides.has('item_min_chars') ? {} : { item_min_chars: calcLimits.item_min_chars }),
+      ...(charLimitOverrides.has('item_max_chars') ? {} : { item_max_chars: calcLimits.item_max_chars }),
       items_per_instance: calcLimits.items_per_instance,
     }))
-  }, [calcLimits])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calcLimits]) // charLimitOverrides intentionally excluded to avoid loop
 
   const handleSubmit = useCallback(() => {
     const formData: TextBoxFormData = {
@@ -380,8 +389,10 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                 field="title_style"
                 value={config.title_style}
                 options={[
-                  { value: 'plain', label: 'Plain' },
-                  { value: 'underline', label: 'Underline' },
+                  { value: 'plain', label: 'Color' },
+                  { value: 'highlighted', label: 'Caps' },
+                  { value: 'colored-bg', label: 'Badge' },
+                  { value: 'neutral', label: 'Black' },
                 ]}
                 onChange={(f, v) => updateConfig(f, v)}
               />
@@ -409,17 +420,19 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                 ]}
                 onChange={(_, v) => updateConfig('heading_indent', Number(v))}
               />
-              {/* Title Char Limits (auto-calculated) */}
+              {/* Title Char Limits */}
               <div className="space-y-1.5">
-                <label className="text-[10px] text-gray-400 font-medium">Title Char Limits (auto-calculated)</label>
+                <label className="text-[10px] text-gray-400 font-medium">
+                  Title Chars (auto: {calcLimits.title_min_chars}–{calcLimits.title_max_chars})
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-[10px] text-gray-400">Min</label>
                     <input
                       type="number"
                       value={config.title_min_chars}
-                      readOnly
-                      className="w-full px-2 py-1 rounded bg-gray-100 border border-gray-200 text-xs text-gray-500"
+                      onChange={(e) => handleCharLimitChange('title_min_chars', Number(e.target.value))}
+                      className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
                   <div className="space-y-1">
@@ -427,8 +440,8 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                     <input
                       type="number"
                       value={config.title_max_chars}
-                      readOnly
-                      className="w-full px-2 py-1 rounded bg-gray-100 border border-gray-200 text-xs text-gray-500"
+                      onChange={(e) => handleCharLimitChange('title_max_chars', Number(e.target.value))}
+                      className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
                     />
                   </div>
                 </div>
@@ -520,17 +533,19 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
             </select>
           </div>
 
-          {/* Item Char Limits (auto-calculated) */}
+          {/* Item Char Limits */}
           <div className="space-y-1.5">
-            <label className="text-[10px] text-gray-400 font-medium">Item Char Limits (auto-calculated)</label>
+            <label className="text-[10px] text-gray-400 font-medium">
+              Item Chars (auto: {calcLimits.item_min_chars}–{calcLimits.item_max_chars})
+            </label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className="text-[10px] text-gray-400">Min</label>
                 <input
                   type="number"
                   value={config.item_min_chars}
-                  readOnly
-                  className="w-full px-2 py-1 rounded bg-gray-100 border border-gray-200 text-xs text-gray-500"
+                  onChange={(e) => handleCharLimitChange('item_min_chars', Number(e.target.value))}
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
                 />
               </div>
               <div className="space-y-1">
@@ -538,8 +553,8 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                 <input
                   type="number"
                   value={config.item_max_chars}
-                  readOnly
-                  className="w-full px-2 py-1 rounded bg-gray-100 border border-gray-200 text-xs text-gray-500"
+                  onChange={(e) => handleCharLimitChange('item_max_chars', Number(e.target.value))}
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
                 />
               </div>
             </div>
