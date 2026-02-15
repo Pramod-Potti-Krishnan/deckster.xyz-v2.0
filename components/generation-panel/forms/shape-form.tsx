@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { ShapeFormData, ShapeConfig, TextLabsShapeType, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
 import { ElementContext } from '../types'
 import { PromptInput } from '../shared/prompt-input'
+import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
 
@@ -72,6 +73,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
   const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
     top: 0, right: 0, bottom: 0, left: 0,
   })
+  const [showPadding, setShowPadding] = useState(false)
 
   // Derived grid values (for display and API)
   const gridW = pxToGrid(widthPx)
@@ -381,14 +383,14 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
         />
       </div>
 
-      {/* Padding */}
-      <div className="border-t border-gray-700 pt-3">
+      {/* Container Padding */}
+      <CollapsibleSection title="Container Padding" isOpen={showPadding} onToggle={() => setShowPadding(!showPadding)}>
         <PaddingControl
           paddingConfig={paddingConfig}
           onChange={setPaddingConfig}
           onAdvancedModified={() => setAdvancedModified(true)}
         />
-      </div>
+      </CollapsibleSection>
     </div>
   )
 }

@@ -11,18 +11,31 @@ import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.IMAGE
 
-// Backend-aligned image styles
-const IMAGE_STYLES: { value: TextLabsImageStyle; label: string }[] = [
-  { value: 'realistic', label: 'Realistic' },
-  { value: 'illustration', label: 'Illustration' },
-  { value: 'watercolor', label: 'Watercolor' },
-  { value: '3d_render', label: '3D Render' },
-  { value: 'flat_design', label: 'Flat Design' },
-  { value: 'pixel_art', label: 'Pixel Art' },
-  { value: 'abstract', label: 'Abstract' },
-  { value: 'sketch', label: 'Sketch' },
-  { value: 'oil_painting', label: 'Oil Painting' },
-  { value: 'pop_art', label: 'Pop Art' },
+// Backend-aligned image styles (8 values matching ImageStyle Literal)
+const IMAGE_STYLE_GROUPS: { category: string; styles: { value: TextLabsImageStyle; label: string }[] }[] = [
+  {
+    category: 'Photography',
+    styles: [
+      { value: 'realistic', label: 'Realistic' },
+      { value: 'photo', label: 'Corporate Photo' },
+    ],
+  },
+  {
+    category: 'Illustration',
+    styles: [
+      { value: 'illustration', label: 'Digital Illustration' },
+      { value: 'brand_graphic', label: 'Brand Graphic' },
+      { value: 'flat_vector', label: 'Flat Vector' },
+      { value: 'isometric', label: 'Isometric' },
+    ],
+  },
+  {
+    category: 'Design',
+    styles: [
+      { value: 'minimal', label: 'Minimalist' },
+      { value: 'abstract', label: 'Abstract' },
+    ],
+  },
 ]
 
 // Maximum grid dimensions for scale-to-fit
@@ -86,6 +99,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
   // Section visibility
   const [showStyle, setShowStyle] = useState(false)
   const [showPosition, setShowPosition] = useState(false)
+  const [showPadding, setShowPadding] = useState(false)
 
   // Padding
   const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
@@ -211,7 +225,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
         </select>
       </div>
 
-      {/* Image Style (promoted to basic area) */}
+      {/* Image Style (grouped dropdown — 8 backend-supported styles) */}
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-gray-700">Image Style</label>
         <select
@@ -222,8 +236,12 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
           }}
           className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
         >
-          {IMAGE_STYLES.map(s => (
-            <option key={s.value} value={s.value}>{s.label}</option>
+          {IMAGE_STYLE_GROUPS.map(group => (
+            <optgroup key={group.category} label={group.category}>
+              {group.styles.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </div>
@@ -396,13 +414,16 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
             onChange={setZIndex}
             onAdvancedModified={() => setAdvancedModified(true)}
           />
-
-          <PaddingControl
-            paddingConfig={paddingConfig}
-            onChange={setPaddingConfig}
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
         </div>
+      </CollapsibleSection>
+
+      {/* Container Padding */}
+      <CollapsibleSection title="Container Padding" isOpen={showPadding} onToggle={() => setShowPadding(!showPadding)}>
+        <PaddingControl
+          paddingConfig={paddingConfig}
+          onChange={setPaddingConfig}
+          onAdvancedModified={() => setAdvancedModified(true)}
+        />
       </CollapsibleSection>
     </div>
   )

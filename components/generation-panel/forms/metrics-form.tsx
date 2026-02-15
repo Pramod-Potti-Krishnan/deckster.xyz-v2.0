@@ -69,6 +69,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
   const [showLabel, setShowLabel] = useState(false)
   const [showDescription, setShowDescription] = useState(false)
   const [showPositioning, setShowPositioning] = useState(false)
+  const [showPadding, setShowPadding] = useState(false)
 
   // Position
   const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
@@ -403,17 +404,21 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
             elementType="METRICS"
             onAdvancedModified={() => setAdvancedModified(true)}
           />
-          <PaddingControl
-            paddingConfig={paddingConfig}
-            onChange={setPaddingConfig}
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
           <ZIndexInput
             value={zIndex}
             onChange={setZIndex}
             onAdvancedModified={() => setAdvancedModified(true)}
           />
         </div>
+      </CollapsibleSection>
+
+      {/* Container Padding */}
+      <CollapsibleSection title="Container Padding" isOpen={showPadding} onToggle={() => setShowPadding(!showPadding)}>
+        <PaddingControl
+          paddingConfig={paddingConfig}
+          onChange={setPaddingConfig}
+          onAdvancedModified={() => setAdvancedModified(true)}
+        />
       </CollapsibleSection>
     </div>
   )

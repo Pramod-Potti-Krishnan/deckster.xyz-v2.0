@@ -198,9 +198,8 @@ export interface ChartConfig {
 // ============================================================================
 
 export type TextLabsImageStyle =
-  | 'realistic' | 'illustration' | 'watercolor' | '3d_render'
-  | 'flat_design' | 'pixel_art' | 'abstract' | 'sketch'
-  | 'oil_painting' | 'pop_art'
+  | 'realistic' | 'photo' | 'illustration' | 'brand_graphic'
+  | 'flat_vector' | 'isometric' | 'minimal' | 'abstract'
 
 export interface ImageConfig {
   style: TextLabsImageStyle

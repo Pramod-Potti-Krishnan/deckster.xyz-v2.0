@@ -99,6 +99,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
   const [showStructure, setShowStructure] = useState(false)
   const [showStyling, setShowStyling] = useState(false)
   const [showPositioning, setShowPositioning] = useState(false)
+  const [showPadding, setShowPadding] = useState(false)
 
   // Position
   const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
@@ -443,17 +444,21 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
             elementType="TABLE"
             onAdvancedModified={() => setAdvancedModified(true)}
           />
-          <PaddingControl
-            paddingConfig={paddingConfig}
-            onChange={setPaddingConfig}
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
           <ZIndexInput
             value={zIndex}
             onChange={setZIndex}
             onAdvancedModified={() => setAdvancedModified(true)}
           />
         </div>
+      </CollapsibleSection>
+
+      {/* Container Padding */}
+      <CollapsibleSection title="Container Padding" isOpen={showPadding} onToggle={() => setShowPadding(!showPadding)}>
+        <PaddingControl
+          paddingConfig={paddingConfig}
+          onChange={setPaddingConfig}
+          onAdvancedModified={() => setAdvancedModified(true)}
+        />
       </CollapsibleSection>
     </div>
   )
