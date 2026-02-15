@@ -194,6 +194,8 @@ export function PresentationViewer({
   const [isEditMode, setIsEditMode] = useState(false)
   // Fullscreen slide dimensions (calculated via JS for accuracy)
   const [fullscreenSlideSize, setFullscreenSlideSize] = useState<{ width: number; height: number } | null>(null)
+  // Normal-mode slide dimensions (fit-contain via ResizeObserver)
+  const [normalSlideSize, setNormalSlideSize] = useState<{ width: number; height: number } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
@@ -1495,6 +1497,23 @@ export function PresentationViewer({
     return () => window.removeEventListener('resize', calculateSize)
   }, [isFullscreen])
 
+  // Calculate optimal slide dimensions in normal mode (fit-contain)
+  useEffect(() => {
+    if (isFullscreen) return
+    const container = slideContainerRef.current
+    if (!container) return
+
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      const ratio = 16 / 9
+      let w = width, h = w / ratio
+      if (h > height) { h = height; w = h * ratio }
+      setNormalSlideSize({ width: w, height: h })
+    })
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [isFullscreen])
+
   // Auto-hide toolbar in fullscreen mode
   useEffect(() => {
     if (!isFullscreen) return
@@ -1869,15 +1888,18 @@ export function PresentationViewer({
           {/* Presentation Iframe */}
           <div
             ref={slideContainerRef}
-            className={`flex-1 relative flex items-center justify-center ${isFullscreen ? 'bg-black' : 'bg-gray-800 p-8'}`}
+            className={`flex-1 min-h-0 relative flex items-center justify-center ${isFullscreen ? 'bg-black' : 'bg-gray-800 p-8'}`}
           >
             {presentationUrl ? (
               <div
-                className={isFullscreen ? '' : 'w-full max-w-7xl'}
+                className={isFullscreen ? '' : 'max-w-7xl'}
                 style={isFullscreen && fullscreenSlideSize ? {
                   // Use JavaScript-calculated dimensions for accuracy
                   width: fullscreenSlideSize.width,
                   height: fullscreenSlideSize.height
+                } : normalSlideSize ? {
+                  width: normalSlideSize.width,
+                  height: normalSlideSize.height,
                 } : {
                   aspectRatio: '16/9',
                   width: '100%'

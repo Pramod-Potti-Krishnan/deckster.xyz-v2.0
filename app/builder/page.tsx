@@ -892,9 +892,9 @@ function BuilderContent() {
                 }
               }}
               className={cn(
-                "absolute top-1/2 z-40 transition-[left] duration-300 ease-out",
+                "absolute top-1/2 z-40 transition-all duration-300 ease-out",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+                "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                 generationPanel.isOpen
                   ? "left-[25%] bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
                   : "left-0 bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
@@ -918,9 +918,9 @@ function BuilderContent() {
             type="button"
             onClick={() => setShowFormatPanel(prev => !prev)}
             className={cn(
-              "absolute top-1/2 z-40 transition-[left] duration-300 ease-out",
+              "absolute top-1/2 z-40 transition-all duration-300 ease-out",
               "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-              "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+              "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
               showFormatPanel
                 ? "left-[25%] bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700"
                 : "left-0 bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600"
@@ -943,9 +943,9 @@ function BuilderContent() {
             type="button"
             onClick={() => setShowChat(prev => !prev)}
             className={cn(
-              "absolute top-1/2 z-40 transition-[left] duration-300 ease-out",
+              "absolute top-1/2 z-40 transition-all duration-300 ease-out",
               "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-              "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+              "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
               showChat
                 ? "left-[25%] bg-emerald-200 hover:bg-emerald-300 border-emerald-400 text-emerald-700"
                 : "left-0 bg-emerald-100 hover:bg-emerald-200 border-emerald-300 text-emerald-600"
