@@ -27,6 +27,9 @@ interface UseBuilderSessionParams {
   toast: (opts: any) => any
   isUnsavedSession: boolean
   setIsUnsavedSession: (v: boolean) => void
+  // Session ID — lifted to page.tsx so useSessionPersistence gets it synchronously
+  currentSessionId: string | null
+  setCurrentSessionId: (id: string | null) => void
 }
 
 export function useBuilderSession({
@@ -46,20 +49,11 @@ export function useBuilderSession({
   toast,
   isUnsavedSession,
   setIsUnsavedSession,
+  currentSessionId,
+  setCurrentSessionId,
 }: UseBuilderSessionParams) {
   const router = useRouter()
 
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const urlSessionId = params.get('session_id')
-      if (urlSessionId && urlSessionId !== 'new') {
-        console.log('🔍 Detected session ID from URL on mount:', urlSessionId)
-        return urlSessionId
-      }
-    }
-    return null
-  })
   const currentSessionIdRef = useRef(currentSessionId)
 
   const [isLoadingSession, setIsLoadingSession] = useState(false)

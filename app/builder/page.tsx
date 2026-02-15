@@ -115,10 +115,9 @@ function BuilderContent() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Session persistence (enabled regardless of WebSocket state)
-  // CRITICAL: Must be declared BEFORE useDecksterWebSocketV2 so the onSessionStateChange callback can reference it
-  // Note: We use a temporary sessionId here; it gets updated when useBuilderSession resolves
-  const [sessionIdForPersistence, setSessionIdForPersistence] = useState<string | null>(() => {
+  // CRITICAL: currentSessionId must be declared here in page.tsx (not inside useBuilderSession)
+  // so useSessionPersistence gets the correct sessionId synchronously — no multi-render delay.
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const urlSessionId = params.get('session_id')
@@ -128,8 +127,8 @@ function BuilderContent() {
   })
 
   const persistence = useSessionPersistence({
-    sessionId: sessionIdForPersistence || '',
-    enabled: !!sessionIdForPersistence && !isUnsavedSession,
+    sessionId: currentSessionId || '',
+    enabled: !!currentSessionId && !isUnsavedSession,
     debounceMs: 500,
     onError: (error) => {
       console.error('Persistence error:', error)
@@ -142,10 +141,10 @@ function BuilderContent() {
     persistenceRef.current = persistence
   }, [persistence])
 
-  const currentSessionIdRef = useRef(sessionIdForPersistence)
+  const currentSessionIdRef = useRef(currentSessionId)
   useEffect(() => {
-    currentSessionIdRef.current = sessionIdForPersistence
-  }, [sessionIdForPersistence])
+    currentSessionIdRef.current = currentSessionId
+  }, [currentSessionId])
 
   // WebSocket v2 integration
   const {
@@ -180,8 +179,8 @@ function BuilderContent() {
     // Don't auto-connect when restoring an existing session from URL.
     // The useBuilderSession hook will connect AFTER DB load + restoreMessages,
     // preventing Director's blank state from flashing before restored content.
-    autoConnect: features.immediateConnection && !sessionIdForPersistence,
-    existingSessionId: sessionIdForPersistence || undefined,
+    autoConnect: features.immediateConnection && !currentSessionId,
+    existingSessionId: currentSessionId || undefined,
     reconnectOnError: false,
     maxReconnectAttempts: 0,
     reconnectDelay: 5000,
@@ -247,12 +246,9 @@ function BuilderContent() {
     toast,
     isUnsavedSession,
     setIsUnsavedSession,
+    currentSessionId,
+    setCurrentSessionId,
   })
-
-  // Keep persistence sessionId in sync with session hook
-  useEffect(() => {
-    setSessionIdForPersistence(session.currentSessionId)
-  }, [session.currentSessionId])
 
   // Text Labs session (depends on presentationId from WebSocket)
   const textLabsSession = useTextLabsSession(presentationId)
@@ -281,7 +277,7 @@ function BuilderContent() {
     removeFile,
     clearAllFiles
   } = useFileUpload({
-    sessionId: session.currentSessionId || '',
+    sessionId: currentSessionId || '',
     userId: user?.email || '',
     onUploadComplete: (files) => {
       console.log('📎 Files uploaded:', files)
@@ -385,10 +381,10 @@ function BuilderContent() {
           timestamp: timestamp
         }])
 
-        if (session.currentSessionId && persistence) {
+        if (currentSessionId && persistence) {
           persistence.queueMessage({
             message_id: messageId,
-            session_id: session.currentSessionId,
+            session_id: currentSessionId,
             timestamp: new Date(timestamp).toISOString(),
             type: 'chat_message',
             payload: { text: action.label, action_value: action.value }
@@ -418,7 +414,7 @@ function BuilderContent() {
       // For unsaved sessions, create database session first
       if (isUnsavedSession) {
         console.log('💾 Creating database session for first message')
-        const newSessionId = session.currentSessionId || wsSessionId
+        const newSessionId = currentSessionId || wsSessionId
 
         try {
           const dbSession = await createSession(newSessionId)
@@ -426,8 +422,8 @@ function BuilderContent() {
           if (dbSession) {
             session.justCreatedSessionRef.current = dbSession.id
             setIsUnsavedSession(false)
-            if (!session.currentSessionId) {
-              session.setCurrentSessionId(dbSession.id)
+            if (!currentSessionId) {
+              setCurrentSessionId(dbSession.id)
               router.push(`/builder?session_id=${dbSession.id}`)
             }
             console.log('✅ Database session created:', dbSession.id)
@@ -528,11 +524,11 @@ function BuilderContent() {
           timestamp: timestamp
         }])
 
-        if (session.currentSessionId && persistence) {
+        if (currentSessionId && persistence) {
           console.log('💾 Persisting user message for resumed session:', messageId)
           persistence.queueMessage({
             message_id: messageId,
-            session_id: session.currentSessionId,
+            session_id: currentSessionId,
             timestamp: new Date(timestamp).toISOString(),
             type: 'chat_message',
             payload: { text: messageText }
@@ -569,10 +565,10 @@ function BuilderContent() {
         timestamp: timestamp
       }])
 
-      if (session.currentSessionId && persistence) {
+      if (currentSessionId && persistence) {
         persistence.queueMessage({
           message_id: messageId,
-          session_id: session.currentSessionId,
+          session_id: currentSessionId,
           timestamp: new Date(timestamp).toISOString(),
           type: 'chat_message',
           payload: { text: messageText }
@@ -605,7 +601,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, session.currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, contentContext, toContentContextPayload])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, contentContext, toContentContextPayload])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -629,10 +625,10 @@ function BuilderContent() {
         timestamp: timestamp
       }])
 
-      if (session.currentSessionId && persistence) {
+      if (currentSessionId && persistence) {
         persistence.queueMessage({
           message_id: messageId,
-          session_id: session.currentSessionId,
+          session_id: currentSessionId,
           timestamp: new Date(timestamp).toISOString(),
           type: 'chat_message',
           payload: { text: action.label, action_value: action.value }
@@ -646,7 +642,7 @@ function BuilderContent() {
 
       sendMessage(action.value)
     }
-  }, [sendMessage, session.currentSessionId, persistence])
+  }, [sendMessage, currentSessionId, persistence])
 
   // Wrapped session select handler (clears local UI state too)
   const handleSessionSelectWrapped = useCallback((sessionId: string) => {
@@ -769,7 +765,7 @@ function BuilderContent() {
               }}
               presentationId={presentationId}
               slideIndex={currentSlideIndex}
-              sessionId={session.currentSessionId}
+              sessionId={currentSessionId}
             />
 
             {/* Element/Slide Format Panel */}
@@ -871,7 +867,7 @@ function BuilderContent() {
               connected={connected}
               connecting={connecting}
               user={user}
-              currentSessionId={session.currentSessionId}
+              currentSessionId={currentSessionId}
               onRequestSession={session.handleRequestSession}
             />
           </div>
@@ -943,7 +939,7 @@ function BuilderContent() {
       <ChatHistorySidebar
         isOpen={showChatHistory}
         onClose={() => setShowChatHistory(false)}
-        currentSessionId={session.currentSessionId || undefined}
+        currentSessionId={currentSessionId || undefined}
         onSessionSelect={handleSessionSelectWrapped}
         onNewChat={session.handleNewChat}
       />
