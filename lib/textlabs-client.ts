@@ -283,6 +283,23 @@ export function getDefaultSize(componentType: TextLabsComponentType): { width: n
 }
 
 /**
+ * Extract body content from full HTML documents.
+ * Backend returns complete HTML (<!DOCTYPE html>...) but Layout Service expects
+ * just body content with scripts. Ported from Text Labs canvas-renderer.js.
+ */
+function extractBodyContent(html: string): string {
+  if (html.includes('<!DOCTYPE') || html.includes('<html')) {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(html, 'text/html')
+    const headScripts = Array.from(doc.head.querySelectorAll('script'))
+    const bodyContent = doc.body.innerHTML
+    const scriptTags = headScripts.map(s => s.outerHTML).join('\n')
+    return scriptTags + '\n' + bodyContent
+  }
+  return html
+}
+
+/**
  * Build postMessage params for canvas insertion based on element type and API response
  */
 export function buildInsertionParams(
@@ -341,7 +358,7 @@ export function buildInsertionParams(
     case 'insertChart':
       return {
         method: 'insertChart',
-        params: { ...baseParams, chartHtml: element.html || '' },
+        params: { ...baseParams, chartHtml: extractBodyContent(element.html || '') },
       }
     case 'insertImage':
       return {
@@ -351,7 +368,7 @@ export function buildInsertionParams(
     case 'insertDiagram':
       return {
         method: 'insertDiagram',
-        params: { ...baseParams, content: element.html || '' },
+        params: { ...baseParams, htmlContent: extractBodyContent(element.html || '') },
       }
   }
 }
