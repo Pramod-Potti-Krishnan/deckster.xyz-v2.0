@@ -74,7 +74,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
   }, [registerSubmit, handleSubmit])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {/* Prompt */}
       <PromptInput
         value={prompt}
@@ -102,12 +102,12 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
       />
 
       {/* Count */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-700">Count</label>
+      <div className="space-y-1">
+        <label className="text-[11px] font-medium text-gray-600">Count</label>
         <select
           value={count}
           onChange={(e) => setCount(Number(e.target.value))}
-          className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
         >
           {[1, 2, 3, 4, 5, 6].map(n => (
             <option key={n} value={n}>{n}</option>
@@ -133,15 +133,15 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
 
       {/* Style (icon mode only) */}
       {mode === 'icon' && (
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-700">Style</label>
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-gray-600">Style</label>
           <select
             value={style}
             onChange={(e) => {
               setStyle(e.target.value as IconLabelConfig['style'])
               setAdvancedModified(true)
             }}
-            className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {ICON_STYLES.map(s => (
               <option key={s.value} value={s.value}>{s.label}</option>
@@ -152,15 +152,15 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
 
       {/* Font (label mode only) */}
       {mode === 'label' && (
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-700">Font</label>
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-gray-600">Font</label>
           <select
             value={font}
             onChange={(e) => {
               setFont(e.target.value as IconLabelConfig['font'])
               setAdvancedModified(true)
             }}
-            className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {LABEL_FONTS.map(f => (
               <option key={f.value} value={f.value}>{f.label}</option>
@@ -170,8 +170,8 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
       )}
 
       {/* Color */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-700">Color</label>
+      <div className="space-y-1">
+        <label className="text-[11px] font-medium text-gray-600">Color</label>
         <div className="flex gap-2 items-center">
           <input
             type="color"
@@ -180,7 +180,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
               setColor(e.target.value)
               setAdvancedModified(true)
             }}
-            className="h-7 w-7 rounded border border-gray-300 cursor-pointer"
+            className="h-6 w-6 rounded border border-gray-300 cursor-pointer"
           />
           <span className="text-[10px] text-gray-400">{color || 'Auto'}</span>
           {color && (

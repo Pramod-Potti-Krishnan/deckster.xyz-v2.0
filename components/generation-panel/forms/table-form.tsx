@@ -174,7 +174,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
   }, [registerSubmit, handleSubmit])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {/* Prompt */}
       {contentSource === 'ai' && (
         <PromptInput
@@ -199,38 +199,38 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
       {/* Section 1: Structure */}
       <CollapsibleSection title="Structure" isOpen={showStructure} onToggle={() => setShowStructure(!showStructure)}>
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-700">Columns</label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-gray-600">Columns</label>
               <select
                 value={columns}
                 onChange={(e) => { setColumns(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {[2, 3, 4, 5, 6].map(n => (
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-700">Rows</label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-gray-600">Rows</label>
               <select
                 value={rows}
                 onChange={(e) => { setRows(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-700">Count</label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-gray-600">Count</label>
               <select
                 value={count}
                 onChange={(e) => setCount(Number(e.target.value))}
-                className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {[1, 2].map(n => (
                   <option key={n} value={n}>{n}</option>
@@ -251,7 +251,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
           />
 
           {/* Column Widths */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className="text-[10px] text-gray-400 font-medium">Column Widths (%)</label>
             <div className="grid grid-cols-3 gap-1">
               {columnWidths.map((w, i) => (
@@ -278,7 +278,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <ToggleRow
               label="First Col Bold"
               field="first_column_bold"
@@ -315,7 +315,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
       {/* Section 2: Styling */}
       <CollapsibleSection title="Styling" isOpen={showStyling} onToggle={() => setShowStyling(!showStyling)}>
-        <div className="space-y-3">
+        <div className="space-y-2">
           <ToggleRow
             label="Header Style"
             field="header_style"
@@ -372,14 +372,14 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
           />
 
           {/* Header Color */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Header Color</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Header Color</label>
             <div className="flex gap-2 items-center">
               <input
                 type="color"
                 value={config.header_color || '#4A5568'}
                 onChange={(e) => updateConfig('header_color', e.target.value)}
-                className="h-7 w-7 rounded border border-gray-300 cursor-pointer"
+                className="h-6 w-6 rounded border border-gray-300 cursor-pointer"
               />
               <span className="text-[10px] text-gray-400">{config.header_color || 'Auto'}</span>
               {config.header_color && (
@@ -394,7 +394,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
           </div>
 
           {/* Header char limits + font */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className="text-[10px] text-gray-400 font-medium">Header Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -414,7 +414,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
           <FontOverrideSection label="Header Font" prefix="header" config={config as unknown as Record<string, unknown>} onChange={updateConfig} thirdToggle="allcaps" />
 
           {/* Cell char limits + font */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className="text-[10px] text-gray-400 font-medium">Cell Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -437,7 +437,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
       {/* Section 3: Positioning */}
       <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(!showPositioning)}>
-        <div className="space-y-4">
+        <div className="space-y-2.5">
           <PositionPresets
             positionConfig={positionConfig}
             onChange={setPositionConfig}

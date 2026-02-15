@@ -177,7 +177,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
   }, [registerSubmit, handleSubmit])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {/* Prompt */}
       {contentSource === 'ai' && (
         <PromptInput
@@ -202,22 +202,22 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
       {/* Section 1: Instances */}
       <CollapsibleSection title="Instances" isOpen={showInstances} onToggle={() => setShowInstances(!showInstances)}>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-700">Count</label>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-gray-600">Count</label>
               <select
                 value={count}
                 onChange={(e) => setCount(Number(e.target.value))}
-                className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {[1, 2, 3, 4].map(n => (
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-700">Layout</label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-gray-600">Layout</label>
               <div className="flex gap-1">
                 {[
                   { value: 'horizontal', label: 'H' },
@@ -226,9 +226,9 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
                   <button
                     key={option.value}
                     onClick={() => setLayout(option.value as 'horizontal' | 'vertical')}
-                    className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+                    className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
                       layout === option.value
-                        ? 'bg-purple-600 text-white border border-purple-600'
+                        ? 'bg-primary text-white border border-primary'
                         : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
                     }`}
                   >
@@ -243,7 +243,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
       {/* Section 2: Card Design */}
       <CollapsibleSection title="Card Design" isOpen={showCardDesign} onToggle={() => setShowCardDesign(!showCardDesign)}>
-        <div className="space-y-3">
+        <div className="space-y-2">
           <ToggleRow
             label="Corners"
             field="corners"
@@ -287,15 +287,15 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
             onChange={(f, v) => updateConfig(f, v)}
           />
           {/* Card Color */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Card Color</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Card Color</label>
             <div className="flex flex-wrap gap-1.5">
               {/* Auto (rainbow) */}
               <button
                 onClick={() => updateConfig('color_variant', null)}
-                className={`h-7 w-7 rounded-full border border-gray-300 bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 transition-all ${
+                className={`h-6 w-6 rounded-full border border-gray-300 bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 transition-all ${
                   config.color_variant === null
-                    ? 'ring-2 ring-purple-500 ring-offset-1'
+                    ? 'ring-2 ring-primary ring-offset-1'
                     : 'hover:scale-110'
                 }`}
                 title="Auto"
@@ -305,9 +305,9 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
                   key={preset.name}
                   onClick={() => updateConfig('color_variant', preset.name)}
                   style={{ backgroundColor: config.color_scheme === 'accent' ? preset.pastelHex : preset.hex }}
-                  className={`h-7 w-7 rounded-full border border-gray-200 transition-all ${
+                  className={`h-6 w-6 rounded-full border border-gray-200 transition-all ${
                     config.color_variant === preset.name
-                      ? 'ring-2 ring-purple-500 ring-offset-1'
+                      ? 'ring-2 ring-primary ring-offset-1'
                       : 'hover:scale-110'
                   }`}
                   title={preset.label}
@@ -320,8 +320,8 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
       {/* Section 3: Value */}
       <CollapsibleSection title="Value" isOpen={showValue} onToggle={() => setShowValue(!showValue)}>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-2">
+          <div className="space-y-1">
             <label className="text-[10px] text-gray-400 font-medium">Value Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -361,8 +361,8 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
       {/* Section 4: Label */}
       <CollapsibleSection title="Label" isOpen={showLabel} onToggle={() => setShowLabel(!showLabel)}>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-2">
+          <div className="space-y-1">
             <label className="text-[10px] text-gray-400 font-medium">Label Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -402,8 +402,8 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
       {/* Section 5: Description */}
       <CollapsibleSection title="Description" isOpen={showDescription} onToggle={() => setShowDescription(!showDescription)}>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
+        <div className="space-y-2">
+          <div className="space-y-1">
             <label className="text-[10px] text-gray-400 font-medium">Description Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -443,7 +443,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
       {/* Section 6: Positioning */}
       <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(!showPositioning)}>
-        <div className="space-y-4">
+        <div className="space-y-2.5">
           <PositionPresets
             positionConfig={positionConfig}
             onChange={setPositionConfig}

@@ -182,17 +182,17 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
   }, [registerSubmit, handleSubmit])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {/* Diagram Subtype Selector */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-700">Diagram Type</label>
+      <div className="space-y-1">
+        <label className="text-[11px] font-medium text-gray-600">Diagram Type</label>
         <select
           value={subtype}
           onChange={(e) => {
             setSubtype(e.target.value as TextLabsDiagramSubtype)
             setAdvancedModified(true)
           }}
-          className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
         >
           {DIAGRAM_SUBTYPES.map(st => (
             <option key={st.value} value={st.value}>{st.label}</option>
@@ -209,27 +209,27 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
       />
 
       {/* Subtype-specific options */}
-      <div className="space-y-3">
+      <div className="space-y-2">
           {subtype === 'CODE_DISPLAY' && (
             <>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-700">Language</label>
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-gray-600">Language</label>
                 <select
                   value={language}
                   onChange={(e) => { setLanguage(e.target.value); setAdvancedModified(true) }}
-                  className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   {LANGUAGES.map(l => (
                     <option key={l} value={l}>{l}</option>
                   ))}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-700">Theme</label>
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-gray-600">Theme</label>
                 <select
                   value={colorTheme}
                   onChange={(e) => { setColorTheme(e.target.value as CodeDisplayConfig['color_theme']); setAdvancedModified(true) }}
-                  className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   {COLOR_THEMES.map(t => (
                     <option key={t.value} value={t.value}>{t.label}</option>
@@ -247,7 +247,7 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
                 ]}
                 onChange={(_, v) => { setTextSize(v as 'small' | 'medium' | 'large'); setAdvancedModified(true) }}
               />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <ToggleRow
                   label="Line Numbers"
                   field="show_line_numbers"
@@ -279,13 +279,13 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
                 ]}
                 onChange={(_, v) => { setCornerStyle(v as 'rounded' | 'square'); setAdvancedModified(true) }}
               />
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-gray-700">Size</label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-gray-600">Size</label>
                   <select
                     value={codeSize}
                     onChange={(e) => { setCodeSize(e.target.value as 'full' | 'half' | 'third'); setAdvancedModified(true) }}
-                    className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900"
+                    className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900"
                   >
                     <option value="full">Full</option>
                     <option value="half">Half</option>
@@ -293,12 +293,12 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
                   </select>
                 </div>
                 {codeSize !== 'full' && (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-700">Position</label>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-gray-600">Position</label>
                     <select
                       value={codePosition}
                       onChange={(e) => { setCodePosition(e.target.value as 'left' | 'center' | 'right'); setAdvancedModified(true) }}
-                      className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900"
+                      className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900"
                     >
                       <option value="left">Left</option>
                       {codeSize === 'third' && <option value="center">Center</option>}
@@ -312,12 +312,12 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
           {subtype === 'KANBAN_BOARD' && (
             <>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-700">Columns</label>
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-gray-600">Columns</label>
                 <select
                   value={columnCount}
                   onChange={(e) => { setColumnCount(Number(e.target.value)); setAdvancedModified(true) }}
-                  className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 >
                   {[2, 3, 4, 5, 6].map(n => (
                     <option key={n} value={n}>{n}</option>
@@ -350,12 +350,12 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
           {subtype === 'CHEVRON_MATURITY' && (
             <>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-700">Stages</label>
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-gray-600">Stages</label>
                 <select
                   value={numStages}
                   onChange={(e) => { setNumStages(Number(e.target.value)); setAdvancedModified(true) }}
-                  className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 >
                   {[3, 4, 5, 6, 7, 8].map(n => (
                     <option key={n} value={n}>{n}</option>
@@ -380,12 +380,12 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
           {subtype === 'IDEA_BOARD' && (
             <>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-700">Axis Preset</label>
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-gray-600">Axis Preset</label>
                 <select
                   value={axisPreset}
                   onChange={(e) => { setAxisPreset(e.target.value as IdeaBoardConfig['axis_preset']); setAdvancedModified(true) }}
-                  className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900"
                 >
                   <option value="impact_urgency">Impact / Urgency</option>
                   <option value="impact_effort">Impact / Effort</option>
@@ -431,7 +431,7 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
           {subtype === 'DATA_ARCHITECTURE' && (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <ToggleRow
                   label="Data Types"
                   field="show_data_types"
@@ -487,12 +487,12 @@ function ThemeSelect({ value, onChange }: { value: 'default' | 'dark' | 'minimal
 
 function PositionPresetSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium text-gray-700">Position</label>
+    <div className="space-y-1">
+      <label className="text-[11px] font-medium text-gray-600">Position</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+        className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
       >
         {POSITION_PRESETS.map(p => (
           <option key={p.value} value={p.value}>{p.label}</option>

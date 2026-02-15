@@ -189,7 +189,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
   }, [chartType])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {/* Prompt */}
       {contentSource === 'ai' && (
         <PromptInput
@@ -214,14 +214,14 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
       {/* Chart Config */}
       <CollapsibleSection title="Chart Config" isOpen={showConfig} onToggle={() => setShowConfig(!showConfig)}>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* Count */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Count</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Count</label>
             <select
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {[1, 2].map(n => (
                 <option key={n} value={n}>{n}</option>
@@ -230,15 +230,15 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
           </div>
 
           {/* Chart Type */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Chart Type</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Chart Type</label>
             <select
               value={chartType}
               onChange={(e) => {
                 setChartType(e.target.value as TextLabsChartType)
                 setAdvancedModified(true)
               }}
-              className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {CHART_TYPE_GROUPS.map(group => (
                 <optgroup key={group.group} label={group.group}>
@@ -254,7 +254,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
       {/* Chart Options */}
       <CollapsibleSection title="Chart Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* Include Insights */}
           <ToggleRow
             label="Include Insights"
@@ -272,8 +272,8 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
           {/* Series Names (only for multi-series chart types) */}
           {MULTI_SERIES_TYPES.includes(chartType) && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-700">Series Names</label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-gray-600">Series Names</label>
               <input
                 type="text"
                 value={seriesNamesInput}
@@ -282,7 +282,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
                   setAdvancedModified(true)
                 }}
                 placeholder="e.g., Revenue, Costs, Profit"
-                className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <p className="text-[10px] text-gray-400">Comma-separated names for each data series</p>
             </div>
@@ -305,12 +305,12 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
           {/* Custom Data Input */}
           {dataSource === 'custom' && (
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-gray-700">Custom Data (JSON)</label>
+                <label className="text-[11px] font-medium text-gray-600">Custom Data (JSON)</label>
                 <button
                   onClick={loadTemplate}
-                  className="text-[10px] text-purple-400 hover:text-purple-300"
+                  className="text-[10px] text-primary hover:text-primary/80"
                 >
                   Load Template
                 </button>
@@ -323,7 +323,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
                   setAdvancedModified(true)
                 }}
                 rows={6}
-                className={`w-full px-2.5 py-2 rounded-md bg-gray-50 border text-xs text-gray-900 font-mono placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-y ${
+                className={`w-full px-2.5 py-2 rounded-md bg-gray-50 border text-xs text-gray-900 font-mono placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary resize-y ${
                   dataError ? 'border-red-500' : 'border-gray-300'
                 }`}
                 placeholder='[{ "label": "Jan", "value": 100 }]'
@@ -338,7 +338,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
       {/* Position (no padding for CHART) */}
       <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(!showPosition)}>
-        <div className="space-y-4">
+        <div className="space-y-2.5">
           <PositionPresets
             positionConfig={positionConfig}
             onChange={setPositionConfig}

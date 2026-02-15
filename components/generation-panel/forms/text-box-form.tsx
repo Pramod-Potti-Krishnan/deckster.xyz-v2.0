@@ -190,7 +190,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
   }, [registerSubmit, handleSubmit])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {/* Prompt */}
       {contentSource === 'ai' && (
         <PromptInput
@@ -219,14 +219,14 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
         isOpen={showInstances}
         onToggle={() => setShowInstances(!showInstances)}
       >
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* Count */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Count</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Count</label>
             <select
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {[1, 2, 3, 4, 5, 6].map(n => (
                 <option key={n} value={n}>{n}</option>
@@ -249,12 +249,12 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
           {/* Grid Columns (visible when layout=grid) */}
           {layout === 'grid' && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-700">Grid Columns</label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-gray-600">Grid Columns</label>
               <select
                 value={gridCols}
                 onChange={(e) => { setGridCols(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {[2, 3, 4, 5, 6].map(n => (
                   <option key={n} value={n}>{n}</option>
@@ -271,7 +271,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
         isOpen={showBoxDesign}
         onToggle={() => setShowBoxDesign(!showBoxDesign)}
       >
-        <div className="space-y-3">
+        <div className="space-y-2">
           <ToggleRow
             label="Background"
             field="background"
@@ -285,16 +285,16 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
           {/* Color Variant (disabled when bg=transparent) */}
           {config.background === 'colored' && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-700">Box Color</label>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-gray-600">Box Color</label>
               <div className="flex flex-wrap gap-1.5">
                 {/* Auto swatch — rainbow gradient */}
                 <button
                   onClick={() => updateConfig('color_variant', null)}
                   style={{ background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' }}
-                  className={`h-7 w-7 rounded-full border transition-all ${
+                  className={`h-6 w-6 rounded-full border transition-all ${
                     config.color_variant === null
-                      ? 'ring-2 ring-purple-500 ring-offset-1'
+                      ? 'ring-2 ring-primary ring-offset-1'
                       : 'border-gray-200 hover:scale-110'
                   }`}
                   title="Auto"
@@ -305,9 +305,9 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                     key={preset.name}
                     onClick={() => updateConfig('color_variant', preset.name)}
                     style={{ backgroundColor: preset.hex }}
-                    className={`h-7 w-7 rounded-full border transition-all ${
+                    className={`h-6 w-6 rounded-full border transition-all ${
                       config.color_variant === preset.name
-                        ? 'ring-2 ring-purple-500 ring-offset-1'
+                        ? 'ring-2 ring-primary ring-offset-1'
                         : 'border-gray-200 hover:scale-110'
                     }`}
                     title={preset.label}
@@ -330,7 +330,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
             ]}
             onChange={(f, v) => updateConfig(f, v)}
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <ToggleRow
               label="Shadow"
               field="shadow"
@@ -371,7 +371,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
         isOpen={showHeading}
         onToggle={() => setShowHeading(!showHeading)}
       >
-        <div className="space-y-3">
+        <div className="space-y-2">
           <ToggleRow
             label="Show Title"
             field="show_title"
@@ -421,7 +421,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                 onChange={(_, v) => updateConfig('heading_indent', Number(v))}
               />
               {/* Title Char Limits */}
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-[10px] text-gray-400 font-medium">
                   Title Chars (auto: {calcLimits.title_min_chars}–{calcLimits.title_max_chars})
                 </label>
@@ -432,7 +432,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                       type="number"
                       value={config.title_min_chars}
                       onChange={(e) => handleCharLimitChange('title_min_chars', Number(e.target.value))}
-                      className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div className="space-y-1">
@@ -441,7 +441,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                       type="number"
                       value={config.title_max_chars}
                       onChange={(e) => handleCharLimitChange('title_max_chars', Number(e.target.value))}
-                      className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                      className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                 </div>
@@ -465,14 +465,14 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
         isOpen={showContent}
         onToggle={() => setShowContent(!showContent)}
       >
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* Items per box */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Items/Box (auto: {calcLimits.items_per_instance})</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Items/Box (auto: {calcLimits.items_per_instance})</label>
             <select
               value={config.items_per_instance}
               onChange={(e) => updateConfig('items_per_instance', Number(e.target.value))}
-              className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {Array.from({ length: 14 }, (_, i) => i + 1).map(n => (
                 <option key={n} value={n}>{n}</option>
@@ -519,12 +519,12 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
           />
 
           {/* Line Spacing */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Line Spacing</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Line Spacing</label>
             <select
               value={config.content_line_height || 'auto'}
               onChange={(e) => updateConfig('content_line_height', e.target.value === 'auto' ? null : e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="auto">Auto</option>
               {['1.0', '1.2', '1.4', '1.5', '1.6', '1.8', '2.0', '2.2', '2.5'].map(v => (
@@ -534,7 +534,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
           </div>
 
           {/* Item Char Limits */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className="text-[10px] text-gray-400 font-medium">
               Item Chars (auto: {calcLimits.item_min_chars}–{calcLimits.item_max_chars})
             </label>
@@ -545,7 +545,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                   type="number"
                   value={config.item_min_chars}
                   onChange={(e) => handleCharLimitChange('item_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="space-y-1">
@@ -554,7 +554,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                   type="number"
                   value={config.item_max_chars}
                   onChange={(e) => handleCharLimitChange('item_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
             </div>
@@ -577,7 +577,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
         isOpen={showPositioning}
         onToggle={() => setShowPositioning(!showPositioning)}
       >
-        <div className="space-y-4">
+        <div className="space-y-2.5">
           <PositionPresets
             positionConfig={positionConfig}
             onChange={setPositionConfig}

@@ -116,7 +116,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
   const displayAspect = `${pixelW / gcd}:${pixelH / gcd}`
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {/* Prompt */}
       {contentSource === 'ai' && (
         <PromptInput
@@ -129,7 +129,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
 
       {/* Content */}
       <CollapsibleSection title="Content" isOpen={showContent} onToggle={() => setShowContent(!showContent)}>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* Content Source Toggle */}
           <ToggleRow
             label="Content Source"
@@ -143,13 +143,13 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
           />
 
           {/* Reference Image Upload */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Reference Image (optional)</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Reference Image (optional)</label>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isGenerating}
-                className="px-3 py-1.5 rounded text-xs font-medium bg-gray-50 text-gray-700 border border-gray-300 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+                className="px-3 py-1 rounded text-xs font-medium bg-gray-50 text-gray-700 border border-gray-300 hover:bg-gray-100 disabled:opacity-40 transition-colors"
               >
                 {referenceImage ? 'Change' : 'Upload'}
               </button>
@@ -178,14 +178,14 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
 
       {/* Options */}
       <CollapsibleSection title="Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* Aspect Ratio (with 9:16) */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Aspect Ratio</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Aspect Ratio</label>
             <select
               value={aspectRatio}
               onChange={(e) => { setAspectRatio(e.target.value as InfographicConfig['aspect_ratio']); setAdvancedModified(true) }}
-              className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="auto">Auto</option>
               <option value="16:9">16:9</option>
@@ -197,12 +197,12 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
           </div>
 
           {/* Segments (1-8) */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Segments</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Segments</label>
             <select
               value={segments}
               onChange={(e) => { setSegments(e.target.value as InfographicConfig['segments']); setAdvancedModified(true) }}
-              className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="auto">Auto</option>
               {['1', '2', '3', '4', '5', '6', '7', '8'].map(n => (
@@ -251,9 +251,9 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
 
       {/* Position */}
       <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(!showPosition)}>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* 9 Position Presets */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className="text-[10px] text-gray-400">Presets</label>
             <div className="grid grid-cols-3 gap-1">
               {Object.entries(POSITION_PRESETS).map(([key, preset]) => (
@@ -262,7 +262,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
                   onClick={() => applyPositionPreset(key)}
                   className={`px-1.5 py-1 rounded text-[10px] transition-colors ${
                     positionPreset === key
-                      ? 'bg-purple-600 text-white border border-purple-600'
+                      ? 'bg-primary text-white border border-primary'
                       : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
                   }`}
                 >

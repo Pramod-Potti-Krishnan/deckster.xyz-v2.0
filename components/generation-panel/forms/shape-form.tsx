@@ -130,7 +130,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
   }, [registerSubmit, handleSubmit])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {/* Prompt */}
       <PromptInput
         value={prompt}
@@ -143,15 +143,15 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
       />
 
       {/* Shape Type */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-700">Shape Type</label>
+      <div className="space-y-1">
+        <label className="text-[11px] font-medium text-gray-600">Shape Type</label>
         <select
           value={shapeType}
           onChange={(e) => {
             setShapeType(e.target.value as TextLabsShapeType)
             setAdvancedModified(true)
           }}
-          className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
         >
           {SHAPE_TYPES.map(type => (
             <option key={type.value} value={type.value}>{type.label}</option>
@@ -161,12 +161,12 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
       {/* Polygon Sides (conditional) */}
       {shapeType === 'polygon' && (
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-700">Number of Sides</label>
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-gray-600">Number of Sides</label>
           <select
             value={sides}
             onChange={(e) => { setSides(Number(e.target.value)); setAdvancedModified(true) }}
-            className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {Array.from({ length: 10 }, (_, i) => i + 3).map(n => (
               <option key={n} value={n}>{n} sides</option>
@@ -176,12 +176,12 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
       )}
 
       {/* Count */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-700">Count</label>
+      <div className="space-y-1">
+        <label className="text-[11px] font-medium text-gray-600">Count</label>
         <select
           value={count}
           onChange={(e) => setCount(Number(e.target.value))}
-          className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
+          className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
         >
           {[1, 2, 3, 4, 5, 6].map(n => (
             <option key={n} value={n}>{n}</option>
@@ -190,31 +190,31 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
       </div>
 
       {/* SVG Styling */}
-      <div className="border-t border-gray-700 pt-3 space-y-3">
-        <label className="text-xs font-medium text-gray-400">SVG Styling</label>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Fill</label>
+      <div className="border-t border-gray-200 pt-2.5 space-y-2">
+        <label className="text-[11px] font-medium text-gray-400">SVG Styling</label>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Fill</label>
             <input
               type="color"
               value={fillColor}
               onChange={(e) => { setFillColor(e.target.value); setAdvancedModified(true) }}
-              className="h-8 w-full rounded border border-gray-300 cursor-pointer"
+              className="h-7 w-full rounded border border-gray-300 cursor-pointer"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-700">Stroke</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600">Stroke</label>
             <input
               type="color"
               value={strokeColor}
               onChange={(e) => { setStrokeColor(e.target.value); setAdvancedModified(true) }}
-              className="h-8 w-full rounded border border-gray-300 cursor-pointer"
+              className="h-7 w-full rounded border border-gray-300 cursor-pointer"
             />
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-700">Stroke Width</label>
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-gray-600">Stroke Width</label>
           <div className="flex items-center gap-2">
             <input
               type="range"
@@ -222,14 +222,15 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
               max={20}
               value={strokeWidth}
               onChange={(e) => { setStrokeWidth(Number(e.target.value)); setAdvancedModified(true) }}
-              className="flex-1 accent-purple-500"
+              className="flex-1"
+              style={{ accentColor: 'hsl(var(--primary))' }}
             />
             <span className="text-xs text-gray-400 w-8 text-right">{strokeWidth}px</span>
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-700">Opacity</label>
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-gray-600">Opacity</label>
           <div className="flex items-center gap-2">
             <input
               type="range"
@@ -237,14 +238,15 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
               max={100}
               value={Math.round(opacity * 100)}
               onChange={(e) => { setOpacity(Number(e.target.value) / 100); setAdvancedModified(true) }}
-              className="flex-1 accent-purple-500"
+              className="flex-1"
+              style={{ accentColor: 'hsl(var(--primary))' }}
             />
             <span className="text-xs text-gray-400 w-8 text-right">{Math.round(opacity * 100)}%</span>
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-700">Rotation</label>
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-gray-600">Rotation</label>
           <div className="flex items-center gap-2">
             <input
               type="range"
@@ -252,22 +254,23 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
               max={359}
               value={rotation}
               onChange={(e) => { setRotation(Number(e.target.value)); setAdvancedModified(true) }}
-              className="flex-1 accent-purple-500"
+              className="flex-1"
+              style={{ accentColor: 'hsl(var(--primary))' }}
             />
             <span className="text-xs text-gray-400 w-10 text-right">{rotation}&deg;</span>
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-700">Size</label>
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-gray-600">Size</label>
           <div className="flex gap-1">
             {(['small', 'medium', 'large'] as const).map(s => (
               <button
                 key={s}
                 onClick={() => { setSize(s); setAdvancedModified(true) }}
-                className={`flex-1 px-2 py-1.5 rounded text-xs font-medium capitalize transition-colors ${
+                className={`flex-1 px-2 py-1 rounded text-xs font-medium capitalize transition-colors ${
                   size === s
-                    ? 'bg-purple-600 text-white border border-purple-600'
+                    ? 'bg-primary text-white border border-primary'
                     : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
                 }`}
               >
@@ -279,8 +282,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
       </div>
 
       {/* Position (pixel-based primary) */}
-      <div className="border-t border-gray-700 pt-3 space-y-3">
-        <label className="text-xs font-medium text-gray-400">Position</label>
+      <div className="border-t border-gray-200 pt-2.5 space-y-2">
+        <label className="text-[11px] font-medium text-gray-400">Position</label>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <label className="text-[10px] text-gray-400">X (px)</label>
