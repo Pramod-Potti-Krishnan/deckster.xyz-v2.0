@@ -880,8 +880,8 @@ function BuilderContent() {
             )}
           </div>
 
-          {/* Handle tabs strip — flex siblings, always at LHS edge */}
-          <div className="flex flex-col items-start justify-center flex-shrink-0 -ml-px">
+          {/* Handle tabs strip — zero-width positioning context for floating handles */}
+          <div className="relative w-0 flex-shrink-0 z-10">
             {/* Element handle */}
             {features.useTextLabsGeneration && (
               <button
@@ -894,6 +894,7 @@ function BuilderContent() {
                   }
                 }}
                 className={cn(
+                  "absolute top-[30%] -translate-y-1/2 left-0",
                   "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                   "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
                   generationPanel.isOpen
@@ -918,6 +919,7 @@ function BuilderContent() {
               type="button"
               onClick={() => setShowFormatPanel(prev => !prev)}
               className={cn(
+                "absolute top-[45%] -translate-y-1/2 left-0",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
                 showFormatPanel
@@ -941,6 +943,7 @@ function BuilderContent() {
               type="button"
               onClick={() => setShowChat(prev => !prev)}
               className={cn(
+                "absolute top-[60%] -translate-y-1/2 left-0",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
                 showChat
