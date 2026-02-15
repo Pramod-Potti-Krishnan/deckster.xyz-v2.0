@@ -504,7 +504,7 @@ export const INSERTION_METHOD_MAP: Record<TextLabsAllComponentType, InsertionMet
   SHAPE: 'insertElement',
   CHART: 'insertChart',
   IMAGE: 'insertImage',
-  ICON_LABEL: 'insertImage',
+  ICON_LABEL: 'insertElement',
   INFOGRAPHIC: 'insertImage',
   CODE_DISPLAY: 'insertDiagram',
   KANBAN_BOARD: 'insertDiagram',

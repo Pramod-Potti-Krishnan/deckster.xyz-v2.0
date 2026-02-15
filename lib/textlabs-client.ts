@@ -350,24 +350,23 @@ export function buildInsertionParams(
   }
 
   switch (method) {
-    case 'insertElement':
+    case 'insertElement': {
+      const iconLabelParams = componentType === 'ICON_LABEL' ? { minCols: 1, minRows: 1 } : {}
       return {
         method: 'insertElement',
-        params: { ...baseParams, content: element.html || '' },
+        params: { ...baseParams, content: element.html || '', ...iconLabelParams },
       }
+    }
     case 'insertChart':
       return {
         method: 'insertChart',
         params: { ...baseParams, chartHtml: extractBodyContent(element.html || '') },
       }
-    case 'insertImage': {
-      const imageUrl = element.image_url || element.image_data_url || element.html || ''
-      const iconLabelParams = componentType === 'ICON_LABEL' ? { minCols: 1, minRows: 1 } : {}
+    case 'insertImage':
       return {
         method: 'insertImage',
-        params: { ...baseParams, imageUrl, ...iconLabelParams },
+        params: { ...baseParams, imageUrl: element.image_url || element.image_data_url || element.html || '' },
       }
-    }
     case 'insertDiagram':
       return {
         method: 'insertDiagram',
