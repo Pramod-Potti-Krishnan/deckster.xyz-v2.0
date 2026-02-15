@@ -36,7 +36,7 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium text-gray-700">Padding</label>
+        <label className="text-[11px] font-medium text-gray-600">Padding</label>
         <div className="flex gap-1">
           {[
             { value: 'uniform' as const, label: 'Uniform' },
@@ -46,9 +46,9 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
             <button
               key={opt.value}
               onClick={() => setMode(opt.value)}
-              className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+              className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
                 mode === opt.value
-                  ? 'bg-purple-600 text-white border border-purple-600'
+                  ? 'bg-primary text-white border border-primary'
                   : 'bg-gray-100 text-gray-500 border border-gray-300 hover:bg-gray-200'
               }`}
             >
@@ -76,7 +76,7 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
       )}
 
       {mode === 'axis' && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <label className="text-[10px] text-gray-400">Horizontal (L+R)</label>
             <div className="flex items-center gap-2">

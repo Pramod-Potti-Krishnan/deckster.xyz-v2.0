@@ -35,10 +35,10 @@ export function PositionPresets({
   const pixelH = positionConfig.position_height * GRID_CELL_SIZE
 
   return (
-    <div className="space-y-3">
-      {/* Auto/Manual Toggle */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-700">Positioning</label>
+    <div className="space-y-2">
+      {/* Auto/Manual Toggle — inline layout */}
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-[11px] font-medium text-gray-600 whitespace-nowrap">Positioning</label>
         <div className="flex gap-1">
           {[
             { value: 'auto', label: 'Auto' },
@@ -60,9 +60,9 @@ export function PositionPresets({
                 })
                 onAdvancedModified()
               }}
-              className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
+              className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
                 (positionConfig.auto_position ? 'auto' : 'manual') === option.value
-                  ? 'bg-purple-600 text-white border border-purple-600'
+                  ? 'bg-primary text-white border border-primary'
                   : 'bg-gray-100 text-gray-500 border border-gray-300 hover:bg-gray-200'
               }`}
             >
@@ -80,7 +80,7 @@ export function PositionPresets({
       {!positionConfig.auto_position && (
         <>
           {/* Position Presets Grid */}
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className="text-[10px] text-gray-400">Presets</label>
             <div className="grid grid-cols-3 gap-1">
               {Object.entries(POSITION_PRESETS).map(([key, preset]) => (
@@ -92,7 +92,7 @@ export function PositionPresets({
                     positionConfig.start_row === preset.start_row &&
                     positionConfig.position_width === preset.width &&
                     positionConfig.position_height === preset.height
-                      ? 'bg-purple-600 text-white border border-purple-600'
+                      ? 'bg-primary text-white border border-primary'
                       : 'bg-gray-100 text-gray-500 border border-gray-300 hover:bg-gray-200'
                   }`}
                 >

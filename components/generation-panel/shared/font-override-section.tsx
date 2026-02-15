@@ -50,7 +50,7 @@ export function FontOverrideSection({
 
   return (
     <div className="space-y-2">
-      <label className="text-xs font-medium text-gray-600">{label}</label>
+      <label className="text-[11px] font-medium text-gray-600">{label}</label>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <label className="text-[10px] text-gray-400">Size</label>
@@ -81,7 +81,7 @@ export function FontOverrideSection({
       </div>
       <div className="space-y-1">
         <label className="text-[10px] text-gray-400">Color</label>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1">
           {(colorPresets ?? FONT_COLOR_PRESETS).map(preset => (
             <button
               key={preset.label}
@@ -89,7 +89,7 @@ export function FontOverrideSection({
               style={preset.hex ? { backgroundColor: preset.hex } : undefined}
               className={`h-6 w-6 rounded-full border transition-all ${
                 (config[colorField] || null) === preset.value
-                  ? 'ring-2 ring-purple-500 ring-offset-1'
+                  ? 'ring-2 ring-primary ring-offset-1'
                   : 'hover:scale-110'
               } ${!preset.hex ? 'bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 border-gray-300' : 'border-gray-200'}`}
               title={preset.label}
@@ -110,9 +110,9 @@ export function FontOverrideSection({
           <button
             key={field}
             onClick={() => onChange(field, config[field] ? null : true)}
-            className={`w-7 h-7 rounded text-xs ${style} transition-colors ${
+            className={`w-6 h-6 rounded text-xs ${style} transition-colors ${
               config[field]
-                ? 'bg-purple-600 text-white border border-purple-600'
+                ? 'bg-primary text-white border border-primary'
                 : 'bg-gray-100 text-gray-500 border border-gray-300 hover:bg-gray-200'
             }`}
           >
