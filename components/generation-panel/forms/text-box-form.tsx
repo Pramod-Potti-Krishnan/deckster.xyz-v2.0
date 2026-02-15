@@ -164,19 +164,19 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calcLimits]) // charLimitOverrides intentionally excluded to avoid loop
 
-  // Register mandatory config
+  // Register mandatory config — Background
   useEffect(() => {
     registerMandatoryConfig({
-      fieldLabel: 'Content',
-      displayLabel: contentSource === 'ai' ? 'AI Generated' : 'Placeholder',
+      fieldLabel: 'Background',
+      displayLabel: config.background === 'colored' ? 'Pastel' : 'Transparent',
       options: [
-        { value: 'ai', label: 'AI Generated' },
-        { value: 'placeholder', label: 'Placeholder' },
+        { value: 'colored', label: 'Pastel' },
+        { value: 'transparent', label: 'Transparent' },
       ],
-      onChange: (v) => setContentSource(v as 'ai' | 'placeholder'),
+      onChange: (v) => { updateConfig('background', v); setAdvancedModified(true) },
       promptPlaceholder: 'e.g., 3 key benefits of cloud computing with icons and descriptions',
     })
-  }, [contentSource, registerMandatoryConfig])
+  }, [config.background, registerMandatoryConfig, updateConfig])
 
   const handleSubmit = useCallback(() => {
     const formData: TextBoxFormData = {
@@ -266,17 +266,6 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
         onToggle={() => setShowBoxDesign(!showBoxDesign)}
       >
         <div className="space-y-2">
-          <ToggleRow
-            label="Background"
-            field="background"
-            value={config.background}
-            options={[
-              { value: 'colored', label: 'Pastel' },
-              { value: 'transparent', label: 'Trans' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
-
           {/* Color Variant (disabled when bg=transparent) */}
           {config.background === 'colored' && (
             <div className="space-y-1">

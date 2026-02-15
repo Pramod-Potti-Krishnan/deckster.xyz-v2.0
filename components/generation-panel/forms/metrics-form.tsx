@@ -155,19 +155,22 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
   const fontColorPresets = config.color_scheme === 'accent' ? DARK_FONT_COLORS : LIGHT_FONT_COLORS
 
-  // Register mandatory config
+  // Register mandatory config — Color Scheme
+  const colorSchemeLabel = { gradient: 'Gradient', solid: 'Solid', accent: 'Pastel' }[config.color_scheme] || 'Gradient'
+
   useEffect(() => {
     registerMandatoryConfig({
-      fieldLabel: 'Content',
-      displayLabel: contentSource === 'ai' ? 'AI Generated' : 'Placeholder',
+      fieldLabel: 'Color Scheme',
+      displayLabel: colorSchemeLabel,
       options: [
-        { value: 'ai', label: 'AI Generated' },
-        { value: 'placeholder', label: 'Placeholder' },
+        { value: 'gradient', label: 'Gradient' },
+        { value: 'solid', label: 'Solid' },
+        { value: 'accent', label: 'Pastel' },
       ],
-      onChange: (v) => setContentSource(v as 'ai' | 'placeholder'),
+      onChange: (v) => updateConfig('color_scheme', v),
       promptPlaceholder: 'e.g., Key financial metrics for Q4 2024 including revenue, growth, and profit margin',
     })
-  }, [contentSource, registerMandatoryConfig])
+  }, [config.color_scheme, colorSchemeLabel, registerMandatoryConfig, updateConfig])
 
   const handleSubmit = useCallback(() => {
     const formData: MetricsFormData = {
@@ -266,17 +269,6 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
               { value: 'left', label: 'L' },
               { value: 'center', label: 'C' },
               { value: 'right', label: 'R' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
-          <ToggleRow
-            label="Color Scheme"
-            field="color_scheme"
-            value={config.color_scheme}
-            options={[
-              { value: 'gradient', label: 'Grad' },
-              { value: 'solid', label: 'Solid' },
-              { value: 'accent', label: 'Pastel' },
             ]}
             onChange={(f, v) => updateConfig(f, v)}
           />

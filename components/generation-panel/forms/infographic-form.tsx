@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { Upload } from 'lucide-react'
 import { InfographicFormData, InfographicConfig, TEXT_LABS_ELEMENT_DEFAULTS, POSITION_PRESETS, GRID_CELL_SIZE } from '@/types/textlabs'
 import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
@@ -55,7 +56,6 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
     }
   }, [elementContext])
 
-  const [showContent, setShowContent] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showPosition, setShowPosition] = useState(false)
 
@@ -70,19 +70,40 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
     setAdvancedModified(true)
   }, [])
 
-  // Register mandatory config — Content Source
+  // Register mandatory config — Reference Image upload chip
   useEffect(() => {
     registerMandatoryConfig({
-      fieldLabel: 'Content',
-      displayLabel: contentSource === 'ai' ? 'AI Generated' : 'Placeholder',
-      options: [
-        { value: 'ai', label: 'AI Generated' },
-        { value: 'placeholder', label: 'Placeholder' },
-      ],
-      onChange: (v) => setContentSource(v as 'ai' | 'placeholder'),
+      fieldLabel: 'Reference',
+      displayLabel: referenceImage ? referenceImage.name : 'No image',
+      onChange: () => {},
       promptPlaceholder: 'e.g., A 5-step sales funnel showing leads to conversion',
+      customRender: (
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs text-gray-700 transition-colors"
+          >
+            <Upload className="h-3 w-3 text-gray-400" />
+            {referenceImage ? (
+              <span className="truncate max-w-[100px]">{referenceImage.name}</span>
+            ) : (
+              <span>Ref. Image</span>
+            )}
+          </button>
+          {referenceImage && (
+            <button
+              type="button"
+              onClick={() => setReferenceImage(null)}
+              className="text-[10px] text-gray-400 hover:text-gray-600"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+      ),
     })
-  }, [contentSource, registerMandatoryConfig])
+  }, [referenceImage, registerMandatoryConfig])
 
   const handleSubmit = useCallback(() => {
     const gridRow = `${startRow}/${startRow + height}`
@@ -132,44 +153,16 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
 
   return (
     <div className="space-y-2.5">
-      {showAdvanced && (<>
-      {/* Content */}
-      <CollapsibleSection title="Content" isOpen={showContent} onToggle={() => setShowContent(!showContent)}>
-        <div className="space-y-2">
-          {/* Reference Image Upload */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Reference Image (optional)</label>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isGenerating}
-                className="px-3 py-1 rounded text-xs font-medium bg-gray-50 text-gray-700 border border-gray-300 hover:bg-gray-100 disabled:opacity-40 transition-colors"
-              >
-                {referenceImage ? 'Change' : 'Upload'}
-              </button>
-              {referenceImage && (
-                <>
-                  <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{referenceImage.name}</span>
-                  <button
-                    onClick={() => setReferenceImage(null)}
-                    className="text-[10px] text-gray-400 hover:text-gray-700"
-                  >
-                    Remove
-                  </button>
-                </>
-              )}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={(e) => setReferenceImage(e.target.files?.[0] || null)}
-              className="hidden"
-            />
-          </div>
-        </div>
-      </CollapsibleSection>
+      {/* Hidden file input for reference image */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={(e) => setReferenceImage(e.target.files?.[0] || null)}
+        className="hidden"
+      />
 
+      {showAdvanced && (<>
       {/* Options */}
       <CollapsibleSection title="Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>
         <div className="space-y-2">

@@ -149,19 +149,22 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
     setAdvancedModified(true)
   }, [])
 
-  // Register mandatory config
+  // Register mandatory config — Header Style
+  const headerStyleLabel = { solid: 'Solid', minimal: 'Minimal', accent: 'Accent' }[config.header_style] || 'Solid'
+
   useEffect(() => {
     registerMandatoryConfig({
-      fieldLabel: 'Content',
-      displayLabel: contentSource === 'ai' ? 'AI Generated' : 'Placeholder',
+      fieldLabel: 'Header Style',
+      displayLabel: headerStyleLabel,
       options: [
-        { value: 'ai', label: 'AI Generated' },
-        { value: 'placeholder', label: 'Placeholder' },
+        { value: 'solid', label: 'Solid' },
+        { value: 'minimal', label: 'Minimal' },
+        { value: 'accent', label: 'Accent' },
       ],
-      onChange: (v) => setContentSource(v as 'ai' | 'placeholder'),
+      onChange: (v) => updateConfig('header_style', v),
       promptPlaceholder: 'e.g., Comparison table of cloud providers AWS, Azure, GCP across pricing, features, and support',
     })
-  }, [contentSource, registerMandatoryConfig])
+  }, [config.header_style, headerStyleLabel, registerMandatoryConfig, updateConfig])
 
   const handleSubmit = useCallback(() => {
     const formData: TableFormData = {
@@ -310,17 +313,6 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
       {/* Section 2: Styling */}
       <CollapsibleSection title="Styling" isOpen={showStyling} onToggle={() => setShowStyling(!showStyling)}>
         <div className="space-y-2">
-          <ToggleRow
-            label="Header Style"
-            field="header_style"
-            value={config.header_style}
-            options={[
-              { value: 'solid', label: 'Solid' },
-              { value: 'minimal', label: 'Minimal' },
-              { value: 'accent', label: 'Accent' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
           <ToggleRow
             label="Stripe Rows"
             field="stripe_rows"

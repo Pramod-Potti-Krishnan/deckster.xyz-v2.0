@@ -1,3 +1,4 @@
+import React from 'react'
 import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 
 export interface ElementContext {
@@ -48,4 +49,5 @@ export interface MandatoryConfig {
   optionGroups?: MandatoryFieldOptionGroup[]
   onChange: (value: string) => void
   promptPlaceholder?: string
+  customRender?: React.ReactNode
 }

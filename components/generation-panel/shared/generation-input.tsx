@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef } from 'react'
-import { SlidersHorizontal, Sparkles, Loader2, ChevronDown, AlertCircle, RotateCcw, Check } from 'lucide-react'
+import { useRef, useEffect } from 'react'
+import { SlidersHorizontal, ArrowUp, Loader2, ChevronDown, AlertCircle, RotateCcw, Check } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { MandatoryConfig } from '../types'
 
@@ -28,6 +28,14 @@ export function GenerationInput({
 }: GenerationInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Auto-expand textarea as user types
+  useEffect(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`
+  }, [prompt])
+
   const placeholder = mandatoryConfig?.promptPlaceholder || 'Describe what you want to generate...'
 
   return (
@@ -52,23 +60,36 @@ export function GenerationInput({
       {/* Chat-style input container */}
       <div className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all">
         {/* Textarea */}
-        <textarea
-          ref={textareaRef}
-          value={prompt}
-          onChange={(e) => onPromptChange(e.target.value)}
-          placeholder={placeholder}
-          disabled={isGenerating}
-          className="w-full resize-y border-0 bg-transparent focus:ring-0 focus:outline-none px-3 pt-3 pb-12 min-h-[60px] max-h-[200px] text-xs placeholder:text-gray-400 overflow-y-auto text-gray-900 disabled:opacity-50"
-          rows={2}
-        />
+        <div className="relative">
+          <textarea
+            ref={textareaRef}
+            value={prompt}
+            onChange={(e) => onPromptChange(e.target.value)}
+            placeholder={placeholder}
+            disabled={isGenerating}
+            className="w-full resize-y border-0 bg-transparent focus:ring-0 focus:outline-none px-3 pt-3 pb-12 min-h-[60px] max-h-[160px] text-xs placeholder:text-gray-400 overflow-y-auto text-gray-900 disabled:opacity-50"
+            rows={2}
+          />
+          {/* Resize grip indicator */}
+          <div className="absolute bottom-12 right-1.5 pointer-events-none text-gray-300">
+            <svg width="8" height="8" viewBox="0 0 8 8">
+              <line x1="7" y1="1" x2="1" y2="7" stroke="currentColor" strokeWidth="1" />
+              <line x1="7" y1="4" x2="4" y2="7" stroke="currentColor" strokeWidth="1" />
+            </svg>
+          </div>
+        </div>
 
         {/* Bottom toolbar */}
         <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-2 py-1.5 bg-gray-50 rounded-b-xl">
           {/* Left: Mandatory chip + Advanced toggle */}
           <div className="flex items-center gap-1">
-            {/* Mandatory config chip */}
+            {/* Mandatory config chip (or custom render) */}
             {mandatoryConfig && (
-              <MandatoryChip config={mandatoryConfig} />
+              mandatoryConfig.customRender ? (
+                <>{mandatoryConfig.customRender}</>
+              ) : (
+                <MandatoryChip config={mandatoryConfig} />
+              )
             )}
 
             {/* Advanced toggle */}
@@ -86,24 +107,33 @@ export function GenerationInput({
             </button>
           </div>
 
-          {/* Right: Send button */}
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={isGenerating}
-            className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
-              isGenerating
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-primary hover:bg-primary/90 text-white'
-            }`}
-            title="Generate (⌘↵)"
-          >
-            {isGenerating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-          </button>
+          {/* Right: Send button with decorative stars */}
+          <div className="relative">
+            {/* Decorative stars */}
+            <svg className="absolute -top-1 -right-1 w-2 h-2 text-purple-300 pointer-events-none" viewBox="0 0 8 8">
+              <path d="M4 0L4.5 3.5L8 4L4.5 4.5L4 8L3.5 4.5L0 4L3.5 3.5Z" fill="currentColor" />
+            </svg>
+            <svg className="absolute -bottom-0.5 -left-1.5 w-1.5 h-1.5 text-purple-200 pointer-events-none" viewBox="0 0 8 8">
+              <path d="M4 0L4.5 3.5L8 4L4.5 4.5L4 8L3.5 4.5L0 4L3.5 3.5Z" fill="currentColor" />
+            </svg>
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={isGenerating}
+              className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
+                isGenerating
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+              }`}
+              title="Generate (⌘↵)"
+            >
+              {isGenerating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ArrowUp className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
