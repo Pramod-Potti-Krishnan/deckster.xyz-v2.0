@@ -1,10 +1,10 @@
 'use client'
 
-import { useRef, useCallback, useEffect } from 'react'
+import { useRef, useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import { GenerationPanelHeader } from './header'
-import { GenerationPanelFooter } from './footer'
+import { GenerationInput } from './shared/generation-input'
 import { TextBoxForm } from './forms/text-box-form'
 import { MetricsForm } from './forms/metrics-form'
 import { TableForm } from './forms/table-form'
@@ -14,7 +14,7 @@ import { IconLabelForm } from './forms/icon-label-form'
 import { ShapeForm } from './forms/shape-form'
 import { InfographicForm } from './forms/infographic-form'
 import { DiagramForm } from './forms/diagram-form'
-import { GenerationPanelProps, ElementContext } from './types'
+import { GenerationPanelProps, ElementContext, MandatoryConfig } from './types'
 
 export function GenerationPanel({
   isOpen,
@@ -37,6 +37,24 @@ export function GenerationPanel({
   const handleFooterGenerate = useCallback(() => {
     submitFnRef.current?.()
   }, [])
+
+  // Prompt state — lifted to panel level, passed to forms
+  const [prompt, setPrompt] = useState('')
+  const [showAdvanced, setShowAdvanced] = useState(true)
+
+  // Mandatory config — registered by each form
+  const mandatoryConfigRef = useRef<MandatoryConfig | null>(null)
+  const [, forceUpdate] = useState(0)
+
+  const registerMandatoryConfig = useCallback((config: MandatoryConfig) => {
+    mandatoryConfigRef.current = config
+    forceUpdate(n => n + 1)
+  }, [])
+
+  // Reset prompt when element type changes
+  useEffect(() => {
+    setPrompt('')
+  }, [elementType])
 
   // Keyboard shortcuts: Escape to close, Cmd/Ctrl+Enter to generate
   useEffect(() => {
@@ -80,8 +98,20 @@ export function GenerationPanel({
         </div>
       )}
 
-      {/* Scrollable form area */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
+      {/* Chat-style generation input */}
+      <GenerationInput
+        prompt={prompt}
+        onPromptChange={setPrompt}
+        mandatoryConfig={mandatoryConfigRef.current}
+        showAdvanced={showAdvanced}
+        onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
+        onSubmit={handleFooterGenerate}
+        isGenerating={isGenerating}
+        error={error}
+      />
+
+      {/* Scrollable form area — hidden (not unmounted) when advanced is off */}
+      <div className={`flex-1 overflow-y-auto px-3 py-3 ${!showAdvanced ? 'hidden' : ''}`}>
         <FormRouter
           elementType={elementType}
           onSubmit={onGenerate}
@@ -89,15 +119,11 @@ export function GenerationPanel({
           isGenerating={isGenerating}
           slideIndex={slideIndex}
           elementContext={elementContext}
+          prompt={prompt}
+          showAdvanced={showAdvanced}
+          registerMandatoryConfig={registerMandatoryConfig}
         />
       </div>
-
-      {/* Footer */}
-      <GenerationPanelFooter
-        onGenerate={handleFooterGenerate}
-        isGenerating={isGenerating}
-        error={error}
-      />
     </div>
   )
 }
@@ -110,6 +136,9 @@ function FormRouter({
   isGenerating,
   slideIndex,
   elementContext,
+  prompt,
+  showAdvanced,
+  registerMandatoryConfig,
 }: {
   elementType: TextLabsComponentType
   onSubmit: (formData: TextLabsFormData) => Promise<void>
@@ -117,88 +146,39 @@ function FormRouter({
   isGenerating: boolean
   slideIndex: number
   elementContext?: ElementContext | null
+  prompt: string
+  showAdvanced: boolean
+  registerMandatoryConfig: (config: MandatoryConfig) => void
 }) {
+  const commonProps = {
+    onSubmit,
+    registerSubmit,
+    isGenerating,
+    elementContext,
+    prompt,
+    showAdvanced,
+    registerMandatoryConfig,
+  }
+
   switch (elementType) {
     case 'TEXT_BOX':
-      return (
-        <TextBoxForm
-          onSubmit={onSubmit}
-          registerSubmit={registerSubmit}
-          isGenerating={isGenerating}
-          elementContext={elementContext}
-        />
-      )
+      return <TextBoxForm {...commonProps} />
     case 'METRICS':
-      return (
-        <MetricsForm
-          onSubmit={onSubmit}
-          registerSubmit={registerSubmit}
-          isGenerating={isGenerating}
-          elementContext={elementContext}
-        />
-      )
+      return <MetricsForm {...commonProps} />
     case 'TABLE':
-      return (
-        <TableForm
-          onSubmit={onSubmit}
-          registerSubmit={registerSubmit}
-          isGenerating={isGenerating}
-          elementContext={elementContext}
-        />
-      )
+      return <TableForm {...commonProps} />
     case 'CHART':
-      return (
-        <ChartForm
-          onSubmit={onSubmit}
-          registerSubmit={registerSubmit}
-          isGenerating={isGenerating}
-          elementContext={elementContext}
-        />
-      )
+      return <ChartForm {...commonProps} />
     case 'IMAGE':
-      return (
-        <ImageForm
-          onSubmit={onSubmit}
-          registerSubmit={registerSubmit}
-          isGenerating={isGenerating}
-          elementContext={elementContext}
-        />
-      )
+      return <ImageForm {...commonProps} />
     case 'ICON_LABEL':
-      return (
-        <IconLabelForm
-          onSubmit={onSubmit}
-          registerSubmit={registerSubmit}
-          isGenerating={isGenerating}
-        />
-      )
+      return <IconLabelForm onSubmit={onSubmit} registerSubmit={registerSubmit} isGenerating={isGenerating} prompt={prompt} showAdvanced={showAdvanced} registerMandatoryConfig={registerMandatoryConfig} />
     case 'SHAPE':
-      return (
-        <ShapeForm
-          onSubmit={onSubmit}
-          registerSubmit={registerSubmit}
-          isGenerating={isGenerating}
-          elementContext={elementContext}
-        />
-      )
+      return <ShapeForm {...commonProps} />
     case 'INFOGRAPHIC':
-      return (
-        <InfographicForm
-          onSubmit={onSubmit}
-          registerSubmit={registerSubmit}
-          isGenerating={isGenerating}
-          elementContext={elementContext}
-        />
-      )
+      return <InfographicForm {...commonProps} />
     case 'DIAGRAM':
-      return (
-        <DiagramForm
-          onSubmit={onSubmit}
-          registerSubmit={registerSubmit}
-          isGenerating={isGenerating}
-          elementContext={elementContext}
-        />
-      )
+      return <DiagramForm {...commonProps} />
     default:
       return null
   }

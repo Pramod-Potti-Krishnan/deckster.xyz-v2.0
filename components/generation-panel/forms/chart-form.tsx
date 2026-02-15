@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { ChartFormData, ChartConfig, TextLabsChartType, TextLabsPositionConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
-import { ElementContext } from '../types'
-import { PromptInput } from '../shared/prompt-input'
+import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PositionPresets } from '../shared/position-presets'
@@ -84,11 +83,13 @@ interface ChartFormProps {
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   elementContext?: ElementContext | null
+  prompt: string
+  showAdvanced: boolean
+  registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementContext }: ChartFormProps) {
+export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ChartFormProps) {
   // Basic fields
-  const [prompt, setPrompt] = useState('')
   const [count, setCount] = useState(1)
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
 
@@ -103,7 +104,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
 
   // Section visibility
-  const [showConfig, setShowConfig] = useState(true)
+  const [showConfig, setShowConfig] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showPosition, setShowPosition] = useState(false)
 
@@ -145,6 +146,22 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
       return null
     }
   }, [])
+
+  // Register mandatory config — Chart Type
+  const chartTypeLabel = CHART_TYPE_GROUPS.flatMap(g => g.types).find(t => t.value === chartType)?.label || 'Line Chart'
+
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Chart Type',
+      displayLabel: chartTypeLabel,
+      optionGroups: CHART_TYPE_GROUPS.map(g => ({
+        group: g.group,
+        options: g.types.map(t => ({ value: t.value, label: t.label })),
+      })),
+      onChange: (v) => { setChartType(v as TextLabsChartType); setAdvancedModified(true) },
+      promptPlaceholder: 'e.g., Show quarterly revenue growth for 2024',
+    })
+  }, [chartType, chartTypeLabel, registerMandatoryConfig])
 
   const handleSubmit = useCallback(() => {
     let data: unknown[] | null = null
@@ -190,28 +207,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
   return (
     <div className="space-y-2.5">
-      {/* Prompt */}
-      {contentSource === 'ai' && (
-        <PromptInput
-          value={prompt}
-          onChange={setPrompt}
-          placeholder="e.g., Show quarterly revenue growth for 2024 with strong Q3-Q4 performance"
-          disabled={isGenerating}
-        />
-      )}
-
-      {/* Content Source Toggle */}
-      <ToggleRow
-        label="Content Source"
-        field="contentSource"
-        value={contentSource}
-        options={[
-          { value: 'ai', label: 'AI Generated' },
-          { value: 'placeholder', label: 'Placeholder' },
-        ]}
-        onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
-      />
-
+      {showAdvanced && (<>
       {/* Chart Config */}
       <CollapsibleSection title="Chart Config" isOpen={showConfig} onToggle={() => setShowConfig(!showConfig)}>
         <div className="space-y-2">
@@ -229,26 +225,17 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
             </select>
           </div>
 
-          {/* Chart Type */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Chart Type</label>
-            <select
-              value={chartType}
-              onChange={(e) => {
-                setChartType(e.target.value as TextLabsChartType)
-                setAdvancedModified(true)
-              }}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {CHART_TYPE_GROUPS.map(group => (
-                <optgroup key={group.group} label={group.group}>
-                  {group.types.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+          {/* Content Source */}
+          <ToggleRow
+            label="Content Source"
+            field="contentSource"
+            value={contentSource}
+            options={[
+              { value: 'ai', label: 'AI Generated' },
+              { value: 'placeholder', label: 'Placeholder' },
+            ]}
+            onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
+          />
         </div>
       </CollapsibleSection>
 
@@ -352,6 +339,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
           />
         </div>
       </CollapsibleSection>
+      </>)}
     </div>
   )
 }

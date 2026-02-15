@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { InfographicFormData, InfographicConfig, TEXT_LABS_ELEMENT_DEFAULTS, POSITION_PRESETS, GRID_CELL_SIZE } from '@/types/textlabs'
-import { ElementContext } from '../types'
-import { PromptInput } from '../shared/prompt-input'
+import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { ZIndexInput } from '../shared/z-index-input'
@@ -19,10 +18,12 @@ interface InfographicFormProps {
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   elementContext?: ElementContext | null
+  prompt: string
+  showAdvanced: boolean
+  registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elementContext }: InfographicFormProps) {
-  const [prompt, setPrompt] = useState('')
+export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: InfographicFormProps) {
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -54,7 +55,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
     }
   }, [elementContext])
 
-  const [showContent, setShowContent] = useState(true)
+  const [showContent, setShowContent] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showPosition, setShowPosition] = useState(false)
 
@@ -68,6 +69,20 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
     setHeight(preset.height)
     setAdvancedModified(true)
   }, [])
+
+  // Register mandatory config — Content Source
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Content',
+      displayLabel: contentSource === 'ai' ? 'AI Generated' : 'Placeholder',
+      options: [
+        { value: 'ai', label: 'AI Generated' },
+        { value: 'placeholder', label: 'Placeholder' },
+      ],
+      onChange: (v) => setContentSource(v as 'ai' | 'placeholder'),
+      promptPlaceholder: 'e.g., A 5-step sales funnel showing leads to conversion',
+    })
+  }, [contentSource, registerMandatoryConfig])
 
   const handleSubmit = useCallback(() => {
     const gridRow = `${startRow}/${startRow + height}`
@@ -117,31 +132,10 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
 
   return (
     <div className="space-y-2.5">
-      {/* Prompt */}
-      {contentSource === 'ai' && (
-        <PromptInput
-          value={prompt}
-          onChange={setPrompt}
-          placeholder="e.g., A 5-step sales funnel showing leads to conversion, or a cycle diagram for PDCA process"
-          disabled={isGenerating}
-        />
-      )}
-
+      {showAdvanced && (<>
       {/* Content */}
       <CollapsibleSection title="Content" isOpen={showContent} onToggle={() => setShowContent(!showContent)}>
         <div className="space-y-2">
-          {/* Content Source Toggle */}
-          <ToggleRow
-            label="Content Source"
-            field="contentSource"
-            value={contentSource}
-            options={[
-              { value: 'ai', label: 'AI Generated' },
-              { value: 'placeholder', label: 'Placeholder' },
-            ]}
-            onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
-          />
-
           {/* Reference Image Upload */}
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-600">Reference Image (optional)</label>
@@ -305,6 +299,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
           />
         </div>
       </CollapsibleSection>
+      </>)}
     </div>
   )
 }

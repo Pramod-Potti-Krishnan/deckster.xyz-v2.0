@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { TextBoxFormData, TextBoxConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, recalcTextBoxLimits } from '@/types/textlabs'
-import { ElementContext } from '../types'
-import { PromptInput } from '../shared/prompt-input'
+import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { FontOverrideSection } from '../shared/font-override-section'
@@ -69,11 +68,13 @@ interface TextBoxFormProps {
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   elementContext?: ElementContext | null
+  prompt: string
+  showAdvanced: boolean
+  registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementContext }: TextBoxFormProps) {
+export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: TextBoxFormProps) {
   // Basic fields
-  const [prompt, setPrompt] = useState('')
   const [count, setCount] = useState(1)
   const [layout, setLayout] = useState<'horizontal' | 'vertical' | 'grid'>('horizontal')
   const [gridCols, setGridCols] = useState(2)
@@ -163,6 +164,20 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calcLimits]) // charLimitOverrides intentionally excluded to avoid loop
 
+  // Register mandatory config
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Content',
+      displayLabel: contentSource === 'ai' ? 'AI Generated' : 'Placeholder',
+      options: [
+        { value: 'ai', label: 'AI Generated' },
+        { value: 'placeholder', label: 'Placeholder' },
+      ],
+      onChange: (v) => setContentSource(v as 'ai' | 'placeholder'),
+      promptPlaceholder: 'e.g., 3 key benefits of cloud computing with icons and descriptions',
+    })
+  }, [contentSource, registerMandatoryConfig])
+
   const handleSubmit = useCallback(() => {
     const formData: TextBoxFormData = {
       componentType: 'TEXT_BOX',
@@ -191,28 +206,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
   return (
     <div className="space-y-2.5">
-      {/* Prompt */}
-      {contentSource === 'ai' && (
-        <PromptInput
-          value={prompt}
-          onChange={setPrompt}
-          placeholder="e.g., 3 key benefits of cloud computing with icons and descriptions"
-          disabled={isGenerating}
-        />
-      )}
-
-      {/* Content Source Toggle */}
-      <ToggleRow
-        label="Content Source"
-        field="contentSource"
-        value={contentSource}
-        options={[
-          { value: 'ai', label: 'AI Generated' },
-          { value: 'placeholder', label: 'Placeholder' },
-        ]}
-        onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
-      />
-
+      {showAdvanced && (<>
       {/* Section 1: Instances */}
       <CollapsibleSection
         title="Instances"
@@ -605,6 +599,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
           onAdvancedModified={() => setAdvancedModified(true)}
         />
       </CollapsibleSection>
+      </>)}
     </div>
   )
 }

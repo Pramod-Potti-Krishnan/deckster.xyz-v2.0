@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { MetricsFormData, MetricsConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
-import { ElementContext } from '../types'
-import { PromptInput } from '../shared/prompt-input'
+import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { FontOverrideSection } from '../shared/font-override-section'
@@ -84,10 +83,12 @@ interface MetricsFormProps {
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   elementContext?: ElementContext | null
+  prompt: string
+  showAdvanced: boolean
+  registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementContext }: MetricsFormProps) {
-  const [prompt, setPrompt] = useState('')
+export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: MetricsFormProps) {
   const [count, setCount] = useState(1)
   const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
@@ -154,6 +155,20 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
   const fontColorPresets = config.color_scheme === 'accent' ? DARK_FONT_COLORS : LIGHT_FONT_COLORS
 
+  // Register mandatory config
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Content',
+      displayLabel: contentSource === 'ai' ? 'AI Generated' : 'Placeholder',
+      options: [
+        { value: 'ai', label: 'AI Generated' },
+        { value: 'placeholder', label: 'Placeholder' },
+      ],
+      onChange: (v) => setContentSource(v as 'ai' | 'placeholder'),
+      promptPlaceholder: 'e.g., Key financial metrics for Q4 2024 including revenue, growth, and profit margin',
+    })
+  }, [contentSource, registerMandatoryConfig])
+
   const handleSubmit = useCallback(() => {
     const formData: MetricsFormData = {
       componentType: 'METRICS',
@@ -178,28 +193,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
   return (
     <div className="space-y-2.5">
-      {/* Prompt */}
-      {contentSource === 'ai' && (
-        <PromptInput
-          value={prompt}
-          onChange={setPrompt}
-          placeholder="e.g., Key financial metrics for Q4 2024 including revenue, growth, and profit margin"
-          disabled={isGenerating}
-        />
-      )}
-
-      {/* Content Source Toggle */}
-      <ToggleRow
-        label="Content Source"
-        field="contentSource"
-        value={contentSource}
-        options={[
-          { value: 'ai', label: 'AI Generated' },
-          { value: 'placeholder', label: 'Placeholder' },
-        ]}
-        onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
-      />
-
+      {showAdvanced && (<>
       {/* Section 1: Instances */}
       <CollapsibleSection title="Instances" isOpen={showInstances} onToggle={() => setShowInstances(!showInstances)}>
         <div className="space-y-2">
@@ -466,6 +460,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
           onAdvancedModified={() => setAdvancedModified(true)}
         />
       </CollapsibleSection>
+      </>)}
     </div>
   )
 }

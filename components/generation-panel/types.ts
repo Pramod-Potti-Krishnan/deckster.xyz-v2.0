@@ -29,3 +29,23 @@ export interface FormRef {
   getFormData: () => TextLabsFormData
   reset: () => void
 }
+
+// Mandatory config types for GenerationInput chip
+export interface MandatoryFieldOption {
+  value: string
+  label: string
+}
+
+export interface MandatoryFieldOptionGroup {
+  group: string
+  options: MandatoryFieldOption[]
+}
+
+export interface MandatoryConfig {
+  fieldLabel: string
+  displayLabel: string
+  options?: MandatoryFieldOption[]
+  optionGroups?: MandatoryFieldOptionGroup[]
+  onChange: (value: string) => void
+  promptPlaceholder?: string
+}

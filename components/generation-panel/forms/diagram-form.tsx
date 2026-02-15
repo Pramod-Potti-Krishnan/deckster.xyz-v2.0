@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { ElementContext } from '../types'
+import { ElementContext, MandatoryConfig } from '../types'
 import {
   DiagramFormData,
   TextLabsDiagramSubtype,
@@ -15,7 +15,6 @@ import {
   DataArchitectureConfig,
   TEXT_LABS_ELEMENT_DEFAULTS,
 } from '@/types/textlabs'
-import { PromptInput } from '../shared/prompt-input'
 import { ToggleRow } from '../shared/toggle-row'
 import { ZIndexInput } from '../shared/z-index-input'
 
@@ -71,10 +70,12 @@ interface DiagramFormProps {
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   elementContext?: ElementContext | null
+  prompt: string
+  showAdvanced: boolean
+  registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementContext }: DiagramFormProps) {
-  const [prompt, setPrompt] = useState('')
+export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: DiagramFormProps) {
   const [subtype, setSubtype] = useState<TextLabsDiagramSubtype>('CODE_DISPLAY')
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
@@ -122,6 +123,19 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
   const [showDataTypes, setShowDataTypes] = useState(true)
   const [showNullable, setShowNullable] = useState(true)
   const [dataPreset, setDataPreset] = useState('full_content')
+
+  // Register mandatory config — Diagram Type
+  const subtypeLabel = DIAGRAM_SUBTYPES.find(s => s.value === subtype)?.label || 'Code Block'
+
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Type',
+      displayLabel: subtypeLabel,
+      options: DIAGRAM_SUBTYPES.map(s => ({ value: s.value, label: s.label })),
+      onChange: (v) => { setSubtype(v as TextLabsDiagramSubtype); setAdvancedModified(true) },
+      promptPlaceholder: PROMPT_PLACEHOLDERS[subtype],
+    })
+  }, [subtype, subtypeLabel, registerMandatoryConfig])
 
   const buildDiagramConfig = useCallback((): Partial<
     CodeDisplayConfig | KanbanConfig | GanttConfig | ChevronConfig |
@@ -183,31 +197,7 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
   return (
     <div className="space-y-2.5">
-      {/* Diagram Subtype Selector */}
-      <div className="space-y-1">
-        <label className="text-[11px] font-medium text-gray-600">Diagram Type</label>
-        <select
-          value={subtype}
-          onChange={(e) => {
-            setSubtype(e.target.value as TextLabsDiagramSubtype)
-            setAdvancedModified(true)
-          }}
-          className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
-        >
-          {DIAGRAM_SUBTYPES.map(st => (
-            <option key={st.value} value={st.value}>{st.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Prompt */}
-      <PromptInput
-        value={prompt}
-        onChange={setPrompt}
-        placeholder={PROMPT_PLACEHOLDERS[subtype]}
-        disabled={isGenerating}
-      />
-
+      {showAdvanced && (<>
       {/* Subtype-specific options */}
       <div className="space-y-2">
           {subtype === 'CODE_DISPLAY' && (
@@ -464,6 +454,7 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
         onChange={setZIndex}
         onAdvancedModified={() => setAdvancedModified(true)}
       />
+      </>)}
     </div>
   )
 }

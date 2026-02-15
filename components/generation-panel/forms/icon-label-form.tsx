@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { IconLabelFormData, IconLabelConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
-import { PromptInput } from '../shared/prompt-input'
+import { MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { ZIndexInput } from '../shared/z-index-input'
 
@@ -35,10 +35,12 @@ interface IconLabelFormProps {
   onSubmit: (formData: IconLabelFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  prompt: string
+  showAdvanced: boolean
+  registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLabelFormProps) {
-  const [prompt, setPrompt] = useState('')
+export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, showAdvanced, registerMandatoryConfig }: IconLabelFormProps) {
   const [count, setCount] = useState(1)
   const [mode, setMode] = useState<'icon' | 'label'>('icon')
   const [size, setSize] = useState<IconLabelConfig['size']>('medium')
@@ -47,6 +49,20 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
   const [color, setColor] = useState<string | null>(null)
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+
+  // Register mandatory config — Mode
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Mode',
+      displayLabel: mode === 'icon' ? 'Icon' : 'Label',
+      options: [
+        { value: 'icon', label: 'Icon' },
+        { value: 'label', label: 'Label' },
+      ],
+      onChange: (v) => { setMode(v as 'icon' | 'label'); setAdvancedModified(true) },
+      promptPlaceholder: mode === 'icon' ? 'e.g., shopping cart icon, checkmark' : "e.g., Label 'IV', 'A+', 'Step 1'",
+    })
+  }, [mode, registerMandatoryConfig])
 
   const handleSubmit = useCallback(() => {
     const defaultPrompt = mode === 'icon' ? 'shopping cart icon' : 'Label I'
@@ -75,32 +91,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
 
   return (
     <div className="space-y-2.5">
-      {/* Prompt */}
-      <PromptInput
-        value={prompt}
-        onChange={setPrompt}
-        placeholder={mode === 'icon'
-          ? 'e.g., shopping cart icon, checkmark, lightning bolt'
-          : "e.g., Label 'IV', 'A+', 'Step 1'"
-        }
-        disabled={isGenerating}
-      />
-
-      {/* Mode */}
-      <ToggleRow
-        label="Mode"
-        field="mode"
-        value={mode}
-        options={[
-          { value: 'icon', label: 'Icon' },
-          { value: 'label', label: 'Label' },
-        ]}
-        onChange={(_, v) => {
-          setMode(v as 'icon' | 'label')
-          setAdvancedModified(true)
-        }}
-      />
-
+      {showAdvanced && (<>
       {/* Count */}
       <div className="space-y-1">
         <label className="text-[11px] font-medium text-gray-600">Count</label>
@@ -200,6 +191,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating }: IconLa
         onChange={setZIndex}
         onAdvancedModified={() => setAdvancedModified(true)}
       />
+      </>)}
     </div>
   )
 }

@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { ImageFormData, ImageConfig, TextLabsImageStyle, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE, IMAGE_POSITION_PRESETS } from '@/types/textlabs'
-import { ElementContext } from '../types'
-import { PromptInput } from '../shared/prompt-input'
+import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
@@ -74,11 +73,12 @@ interface ImageFormProps {
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   elementContext?: ElementContext | null
+  prompt: string
+  showAdvanced: boolean
+  registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementContext }: ImageFormProps) {
-  const [prompt, setPrompt] = useState('')
-
+export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ImageFormProps) {
   // Image config
   const [style, setStyle] = useState<TextLabsImageStyle>('realistic')
   const [quality, setQuality] = useState<'standard' | 'hd'>('standard')
@@ -140,6 +140,22 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
     setAdvancedModified(true)
   }, [])
 
+  // Register mandatory config — Image Style
+  const styleLabel = IMAGE_STYLE_GROUPS.flatMap(g => g.styles).find(s => s.value === style)?.label || 'Realistic'
+
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Style',
+      displayLabel: styleLabel,
+      optionGroups: IMAGE_STYLE_GROUPS.map(g => ({
+        group: g.category,
+        options: g.styles.map(s => ({ value: s.value, label: s.label })),
+      })),
+      onChange: (v) => { setStyle(v as TextLabsImageStyle); setAdvancedModified(true) },
+      promptPlaceholder: 'e.g., Modern office space with team collaboration',
+    })
+  }, [style, styleLabel, registerMandatoryConfig])
+
   const handleSubmit = useCallback(() => {
     const gcd = calculateGCD(width, height)
     const aspectRatio = `${width / gcd}:${height / gcd}`
@@ -187,35 +203,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
   return (
     <div className="space-y-2.5">
-      {/* Prompt */}
-      <PromptInput
-        value={prompt}
-        onChange={setPrompt}
-        placeholder="e.g., Modern office space with team collaboration, or a city skyline at sunset"
-        disabled={isGenerating}
-      />
-
-      {/* Image Style (grouped dropdown — 8 backend-supported styles) */}
-      <div className="space-y-1">
-        <label className="text-[11px] font-medium text-gray-600">Image Style</label>
-        <select
-          value={style}
-          onChange={(e) => {
-            setStyle(e.target.value as TextLabsImageStyle)
-            setAdvancedModified(true)
-          }}
-          className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
-        >
-          {IMAGE_STYLE_GROUPS.map(group => (
-            <optgroup key={group.category} label={group.category}>
-              {group.styles.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </div>
-
+      {showAdvanced && (<>
       {/* Style Options */}
       <CollapsibleSection title="Style" isOpen={showStyle} onToggle={() => setShowStyle(!showStyle)}>
         <div className="space-y-2">
@@ -395,6 +383,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
           onAdvancedModified={() => setAdvancedModified(true)}
         />
       </CollapsibleSection>
+      </>)}
     </div>
   )
 }

@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { ShapeFormData, ShapeConfig, TextLabsShapeType, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
-import { ElementContext } from '../types'
-import { PromptInput } from '../shared/prompt-input'
+import { ElementContext, MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
@@ -37,10 +36,12 @@ interface ShapeFormProps {
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   elementContext?: ElementContext | null
+  prompt: string
+  showAdvanced: boolean
+  registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementContext }: ShapeFormProps) {
-  const [prompt, setPrompt] = useState('')
+export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ShapeFormProps) {
   const [count, setCount] = useState(1)
   const [shapeType, setShapeType] = useState<TextLabsShapeType>('circle')
   const [sides, setSides] = useState(6)
@@ -80,6 +81,19 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
   const gridH = pxToGrid(heightPx)
   const startCol = Math.max(1, Math.round(x / GRID_CELL_SIZE) + 1)
   const startRow = Math.max(1, Math.round(y / GRID_CELL_SIZE) + 1)
+
+  // Register mandatory config — Shape Type
+  const shapeLabel = SHAPE_TYPES.find(t => t.value === shapeType)?.label || 'Circle'
+
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Shape',
+      displayLabel: shapeLabel,
+      options: SHAPE_TYPES.map(t => ({ value: t.value, label: t.label })),
+      onChange: (v) => { setShapeType(v as TextLabsShapeType); setAdvancedModified(true) },
+      promptPlaceholder: shapeType === 'custom' ? 'e.g., three concentric circles' : 'e.g., a red star',
+    })
+  }, [shapeType, shapeLabel, registerMandatoryConfig])
 
   const handleSubmit = useCallback(() => {
     const isCustom = shapeType === 'custom'
@@ -131,34 +145,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
   return (
     <div className="space-y-2.5">
-      {/* Prompt */}
-      <PromptInput
-        value={prompt}
-        onChange={setPrompt}
-        placeholder={shapeType === 'custom'
-          ? 'e.g., three concentric circles in blue tones'
-          : 'e.g., a red star, or select a shape type above'
-        }
-        disabled={isGenerating}
-      />
-
-      {/* Shape Type */}
-      <div className="space-y-1">
-        <label className="text-[11px] font-medium text-gray-600">Shape Type</label>
-        <select
-          value={shapeType}
-          onChange={(e) => {
-            setShapeType(e.target.value as TextLabsShapeType)
-            setAdvancedModified(true)
-          }}
-          className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
-        >
-          {SHAPE_TYPES.map(type => (
-            <option key={type.value} value={type.value}>{type.label}</option>
-          ))}
-        </select>
-      </div>
-
+      {showAdvanced && (<>
       {/* Polygon Sides (conditional) */}
       {shapeType === 'polygon' && (
         <div className="space-y-1">
@@ -394,6 +381,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
           onAdvancedModified={() => setAdvancedModified(true)}
         />
       </CollapsibleSection>
+      </>)}
     </div>
   )
 }

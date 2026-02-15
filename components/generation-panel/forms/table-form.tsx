@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { TableFormData, TableConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
-import { ElementContext } from '../types'
-import { PromptInput } from '../shared/prompt-input'
+import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { FontOverrideSection } from '../shared/font-override-section'
@@ -82,10 +81,12 @@ interface TableFormProps {
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   elementContext?: ElementContext | null
+  prompt: string
+  showAdvanced: boolean
+  registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function TableForm({ onSubmit, registerSubmit, isGenerating, elementContext }: TableFormProps) {
-  const [prompt, setPrompt] = useState('')
+export function TableForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: TableFormProps) {
   const [count, setCount] = useState(1)
   const [columns, setColumns] = useState(4)
   const [rows, setRows] = useState(5)
@@ -148,6 +149,20 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
     setAdvancedModified(true)
   }, [])
 
+  // Register mandatory config
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Content',
+      displayLabel: contentSource === 'ai' ? 'AI Generated' : 'Placeholder',
+      options: [
+        { value: 'ai', label: 'AI Generated' },
+        { value: 'placeholder', label: 'Placeholder' },
+      ],
+      onChange: (v) => setContentSource(v as 'ai' | 'placeholder'),
+      promptPlaceholder: 'e.g., Comparison table of cloud providers AWS, Azure, GCP across pricing, features, and support',
+    })
+  }, [contentSource, registerMandatoryConfig])
+
   const handleSubmit = useCallback(() => {
     const formData: TableFormData = {
       componentType: 'TABLE',
@@ -175,28 +190,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
   return (
     <div className="space-y-2.5">
-      {/* Prompt */}
-      {contentSource === 'ai' && (
-        <PromptInput
-          value={prompt}
-          onChange={setPrompt}
-          placeholder="e.g., Comparison table of cloud providers AWS, Azure, GCP across pricing, features, and support"
-          disabled={isGenerating}
-        />
-      )}
-
-      {/* Content Source Toggle */}
-      <ToggleRow
-        label="Content Source"
-        field="contentSource"
-        value={contentSource}
-        options={[
-          { value: 'ai', label: 'AI Generated' },
-          { value: 'placeholder', label: 'Placeholder' },
-        ]}
-        onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
-      />
-
+      {showAdvanced && (<>
       {/* Section 1: Structure */}
       <CollapsibleSection title="Structure" isOpen={showStructure} onToggle={() => setShowStructure(!showStructure)}>
         <div className="space-y-2">
@@ -460,6 +454,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
           onAdvancedModified={() => setAdvancedModified(true)}
         />
       </CollapsibleSection>
+      </>)}
     </div>
   )
 }
