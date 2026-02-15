@@ -22,7 +22,9 @@ import {
   Palette,
   TrendingUp,
   Tag,
-  Pentagon
+  Pentagon,
+  SlidersHorizontal,
+  Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -45,6 +47,7 @@ import { ElementType, ElementProperties, BaseElementProperties } from '@/types/e
 import { VersionHistoryPanel } from './version-history-panel'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
+import { ContentContextDisplay } from './content-context-form'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
@@ -106,6 +109,13 @@ interface PresentationViewerProps {
   onOpenGenerationPanel?: (type: string) => void  // Uses string to avoid coupling to TextLabsComponentType
   // Element moved/resized on canvas (for position sync with GenerationPanel)
   onElementMoved?: (elementId: string, gridRow: string, gridColumn: string) => void
+  // Bottom toolbar items (moved from header)
+  connected?: boolean
+  connecting?: boolean
+  showContentContextPanel?: boolean
+  onToggleContentContextPanel?: () => void
+  hasGeneratedContent?: boolean
+  contentContext?: import('@/components/content-context-form').ContentContext
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -185,6 +195,12 @@ export function PresentationViewer({
   onApiReady,
   onOpenGenerationPanel,
   onElementMoved,
+  connected,
+  connecting,
+  showContentContextPanel,
+  onToggleContentContextPanel,
+  hasGeneratedContent,
+  contentContext,
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -2004,6 +2020,59 @@ export function PresentationViewer({
                 <Palette className="h-3.5 w-3.5" />
                 Theme
               </button>
+
+              {/* Presentation Settings (moved from header) */}
+              {onToggleContentContextPanel && (
+                <button
+                  onClick={onToggleContentContextPanel}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    showContentContextPanel
+                      ? 'bg-teal-100 text-teal-700 hover:bg-teal-200'
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                  title="Presentation Settings (Audience, Purpose, Duration)"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  Pres. Settings
+                </button>
+              )}
+
+              {/* Content Context Display */}
+              {hasGeneratedContent && contentContext && (
+                <ContentContextDisplay context={contentContext} className="text-xs" />
+              )}
+
+              {/* Connected indicator */}
+              {connected !== undefined && (
+                <span className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium ${
+                  connected
+                    ? 'bg-green-100 text-green-700 border border-green-200'
+                    : connecting
+                      ? 'bg-yellow-100 text-yellow-700 border border-yellow-200'
+                      : 'bg-red-100 text-red-700 border border-red-200'
+                }`}>
+                  <span className={`h-2 w-2 rounded-full ${connected ? 'bg-green-500' : connecting ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                  {connecting ? "Connecting..." : connected ? "Connected" : "Disconnected"}
+                </span>
+              )}
+
+              {/* Spacer */}
+              <div className="flex-1" />
+
+              {/* Powered by Deckster */}
+              <div className="flex items-center gap-1.5">
+                <div className="flex flex-col items-center">
+                  <span className="text-[8px] text-gray-400 leading-tight">Powered by</span>
+                  <div className="flex items-center gap-1">
+                    <div className="flex h-4 w-4 items-center justify-center rounded bg-gradient-to-br from-purple-600 to-blue-600">
+                      <Sparkles className="h-2.5 w-2.5 text-white" />
+                    </div>
+                    <span className="text-[10px] font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                      deckster
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

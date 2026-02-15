@@ -7,6 +7,7 @@ import { SlideBuildingLoader } from "@/components/slide-building-loader"
 import { Sparkles } from "lucide-react"
 import { ElementType, ElementProperties } from '@/types/elements'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
+import type { ContentContext } from '@/components/content-context-form'
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -65,6 +66,13 @@ export interface PresentationAreaProps {
   // Generation panel handler (for toolbar)
   onOpenGenerationPanel?: (type: string) => void
   onEditModeChange?: (isEditing: boolean) => void
+  // Bottom toolbar items (moved from header)
+  connected: boolean
+  connecting: boolean
+  showContentContextPanel: boolean
+  onToggleContentContextPanel: () => void
+  hasGeneratedContent: boolean
+  contentContext: ContentContext
 }
 
 export function PresentationArea({
@@ -91,6 +99,12 @@ export function PresentationArea({
   generationPanel,
   onOpenGenerationPanel,
   onEditModeChange,
+  connected,
+  connecting,
+  showContentContextPanel,
+  onToggleContentContextPanel,
+  hasGeneratedContent,
+  contentContext,
 }: PresentationAreaProps) {
   return (
     <div className="flex-1 flex flex-col bg-gray-100">
@@ -132,6 +146,12 @@ export function PresentationArea({
           onElementDeselected={onElementDeselected}
           onApiReady={onApiReady}
           onOpenGenerationPanel={onOpenGenerationPanel}
+          connected={connected}
+          connecting={connecting}
+          showContentContextPanel={showContentContextPanel}
+          onToggleContentContextPanel={onToggleContentContextPanel}
+          hasGeneratedContent={hasGeneratedContent}
+          contentContext={contentContext}
           onElementMoved={(elementId, gridRow, gridColumn) => {
             if (blankElements.isBlankElement(elementId)) {
               const rowParts = gridRow.split('/').map(Number)
