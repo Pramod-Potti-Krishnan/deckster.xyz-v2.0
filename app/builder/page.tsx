@@ -896,7 +896,9 @@ function BuilderContent() {
                 className={cn(
                   "absolute top-[30%] -translate-y-1/2 left-0",
                   "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                  "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+                  "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
+                  "transition-[color,background-color,border-color,transform] duration-300 ease-out",
+                  isLHSOpen && !generationPanel.isOpen && "-translate-x-96",
                   generationPanel.isOpen
                     ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
                     : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
@@ -921,7 +923,9 @@ function BuilderContent() {
               className={cn(
                 "absolute top-[45%] -translate-y-1/2 left-0",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+                "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
+                "transition-[color,background-color,border-color,transform] duration-300 ease-out",
+                isLHSOpen && !showFormatPanel && "-translate-x-96",
                 showFormatPanel
                   ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700"
                   : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600"
@@ -945,7 +949,9 @@ function BuilderContent() {
               className={cn(
                 "absolute top-[60%] -translate-y-1/2 left-0",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+                "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
+                "transition-[color,background-color,border-color,transform] duration-300 ease-out",
+                isLHSOpen && !showChat && "-translate-x-96",
                 showChat
                   ? "bg-emerald-200 hover:bg-emerald-300 border-emerald-400 text-emerald-700"
                   : "bg-emerald-100 hover:bg-emerald-200 border-emerald-300 text-emerald-600"

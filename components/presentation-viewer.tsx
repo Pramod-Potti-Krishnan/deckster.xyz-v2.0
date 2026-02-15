@@ -2008,14 +2008,14 @@ export function PresentationViewer({
           )}
         </div>
 
-        {/* Right: Slide Thumbnail Handle + Panel */}
+        {/* Right: Slide Thumbnail Handle — zero-width context, no grey line */}
         {!isFullscreen && (
-          <div className="flex flex-shrink-0">
-            {/* Thumbnail Handle */}
+          <div className="relative w-0 flex-shrink-0 z-10">
             <button
               onClick={handleToggleOverview}
               className={cn(
-                "self-center w-4 py-3 rounded-l-md shadow-sm border border-r-0",
+                "absolute top-[50%] -translate-y-1/2 right-0",
+                "w-4 py-3 rounded-l-md shadow-sm border border-r-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
                 showThumbnails
                   ? "bg-indigo-200 hover:bg-indigo-300 border-indigo-400 text-indigo-700"
@@ -2032,35 +2032,37 @@ export function PresentationViewer({
                 Slides
               </span>
             </button>
+          </div>
+        )}
 
-            {/* Thumbnail Strip */}
-            <div className={cn(
-              "flex flex-col border-l border-gray-200 bg-gray-50 overflow-hidden",
-              "transition-[width] duration-300 ease-out",
-              showThumbnails ? "w-32" : "w-0"
-            )}>
-              {showThumbnails && slideThumbnails.length > 0 && (
-                <SlideThumbnailStrip
-                  slides={slideThumbnails}
-                  currentSlide={currentSlide}
-                  onSlideClick={(slideNumber) => {
-                    handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
-                  }}
-                  orientation="vertical"
-                  // Multi-select support
-                  selectedSlides={selectedSlideIndices}
-                  onSelectionChange={setSelectedSlideIndices}
-                  // CRUD handlers
-                  onDuplicateSlide={handleDuplicateSlide}
-                  onDeleteSlide={handleOpenDeleteDialog}
-                  onDeleteSlides={handleOpenBulkDeleteDialog}
-                  onChangeLayout={handleChangeLayout}
-                  onReorderSlides={handleReorderSlides}
-                  enableDragDrop={true}
-                  totalSlides={totalSlides}
-                />
-              )}
-            </div>
+        {/* Thumbnail Strip — separate flex participant */}
+        {!isFullscreen && (
+          <div className={cn(
+            "flex flex-col border-l border-gray-200 bg-gray-50 overflow-hidden flex-shrink-0",
+            "transition-[width] duration-300 ease-out",
+            showThumbnails ? "w-32" : "w-0"
+          )}>
+            {showThumbnails && slideThumbnails.length > 0 && (
+              <SlideThumbnailStrip
+                slides={slideThumbnails}
+                currentSlide={currentSlide}
+                onSlideClick={(slideNumber) => {
+                  handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
+                }}
+                orientation="vertical"
+                // Multi-select support
+                selectedSlides={selectedSlideIndices}
+                onSelectionChange={setSelectedSlideIndices}
+                // CRUD handlers
+                onDuplicateSlide={handleDuplicateSlide}
+                onDeleteSlide={handleOpenDeleteDialog}
+                onDeleteSlides={handleOpenBulkDeleteDialog}
+                onChangeLayout={handleChangeLayout}
+                onReorderSlides={handleReorderSlides}
+                enableDragDrop={true}
+                totalSlides={totalSlides}
+              />
+            )}
           </div>
         )}
       </div>
