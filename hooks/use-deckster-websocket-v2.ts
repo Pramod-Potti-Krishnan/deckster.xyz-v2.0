@@ -8,7 +8,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_url' | 'status_update' | 'sync_response';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response';
   payload: any;
 }
 
@@ -118,7 +118,34 @@ export interface SlideUpdate {
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationURL | StatusUpdate | SyncResponse;
+// Blank presentation initialization (sent instead of slide_update to avoid chat card rendering)
+export interface PresentationInit {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'presentation_init';
+  payload: {
+    is_blank?: boolean;
+    preview_url?: string;
+    preview_presentation_id?: string;
+    metadata?: {
+      main_title: string;
+      preview_url?: string;
+      preview_presentation_id?: string;
+      [key: string]: any;
+    };
+    slides?: Array<{
+      slide_id: string;
+      slide_number: number;
+      slide_type: string;
+      title: string;
+      [key: string]: any;
+    }>;
+    [key: string]: any;
+  };
+}
+
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse;
 
 // Content context for Director - affects content generation
 export interface ContentContextPayload {
@@ -557,8 +584,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // Prevent duplicate messages by checking message_id
             const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
 
-            // Don't add status_update or sync_response messages to chat - they're only for state management
-            const shouldAddToMessages = message.type !== 'status_update' && message.type !== 'sync_response' && !isDuplicate;
+            // Don't add status_update, sync_response, or presentation_init messages to chat - they're only for state management
+            const shouldAddToMessages = message.type !== 'status_update' && message.type !== 'sync_response' && message.type !== 'presentation_init' && !isDuplicate;
 
             const newState = {
               ...prev,
@@ -636,19 +663,58 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 }
                 break;
 
+              case 'presentation_init': {
+                // Director sends presentation_init (instead of slide_update) for blank presentations
+                // This avoids rendering a "1 slides · 0 min" card in chat
+                console.log('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
+
+                const initUrl = message.payload.preview_url ||
+                                message.payload.metadata?.preview_url;
+                const initId = message.payload.metadata?.preview_presentation_id ||
+                               message.payload.preview_presentation_id;
+
+                console.log('🆕 Blank presentation received (presentation_init):', { initUrl, initId });
+
+                if (initUrl) {
+                  newState.blankPresentationUrl = initUrl;
+                  newState.blankPresentationId = initId || null;
+                  newState.isBlankPresentation = true;
+                  newState.activeVersion = 'blank';
+                  newState.presentationUrl = initUrl;
+                  newState.presentationId = initId || null;
+                  newState.slideStructure = message.payload as any;
+
+                  console.log('✅ Blank presentation ready - all editing tools now active');
+
+                  if (options.onPresentationReady) {
+                    options.onPresentationReady(initUrl);
+                  }
+
+                  if (options.onSessionStateChange) {
+                    options.onSessionStateChange({
+                      presentationUrl: initUrl,
+                      presentationId: initId || undefined,
+                      slideCount: 1,
+                      currentStage: 0,
+                    });
+                  }
+                }
+                break;
+              }
+
               case 'slide_update':
                 console.log('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
                 newState.slideStructure = message.payload;
 
-                // NEW: Handle blank presentation on immediate connect (Builder V2)
-                // Director sends is_blank: true when providing the initial blank presentation
+                // Legacy: Handle blank presentation sent as slide_update with is_blank flag
+                // (kept for backward compatibility, but Director now sends presentation_init instead)
                 if (message.payload.is_blank) {
                   const blankUrl = message.payload.preview_url ||
                                    message.payload.metadata?.preview_url;
                   const blankId = message.payload.metadata?.preview_presentation_id ||
                                   message.payload.preview_presentation_id;
 
-                  console.log('🆕 Blank presentation received (Builder V2):', { blankUrl, blankId });
+                  console.log('🆕 Blank presentation received (legacy slide_update):', { blankUrl, blankId });
 
                   if (blankUrl) {
                     // Set blank presentation state
