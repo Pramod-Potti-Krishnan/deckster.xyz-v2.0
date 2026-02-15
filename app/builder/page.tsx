@@ -679,7 +679,7 @@ function BuilderContent() {
           {/* Left Panel - Chat (w-80 when open, 0 when collapsed) */}
           <div className={cn(
             "flex flex-col bg-white relative overflow-hidden min-w-0 flex-shrink-0 transition-[width] duration-300 ease-out",
-            isLHSOpen ? "w-80 border-r border-gray-200" : "w-0"
+            isLHSOpen ? "w-96" : "w-0"
           )}>
             {/* Content Context Panel - Overlays chat when open */}
             {showContentContextPanel && (
