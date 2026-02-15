@@ -675,7 +675,7 @@ function BuilderContent() {
         />
 
         {/* Main Content Area - 25/75 Split */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden relative">
           {/* Left Panel - Chat (25% when open, 0 when collapsed) */}
           <div className={cn(
             "flex flex-col bg-white relative overflow-hidden min-w-0 transition-[width] duration-300 ease-out",
@@ -880,85 +880,88 @@ function BuilderContent() {
             )}
           </div>
 
-          {/* Panel handles — always visible between LHS and presentation */}
-          <div className="flex-shrink-0 flex flex-col items-center justify-center gap-1.5 py-2">
-            {/* Element handle — pastel purple */}
-            {features.useTextLabsGeneration && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (generationPanel.isOpen) {
-                    generationPanel.closePanel()
-                  } else {
-                    generationPanel.reopenPanel()
-                  }
-                }}
-                className={cn(
-                  "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                  "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
-                  generationPanel.isOpen
-                    ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
-                    : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
-                )}
-                title={generationPanel.isOpen ? 'Close element panel' : 'Open element panel'}
-              >
-                {generationPanel.isOpen ? (
-                  <ChevronLeft className="h-2.5 w-2.5" />
-                ) : (
-                  <ChevronRight className="h-2.5 w-2.5" />
-                )}
-                <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
-                  Element
-                </span>
-              </button>
+          {/* Element handle — independently positioned */}
+          {features.useTextLabsGeneration && (
+            <button
+              type="button"
+              onClick={() => {
+                if (generationPanel.isOpen) {
+                  generationPanel.closePanel()
+                } else {
+                  generationPanel.reopenPanel()
+                }
+              }}
+              className={cn(
+                "absolute top-1/2 z-40 transition-[left] duration-300 ease-out",
+                "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+                "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+                generationPanel.isOpen
+                  ? "left-[25%] bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
+                  : "left-0 bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
+              )}
+              style={{ transform: 'translateY(calc(-50% - 5rem))' }}
+              title={generationPanel.isOpen ? 'Close element panel' : 'Open element panel'}
+            >
+              {generationPanel.isOpen ? (
+                <ChevronLeft className="h-2.5 w-2.5" />
+              ) : (
+                <ChevronRight className="h-2.5 w-2.5" />
+              )}
+              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+                Element
+              </span>
+            </button>
+          )}
+
+          {/* Slide handle — independently positioned */}
+          <button
+            type="button"
+            onClick={() => setShowFormatPanel(prev => !prev)}
+            className={cn(
+              "absolute top-1/2 z-40 transition-[left] duration-300 ease-out",
+              "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+              "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+              showFormatPanel
+                ? "left-[25%] bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700"
+                : "left-0 bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600"
             )}
+            style={{ transform: 'translateY(-50%)' }}
+            title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
+          >
+            {showFormatPanel ? (
+              <ChevronLeft className="h-2.5 w-2.5" />
+            ) : (
+              <ChevronRight className="h-2.5 w-2.5" />
+            )}
+            <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+              Slide
+            </span>
+          </button>
 
-            {/* Slide handle — pastel blue */}
-            <button
-              type="button"
-              onClick={() => setShowFormatPanel(prev => !prev)}
-              className={cn(
-                "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
-                showFormatPanel
-                  ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700"
-                  : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600"
-              )}
-              title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
-            >
-              {showFormatPanel ? (
-                <ChevronLeft className="h-2.5 w-2.5" />
-              ) : (
-                <ChevronRight className="h-2.5 w-2.5" />
-              )}
-              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
-                Slide
-              </span>
-            </button>
-
-            {/* Deck handle — pastel emerald */}
-            <button
-              type="button"
-              onClick={() => setShowChat(prev => !prev)}
-              className={cn(
-                "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
-                showChat
-                  ? "bg-emerald-200 hover:bg-emerald-300 border-emerald-400 text-emerald-700"
-                  : "bg-emerald-100 hover:bg-emerald-200 border-emerald-300 text-emerald-600"
-              )}
-              title={showChat ? 'Close chat panel' : 'Open chat panel'}
-            >
-              {showChat ? (
-                <ChevronLeft className="h-2.5 w-2.5" />
-              ) : (
-                <ChevronRight className="h-2.5 w-2.5" />
-              )}
-              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
-                Deck
-              </span>
-            </button>
-          </div>
+          {/* Deck handle — independently positioned */}
+          <button
+            type="button"
+            onClick={() => setShowChat(prev => !prev)}
+            className={cn(
+              "absolute top-1/2 z-40 transition-[left] duration-300 ease-out",
+              "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+              "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+              showChat
+                ? "left-[25%] bg-emerald-200 hover:bg-emerald-300 border-emerald-400 text-emerald-700"
+                : "left-0 bg-emerald-100 hover:bg-emerald-200 border-emerald-300 text-emerald-600"
+            )}
+            style={{ transform: 'translateY(calc(-50% + 5rem))' }}
+            title={showChat ? 'Close chat panel' : 'Open chat panel'}
+          >
+            {showChat ? (
+              <ChevronLeft className="h-2.5 w-2.5" />
+            ) : (
+              <ChevronRight className="h-2.5 w-2.5" />
+            )}
+            <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+              Deck
+            </span>
+          </button>
 
           {/* Right Panel - Presentation Display (flex-1) */}
           {session.isLoadingSession ? (
