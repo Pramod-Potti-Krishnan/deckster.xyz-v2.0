@@ -19,6 +19,7 @@ import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties } from '@/types/elements'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { useBlankElements } from '@/hooks/use-blank-elements'
@@ -828,6 +829,49 @@ function BuilderContent() {
                 elementContext={blankElements.activePosition}
               />
             )}
+
+            {/* Panel edge handles — always visible on right edge of LHS column */}
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-1.5 pointer-events-none">
+              {/* Element handle */}
+              {features.useTextLabsGeneration && (
+                <button
+                  type="button"
+                  onClick={generationPanel.isOpen ? () => generationPanel.closePanel() : generationPanel.reopenPanel}
+                  className="pointer-events-auto w-4 py-3 rounded-r-md shadow-sm border border-l-0
+                    flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors
+                    bg-gray-100 hover:bg-gray-200 border-gray-300"
+                  title={generationPanel.isOpen ? 'Collapse element panel' : 'Expand element panel'}
+                >
+                  {generationPanel.isOpen ? (
+                    <ChevronLeft className="h-2.5 w-2.5 text-gray-500" />
+                  ) : (
+                    <ChevronRight className="h-2.5 w-2.5 text-gray-600" />
+                  )}
+                  <span className="[writing-mode:vertical-rl] text-[8px] text-gray-500 font-medium select-none leading-none">
+                    Element
+                  </span>
+                </button>
+              )}
+
+              {/* Slide handle */}
+              <button
+                type="button"
+                onClick={() => setShowFormatPanel(prev => !prev)}
+                className="pointer-events-auto w-4 py-3 rounded-r-md shadow-sm border border-l-0
+                  flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors
+                  bg-slate-200 hover:bg-slate-300 border-slate-400"
+                title={showFormatPanel ? 'Collapse slide panel' : 'Expand slide panel'}
+              >
+                {showFormatPanel ? (
+                  <ChevronLeft className="h-2.5 w-2.5 text-slate-600" />
+                ) : (
+                  <ChevronRight className="h-2.5 w-2.5 text-slate-600" />
+                )}
+                <span className="[writing-mode:vertical-rl] text-[8px] text-slate-600 font-medium select-none leading-none">
+                  Slide
+                </span>
+              </button>
+            </div>
 
             {/* Chat Messages */}
             <ScrollArea className="flex-1">
