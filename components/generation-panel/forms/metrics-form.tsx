@@ -14,16 +14,16 @@ import { ZIndexInput } from '../shared/z-index-input'
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.METRICS
 
 const CARD_COLOR_PRESETS = [
-  { name: 'purple', label: 'Purple', hex: '#805AA0' },
-  { name: 'blue', label: 'Blue', hex: '#2980B9' },
-  { name: 'green', label: 'Green', hex: '#27AE60' },
-  { name: 'red', label: 'Red', hex: '#C0392B' },
-  { name: 'cyan', label: 'Cyan', hex: '#0097A7' },
-  { name: 'orange', label: 'Orange', hex: '#E65100' },
-  { name: 'pink', label: 'Pink', hex: '#C2185B' },
-  { name: 'gold', label: 'Gold', hex: '#D39E1E' },
-  { name: 'teal', label: 'Teal', hex: '#00796B' },
-  { name: 'indigo', label: 'Indigo', hex: '#3949AB' },
+  { name: 'purple', label: 'Purple', hex: '#805AA0', pastelHex: '#C9A6E8' },
+  { name: 'blue', label: 'Blue', hex: '#2980B9', pastelHex: '#90C4E8' },
+  { name: 'green', label: 'Green', hex: '#27AE60', pastelHex: '#8ED4A8' },
+  { name: 'red', label: 'Red', hex: '#C0392B', pastelHex: '#E8A09A' },
+  { name: 'cyan', label: 'Cyan', hex: '#0097A7', pastelHex: '#80D4DE' },
+  { name: 'orange', label: 'Orange', hex: '#E65100', pastelHex: '#F4B88A' },
+  { name: 'pink', label: 'Pink', hex: '#C2185B', pastelHex: '#E890B2' },
+  { name: 'gold', label: 'Gold', hex: '#D39E1E', pastelHex: '#EDD08E' },
+  { name: 'teal', label: 'Teal', hex: '#00796B', pastelHex: '#80C4BB' },
+  { name: 'indigo', label: 'Indigo', hex: '#3949AB', pastelHex: '#9CA6D8' },
 ] as const
 
 const LIGHT_FONT_COLORS = [
@@ -304,7 +304,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
                 <button
                   key={preset.name}
                   onClick={() => updateConfig('color_variant', preset.name)}
-                  style={{ backgroundColor: preset.hex }}
+                  style={{ backgroundColor: config.color_scheme === 'accent' ? preset.pastelHex : preset.hex }}
                   className={`h-7 w-7 rounded-full border border-gray-200 transition-all ${
                     config.color_variant === preset.name
                       ? 'ring-2 ring-purple-500 ring-offset-1'
