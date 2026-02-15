@@ -1140,9 +1140,11 @@ function BuilderContent() {
       }
 
       // For unsaved sessions, create database session first
-      if (isUnsavedSession && !currentSessionId) {
+      // Note: With immediateConnection, currentSessionId may already be set (pre-assigned UUID)
+      // but the DB session hasn't been created yet. Check isUnsavedSession alone.
+      if (isUnsavedSession) {
         console.log('💾 Creating database session for first message')
-        const newSessionId = wsSessionId // Use existing WebSocket session ID
+        const newSessionId = currentSessionId || wsSessionId // Use pre-assigned UUID if available
 
         try {
           const session = await createSession(newSessionId)
@@ -1150,10 +1152,13 @@ function BuilderContent() {
           if (session) {
             // Mark this session as just created to prevent re-initialization race condition
             justCreatedSessionRef.current = session.id
-            setCurrentSessionId(session.id)
             setIsUnsavedSession(false)
-            // Update URL
-            router.push(`/builder?session_id=${session.id}`)
+            // Only update currentSessionId and URL if not already set
+            // (immediateConnection pre-assigns a UUID that matches the DB session)
+            if (!currentSessionId) {
+              setCurrentSessionId(session.id)
+              router.push(`/builder?session_id=${session.id}`)
+            }
             console.log('✅ Database session created:', session.id)
 
             // IMPORTANT: Add user message to UI immediately (before sending)
@@ -1441,7 +1446,7 @@ function BuilderContent() {
         if (newId && newId !== blankId) {
           blankElements.removeElement(blankId)
           blankElements.addElement({ ...blankInfo, elementId: newId, status: 'generating' })
-          generationPanel.openPanelForElement(formData.componentType as TextLabsComponentType, newId)
+          generationPanel.openPanelForElement(blankInfo.componentType, newId)
           // Update local tracking vars synchronously
           currentBlankId = newId
           currentBlankInfo = { ...blankInfo, elementId: newId }
@@ -1556,7 +1561,7 @@ function BuilderContent() {
           if (newId && newId !== currentBlankId) {
             blankElements.removeElement(currentBlankId)
             blankElements.addElement({ ...currentBlankInfo, elementId: newId, status: 'blank' })
-            generationPanel.openPanelForElement(formData.componentType as TextLabsComponentType, newId)
+            generationPanel.openPanelForElement(currentBlankInfo.componentType, newId)
           }
         } catch (restoreErr) {
           console.warn('[TextLabs] Failed to restore placeholder after error:', restoreErr)

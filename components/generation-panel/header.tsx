@@ -22,8 +22,8 @@ interface GenerationPanelHeaderProps {
 }
 
 export function GenerationPanelHeader({ elementType, onClose }: GenerationPanelHeaderProps) {
-  const Icon = COMPONENT_ICONS[elementType]
-  const info = COMPONENT_TYPE_INFO[elementType]
+  const Icon = COMPONENT_ICONS[elementType] || Type
+  const info = COMPONENT_TYPE_INFO[elementType] || { label: elementType, description: '' }
 
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
