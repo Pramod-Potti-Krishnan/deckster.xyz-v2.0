@@ -668,10 +668,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 // This avoids rendering a "1 slides · 0 min" card in chat
                 console.log('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
 
-                const initUrl = message.payload.preview_url ||
-                                message.payload.metadata?.preview_url;
-                const initId = message.payload.metadata?.preview_presentation_id ||
-                               message.payload.preview_presentation_id;
+                const initUrl = message.payload.presentation_url ||
+                                message.payload.preview_url ||
+                                message.payload.url ||
+                                message.payload.metadata?.preview_url ||
+                                message.payload.metadata?.presentation_url;
+                const initId = message.payload.presentation_id ||
+                               message.payload.preview_presentation_id ||
+                               message.payload.metadata?.preview_presentation_id ||
+                               message.payload.metadata?.presentation_id;
 
                 console.log('🆕 Blank presentation received (presentation_init):', { initUrl, initId });
 
