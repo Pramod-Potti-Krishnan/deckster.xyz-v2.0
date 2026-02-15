@@ -7,8 +7,6 @@ import {
   Minimize2,
   Save,
   X,
-  PanelRightClose,
-  PanelRightOpen,
   Play,
   Layers,
   Check,
@@ -26,6 +24,7 @@ import {
   Tag,
   Pentagon
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -2009,46 +2008,59 @@ export function PresentationViewer({
           )}
         </div>
 
-        {/* Right: Slide Thumbnail Panel with Toggle */}
+        {/* Right: Slide Thumbnail Handle + Panel */}
         {!isFullscreen && (
-          <div className={`flex-shrink-0 flex flex-col border-l border-gray-200 bg-gray-50 transition-all duration-200 ${showThumbnails ? 'w-32' : 'w-10'}`}>
-            {/* Panel Header with Toggle */}
-            <div className="flex items-center justify-center py-2 border-b border-gray-200">
-              <button
-                onClick={handleToggleOverview}
-                className="p-1.5 rounded-md hover:bg-gray-200 transition-colors"
-                title={showThumbnails ? "Hide thumbnails" : "Show thumbnails"}
-              >
-                {showThumbnails ? (
-                  <PanelRightClose className="h-4 w-4 text-gray-600" />
-                ) : (
-                  <PanelRightOpen className="h-4 w-4 text-gray-600" />
-                )}
-              </button>
-            </div>
+          <div className="flex flex-shrink-0">
+            {/* Thumbnail Handle */}
+            <button
+              onClick={handleToggleOverview}
+              className={cn(
+                "self-center w-4 py-3 rounded-l-md shadow-sm border border-r-0",
+                "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+                showThumbnails
+                  ? "bg-indigo-200 hover:bg-indigo-300 border-indigo-400 text-indigo-700"
+                  : "bg-indigo-100 hover:bg-indigo-200 border-indigo-300 text-indigo-600"
+              )}
+              title={showThumbnails ? "Hide slides" : "Show slides"}
+            >
+              {showThumbnails ? (
+                <ChevronRight className="h-2.5 w-2.5" />
+              ) : (
+                <ChevronLeft className="h-2.5 w-2.5" />
+              )}
+              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+                Slides
+              </span>
+            </button>
 
             {/* Thumbnail Strip */}
-            {showThumbnails && slideThumbnails.length > 0 && (
-              <SlideThumbnailStrip
-                slides={slideThumbnails}
-                currentSlide={currentSlide}
-                onSlideClick={(slideNumber) => {
-                  handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
-                }}
-                orientation="vertical"
-                // Multi-select support
-                selectedSlides={selectedSlideIndices}
-                onSelectionChange={setSelectedSlideIndices}
-                // CRUD handlers
-                onDuplicateSlide={handleDuplicateSlide}
-                onDeleteSlide={handleOpenDeleteDialog}
-                onDeleteSlides={handleOpenBulkDeleteDialog}
-                onChangeLayout={handleChangeLayout}
-                onReorderSlides={handleReorderSlides}
-                enableDragDrop={true}
-                totalSlides={totalSlides}
-              />
-            )}
+            <div className={cn(
+              "flex flex-col border-l border-gray-200 bg-gray-50 overflow-hidden",
+              "transition-[width] duration-300 ease-out",
+              showThumbnails ? "w-32" : "w-0"
+            )}>
+              {showThumbnails && slideThumbnails.length > 0 && (
+                <SlideThumbnailStrip
+                  slides={slideThumbnails}
+                  currentSlide={currentSlide}
+                  onSlideClick={(slideNumber) => {
+                    handleGoToSlide(slideNumber - 1) // Convert 1-based to 0-based index
+                  }}
+                  orientation="vertical"
+                  // Multi-select support
+                  selectedSlides={selectedSlideIndices}
+                  onSelectionChange={setSelectedSlideIndices}
+                  // CRUD handlers
+                  onDuplicateSlide={handleDuplicateSlide}
+                  onDeleteSlide={handleOpenDeleteDialog}
+                  onDeleteSlides={handleOpenBulkDeleteDialog}
+                  onChangeLayout={handleChangeLayout}
+                  onReorderSlides={handleReorderSlides}
+                  enableDragDrop={true}
+                  totalSlides={totalSlides}
+                />
+              )}
+            </div>
           </div>
         )}
       </div>
