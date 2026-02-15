@@ -89,6 +89,7 @@ export function GenerationPanel({
         {/* Header */}
         <GenerationPanelHeader
           elementType={elementType}
+          onClose={onClose}
           onElementTypeChange={onElementTypeChange}
         />
 
@@ -128,27 +129,30 @@ export function GenerationPanel({
         </div>
       </div>
 
-      {/* Vertical handle — always visible */}
-      <button
-        type="button"
-        onClick={isOpen ? onClose : onReopen}
-        className={cn(
-          "w-5 flex-shrink-0 pointer-events-auto flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors border-l",
-          isOpen
-            ? "bg-gray-50 hover:bg-gray-100 border-gray-200"
-            : "bg-gray-100 hover:bg-gray-200 border-gray-300"
-        )}
-        title={isOpen ? 'Collapse panel' : 'Expand panel'}
-      >
-        {isOpen ? (
-          <ChevronLeft className="h-3 w-3 text-gray-400" />
-        ) : (
-          <ChevronRight className="h-3 w-3 text-gray-500" />
-        )}
-        <span className="[writing-mode:vertical-rl] text-[10px] text-gray-500 tracking-wider font-medium select-none">
-          Element
-        </span>
-      </button>
+      {/* Small floating handle tab — vertically centered on right edge */}
+      <div className="flex-shrink-0 w-0 relative self-stretch">
+        <button
+          type="button"
+          onClick={isOpen ? onClose : onReopen}
+          className={cn(
+            "pointer-events-auto absolute top-1/2 -translate-y-1/2 flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+            "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+            isOpen
+              ? "bg-gray-100 hover:bg-gray-200 border-gray-300"
+              : "bg-gray-200 hover:bg-gray-300 border-gray-400"
+          )}
+          title={isOpen ? 'Collapse panel' : 'Expand panel'}
+        >
+          {isOpen ? (
+            <ChevronLeft className="h-2.5 w-2.5 text-gray-500" />
+          ) : (
+            <ChevronRight className="h-2.5 w-2.5 text-gray-600" />
+          )}
+          <span className="[writing-mode:vertical-rl] text-[8px] text-gray-500 font-medium select-none leading-none">
+            Element
+          </span>
+        </button>
+      </div>
     </div>
   )
 }
