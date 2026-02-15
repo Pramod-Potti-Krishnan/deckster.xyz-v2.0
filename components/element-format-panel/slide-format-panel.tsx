@@ -111,8 +111,9 @@ export function SlideFormatPanel({
     const grouped: Record<SlideLayoutCategory, typeof SLIDE_LAYOUTS> = {
       hero: [],
       content: [],
-      split: [],
-      blank: [],
+      visual: [],
+      image: [],
+      other: [],
     }
     SLIDE_LAYOUTS.forEach((layout) => {
       grouped[layout.category].push(layout)
