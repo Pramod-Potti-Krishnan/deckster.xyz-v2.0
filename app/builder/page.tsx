@@ -3,51 +3,13 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { useDecksterWebSocketV2, type DirectorMessage, type ChatMessage as V2ChatMessage, type ActionRequest, type StatusUpdate, type PresentationURL, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
+import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
 import { useChatSessions } from "@/hooks/use-chat-sessions"
 import { useSessionPersistence } from "@/hooks/use-session-persistence"
-import ReactMarkdown from 'react-markdown'
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
-import { ConnectionError } from "@/components/connection-error"
-import { PresentationViewer } from "@/components/presentation-viewer"
-import { SlideBuildingLoader } from "@/components/slide-building-loader"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { UserProfileMenu } from "@/components/user-profile-menu"
-import { Textarea } from "@/components/ui/textarea"
 import { ChatHistorySidebar } from "@/components/chat-history-sidebar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Switch } from "@/components/ui/switch"
-import {
-  Sparkles,
-  Settings,
-  Menu,
-  History,
-  Send,
-  ExternalLink,
-  Loader2,
-  Bot,
-  User,
-  Globe,
-  Plus,
-  SlidersHorizontal,
-  Camera,
-  Folder,
-  Paperclip,
-  ArrowUp,
-} from "lucide-react"
-import Link from "next/link"
 import { OnboardingModal } from "@/components/onboarding-modal"
-import { PresentationDownloadControls } from "@/components/presentation-download-controls"
-import { FileUploadButton } from '@/components/file-upload-button'
-import { FileChip } from '@/components/file-chip'
 import { useFileUpload } from '@/hooks/use-file-upload'
 import { features } from '@/lib/config'
 import { useToast } from '@/hooks/use-toast'
@@ -59,21 +21,28 @@ import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties } from '@/types/elements'
 import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
-import { useBlankElements, BlankElementInfo } from '@/hooks/use-blank-elements'
+import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
-import { TextLabsFormData, TextLabsComponentType } from '@/types/textlabs'
-import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
 import {
   ContentContextForm,
   ContentContext,
   DEFAULT_CONTENT_CONTEXT,
-  ContentContextDisplay
 } from '@/components/content-context-form'
 import {
   RegenerationWarningDialog,
   useRegenerationWarning
 } from '@/components/regeneration-warning-dialog'
 import { ContentContextPayload } from '@/hooks/use-deckster-websocket-v2'
+
+// Extracted components
+import { MessageList } from '@/components/builder/message-list'
+import { ChatInput } from '@/components/builder/chat-input'
+import { BuilderHeader } from '@/components/builder/builder-header'
+import { PresentationArea } from '@/components/builder/presentation-area'
+
+// Extracted hooks
+import { useBuilderSession } from '@/hooks/use-builder-session'
+import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -86,194 +55,11 @@ function BuilderContent() {
   // Session management
   const { loadSession, createSession } = useChatSessions()
 
-  // CRITICAL FIX: Initialize session ID from URL parameter on first mount
-  // This prevents WebSocket from generating a new ID while database session is loading
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => {
-    // Try to get session_id from URL on initial render
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const urlSessionId = params.get('session_id')
-      if (urlSessionId && urlSessionId !== 'new') {
-        console.log('🔍 Detected session ID from URL on mount:', urlSessionId)
-        return urlSessionId
-      }
-    }
-    return null
-  })
-  const currentSessionIdRef = useRef(currentSessionId)
-  const [isLoadingSession, setIsLoadingSession] = useState(false)
+  // UI state
+  const [inputMessage, setInputMessage] = useState("")
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [researchEnabled, setResearchEnabled] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
-  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
-
-  // Track if this is a resumed session with existing messages
-  // If true, we DON'T auto-connect WebSocket (to avoid duplicate welcome messages)
-  const [isResumedSession, setIsResumedSession] = useState(false)
-
-  // Track if this is a brand new session (not yet saved to database)
-  // We only save to database when user sends first message
-  const [isUnsavedSession, setIsUnsavedSession] = useState(false)
-
-  // Content context for presentation generation (Audience/Purpose/Time)
-  const [contentContext, setContentContext] = useState<ContentContext>(DEFAULT_CONTENT_CONTEXT)
-  const [showContentContextPanel, setShowContentContextPanel] = useState(false)
-  const [hasGeneratedContent, setHasGeneratedContent] = useState(false)
-
-  // Session persistence (enabled regardless of WebSocket state to prevent message loss)
-  // CRITICAL: Must be declared BEFORE useDecksterWebSocketV2 so the onSessionStateChange callback can reference it
-  const persistence = useSessionPersistence({
-    sessionId: currentSessionId || '',
-    enabled: !!currentSessionId && !isUnsavedSession, // Only persist when DB session exists
-    debounceMs: 500, // Reduce from default 3000ms to prevent loss on page close
-    onError: (error) => {
-      console.error('Persistence error:', error)
-    }
-  })
-
-  // CRITICAL FIX: Use ref to avoid stale closure in onSessionStateChange callback
-  // The callback is created once when the component mounts, but persistence changes when session is created
-  // Without this ref, the callback would always reference the initial persistence object (enabled: false)
-  const persistenceRef = useRef(persistence)
-  useEffect(() => {
-    persistenceRef.current = persistence
-  }, [persistence])
-
-  // CRITICAL FIX: Use ref to avoid stale closure for currentSessionId
-  // Same issue as persistence - the callback captures currentSessionId at mount (null for unsaved sessions)
-  // When the database session is created, currentSessionId updates, but the callback still has the old value
-  useEffect(() => {
-    currentSessionIdRef.current = currentSessionId
-  }, [currentSessionId])
-
-  // WebSocket v2 integration with session support
-  // CRITICAL: Pass existingSessionId to enable Director's session restoration feature
-  // When reconnecting to existing sessions, Director will restore full conversation history
-  const {
-    connected,
-    connecting,
-    connectionState,
-    error: wsError,
-    messages,
-    presentationUrl,
-    presentationId,
-    slideCount,
-    currentStatus,
-    slideStructure,
-    strawmanPreviewUrl,
-    finalPresentationUrl,
-    strawmanPresentationId,
-    finalPresentationId,
-    // NEW: Blank presentation state (Builder V2)
-    blankPresentationUrl,
-    blankPresentationId,
-    isBlankPresentation,
-    activeVersion,
-    sendMessage,
-    clearMessages,
-    restoreMessages,
-    switchVersion,
-    connect,
-    disconnect,
-    isReady,
-    sessionId: wsSessionId,
-    updateCacheUserMessages
-  } = useDecksterWebSocketV2({
-    // Builder V2: Connect immediately when feature flag enabled, show blank presentation
-    autoConnect: features.immediateConnection,
-    existingSessionId: currentSessionId || undefined, // Use database session ID for WebSocket
-    reconnectOnError: false,
-    maxReconnectAttempts: 0,
-    reconnectDelay: 5000,
-    onSessionStateChange: (state) => {
-      // Session state changed - update metadata in database
-      console.log('🔔 CALLBACK INVOKED!', {
-        currentSessionId: currentSessionIdRef.current,
-        hasPersistence: !!persistenceRef.current,
-        persistenceEnabled: persistenceRef.current?.enabled,
-        currentStage: state.currentStage,
-        hasUrl: !!state.presentationUrl,
-        hasPresentationId: !!state.presentationId
-      });
-
-      // CRITICAL: Use refs to avoid stale closure
-      if (currentSessionIdRef.current && persistenceRef.current) {
-        // FIXED: Use currentStage to determine which URL fields to update
-        // Stage 4 = strawman, Stage 6 = final presentation
-        const isStrawman = state.currentStage === 4
-        const isFinal = state.currentStage === 6
-
-        const updates: any = {
-          currentStage: state.currentStage,
-          slideCount: state.slideCount,
-          lastMessageAt: new Date(),
-          // CRITICAL FIX: Save activeVersion to persist user's presentation choice
-          stateCache: {
-            activeVersion: state.activeVersion,
-            slideStructure: state.slideStructure
-          }
-        }
-
-        if (isStrawman) {
-          // Update strawman-specific fields
-          updates.strawmanPreviewUrl = state.presentationUrl
-          updates.strawmanPresentationId = state.presentationId
-          console.log('💾 Saving strawman URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
-        } else if (isFinal) {
-          // Update final-specific fields
-          updates.finalPresentationUrl = state.presentationUrl
-          updates.finalPresentationId = state.presentationId
-          console.log('💾 Saving final URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
-
-          // NOTE: isGeneratingFinal state is now cleared via useEffect (lines 154-161)
-          // This ensures proper React state synchronization instead of calling setState from callback
-        }
-
-        persistenceRef.current.updateMetadata(updates)
-      } else {
-        console.error('❌ PERSISTENCE BLOCKED:', {
-          reason: !currentSessionIdRef.current ? 'No currentSessionId' : 'No persistenceRef.current',
-          currentSessionId: currentSessionIdRef.current,
-          hasPersistenceRef: !!persistenceRef.current,
-          persistenceEnabled: persistenceRef.current?.enabled
-        });
-      }
-    }
-  })
-
-  // Local UI state
-  const [inputMessage, setInputMessage] = useState("")
-  // CRITICAL: Initialize userMessages from sessionStorage cache on mount
-  // This is essential for the sync protocol to work correctly - when skip_history=true is sent,
-  // we need to have user messages already loaded from cache, not wait for DB load
-  const [userMessages, setUserMessages] = useState<Array<{ id: string; text: string; timestamp: number }>>(() => {
-    if (typeof window === 'undefined') return [];
-
-    // Get session ID from URL params
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session_id');
-
-    if (!sessionId) return [];
-
-    try {
-      const cacheKey = `deckster_session_${sessionId}`;
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.userMessages?.length > 0) {
-          console.log('⚡ Initialized userMessages from cache:', parsed.userMessages.length);
-          return parsed.userMessages;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to restore userMessages from cache:', e);
-    }
-
-    return [];
-  })
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [pendingActionInput, setPendingActionInput] = useState<{
     action: ActionRequest['payload']['actions'][0];
     messageId: string;
@@ -289,13 +75,13 @@ function BuilderContent() {
   const [isTextBoxPanelCollapsed, setIsTextBoxPanelCollapsed] = useState(true)
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   const [selectedTextBoxFormatting, setSelectedTextBoxFormatting] = useState<TextBoxFormatting | null>(null)
-  // Element selection state (Image, Table, Chart, Infographic, Diagram)
+  // Element selection state
   const [showElementPanel, setShowElementPanel] = useState(false)
   const [isElementPanelCollapsed, setIsElementPanelCollapsed] = useState(true)
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
   const [selectedElementType, setSelectedElementType] = useState<ElementType | null>(null)
   const [selectedElementProperties, setSelectedElementProperties] = useState<ElementProperties | null>(null)
-  // Layout Service API handlers (set by PresentationViewer when iframe is ready)
+  // Layout Service API handlers
   const [layoutServiceApis, setLayoutServiceApis] = useState<{
     getSelectionInfo: () => Promise<{ hasSelection: boolean; selectedText?: string; sectionId?: string; slideIndex?: number } | null>
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
@@ -304,41 +90,195 @@ function BuilderContent() {
   } | null>(null)
   const [isAIRegenerating, setIsAIRegenerating] = useState(false)
 
+  // Content context for presentation generation
+  const [contentContext, setContentContext] = useState<ContentContext>(DEFAULT_CONTENT_CONTEXT)
+  const [showContentContextPanel, setShowContentContextPanel] = useState(false)
+  const [hasGeneratedContent, setHasGeneratedContent] = useState(false)
+
   // Toast notifications
   const { toast } = useToast()
 
-  // Current slide tracking (0-based index for Layout Service)
+  // Current slide tracking
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
 
   // Text Labs Generation Panel
   const generationPanel = useGenerationPanel()
   const blankElements = useBlankElements()
+
+  // FIXED: Track when generating final/strawman presentations
+  const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
+  const [isGeneratingStrawman, setIsGeneratingStrawman] = useState(false)
+  const [isUnsavedSession, setIsUnsavedSession] = useState(false)
+
+  // Guard to prevent concurrent executions of handleSendMessage
+  const isExecutingSendRef = useRef(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Session persistence (enabled regardless of WebSocket state)
+  // CRITICAL: Must be declared BEFORE useDecksterWebSocketV2 so the onSessionStateChange callback can reference it
+  // Note: We use a temporary sessionId here; it gets updated when useBuilderSession resolves
+  const [sessionIdForPersistence, setSessionIdForPersistence] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const urlSessionId = params.get('session_id')
+      if (urlSessionId && urlSessionId !== 'new') return urlSessionId
+    }
+    return null
+  })
+
+  const persistence = useSessionPersistence({
+    sessionId: sessionIdForPersistence || '',
+    enabled: !!sessionIdForPersistence && !isUnsavedSession,
+    debounceMs: 500,
+    onError: (error) => {
+      console.error('Persistence error:', error)
+    }
+  })
+
+  // CRITICAL FIX: Use refs to avoid stale closures in onSessionStateChange callback
+  const persistenceRef = useRef(persistence)
+  useEffect(() => {
+    persistenceRef.current = persistence
+  }, [persistence])
+
+  const currentSessionIdRef = useRef(sessionIdForPersistence)
+  useEffect(() => {
+    currentSessionIdRef.current = sessionIdForPersistence
+  }, [sessionIdForPersistence])
+
+  // WebSocket v2 integration
+  const {
+    connected,
+    connecting,
+    connectionState,
+    error: wsError,
+    messages,
+    presentationUrl,
+    presentationId,
+    slideCount,
+    currentStatus,
+    slideStructure,
+    strawmanPreviewUrl,
+    finalPresentationUrl,
+    strawmanPresentationId,
+    finalPresentationId,
+    blankPresentationUrl,
+    blankPresentationId,
+    isBlankPresentation,
+    activeVersion,
+    sendMessage,
+    clearMessages,
+    restoreMessages,
+    switchVersion,
+    connect,
+    disconnect,
+    isReady,
+    sessionId: wsSessionId,
+    updateCacheUserMessages
+  } = useDecksterWebSocketV2({
+    autoConnect: features.immediateConnection,
+    existingSessionId: sessionIdForPersistence || undefined,
+    reconnectOnError: false,
+    maxReconnectAttempts: 0,
+    reconnectDelay: 5000,
+    onSessionStateChange: (state) => {
+      console.log('🔔 CALLBACK INVOKED!', {
+        currentSessionId: currentSessionIdRef.current,
+        hasPersistence: !!persistenceRef.current,
+        currentStage: state.currentStage,
+        hasUrl: !!state.presentationUrl,
+        hasPresentationId: !!state.presentationId
+      });
+
+      if (currentSessionIdRef.current && persistenceRef.current) {
+        const isStrawman = state.currentStage === 4
+        const isFinal = state.currentStage === 6
+
+        const updates: any = {
+          currentStage: state.currentStage,
+          slideCount: state.slideCount,
+          lastMessageAt: new Date(),
+          stateCache: {
+            activeVersion: state.activeVersion,
+            slideStructure: state.slideStructure
+          }
+        }
+
+        if (isStrawman) {
+          updates.strawmanPreviewUrl = state.presentationUrl
+          updates.strawmanPresentationId = state.presentationId
+          console.log('💾 Saving strawman URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
+        } else if (isFinal) {
+          updates.finalPresentationUrl = state.presentationUrl
+          updates.finalPresentationId = state.presentationId
+          console.log('💾 Saving final URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
+        }
+
+        persistenceRef.current.updateMetadata(updates)
+      } else {
+        console.error('❌ PERSISTENCE BLOCKED:', {
+          reason: !currentSessionIdRef.current ? 'No currentSessionId' : 'No persistenceRef.current',
+          currentSessionId: currentSessionIdRef.current,
+          hasPersistenceRef: !!persistenceRef.current
+        });
+      }
+    }
+  })
+
+  // Builder session hook (session init, loading, switching, persistence effects)
+  const session = useBuilderSession({
+    user,
+    isAuthLoading,
+    searchParams,
+    loadSession,
+    createSession,
+    persistence,
+    connected,
+    connecting,
+    connect,
+    clearMessages,
+    restoreMessages,
+    updateCacheUserMessages,
+    messages,
+    toast,
+    isUnsavedSession,
+    setIsUnsavedSession,
+  })
+
+  // Keep persistence sessionId in sync with session hook
+  useEffect(() => {
+    setSessionIdForPersistence(session.currentSessionId)
+  }, [session.currentSessionId])
+
+  // Text Labs session (depends on presentationId from WebSocket)
   const textLabsSession = useTextLabsSession(presentationId)
 
-  // Track active blank element for real-time canvas↔modal position sync
-  // FIX: Use ref for trackElement to avoid infinite re-render loop.
-  // blankElements is a new object reference every render, so including it
-  // in the dependency array causes an infinite useEffect→setState→render cycle.
+  // Track active blank element for real-time canvas<->modal position sync
   const trackElementRef = useRef(blankElements.trackElement)
   trackElementRef.current = blankElements.trackElement
-
   useEffect(() => {
     trackElementRef.current(generationPanel.blankElementId)
   }, [generationPanel.blankElementId])
 
-  // FIXED: Track when generating final presentation to show loading animation
-  const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
-  const [isGeneratingStrawman, setIsGeneratingStrawman] = useState(false)
-  const [isCreatingSession, setIsCreatingSession] = useState(false)
+  // Text Labs generation hook
+  const { handleGenerate: handleTextLabsGenerate, handleOpenPanel: handleOpenGenerationPanel } = useTextLabsGeneration({
+    generationPanel,
+    blankElements,
+    textLabsSession,
+    layoutServiceApis,
+    currentSlideIndex,
+    toast,
+  })
 
-  // File upload state (feature flag controlled)
+  // File upload state
   const {
     files: uploadedFiles,
     handleFilesSelected,
     removeFile,
     clearAllFiles
   } = useFileUpload({
-    sessionId: currentSessionId || '',
+    sessionId: session.currentSessionId || '',
     userId: user?.email || '',
     onUploadComplete: (files) => {
       console.log('📎 Files uploaded:', files)
@@ -352,20 +292,17 @@ function BuilderContent() {
     time: { duration_minutes: ctx.duration_minutes }
   }), [])
 
-  // Regeneration warning dialog for content context changes
+  // Regeneration warning dialog
   const regenerationWarning = useRegenerationWarning({
     currentContext: contentContext,
     onRegenerate: async (newContext: ContentContext) => {
       console.log('🔄 Regenerating content with new context:', newContext)
       setContentContext(newContext)
       setShowContentContextPanel(false)
-      // TODO: Trigger regeneration via WebSocket when backend supports it
-      // For now, just update context - backend will use on next generation
     }
   })
 
   // FIXED: Clear loading state when final presentation URL arrives
-  // Using useEffect ensures proper React state synchronization
   useEffect(() => {
     if (finalPresentationUrl && isGeneratingFinal) {
       setIsGeneratingFinal(false)
@@ -373,671 +310,15 @@ function BuilderContent() {
     }
   }, [finalPresentationUrl, isGeneratingFinal])
 
-  // CRITICAL: Sync user messages to session cache whenever they change
-  // This ensures the cache has user messages for the sync protocol (skip_history check)
-  useEffect(() => {
-    if (userMessages.length > 0) {
-      updateCacheUserMessages(userMessages)
-    }
-  }, [userMessages, updateCacheUserMessages])
-
-  // FIX 9: Retroactive recovery of missing user messages from Director's history
-  // When Director sends historical messages with role='user', save them to database
-  // This fixes sessions where the first message wasn't saved due to stale closure bug
-  useEffect(() => {
-    if (!currentSessionId || messages.length === 0) return;
-
-    // Find messages from Director that have role='user' (user messages from history)
-    const directorUserMessages = messages.filter((m: any) => m.role === 'user');
-
-    if (directorUserMessages.length === 0) return;
-
-    // Check which of these are missing from our userMessages array
-    const existingUserMessageIds = new Set(userMessages.map(um => um.id));
-    const existingUserMessageTexts = new Set(userMessages.map(um => um.text.trim().toLowerCase()));
-
-    const missingUserMessages = directorUserMessages.filter((m: any) => {
-      const text = m.payload?.text || m.content || '';
-      const normalizedText = text.trim().toLowerCase();
-      // Check if message already exists by ID or content
-      return !existingUserMessageIds.has(m.message_id) && !existingUserMessageTexts.has(normalizedText);
-    });
-
-    if (missingUserMessages.length > 0) {
-      console.log('🔄 [FIX 9] Recovering missing user messages from Director history:', missingUserMessages.length);
-
-      // Add missing messages to userMessages state
-      const recoveredMessages = missingUserMessages.map((m: any) => {
-        const text = m.payload?.text || m.content || '';
-        return {
-          id: m.message_id,
-          text: text,
-          timestamp: new Date(m.timestamp).getTime()
-        };
-      });
-
-      // Add to state (will trigger cache sync and DB save via persistence)
-      setUserMessages(prev => {
-        // Avoid duplicates
-        const existingIds = new Set(prev.map(p => p.id));
-        const newMessages = recoveredMessages.filter(rm => !existingIds.has(rm.id));
-        if (newMessages.length === 0) return prev;
-
-        console.log('✅ [FIX 9] Adding recovered user messages to state:', newMessages.length);
-        return [...prev, ...newMessages].sort((a, b) => a.timestamp - b.timestamp);
-      });
-
-      // Also save to database via persistence
-      if (persistence) {
-        missingUserMessages.forEach((m: any) => {
-          const text = m.payload?.text || m.content || '';
-          console.log('💾 [FIX 9] Saving recovered user message to database:', {
-            id: m.message_id,
-            text: text.substring(0, 50)
-          });
-          persistence.queueMessage({
-            message_id: m.message_id,
-            session_id: currentSessionId,
-            timestamp: m.timestamp,
-            type: 'chat_message',
-            payload: { text }
-          } as DirectorMessage, text);
-        });
-      }
-
-      // Update tracking refs
-      missingUserMessages.forEach((m: any) => {
-        userMessageIdsRef.current.add(m.message_id);
-        const text = m.payload?.text || m.content || '';
-        userMessageContentMapRef.current.set(text.trim().toLowerCase(), m.message_id);
-      });
-
-      console.log('✅ [FIX 9] Recovery complete - recovered', missingUserMessages.length, 'user messages');
-    }
-  }, [currentSessionId, messages, userMessages, persistence]);
-
-  // Track if we've generated a title from user message yet
-  const hasTitleFromUserMessageRef = useRef(false)
-  const hasTitleFromPresentationRef = useRef(false)
-
-  // Track if we've already seen the welcome message (to prevent duplicates on reconnect)
-  const hasSeenWelcomeRef = useRef(false)
-
-  // Track sessions we just created to prevent race condition with re-initialization
-  const justCreatedSessionRef = useRef<string | null>(null)
-
-  // FIXED: Track last loaded session to prevent duplicate initialization on navigation
-  const lastLoadedSessionRef = useRef<string | null>(null)
-
-  // Guard to prevent concurrent executions of handleSendMessage (prevents duplication)
-  const isExecutingSendRef = useRef(false)
-
-  // Track user message IDs to distinguish from bot chat_messages
-  const userMessageIdsRef = useRef<Set<string>>(new Set())
-
-  // WORKAROUND: Map user message content to IDs to identify Director's historical messages
-  // Director sends historical messages without role info, so we match by content
-  const userMessageContentMapRef = useRef<Map<string, string>>(new Map())
-
-  // Track which action_request messages have been answered by the user
-  // Prevents duplicate action buttons from re-appearing on page refresh
-  const answeredActionsRef = useRef<Set<string>>(new Set())
-
-  // Check if user is new and should see onboarding
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const isNewUser = urlParams.get('new') === 'true'
-
-    if (isNewUser && user) {
-      setShowOnboarding(true)
-      // Remove the query parameter
-      window.history.replaceState({}, '', '/builder')
-    }
-  }, [user])
-
-  // Session initialization - load or create session
-  useEffect(() => {
-    const initializeSession = async () => {
-      // DEBUG: Log entry point with all relevant state
-      console.log('🔍 [SESSION-INIT] Effect triggered', {
-        hasUser: !!user,
-        isAuthLoading,
-        currentSessionId,
-        isLoadingSession,
-        searchParams: searchParams?.toString(),
-        windowLocation: typeof window !== 'undefined' ? window.location.search : 'N/A'
-      })
-
-      if (!user || isAuthLoading) {
-        console.log('⏭️ [SESSION-INIT] Waiting for auth', { hasUser: !!user, isAuthLoading })
-        return
-      }
-
-      // FIXED: Skip re-initialization if session already loaded and valid
-      // Prevents creating new session when auth completes if we already have one
-      if (currentSessionId && !isLoadingSession) {
-        // DEBUG: Get URL session to verify it matches
-        const urlSessionId = searchParams?.get('session_id') ||
-                           (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('session_id') : null)
-
-        console.log('✅ [SESSION-GUARD] Session already initialized', {
-          currentSessionId,
-          urlSessionId,
-          matches: urlSessionId === currentSessionId,
-          action: urlSessionId === currentSessionId ? 'SKIP' : 'PROCEED'
-        })
-
-        // Only skip if URL matches current session
-        if (urlSessionId === currentSessionId || !urlSessionId) {
-          return
-        }
-
-        console.log('⚠️ [SESSION-GUARD] URL session differs from current, will re-initialize', {
-          current: currentSessionId,
-          url: urlSessionId
-        })
-      }
-
-      setIsLoadingSession(true)
-
-      // Reset title tracking refs for new/loaded session
-      hasTitleFromUserMessageRef.current = false
-      hasTitleFromPresentationRef.current = false
-
-      // FIXED: Reset answered actions ref when loading a new session
-      // This prevents historical action buttons from being permanently hidden
-      answeredActionsRef.current.clear()
-      console.log('🔄 Cleared answeredActionsRef for session initialization')
-
-      try {
-        // FIXED: Fallback to window.location when searchParams is null during Next.js hydration
-        // This prevents race conditions where searchParams is not ready but URL has session_id
-        let sessionParam = searchParams?.get('session_id')
-        const usedFallback = !sessionParam && typeof window !== 'undefined'
-
-        if (usedFallback) {
-          const params = new URLSearchParams(window.location.search)
-          sessionParam = params.get('session_id')
-          console.log('🔄 [SESSION-PARAM] Using window.location fallback', {
-            searchParamsAvailable: !!searchParams,
-            sessionParam,
-            fullURL: window.location.search
-          })
-        } else {
-          console.log('📍 [SESSION-PARAM] Using searchParams', {
-            sessionParam,
-            searchParamsValue: searchParams?.toString()
-          })
-        }
-
-        // FIXED: Early return if URL session matches current session
-        // Prevents unnecessary reloading of the same session
-        if (sessionParam && sessionParam !== 'new' && sessionParam === currentSessionId) {
-          console.log('✅ [SESSION-MATCH] URL session matches current, skipping reload', {
-            sessionId: sessionParam,
-            reason: 'already loaded'
-          })
-          setIsLoadingSession(false)
-          return
-        }
-
-        if (sessionParam && sessionParam !== 'new') {
-          console.log('📂 [SESSION-BRANCH] Loading existing session', {
-            sessionParam,
-            isNew: sessionParam === 'new'
-          })
-          // FIXED: Skip re-initialization if we already loaded this session
-          // This prevents duplicate initialization when searchParams changes (e.g., navigation events)
-          if (lastLoadedSessionRef.current === sessionParam) {
-            console.log('⏭️ Skipping re-initialization of already-loaded session:', sessionParam)
-            setIsLoadingSession(false)
-            return
-          }
-
-          // Skip re-initialization if we just created this session
-          // This prevents race condition where router.push triggers re-init before message is persisted
-          if (justCreatedSessionRef.current === sessionParam) {
-            console.log('⏭️ Skipping re-initialization of just-created session:', sessionParam)
-            justCreatedSessionRef.current = null
-            setIsLoadingSession(false)
-            return
-          }
-
-          // Mark this session as loaded to prevent duplicate initialization
-          lastLoadedSessionRef.current = sessionParam
-
-          // Load existing session from URL
-          console.log('📂 Loading session from URL:', sessionParam)
-          const session = await loadSession(sessionParam)
-
-          if (session) {
-            // Validate session is not deleted
-            if (session.status === 'deleted') {
-              console.warn('⚠️ Attempted to load deleted session, navigating to new chat')
-              toast({
-                title: "Session unavailable",
-                description: "This session has been deleted.",
-                variant: "destructive",
-              })
-              router.push('/builder?session_id=new')
-              setIsLoadingSession(false)
-              return
-            }
-
-            console.log('💾 [SESSION-SET] Setting session ID from database', {
-              old: currentSessionId,
-              new: session.id
-            })
-            setCurrentSessionId(session.id)
-            console.log('✅ Session loaded successfully')
-
-            // Check if session already has a title
-            if (session.title) {
-              console.log('📝 Session already has title:', session.title)
-              hasTitleFromPresentationRef.current = true // Prevent overwriting existing title
-            }
-
-            // Restore messages from database
-            if (session.messages && session.messages.length > 0) {
-              console.log(`📥 Restoring ${session.messages.length} messages from database`)
-
-              // Separate user messages from bot messages
-              const userMsgs: Array<{ id: string; text: string; timestamp: number }> = []
-              const botMsgs: DirectorMessage[] = []
-
-              // Track last seen action_request to match with user responses
-              let lastActionRequestId: string | null = null
-
-              session.messages.forEach((msg: any) => {
-                console.log('📥 Loading message from DB:', {
-                  id: msg.id,
-                  messageType: msg.messageType,
-                  hasUserText: !!msg.userText,
-                  userText: msg.userText?.substring(0, 30),
-                  timestamp: msg.timestamp
-                });
-
-                if (msg.userText) {
-                  // User message
-                  console.log('👤 Classified as USER message');
-                  console.log('👤 Loading user message:', { id: msg.id, text: msg.userText.substring(0, 50), timestamp: msg.timestamp });
-
-                  // FIXED: Don't mark actions as answered during restoration
-                  // Actions should only be hidden when user actively clicks them in current session
-                  // This allows action buttons to re-appear when navigating back to the page
-                  // if (msg.payload?.action_value && lastActionRequestId) {
-                  //   answeredActionsRef.current.add(lastActionRequestId)
-                  //   console.log(`✅ Restored answered action: ${lastActionRequestId} (answered by user message ${msg.id})`)
-                  // }
-
-                  userMsgs.push({
-                    id: msg.id,
-                    text: msg.userText,
-                    timestamp: new Date(msg.timestamp).getTime()
-                  })
-                } else {
-                  // Bot message - convert from DB format to WebSocket format
-                  // IMPORTANT: Add clientTimestamp for proper sorting with user messages
-                  console.log('🤖 Classified as BOT message');
-                  console.log('🤖 Loading bot message:', { id: msg.id, type: msg.messageType, timestamp: msg.timestamp });
-
-                  // Track action_request messages
-                  if (msg.messageType === 'action_request') {
-                    lastActionRequestId = msg.id
-                  }
-
-                  botMsgs.push({
-                    message_id: msg.id,
-                    session_id: session.id,
-                    timestamp: msg.timestamp,
-                    type: msg.messageType as any,
-                    payload: msg.payload,
-                    // FIX: Ensure 'Z' suffix for UTC parsing - timestamps may be stored without timezone indicator
-                    clientTimestamp: new Date(
-                      msg.timestamp?.endsWith('Z') ? msg.timestamp : msg.timestamp + 'Z'
-                    ).getTime()
-                  } as any)
-                }
-              })
-
-              // Restore user messages (cache update handled by useEffect that watches userMessages)
-              setUserMessages(userMsgs)
-
-              // FIXED: Repopulate userMessageIdsRef with restored user message IDs
-              // This prevents user messages from being misidentified as bot messages
-              userMsgs.forEach(msg => {
-                userMessageIdsRef.current.add(msg.id)
-                console.log('✅ Added to userMessageIdsRef:', msg.id, msg.text.substring(0, 30));
-              })
-              console.log(`✅ Repopulated userMessageIdsRef with ${userMsgs.length} user message IDs`)
-              console.log('📊 Total user message IDs tracked:', userMessageIdsRef.current.size)
-
-              // WORKAROUND: Create content map to identify Director's historical user messages
-              // Director sends historical messages without role/userText fields, so we match by content
-              userMessageContentMapRef.current.clear(); // Clear previous mappings
-              userMsgs.forEach(msg => {
-                const normalizedContent = msg.text.trim().toLowerCase();
-                userMessageContentMapRef.current.set(normalizedContent, msg.id);
-                console.log('🗺️ Mapped user message content:', normalizedContent.substring(0, 30), '→', msg.id);
-              })
-              console.log('🗺️ Created content map with', userMessageContentMapRef.current.size, 'user messages')
-
-              // Restore bot messages and session state
-              // FIXED: Pass both strawman and final URLs separately for version toggle
-              const sessionState = {
-                presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl,
-                presentationId: session.finalPresentationId || session.strawmanPresentationId,
-                strawmanPreviewUrl: session.strawmanPreviewUrl,
-                strawmanPresentationId: session.strawmanPresentationId,
-                finalPresentationUrl: session.finalPresentationUrl,
-                finalPresentationId: session.finalPresentationId,
-                slideCount: session.slideCount,
-                slideStructure: (session as any).stateCache?.slideStructure || null,
-                currentStage: session.currentStage,
-                activeVersion: (session as any).stateCache?.activeVersion || null
-              }
-
-              restoreMessages(botMsgs, sessionState)
-
-              // Debug: Log presentation state restoration
-              console.log('📊 Restored session state:', {
-                presentationUrl: sessionState.presentationUrl || '(none)',
-                presentationId: sessionState.presentationId || '(none)',
-                strawmanPreviewUrl: sessionState.strawmanPreviewUrl || '(none)',
-                finalPresentationUrl: sessionState.finalPresentationUrl || '(none)',
-                slideCount: sessionState.slideCount || 0,
-                slideStructure: sessionState.slideStructure ? 'present' : 'none',
-                currentStage: sessionState.currentStage || '(none)',
-                activeVersion: sessionState.activeVersion || '(none)'
-              })
-
-              // Mark as resumed session - WILL auto-connect WebSocket (welcome message deduplication handled separately)
-              setIsResumedSession(true)
-              // Mark that we've seen welcome message (to prevent duplicates when reconnecting)
-              hasSeenWelcomeRef.current = true
-              console.log(`✅ Restored ${userMsgs.length} user messages and ${botMsgs.length} bot messages (resumed session - will auto-connect)`)
-            } else {
-              // No messages - treat as new session
-              setIsResumedSession(false)
-              console.log('📝 Existing session but no messages - will auto-connect')
-            }
-          } else {
-            // Session not found, create new one
-            console.warn('⚠️ Session not found, creating new')
-            await createNewSession()
-          }
-        } else {
-          // No session in URL
-          console.log('🆕 [SESSION-BRANCH] No session in URL', {
-            currentSessionId,
-            immediateConnection: features.immediateConnection,
-            action: features.immediateConnection ? 'GENERATE new ID' : (currentSessionId ? 'PRESERVE existing' : 'SET to null')
-          })
-
-          // Builder V2: If immediateConnection enabled, generate session ID immediately
-          // WebSocket will auto-connect and Director will create the session
-          if (features.immediateConnection) {
-            if (!currentSessionId) {
-              const newSessionId = crypto.randomUUID()
-              console.log('🚀 [BUILDER-V2] Generating immediate session ID:', newSessionId)
-              setCurrentSessionId(newSessionId)
-              setIsUnsavedSession(true)
-              setIsResumedSession(false)
-              // Update URL with session ID for bookmarking/sharing
-              router.replace(`/builder?session_id=${newSessionId}`, { scroll: false })
-            } else {
-              console.log('✅ [BUILDER-V2] Session ID already exists:', currentSessionId)
-              // Ensure URL has the session ID
-              if (typeof window !== 'undefined' && !window.location.search.includes('session_id=')) {
-                router.replace(`/builder?session_id=${currentSessionId}`, { scroll: false })
-              }
-            }
-          } else {
-            // Original behavior: DON'T create database session yet
-            // Wait until user sends first message
-            // CRITICAL FIX: Never clear currentSessionId if it's already set
-            // This prevents losing the session ID during hydration delays or navigation
-            if (!currentSessionId) {
-              console.log('💾 [SESSION-SET] Setting session ID to null (new unsaved session)', {
-                old: currentSessionId,
-                new: null
-              })
-              setIsUnsavedSession(true)
-              setIsResumedSession(false)
-              setCurrentSessionId(null)
-            } else {
-              console.log('✅ [SESSION-PRESERVE] Keeping existing session ID despite no URL param', {
-                currentSessionId,
-                reason: 'prevent accidental clearing during hydration'
-              })
-            }
-          }
-        }
-      } catch (error) {
-        console.error('❌ Error initializing session:', error)
-        // Fallback: create new session
-        await createNewSession()
-      } finally {
-        setIsLoadingSession(false)
-      }
-    }
-
-    initializeSession()
-  }, [user, isAuthLoading, searchParams])
-
-  // FIXED: Add timeout for isLoadingSession to prevent UI from getting stuck
-  useEffect(() => {
-    if (isLoadingSession) {
-      const timeout = setTimeout(() => {
-        console.warn('⏰ isLoadingSession timeout - forcing reset after 10 seconds')
-        setIsLoadingSession(false)
-      }, 10000) // 10 second timeout
-
-      return () => clearTimeout(timeout)
-    }
-  }, [isLoadingSession])
-
-  // Helper to create new session
-  const createNewSession = async () => {
-    // FIXED: Reset last loaded session ref when creating new session
-    lastLoadedSessionRef.current = null
-
-    const newSessionId = crypto.randomUUID()
-    const session = await createSession(newSessionId)
-
-    if (session) {
-      // Clear any existing messages
-      setUserMessages([])
-      clearMessages()
-
-      // Mark as new session - WILL auto-connect to get welcome message
-      setIsResumedSession(false)
-
-      setCurrentSessionId(session.id)
-      // Update URL
-      router.push(`/builder?session_id=${session.id}`)
-      console.log('✅ New session created:', session.id)
-    }
-  }
-
-  // Handler to create draft session for file uploads (early session creation)
-  const handleRequestSession = useCallback(async () => {
-    // If session already exists, no-op
-    if (currentSessionId) {
-      console.log('📎 Session already exists:', currentSessionId)
-      return
-    }
-
-    setIsCreatingSession(true)
-
-    try {
-      console.log('📎 Creating draft session for file upload')
-      const newSessionId = crypto.randomUUID()
-      const session = await createSession(newSessionId)
-
-      if (session) {
-        setCurrentSessionId(session.id)
-        setIsUnsavedSession(false)
-
-        // Update URL to include session
-        router.push(`/builder?session_id=${session.id}`)
-
-        console.log('✅ Draft session created:', session.id)
-      } else {
-        throw new Error('Session creation returned null')
-      }
-    } catch (error) {
-      console.error('❌ Error creating draft session:', error)
-      throw error // Re-throw so file upload button can show error
-    } finally {
-      setIsCreatingSession(false)
-    }
-  }, [currentSessionId, createSession, router])
-
-  // Handle session selection from sidebar
-  const handleSessionSelect = useCallback((sessionId: string) => {
-    if (sessionId === currentSessionId) return
-
-    console.log('📂 Switching to session:', sessionId)
-
-    // CRITICAL FIX: Clear ALL sessionStorage caches to prevent cross-session pollution
-    // This fixes the bug where presentations appear "one session behind"
-    const cacheKeys = Object.keys(sessionStorage).filter(key =>
-      key.startsWith('deckster_session_')
-    )
-    cacheKeys.forEach(key => {
-      sessionStorage.removeItem(key)
-      console.log(`🗑️ Cleared cache: ${key}`)
-    })
-
-    // CRITICAL: Clear all state before switching sessions to prevent pollution
-    setUserMessages([]) // Clear user messages
-    clearMessages() // Clear WebSocket state (messages, presentations, etc.)
-    setIsGeneratingFinal(false) // Reset final generation flag
-    setIsGeneratingStrawman(false) // Reset strawman generation flag
-
-    setShowChatHistory(false)
-    setIsLoadingSession(true)
-
-    // Use router.push for navigation (Next.js will handle state properly)
-    router.push(`/builder?session_id=${sessionId}`)
-  }, [currentSessionId, router, clearMessages])
-
-  // Handle new chat from sidebar
-  const handleNewChat = useCallback(() => {
-    console.log('🆕 Starting new unsaved session')
-    // Clear messages
-    setUserMessages([])
-    clearMessages()
-
-    // Mark as unsaved session
-    setIsUnsavedSession(true)
-    setIsResumedSession(false)
-    setCurrentSessionId(null)
-
-    // Remove session_id from URL
-    router.push('/builder')
-  }, [router, clearMessages])
-
-  // Auto-connect WebSocket for ALL sessions (new, unsaved, and resumed)
-  // Welcome message deduplication is handled separately (lines 761-782)
-  useEffect(() => {
-    // Auto-connect for ANY session with a sessionId
-    if (currentSessionId && !isLoadingSession && !connecting && !connected) {
-      const sessionType = isResumedSession ? 'RESUMED' : 'NEW'
-      console.log(`🔌 Auto-connecting WebSocket for ${sessionType} session:`, currentSessionId)
-      connect()
-    }
-    // Auto-connect for unsaved sessions (no sessionId yet, waiting for first message)
-    else if (isUnsavedSession && !isLoadingSession && !connecting && !connected) {
-      console.log('🔌 Auto-connecting WebSocket for UNSAVED session (no DB session yet)')
-      connect()
-    }
-  }, [currentSessionId, isLoadingSession, connecting, connected, connect, isResumedSession, isUnsavedSession])
-
-  // Persist bot messages received from WebSocket
-  // FIXED: Persist all bot messages including bot chat_messages (welcome messages)
-  // FIXED: Also handle Director-replayed user messages with role: 'user' field
-  useEffect(() => {
-    // FIX: Don't persist messages for unsaved sessions (no DB session yet)
-    // This prevents 404 errors when immediateConnection generates a session ID
-    // but the database session hasn't been created yet
-    if (!currentSessionId || !persistence || messages.length === 0 || isUnsavedSession) return
-
-    // Get the last message
-    const lastMessage = messages[messages.length - 1]
-
-    // FIX: Check if Director is replaying a user message (has role: 'user')
-    // These should be saved with userText to be recognized as user messages on reload
-    if ((lastMessage as any).role === 'user') {
-      const userText = lastMessage.payload?.text || (lastMessage as any).content || '';
-      console.log('💾 Persisting Director-replayed user message:', lastMessage.message_id, userText.substring(0, 30))
-      // Add to userMessageIdsRef so it's not duplicated
-      userMessageIdsRef.current.add(lastMessage.message_id)
-      // Persist with userText field
-      persistence.queueMessage(lastMessage, userText)
-      return
-    }
-
-    // Persist non-chat_message types (action_request, slide_update, etc.)
-    if (lastMessage.type !== 'chat_message') {
-      console.log('💾 Persisting bot message:', lastMessage.type, lastMessage.message_id)
-      persistence.queueMessage(lastMessage)
-    }
-    // For chat_message type, only persist if it's NOT from the user
-    // User messages are tracked in userMessageIdsRef and persisted separately with userText
-    else if (!userMessageIdsRef.current.has(lastMessage.message_id)) {
-      console.log('💾 Persisting bot chat_message (welcome/initial):', lastMessage.message_id)
-      persistence.queueMessage(lastMessage)
-    }
-
-    // Update session title if this is the first chat message with presentation title
-    if (lastMessage.type === 'slide_update') {
-      const slideUpdate = lastMessage as SlideUpdate
-      const presentationTitle = slideUpdate.payload.metadata.main_title
-      if (presentationTitle) {
-        console.log('📝 Updating session title from presentation:', presentationTitle)
-        persistence.updateMetadata({
-          title: presentationTitle
-        })
-        hasTitleFromPresentationRef.current = true
-      }
-    }
-  }, [messages, currentSessionId, persistence, isUnsavedSession])
-
-  // Update session title from presentation metadata
-  useEffect(() => {
-    // Skip for unsaved sessions (no DB session yet)
-    if (!currentSessionId || !persistence || messages.length === 0 || isUnsavedSession) return
-
-    const lastMessage = messages[messages.length - 1]
-
-    // Only update title from slide_update messages
-    if (lastMessage.type === 'slide_update') {
-      const slideUpdate = lastMessage as SlideUpdate
-      const presentationTitle = slideUpdate.payload.metadata.main_title
-      if (presentationTitle && !hasTitleFromPresentationRef.current) {
-        console.log('📝 Updating session title from presentation:', presentationTitle)
-        persistence.updateMetadata({
-          title: presentationTitle
-        })
-        hasTitleFromPresentationRef.current = true
-      }
-    }
-  }, [messages, currentSessionId, persistence, isUnsavedSession])
-
   // Infer current stage from available data
-  // Stage 4: slideStructure has slides (strawman generated)
-  // Stage 5: slides being refined (we'll use slideCount > 0)
-  // Stage 6: presentationUrl is available (final presentation)
   const currentStage = useMemo(() => {
-    if (presentationUrl) return 6; // Final presentation ready
-    if (slideCount && slideCount > 0) return 5; // Slides being refined
-    if (slideStructure && slideStructure.length > 0) return 4; // Strawman ready
-    return 3; // Earlier stages (greeting, questions, plan)
+    if (presentationUrl) return 6;
+    if (slideCount && slideCount > 0) return 5;
+    if (slideStructure && (slideStructure as any).length > 0) return 4;
+    return 3;
   }, [presentationUrl, slideCount, slideStructure])
 
-  // Set strawman generation flag when stage is 4 and no URL yet
+  // Set strawman generation flag
   useEffect(() => {
     if (currentStage === 4 && !strawmanPreviewUrl && !isGeneratingStrawman) {
       setIsGeneratingStrawman(true)
@@ -1056,32 +337,29 @@ function BuilderContent() {
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, userMessages])
+  }, [messages, session.userMessages])
 
-  // Auto-resize textarea based on content
+  // Check if user is new and should see onboarding
   useEffect(() => {
-    const textarea = textareaRef.current
-    if (textarea) {
-      // Reset height to auto to get the correct scrollHeight
-      textarea.style.height = 'auto'
-      // Calculate new height: min 60px, max 120px (~4-5 rows)
-      const newHeight = Math.min(Math.max(textarea.scrollHeight, 60), 120)
-      textarea.style.height = `${newHeight}px`
+    const urlParams = new URLSearchParams(window.location.search)
+    const isNewUser = urlParams.get('new') === 'true'
+
+    if (isNewUser && user) {
+      setShowOnboarding(true)
+      window.history.replaceState({}, '', '/builder')
     }
-  }, [inputMessage])
+  }, [user])
 
   // Handle sending messages
   const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
     if (!inputMessage.trim()) return
 
-    // GUARD: Check authentication before sending
     if (!user) {
       console.warn('⚠️ Cannot send message: user not authenticated')
       return
     }
 
-    // GUARD: Prevent concurrent executions (fixes React Strict Mode double-execution)
     if (isExecutingSendRef.current) {
       console.log('🚫 Already executing send, skipping duplicate call')
       return
@@ -1096,28 +374,24 @@ function BuilderContent() {
       if (pendingActionInput) {
         const { action, messageId, timestamp } = pendingActionInput
 
-        // Track this as a user message ID
-        userMessageIdsRef.current.add(messageId)
+        session.userMessageIdsRef.current.add(messageId)
 
-        // Add action label message to local state (e.g., "Make changes")
-        setUserMessages(prev => [...prev, {
+        session.setUserMessages(prev => [...prev, {
           id: messageId,
           text: action.label,
           timestamp: timestamp
         }])
 
-        // Queue action message for persistence
-        if (currentSessionId && persistence) {
+        if (session.currentSessionId && persistence) {
           persistence.queueMessage({
             message_id: messageId,
-            session_id: currentSessionId,
+            session_id: session.currentSessionId,
             timestamp: new Date(timestamp).toISOString(),
             type: 'chat_message',
             payload: { text: action.label, action_value: action.value }
-          } as DirectorMessage, action.label)
+          } as unknown as DirectorMessage, action.label)
         }
 
-        // Send the user's typed input (NEW: with File Search Store if files attached)
         const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
         const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
         const fileCount = successfulFiles.length
@@ -1127,12 +401,11 @@ function BuilderContent() {
           setInputMessage("")
           setPendingActionInput(null)
           if (successfulFiles.length > 0) {
-            clearAllFiles() // Clear uploaded files after sending
+            clearAllFiles()
           }
-          setHasGeneratedContent(true) // Mark that content has been generated
+          setHasGeneratedContent(true)
         }
 
-        // Reset guard
         setTimeout(() => {
           isExecutingSendRef.current = false
         }, 500)
@@ -1140,44 +413,34 @@ function BuilderContent() {
       }
 
       // For unsaved sessions, create database session first
-      // Note: With immediateConnection, currentSessionId may already be set (pre-assigned UUID)
-      // but the DB session hasn't been created yet. Check isUnsavedSession alone.
       if (isUnsavedSession) {
         console.log('💾 Creating database session for first message')
-        const newSessionId = currentSessionId || wsSessionId // Use pre-assigned UUID if available
+        const newSessionId = session.currentSessionId || wsSessionId
 
         try {
-          const session = await createSession(newSessionId)
+          const dbSession = await createSession(newSessionId)
 
-          if (session) {
-            // Mark this session as just created to prevent re-initialization race condition
-            justCreatedSessionRef.current = session.id
+          if (dbSession) {
+            session.justCreatedSessionRef.current = dbSession.id
             setIsUnsavedSession(false)
-            // Only update currentSessionId and URL if not already set
-            // (immediateConnection pre-assigns a UUID that matches the DB session)
-            if (!currentSessionId) {
-              setCurrentSessionId(session.id)
-              router.push(`/builder?session_id=${session.id}`)
+            if (!session.currentSessionId) {
+              session.setCurrentSessionId(dbSession.id)
+              router.push(`/builder?session_id=${dbSession.id}`)
             }
-            console.log('✅ Database session created:', session.id)
+            console.log('✅ Database session created:', dbSession.id)
 
-            // IMPORTANT: Add user message to UI immediately (before sending)
             const messageId = crypto.randomUUID()
             const timestamp = Date.now()
 
-            // Track this as a user message ID
-            userMessageIdsRef.current.add(messageId)
+            session.userMessageIdsRef.current.add(messageId)
 
-            setUserMessages(prev => [...prev, {
+            session.setUserMessages(prev => [...prev, {
               id: messageId,
               text: messageText,
               timestamp: timestamp
             }])
 
             // FIX 11: Save first message directly via API
-            // The persistence hook has stale sessionIdRef (empty string) because
-            // setCurrentSessionId() queues a state update that hasn't executed yet.
-            // We bypass the hook and call the API directly since we have session.id.
             try {
               const firstMessagePayload = {
                 id: messageId,
@@ -1188,12 +451,12 @@ function BuilderContent() {
               }
 
               console.log('💾 [FIX 11] Saving first message directly via API:', {
-                sessionId: session.id,
+                sessionId: dbSession.id,
                 messageId,
                 userText: messageText.substring(0, 30)
               })
 
-              const response = await fetch(`/api/sessions/${session.id}/messages`, {
+              const response = await fetch(`/api/sessions/${dbSession.id}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ messages: [firstMessagePayload] }),
@@ -1206,36 +469,31 @@ function BuilderContent() {
                 console.error('❌ [FIX 11] Failed to save first message:', response.status)
               }
 
-              // Generate and save title from first user message
               if (persistence) {
                 const generatedTitle = persistence.generateTitle(messageText)
                 console.log('📝 Setting initial title from first message:', generatedTitle)
 
-                // Also save title directly via API (persistence hook may have stale ref)
-                await fetch(`/api/sessions/${session.id}`, {
+                await fetch(`/api/sessions/${dbSession.id}`, {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ title: generatedTitle }),
                 })
-                hasTitleFromUserMessageRef.current = true
+                session.hasTitleFromUserMessageRef.current = true
               }
             } catch (error) {
               console.error('❌ [FIX 11] Error saving first message:', error)
             }
 
-            // Clear input field immediately
             setInputMessage("")
 
-            // FIXED: Send message immediately without artificial delay
-            // State has already been updated and message persisted to DB
             const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
             const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
             const fileCount = successfulFiles.length
 
             sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
-            setHasGeneratedContent(true) // Mark that content has been generated
+            setHasGeneratedContent(true)
             if (successfulFiles.length > 0) {
-              clearAllFiles() // Clear uploaded files after sending
+              clearAllFiles()
             }
             return
           } else {
@@ -1251,52 +509,44 @@ function BuilderContent() {
       }
 
       // For resumed sessions, connect on first message
-      if (isResumedSession && !connected && !connecting) {
+      if (session.isResumedSession && !connected && !connecting) {
         console.log('🔌 Connecting WebSocket for first message in resumed session')
         connect()
-        // Mark as no longer resumed (we're now actively chatting)
-        setIsResumedSession(false)
+        session.setIsResumedSession(false)
 
-        // IMPORTANT: Add user message to UI immediately (before sending)
         const messageId = crypto.randomUUID()
         const timestamp = Date.now()
 
-        // Track this as a user message ID
-        userMessageIdsRef.current.add(messageId)
+        session.userMessageIdsRef.current.add(messageId)
 
-        setUserMessages(prev => [...prev, {
+        session.setUserMessages(prev => [...prev, {
           id: messageId,
           text: messageText,
           timestamp: timestamp
         }])
 
-        // Persist user message to database
-        if (currentSessionId && persistence) {
+        if (session.currentSessionId && persistence) {
           console.log('💾 Persisting user message for resumed session:', messageId)
           persistence.queueMessage({
             message_id: messageId,
-            session_id: currentSessionId,
+            session_id: session.currentSessionId,
             timestamp: new Date(timestamp).toISOString(),
             type: 'chat_message',
             payload: { text: messageText }
           } as DirectorMessage, messageText)
         }
 
-        // Clear input field immediately
         setInputMessage("")
 
-        // FIXED: Reduced delay from 1000ms to 200ms for better performance
-        // WebSocket typically connects in 100-300ms
-        // If connection not ready, message is already in UI/DB and user can retry
         const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
         const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
         const fileCount = successfulFiles.length
 
         setTimeout(() => {
           sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
-          setHasGeneratedContent(true) // Mark that content has been generated
+          setHasGeneratedContent(true)
           if (successfulFiles.length > 0) {
-            clearAllFiles() // Clear uploaded files after sending
+            clearAllFiles()
           }
         }, 200)
         return
@@ -1308,34 +558,30 @@ function BuilderContent() {
       const messageId = crypto.randomUUID()
       const timestamp = Date.now()
 
-      // Track this as a user message ID
-      userMessageIdsRef.current.add(messageId)
+      session.userMessageIdsRef.current.add(messageId)
 
-      // Add user message to local state
-      setUserMessages(prev => [...prev, {
+      session.setUserMessages(prev => [...prev, {
         id: messageId,
         text: messageText,
         timestamp: timestamp
       }])
 
-      // Queue message for persistence
-      if (currentSessionId && persistence) {
+      if (session.currentSessionId && persistence) {
         persistence.queueMessage({
           message_id: messageId,
-          session_id: currentSessionId,
+          session_id: session.currentSessionId,
           timestamp: new Date(timestamp).toISOString(),
           type: 'chat_message',
           payload: { text: messageText }
         } as DirectorMessage, messageText)
 
-        // Generate title from first user message if not already set
-        if (!hasTitleFromUserMessageRef.current && !hasTitleFromPresentationRef.current) {
+        if (!session.hasTitleFromUserMessageRef.current && !session.hasTitleFromPresentationRef.current) {
           const generatedTitle = persistence.generateTitle(messageText)
           console.log('📝 Setting initial title from first message:', generatedTitle)
           persistence.updateMetadata({
             title: generatedTitle
           })
-          hasTitleFromUserMessageRef.current = true
+          session.hasTitleFromUserMessageRef.current = true
         }
       }
 
@@ -1346,415 +592,83 @@ function BuilderContent() {
       const success = sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
       if (success) {
         setInputMessage("")
-        setHasGeneratedContent(true) // Mark that content has been generated
+        setHasGeneratedContent(true)
         if (successfulFiles.length > 0) {
-          clearAllFiles() // Clear uploaded files after sending
+          clearAllFiles()
         }
       }
     } finally {
-      // Reset guard after a delay to allow state updates to propagate
       setTimeout(() => {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, contentContext, toContentContextPayload])
-
-  // Placeholder HTML builder for blank elements on canvas
-  const buildPlaceholderHtml = useCallback((elementId: string, componentType: string) => {
-    const ELEMENT_ICONS: Record<string, string> = {
-      TEXT_BOX: '\u{1F4DD}', METRICS: '\u{1F4CA}', TABLE: '\u25A6', CHART: '\u{1F4C8}',
-      IMAGE: '\u{1F5BC}\uFE0F', ICON_LABEL: '\u{1F3F7}\uFE0F', SHAPE: '\u2B1F',
-      INFOGRAPHIC: '\u{1F3A8}', DIAGRAM: '\u{1F3D7}\uFE0F',
-    }
-    const icon = ELEMENT_ICONS[componentType] || '\u{1F4DD}'
-    const label = componentType.replace(/_/g, ' ')
-    return `<div data-blank-element="${elementId}" data-element-type="${componentType}" style="display:flex;align-items:center;justify-content:center;height:100%;border:2px dashed #c7d2fe;border-radius:8px;background:rgba(238,241,247,0.6);cursor:pointer;"><div style="text-align:center;color:#6366f1;"><div style="font-size:28px;line-height:1;">${icon}</div><div style="font-size:13px;font-weight:600;margin-top:6px;">${label}</div><div style="font-size:11px;margin-top:2px;opacity:0.7;">Click to configure</div></div></div>`
-  }, [])
-
-  // Spinner HTML for generating state
-  const buildSpinnerHtml = useCallback((elementId: string, componentType: string) => {
-    const label = componentType.replace(/_/g, ' ')
-    return `<div data-blank-element="${elementId}" data-element-type="${componentType}" style="display:flex;align-items:center;justify-content:center;height:100%;border:2px solid #a5b4fc;border-radius:8px;background:rgba(238,241,247,0.8);"><div style="text-align:center;color:#6366f1;"><div style="width:24px;height:24px;border:3px solid #c7d2fe;border-top-color:#6366f1;border-radius:50%;margin:0 auto;animation:spin 1s linear infinite;"></div><div style="font-size:12px;font-weight:500;margin-top:8px;">Generating ${label}...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style></div>`
-  }, [])
-
-  // Handle Text Labs element generation
-  const handleTextLabsGenerate = useCallback(async (formData: TextLabsFormData) => {
-    generationPanel.setIsGenerating(true)
-    generationPanel.setError(null)
-
-    // Check if we're generating for a blank element on canvas
-    const blankId = generationPanel.blankElementId
-    const blankInfo = blankId ? blankElements.getElement(blankId) : null
-
-    // Track current element ID locally — React state updates are async,
-    // so we can't re-read generationPanel.blankElementId after spinner swap
-    let currentBlankId = blankId
-    let currentBlankInfo = blankInfo
-
-    // If blank element exists, override position from canvas and force count=1
-    if (blankInfo) {
-      formData.count = 1
-      formData.positionConfig = {
-        start_col: blankInfo.startCol,
-        start_row: blankInfo.startRow,
-        position_width: blankInfo.width,
-        position_height: blankInfo.height,
-        auto_position: false,
-      }
-      // Also override image/infographic position configs if present
-      const fd = formData as any
-      if (fd.imageConfig) {
-        fd.imageConfig.start_col = blankInfo.startCol
-        fd.imageConfig.start_row = blankInfo.startRow
-        fd.imageConfig.width = blankInfo.width
-        fd.imageConfig.height = blankInfo.height
-        fd.imageConfig.position_width = blankInfo.width
-        fd.imageConfig.position_height = blankInfo.height
-      }
-      if (fd.infographicConfig) {
-        fd.infographicConfig.start_col = blankInfo.startCol
-        fd.infographicConfig.start_row = blankInfo.startRow
-        fd.infographicConfig.width = blankInfo.width
-        fd.infographicConfig.height = blankInfo.height
-      }
-    }
-
-    // Set status to generating and update canvas to spinner
-    if (blankId && blankInfo && layoutServiceApis?.sendElementCommand) {
-      blankElements.setStatus(blankId, 'generating')
-      const spinnerHtml = buildSpinnerHtml(blankId, formData.componentType)
-      const gridRow = `${blankInfo.startRow}/${blankInfo.startRow + blankInfo.height}`
-      const gridColumn = `${blankInfo.startCol}/${blankInfo.startCol + blankInfo.width}`
-      // Delete-and-reinsert to update content (no updateElementContent command)
-      try {
-        await layoutServiceApis.sendElementCommand('deleteElement', { elementId: blankId })
-        const reinsertResponse = await layoutServiceApis.sendElementCommand('insertTextBox', {
-          elementId: blankId,
-          slideIndex: blankInfo.slideIndex,
-          content: spinnerHtml,
-          gridRow,
-          gridColumn,
-          positionWidth: blankInfo.width,
-          positionHeight: blankInfo.height,
-          zIndex: 10,
-          draggable: false,
-          resizable: false,
-          skipAutoSize: true,
-        })
-        // Update tracked ID if layout service assigned a new one
-        const newId = reinsertResponse?.elementId
-        if (newId && newId !== blankId) {
-          blankElements.removeElement(blankId)
-          blankElements.addElement({ ...blankInfo, elementId: newId, status: 'generating' })
-          generationPanel.openPanelForElement(blankInfo.componentType, newId)
-          // Update local tracking vars synchronously
-          currentBlankId = newId
-          currentBlankInfo = { ...blankInfo, elementId: newId }
-        }
-      } catch (err) {
-        console.warn('[TextLabs] Failed to update blank to spinner:', err)
-      }
-    }
-
-    // 30-second timeout
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
-
-    try {
-      // Ensure session exists
-      const sessionId = await textLabsSession.ensureSession()
-
-      // Build API payload and call Text Labs API
-      let response
-      if (formData.componentType === 'INFOGRAPHIC' && formData.referenceImage) {
-        // Multipart upload for infographic with reference image
-        response = await generateInfographic(
-          sessionId,
-          formData.prompt,
-          formData.referenceImage,
-          formData.infographicConfig as Record<string, unknown>
-        )
-      } else {
-        const { message, options } = buildApiPayload(sessionId, formData)
-        response = await sendTextLabsMessage(sessionId, message, options)
-      }
-
-      if (response.error) {
-        throw new Error(response.error)
-      }
-
-      // Get the element(s) from response
-      const elements = response.elements || (response.element ? [response.element] : [])
-
-      if (elements.length === 0) {
-        throw new Error('No elements returned from API')
-      }
-
-      // If blank element exists (now showing spinner), delete it before inserting generated content
-      if (currentBlankId && currentBlankInfo && layoutServiceApis?.sendElementCommand) {
-        try {
-          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: currentBlankId })
-        } catch (err) {
-          console.warn('[TextLabs] Failed to delete blank placeholder:', err)
-        }
-        blankElements.removeElement(currentBlankId)
-      }
-
-      // Insert each element into the canvas
-      const effectiveSlideIndex = currentBlankInfo?.slideIndex ?? currentSlideIndex
-      for (const element of elements) {
-        const { method, params } = buildInsertionParams(
-          element.component_type,
-          element,
-          formData.positionConfig,
-          formData.paddingConfig,
-          formData.z_index,
-          effectiveSlideIndex
-        )
-
-        // Map insertion method to Layout Service command
-        const command = method === 'insertElement' ? 'insertTextBox' : method
-        await layoutServiceApis?.sendElementCommand(command, params as Record<string, any>)
-      }
-
-      // Success: close panel and show toast
-      generationPanel.closePanel()
-      toast({
-        title: 'Element generated',
-        description: `${formData.componentType.replace(/_/g, ' ')} added to slide`,
-      })
-      console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
-    } catch (err) {
-      let errorMessage = 'Generation failed'
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        errorMessage = 'Generation timed out after 30 seconds. Try again or simplify your prompt.'
-      } else if (err instanceof TypeError && err.message.includes('fetch')) {
-        errorMessage = 'Network error. Check your connection and try again.'
-      } else if (err instanceof Error) {
-        errorMessage = err.message
-      }
-      generationPanel.setError(errorMessage)
-      console.error('[TextLabs] Generation error:', err)
-
-      // Restore placeholder on failure (spinner → placeholder)
-      if (currentBlankId && currentBlankInfo && layoutServiceApis?.sendElementCommand) {
-        blankElements.setStatus(currentBlankId, 'blank')
-        const placeholderHtml = buildPlaceholderHtml(currentBlankId, formData.componentType)
-        const gridRow = `${currentBlankInfo.startRow}/${currentBlankInfo.startRow + currentBlankInfo.height}`
-        const gridColumn = `${currentBlankInfo.startCol}/${currentBlankInfo.startCol + currentBlankInfo.width}`
-        try {
-          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: currentBlankId })
-          const restoreResponse = await layoutServiceApis.sendElementCommand('insertTextBox', {
-            elementId: currentBlankId,
-            slideIndex: currentBlankInfo.slideIndex,
-            content: placeholderHtml,
-            gridRow,
-            gridColumn,
-            positionWidth: currentBlankInfo.width,
-            positionHeight: currentBlankInfo.height,
-            zIndex: 10,
-            draggable: true,
-            resizable: true,
-            skipAutoSize: true,
-          })
-          const newId = restoreResponse?.elementId
-          if (newId && newId !== currentBlankId) {
-            blankElements.removeElement(currentBlankId)
-            blankElements.addElement({ ...currentBlankInfo, elementId: newId, status: 'blank' })
-            generationPanel.openPanelForElement(currentBlankInfo.componentType, newId)
-          }
-        } catch (restoreErr) {
-          console.warn('[TextLabs] Failed to restore placeholder after error:', restoreErr)
-        }
-      }
-    } finally {
-      clearTimeout(timeoutId)
-      generationPanel.setIsGenerating(false)
-    }
-  }, [generationPanel, textLabsSession, layoutServiceApis, toast, currentSlideIndex, blankElements, buildPlaceholderHtml, buildSpinnerHtml])
-
-  // Handle opening generation panel from toolbar
-  // Flow B: Insert blank placeholder on canvas, then open panel for it
-  const handleOpenGenerationPanel = useCallback(async (type: string) => {
-    const componentType = type as TextLabsComponentType
-    const defaults = getDefaultSize(componentType)
-    const startCol = 2
-    const startRow = 4
-
-    if (!layoutServiceApis?.sendElementCommand) {
-      // Fallback: open panel without blank placeholder (Flow A)
-      generationPanel.openPanel(componentType)
-      return
-    }
-
-    try {
-      // Build placeholder HTML
-      const tempId = `blank_${Date.now()}`
-      const placeholderHtml = buildPlaceholderHtml(tempId, componentType)
-
-      const gridRow = `${startRow}/${startRow + defaults.height}`
-      const gridColumn = `${startCol}/${startCol + defaults.width}`
-
-      // Insert blank placeholder on canvas
-      const response = await layoutServiceApis.sendElementCommand('insertTextBox', {
-        elementId: tempId,
-        slideIndex: currentSlideIndex,
-        content: placeholderHtml,
-        gridRow,
-        gridColumn,
-        positionWidth: defaults.width,
-        positionHeight: defaults.height,
-        zIndex: defaults.zIndex,
-        draggable: true,
-        resizable: true,
-        skipAutoSize: true,
-      })
-
-      // Use the layout-service-generated ID if available, otherwise use temp ID
-      const layoutElementId = response?.elementId || tempId
-
-      // Track in blank elements map
-      blankElements.addElement({
-        elementId: layoutElementId,
-        componentType,
-        slideIndex: currentSlideIndex,
-        startCol,
-        startRow,
-        width: defaults.width,
-        height: defaults.height,
-        status: 'blank',
-      })
-
-      // Open panel for this blank element
-      generationPanel.openPanelForElement(componentType, layoutElementId)
-    } catch (err) {
-      console.warn('[TextLabs] Failed to insert blank placeholder, falling back to direct panel:', err)
-      // Fallback: open panel without blank placeholder (Flow A)
-      generationPanel.openPanel(componentType)
-    }
-  }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, buildPlaceholderHtml])
+  }, [inputMessage, isReady, sendMessage, session.currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, contentContext, toContentContextPayload])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
     const messageId = crypto.randomUUID()
     const timestamp = Date.now()
 
-    // Mark this action request as answered (prevent duplicate buttons on refresh)
-    answeredActionsRef.current.add(actionRequestMessageId)
+    session.answeredActionsRef.current.add(actionRequestMessageId)
     console.log(`✅ Marked action request ${actionRequestMessageId} as answered`)
 
     if (action.requires_input) {
-      // For actions that require input, set state and focus chat input
       setPendingActionInput({ action, messageId, timestamp })
-
-      // Focus the textarea after a brief delay to ensure state is set
       setTimeout(() => {
         textareaRef.current?.focus()
       }, 100)
     } else {
-      // Track this as a user message ID
-      userMessageIdsRef.current.add(messageId)
+      session.userMessageIdsRef.current.add(messageId)
 
-      // Add user message to local state (show label to user)
-      setUserMessages(prev => [...prev, {
+      session.setUserMessages(prev => [...prev, {
         id: messageId,
         text: action.label,
         timestamp: timestamp
       }])
 
-      // Queue action message for persistence
-      if (currentSessionId && persistence) {
+      if (session.currentSessionId && persistence) {
         persistence.queueMessage({
           message_id: messageId,
-          session_id: currentSessionId,
+          session_id: session.currentSessionId,
           timestamp: new Date(timestamp).toISOString(),
           type: 'chat_message',
           payload: { text: action.label, action_value: action.value }
-        } as DirectorMessage, action.label)
+        } as unknown as DirectorMessage, action.label)
       }
 
-      // FIXED: If accepting strawman, show loading animation for final generation
       if (action.value === 'accept_strawman') {
         setIsGeneratingFinal(true)
         console.log('🎨 Starting final deck generation - showing loader')
       }
 
-      // CRITICAL FIX: Send the action VALUE (not label) to backend
-      // Example: sends "accept_strawman" instead of "Looks perfect!"
       sendMessage(action.value)
     }
-  }, [sendMessage, currentSessionId, persistence])
+  }, [sendMessage, session.currentSessionId, persistence])
+
+  // Wrapped session select handler (clears local UI state too)
+  const handleSessionSelectWrapped = useCallback((sessionId: string) => {
+    setIsGeneratingFinal(false)
+    setIsGeneratingStrawman(false)
+    setShowChatHistory(false)
+    session.handleSessionSelect(sessionId)
+  }, [session.handleSessionSelect])
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-50">
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-full">
         {/* Header */}
-        <header className="bg-white border-b h-16 flex-shrink-0">
-          <div className="h-full px-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {/* Hamburger Menu - Chat History */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowChatHistory(true)}
-                className="flex-shrink-0"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-
-              <Link href="/" className="flex items-center gap-2 group">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 transition-transform group-hover:scale-105">
-                  <Sparkles className="h-5 w-5 text-white" />
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                  deckster
-                </span>
-              </Link>
-              <Badge variant="secondary" className="hidden sm:flex">
-                Director v3.4
-              </Badge>
-            </div>
-
-            <div className="flex items-center gap-4">
-              {/* Content Context Display (when set) */}
-              {hasGeneratedContent && (
-                <ContentContextDisplay context={contentContext} className="hidden md:flex text-xs" />
-              )}
-              {/* Connection Status */}
-              <Badge
-                variant={connected ? "default" : connecting ? "secondary" : "destructive"}
-                className="hidden sm:flex"
-              >
-                {connecting ? "Connecting..." : connected ? "Connected" : "Disconnected"}
-              </Badge>
-              {/* Content Context Settings */}
-              <Button
-                variant={showContentContextPanel ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setShowContentContextPanel(!showContentContextPanel)}
-                title="Presentation Settings (Audience, Purpose, Duration)"
-              >
-                <SlidersHorizontal className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowSettings(true)}
-              >
-                <Settings className="h-5 w-5" />
-              </Button>
-              <UserProfileMenu />
-            </div>
-          </div>
-        </header>
-
-        {/* Connection Error Alert */}
-        {wsError && (
-          <div className="px-4 py-2 bg-white border-b">
-            <ConnectionError onRetry={() => window.location.reload()} />
-          </div>
-        )}
+        <BuilderHeader
+          connected={connected}
+          connecting={connecting}
+          wsError={wsError}
+          hasGeneratedContent={hasGeneratedContent}
+          contentContext={contentContext}
+          showContentContextPanel={showContentContextPanel}
+          onToggleContentContextPanel={() => setShowContentContextPanel(!showContentContextPanel)}
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenChatHistory={() => setShowChatHistory(true)}
+        />
 
         {/* Main Content Area - 25/75 Split */}
         <div className="flex-1 flex overflow-hidden">
@@ -1765,23 +679,20 @@ function BuilderContent() {
               <div className="absolute inset-0 z-30 bg-white flex flex-col">
                 <div className="p-4 border-b flex items-center justify-between">
                   <h3 className="font-semibold text-gray-900">Presentation Settings</h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
+                    className="text-gray-500 hover:text-gray-700"
                     onClick={() => setShowContentContextPanel(false)}
                   >
                     ✕
-                  </Button>
+                  </button>
                 </div>
                 <div className="p-4 overflow-auto flex-1">
                   <ContentContextForm
                     value={contentContext}
                     onChange={(newContext) => {
                       if (hasGeneratedContent) {
-                        // Show warning dialog before changing
                         regenerationWarning.showWarning(newContext)
                       } else {
-                        // No content yet, just update
                         setContentContext(newContext)
                       }
                     }}
@@ -1803,19 +714,13 @@ function BuilderContent() {
               currentSlide={currentSlideIndex + 1}
               onLayoutChange={async (layout: SlideLayoutId) => {
                 console.log('Layout change requested:', layout)
-                // TODO: Implement via postMessage to iframe
               }}
-              // Layout Service v7.5.3 API integration
               onGetSelectionInfo={layoutServiceApis?.getSelectionInfo}
               onUpdateSectionContent={layoutServiceApis?.updateSectionContent}
               onAIRegenerate={async (instruction, sectionId, currentContent) => {
-                // Simple AI regeneration using Claude API
-                // In production, this would call the Director Service
                 setIsAIRegenerating(true)
                 try {
-                  // For now, return a placeholder - will be connected to Director Service
                   console.log('🤖 AI Regenerate request:', { instruction, sectionId, currentContent })
-                  // Simulate AI response with instruction-based modification
                   const modifiedContent = `<p>${instruction}: ${currentContent}</p>`
                   return modifiedContent
                 } finally {
@@ -1825,7 +730,7 @@ function BuilderContent() {
               isRegenerating={isAIRegenerating}
             />
 
-            {/* Text Box Format Panel - Overlays chat when text box selected */}
+            {/* Text Box Format Panel */}
             <TextBoxFormatPanel
               isOpen={showTextBoxPanel}
               isCollapsed={isTextBoxPanelCollapsed}
@@ -1861,10 +766,10 @@ function BuilderContent() {
               }}
               presentationId={presentationId}
               slideIndex={currentSlideIndex}
-              sessionId={currentSessionId}
+              sessionId={session.currentSessionId}
             />
 
-            {/* Element/Slide Format Panel - Shows slide panel when no element selected */}
+            {/* Element/Slide Format Panel */}
             {presentationId && (
               <ElementFormatPanel
                 isOpen={showElementPanel}
@@ -1883,7 +788,6 @@ function BuilderContent() {
                   if (!layoutServiceApis?.sendElementCommand) {
                     throw new Error('Layout Service not ready')
                   }
-                  // Use sendElementCommand which routes to AI backend or Layout Service as appropriate
                   return layoutServiceApis.sendElementCommand(action, {
                     elementId: selectedElementId,
                     ...params
@@ -1908,7 +812,7 @@ function BuilderContent() {
               />
             )}
 
-            {/* Generation Panel - Overlays chat when open */}
+            {/* Generation Panel */}
             {features.useTextLabsGeneration && (
               <GenerationPanel
                 isOpen={generationPanel.isOpen}
@@ -1928,862 +832,98 @@ function BuilderContent() {
             {/* Chat Messages */}
             <ScrollArea className="flex-1">
               <div className="px-3 py-4 space-y-4">
-                {/* Interleave user messages and bot messages by timestamp */}
-                {(() => {
-                  const combined = [
-                    ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
-                    ...messages.map(m => {
-                      let classificationMethod = 'DEFAULT';
-
-                      // PRIORITY 1: Check Director's role field (proper fix from Director team)
-                      if ((m as any).role === 'user') {
-                        userMessageIdsRef.current.add(m.message_id);
-                        classificationMethod = 'ROLE_FIELD';
-
-                        // Extract text from Director's message format
-                        // Director sends either {payload: {text: '...'}} or {content: '...'}
-                        const text = m.payload?.text || (m as any).content || '';
-
-                        // Convert ISO timestamp to numeric milliseconds for proper sorting
-                        // IMPORTANT: Ensure 'Z' suffix for UTC parsing (Director sends without timezone suffix)
-                        // Without 'Z', JavaScript treats timestamp as local time, causing timezone offset bugs
-                        const normalizedTimestamp = m.timestamp?.endsWith('Z') ? m.timestamp : m.timestamp + 'Z';
-                        const timestamp = new Date(normalizedTimestamp).getTime();
-
-                        console.log('✅ Director role field detected, transforming to user message format:', {
-                          message_id: m.message_id,
-                          role: (m as any).role,
-                          text: text.substring(0, 30),
-                          timestamp,
-                          method: 'ROLE_FIELD (Director fix)',
-                          classifiedAs: 'USER'
-                        });
-
-                        // Transform to user message format that renderer expects
-                        return {
-                          id: m.message_id,
-                          text: text,
-                          timestamp: timestamp,
-                          messageType: 'user' as const
-                        };
-                      }
-
-                      // PRIORITY 2: Check if message ID is in our tracking ref
-                      let isUserMessage = userMessageIdsRef.current.has(m.message_id);
-                      if (isUserMessage) {
-                        classificationMethod = 'USER_MESSAGE_IDS_REF';
-                      }
-
-                      // PRIORITY 3: Content matching fallback (backward compatibility workaround)
-                      if (!isUserMessage && m.payload?.text) {
-                        const normalizedContent = (typeof m.payload.text === 'string' ? m.payload.text : '').trim().toLowerCase();
-                        const matchingUserId = userMessageContentMapRef.current.get(normalizedContent);
-                        if (matchingUserId) {
-                          isUserMessage = true;
-                          classificationMethod = 'CONTENT_MATCH';
-                          // Add this message ID to tracking for future renders
-                          userMessageIdsRef.current.add(m.message_id);
-                          console.log('🎯 Content match fallback (pre-Director-fix message):', {
-                            directorMessageId: m.message_id,
-                            matchedUserId: matchingUserId,
-                            content: normalizedContent.substring(0, 30)
-                          });
-                        }
-                      }
-
-                      console.log('🔍 Message classification:', {
-                        message_id: m.message_id,
-                        payload: m.payload?.text?.substring(0, 30),
-                        hasRole: !!(m as any).role,
-                        role: (m as any).role,
-                        method: classificationMethod,
-                        isInUserMessageIds: userMessageIdsRef.current.has(m.message_id),
-                        classifiedAs: isUserMessage ? 'USER' : 'BOT'
-                      });
-                      return { ...m, messageType: (isUserMessage ? 'user' : 'bot') as const };
-                    })
-                  ];
-
-                  console.log('📊 Message rendering - userMessages:', userMessages.length, 'botMessages:', messages.length, 'combined:', combined.length);
-
-                  // Deduplicate messages by ID (prevents duplicate display)
-                  // Also deduplicate by content for cases where Director sends historical messages with new IDs
-                  // WORKAROUND: Prefer user messages from database over Director's bot-classified versions
-                  const seenIds = new Set<string>();
-                  const seenContent = new Map<string, any>(); // content → first message seen
-
-                  const deduplicated = combined.filter(item => {
-                    const id = item.messageType === 'user' ? item.id : (item as any).message_id;
-                    const content = item.messageType === 'user'
-                      ? item.text
-                      : (item as any).payload?.text || JSON.stringify((item as any).payload);
-
-                    // Skip if we've seen this exact ID
-                    if (seenIds.has(id)) {
-                      return false;
-                    }
-
-                    // Check content duplication with preference for user messages
-                    const contentKey = `${content}`.trim().toLowerCase();
-                    const existingMessage = seenContent.get(contentKey);
-
-                    if (existingMessage) {
-                      // If we already have this content, prefer user message over bot message
-                      if (item.messageType === 'user' && existingMessage.messageType !== 'user') {
-                        // Current is user, existing is bot → replace with user version
-                        // Remove the bot version from seen IDs so we can add user version
-                        seenIds.delete(existingMessage.id || existingMessage.message_id);
-                        seenContent.set(contentKey, item);
-                        seenIds.add(id);
-                        return true; // Keep this user message, will remove bot version later
-                      } else if (item.messageType !== 'user' && existingMessage.messageType === 'user') {
-                        // Current is bot, existing is user → skip bot version
-                        return false;
-                      } else {
-                        // Both same type → skip duplicate
-                        return false;
-                      }
-                    }
-
-                    seenIds.add(id);
-                    seenContent.set(contentKey, item);
-                    return true;
-                  });
-
-                  console.log('📊 After deduplication:', deduplicated.length);
-
-                  const sorted = deduplicated.sort((a, b) => {
-                    // User messages have numeric timestamps
-                    // Bot messages should have clientTimestamp (added in hook or when restoring)
-                    // Fallback: parse ISO timestamp if clientTimestamp missing
-                    // FIX: Always append 'Z' suffix to ensure UTC parsing when Director sends timestamps without timezone
-                    const parseTimestamp = (ts: string | undefined): number => {
-                      if (!ts) return 0;
-                      // Ensure 'Z' suffix for UTC parsing - Director may send timestamps without timezone indicator
-                      const normalized = ts.endsWith('Z') ? ts : ts + 'Z';
-                      return new Date(normalized).getTime();
-                    };
-
-                    const timeA = a.messageType === 'user'
-                      ? a.timestamp
-                      : (a as any).clientTimestamp || parseTimestamp((a as any).timestamp);
-
-                    const timeB = b.messageType === 'user'
-                      ? b.timestamp
-                      : (b as any).clientTimestamp || parseTimestamp((b as any).timestamp);
-
-                    return timeA - timeB;
-                  });
-
-                  // Filter out duplicate welcome messages if we've already seen one
-                  const filtered = sorted.filter((item, index) => {
-                    if (item.messageType === 'bot') {
-                      const msg = item as DirectorMessage;
-                      if (msg.type === 'chat_message') {
-                        const chatMsg = msg as V2ChatMessage;
-                        const isWelcome = chatMsg.payload.text.toLowerCase().includes("hello! i'm deckster") ||
-                          chatMsg.payload.text.toLowerCase().includes("what presentation would you like to build");
-
-                        // If this is a welcome message and we've seen one before (resumed session), skip it
-                        if (isWelcome && hasSeenWelcomeRef.current && index > 0) {
-                          console.log('🚫 Filtering duplicate welcome message on reconnect');
-                          return false;
-                        }
-
-                        // Mark that we've seen a welcome message
-                        if (isWelcome) {
-                          hasSeenWelcomeRef.current = true;
-                        }
-                      }
-                    }
-                    return true;
-                  });
-
-                  console.log('📊 After filtering:', filtered.length, 'messages');
-                  console.log('📊 Final message list:', filtered.map((m, i) => ({
-                    index: i,
-                    type: m.messageType,
-                    id: m.messageType === 'user' ? m.id : (m as any).message_id,
-                    text: m.messageType === 'user' ? m.text : (m as any).payload?.text?.substring(0, 50)
-                  })));
-
-                  // Group consecutive strawman-related messages (slide_update, presentation_url, action_request)
-                  const processedMessages: Array<typeof filtered[0] | {
-                    messageType: 'bot',
-                    type: 'combined_strawman',
-                    message_id: string,
-                    slideUpdate?: SlideUpdate,
-                    presentationUrl?: PresentationURL,
-                    actionRequest?: ActionRequest
-                  }> = [];
-
-                  let i = 0;
-                  while (i < filtered.length) {
-                    const current = filtered[i];
-
-                    // Check if this starts a strawman group
-                    if (current.messageType === 'bot') {
-                      const botMsg = current as DirectorMessage;
-
-                      // Look for slide_update followed by presentation_url and optionally action_request
-                      if (botMsg.type === 'slide_update') {
-                        const slideUpdate = botMsg as SlideUpdate;
-                        let presentationUrl: PresentationURL | undefined;
-                        let actionRequest: ActionRequest | undefined;
-                        let consumed = 1;
-
-                        // Check next message for presentation_url
-                        if (i + 1 < filtered.length && filtered[i + 1].messageType === 'bot') {
-                          const nextMsg = filtered[i + 1] as DirectorMessage;
-                          if (nextMsg.type === 'presentation_url') {
-                            presentationUrl = nextMsg as PresentationURL;
-                            consumed++;
-
-                            // Check message after that for action_request
-                            if (i + 2 < filtered.length && filtered[i + 2].messageType === 'bot') {
-                              const thirdMsg = filtered[i + 2] as DirectorMessage;
-                              if (thirdMsg.type === 'action_request') {
-                                actionRequest = thirdMsg as ActionRequest;
-                                consumed++;
-                              }
-                            }
-                          }
-                        }
-
-                        // If we found at least slide_update + presentation_url, create combined message
-                        if (presentationUrl) {
-                          processedMessages.push({
-                            messageType: 'bot',
-                            type: 'combined_strawman',
-                            message_id: `combined_${slideUpdate.message_id}`,
-                            slideUpdate,
-                            presentationUrl,
-                            actionRequest
-                          });
-                          i += consumed;
-                          continue;
-                        }
-                      }
-                    }
-
-                    // Not part of a group, add as-is
-                    processedMessages.push(current);
-                    i++;
-                  }
-
-                  return processedMessages.map((item, index) => {
-                    if (item.messageType === 'user') {
-                      // Render user message
-                      return (
-                        <div key={item.id} className="flex gap-3 justify-end animate-in fade-in duration-200">
-                          <div className="flex-1 max-w-[85%] text-right">
-                            <p className="text-[11px] font-medium text-gray-500 mb-0.5">You</p>
-                            <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{item.text}</p>
-                          </div>
-                          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center">
-                            <User className="h-3 w-3 text-white" />
-                          </div>
-                        </div>
-                      )
-                    }
-
-                    const msg = item as any;
-                    return (
-                      <React.Fragment key={msg.message_id || msg.id}>
-                        {/* Bot messages */}
-                        {(() => {
-                          // Handle combined strawman message (slide_update + presentation_url + action_request)
-                          if (msg.type === 'combined_strawman') {
-                            const { slideUpdate, presentationUrl, actionRequest } = msg;
-
-                            return (
-                              <div className="flex gap-3 animate-in fade-in duration-200">
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
-                                  <Sparkles className="h-3 w-3 text-white" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
-
-                                  {/* Slide Structure Card */}
-                                  <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                    <div className="flex items-center gap-2 mb-1.5">
-                                      <span className="text-sm">📊</span>
-                                      <p className="text-xs font-medium text-gray-900">
-                                        {slideUpdate?.payload.metadata.main_title}
-                                      </p>
-                                    </div>
-                                    <p className="text-[11px] text-gray-500 mb-2">
-                                      {slideUpdate?.payload.slides.length} slides · {slideUpdate?.payload.metadata.presentation_duration} min · {slideUpdate?.payload.metadata.overall_theme}
-                                    </p>
-                                    <div className="space-y-1 max-h-36 overflow-y-auto">
-                                      {slideUpdate?.payload.slides.map((slide, i) => (
-                                        <div key={i} className="text-[11px] py-1 px-2 bg-white rounded border border-gray-100">
-                                          <span className="text-gray-400 mr-1.5">{slide.slide_number}.</span>
-                                          <span className="text-gray-700">{slide.title}</span>
-                                          <span className="text-gray-400 text-[10px] uppercase ml-1.5">{slide.slide_type}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-
-                                  {/* Presentation Ready */}
-                                  {presentationUrl && (
-                                    <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
-                                      <span className="text-sm">✅</span>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs text-gray-700">{presentationUrl.payload.message}</p>
-                                        <p className="text-[10px] text-gray-500">{presentationUrl.payload.slide_count} slides</p>
-                                      </div>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-[11px] h-7 px-2 border-gray-200 hover:bg-white"
-                                        onClick={() => window.open(presentationUrl.payload.url, '_blank')}
-                                      >
-                                        <ExternalLink className="h-3 w-3 mr-1" />
-                                        Open
-                                      </Button>
-                                    </div>
-                                  )}
-
-                                  {/* Action Buttons */}
-                                  {actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
-                                    <div className="mt-3">
-                                      <p className="text-xs text-gray-700 mb-2">{actionRequest.payload.prompt_text}</p>
-                                      <div className="flex flex-wrap gap-1.5">
-                                        {actionRequest.payload.actions.map((action, i) => (
-                                          <Button
-                                            key={i}
-                                            size="sm"
-                                            variant={action.primary ? "default" : "outline"}
-                                            onClick={() => handleActionClick(action, actionRequest.message_id)}
-                                            className={action.primary
-                                              ? "text-xs h-7 bg-gray-900 hover:bg-gray-800"
-                                              : "text-xs h-7 border-gray-200 hover:bg-gray-50"
-                                            }
-                                          >
-                                            {action.label}
-                                          </Button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          } else if (msg.type === 'chat_message') {
-                            const chatMsg = msg as V2ChatMessage
-                            // Detect if this is a preview link message
-                            const isPreviewLink = chatMsg.payload.text.includes('📊') &&
-                              chatMsg.payload.text.toLowerCase().includes('preview');
-
-                            return (
-                              <div className="flex gap-3 animate-in fade-in duration-200">
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
-                                  <Sparkles className="h-3 w-3 text-white" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
-                                  <div className="text-xs text-gray-700 leading-relaxed">
-                                    <ReactMarkdown
-                                      components={{
-                                        a: ({ node, ...props }) => (
-                                          <a
-                                            {...props}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
-                                          />
-                                        ),
-                                        p: ({ node, ...props }) => <p {...props} className="leading-relaxed mb-1 last:mb-0" />,
-                                        strong: ({ node, ...props }) => <strong {...props} className="font-semibold text-gray-900" />,
-                                        ul: ({ node, ...props }) => <ul {...props} className="list-disc pl-4 mb-1 space-y-0.5" />,
-                                        li: ({ node, ...props }) => <li {...props} className="leading-relaxed" />
-                                      }}
-                                    >
-                                      {chatMsg.payload.text}
-                                    </ReactMarkdown>
-                                  </div>
-                                  {chatMsg.payload.sub_title && (
-                                    <p className="text-[11px] text-gray-500 mt-1">{chatMsg.payload.sub_title}</p>
-                                  )}
-                                  {chatMsg.payload.list_items && chatMsg.payload.list_items.length > 0 && (
-                                    <ul className="text-[11px] mt-1.5 space-y-0.5">
-                                      {chatMsg.payload.list_items.map((item, i) => (
-                                        <li key={i} className="ml-4 list-disc text-gray-600">{item}</li>
-                                      ))}
-                                    </ul>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          } else if (msg.type === 'action_request') {
-                            const actionMsg = msg as ActionRequest
-                            // Don't render if this action has already been answered
-                            if (answeredActionsRef.current.has(actionMsg.message_id)) {
-                              return null
-                            }
-                            return (
-                              <div className="flex gap-3 animate-in fade-in duration-200">
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
-                                  <Sparkles className="h-3 w-3 text-white" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
-                                  <p className="text-xs text-gray-700 mb-2">{actionMsg.payload.prompt_text}</p>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {actionMsg.payload.actions.map((action, i) => (
-                                      <Button
-                                        key={i}
-                                        size="sm"
-                                        variant={action.primary ? "default" : "outline"}
-                                        onClick={() => handleActionClick(action, actionMsg.message_id)}
-                                        className={action.primary
-                                          ? "text-xs h-7 bg-gray-900 hover:bg-gray-800"
-                                          : "text-xs h-7 border-gray-200 hover:bg-gray-50"
-                                        }
-                                      >
-                                        {action.label}
-                                      </Button>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          } else if (msg.type === 'slide_update') {
-                            const slideMsg = msg as SlideUpdate
-                            return (
-                              <div className="flex gap-3 animate-in fade-in duration-200">
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
-                                  <Sparkles className="h-3 w-3 text-white" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
-                                  <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                    <div className="flex items-center gap-2 mb-1.5">
-                                      <span className="text-sm">📊</span>
-                                      <p className="text-xs font-medium text-gray-900">
-                                        {slideMsg.payload.metadata.main_title}
-                                      </p>
-                                    </div>
-                                    <p className="text-[11px] text-gray-500 mb-2">
-                                      {slideMsg.payload.slides.length} slides · {slideMsg.payload.metadata.presentation_duration} min · {slideMsg.payload.metadata.overall_theme}
-                                    </p>
-                                    <div className="space-y-1 max-h-36 overflow-y-auto">
-                                      {slideMsg.payload.slides.map((slide, i) => (
-                                        <div key={i} className="text-[11px] py-1 px-2 bg-white rounded border border-gray-100">
-                                          <span className="text-gray-400 mr-1.5">{slide.slide_number}.</span>
-                                          <span className="text-gray-700">{slide.title}</span>
-                                          <span className="text-gray-400 text-[10px] uppercase ml-1.5">{slide.slide_type}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          } else if (msg.type === 'presentation_url') {
-                            const presMsg = msg as PresentationURL
-                            return (
-                              <div className="flex gap-3 animate-in fade-in duration-200">
-                                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
-                                  <Sparkles className="h-3 w-3 text-white" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
-                                  <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
-                                    <span className="text-sm">✅</span>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-xs text-gray-700">{presMsg.payload.message}</p>
-                                      <p className="text-[10px] text-gray-500">{presMsg.payload.slide_count} slides</p>
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="text-[11px] h-7 px-2 border-gray-200 hover:bg-white"
-                                      onClick={() => window.open(presMsg.payload.url, '_blank')}
-                                    >
-                                      <ExternalLink className="h-3 w-3 mr-1" />
-                                      Open
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          }
-                          return null
-                        })()}
-                      </React.Fragment>
-                    )
-                  });
-                })()}
-                <div ref={messagesEndRef} />
+                <MessageList
+                  userMessages={session.userMessages}
+                  messages={messages}
+                  userMessageIdsRef={session.userMessageIdsRef}
+                  userMessageContentMapRef={session.userMessageContentMapRef}
+                  hasSeenWelcomeRef={session.hasSeenWelcomeRef}
+                  answeredActionsRef={session.answeredActionsRef}
+                  onActionClick={handleActionClick}
+                  messagesEndRef={messagesEndRef}
+                />
               </div>
             </ScrollArea>
 
             {/* Chat Input */}
-            <div
-              className={`p-3 border-t border-gray-100 bg-white transition-colors ${
-                isDraggingFiles ? 'bg-purple-50 border-purple-200' : ''
-              }`}
-              onDragOver={(e) => {
-                e.preventDefault()
-                if (features.enableFileUploads) setIsDraggingFiles(true)
+            <ChatInput
+              inputMessage={inputMessage}
+              onInputChange={setInputMessage}
+              onSubmit={handleSendMessage}
+              uploadedFiles={uploadedFiles}
+              onFilesSelected={handleFilesSelected}
+              onRemoveFile={removeFile}
+              onClearAllFiles={clearAllFiles}
+              pendingActionInput={pendingActionInput}
+              onCancelAction={() => {
+                setPendingActionInput(null)
+                setInputMessage("")
               }}
-              onDragLeave={(e) => {
-                e.preventDefault()
-                setIsDraggingFiles(false)
-              }}
-              onDrop={(e) => {
-                e.preventDefault()
-                setIsDraggingFiles(false)
-                if (features.enableFileUploads) {
-                  const files = Array.from(e.dataTransfer.files)
-                  if (files.length > 0) {
-                    handleFilesSelected(files)
-                  }
-                }
-              }}
-            >
-              {/* Drop zone indicator */}
-              {isDraggingFiles && (
-                <div className="mb-3 p-4 border-2 border-dashed border-purple-300 rounded-lg bg-purple-50 text-center">
-                  <p className="text-xs text-purple-600 font-medium">Drop files here to attach</p>
-                </div>
-              )}
-
-              {/* File chips (when files attached) */}
-              {features.enableFileUploads && uploadedFiles.length > 0 && !isDraggingFiles && (
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {uploadedFiles.map((file) => (
-                    <FileChip
-                      key={file.id}
-                      file={file}
-                      onRemove={() => removeFile(file.id)}
-                    />
-                  ))}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearAllFiles}
-                    className="text-[11px] text-gray-500 hover:text-gray-700 h-6 px-2"
-                  >
-                    Clear all
-                  </Button>
-                </div>
-              )}
-
-              {/* Hidden file input for dropdown menu */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.py,.js,.ts,.java,.go,.rs"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || [])
-                  if (files.length > 0) {
-                    handleFilesSelected(files)
-                  }
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = ''
-                  }
-                }}
-                className="hidden"
-              />
-
-              {/* Action Input Banner */}
-              {pendingActionInput && (
-                <div className="mb-2 p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-700 font-medium text-xs">
-                      {pendingActionInput.action.label}
-                    </span>
-                    <span className="text-gray-500 text-[11px]">
-                      Type your input and press Enter
-                    </span>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setPendingActionInput(null)
-                      setInputMessage("")
-                    }}
-                    className="h-5 text-[11px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-1.5"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
-              {/* Main input container - Claude style */}
-              <form onSubmit={handleSendMessage}>
-                <div className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all">
-                  {/* Textarea */}
-                  <Textarea
-                    ref={textareaRef}
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSendMessage()
-                      }
-                      if (e.key === 'Escape' && pendingActionInput) {
-                        e.preventDefault()
-                        setPendingActionInput(null)
-                        setInputMessage("")
-                      }
-                    }}
-                    placeholder={
-                      !user
-                        ? "Authenticating..."
-                        : isLoadingSession
-                        ? "Loading..."
-                        : !connected && !connecting
-                          ? "Disconnected - send to reconnect"
-                          : connecting
-                            ? "Connecting..."
-                            : pendingActionInput
-                              ? "Type your changes... (ESC to cancel)"
-                              : "Message Director..."
-                    }
-                    disabled={!user || isLoadingSession}
-                    className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[60px] max-h-[120px] text-xs placeholder:text-gray-400 overflow-y-auto"
-                    rows={1}
-                  />
-
-                  {/* Bottom toolbar inside input */}
-                  <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-b-xl">
-                    {/* Left: Action buttons */}
-                    <div className="flex items-center gap-1">
-                      {/* + Menu for attachments */}
-                      {features.enableFileUploads && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              type="button"
-                              className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors"
-                              disabled={uploadedFiles.length >= 5}
-                            >
-                              <Plus className="h-4 w-4 text-gray-500" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-48">
-                            <DropdownMenuItem
-                              onClick={async () => {
-                                if (features.enableEarlySessionCreation && !currentSessionId) {
-                                  try {
-                                    await handleRequestSession()
-                                  } catch {
-                                    return
-                                  }
-                                }
-                                fileInputRef.current?.click()
-                              }}
-                              className="gap-2 text-xs"
-                            >
-                              <Paperclip className="h-4 w-4" />
-                              Upload a file
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2 text-xs text-gray-400" disabled>
-                              <Camera className="h-4 w-4" />
-                              Take a screenshot
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2 text-xs text-gray-400" disabled>
-                              <Folder className="h-4 w-4" />
-                              Use a project
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-
-                      {/* Settings/Options Menu */}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors"
-                          >
-                            <SlidersHorizontal className="h-4 w-4 text-gray-500" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-48">
-                          <div className="flex items-center justify-between px-2 py-2">
-                            <div className="flex items-center gap-2">
-                              <Globe className="h-4 w-4 text-gray-500" />
-                              <span className="text-xs">Research</span>
-                            </div>
-                            <Switch
-                              checked={researchEnabled}
-                              onCheckedChange={setResearchEnabled}
-                              className="scale-75"
-                            />
-                          </div>
-                          <div className="flex items-center justify-between px-2 py-2">
-                            <div className="flex items-center gap-2">
-                              <Globe className="h-4 w-4 text-gray-500" />
-                              <span className="text-xs">Web search</span>
-                            </div>
-                            <Switch
-                              checked={webSearchEnabled}
-                              onCheckedChange={setWebSearchEnabled}
-                              className="scale-75"
-                            />
-                          </div>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-
-                    {/* Right: Send button - rounded square with up arrow */}
-                    <button
-                      type="submit"
-                      disabled={!isReady || !inputMessage.trim()}
-                      className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
-                        inputMessage.trim()
-                          ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                          : 'bg-purple-100 text-purple-300 cursor-not-allowed'
-                      }`}
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  {/* Only show loading overlay when actually loading session */}
-                  {isLoadingSession && (
-                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] rounded-xl flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
-                    </div>
-                  )}
-                </div>
-              </form>
-            </div>
+              researchEnabled={researchEnabled}
+              onResearchEnabledChange={setResearchEnabled}
+              webSearchEnabled={webSearchEnabled}
+              onWebSearchEnabledChange={setWebSearchEnabled}
+              isReady={isReady}
+              isLoadingSession={session.isLoadingSession}
+              connected={connected}
+              connecting={connecting}
+              user={user}
+              currentSessionId={session.currentSessionId}
+              onRequestSession={session.handleRequestSession}
+            />
           </div>
 
           {/* Right Panel - Presentation Display (flex-1) */}
-          <div className="flex-1 flex flex-col bg-gray-100">
-            {presentationUrl && !isGeneratingFinal ? (
-              <PresentationViewer
-                presentationUrl={presentationUrl}
-                presentationId={presentationId}
-                slideCount={slideCount}
-                slideStructure={slideStructure}
-                strawmanPreviewUrl={strawmanPreviewUrl}
-                finalPresentationUrl={finalPresentationUrl}
-                activeVersion={activeVersion}
-                onVersionSwitch={switchVersion}
-                showControls={true}
-                downloadControls={
-                  <PresentationDownloadControls
-                    presentationUrl={presentationUrl}
-                    presentationId={presentationId}
-                    slideCount={slideCount}
-                    stage={currentStage}
-                  />
-                }
-                onSlideChange={(slideNum) => {
-                  setCurrentSlideIndex(slideNum - 1) // PresentationViewer reports 1-based
-                }}
-                onEditModeChange={(isEditing) => {
-                  console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
-                }}
-                onTextBoxSelected={(elementId, formatting) => {
-                  // Blank element? Open GenerationPanel, not old format panel
-                  if (blankElements.isBlankElement(elementId)) {
-                    const info = blankElements.getElement(elementId)
-                    if (info) {
-                      if (info.status === 'generating') return // no panel during generation
-                      generationPanel.openPanelForElement(info.componentType, elementId)
-                    }
-                    return
-                  }
-                  setSelectedTextBoxId(elementId)
-                  setSelectedTextBoxFormatting(formatting)
-                  setShowTextBoxPanel(true)
-                  setIsTextBoxPanelCollapsed(false) // Auto-expand on selection
-                  // Close element panel when text box is selected
-                  setShowElementPanel(false)
-                  setShowFormatPanel(false)
-                }}
-                onTextBoxDeselected={() => {
-                  setSelectedTextBoxId(null)
-                  setSelectedTextBoxFormatting(null)
-                  setIsTextBoxPanelCollapsed(true) // Auto-collapse on deselection
-                  // Keep panel in DOM but collapsed
-                }}
-                onElementSelected={(elementId, elementType, properties) => {
-                  // Blank element? Open GenerationPanel, not old format panel
-                  if (blankElements.isBlankElement(elementId)) {
-                    const info = blankElements.getElement(elementId)
-                    if (info) {
-                      if (info.status === 'generating') return // no panel during generation
-                      generationPanel.openPanelForElement(info.componentType, elementId)
-                    }
-                    return
-                  }
-                  setSelectedElementId(elementId)
-                  setSelectedElementType(elementType)
-                  setSelectedElementProperties(properties)
-                  setShowElementPanel(true)
-                  setIsElementPanelCollapsed(false) // Auto-expand on selection
-                  // Close text box panel when element is selected
-                  setShowTextBoxPanel(false)
-                  setShowFormatPanel(false)
-                }}
-                onElementDeselected={() => {
-                  setSelectedElementId(null)
-                  setSelectedElementType(null)
-                  setSelectedElementProperties(null)
-                  // Keep panel open to show slide format panel
-                  setIsElementPanelCollapsed(false)
-                }}
-                onApiReady={setLayoutServiceApis}
-                onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
-                onElementMoved={(elementId, gridRow, gridColumn) => {
-                  if (blankElements.isBlankElement(elementId)) {
-                    const rowParts = gridRow.split('/').map(Number)
-                    const colParts = gridColumn.split('/').map(Number)
-                    if (rowParts.length === 2 && colParts.length === 2) {
-                      blankElements.updatePosition(
-                        elementId,
-                        colParts[0],              // startCol
-                        rowParts[0],              // startRow
-                        colParts[1] - colParts[0], // width
-                        rowParts[1] - rowParts[0]  // height
-                      )
-                    }
-                  }
-                }}
-                className="flex-1"
-              />
-            ) : (
-              <div className="flex-1 flex items-center justify-center">
-                {(currentStatus || isGeneratingFinal || isGeneratingStrawman) ? (
-                  // FIXED: Show slide building animation when actively processing OR generating final OR generating strawman
-                  <SlideBuildingLoader
-                    statusText={
-                      isGeneratingFinal
-                        ? "Generating your final presentation..."
-                        : isGeneratingStrawman
-                        ? "Building your strawman presentation..."
-                        : currentStatus?.text
-                    }
-                    estimatedTime={currentStatus?.estimated_time ?? undefined}
-                    className="w-full px-8"
-                    mode={isGeneratingFinal ? 'default' : 'strawman'}
-                  />
-                ) : (
-                  // Show default placeholder when idle
-                  <div className="text-center">
-                    <Sparkles className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                    <p className="text-lg text-gray-600">Your presentation will appear here</p>
-                    <p className="text-sm text-gray-400 mt-2">
-                      Start by telling Director what presentation you'd like to create
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <PresentationArea
+            presentationUrl={presentationUrl}
+            presentationId={presentationId}
+            slideCount={slideCount}
+            slideStructure={slideStructure}
+            strawmanPreviewUrl={strawmanPreviewUrl}
+            finalPresentationUrl={finalPresentationUrl}
+            activeVersion={activeVersion}
+            onVersionSwitch={switchVersion}
+            currentStage={currentStage}
+            currentSlideIndex={currentSlideIndex}
+            onSlideChange={(slideNum) => {
+              setCurrentSlideIndex(slideNum - 1)
+            }}
+            currentStatus={currentStatus}
+            isGeneratingFinal={isGeneratingFinal}
+            isGeneratingStrawman={isGeneratingStrawman}
+            onApiReady={setLayoutServiceApis}
+            onTextBoxSelected={(elementId, formatting) => {
+              setSelectedTextBoxId(elementId)
+              setSelectedTextBoxFormatting(formatting)
+              setShowTextBoxPanel(true)
+              setIsTextBoxPanelCollapsed(false)
+              setShowElementPanel(false)
+              setShowFormatPanel(false)
+            }}
+            onTextBoxDeselected={() => {
+              setSelectedTextBoxId(null)
+              setSelectedTextBoxFormatting(null)
+              setIsTextBoxPanelCollapsed(true)
+            }}
+            onElementSelected={(elementId, elementType, properties) => {
+              setSelectedElementId(elementId)
+              setSelectedElementType(elementType)
+              setSelectedElementProperties(properties)
+              setShowElementPanel(true)
+              setIsElementPanelCollapsed(false)
+              setShowTextBoxPanel(false)
+              setShowFormatPanel(false)
+            }}
+            onElementDeselected={() => {
+              setSelectedElementId(null)
+              setSelectedElementType(null)
+              setSelectedElementProperties(null)
+              setIsElementPanelCollapsed(false)
+            }}
+            blankElements={blankElements}
+            generationPanel={generationPanel}
+            onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
+          />
         </div>
       </div>
 
@@ -2791,9 +931,9 @@ function BuilderContent() {
       <ChatHistorySidebar
         isOpen={showChatHistory}
         onClose={() => setShowChatHistory(false)}
-        currentSessionId={currentSessionId || undefined}
-        onSessionSelect={handleSessionSelect}
-        onNewChat={handleNewChat}
+        currentSessionId={session.currentSessionId || undefined}
+        onSessionSelect={handleSessionSelectWrapped}
+        onNewChat={session.handleNewChat}
       />
 
       {/* Onboarding Modal */}
