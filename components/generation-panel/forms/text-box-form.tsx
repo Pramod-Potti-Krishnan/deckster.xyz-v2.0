@@ -13,6 +13,19 @@ import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TEXT_BOX
 
+const COLOR_VARIANT_PRESETS = [
+  { name: 'purple', label: 'Purple', hex: '#7C3AED' },
+  { name: 'blue', label: 'Blue', hex: '#2563EB' },
+  { name: 'red', label: 'Red', hex: '#DC2626' },
+  { name: 'green', label: 'Green', hex: '#16A34A' },
+  { name: 'yellow', label: 'Yellow', hex: '#CA8A04' },
+  { name: 'cyan', label: 'Cyan', hex: '#06B6D4' },
+  { name: 'orange', label: 'Orange', hex: '#EA580C' },
+  { name: 'teal', label: 'Teal', hex: '#0D9488' },
+  { name: 'pink', label: 'Pink', hex: '#DB2777' },
+  { name: 'indigo', label: 'Indigo', hex: '#4F46E5' },
+] as const
+
 const DEFAULT_TEXTBOX_CONFIG: TextBoxConfig = {
   background: 'colored',
   shadow: true,
@@ -264,23 +277,37 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
           {config.background === 'colored' && (
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-gray-300">Box Color</label>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="color"
-                  value={config.color_variant || '#3B82F6'}
-                  onChange={(e) => updateConfig('color_variant', e.target.value)}
-                  className="h-7 w-7 rounded border border-gray-600 cursor-pointer"
-                />
-                <span className="text-[10px] text-gray-500">{config.color_variant || 'Auto'}</span>
-                {config.color_variant && (
+              <div className="flex flex-wrap gap-1.5">
+                {/* Auto swatch */}
+                <button
+                  onClick={() => updateConfig('color_variant', null)}
+                  className={`h-7 w-7 rounded border text-[8px] font-medium ${
+                    config.color_variant === null
+                      ? 'ring-2 ring-purple-500 border-purple-400 bg-gray-700 text-gray-300'
+                      : 'border-gray-600 bg-gray-700/50 text-gray-500 hover:border-gray-400'
+                  }`}
+                  title="Auto"
+                >
+                  Auto
+                </button>
+                {/* 10 named preset swatches */}
+                {COLOR_VARIANT_PRESETS.map(preset => (
                   <button
-                    onClick={() => updateConfig('color_variant', null)}
-                    className="text-[10px] text-gray-500 hover:text-gray-300"
-                  >
-                    Reset
-                  </button>
-                )}
+                    key={preset.name}
+                    onClick={() => updateConfig('color_variant', preset.name)}
+                    style={{ backgroundColor: preset.hex }}
+                    className={`h-7 w-7 rounded border transition-all ${
+                      config.color_variant === preset.name
+                        ? 'ring-2 ring-purple-500 border-purple-400'
+                        : 'border-gray-600 hover:border-gray-400'
+                    }`}
+                    title={preset.label}
+                  />
+                ))}
               </div>
+              {config.color_variant && (
+                <span className="text-[10px] text-gray-500 capitalize">{config.color_variant}</span>
+              )}
             </div>
           )}
 
