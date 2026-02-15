@@ -78,8 +78,6 @@ interface ImageFormProps {
 
 export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementContext }: ImageFormProps) {
   const [prompt, setPrompt] = useState('')
-  const [count, setCount] = useState(1)
-  const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
 
   // Image config
   const [style, setStyle] = useState<TextLabsImageStyle>('realistic')
@@ -153,7 +151,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
       quality,
       corners,
       border,
-      placeholder_mode: contentSource === 'placeholder',
+      placeholder_mode: false,
       auto_position: autoPosition,
       start_col: startCol,
       start_row: startRow,
@@ -166,8 +164,8 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
     const formData: ImageFormData = {
       componentType: 'IMAGE',
-      prompt: contentSource === 'placeholder' ? (prompt || 'Generate a placeholder image') : prompt,
-      count,
+      prompt,
+      count: 1,
       layout: 'horizontal',
       advancedModified,
       z_index: zIndex,
@@ -175,7 +173,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, contentSource, style, quality, corners, border, autoPosition, startCol, startRow, width, height, advancedModified, zIndex, paddingConfig, onSubmit])
+  }, [prompt, style, quality, corners, border, autoPosition, startCol, startRow, width, height, advancedModified, zIndex, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -190,40 +188,12 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
   return (
     <div className="space-y-4">
       {/* Prompt */}
-      {contentSource === 'ai' && (
-        <PromptInput
-          value={prompt}
-          onChange={setPrompt}
-          placeholder="e.g., Modern office space with team collaboration, or a city skyline at sunset"
-          disabled={isGenerating}
-        />
-      )}
-
-      {/* Content Source Toggle */}
-      <ToggleRow
-        label="Content Source"
-        field="contentSource"
-        value={contentSource}
-        options={[
-          { value: 'ai', label: 'AI Generated' },
-          { value: 'placeholder', label: 'Placeholder' },
-        ]}
-        onChange={(_, v) => setContentSource(v as 'ai' | 'placeholder')}
+      <PromptInput
+        value={prompt}
+        onChange={setPrompt}
+        placeholder="e.g., Modern office space with team collaboration, or a city skyline at sunset"
+        disabled={isGenerating}
       />
-
-      {/* Count */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-700">Count</label>
-        <select
-          value={count}
-          onChange={(e) => setCount(Number(e.target.value))}
-          className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-500"
-        >
-          {[1, 2, 3, 4].map(n => (
-            <option key={n} value={n}>{n}</option>
-          ))}
-        </select>
-      </div>
 
       {/* Image Style (grouped dropdown — 8 backend-supported styles) */}
       <div className="space-y-1.5">
