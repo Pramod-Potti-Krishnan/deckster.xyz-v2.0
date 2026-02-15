@@ -225,7 +225,7 @@ export interface ImageConfig {
 export interface IconLabelConfig {
   mode: 'icon' | 'label'
   size: 'small' | 'medium' | 'large'
-  style: 'circle' | 'square' | 'rounded' | 'minimal'
+  style: 'flat' | 'pastel' | 'circle' | 'square' | 'circle-outline' | 'square-outline'
   font: 'poppins' | 'inter' | 'playfair' | 'roboto_mono'
   color: string | null
 }
@@ -417,6 +417,7 @@ export type TextLabsFormData =
 export interface TextLabsElement {
   html?: string
   image_url?: string
+  image_data_url?: string
   component_type: TextLabsAllComponentType
 }
 

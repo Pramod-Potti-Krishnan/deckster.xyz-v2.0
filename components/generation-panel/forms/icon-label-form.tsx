@@ -10,10 +10,12 @@ const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.ICON_LABEL
 
 // Backend-aligned icon styles
 const ICON_STYLES: { value: IconLabelConfig['style']; label: string }[] = [
+  { value: 'flat', label: 'Flat' },
+  { value: 'pastel', label: 'Pastel' },
   { value: 'circle', label: 'Circle' },
   { value: 'square', label: 'Square' },
-  { value: 'rounded', label: 'Rounded' },
-  { value: 'minimal', label: 'Minimal' },
+  { value: 'circle-outline', label: 'Circle Outline' },
+  { value: 'square-outline', label: 'Square Outline' },
 ]
 
 const LABEL_FONTS: { value: IconLabelConfig['font']; label: string }[] = [
@@ -25,7 +27,7 @@ const LABEL_FONTS: { value: IconLabelConfig['font']; label: string }[] = [
 
 function getDefaultColor(mode: 'icon' | 'label', style: IconLabelConfig['style']): string {
   if (mode === 'label') return '#1F2937'
-  if (style === 'circle' || style === 'square' || style === 'rounded') return '#3B82F6'
+  if (style === 'circle' || style === 'square') return '#3B82F6'
   return '#1F2937'
 }
 

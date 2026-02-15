@@ -304,7 +304,7 @@ function extractBodyContent(html: string): string {
  */
 export function buildInsertionParams(
   componentType: TextLabsAllComponentType,
-  element: { html?: string; image_url?: string },
+  element: { html?: string; image_url?: string; image_data_url?: string },
   positionConfig?: TextLabsPositionConfig,
   paddingConfig?: TextLabsPaddingConfig,
   zIndex?: number,
@@ -360,11 +360,14 @@ export function buildInsertionParams(
         method: 'insertChart',
         params: { ...baseParams, chartHtml: extractBodyContent(element.html || '') },
       }
-    case 'insertImage':
+    case 'insertImage': {
+      const imageUrl = element.image_url || element.image_data_url || element.html || ''
+      const iconLabelParams = componentType === 'ICON_LABEL' ? { minCols: 1, minRows: 1 } : {}
       return {
         method: 'insertImage',
-        params: { ...baseParams, imageUrl: element.image_url || '', src: element.image_url || '' },
+        params: { ...baseParams, imageUrl, ...iconLabelParams },
       }
+    }
     case 'insertDiagram':
       return {
         method: 'insertDiagram',
