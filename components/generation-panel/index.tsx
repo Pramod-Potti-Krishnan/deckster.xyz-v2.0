@@ -74,14 +74,14 @@ export function GenerationPanel({
 
       {/* Canvas position indicator */}
       {elementContext && (
-        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 flex items-center gap-2">
+        <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
           Position from canvas ({elementContext.width}&times;{elementContext.height} cells)
         </div>
       )}
 
       {/* Scrollable form area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-3 py-3">
         <FormRouter
           elementType={elementType}
           onSubmit={onGenerate}

@@ -14,15 +14,15 @@ export function PromptInput({
   disabled = false,
 }: PromptInputProps) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium text-gray-700">Prompt</label>
+    <div className="space-y-1">
+      <label className="text-[11px] font-medium text-gray-600">Prompt</label>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        rows={3}
-        className="w-full px-3 py-2 rounded-md bg-gray-50 border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 resize-none disabled:opacity-50"
+        rows={2}
+        className="w-full px-2.5 py-1.5 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary resize-none disabled:opacity-50"
       />
     </div>
   )
