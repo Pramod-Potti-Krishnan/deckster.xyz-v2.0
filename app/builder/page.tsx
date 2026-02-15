@@ -819,6 +819,7 @@ function BuilderContent() {
                 onClose={() => {
                   generationPanel.closePanel()
                 }}
+                onReopen={generationPanel.reopenPanel}
                 onGenerate={handleTextLabsGenerate}
                 onElementTypeChange={generationPanel.changeElementType}
                 isGenerating={generationPanel.isGenerating}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useCallback, useEffect, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import { GenerationPanelHeader } from './header'
@@ -20,6 +21,7 @@ export function GenerationPanel({
   isOpen,
   elementType,
   onClose,
+  onReopen,
   onGenerate,
   onElementTypeChange,
   isGenerating,
@@ -76,54 +78,77 @@ export function GenerationPanel({
   }, [isOpen, isGenerating, onClose])
 
   return (
-    <div
-      className={cn(
-        "absolute inset-0 bg-white text-gray-900 shadow-2xl z-20 flex flex-col",
-        "transform transition-transform duration-200 ease-out",
-        isOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
-      )}
-    >
-      {/* Header */}
-      <GenerationPanelHeader
-        elementType={elementType}
-        onClose={onClose}
-        onElementTypeChange={onElementTypeChange}
-      />
-
-      {/* Canvas position indicator */}
-      {elementContext && (
-        <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 flex items-center gap-2">
-          <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-          Position from canvas ({elementContext.width}&times;{elementContext.height} cells)
-        </div>
-      )}
-
-      {/* Chat-style generation input */}
-      <GenerationInput
-        prompt={prompt}
-        onPromptChange={setPrompt}
-        mandatoryConfig={mandatoryConfigRef.current}
-        showAdvanced={showAdvanced}
-        onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
-        onSubmit={handleFooterGenerate}
-        isGenerating={isGenerating}
-        error={error}
-      />
-
-      {/* Scrollable form area — hidden (not unmounted) when advanced is off */}
-      <div className={`flex-1 overflow-y-auto px-3 py-3 ${!showAdvanced ? 'hidden' : ''}`}>
-        <FormRouter
+    <div className="absolute inset-0 z-20 flex pointer-events-none">
+      {/* Panel content */}
+      <div
+        className={cn(
+          "flex-1 bg-white flex flex-col shadow-2xl overflow-hidden transition-all duration-200 ease-out",
+          isOpen ? "pointer-events-auto opacity-100" : "opacity-0 max-w-0"
+        )}
+      >
+        {/* Header */}
+        <GenerationPanelHeader
           elementType={elementType}
-          onSubmit={onGenerate}
-          registerSubmit={registerSubmit}
-          isGenerating={isGenerating}
-          slideIndex={slideIndex}
-          elementContext={elementContext}
-          prompt={prompt}
-          showAdvanced={showAdvanced}
-          registerMandatoryConfig={registerMandatoryConfig}
+          onElementTypeChange={onElementTypeChange}
         />
+
+        {/* Canvas position indicator */}
+        {elementContext && (
+          <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
+            Position from canvas ({elementContext.width}&times;{elementContext.height} cells)
+          </div>
+        )}
+
+        {/* Chat-style generation input */}
+        <GenerationInput
+          prompt={prompt}
+          onPromptChange={setPrompt}
+          mandatoryConfig={mandatoryConfigRef.current}
+          showAdvanced={showAdvanced}
+          onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
+          onSubmit={handleFooterGenerate}
+          isGenerating={isGenerating}
+          error={error}
+        />
+
+        {/* Scrollable form area — hidden (not unmounted) when advanced is off */}
+        <div className={`flex-1 overflow-y-auto px-3 py-3 ${!showAdvanced ? 'hidden' : ''}`}>
+          <FormRouter
+            elementType={elementType}
+            onSubmit={onGenerate}
+            registerSubmit={registerSubmit}
+            isGenerating={isGenerating}
+            slideIndex={slideIndex}
+            elementContext={elementContext}
+            prompt={prompt}
+            showAdvanced={showAdvanced}
+            registerMandatoryConfig={registerMandatoryConfig}
+          />
+        </div>
       </div>
+
+      {/* Vertical handle — always visible */}
+      <button
+        type="button"
+        onClick={isOpen ? onClose : onReopen}
+        className={cn(
+          "w-5 flex-shrink-0 pointer-events-auto flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors border-l",
+          isOpen
+            ? "bg-gray-50 hover:bg-gray-100 border-gray-200"
+            : "bg-gray-100 hover:bg-gray-200 border-gray-300"
+        )}
+        title={isOpen ? 'Collapse panel' : 'Expand panel'}
+      >
+        {isOpen ? (
+          <ChevronLeft className="h-3 w-3 text-gray-400" />
+        ) : (
+          <ChevronRight className="h-3 w-3 text-gray-500" />
+        )}
+        <span className="[writing-mode:vertical-rl] text-[10px] text-gray-500 tracking-wider font-medium select-none">
+          Element
+        </span>
+      </button>
     </div>
   )
 }

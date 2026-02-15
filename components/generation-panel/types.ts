@@ -12,6 +12,7 @@ export interface GenerationPanelProps {
   isOpen: boolean
   elementType: TextLabsComponentType
   onClose: () => void
+  onReopen: () => void
   onGenerate: (formData: TextLabsFormData) => Promise<void>
   onElementTypeChange: (type: TextLabsComponentType) => void
   isGenerating: boolean
