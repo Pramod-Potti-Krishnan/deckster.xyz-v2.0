@@ -177,7 +177,10 @@ function BuilderContent() {
     sessionId: wsSessionId,
     updateCacheUserMessages
   } = useDecksterWebSocketV2({
-    autoConnect: features.immediateConnection,
+    // Don't auto-connect when restoring an existing session from URL.
+    // The useBuilderSession hook will connect AFTER DB load + restoreMessages,
+    // preventing Director's blank state from flashing before restored content.
+    autoConnect: features.immediateConnection && !sessionIdForPersistence,
     existingSessionId: sessionIdForPersistence || undefined,
     reconnectOnError: false,
     maxReconnectAttempts: 0,
@@ -874,6 +877,14 @@ function BuilderContent() {
           </div>
 
           {/* Right Panel - Presentation Display (flex-1) */}
+          {session.isLoadingSession ? (
+            <div className="flex-1 flex items-center justify-center bg-gray-100">
+              <div className="text-center">
+                <div className="h-8 w-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-gray-500">Loading session...</p>
+              </div>
+            </div>
+          ) : (
           <PresentationArea
             presentationUrl={presentationUrl}
             presentationId={presentationId}
@@ -924,6 +935,7 @@ function BuilderContent() {
             generationPanel={generationPanel}
             onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
           />
+          )}
         </div>
       </div>
 
