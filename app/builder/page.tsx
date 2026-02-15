@@ -12,6 +12,7 @@ import { ChatHistorySidebar } from "@/components/chat-history-sidebar"
 import { OnboardingModal } from "@/components/onboarding-modal"
 import { useFileUpload } from '@/hooks/use-file-upload'
 import { features } from '@/lib/config'
+import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { FormatPanel } from '@/components/format-panel'
 import { SlideLayoutId } from '@/components/slide-layout-picker'
@@ -71,14 +72,13 @@ function BuilderContent() {
   const [showVersions, setShowVersions] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showFormatPanel, setShowFormatPanel] = useState(false)
+  const [showChat, setShowChat] = useState(true)
   // Text box selection state
   const [showTextBoxPanel, setShowTextBoxPanel] = useState(false)
-  const [isTextBoxPanelCollapsed, setIsTextBoxPanelCollapsed] = useState(true)
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   const [selectedTextBoxFormatting, setSelectedTextBoxFormatting] = useState<TextBoxFormatting | null>(null)
   // Element selection state
   const [showElementPanel, setShowElementPanel] = useState(false)
-  const [isElementPanelCollapsed, setIsElementPanelCollapsed] = useState(true)
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null)
   const [selectedElementType, setSelectedElementType] = useState<ElementType | null>(null)
   const [selectedElementProperties, setSelectedElementProperties] = useState<ElementProperties | null>(null)
@@ -105,6 +105,10 @@ function BuilderContent() {
   // Text Labs Generation Panel
   const generationPanel = useGenerationPanel()
   const blankElements = useBlankElements()
+
+  // LHS column is open when any panel or chat is visible
+  const isLHSOpen = showChat || generationPanel.isOpen || showFormatPanel
+    || showTextBoxPanel || showElementPanel || showContentContextPanel
 
   // FIXED: Track when generating final/strawman presentations
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
@@ -672,8 +676,11 @@ function BuilderContent() {
 
         {/* Main Content Area - 25/75 Split */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Panel - Chat (25%) */}
-          <div className="w-1/4 flex flex-col bg-white border-r relative">
+          {/* Left Panel - Chat (25% when open, 0 when collapsed) */}
+          <div className={cn(
+            "flex flex-col bg-white relative overflow-hidden min-w-0 transition-[width] duration-300 ease-out",
+            isLHSOpen ? "w-1/4 border-r border-gray-200" : "w-0"
+          )}>
             {/* Content Context Panel - Overlays chat when open */}
             {showContentContextPanel && (
               <div className="absolute inset-0 z-30 bg-white flex flex-col">
@@ -733,8 +740,6 @@ function BuilderContent() {
             {/* Text Box Format Panel */}
             <TextBoxFormatPanel
               isOpen={showTextBoxPanel}
-              isCollapsed={isTextBoxPanelCollapsed}
-              onCollapsedChange={setIsTextBoxPanelCollapsed}
               onClose={() => {
                 setShowTextBoxPanel(false)
                 setSelectedTextBoxId(null)
@@ -773,8 +778,6 @@ function BuilderContent() {
             {presentationId && (
               <ElementFormatPanel
                 isOpen={showElementPanel}
-                isCollapsed={isElementPanelCollapsed}
-                onCollapsedChange={setIsElementPanelCollapsed}
                 onClose={() => {
                   setShowElementPanel(false)
                   setSelectedElementId(null)
@@ -830,91 +833,131 @@ function BuilderContent() {
               />
             )}
 
-            {/* Panel edge handles — always visible on right edge of LHS column */}
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-1.5 pointer-events-none">
-              {/* Element handle */}
-              {features.useTextLabsGeneration && (
-                <button
-                  type="button"
-                  onClick={generationPanel.isOpen ? () => generationPanel.closePanel() : generationPanel.reopenPanel}
-                  className="pointer-events-auto w-4 py-3 rounded-r-md shadow-sm border border-l-0
-                    flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors
-                    bg-gray-100 hover:bg-gray-200 border-gray-300"
-                  title={generationPanel.isOpen ? 'Collapse element panel' : 'Expand element panel'}
-                >
-                  {generationPanel.isOpen ? (
-                    <ChevronLeft className="h-2.5 w-2.5 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="h-2.5 w-2.5 text-gray-600" />
-                  )}
-                  <span className="[writing-mode:vertical-rl] text-[8px] text-gray-500 font-medium select-none leading-none">
-                    Element
-                  </span>
-                </button>
-              )}
+            {/* Chat Messages — only shown when Deck handle is active */}
+            {showChat && (
+              <>
+                <ScrollArea className="flex-1">
+                  <div className="px-3 py-4 space-y-4">
+                    <MessageList
+                      userMessages={session.userMessages}
+                      messages={messages}
+                      userMessageIdsRef={session.userMessageIdsRef}
+                      userMessageContentMapRef={session.userMessageContentMapRef}
+                      hasSeenWelcomeRef={session.hasSeenWelcomeRef}
+                      answeredActionsRef={session.answeredActionsRef}
+                      onActionClick={handleActionClick}
+                      messagesEndRef={messagesEndRef}
+                    />
+                  </div>
+                </ScrollArea>
 
-              {/* Slide handle */}
+                <ChatInput
+                  inputMessage={inputMessage}
+                  onInputChange={setInputMessage}
+                  onSubmit={handleSendMessage}
+                  uploadedFiles={uploadedFiles}
+                  onFilesSelected={handleFilesSelected}
+                  onRemoveFile={removeFile}
+                  onClearAllFiles={clearAllFiles}
+                  pendingActionInput={pendingActionInput}
+                  onCancelAction={() => {
+                    setPendingActionInput(null)
+                    setInputMessage("")
+                  }}
+                  researchEnabled={researchEnabled}
+                  onResearchEnabledChange={setResearchEnabled}
+                  webSearchEnabled={webSearchEnabled}
+                  onWebSearchEnabledChange={setWebSearchEnabled}
+                  isReady={isReady}
+                  isLoadingSession={session.isLoadingSession}
+                  connected={connected}
+                  connecting={connecting}
+                  user={user}
+                  currentSessionId={currentSessionId}
+                  onRequestSession={session.handleRequestSession}
+                />
+              </>
+            )}
+          </div>
+
+          {/* Panel handles — always visible between LHS and presentation */}
+          <div className="flex-shrink-0 flex flex-col items-center justify-center gap-1.5 py-2">
+            {/* Element handle — pastel purple */}
+            {features.useTextLabsGeneration && (
               <button
                 type="button"
-                onClick={() => setShowFormatPanel(prev => !prev)}
-                className="pointer-events-auto w-4 py-3 rounded-r-md shadow-sm border border-l-0
-                  flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors
-                  bg-slate-200 hover:bg-slate-300 border-slate-400"
-                title={showFormatPanel ? 'Collapse slide panel' : 'Expand slide panel'}
-              >
-                {showFormatPanel ? (
-                  <ChevronLeft className="h-2.5 w-2.5 text-slate-600" />
-                ) : (
-                  <ChevronRight className="h-2.5 w-2.5 text-slate-600" />
+                onClick={() => {
+                  if (generationPanel.isOpen) {
+                    generationPanel.closePanel()
+                  } else {
+                    generationPanel.reopenPanel()
+                  }
+                }}
+                className={cn(
+                  "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+                  "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+                  generationPanel.isOpen
+                    ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
+                    : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
                 )}
-                <span className="[writing-mode:vertical-rl] text-[8px] text-slate-600 font-medium select-none leading-none">
-                  Slide
+                title={generationPanel.isOpen ? 'Close element panel' : 'Open element panel'}
+              >
+                {generationPanel.isOpen ? (
+                  <ChevronLeft className="h-2.5 w-2.5" />
+                ) : (
+                  <ChevronRight className="h-2.5 w-2.5" />
+                )}
+                <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+                  Element
                 </span>
               </button>
-            </div>
+            )}
 
-            {/* Chat Messages */}
-            <ScrollArea className="flex-1">
-              <div className="px-3 py-4 space-y-4">
-                <MessageList
-                  userMessages={session.userMessages}
-                  messages={messages}
-                  userMessageIdsRef={session.userMessageIdsRef}
-                  userMessageContentMapRef={session.userMessageContentMapRef}
-                  hasSeenWelcomeRef={session.hasSeenWelcomeRef}
-                  answeredActionsRef={session.answeredActionsRef}
-                  onActionClick={handleActionClick}
-                  messagesEndRef={messagesEndRef}
-                />
-              </div>
-            </ScrollArea>
+            {/* Slide handle — pastel blue */}
+            <button
+              type="button"
+              onClick={() => setShowFormatPanel(prev => !prev)}
+              className={cn(
+                "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+                "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+                showFormatPanel
+                  ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700"
+                  : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600"
+              )}
+              title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
+            >
+              {showFormatPanel ? (
+                <ChevronLeft className="h-2.5 w-2.5" />
+              ) : (
+                <ChevronRight className="h-2.5 w-2.5" />
+              )}
+              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+                Slide
+              </span>
+            </button>
 
-            {/* Chat Input */}
-            <ChatInput
-              inputMessage={inputMessage}
-              onInputChange={setInputMessage}
-              onSubmit={handleSendMessage}
-              uploadedFiles={uploadedFiles}
-              onFilesSelected={handleFilesSelected}
-              onRemoveFile={removeFile}
-              onClearAllFiles={clearAllFiles}
-              pendingActionInput={pendingActionInput}
-              onCancelAction={() => {
-                setPendingActionInput(null)
-                setInputMessage("")
-              }}
-              researchEnabled={researchEnabled}
-              onResearchEnabledChange={setResearchEnabled}
-              webSearchEnabled={webSearchEnabled}
-              onWebSearchEnabledChange={setWebSearchEnabled}
-              isReady={isReady}
-              isLoadingSession={session.isLoadingSession}
-              connected={connected}
-              connecting={connecting}
-              user={user}
-              currentSessionId={currentSessionId}
-              onRequestSession={session.handleRequestSession}
-            />
+            {/* Deck handle — pastel emerald */}
+            <button
+              type="button"
+              onClick={() => setShowChat(prev => !prev)}
+              className={cn(
+                "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+                "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
+                showChat
+                  ? "bg-emerald-200 hover:bg-emerald-300 border-emerald-400 text-emerald-700"
+                  : "bg-emerald-100 hover:bg-emerald-200 border-emerald-300 text-emerald-600"
+              )}
+              title={showChat ? 'Close chat panel' : 'Open chat panel'}
+            >
+              {showChat ? (
+                <ChevronLeft className="h-2.5 w-2.5" />
+              ) : (
+                <ChevronRight className="h-2.5 w-2.5" />
+              )}
+              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+                Deck
+              </span>
+            </button>
           </div>
 
           {/* Right Panel - Presentation Display (flex-1) */}
@@ -948,21 +991,18 @@ function BuilderContent() {
               setSelectedTextBoxId(elementId)
               setSelectedTextBoxFormatting(formatting)
               setShowTextBoxPanel(true)
-              setIsTextBoxPanelCollapsed(false)
               setShowElementPanel(false)
               setShowFormatPanel(false)
             }}
             onTextBoxDeselected={() => {
               setSelectedTextBoxId(null)
               setSelectedTextBoxFormatting(null)
-              setIsTextBoxPanelCollapsed(true)
             }}
             onElementSelected={(elementId, elementType, properties) => {
               setSelectedElementId(elementId)
               setSelectedElementType(elementType)
               setSelectedElementProperties(properties)
               setShowElementPanel(true)
-              setIsElementPanelCollapsed(false)
               setShowTextBoxPanel(false)
               setShowFormatPanel(false)
             }}
@@ -970,7 +1010,6 @@ function BuilderContent() {
               setSelectedElementId(null)
               setSelectedElementType(null)
               setSelectedElementProperties(null)
-              setIsElementPanelCollapsed(false)
             }}
             blankElements={blankElements}
             generationPanel={generationPanel}

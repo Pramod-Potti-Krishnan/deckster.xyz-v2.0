@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from 'react'
-import { Trash2, ChevronLeft, ChevronRight, Type } from 'lucide-react'
+import { Trash2, Type } from 'lucide-react'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { StyleTab } from './style-tab'
 import { AITab } from './ai-tab'
@@ -9,8 +9,6 @@ import { cn } from '@/lib/utils'
 
 export interface TextBoxFormatPanelProps {
   isOpen: boolean
-  isCollapsed: boolean
-  onCollapsedChange: (collapsed: boolean) => void
   onClose: () => void
   elementId: string | null
   formatting: TextBoxFormatting | null
@@ -18,21 +16,23 @@ export interface TextBoxFormatPanelProps {
   onDelete?: () => void
   presentationId?: string | null
   slideIndex?: number
+  sessionId?: string | null  // For AI chat functionality
+  onGetElementHtml?: () => Promise<string>  // Get current element HTML for AI context
 }
 
 type TabType = 'style' | 'ai'
 
 export function TextBoxFormatPanel({
   isOpen,
-  isCollapsed,
-  onCollapsedChange,
   onClose,
   elementId,
   formatting,
   onSendCommand,
   onDelete,
   presentationId,
-  slideIndex = 0
+  slideIndex = 0,
+  sessionId,
+  onGetElementHtml,
 }: TextBoxFormatPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('style')
   const [isApplying, setIsApplying] = useState(false)
@@ -52,13 +52,9 @@ export function TextBoxFormatPanel({
   if (!isOpen) return null
 
   return (
-    <>
-      {/* Panel Container */}
       <div
         className={cn(
-          "absolute inset-0 bg-gray-900 text-white shadow-2xl z-20 flex flex-col",
-          "transform transition-transform duration-200 ease-out",
-          isCollapsed ? "-translate-x-full" : "translate-x-0"
+          "absolute inset-0 bg-gray-900 text-white shadow-2xl z-20 flex flex-col"
         )}
       >
         {/* Header - Refined with icon and better spacing */}
@@ -129,6 +125,8 @@ export function TextBoxFormatPanel({
               elementId={elementId || ''}
               presentationId={presentationId}
               slideIndex={slideIndex}
+              sessionId={sessionId}
+              onGetElementHtml={onGetElementHtml}
             />
           )}
         </div>
@@ -144,27 +142,5 @@ export function TextBoxFormatPanel({
           </div>
         )}
       </div>
-
-      {/* Collapse/Expand toggle - refined */}
-      <button
-        onClick={() => onCollapsedChange(!isCollapsed)}
-        className={cn(
-          "absolute top-1/2 -translate-y-1/2 z-30",
-          "w-5 h-14 bg-gray-800 hover:bg-gray-700",
-          "rounded-r-md shadow-lg",
-          "flex items-center justify-center",
-          "border-y border-r border-gray-700",
-          "transition-all duration-150",
-          isCollapsed ? "left-0" : "right-0 translate-x-full"
-        )}
-        title={isCollapsed ? "Expand panel" : "Collapse panel"}
-      >
-        {isCollapsed ? (
-          <ChevronRight className="h-4 w-4 text-gray-400" />
-        ) : (
-          <ChevronLeft className="h-4 w-4 text-gray-400" />
-        )}
-      </button>
-    </>
   )
 }

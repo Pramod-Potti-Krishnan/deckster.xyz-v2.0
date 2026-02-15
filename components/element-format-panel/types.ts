@@ -7,8 +7,6 @@ export type PanelTabType = 'ai' | 'arrange'
 // Props for the main ElementFormatPanel
 export interface ElementFormatPanelProps {
   isOpen: boolean
-  isCollapsed: boolean
-  onCollapsedChange: (collapsed: boolean) => void
   onClose: () => void
   elementId: string | null
   elementType: ElementType | null
