@@ -29,6 +29,8 @@ interface FontOverrideSectionProps {
   onChange: (field: string, value: unknown) => void
   /** Whether to show allcaps toggle (METRICS/TABLE) or underline toggle (TEXT_BOX) */
   thirdToggle?: 'allcaps' | 'underline'
+  /** Optional color presets to override the default palette */
+  colorPresets?: typeof FONT_COLOR_PRESETS
 }
 
 export function FontOverrideSection({
@@ -37,6 +39,7 @@ export function FontOverrideSection({
   config,
   onChange,
   thirdToggle = 'allcaps',
+  colorPresets,
 }: FontOverrideSectionProps) {
   const sizeField = `${prefix}_font_size`
   const familyField = `${prefix}_font_family`
@@ -79,7 +82,7 @@ export function FontOverrideSection({
       <div className="space-y-1">
         <label className="text-[10px] text-gray-400">Color</label>
         <div className="flex flex-wrap gap-1.5">
-          {FONT_COLOR_PRESETS.map(preset => (
+          {(colorPresets ?? FONT_COLOR_PRESETS).map(preset => (
             <button
               key={preset.label}
               onClick={() => onChange(colorField, preset.value)}

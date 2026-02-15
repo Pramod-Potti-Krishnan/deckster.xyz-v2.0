@@ -13,6 +13,39 @@ import { ZIndexInput } from '../shared/z-index-input'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.METRICS
 
+const CARD_COLOR_PRESETS = [
+  { name: 'purple', label: 'Purple', hex: '#805AA0' },
+  { name: 'blue', label: 'Blue', hex: '#2980B9' },
+  { name: 'green', label: 'Green', hex: '#27AE60' },
+  { name: 'red', label: 'Red', hex: '#C0392B' },
+  { name: 'cyan', label: 'Cyan', hex: '#0097A7' },
+  { name: 'orange', label: 'Orange', hex: '#E65100' },
+  { name: 'pink', label: 'Pink', hex: '#C2185B' },
+  { name: 'gold', label: 'Gold', hex: '#D39E1E' },
+  { name: 'teal', label: 'Teal', hex: '#00796B' },
+  { name: 'indigo', label: 'Indigo', hex: '#3949AB' },
+] as const
+
+const LIGHT_FONT_COLORS = [
+  { value: null, label: 'Auto', hex: null },
+  { value: '#FFFFFF', label: 'White', hex: '#FFFFFF' },
+  { value: '#E5E7EB', label: 'Light Gray', hex: '#E5E7EB' },
+  { value: '#C4B5FD', label: 'Lavender', hex: '#C4B5FD' },
+  { value: '#93C5FD', label: 'Sky', hex: '#93C5FD' },
+  { value: '#FDE68A', label: 'Gold', hex: '#FDE68A' },
+  { value: '#FCA5A5', label: 'Rose', hex: '#FCA5A5' },
+] as const
+
+const DARK_FONT_COLORS = [
+  { value: null, label: 'Auto', hex: null },
+  { value: '#1F2937', label: 'Dark', hex: '#1F2937' },
+  { value: '#374151', label: 'Gray', hex: '#374151' },
+  { value: '#5B21B6', label: 'Purple', hex: '#5B21B6' },
+  { value: '#1D4ED8', label: 'Blue', hex: '#1D4ED8' },
+  { value: '#D97706', label: 'Amber', hex: '#D97706' },
+  { value: '#BE185D', label: 'Pink', hex: '#BE185D' },
+] as const
+
 const DEFAULT_METRICS_CONFIG: MetricsConfig = {
   corners: 'rounded',
   border: false,
@@ -119,6 +152,8 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.color_scheme])
 
+  const fontColorPresets = config.color_scheme === 'accent' ? DARK_FONT_COLORS : LIGHT_FONT_COLORS
+
   const handleSubmit = useCallback(() => {
     const formData: MetricsFormData = {
       componentType: 'METRICS',
@@ -185,8 +220,8 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
               <label className="text-xs font-medium text-gray-700">Layout</label>
               <div className="flex gap-1">
                 {[
-                  { value: 'horizontal', label: 'Horiz' },
-                  { value: 'vertical', label: 'Vert' },
+                  { value: 'horizontal', label: 'H' },
+                  { value: 'vertical', label: 'V' },
                 ].map(option => (
                   <button
                     key={option.value}
@@ -214,8 +249,8 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
             field="corners"
             value={config.corners}
             options={[
-              { value: 'rounded', label: 'Rounded' },
-              { value: 'square', label: 'Square' },
+              { value: 'rounded', label: 'Rnd' },
+              { value: 'square', label: 'Sqr' },
             ]}
             onChange={(f, v) => updateConfig(f, v)}
           />
@@ -234,9 +269,9 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
             field="alignment"
             value={config.alignment}
             options={[
-              { value: 'left', label: 'Left' },
-              { value: 'center', label: 'Center' },
-              { value: 'right', label: 'Right' },
+              { value: 'left', label: 'L' },
+              { value: 'center', label: 'C' },
+              { value: 'right', label: 'R' },
             ]}
             onChange={(f, v) => updateConfig(f, v)}
           />
@@ -245,31 +280,39 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
             field="color_scheme"
             value={config.color_scheme}
             options={[
-              { value: 'gradient', label: 'Gradient' },
+              { value: 'gradient', label: 'Grad' },
               { value: 'solid', label: 'Solid' },
-              { value: 'accent', label: 'Accent' },
+              { value: 'accent', label: 'Pastel' },
             ]}
             onChange={(f, v) => updateConfig(f, v)}
           />
           {/* Card Color */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-gray-700">Card Color</label>
-            <div className="flex gap-2 items-center">
-              <input
-                type="color"
-                value={config.color_variant || '#3B82F6'}
-                onChange={(e) => updateConfig('color_variant', e.target.value)}
-                className="h-7 w-7 rounded border border-gray-300 cursor-pointer"
+            <div className="flex flex-wrap gap-1.5">
+              {/* Auto (rainbow) */}
+              <button
+                onClick={() => updateConfig('color_variant', null)}
+                className={`h-7 w-7 rounded-full border border-gray-300 bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 transition-all ${
+                  config.color_variant === null
+                    ? 'ring-2 ring-purple-500 ring-offset-1'
+                    : 'hover:scale-110'
+                }`}
+                title="Auto"
               />
-              <span className="text-[10px] text-gray-400">{config.color_variant || 'Auto'}</span>
-              {config.color_variant && (
+              {CARD_COLOR_PRESETS.map(preset => (
                 <button
-                  onClick={() => updateConfig('color_variant', null)}
-                  className="text-[10px] text-gray-400 hover:text-gray-700"
-                >
-                  Reset
-                </button>
-              )}
+                  key={preset.name}
+                  onClick={() => updateConfig('color_variant', preset.name)}
+                  style={{ backgroundColor: preset.hex }}
+                  className={`h-7 w-7 rounded-full border border-gray-200 transition-all ${
+                    config.color_variant === preset.name
+                      ? 'ring-2 ring-purple-500 ring-offset-1'
+                      : 'hover:scale-110'
+                  }`}
+                  title={preset.label}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -311,6 +354,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
             config={config as unknown as Record<string, unknown>}
             onChange={updateConfig}
             thirdToggle="allcaps"
+            colorPresets={fontColorPresets}
           />
         </div>
       </CollapsibleSection>
@@ -351,6 +395,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
             config={config as unknown as Record<string, unknown>}
             onChange={updateConfig}
             thirdToggle="allcaps"
+            colorPresets={fontColorPresets}
           />
         </div>
       </CollapsibleSection>
@@ -391,6 +436,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
             config={config as unknown as Record<string, unknown>}
             onChange={updateConfig}
             thirdToggle="allcaps"
+            colorPresets={fontColorPresets}
           />
         </div>
       </CollapsibleSection>
