@@ -673,6 +673,92 @@ function BuilderContent() {
 
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden">
+          {/* Handle column — always visible at left edge, never shifts */}
+          <div className="relative w-4 flex-shrink-0 z-20">
+            {/* Element handle */}
+            {features.useTextLabsGeneration && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (generationPanel.isOpen) {
+                    generationPanel.closePanel()
+                  } else {
+                    generationPanel.reopenPanel()
+                  }
+                }}
+                className={cn(
+                  "absolute top-[33%] -translate-y-1/2 left-0",
+                  "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+                  "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
+                  "transition-colors",
+                  generationPanel.isOpen
+                    ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
+                    : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
+                )}
+                title={generationPanel.isOpen ? 'Close element panel' : 'Open element panel'}
+              >
+                {generationPanel.isOpen ? (
+                  <ChevronLeft className="h-2.5 w-2.5" />
+                ) : (
+                  <ChevronRight className="h-2.5 w-2.5" />
+                )}
+                <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+                  Element
+                </span>
+              </button>
+            )}
+
+            {/* Slide handle */}
+            <button
+              type="button"
+              onClick={() => setShowFormatPanel(prev => !prev)}
+              className={cn(
+                "absolute top-[45%] -translate-y-1/2 left-0",
+                "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+                "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
+                "transition-colors",
+                showFormatPanel
+                  ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700"
+                  : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600"
+              )}
+              title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
+            >
+              {showFormatPanel ? (
+                <ChevronLeft className="h-2.5 w-2.5" />
+              ) : (
+                <ChevronRight className="h-2.5 w-2.5" />
+              )}
+              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+                Slide
+              </span>
+            </button>
+
+            {/* Deck handle */}
+            <button
+              type="button"
+              onClick={() => setShowChat(prev => !prev)}
+              className={cn(
+                "absolute top-[57%] -translate-y-1/2 left-0",
+                "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+                "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
+                "transition-colors",
+                showChat
+                  ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
+                  : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
+              )}
+              title={showChat ? 'Close chat panel' : 'Open chat panel'}
+            >
+              {showChat ? (
+                <ChevronLeft className="h-2.5 w-2.5" />
+              ) : (
+                <ChevronRight className="h-2.5 w-2.5" />
+              )}
+              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+                Deck
+              </span>
+            </button>
+          </div>
+
           {/* Left Panel - Chat (w-80 when open, 0 when collapsed) */}
           <div className={cn(
             "flex flex-col bg-white relative overflow-hidden min-w-0 flex-shrink-0 transition-[width] duration-300 ease-out",
@@ -875,92 +961,6 @@ function BuilderContent() {
                 />
               </>
             )}
-          </div>
-
-          {/* Handle tabs strip — zero-width positioning context for floating handles */}
-          <div className="relative w-0 flex-shrink-0 z-10">
-            {/* Element handle */}
-            {features.useTextLabsGeneration && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (generationPanel.isOpen) {
-                    generationPanel.closePanel()
-                  } else {
-                    generationPanel.reopenPanel()
-                  }
-                }}
-                className={cn(
-                  "absolute top-[33%] -translate-y-1/2 left-0",
-                  "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                  "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
-                  "transition-colors",
-                  generationPanel.isOpen
-                    ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
-                    : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
-                )}
-                title={generationPanel.isOpen ? 'Close element panel' : 'Open element panel'}
-              >
-                {generationPanel.isOpen ? (
-                  <ChevronLeft className="h-2.5 w-2.5" />
-                ) : (
-                  <ChevronRight className="h-2.5 w-2.5" />
-                )}
-                <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
-                  Element
-                </span>
-              </button>
-            )}
-
-            {/* Slide handle */}
-            <button
-              type="button"
-              onClick={() => setShowFormatPanel(prev => !prev)}
-              className={cn(
-                "absolute top-[45%] -translate-y-1/2 left-0",
-                "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
-                "transition-colors",
-                showFormatPanel
-                  ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700"
-                  : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600"
-              )}
-              title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
-            >
-              {showFormatPanel ? (
-                <ChevronLeft className="h-2.5 w-2.5" />
-              ) : (
-                <ChevronRight className="h-2.5 w-2.5" />
-              )}
-              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
-                Slide
-              </span>
-            </button>
-
-            {/* Deck handle */}
-            <button
-              type="button"
-              onClick={() => setShowChat(prev => !prev)}
-              className={cn(
-                "absolute top-[57%] -translate-y-1/2 left-0",
-                "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
-                "transition-colors",
-                showChat
-                  ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
-                  : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
-              )}
-              title={showChat ? 'Close chat panel' : 'Open chat panel'}
-            >
-              {showChat ? (
-                <ChevronLeft className="h-2.5 w-2.5" />
-              ) : (
-                <ChevronRight className="h-2.5 w-2.5" />
-              )}
-              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
-                Deck
-              </span>
-            </button>
           </div>
 
           {/* Right Panel - Presentation Display (flex-1) */}
