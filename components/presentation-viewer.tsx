@@ -1687,23 +1687,21 @@ export function PresentationViewer({
                 disabled={!presentationUrl}
               />
 
-              {/* Save/Cancel - only shown when in edit mode (edit mode is entered automatically) */}
-              {isEditMode && (
-                <>
-                  <div className="w-px h-10 bg-gray-200" />
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleSaveChanges}
-                      disabled={isSaving}
-                      className="flex flex-col items-center gap-0.5 px-3 py-1 rounded bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
-                      title="Save changes"
-                    >
-                      <Save className="h-5 w-5 text-green-600" />
-                      <span className="text-[10px] text-green-600 font-medium">{isSaving ? 'Saving' : 'Save'}</span>
-                    </button>
-                  </div>
-                </>
-              )}
+              {/* Save */}
+              <>
+                <div className="w-px h-10 bg-gray-200" />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSaveChanges}
+                    disabled={isSaving || !presentationUrl}
+                    className="flex flex-col items-center gap-0.5 px-3 py-1 rounded bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
+                    title="Save changes"
+                  >
+                    <Save className="h-5 w-5 text-green-600" />
+                    <span className="text-[10px] text-green-600 font-medium">{isSaving ? 'Saving' : 'Save'}</span>
+                  </button>
+                </div>
+              </>
             </div>
 
             {/* Center Group: Insert & Format Tools */}
@@ -1854,20 +1852,29 @@ export function PresentationViewer({
               </button>
 
               {/* Version Dropdown */}
-              {strawmanPreviewUrl && finalPresentationUrl && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
-                      title="Switch version"
-                    >
-                      <Layers className="h-5 w-5 text-gray-700" />
-                      <span className="text-[10px] text-gray-500">
-                        {activeVersion === 'final' ? 'Final' : 'Strawman'}
-                      </span>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
+                    title="Switch version"
+                  >
+                    <Layers className="h-5 w-5 text-gray-700" />
+                    <span className="text-[10px] text-gray-500">
+                      {activeVersion === 'final' ? 'Final' : activeVersion === 'strawman' ? 'Strawman' : 'Custom'}
+                    </span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem
+                    onClick={() => onVersionSwitch?.('blank')}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>Custom</span>
+                      {activeVersion === 'blank' && <Check className="h-4 w-4 text-blue-500" />}
+                    </div>
+                  </DropdownMenuItem>
+                  {strawmanPreviewUrl && (
                     <DropdownMenuItem
                       onClick={() => onVersionSwitch?.('strawman')}
                       className="cursor-pointer"
@@ -1877,6 +1884,8 @@ export function PresentationViewer({
                         {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
                       </div>
                     </DropdownMenuItem>
+                  )}
+                  {finalPresentationUrl && (
                     <DropdownMenuItem
                       onClick={() => onVersionSwitch?.('final')}
                       className="cursor-pointer"
@@ -1886,18 +1895,13 @@ export function PresentationViewer({
                         {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
                       </div>
                     </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Download Controls */}
               {downloadControls}
 
-              {/* Slide Counter */}
-              <div className="flex flex-col items-center gap-0.5 px-2">
-                <span className="text-sm font-semibold text-gray-700">{currentSlide} / {totalSlides || '?'}</span>
-                <span className="text-[10px] text-gray-500">Slide</span>
-              </div>
             </div>
           </div>
         )
@@ -2123,15 +2127,15 @@ export function PresentationViewer({
                   ? "bg-indigo-200 hover:bg-indigo-300 border-indigo-400 text-indigo-700"
                   : "bg-indigo-100 hover:bg-indigo-200 border-indigo-300 text-indigo-600"
               )}
-              title={showThumbnails ? "Hide slides" : "Show slides"}
+              title={showThumbnails ? "Hide thumbnails" : "Show thumbnails"}
             >
               {showThumbnails ? (
                 <ChevronRight className="h-2.5 w-2.5" />
               ) : (
                 <ChevronLeft className="h-2.5 w-2.5" />
               )}
-              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
-                Slides
+              <span className="[writing-mode:vertical-rl] rotate-180 text-[8px] font-medium select-none leading-none">
+                Thumbnails
               </span>
             </button>
           </div>
