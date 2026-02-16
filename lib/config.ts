@@ -6,6 +6,7 @@ export const config = {
     wsUrl: process.env.NEXT_PUBLIC_WS_URL || 'wss://api.deckster.xyz/ws',
     uploadUrl: process.env.NEXT_PUBLIC_UPLOAD_URL || '/api/upload',
     timeout: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000', 10),
+    knowledgeServiceUrl: process.env.KNOWLEDGE_SERVICE_URL || 'https://gemini-rag-search.up.railway.app',
   },
 
   // WebSocket Configuration

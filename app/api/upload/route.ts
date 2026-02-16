@@ -1,14 +1,14 @@
 /**
- * File Upload API Route (NEW ARCHITECTURE)
+ * File Upload API Route
  *
- * Handles direct file uploads to Google Gemini File API via Vertex AI.
- * Creates and manages File Search Stores per session.
+ * Handles file uploads via the Knowledge Service (Railway).
+ * The Knowledge Service wraps all Gemini File Search operations.
  *
  * Flow:
  * 1. Authenticate user
  * 2. Validate file and session
- * 3. Get or create File Search Store for session
- * 4. Upload file directly to Gemini
+ * 3. Get or create Knowledge Service session for the chat session
+ * 4. Upload file to Knowledge Service
  * 5. Store metadata in database
  */
 
@@ -16,20 +16,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import { writeFile, unlink } from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
 import {
-  createFileSearchStore,
-  uploadFileToStore,
-  withRetry,
-} from '@/lib/gemini-store-manager';
+  createSession,
+  uploadFile,
+  KnowledgeServiceError,
+} from '@/lib/knowledge-service-client';
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
 export async function POST(req: NextRequest) {
-  let tempPath: string | null = null;
-
   try {
     // 1. Authenticate user
     const session = await getServerSession(authOptions);
@@ -112,24 +107,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 8. Get or create File Search Store for session
+    // 8. Get or create Knowledge Service session
     let storeName = chatSession.geminiStoreName;
     let storeId = chatSession.geminiStoreId;
 
     if (!storeName) {
-      console.log(`[Upload] Creating new File Search Store for session: ${sessionId}`);
+      console.log(`[Upload] Creating Knowledge Service session for: ${sessionId}`);
 
       try {
-        const store = await createFileSearchStore({
-          sessionId,
-          userId: user.id,
-          displayName: `Session_${sessionId.substring(0, 8)}`,
-        });
+        const ksSession = await createSession(
+          user.id,
+          `Session_${sessionId.substring(0, 8)}`
+        );
 
-        storeName = store.storeName;
-        storeId = store.storeId;
+        storeId = ksSession.session_id;
+        storeName = ksSession.store_name;
 
-        // Update session with store info
+        // Update chat session with store info
         await prisma.chatSession.update({
           where: { id: sessionId },
           data: {
@@ -138,32 +132,25 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        console.log(`[Upload] Created File Search Store: ${storeName}`);
+        console.log(`[Upload] Knowledge Service session created: ${storeId} / ${storeName}`);
       } catch (storeError) {
-        console.error('[Upload] Error creating File Search Store:', storeError);
+        console.error('[Upload] Error creating Knowledge Service session:', storeError);
+        const detail = storeError instanceof KnowledgeServiceError
+          ? `${storeError.message} — ${storeError.body}`
+          : storeError instanceof Error ? storeError.message : 'Unknown error';
         return NextResponse.json(
           {
-            error: 'Failed to create File Search Store. Please check your Google Cloud configuration.',
-            details: storeError instanceof Error ? storeError.message : 'Unknown error',
+            error: 'Failed to create file store. Please try again.',
+            details: detail,
           },
           { status: 500 }
         );
       }
     } else {
-      console.log(`[Upload] Using existing File Search Store: ${storeName}`);
+      console.log(`[Upload] Using existing Knowledge Service session: ${storeId}`);
     }
 
-    // 9. Save file temporarily
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    tempPath = join(tmpdir(), `upload_${Date.now()}_${sanitizedFileName}`);
-    await writeFile(tempPath, buffer);
-
-    console.log(`[Upload] Saved temporary file: ${tempPath}`);
-
-    // 10. Create database record in 'uploading' state
+    // 9. Create database record in 'uploading' state
     const uploadedFile = await prisma.uploadedFile.create({
       data: {
         sessionId,
@@ -178,41 +165,25 @@ export async function POST(req: NextRequest) {
     });
 
     try {
-      // 11. Upload to Gemini File Search Store with retry
-      console.log(`[Upload] Uploading file to Gemini: ${file.name}`);
+      // 10. Upload to Knowledge Service
+      console.log(`[Upload] Uploading file via Knowledge Service: ${file.name}`);
 
-      const uploadResult = await withRetry(
-        () =>
-          uploadFileToStore({
-            storeName: storeName!,
-            filePath: tempPath!,
-            displayName: file.name,
-            metadata: {
-              session_id: sessionId,
-              user_id: userId,
-              original_filename: file.name,
-              mime_type: file.type,
-              file_size: file.size.toString(),
-            },
-          }),
-        3, // maxRetries
-        1000 // initial delay
-      );
+      const uploadResult = await uploadFile(storeId!, file, file.name);
 
-      console.log(`[Upload] File uploaded to Gemini:`, uploadResult);
+      console.log(`[Upload] File uploaded via Knowledge Service:`, uploadResult);
 
-      // 12. Update database with successful upload
+      // 11. Update database with successful upload
       const updatedFile = await prisma.uploadedFile.update({
         where: { id: uploadedFile.id },
         data: {
-          geminiFileUri: uploadResult.fileUri,
-          geminiFileName: uploadResult.fileName,
+          geminiFileUri: uploadResult.file_uri,
+          geminiFileName: uploadResult.file_name,
           uploadStatus: 'indexed',
           uploadError: null,
         },
       });
 
-      // 13. Return success response
+      // 12. Return success response
       return NextResponse.json({
         id: updatedFile.id,
         fileName: updatedFile.fileName,
@@ -225,21 +196,25 @@ export async function POST(req: NextRequest) {
         status: 'indexed',
       });
     } catch (uploadError) {
-      console.error('[Upload] Error uploading file to Gemini:', uploadError);
+      console.error('[Upload] Error uploading file via Knowledge Service:', uploadError);
+
+      const detail = uploadError instanceof KnowledgeServiceError
+        ? `${uploadError.message} — ${uploadError.body}`
+        : uploadError instanceof Error ? uploadError.message : 'Upload failed';
 
       // Update database record with error
       await prisma.uploadedFile.update({
         where: { id: uploadedFile.id },
         data: {
           uploadStatus: 'failed',
-          uploadError: uploadError instanceof Error ? uploadError.message : 'Upload failed',
+          uploadError: detail,
         },
       });
 
       return NextResponse.json(
         {
-          error: 'Failed to upload file to Gemini',
-          details: uploadError instanceof Error ? uploadError.message : 'Unknown error',
+          error: 'Failed to upload file',
+          details: detail,
         },
         { status: 500 }
       );
@@ -250,15 +225,5 @@ export async function POST(req: NextRequest) {
       { error: error instanceof Error ? error.message : 'Upload failed' },
       { status: 500 }
     );
-  } finally {
-    // Cleanup temp file
-    if (tempPath) {
-      try {
-        await unlink(tempPath);
-        console.log(`[Upload] Cleaned up temporary file: ${tempPath}`);
-      } catch (cleanupError) {
-        console.warn('[Upload] Failed to cleanup temp file:', cleanupError);
-      }
-    }
   }
 }
