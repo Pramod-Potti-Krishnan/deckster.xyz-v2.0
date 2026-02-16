@@ -9,17 +9,19 @@ import { Menu } from "lucide-react"
 export interface BuilderHeaderProps {
   wsError: any
   onOpenChatHistory: () => void
+  toolbarSlotRef?: (el: HTMLDivElement | null) => void
 }
 
 export function BuilderHeader({
   wsError,
   onOpenChatHistory,
+  toolbarSlotRef,
 }: BuilderHeaderProps) {
   return (
     <>
-      <header className="bg-white border-b h-12 flex-shrink-0">
-        <div className="h-full px-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <header className="bg-gray-50 border-b h-12 flex-shrink-0">
+        <div className="h-full px-4 flex items-center">
+          <div className="flex items-center gap-4 flex-shrink-0">
             {/* Hamburger Menu - Chat History */}
             <Button
               variant="ghost"
@@ -31,7 +33,10 @@ export function BuilderHeader({
             </Button>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* Portal target for presentation toolbar */}
+          <div ref={toolbarSlotRef} className="flex-1 min-w-0 h-full" />
+
+          <div className="flex items-center gap-4 flex-shrink-0">
             <UserProfileMenu />
           </div>
         </div>

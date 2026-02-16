@@ -73,6 +73,7 @@ export interface PresentationAreaProps {
   onToggleContentContextPanel: () => void
   hasGeneratedContent: boolean
   contentContext: ContentContext
+  toolbarPortalTarget?: HTMLDivElement | null
 }
 
 export function PresentationArea({
@@ -105,6 +106,7 @@ export function PresentationArea({
   onToggleContentContextPanel,
   hasGeneratedContent,
   contentContext,
+  toolbarPortalTarget,
 }: PresentationAreaProps) {
   return (
     <div className="flex-1 flex flex-col bg-gray-100">
@@ -167,6 +169,7 @@ export function PresentationArea({
               }
             }
           }}
+          toolbarPortalTarget={toolbarPortalTarget}
           className="flex-1"
         />
       ) : (

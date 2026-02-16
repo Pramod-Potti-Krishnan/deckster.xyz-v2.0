@@ -102,6 +102,9 @@ function BuilderContent() {
   // Current slide tracking
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
 
+  // Portal target for toolbar in header
+  const [toolbarPortalTarget, setToolbarPortalTarget] = useState<HTMLDivElement | null>(null)
+
   // Text Labs Generation Panel
   const generationPanel = useGenerationPanel()
   const blankElements = useBlankElements()
@@ -665,6 +668,7 @@ function BuilderContent() {
         <BuilderHeader
           wsError={wsError}
           onOpenChatHistory={() => setShowChatHistory(true)}
+          toolbarSlotRef={setToolbarPortalTarget}
         />
 
         {/* Main Content Area */}
@@ -1019,6 +1023,7 @@ function BuilderContent() {
             onToggleContentContextPanel={() => setShowContentContextPanel(!showContentContextPanel)}
             hasGeneratedContent={hasGeneratedContent}
             contentContext={contentContext}
+            toolbarPortalTarget={toolbarPortalTarget}
           />
           )}
         </div>

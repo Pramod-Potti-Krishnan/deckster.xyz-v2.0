@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ChevronLeft,
   ChevronRight,
@@ -116,6 +117,8 @@ interface PresentationViewerProps {
   onToggleContentContextPanel?: () => void
   hasGeneratedContent?: boolean
   contentContext?: import('@/components/content-context-form').ContentContext
+  // Portal target for rendering toolbar in the header bar
+  toolbarPortalTarget?: HTMLDivElement | null
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -195,6 +198,7 @@ export function PresentationViewer({
   onApiReady,
   onOpenGenerationPanel,
   onElementMoved,
+  toolbarPortalTarget,
   connected,
   connecting,
   showContentContextPanel,
@@ -1668,233 +1672,262 @@ export function PresentationViewer({
         />
       )}
 
-      {/* Control Toolbar - Keynote-Style Layout */}
-      {showControls && (
-        <div className={`${isFullscreen ? 'absolute top-12 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl border border-gray-200' : ''} flex items-center justify-between px-6 py-2 bg-gray-50 border-b transition-all duration-300 ${
-          isFullscreen && !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
-        }`}>
-          {/* Left Group: Add Slide + Edit */}
-          <div className="flex items-center gap-4">
-            {/* Add Slide */}
-            <SlideLayoutPicker
-              onAddSlide={handleAddSlide}
-              disabled={!presentationUrl}
-            />
+      {/* Control Toolbar - portaled to header (normal) or floating overlay (fullscreen) */}
+      {showControls && (() => {
+        const toolbarContent = (
+          <div className={cn(
+            "flex items-center justify-between w-full",
+            isFullscreen ? "px-6 py-2" : "px-4 h-full"
+          )}>
+            {/* Left Group: Add Slide + Edit */}
+            <div className="flex items-center gap-4">
+              {/* Add Slide */}
+              <SlideLayoutPicker
+                onAddSlide={handleAddSlide}
+                disabled={!presentationUrl}
+              />
 
-            {/* Save/Cancel - only shown when in edit mode (edit mode is entered automatically) */}
-            {isEditMode && (
-              <>
-                <div className="w-px h-10 bg-gray-200" />
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleSaveChanges}
-                    disabled={isSaving}
-                    className="flex flex-col items-center gap-0.5 px-3 py-1 rounded bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
-                    title="Save changes"
-                  >
-                    <Save className="h-5 w-5 text-green-600" />
-                    <span className="text-[10px] text-green-600 font-medium">{isSaving ? 'Saving' : 'Save'}</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Center Group: Insert & Format Tools */}
-          <div className="flex items-center gap-1">
-            {/* Fullscreen / Play */}
-            <button
-              onClick={handleFullscreen}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
-              title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
-            >
-              {isFullscreen ? (
-                <Minimize2 className="h-5 w-5 text-gray-700" />
-              ) : (
-                <Play className="h-5 w-5 text-gray-700" />
+              {/* Save/Cancel - only shown when in edit mode (edit mode is entered automatically) */}
+              {isEditMode && (
+                <>
+                  <div className="w-px h-10 bg-gray-200" />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSaveChanges}
+                      disabled={isSaving}
+                      className="flex flex-col items-center gap-0.5 px-3 py-1 rounded bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
+                      title="Save changes"
+                    >
+                      <Save className="h-5 w-5 text-green-600" />
+                      <span className="text-[10px] text-green-600 font-medium">{isSaving ? 'Saving' : 'Save'}</span>
+                    </button>
+                  </div>
+                </>
               )}
-              <span className="text-[10px] text-gray-500">Play</span>
-            </button>
+            </div>
 
-            <div className="w-px h-10 bg-gray-200 mx-2" />
-
-            {/* Table */}
-            {onOpenGenerationPanel ? (
+            {/* Center Group: Insert & Format Tools */}
+            <div className="flex items-center gap-1">
+              {/* Fullscreen / Play */}
               <button
-                onClick={() => onOpenGenerationPanel('TABLE')}
+                onClick={handleFullscreen}
+                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
+                title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-5 w-5 text-gray-700" />
+                ) : (
+                  <Play className="h-5 w-5 text-gray-700" />
+                )}
+                <span className="text-[10px] text-gray-500">Play</span>
+              </button>
+
+              <div className="w-px h-10 bg-gray-200 mx-2" />
+
+              {/* Table */}
+              {onOpenGenerationPanel ? (
+                <button
+                  onClick={() => onOpenGenerationPanel('TABLE')}
+                  disabled={!presentationUrl}
+                  className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Insert table"
+                >
+                  <Grid2x2 className="h-5 w-5 text-gray-700" />
+                  <span className="text-[10px] text-gray-500">Table</span>
+                </button>
+              ) : (
+                <TableInsertPopover
+                  onInsertTable={handleInsertTable}
+                  disabled={!presentationUrl}
+                />
+              )}
+
+              {/* Metrics */}
+              <button
+                onClick={() => onOpenGenerationPanel?.('METRICS')}
+                disabled={!presentationUrl || !onOpenGenerationPanel}
+                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Insert metrics (KPI cards)"
+              >
+                <TrendingUp className="h-5 w-5 text-gray-700" />
+                <span className="text-[10px] text-gray-500">Metrics</span>
+              </button>
+
+              {/* Chart */}
+              {onOpenGenerationPanel ? (
+                <button
+                  onClick={() => onOpenGenerationPanel('CHART')}
+                  disabled={!presentationUrl}
+                  className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Insert chart"
+                >
+                  <svg className="h-5 w-5 text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
+                  </svg>
+                  <span className="text-[10px] text-gray-500">Chart</span>
+                </button>
+              ) : (
+                <ChartPickerPopover
+                  onInsertChart={handleInsertChart}
+                  disabled={!presentationUrl}
+                />
+              )}
+
+              {/* Text Box */}
+              <button
+                onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('TEXT_BOX') : handleInsertTextBox()}
                 disabled={!presentationUrl}
                 className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Insert table"
+                title="Insert text box"
               >
-                <Grid2x2 className="h-5 w-5 text-gray-700" />
-                <span className="text-[10px] text-gray-500">Table</span>
+                <Type className="h-5 w-5 text-gray-700" />
+                <span className="text-[10px] text-gray-500">Text</span>
               </button>
-            ) : (
-              <TableInsertPopover
-                onInsertTable={handleInsertTable}
-                disabled={!presentationUrl}
-              />
-            )}
 
-            {/* Metrics */}
-            <button
-              onClick={() => onOpenGenerationPanel?.('METRICS')}
-              disabled={!presentationUrl || !onOpenGenerationPanel}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Insert metrics (KPI cards)"
-            >
-              <TrendingUp className="h-5 w-5 text-gray-700" />
-              <span className="text-[10px] text-gray-500">Metrics</span>
-            </button>
-
-            {/* Chart */}
-            {onOpenGenerationPanel ? (
+              {/* Image */}
               <button
-                onClick={() => onOpenGenerationPanel('CHART')}
+                onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('IMAGE') : handleInsertImage()}
                 disabled={!presentationUrl}
                 className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Insert chart"
+                title="Insert image (AI generated)"
               >
-                <svg className="h-5 w-5 text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
-                </svg>
-                <span className="text-[10px] text-gray-500">Chart</span>
+                <Image className="h-5 w-5 text-gray-700" />
+                <span className="text-[10px] text-gray-500">Image</span>
               </button>
-            ) : (
-              <ChartPickerPopover
-                onInsertChart={handleInsertChart}
+
+              {/* Icon/Label */}
+              <button
+                onClick={() => onOpenGenerationPanel?.('ICON_LABEL')}
+                disabled={!presentationUrl || !onOpenGenerationPanel}
+                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Insert icon or label"
+              >
+                <Tag className="h-5 w-5 text-gray-700" />
+                <span className="text-[10px] text-gray-500">Icon</span>
+              </button>
+
+              {/* Shape */}
+              <button
+                onClick={() => onOpenGenerationPanel?.('SHAPE')}
+                disabled={!presentationUrl || !onOpenGenerationPanel}
+                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Insert shape"
+              >
+                <Pentagon className="h-5 w-5 text-gray-700" />
+                <span className="text-[10px] text-gray-500">Shape</span>
+              </button>
+
+              {/* Infographic */}
+              <button
+                onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('INFOGRAPHIC') : handleInsertInfographic()}
                 disabled={!presentationUrl}
-              />
-            )}
+                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Insert infographic"
+              >
+                <LayoutGrid className="h-5 w-5 text-gray-700" />
+                <span className="text-[10px] text-gray-500">Infographic</span>
+              </button>
 
-            {/* Text Box */}
-            <button
-              onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('TEXT_BOX') : handleInsertTextBox()}
-              disabled={!presentationUrl}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Insert text box"
-            >
-              <Type className="h-5 w-5 text-gray-700" />
-              <span className="text-[10px] text-gray-500">Text</span>
-            </button>
+              {/* Diagram */}
+              <button
+                onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('DIAGRAM') : handleInsertDiagram()}
+                disabled={!presentationUrl}
+                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Insert diagram (Mermaid)"
+              >
+                <GitBranch className="h-5 w-5 text-gray-700" />
+                <span className="text-[10px] text-gray-500">Diagram</span>
+              </button>
+            </div>
 
-            {/* Image */}
-            <button
-              onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('IMAGE') : handleInsertImage()}
-              disabled={!presentationUrl}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Insert image (AI generated)"
-            >
-              <Image className="h-5 w-5 text-gray-700" />
-              <span className="text-[10px] text-gray-500">Image</span>
-            </button>
+            {/* Right Group: Version History + Version + Status + Download + Counter */}
+            <div className="flex items-center gap-3">
+              {/* Version History */}
+              <button
+                onClick={() => setShowVersionHistory(true)}
+                disabled={!presentationUrl}
+                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Version history"
+              >
+                <History className="h-5 w-5 text-gray-700" />
+                <span className="text-[10px] text-gray-500">History</span>
+              </button>
 
-            {/* Icon/Label */}
-            <button
-              onClick={() => onOpenGenerationPanel?.('ICON_LABEL')}
-              disabled={!presentationUrl || !onOpenGenerationPanel}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Insert icon or label"
-            >
-              <Tag className="h-5 w-5 text-gray-700" />
-              <span className="text-[10px] text-gray-500">Icon</span>
-            </button>
+              {/* Version Dropdown */}
+              {strawmanPreviewUrl && finalPresentationUrl && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
+                      title="Switch version"
+                    >
+                      <Layers className="h-5 w-5 text-gray-700" />
+                      <span className="text-[10px] text-gray-500">
+                        {activeVersion === 'final' ? 'Final' : 'Strawman'}
+                      </span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem
+                      onClick={() => onVersionSwitch?.('strawman')}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>Strawman</span>
+                        {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onVersionSwitch?.('final')}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>Final</span>
+                        {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
 
-            {/* Shape */}
-            <button
-              onClick={() => onOpenGenerationPanel?.('SHAPE')}
-              disabled={!presentationUrl || !onOpenGenerationPanel}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Insert shape"
-            >
-              <Pentagon className="h-5 w-5 text-gray-700" />
-              <span className="text-[10px] text-gray-500">Shape</span>
-            </button>
+              {/* Download Controls */}
+              {downloadControls}
 
-            {/* Infographic */}
-            <button
-              onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('INFOGRAPHIC') : handleInsertInfographic()}
-              disabled={!presentationUrl}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Insert infographic"
-            >
-              <LayoutGrid className="h-5 w-5 text-gray-700" />
-              <span className="text-[10px] text-gray-500">Infographic</span>
-            </button>
-
-            {/* Diagram */}
-            <button
-              onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('DIAGRAM') : handleInsertDiagram()}
-              disabled={!presentationUrl}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Insert diagram (Mermaid)"
-            >
-              <GitBranch className="h-5 w-5 text-gray-700" />
-              <span className="text-[10px] text-gray-500">Diagram</span>
-            </button>
-          </div>
-
-          {/* Right Group: Version History + Version + Status + Download + Counter */}
-          <div className="flex items-center gap-3">
-            {/* Version History */}
-            <button
-              onClick={() => setShowVersionHistory(true)}
-              disabled={!presentationUrl}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Version history"
-            >
-              <History className="h-5 w-5 text-gray-700" />
-              <span className="text-[10px] text-gray-500">History</span>
-            </button>
-
-            {/* Version Dropdown */}
-            {strawmanPreviewUrl && finalPresentationUrl && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
-                    title="Switch version"
-                  >
-                    <Layers className="h-5 w-5 text-gray-700" />
-                    <span className="text-[10px] text-gray-500">
-                      {activeVersion === 'final' ? 'Final' : 'Strawman'}
-                    </span>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem
-                    onClick={() => onVersionSwitch?.('strawman')}
-                    className="cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span>Strawman</span>
-                      {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onVersionSwitch?.('final')}
-                    className="cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span>Final</span>
-                      {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-
-            {/* Download Controls */}
-            {downloadControls}
-
-            {/* Slide Counter */}
-            <div className="flex flex-col items-center gap-0.5 px-2">
-              <span className="text-sm font-semibold text-gray-700">{currentSlide} / {totalSlides || '?'}</span>
-              <span className="text-[10px] text-gray-500">Slide</span>
+              {/* Slide Counter */}
+              <div className="flex flex-col items-center gap-0.5 px-2">
+                <span className="text-sm font-semibold text-gray-700">{currentSlide} / {totalSlides || '?'}</span>
+                <span className="text-[10px] text-gray-500">Slide</span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+
+        return (
+          <>
+            {/* Fullscreen: inline floating overlay with auto-hide */}
+            {isFullscreen && (
+              <div className={`absolute top-12 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl border border-gray-200 bg-gray-50 transition-all duration-300 ${
+                !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
+              }`}>
+                {toolbarContent}
+              </div>
+            )}
+
+            {/* Normal: portal to header slot */}
+            {!isFullscreen && toolbarPortalTarget && createPortal(
+              toolbarContent,
+              toolbarPortalTarget
+            )}
+
+            {/* Fallback: inline if no portal target */}
+            {!isFullscreen && !toolbarPortalTarget && (
+              <div className="flex items-center justify-between px-6 py-2 bg-gray-50 border-b">
+                {toolbarContent}
+              </div>
+            )}
+          </>
+        )
+      })()}
 
       {/* Main Content Area - Flex container for slide and thumbnails */}
       <div className={`flex-1 flex min-h-0 ${isFullscreen ? 'bg-black' : ''}`}>
