@@ -1,12 +1,10 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 interface SlideBuildingLoaderProps {
-  statusText?: string
-  estimatedTime?: number
   className?: string
   mode?: 'default' | 'strawman'
 }
@@ -14,13 +12,37 @@ interface SlideBuildingLoaderProps {
 type LayoutType = 'text-heavy' | 'visual-heavy' | 'data-focused'
 
 export function SlideBuildingLoader({
-  statusText = "Building your presentation...",
-  estimatedTime,
   className = '',
   mode = 'default'
 }: SlideBuildingLoaderProps) {
   const [currentLayout, setCurrentLayout] = useState<LayoutType>('text-heavy')
   const [isRebuilding, setIsRebuilding] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [slideSize, setSlideSize] = useState<{ width: number; height: number } | null>(null)
+
+  // Calculate optimal 16:9 dimensions that fit within available parent space
+  const calculateSize = useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+    const { width, height } = container.getBoundingClientRect()
+    // Subtract padding (p-4 = 16px each side, matching presentation-viewer)
+    const pw = width - 32, ph = height - 32
+    if (pw <= 0 || ph <= 0) return
+    const ratio = 16 / 9
+    let w = pw, h = w / ratio
+    if (h > ph) { h = ph; w = h * ratio }
+    setSlideSize({ width: w, height: h })
+  }, [])
+
+  // ResizeObserver to track parent size changes
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    calculateSize()
+    const ro = new ResizeObserver(() => calculateSize())
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [calculateSize])
 
   // Cycle layouts (only for default mode)
   useEffect(() => {
@@ -42,9 +64,12 @@ export function SlideBuildingLoader({
   }, [mode])
 
   return (
-    <div className={cn("flex flex-col items-center justify-center gap-8", className)}>
+    <div ref={containerRef} className={cn("flex items-center justify-center", className)}>
       {/* Container */}
-      <div className="relative w-full max-w-3xl aspect-video">
+      <div
+        className="relative"
+        style={slideSize ? { width: slideSize.width, height: slideSize.height } : { width: '100%', aspectRatio: '16/9', maxWidth: '768px' }}
+      >
         {/* 1. Glassmorphism Background & Border Container */}
         <div className="absolute inset-0 rounded-xl overflow-hidden bg-gradient-to-br from-white/40 to-white/10 dark:from-black/40 dark:to-black/10 backdrop-blur-md border border-white/20 shadow-2xl">
           {/* Animated Grid Background */}
@@ -109,19 +134,6 @@ export function SlideBuildingLoader({
         </div>
       </div>
 
-      {/* Status Text */}
-      <div className="text-center space-y-2">
-        <motion.p
-          className="text-lg font-medium bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-600"
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          {statusText}
-        </motion.p>
-        {estimatedTime && (
-          <p className="text-sm text-muted-foreground">~{estimatedTime}s remaining</p>
-        )}
-      </div>
     </div>
   )
 }

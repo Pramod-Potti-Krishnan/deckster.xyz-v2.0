@@ -173,18 +173,10 @@ export function PresentationArea({
           className="flex-1"
         />
       ) : (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center min-h-0 p-4">
           {(currentStatus || isGeneratingFinal || isGeneratingStrawman) ? (
             <SlideBuildingLoader
-              statusText={
-                isGeneratingFinal
-                  ? "Generating your final presentation..."
-                  : isGeneratingStrawman
-                  ? "Building your strawman presentation..."
-                  : currentStatus?.text
-              }
-              estimatedTime={currentStatus?.estimated_time ?? undefined}
-              className="w-full px-8"
+              className="w-full h-full"
               mode={isGeneratingFinal ? 'default' : 'strawman'}
             />
           ) : (
