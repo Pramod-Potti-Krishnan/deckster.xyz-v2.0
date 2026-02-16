@@ -109,7 +109,7 @@ export function PresentationArea({
   toolbarPortalTarget,
 }: PresentationAreaProps) {
   return (
-    <div className="flex-1 flex flex-col bg-gray-100">
+    <div className="flex-1 flex flex-col bg-gray-100 min-w-0">
       {presentationUrl && !isGeneratingFinal ? (
         <PresentationViewer
           presentationUrl={presentationUrl}

@@ -34,7 +34,7 @@ export function BuilderHeader({
           </div>
 
           {/* Portal target for presentation toolbar */}
-          <div ref={toolbarSlotRef} className="flex-1 min-w-0 h-full" />
+          <div ref={toolbarSlotRef} className="flex-1 min-w-0 h-full overflow-hidden" />
 
           <div className="flex items-center gap-4 flex-shrink-0">
             <UserProfileMenu />

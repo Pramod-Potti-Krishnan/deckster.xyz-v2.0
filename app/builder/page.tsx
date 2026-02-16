@@ -662,7 +662,7 @@ function BuilderContent() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-50">
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-full">
+      <div className="flex-1 flex flex-col h-full min-w-0">
         {/* Header */}
         <BuilderHeader
           wsError={wsError}
