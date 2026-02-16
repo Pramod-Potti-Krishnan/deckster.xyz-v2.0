@@ -80,10 +80,10 @@ export function SessionListItem({
     <>
       <div
         className={`
-          relative w-full p-4 rounded-lg transition-all group
+          relative w-full px-3 py-2 rounded-md transition-all group
           ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500' :
-            isActive ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500' :
-            'border-l-4 border-transparent hover:bg-gray-100 dark:hover:bg-gray-800'}
+            isActive ? 'bg-blue-50 dark:bg-blue-900/20 border-l-3 border-blue-500' :
+            'border-l-3 border-transparent hover:bg-gray-100 dark:hover:bg-gray-800'}
         `}
       >
         <div className="flex items-start gap-3">
@@ -104,8 +104,8 @@ export function SessionListItem({
             className="flex-1 text-left"
           >
         {/* Title */}
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="font-semibold text-sm line-clamp-1 flex-1">
+        <div className="flex items-start justify-between gap-2 mb-0.5">
+          <h3 className="font-medium text-xs text-gray-900 line-clamp-1 flex-1">
             {session.title || 'Untitled Session'}
           </h3>
           <div className="flex items-center gap-1">
@@ -117,15 +117,15 @@ export function SessionListItem({
 
         {/* Last message preview */}
         {lastMessagePreview && (
-          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-2 mb-1">
             {lastMessagePreview}...
           </p>
         )}
 
         {/* Footer: Stage + Timestamp */}
-        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex items-center justify-between text-[10px] text-gray-400 dark:text-gray-500">
           <span className="inline-flex items-center gap-1">
-            <span className={`w-2 h-2 rounded-full ${getStageColor(session.currentStage)}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${getStageColor(session.currentStage)}`} />
             {stageLabel}
           </span>
           <span>{timeAgo}</span>
@@ -143,7 +143,7 @@ export function SessionListItem({
                 border border-gray-200 dark:border-gray-700"
               title="Delete session"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-3 h-3" />
             </button>
           )}
         </div>
