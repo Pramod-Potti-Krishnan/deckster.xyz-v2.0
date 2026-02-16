@@ -22,6 +22,7 @@ import { ElementType, ElementProperties } from '@/types/elements'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
+import { iframeTypeToTextLabs, isTextLabsMappable } from '@/lib/element-type-mapping'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
 import {
@@ -810,6 +811,9 @@ function BuilderContent() {
                 error={generationPanel.error}
                 slideIndex={currentSlideIndex}
                 elementContext={blankElements.activePosition}
+                mode={generationPanel.mode}
+                regenerateEnabled={generationPanel.regenerateEnabled}
+                onRegenerateToggle={generationPanel.setRegenerateEnabled}
               />
             )}
 
@@ -974,28 +978,49 @@ function BuilderContent() {
             isGeneratingStrawman={isGeneratingStrawman}
             onApiReady={setLayoutServiceApis}
             onTextBoxSelected={(elementId, formatting) => {
-              setSelectedTextBoxId(elementId)
-              setSelectedTextBoxFormatting(formatting)
-              setShowTextBoxPanel(true)
-              setShowElementPanel(false)
-              setShowFormatPanel(false)
+              if (features.useTextLabsGeneration) {
+                generationPanel.openPanelForEdit('TEXT_BOX', elementId)
+                setShowTextBoxPanel(false)
+                setShowElementPanel(false)
+                setShowFormatPanel(false)
+              } else {
+                setSelectedTextBoxId(elementId)
+                setSelectedTextBoxFormatting(formatting)
+                setShowTextBoxPanel(true)
+                setShowElementPanel(false)
+                setShowFormatPanel(false)
+              }
             }}
             onTextBoxDeselected={() => {
               setSelectedTextBoxId(null)
               setSelectedTextBoxFormatting(null)
+              if (generationPanel.mode === 'edit') {
+                generationPanel.closePanel()
+              }
             }}
             onElementSelected={(elementId, elementType, properties) => {
-              setSelectedElementId(elementId)
-              setSelectedElementType(elementType)
-              setSelectedElementProperties(properties)
-              setShowElementPanel(true)
-              setShowTextBoxPanel(false)
-              setShowFormatPanel(false)
+              if (features.useTextLabsGeneration && isTextLabsMappable(elementType)) {
+                const mappedType = iframeTypeToTextLabs(elementType)!
+                generationPanel.openPanelForEdit(mappedType, elementId)
+                setShowElementPanel(false)
+                setShowTextBoxPanel(false)
+                setShowFormatPanel(false)
+              } else {
+                setSelectedElementId(elementId)
+                setSelectedElementType(elementType)
+                setSelectedElementProperties(properties)
+                setShowElementPanel(true)
+                setShowTextBoxPanel(false)
+                setShowFormatPanel(false)
+              }
             }}
             onElementDeselected={() => {
               setSelectedElementId(null)
               setSelectedElementType(null)
               setSelectedElementProperties(null)
+              if (generationPanel.mode === 'edit') {
+                generationPanel.closePanel()
+              }
             }}
             blankElements={blankElements}
             generationPanel={generationPanel}

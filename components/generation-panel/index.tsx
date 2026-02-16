@@ -27,6 +27,9 @@ export function GenerationPanel({
   error,
   slideIndex,
   elementContext,
+  mode,
+  regenerateEnabled,
+  onRegenerateToggle,
 }: GenerationPanelProps) {
   // Form registers its submit function here
   const submitFnRef = useRef<(() => void) | null>(null)
@@ -57,6 +60,17 @@ export function GenerationPanel({
     setPrompt('')
   }, [elementType])
 
+  // Force showAdvanced=true when entering edit mode
+  useEffect(() => {
+    if (mode === 'edit') {
+      setShowAdvanced(true)
+    }
+  }, [mode])
+
+  // Visibility logic
+  const showGenerationInput = mode === 'generate' || regenerateEnabled
+  const showFormBody = mode === 'edit' || showAdvanced
+
   // Keyboard shortcuts: Escape to close, Cmd/Ctrl+Enter to generate
   useEffect(() => {
     if (!isOpen) return
@@ -66,7 +80,7 @@ export function GenerationPanel({
         e.preventDefault()
         onClose()
       }
-      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !isGenerating) {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !isGenerating && showGenerationInput) {
         e.preventDefault()
         submitFnRef.current?.()
       }
@@ -74,7 +88,7 @@ export function GenerationPanel({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, isGenerating, onClose])
+  }, [isOpen, isGenerating, onClose, showGenerationInput])
 
   return (
     <div className="absolute inset-0 z-20 flex pointer-events-none">
@@ -89,7 +103,10 @@ export function GenerationPanel({
         <GenerationPanelHeader
           elementType={elementType}
           onClose={onClose}
-          onElementTypeChange={onElementTypeChange}
+          onElementTypeChange={mode === 'edit' ? undefined : onElementTypeChange}
+          mode={mode}
+          regenerateEnabled={regenerateEnabled}
+          onRegenerateToggle={onRegenerateToggle}
         />
 
         {/* Canvas position indicator */}
@@ -100,20 +117,22 @@ export function GenerationPanel({
           </div>
         )}
 
-        {/* Chat-style generation input */}
-        <GenerationInput
-          prompt={prompt}
-          onPromptChange={setPrompt}
-          mandatoryConfig={mandatoryConfigRef.current}
-          showAdvanced={showAdvanced}
-          onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
-          onSubmit={handleFooterGenerate}
-          isGenerating={isGenerating}
-          error={error}
-        />
+        {/* Chat-style generation input — hidden in edit mode when regenerate is OFF */}
+        {showGenerationInput && (
+          <GenerationInput
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            mandatoryConfig={mandatoryConfigRef.current}
+            showAdvanced={showAdvanced}
+            onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
+            onSubmit={handleFooterGenerate}
+            isGenerating={isGenerating}
+            error={error}
+          />
+        )}
 
-        {/* Scrollable form area — hidden (not unmounted) when advanced is off */}
-        <div className={`flex-1 overflow-y-auto px-3 py-3 ${!showAdvanced ? 'hidden' : ''}`}>
+        {/* Scrollable form area — always visible in edit mode, toggled by advanced in generate mode */}
+        <div className={`flex-1 overflow-y-auto px-3 py-3 ${!showFormBody ? 'hidden' : ''}`}>
           <FormRouter
             elementType={elementType}
             onSubmit={onGenerate}

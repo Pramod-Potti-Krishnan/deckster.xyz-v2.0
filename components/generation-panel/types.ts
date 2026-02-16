@@ -19,6 +19,9 @@ export interface GenerationPanelProps {
   error: string | null
   slideIndex: number
   elementContext?: ElementContext | null
+  mode: 'generate' | 'edit'
+  regenerateEnabled: boolean
+  onRegenerateToggle: (enabled: boolean) => void
 }
 
 export interface ElementFormProps {
