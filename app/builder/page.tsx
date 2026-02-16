@@ -123,6 +123,7 @@ function BuilderContent() {
   const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel
   const isSlideDrawerOpen = showFormatPanel || showContentContextPanel
   const isDeckDrawerOpen = showChat
+  const anyDrawerOpen = isElementDrawerOpen || isSlideDrawerOpen || isDeckDrawerOpen
 
   // FIXED: Track when generating final/strawman presentations
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
@@ -690,6 +691,7 @@ function BuilderContent() {
             style={{
               transform: isElementDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
               zIndex: isElementDrawerOpen ? 10 + panelZIndices.element : 60,
+              pointerEvents: isElementDrawerOpen ? 'auto' : 'none',
             }}
           >
             {/* Panel area */}
@@ -807,7 +809,7 @@ function BuilderContent() {
                   "absolute top-[33%] -translate-y-1/2 left-96",
                   "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                   "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
-                  "transition-colors",
+                  "transition-colors pointer-events-auto",
                   generationPanel.isOpen
                     ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
                     : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
@@ -832,6 +834,7 @@ function BuilderContent() {
             style={{
               transform: isSlideDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
               zIndex: isSlideDrawerOpen ? 10 + panelZIndices.slide : 60,
+              pointerEvents: isSlideDrawerOpen ? 'auto' : 'none',
             }}
           >
             {/* Panel area */}
@@ -887,7 +890,7 @@ function BuilderContent() {
                 "absolute top-[45%] -translate-y-1/2 left-96",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
-                "transition-colors",
+                "transition-colors pointer-events-auto",
                 showFormatPanel
                   ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700"
                   : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600"
@@ -911,6 +914,7 @@ function BuilderContent() {
             style={{
               transform: isDeckDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
               zIndex: isDeckDrawerOpen ? 10 + panelZIndices.deck : 60,
+              pointerEvents: isDeckDrawerOpen ? 'auto' : 'none',
             }}
           >
             {/* Panel area */}
@@ -973,7 +977,7 @@ function BuilderContent() {
                 "absolute top-[57%] -translate-y-1/2 left-96",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
-                "transition-colors",
+                "transition-colors pointer-events-auto",
                 showChat
                   ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
                   : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
@@ -991,9 +995,13 @@ function BuilderContent() {
             </button>
           </div>
 
-          {/* Presentation fills the area, drawers overlay left edge */}
+          {/* Presentation fills the area, shifts right when any drawer is open */}
+          <div
+            className="flex-1 min-w-0 transition-[margin] duration-300 ease-out"
+            style={{ marginLeft: anyDrawerOpen ? 400 : 0 }}
+          >
           {session.isLoadingSession ? (
-            <div className="flex-1 flex items-center justify-center bg-gray-100">
+            <div className="flex-1 flex items-center justify-center bg-gray-100 h-full">
               <div className="text-center">
                 <div className="h-8 w-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-sm text-gray-500">Loading session...</p>
@@ -1079,6 +1087,7 @@ function BuilderContent() {
             toolbarPortalTarget={toolbarPortalTarget}
           />
           )}
+          </div>
         </div>
       </div>
 
