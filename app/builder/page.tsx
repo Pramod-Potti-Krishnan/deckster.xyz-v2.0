@@ -14,8 +14,7 @@ import { useFileUpload } from '@/hooks/use-file-upload'
 import { features } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { FormatPanel } from '@/components/format-panel'
-import { SlideLayoutId } from '@/components/slide-layout-picker'
+import { SlideGenerationPanel } from '@/components/slide-generation-panel'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
@@ -89,7 +88,7 @@ function BuilderContent() {
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
   } | null>(null)
-  const [isAIRegenerating, setIsAIRegenerating] = useState(false)
+
 
   // Content context for presentation generation
   const [contentContext, setContentContext] = useState<ContentContext>(DEFAULT_CONTENT_CONTEXT)
@@ -711,27 +710,11 @@ function BuilderContent() {
               </div>
             )}
 
-            {/* Format Panel - Overlays chat when open */}
-            <FormatPanel
+            {/* Slide Generation Panel - Overlays chat when open */}
+            <SlideGenerationPanel
               isOpen={showFormatPanel}
               onClose={() => setShowFormatPanel(false)}
               currentSlide={currentSlideIndex + 1}
-              onLayoutChange={async (layout: SlideLayoutId) => {
-                console.log('Layout change requested:', layout)
-              }}
-              onGetSelectionInfo={layoutServiceApis?.getSelectionInfo}
-              onUpdateSectionContent={layoutServiceApis?.updateSectionContent}
-              onAIRegenerate={async (instruction, sectionId, currentContent) => {
-                setIsAIRegenerating(true)
-                try {
-                  console.log('🤖 AI Regenerate request:', { instruction, sectionId, currentContent })
-                  const modifiedContent = `<p>${instruction}: ${currentContent}</p>`
-                  return modifiedContent
-                } finally {
-                  setIsAIRegenerating(false)
-                }
-              }}
-              isRegenerating={isAIRegenerating}
             />
 
             {/* Text Box Format Panel */}
