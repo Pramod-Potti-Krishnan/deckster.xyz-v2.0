@@ -1524,8 +1524,8 @@ export function PresentationViewer({
 
     const calculate = () => {
       const { width, height } = container.getBoundingClientRect()
-      // Subtract padding (p-8 = 32px each side)
-      const pw = width - 64, ph = height - 64
+      // Subtract padding (p-4 = 16px each side)
+      const pw = width - 32, ph = height - 32
       if (pw <= 0 || ph <= 0) return
       const ratio = 16 / 9
       let w = pw, h = w / ratio
@@ -1948,7 +1948,7 @@ export function PresentationViewer({
           {/* Presentation Iframe */}
           <div
             ref={slideContainerRef}
-            className={`flex-1 min-h-0 relative flex items-center justify-center overflow-hidden ${isFullscreen ? 'bg-black' : 'bg-gray-800 p-8'}`}
+            className={`flex-1 min-h-0 relative flex items-center justify-center overflow-hidden ${isFullscreen ? 'bg-black' : 'bg-gray-800 p-4'}`}
           >
             {presentationUrl ? (
               <div
