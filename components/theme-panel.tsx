@@ -327,7 +327,7 @@ function ColorSection({
           ) : (
             <ChevronRight className="h-4 w-4 text-gray-500" />
           )}
-          <span className="text-sm font-medium text-gray-700">{title}</span>
+          <span className="text-xs font-medium text-gray-700">{title}</span>
           {hasOverrides && (
             <span className="w-2 h-2 rounded-full bg-blue-500" title="Has customizations" />
           )}
@@ -357,7 +357,7 @@ function ColorSection({
             return (
               <div key={key} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm text-gray-600">
+                  <Label className="text-xs text-gray-600">
                     {COLOR_LABELS[colorKey]}
                   </Label>
                   {isOverridden && (
@@ -632,8 +632,8 @@ export function ThemePanel({
   return (
     <div className="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
-        <h2 className="text-sm font-semibold text-gray-900">Presentation Theme</h2>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
+        <h2 className="text-xs font-semibold text-gray-900">Theme</h2>
         <button
           onClick={handleCancel}
           className="p-1.5 rounded-md hover:bg-gray-200 transition-colors"
@@ -644,37 +644,37 @@ export function ThemePanel({
       </div>
 
       {/* Mode Toggle */}
-      <div className="px-4 py-3 border-b border-gray-200">
-        <div className="flex rounded-lg bg-gray-100 p-1">
+      <div className="px-3 py-2 border-b border-gray-200">
+        <div className="flex rounded-lg bg-gray-100 p-0.5">
           <button
             onClick={() => setThemeMode('preset')}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+              "flex-1 flex items-center justify-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-all",
               themeMode === 'preset'
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-600 hover:text-gray-900"
             )}
           >
-            <Palette className="h-4 w-4" />
+            <Palette className="h-3 w-3" />
             Preset Themes
           </button>
           <button
             onClick={() => setThemeMode('custom')}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+              "flex-1 flex items-center justify-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-all",
               themeMode === 'custom'
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-600 hover:text-gray-900"
             )}
           >
-            <Wand2 className="h-4 w-4" />
+            <Wand2 className="h-3 w-3" />
             Build Custom
           </button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
@@ -683,11 +683,11 @@ export function ThemePanel({
           /* ============ PRESET THEMES MODE ============ */
           <>
             {/* Theme Selection Grid */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div className="space-y-2">
+              <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                 Select Theme
               </h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 {THEME_IDS.map((themeId) => {
                   const theme = THEME_PREVIEWS[themeId]
                   const isSelected = selectedTheme === themeId
@@ -697,7 +697,7 @@ export function ThemePanel({
                       key={themeId}
                       onClick={() => handleSelectTheme(themeId)}
                       className={cn(
-                        "relative p-3 rounded-lg border-2 transition-all text-left",
+                        "relative p-2.5 rounded-lg border-2 transition-all text-left",
                         isSelected
                           ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
                           : "border-gray-200 hover:border-gray-300 bg-white"
@@ -719,7 +719,7 @@ export function ThemePanel({
                       </div>
 
                       {/* Theme name */}
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-[11px] font-medium text-gray-900">
                         {theme.name}
                       </div>
 
@@ -739,9 +739,9 @@ export function ThemePanel({
             <div className="border-t border-gray-200" />
 
             {/* Quick Color Customization */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                   Quick Customize
                 </h3>
                 {totalOverrides > 0 && (
@@ -755,14 +755,14 @@ export function ThemePanel({
                 )}
               </div>
 
-              <p className="text-xs text-gray-500">
+              <p className="text-[10px] text-gray-500">
                 Quickly adjust the main colors. Switch to "Build Custom" for full control.
               </p>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {/* Primary Color */}
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm text-gray-700">Primary</Label>
+                  <Label className="text-xs text-gray-600">Primary</Label>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400 font-mono">
                       {currentColors.primary}
@@ -776,7 +776,7 @@ export function ThemePanel({
 
                 {/* Accent Color */}
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm text-gray-700">Accent</Label>
+                  <Label className="text-xs text-gray-600">Accent</Label>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400 font-mono">
                       {currentColors.accent}
@@ -791,9 +791,9 @@ export function ThemePanel({
             </div>
 
             {/* Theme Description */}
-            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-              <div className="text-xs text-gray-500 mb-1">Current theme:</div>
-              <div className="text-sm font-medium text-gray-800">
+            <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
+              <div className="text-[10px] text-gray-500 mb-0.5">Current theme:</div>
+              <div className="text-xs font-medium text-gray-800">
                 {THEME_PREVIEWS[selectedTheme]?.name}
                 {totalOverrides > 0 && (
                   <span className="text-xs text-blue-600 ml-2">
@@ -801,7 +801,7 @@ export function ThemePanel({
                   </span>
                 )}
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-[10px] text-gray-500 mt-0.5">
                 {THEME_PREVIEWS[selectedTheme]?.description}
               </div>
             </div>
@@ -810,17 +810,17 @@ export function ThemePanel({
           /* ============ BUILD CUSTOM MODE ============ */
           <>
             {/* Base Theme Selector */}
-            <div className="space-y-2">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div className="space-y-1.5">
+              <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
                 Base Theme
               </h3>
-              <p className="text-xs text-gray-500">
+              <p className="text-[10px] text-gray-500">
                 Start from a preset theme and customize all colors below.
               </p>
               <select
                 value={selectedTheme}
                 onChange={(e) => handleSelectTheme(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 {THEME_IDS.map((themeId) => (
                   <option key={themeId} value={themeId}>
@@ -844,7 +844,7 @@ export function ThemePanel({
             )}
 
             {/* Color Sections */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               {/* Brand Colors */}
               <ColorSection
                 title={COLOR_GROUPS.brand.label}
@@ -914,9 +914,9 @@ export function ThemePanel({
             </div>
 
             {/* Summary */}
-            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-              <div className="text-xs text-gray-500 mb-1">Building from:</div>
-              <div className="text-sm font-medium text-gray-800">
+            <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
+              <div className="text-[10px] text-gray-500 mb-0.5">Building from:</div>
+              <div className="text-xs font-medium text-gray-800">
                 {THEME_PREVIEWS[selectedTheme]?.name}
               </div>
               {totalOverrides > 0 && (
@@ -930,20 +930,20 @@ export function ThemePanel({
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+      <div className="px-3 py-2 border-t border-gray-200 bg-gray-50">
         <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={handleCancel}
             disabled={isSaving}
-            className="flex-1"
+            className="flex-1 h-7 text-[11px]"
           >
             Cancel
           </Button>
           <Button
             onClick={handleSave}
             disabled={isSaving || !hasChanges}
-            className="flex-1"
+            className="flex-1 h-7 text-[11px]"
           >
             {isSaving ? (
               <>

@@ -463,8 +463,8 @@ export function PresentationSettingsPanel({
   return (
     <div className="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
-        <h2 className="text-sm font-semibold text-gray-900">Presentation Settings</h2>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
+        <h2 className="text-xs font-semibold text-gray-900">Master</h2>
         <button
           onClick={onClose}
           className="p-1.5 rounded-md hover:bg-gray-200 transition-colors"
@@ -475,7 +475,7 @@ export function PresentationSettingsPanel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
@@ -483,14 +483,14 @@ export function PresentationSettingsPanel({
         ) : (
           <>
             {/* Footer Section */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Footer</h3>
+                <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Footer</h3>
               </div>
 
               {/* Template Input */}
-              <div className="space-y-2">
-                <Label htmlFor="footer-template" className="text-xs text-gray-600">
+              <div className="space-y-1.5">
+                <Label htmlFor="footer-template" className="text-[10px] text-gray-600">
                   Template
                 </Label>
                 <Input
@@ -501,7 +501,7 @@ export function PresentationSettingsPanel({
                     handleInputChange()
                   }}
                   placeholder="{title} | Page {page} of {total}"
-                  className="text-sm"
+                  className="h-7 text-[11px]"
                 />
 
                 {/* Quick templates */}
@@ -523,18 +523,18 @@ export function PresentationSettingsPanel({
 
               {/* Preview */}
               {previewText && (
-                <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                  <div className="text-xs text-gray-500 mb-1">Preview:</div>
-                  <div className="text-sm text-gray-800 font-medium">{previewText}</div>
+                <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
+                  <div className="text-[10px] text-gray-500 mb-0.5">Preview:</div>
+                  <div className="text-xs text-gray-800 font-medium">{previewText}</div>
                 </div>
               )}
 
               {/* Variables */}
-              <div className="space-y-3 pt-2">
-                <div className="text-xs font-medium text-gray-500">Variables</div>
+              <div className="space-y-2 pt-1">
+                <div className="text-[10px] font-medium text-gray-500">Variables</div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="footer-title" className="text-xs text-gray-600">
+                <div className="space-y-1.5">
+                  <Label htmlFor="footer-title" className="text-[10px] text-gray-600">
                     Title <span className="text-gray-400">{'{title}'}</span>
                   </Label>
                   <Input
@@ -545,12 +545,12 @@ export function PresentationSettingsPanel({
                       handleInputChange()
                     }}
                     placeholder="Presentation title"
-                    className="text-sm"
+                    className="h-7 text-[11px]"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="footer-date" className="text-xs text-gray-600">
+                <div className="space-y-1.5">
+                  <Label htmlFor="footer-date" className="text-[10px] text-gray-600">
                     Date <span className="text-gray-400">{'{date}'}</span>
                   </Label>
                   <Input
@@ -561,12 +561,12 @@ export function PresentationSettingsPanel({
                       handleInputChange()
                     }}
                     placeholder="December 2024"
-                    className="text-sm"
+                    className="h-7 text-[11px]"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="footer-author" className="text-xs text-gray-600">
+                <div className="space-y-1.5">
+                  <Label htmlFor="footer-author" className="text-[10px] text-gray-600">
                     Author <span className="text-gray-400">{'{author}'}</span>
                   </Label>
                   <Input
@@ -577,7 +577,7 @@ export function PresentationSettingsPanel({
                       handleInputChange()
                     }}
                     placeholder="Author name"
-                    className="text-sm"
+                    className="h-7 text-[11px]"
                   />
                 </div>
               </div>
@@ -587,8 +587,8 @@ export function PresentationSettingsPanel({
             <div className="border-t border-gray-200" />
 
             {/* Logo Section */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Logo</h3>
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Logo</h3>
 
               {/* Logo Preview */}
               {logoUrl ? (
@@ -604,7 +604,7 @@ export function PresentationSettingsPanel({
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-700 truncate">
+                    <div className="text-xs font-medium text-gray-700 truncate">
                       {logoFileName || 'Logo'}
                     </div>
                     <button
@@ -617,10 +617,10 @@ export function PresentationSettingsPanel({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                <div className="flex items-center justify-center p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
                   <div className="text-center">
-                    <ImageIcon className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                    <div className="text-sm text-gray-500">No logo configured</div>
+                    <ImageIcon className="h-6 w-6 text-gray-300 mx-auto mb-1.5" />
+                    <div className="text-[11px] text-gray-500">No logo configured</div>
                   </div>
                 </div>
               )}
@@ -631,18 +631,18 @@ export function PresentationSettingsPanel({
                   variant="outline"
                   size="sm"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex-1"
+                  className="flex-1 h-7 text-[11px]"
                 >
-                  <Upload className="h-4 w-4 mr-2" />
+                  <Upload className="h-3 w-3 mr-1.5" />
                   Upload
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setShowLogoPrompt(!showLogoPrompt)}
-                  className="flex-1"
+                  className="flex-1 h-7 text-[11px]"
                 >
-                  <Wand2 className="h-4 w-4 mr-2" />
+                  <Wand2 className="h-3 w-3 mr-1.5" />
                   Generate
                 </Button>
                 <input
@@ -656,8 +656,8 @@ export function PresentationSettingsPanel({
 
               {/* AI Generation Prompt */}
               {showLogoPrompt && (
-                <div className="space-y-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                  <Label htmlFor="logo-prompt" className="text-xs text-purple-700">
+                <div className="space-y-1.5 p-2.5 bg-purple-50 rounded-lg border border-purple-200">
+                  <Label htmlFor="logo-prompt" className="text-[10px] text-purple-700">
                     Describe your logo
                   </Label>
                   <Input
@@ -665,13 +665,13 @@ export function PresentationSettingsPanel({
                     value={logoPrompt}
                     onChange={(e) => setLogoPrompt(e.target.value)}
                     placeholder="A modern tech company logo with..."
-                    className="text-sm"
+                    className="h-7 text-[11px]"
                   />
                   <Button
                     size="sm"
                     onClick={handleGenerateLogo}
                     disabled={isGeneratingLogo || !logoPrompt.trim()}
-                    className="w-full bg-purple-600 hover:bg-purple-700"
+                    className="w-full h-7 text-[11px] bg-purple-600 hover:bg-purple-700"
                   >
                     {isGeneratingLogo ? (
                       <>
@@ -689,8 +689,8 @@ export function PresentationSettingsPanel({
               )}
 
               {/* Direct URL Input */}
-              <div className="space-y-2">
-                <Label htmlFor="logo-url" className="text-xs text-gray-600">
+              <div className="space-y-1.5">
+                <Label htmlFor="logo-url" className="text-[10px] text-gray-600">
                   Or enter URL directly
                 </Label>
                 <Input
@@ -702,14 +702,14 @@ export function PresentationSettingsPanel({
                     handleInputChange()
                   }}
                   placeholder="https://example.com/logo.png"
-                  className="text-sm"
+                  className="h-7 text-[11px]"
                 />
               </div>
 
               {/* Alt Text */}
               {logoUrl && (
-                <div className="space-y-2">
-                  <Label htmlFor="logo-alt" className="text-xs text-gray-600">
+                <div className="space-y-1.5">
+                  <Label htmlFor="logo-alt" className="text-[10px] text-gray-600">
                     Alt text (for accessibility)
                   </Label>
                   <Input
@@ -720,7 +720,7 @@ export function PresentationSettingsPanel({
                       handleInputChange()
                     }}
                     placeholder="Company Logo"
-                    className="text-sm"
+                    className="h-7 text-[11px]"
                   />
                 </div>
               )}
@@ -730,16 +730,16 @@ export function PresentationSettingsPanel({
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 space-y-2">
+      <div className="px-3 py-2 border-t border-gray-200 bg-gray-50 space-y-1.5">
         {/* Clear All Button */}
         <Button
           variant="ghost"
           size="sm"
           onClick={handleClearAll}
           disabled={isLoading || isSaving}
-          className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+          className="w-full h-7 text-[11px] text-red-600 hover:text-red-700 hover:bg-red-50"
         >
-          <Trash2 className="h-4 w-4 mr-2" />
+          <Trash2 className="h-3 w-3 mr-1.5" />
           Clear All Settings
         </Button>
 
@@ -749,14 +749,14 @@ export function PresentationSettingsPanel({
             variant="outline"
             onClick={onClose}
             disabled={isSaving}
-            className="flex-1"
+            className="flex-1 h-7 text-[11px]"
           >
             Cancel
           </Button>
           <Button
             onClick={handleSave}
             disabled={isSaving || !hasChanges}
-            className="flex-1"
+            className="flex-1 h-7 text-[11px]"
           >
             {isSaving ? (
               <>

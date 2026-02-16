@@ -19,7 +19,7 @@ import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties } from '@/types/elements'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { iframeTypeToTextLabs, isTextLabsMappable } from '@/lib/element-type-mapping'
@@ -847,16 +847,16 @@ function BuilderContent() {
 
               {showContentContextPanel && (
                 <div className="absolute inset-0 z-30 bg-white flex flex-col">
-                  <div className="p-4 border-b flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900">Presentation Settings</h3>
+                  <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-gray-900">Strategy</h3>
                     <button
-                      className="text-gray-500 hover:text-gray-700"
+                      className="p-1.5 rounded-md hover:bg-gray-200 transition-colors text-gray-500 hover:text-gray-700"
                       onClick={() => setShowContentContextPanel(false)}
                     >
-                      ✕
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="p-4 overflow-auto flex-1">
+                  <div className="p-3 overflow-auto flex-1">
                     <ContentContextForm
                       value={contentContext}
                       onChange={(newContext) => {
@@ -869,7 +869,7 @@ function BuilderContent() {
                       disabled={regenerationWarning.isRegenerating}
                     />
                     {hasGeneratedContent && (
-                      <p className="mt-4 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+                      <p className="mt-3 text-[10px] text-gray-500 bg-gray-50 p-2.5 rounded-lg">
                         Changing these settings will regenerate your presentation content.
                       </p>
                     )}

@@ -119,12 +119,12 @@ export function ContentContextForm({
   }
 
   return (
-    <div className={cn("space-y-6", className)}>
+    <div className={cn("space-y-4", className)}>
       {/* Audience Selection */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-gray-500" />
-          <Label className={cn("text-sm font-medium", compact && "text-xs")}>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5 text-gray-500" />
+          <Label className="text-xs font-medium">
             Who is your audience?
           </Label>
         </div>
@@ -133,7 +133,7 @@ export function ContentContextForm({
           onValueChange={(v) => handleAudienceChange(v as AudienceType)}
           disabled={disabled}
         >
-          <SelectTrigger className={cn("w-full", compact && "h-9")}>
+          <SelectTrigger className="w-full h-7 text-[11px]">
             <SelectValue>
               {getAudienceOption(value.audience_type) && (
                 <span className="flex items-center gap-2">
@@ -162,10 +162,10 @@ export function ContentContextForm({
       </div>
 
       {/* Purpose Selection */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Target className="h-4 w-4 text-gray-500" />
-          <Label className={cn("text-sm font-medium", compact && "text-xs")}>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <Target className="h-3.5 w-3.5 text-gray-500" />
+          <Label className="text-xs font-medium">
             What&apos;s the purpose?
           </Label>
         </div>
@@ -174,7 +174,7 @@ export function ContentContextForm({
           onValueChange={(v) => handlePurposeChange(v as PurposeType)}
           disabled={disabled}
         >
-          <SelectTrigger className={cn("w-full", compact && "h-9")}>
+          <SelectTrigger className="w-full h-7 text-[11px]">
             <SelectValue>
               {getPurposeOption(value.purpose_type) && (
                 <span className="flex items-center gap-2">
@@ -203,18 +203,15 @@ export function ContentContextForm({
       </div>
 
       {/* Duration Slider */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-gray-500" />
-            <Label className={cn("text-sm font-medium", compact && "text-xs")}>
+          <div className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 text-gray-500" />
+            <Label className="text-xs font-medium">
               Presentation length
             </Label>
           </div>
-          <span className={cn(
-            "font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded",
-            compact ? "text-xs" : "text-sm"
-          )}>
+          <span className="font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded text-[11px]">
             {formatDuration(value.duration_minutes)}
           </span>
         </div>

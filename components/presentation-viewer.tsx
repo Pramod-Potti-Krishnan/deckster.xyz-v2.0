@@ -2030,7 +2030,7 @@ export function PresentationViewer({
                 Edit
               </button>
 
-              {/* Presentation Settings */}
+              {/* Master Settings */}
               <button
                 onClick={() => setShowPresentationSettings(true)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -2038,10 +2038,10 @@ export function PresentationViewer({
                     ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
                     : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
                 }`}
-                title="Presentation settings (footer, logo)"
+                title="Master settings (footer, logo)"
               >
                 <Settings className="h-3.5 w-3.5" />
-                Settings
+                Master
               </button>
 
               {/* Theme */}
@@ -2058,7 +2058,7 @@ export function PresentationViewer({
                 Theme
               </button>
 
-              {/* Presentation Settings (moved from header) */}
+              {/* Strategy */}
               {onToggleContentContextPanel && (
                 <button
                   onClick={onToggleContentContextPanel}
@@ -2067,10 +2067,10 @@ export function PresentationViewer({
                       ? 'bg-teal-100 text-teal-700 hover:bg-teal-200'
                       : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
                   }`}
-                  title="Presentation Settings (Audience, Purpose, Duration)"
+                  title="Strategy (Audience, Purpose, Duration)"
                 >
                   <SlidersHorizontal className="h-3.5 w-3.5" />
-                  Pres. Settings
+                  Strategy
                 </button>
               )}
 
