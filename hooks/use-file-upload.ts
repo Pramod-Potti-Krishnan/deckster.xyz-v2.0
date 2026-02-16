@@ -20,6 +20,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
   const { toast } = useToast()
 
   const uploadFile = useCallback(async (file: File): Promise<UploadedFile> => {
+    console.log(`[FileUpload] Starting upload: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB), sessionId=${sessionId}`)
     const fileId = crypto.randomUUID()
 
     // Create initial file object
@@ -63,10 +64,12 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       }
 
       setFiles(prev => prev.map(f => f.id === fileId ? successFile : f))
+      console.log(`[FileUpload] Upload succeeded: ${file.name}, geminiFileUri=${result.geminiFileUri}`)
 
       return successFile
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Upload failed'
+      console.error(`[FileUpload] Upload failed: ${file.name}`, error)
 
       const errorFile: UploadedFile = {
         ...uploadedFile,
@@ -88,6 +91,8 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
   }, [sessionId, userId, toast])
 
   const handleFilesSelected = useCallback(async (selectedFiles: File[]) => {
+    console.log(`[FileUpload] Files selected: ${selectedFiles.length}`, selectedFiles.map(f => `${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`))
+
     // Validate file count
     if (files.length + selectedFiles.length > MAX_FILES) {
       toast({
@@ -105,6 +110,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     for (const file of selectedFiles) {
       const error = validateFile(file)
       if (error) {
+        console.warn(`[FileUpload] File rejected: ${file.name} — ${error.message}`)
         invalidFiles.push(`${file.name}: ${error.message}`)
       } else {
         validFiles.push(file)
