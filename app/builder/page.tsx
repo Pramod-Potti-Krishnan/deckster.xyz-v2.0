@@ -687,7 +687,7 @@ function BuilderContent() {
         <div className="flex-1 flex relative overflow-hidden">
           {/* === Element Drawer === */}
           <div
-            className="absolute inset-y-0 left-0 w-[400px] transition-transform duration-300 ease-out"
+            className="absolute inset-y-0 left-0 w-96 transition-transform duration-300 ease-out"
             style={{
               transform: isElementDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
               zIndex: isElementDrawerOpen ? 10 + panelZIndices.element : 60,
@@ -830,7 +830,7 @@ function BuilderContent() {
 
           {/* === Slide Drawer === */}
           <div
-            className="absolute inset-y-0 left-0 w-[400px] transition-transform duration-300 ease-out"
+            className="absolute inset-y-0 left-0 w-96 transition-transform duration-300 ease-out"
             style={{
               transform: isSlideDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
               zIndex: isSlideDrawerOpen ? 10 + panelZIndices.slide : 60,
@@ -910,7 +910,7 @@ function BuilderContent() {
 
           {/* === Deck Drawer === */}
           <div
-            className="absolute inset-y-0 left-0 w-[400px] transition-transform duration-300 ease-out"
+            className="absolute inset-y-0 left-0 w-96 transition-transform duration-300 ease-out"
             style={{
               transform: isDeckDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
               zIndex: isDeckDrawerOpen ? 10 + panelZIndices.deck : 60,
