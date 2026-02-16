@@ -695,7 +695,7 @@ function BuilderContent() {
             }}
           >
             {/* Panel area */}
-            <div className="absolute inset-y-0 left-0 w-96 bg-white shadow-xl overflow-hidden">
+            <div className={`absolute inset-y-0 left-0 w-96 bg-white overflow-hidden ${isElementDrawerOpen ? 'shadow-xl' : ''}`}>
               {features.useTextLabsGeneration && (
                 <GenerationPanel
                   isOpen={generationPanel.isOpen}
@@ -838,7 +838,7 @@ function BuilderContent() {
             }}
           >
             {/* Panel area */}
-            <div className="absolute inset-y-0 left-0 w-96 bg-white shadow-xl overflow-hidden">
+            <div className={`absolute inset-y-0 left-0 w-96 bg-white overflow-hidden ${isSlideDrawerOpen ? 'shadow-xl' : ''}`}>
               <SlideGenerationPanel
                 isOpen={showFormatPanel}
                 onClose={() => setShowFormatPanel(false)}
@@ -918,7 +918,7 @@ function BuilderContent() {
             }}
           >
             {/* Panel area */}
-            <div className="absolute inset-y-0 left-0 w-96 bg-white shadow-xl overflow-hidden flex flex-col">
+            <div className={`absolute inset-y-0 left-0 w-96 bg-white overflow-hidden flex flex-col ${isDeckDrawerOpen ? 'shadow-xl' : ''}`}>
               {showChat && (
                 <>
                   <ScrollArea className="flex-1">
@@ -997,7 +997,7 @@ function BuilderContent() {
 
           {/* Presentation fills the area, shifts right when any drawer is open */}
           <div
-            className="flex-1 min-w-0 transition-[margin] duration-300 ease-out"
+            className="flex-1 min-w-0 flex flex-col transition-[margin] duration-300 ease-out"
             style={{ marginLeft: anyDrawerOpen ? 400 : 0 }}
           >
           {session.isLoadingSession ? (
