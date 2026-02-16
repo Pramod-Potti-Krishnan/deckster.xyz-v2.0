@@ -1522,16 +1522,24 @@ export function PresentationViewer({
     const container = slideContainerRef.current
     if (!container) return
 
-    const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect
+    const calculate = () => {
+      const { width, height } = container.getBoundingClientRect()
+      // Subtract padding (p-8 = 32px each side)
+      const pw = width - 64, ph = height - 64
+      if (pw <= 0 || ph <= 0) return
       const ratio = 16 / 9
-      let w = width, h = w / ratio
-      if (h > height) { h = height; w = h * ratio }
+      let w = pw, h = w / ratio
+      if (h > ph) { h = ph; w = h * ratio }
       setNormalSlideSize({ width: w, height: h })
-    })
+    }
+
+    // Immediate calculation on mount/URL change
+    calculate()
+
+    const ro = new ResizeObserver(() => calculate())
     ro.observe(container)
     return () => ro.disconnect()
-  }, [isFullscreen])
+  }, [isFullscreen, presentationUrl])
 
   // Auto-hide toolbar in fullscreen mode
   useEffect(() => {
@@ -1940,7 +1948,7 @@ export function PresentationViewer({
           {/* Presentation Iframe */}
           <div
             ref={slideContainerRef}
-            className={`flex-1 min-h-0 relative flex items-center justify-center ${isFullscreen ? 'bg-black' : 'bg-gray-800 p-8'}`}
+            className={`flex-1 min-h-0 relative flex items-center justify-center overflow-hidden ${isFullscreen ? 'bg-black' : 'bg-gray-800 p-8'}`}
           >
             {presentationUrl ? (
               <div
@@ -1954,7 +1962,10 @@ export function PresentationViewer({
                   height: normalSlideSize.height,
                 } : {
                   aspectRatio: '16/9',
-                  width: '100%'
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  width: 'auto',
+                  height: 'auto',
                 }}
               >
                 <iframe
