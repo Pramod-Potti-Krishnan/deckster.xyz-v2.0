@@ -109,9 +109,20 @@ function BuilderContent() {
   const generationPanel = useGenerationPanel()
   const blankElements = useBlankElements()
 
-  // LHS column is open when any panel or chat is visible
-  const isLHSOpen = showChat || generationPanel.isOpen || showFormatPanel
-    || showTextBoxPanel || showElementPanel || showContentContextPanel
+  // Z-index tracking for drawer stacking order
+  const zCounterRef = useRef(0)
+  const [panelZIndices, setPanelZIndices] = useState({ element: 0, slide: 0, deck: 0 })
+
+  const bringToFront = useCallback((panel: 'element' | 'slide' | 'deck') => {
+    zCounterRef.current += 1
+    const z = zCounterRef.current
+    setPanelZIndices(prev => ({ ...prev, [panel]: z }))
+  }, [])
+
+  // Drawer open conditions
+  const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel
+  const isSlideDrawerOpen = showFormatPanel || showContentContextPanel
+  const isDeckDrawerOpen = showChat
 
   // FIXED: Track when generating final/strawman presentations
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
@@ -193,7 +204,7 @@ function BuilderContent() {
     maxReconnectAttempts: 0,
     reconnectDelay: 5000,
     onSessionStateChange: (state) => {
-      console.log('🔔 CALLBACK INVOKED!', {
+      console.log('CALLBACK INVOKED!', {
         currentSessionId: currentSessionIdRef.current,
         hasPersistence: !!persistenceRef.current,
         currentStage: state.currentStage,
@@ -218,16 +229,16 @@ function BuilderContent() {
         if (isStrawman) {
           updates.strawmanPreviewUrl = state.presentationUrl
           updates.strawmanPresentationId = state.presentationId
-          console.log('💾 Saving strawman URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
+          console.log('Saving strawman URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
         } else if (isFinal) {
           updates.finalPresentationUrl = state.presentationUrl
           updates.finalPresentationId = state.presentationId
-          console.log('💾 Saving final URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
+          console.log('Saving final URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
         }
 
         persistenceRef.current.updateMetadata(updates)
       } else {
-        console.error('❌ PERSISTENCE BLOCKED:', {
+        console.error('PERSISTENCE BLOCKED:', {
           reason: !currentSessionIdRef.current ? 'No currentSessionId' : 'No persistenceRef.current',
           currentSessionId: currentSessionIdRef.current,
           hasPersistenceRef: !!persistenceRef.current
@@ -288,7 +299,7 @@ function BuilderContent() {
     sessionId: currentSessionId || '',
     userId: user?.email || '',
     onUploadComplete: (files) => {
-      console.log('📎 Files uploaded:', files)
+      console.log('Files uploaded:', files)
     }
   })
 
@@ -303,7 +314,7 @@ function BuilderContent() {
   const regenerationWarning = useRegenerationWarning({
     currentContext: contentContext,
     onRegenerate: async (newContext: ContentContext) => {
-      console.log('🔄 Regenerating content with new context:', newContext)
+      console.log('Regenerating content with new context:', newContext)
       setContentContext(newContext)
       setShowContentContextPanel(false)
     }
@@ -313,7 +324,7 @@ function BuilderContent() {
   useEffect(() => {
     if (finalPresentationUrl && isGeneratingFinal) {
       setIsGeneratingFinal(false)
-      console.log('✅ Final presentation ready - hiding loader')
+      console.log('Final presentation ready - hiding loader')
     }
   }, [finalPresentationUrl, isGeneratingFinal])
 
@@ -329,7 +340,7 @@ function BuilderContent() {
   useEffect(() => {
     if (currentStage === 4 && !strawmanPreviewUrl && !isGeneratingStrawman) {
       setIsGeneratingStrawman(true)
-      console.log('🎨 Strawman generation started - showing loader')
+      console.log('Strawman generation started - showing loader')
     }
   }, [currentStage, strawmanPreviewUrl, isGeneratingStrawman])
 
@@ -337,7 +348,7 @@ function BuilderContent() {
   useEffect(() => {
     if (strawmanPreviewUrl && isGeneratingStrawman) {
       setIsGeneratingStrawman(false)
-      console.log('✅ Strawman presentation ready - hiding loader')
+      console.log('Strawman presentation ready - hiding loader')
     }
   }, [strawmanPreviewUrl, isGeneratingStrawman])
 
@@ -363,12 +374,12 @@ function BuilderContent() {
     if (!inputMessage.trim()) return
 
     if (!user) {
-      console.warn('⚠️ Cannot send message: user not authenticated')
+      console.warn('Cannot send message: user not authenticated')
       return
     }
 
     if (isExecutingSendRef.current) {
-      console.log('🚫 Already executing send, skipping duplicate call')
+      console.log('Already executing send, skipping duplicate call')
       return
     }
 
@@ -421,7 +432,7 @@ function BuilderContent() {
 
       // For unsaved sessions, create database session first
       if (isUnsavedSession) {
-        console.log('💾 Creating database session for first message')
+        console.log('Creating database session for first message')
         const newSessionId = currentSessionId || wsSessionId
 
         try {
@@ -434,7 +445,7 @@ function BuilderContent() {
               setCurrentSessionId(dbSession.id)
               router.push(`/builder?session_id=${dbSession.id}`)
             }
-            console.log('✅ Database session created:', dbSession.id)
+            console.log('Database session created:', dbSession.id)
 
             const messageId = crypto.randomUUID()
             const timestamp = Date.now()
@@ -457,7 +468,7 @@ function BuilderContent() {
                 userText: messageText,
               }
 
-              console.log('💾 [FIX 11] Saving first message directly via API:', {
+              console.log('[FIX 11] Saving first message directly via API:', {
                 sessionId: dbSession.id,
                 messageId,
                 userText: messageText.substring(0, 30)
@@ -471,14 +482,14 @@ function BuilderContent() {
 
               if (response.ok) {
                 const result = await response.json()
-                console.log('✅ [FIX 11] First message saved:', result)
+                console.log('[FIX 11] First message saved:', result)
               } else {
-                console.error('❌ [FIX 11] Failed to save first message:', response.status)
+                console.error('[FIX 11] Failed to save first message:', response.status)
               }
 
               if (persistence) {
                 const generatedTitle = persistence.generateTitle(messageText)
-                console.log('📝 Setting initial title from first message:', generatedTitle)
+                console.log('Setting initial title from first message:', generatedTitle)
 
                 await fetch(`/api/sessions/${dbSession.id}`, {
                   method: 'PATCH',
@@ -488,7 +499,7 @@ function BuilderContent() {
                 session.hasTitleFromUserMessageRef.current = true
               }
             } catch (error) {
-              console.error('❌ [FIX 11] Error saving first message:', error)
+              console.error('[FIX 11] Error saving first message:', error)
             }
 
             setInputMessage("")
@@ -504,12 +515,12 @@ function BuilderContent() {
             }
             return
           } else {
-            console.error('❌ createSession returned null')
+            console.error('createSession returned null')
             alert('Failed to create session. Please check your connection and try again.')
             return
           }
         } catch (error) {
-          console.error('❌ Error creating session:', error)
+          console.error('Error creating session:', error)
           alert(`Failed to create session: ${error instanceof Error ? error.message : 'Unknown error'}. Please try refreshing the page.`)
           return
         }
@@ -517,7 +528,7 @@ function BuilderContent() {
 
       // For resumed sessions, connect on first message
       if (session.isResumedSession && !connected && !connecting) {
-        console.log('🔌 Connecting WebSocket for first message in resumed session')
+        console.log('Connecting WebSocket for first message in resumed session')
         connect()
         session.setIsResumedSession(false)
 
@@ -533,7 +544,7 @@ function BuilderContent() {
         }])
 
         if (currentSessionId && persistence) {
-          console.log('💾 Persisting user message for resumed session:', messageId)
+          console.log('Persisting user message for resumed session:', messageId)
           persistence.queueMessage({
             message_id: messageId,
             session_id: currentSessionId,
@@ -584,7 +595,7 @@ function BuilderContent() {
 
         if (!session.hasTitleFromUserMessageRef.current && !session.hasTitleFromPresentationRef.current) {
           const generatedTitle = persistence.generateTitle(messageText)
-          console.log('📝 Setting initial title from first message:', generatedTitle)
+          console.log('Setting initial title from first message:', generatedTitle)
           persistence.updateMetadata({
             title: generatedTitle
           })
@@ -617,7 +628,7 @@ function BuilderContent() {
     const timestamp = Date.now()
 
     session.answeredActionsRef.current.add(actionRequestMessageId)
-    console.log(`✅ Marked action request ${actionRequestMessageId} as answered`)
+    console.log(`Marked action request ${actionRequestMessageId} as answered`)
 
     if (action.requires_input) {
       setPendingActionInput({ action, messageId, timestamp })
@@ -645,7 +656,7 @@ function BuilderContent() {
 
       if (action.value === 'accept_strawman') {
         setIsGeneratingFinal(true)
-        console.log('🎨 Starting final deck generation - showing loader')
+        console.log('Starting final deck generation - showing loader')
       }
 
       sendMessage(action.value)
@@ -672,201 +683,115 @@ function BuilderContent() {
         />
 
         {/* Main Content Area */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left Panel - Chat (w-80 when open, 0 when collapsed) */}
-          <div className={cn(
-            "flex flex-col bg-white relative overflow-hidden min-w-0 flex-shrink-0 transition-[width] duration-300 ease-out",
-            isLHSOpen ? "w-96" : "w-0"
-          )}>
-            {/* Content Context Panel - Overlays chat when open */}
-            {showContentContextPanel && (
-              <div className="absolute inset-0 z-30 bg-white flex flex-col">
-                <div className="p-4 border-b flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">Presentation Settings</h3>
-                  <button
-                    className="text-gray-500 hover:text-gray-700"
-                    onClick={() => setShowContentContextPanel(false)}
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="p-4 overflow-auto flex-1">
-                  <ContentContextForm
-                    value={contentContext}
-                    onChange={(newContext) => {
-                      if (hasGeneratedContent) {
-                        regenerationWarning.showWarning(newContext)
-                      } else {
-                        setContentContext(newContext)
-                      }
-                    }}
-                    disabled={regenerationWarning.isRegenerating}
-                  />
-                  {hasGeneratedContent && (
-                    <p className="mt-4 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-                      Changing these settings will regenerate your presentation content.
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
+        <div className="flex-1 flex relative overflow-hidden">
+          {/* === Element Drawer === */}
+          <div
+            className="absolute inset-y-0 left-0 w-[400px] transition-transform duration-300 ease-out"
+            style={{
+              transform: isElementDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
+              zIndex: isElementDrawerOpen ? 10 + panelZIndices.element : 60,
+            }}
+          >
+            {/* Panel area */}
+            <div className="absolute inset-y-0 left-0 w-96 bg-white shadow-xl overflow-hidden">
+              {features.useTextLabsGeneration && (
+                <GenerationPanel
+                  isOpen={generationPanel.isOpen}
+                  elementType={generationPanel.elementType}
+                  onClose={() => {
+                    generationPanel.closePanel()
+                  }}
+                  onReopen={generationPanel.reopenPanel}
+                  onGenerate={handleTextLabsGenerate}
+                  onElementTypeChange={generationPanel.changeElementType}
+                  isGenerating={generationPanel.isGenerating}
+                  error={generationPanel.error}
+                  slideIndex={currentSlideIndex}
+                  elementContext={blankElements.activePosition}
+                  mode={generationPanel.mode}
+                  regenerateEnabled={generationPanel.regenerateEnabled}
+                  onRegenerateToggle={generationPanel.setRegenerateEnabled}
+                />
+              )}
 
-            {/* Slide Generation Panel - Overlays chat when open */}
-            <SlideGenerationPanel
-              isOpen={showFormatPanel}
-              onClose={() => setShowFormatPanel(false)}
-              currentSlide={currentSlideIndex + 1}
-            />
-
-            {/* Text Box Format Panel */}
-            <TextBoxFormatPanel
-              isOpen={showTextBoxPanel}
-              onClose={() => {
-                setShowTextBoxPanel(false)
-                setSelectedTextBoxId(null)
-                setSelectedTextBoxFormatting(null)
-              }}
-              elementId={selectedTextBoxId}
-              formatting={selectedTextBoxFormatting}
-              onSendCommand={async (action, params) => {
-                if (!layoutServiceApis?.sendTextBoxCommand) {
-                  throw new Error('Layout Service not ready')
-                }
-                return layoutServiceApis.sendTextBoxCommand(action, {
-                  elementId: selectedTextBoxId,
-                  ...params
-                })
-              }}
-              onDelete={async () => {
-                if (!layoutServiceApis?.sendTextBoxCommand || !selectedTextBoxId) return
-                try {
-                  await layoutServiceApis.sendTextBoxCommand('deleteTextBox', {
-                    elementId: selectedTextBoxId
-                  })
+              <TextBoxFormatPanel
+                isOpen={showTextBoxPanel}
+                onClose={() => {
                   setShowTextBoxPanel(false)
                   setSelectedTextBoxId(null)
                   setSelectedTextBoxFormatting(null)
-                } catch (error) {
-                  console.error('Failed to delete text box:', error)
-                }
-              }}
-              presentationId={presentationId}
-              slideIndex={currentSlideIndex}
-              sessionId={currentSessionId}
-            />
-
-            {/* Element/Slide Format Panel */}
-            {presentationId && (
-              <ElementFormatPanel
-                isOpen={showElementPanel}
-                onClose={() => {
-                  setShowElementPanel(false)
-                  setSelectedElementId(null)
-                  setSelectedElementType(null)
-                  setSelectedElementProperties(null)
                 }}
-                elementId={selectedElementId}
-                elementType={selectedElementType}
-                properties={selectedElementProperties}
+                elementId={selectedTextBoxId}
+                formatting={selectedTextBoxFormatting}
                 onSendCommand={async (action, params) => {
-                  if (!layoutServiceApis?.sendElementCommand) {
+                  if (!layoutServiceApis?.sendTextBoxCommand) {
                     throw new Error('Layout Service not ready')
                   }
-                  return layoutServiceApis.sendElementCommand(action, {
-                    elementId: selectedElementId,
+                  return layoutServiceApis.sendTextBoxCommand(action, {
+                    elementId: selectedTextBoxId,
                     ...params
                   })
                 }}
                 onDelete={async () => {
-                  if (!layoutServiceApis?.sendElementCommand || !selectedElementId) return
+                  if (!layoutServiceApis?.sendTextBoxCommand || !selectedTextBoxId) return
                   try {
-                    await layoutServiceApis.sendElementCommand('deleteElement', {
-                      elementId: selectedElementId
+                    await layoutServiceApis.sendTextBoxCommand('deleteTextBox', {
+                      elementId: selectedTextBoxId
                     })
-                    setShowElementPanel(false)
-                    setSelectedElementId(null)
-                    setSelectedElementType(null)
-                    setSelectedElementProperties(null)
+                    setShowTextBoxPanel(false)
+                    setSelectedTextBoxId(null)
+                    setSelectedTextBoxFormatting(null)
                   } catch (error) {
-                    console.error('Failed to delete element:', error)
+                    console.error('Failed to delete text box:', error)
                   }
                 }}
                 presentationId={presentationId}
                 slideIndex={currentSlideIndex}
+                sessionId={currentSessionId}
               />
-            )}
 
-            {/* Generation Panel */}
-            {features.useTextLabsGeneration && (
-              <GenerationPanel
-                isOpen={generationPanel.isOpen}
-                elementType={generationPanel.elementType}
-                onClose={() => {
-                  generationPanel.closePanel()
-                }}
-                onReopen={generationPanel.reopenPanel}
-                onGenerate={handleTextLabsGenerate}
-                onElementTypeChange={generationPanel.changeElementType}
-                isGenerating={generationPanel.isGenerating}
-                error={generationPanel.error}
-                slideIndex={currentSlideIndex}
-                elementContext={blankElements.activePosition}
-                mode={generationPanel.mode}
-                regenerateEnabled={generationPanel.regenerateEnabled}
-                onRegenerateToggle={generationPanel.setRegenerateEnabled}
-              />
-            )}
-
-            {/* Chat Messages — only shown when Deck handle is active */}
-            {showChat && (
-              <>
-                <ScrollArea className="flex-1">
-                  <div className="px-3 py-4 space-y-4">
-                    <MessageList
-                      userMessages={session.userMessages}
-                      messages={messages}
-                      userMessageIdsRef={session.userMessageIdsRef}
-                      userMessageContentMapRef={session.userMessageContentMapRef}
-                      hasSeenWelcomeRef={session.hasSeenWelcomeRef}
-                      answeredActionsRef={session.answeredActionsRef}
-                      onActionClick={handleActionClick}
-                      messagesEndRef={messagesEndRef}
-                    />
-                  </div>
-                </ScrollArea>
-
-                <ChatInput
-                  inputMessage={inputMessage}
-                  onInputChange={setInputMessage}
-                  onSubmit={handleSendMessage}
-                  uploadedFiles={uploadedFiles}
-                  onFilesSelected={handleFilesSelected}
-                  onRemoveFile={removeFile}
-                  onClearAllFiles={clearAllFiles}
-                  pendingActionInput={pendingActionInput}
-                  onCancelAction={() => {
-                    setPendingActionInput(null)
-                    setInputMessage("")
+              {presentationId && (
+                <ElementFormatPanel
+                  isOpen={showElementPanel}
+                  onClose={() => {
+                    setShowElementPanel(false)
+                    setSelectedElementId(null)
+                    setSelectedElementType(null)
+                    setSelectedElementProperties(null)
                   }}
-                  researchEnabled={researchEnabled}
-                  onResearchEnabledChange={setResearchEnabled}
-                  webSearchEnabled={webSearchEnabled}
-                  onWebSearchEnabledChange={setWebSearchEnabled}
-                  isReady={isReady}
-                  isLoadingSession={session.isLoadingSession}
-                  connected={connected}
-                  connecting={connecting}
-                  user={user}
-                  currentSessionId={currentSessionId}
-                  onRequestSession={session.handleRequestSession}
+                  elementId={selectedElementId}
+                  elementType={selectedElementType}
+                  properties={selectedElementProperties}
+                  onSendCommand={async (action, params) => {
+                    if (!layoutServiceApis?.sendElementCommand) {
+                      throw new Error('Layout Service not ready')
+                    }
+                    return layoutServiceApis.sendElementCommand(action, {
+                      elementId: selectedElementId,
+                      ...params
+                    })
+                  }}
+                  onDelete={async () => {
+                    if (!layoutServiceApis?.sendElementCommand || !selectedElementId) return
+                    try {
+                      await layoutServiceApis.sendElementCommand('deleteElement', {
+                        elementId: selectedElementId
+                      })
+                      setShowElementPanel(false)
+                      setSelectedElementId(null)
+                      setSelectedElementType(null)
+                      setSelectedElementProperties(null)
+                    } catch (error) {
+                      console.error('Failed to delete element:', error)
+                    }
+                  }}
+                  presentationId={presentationId}
+                  slideIndex={currentSlideIndex}
                 />
-              </>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* Handle strip — sits at right edge of panel, moves with it */}
-          <div className="relative w-0 flex-shrink-0 z-20">
-            {/* Element handle */}
+            {/* Handle */}
             {features.useTextLabsGeneration && (
               <button
                 type="button"
@@ -875,10 +800,11 @@ function BuilderContent() {
                     generationPanel.closePanel()
                   } else {
                     generationPanel.reopenPanel()
+                    bringToFront('element')
                   }
                 }}
                 className={cn(
-                  "absolute top-[33%] -translate-y-1/2 left-0",
+                  "absolute top-[33%] -translate-y-1/2 left-96",
                   "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                   "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                   "transition-colors",
@@ -888,7 +814,7 @@ function BuilderContent() {
                 )}
                 title={generationPanel.isOpen ? 'Close element panel' : 'Open element panel'}
               >
-                {generationPanel.isOpen ? (
+                {isElementDrawerOpen ? (
                   <ChevronLeft className="h-2.5 w-2.5" />
                 ) : (
                   <ChevronRight className="h-2.5 w-2.5" />
@@ -898,13 +824,67 @@ function BuilderContent() {
                 </span>
               </button>
             )}
+          </div>
 
-            {/* Slide handle */}
+          {/* === Slide Drawer === */}
+          <div
+            className="absolute inset-y-0 left-0 w-[400px] transition-transform duration-300 ease-out"
+            style={{
+              transform: isSlideDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
+              zIndex: isSlideDrawerOpen ? 10 + panelZIndices.slide : 60,
+            }}
+          >
+            {/* Panel area */}
+            <div className="absolute inset-y-0 left-0 w-96 bg-white shadow-xl overflow-hidden">
+              <SlideGenerationPanel
+                isOpen={showFormatPanel}
+                onClose={() => setShowFormatPanel(false)}
+                currentSlide={currentSlideIndex + 1}
+              />
+
+              {showContentContextPanel && (
+                <div className="absolute inset-0 z-30 bg-white flex flex-col">
+                  <div className="p-4 border-b flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900">Presentation Settings</h3>
+                    <button
+                      className="text-gray-500 hover:text-gray-700"
+                      onClick={() => setShowContentContextPanel(false)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="p-4 overflow-auto flex-1">
+                    <ContentContextForm
+                      value={contentContext}
+                      onChange={(newContext) => {
+                        if (hasGeneratedContent) {
+                          regenerationWarning.showWarning(newContext)
+                        } else {
+                          setContentContext(newContext)
+                        }
+                      }}
+                      disabled={regenerationWarning.isRegenerating}
+                    />
+                    {hasGeneratedContent && (
+                      <p className="mt-4 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+                        Changing these settings will regenerate your presentation content.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Handle */}
             <button
               type="button"
-              onClick={() => setShowFormatPanel(prev => !prev)}
+              onClick={() => {
+                const next = !showFormatPanel
+                setShowFormatPanel(next)
+                if (next) bringToFront('slide')
+              }}
               className={cn(
-                "absolute top-[45%] -translate-y-1/2 left-0",
+                "absolute top-[45%] -translate-y-1/2 left-96",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                 "transition-colors",
@@ -914,7 +894,7 @@ function BuilderContent() {
               )}
               title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
             >
-              {showFormatPanel ? (
+              {isSlideDrawerOpen ? (
                 <ChevronLeft className="h-2.5 w-2.5" />
               ) : (
                 <ChevronRight className="h-2.5 w-2.5" />
@@ -923,13 +903,74 @@ function BuilderContent() {
                 Slide
               </span>
             </button>
+          </div>
 
-            {/* Deck handle */}
+          {/* === Deck Drawer === */}
+          <div
+            className="absolute inset-y-0 left-0 w-[400px] transition-transform duration-300 ease-out"
+            style={{
+              transform: isDeckDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
+              zIndex: isDeckDrawerOpen ? 10 + panelZIndices.deck : 60,
+            }}
+          >
+            {/* Panel area */}
+            <div className="absolute inset-y-0 left-0 w-96 bg-white shadow-xl overflow-hidden flex flex-col">
+              {showChat && (
+                <>
+                  <ScrollArea className="flex-1">
+                    <div className="px-3 py-4 space-y-4">
+                      <MessageList
+                        userMessages={session.userMessages}
+                        messages={messages}
+                        userMessageIdsRef={session.userMessageIdsRef}
+                        userMessageContentMapRef={session.userMessageContentMapRef}
+                        hasSeenWelcomeRef={session.hasSeenWelcomeRef}
+                        answeredActionsRef={session.answeredActionsRef}
+                        onActionClick={handleActionClick}
+                        messagesEndRef={messagesEndRef}
+                      />
+                    </div>
+                  </ScrollArea>
+
+                  <ChatInput
+                    inputMessage={inputMessage}
+                    onInputChange={setInputMessage}
+                    onSubmit={handleSendMessage}
+                    uploadedFiles={uploadedFiles}
+                    onFilesSelected={handleFilesSelected}
+                    onRemoveFile={removeFile}
+                    onClearAllFiles={clearAllFiles}
+                    pendingActionInput={pendingActionInput}
+                    onCancelAction={() => {
+                      setPendingActionInput(null)
+                      setInputMessage("")
+                    }}
+                    researchEnabled={researchEnabled}
+                    onResearchEnabledChange={setResearchEnabled}
+                    webSearchEnabled={webSearchEnabled}
+                    onWebSearchEnabledChange={setWebSearchEnabled}
+                    isReady={isReady}
+                    isLoadingSession={session.isLoadingSession}
+                    connected={connected}
+                    connecting={connecting}
+                    user={user}
+                    currentSessionId={currentSessionId}
+                    onRequestSession={session.handleRequestSession}
+                  />
+                </>
+              )}
+            </div>
+
+            {/* Handle */}
             <button
               type="button"
-              onClick={() => setShowChat(prev => !prev)}
+              onClick={() => {
+                const next = !showChat
+                setShowChat(next)
+                if (next) bringToFront('deck')
+              }}
               className={cn(
-                "absolute top-[57%] -translate-y-1/2 left-0",
+                "absolute top-[57%] -translate-y-1/2 left-96",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                 "transition-colors",
@@ -939,7 +980,7 @@ function BuilderContent() {
               )}
               title={showChat ? 'Close chat panel' : 'Open chat panel'}
             >
-              {showChat ? (
+              {isDeckDrawerOpen ? (
                 <ChevronLeft className="h-2.5 w-2.5" />
               ) : (
                 <ChevronRight className="h-2.5 w-2.5" />
@@ -950,7 +991,7 @@ function BuilderContent() {
             </button>
           </div>
 
-          {/* Right Panel - Presentation Display (flex-1) */}
+          {/* Presentation fills the area, drawers overlay left edge */}
           {session.isLoadingSession ? (
             <div className="flex-1 flex items-center justify-center bg-gray-100">
               <div className="text-center">
@@ -980,6 +1021,7 @@ function BuilderContent() {
             onTextBoxSelected={(elementId, formatting) => {
               if (features.useTextLabsGeneration) {
                 generationPanel.openPanelForEdit('TEXT_BOX', elementId)
+                bringToFront('element')
                 setShowTextBoxPanel(false)
                 setShowElementPanel(false)
                 setShowFormatPanel(false)
@@ -987,6 +1029,7 @@ function BuilderContent() {
                 setSelectedTextBoxId(elementId)
                 setSelectedTextBoxFormatting(formatting)
                 setShowTextBoxPanel(true)
+                bringToFront('element')
                 setShowElementPanel(false)
                 setShowFormatPanel(false)
               }
@@ -1002,6 +1045,7 @@ function BuilderContent() {
               if (features.useTextLabsGeneration && isTextLabsMappable(elementType)) {
                 const mappedType = iframeTypeToTextLabs(elementType)!
                 generationPanel.openPanelForEdit(mappedType, elementId)
+                bringToFront('element')
                 setShowElementPanel(false)
                 setShowTextBoxPanel(false)
                 setShowFormatPanel(false)
@@ -1010,6 +1054,7 @@ function BuilderContent() {
                 setSelectedElementType(elementType)
                 setSelectedElementProperties(properties)
                 setShowElementPanel(true)
+                bringToFront('element')
                 setShowTextBoxPanel(false)
                 setShowFormatPanel(false)
               }
