@@ -465,8 +465,8 @@ export function useBuilderSession({
 
   // Handler to create draft session for file uploads
   const handleRequestSession = useCallback(async () => {
-    if (currentSessionId) {
-      console.log('📎 Session already exists:', currentSessionId)
+    if (currentSessionId && !isUnsavedSession) {
+      console.log('📎 Session already exists in DB:', currentSessionId)
       return
     }
 
@@ -474,13 +474,16 @@ export function useBuilderSession({
 
     try {
       console.log('📎 Creating draft session for file upload')
-      const newSessionId = crypto.randomUUID()
-      const session = await createSession(newSessionId)
+      const sessionIdToCreate = currentSessionId || crypto.randomUUID()
+      const session = await createSession(sessionIdToCreate)
 
       if (session) {
         setCurrentSessionId(session.id)
         setIsUnsavedSession(false)
-        router.push(`/builder?session_id=${session.id}`)
+        // Only update URL if session ID changed (avoid redundant navigation)
+        if (session.id !== currentSessionId) {
+          router.push(`/builder?session_id=${session.id}`)
+        }
         console.log('✅ Draft session created:', session.id)
       } else {
         throw new Error('Session creation returned null')
@@ -491,7 +494,7 @@ export function useBuilderSession({
     } finally {
       setIsCreatingSession(false)
     }
-  }, [currentSessionId, createSession, router, setIsUnsavedSession])
+  }, [currentSessionId, isUnsavedSession, createSession, router, setIsUnsavedSession])
 
   // Handle session selection from sidebar
   const handleSessionSelect = useCallback((sessionId: string) => {

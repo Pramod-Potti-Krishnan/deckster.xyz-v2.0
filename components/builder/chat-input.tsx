@@ -106,7 +106,9 @@ export function ChatInput({
         if (features.enableFileUploads) {
           const files = Array.from(e.dataTransfer.files)
           if (files.length > 0) {
-            onFilesSelected(files)
+            onRequestSession().catch(() => {}).then(() => {
+              onFilesSelected(files)
+            })
           }
         }
       }}
@@ -233,12 +235,10 @@ export function ChatInput({
                   <DropdownMenuContent align="start" className="w-48">
                     <DropdownMenuItem
                       onClick={async () => {
-                        if (features.enableEarlySessionCreation && !currentSessionId) {
-                          try {
-                            await onRequestSession()
-                          } catch {
-                            return
-                          }
+                        try {
+                          await onRequestSession()
+                        } catch {
+                          return
                         }
                         fileInputRef.current?.click()
                       }}
