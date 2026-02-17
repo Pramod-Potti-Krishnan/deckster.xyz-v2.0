@@ -205,7 +205,6 @@ export function PresentationViewer({
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const slideContainerRef = useRef<HTMLDivElement>(null)
-  const gridInitializedRef = useRef(false)
   const { toast } = useToast()
   const [isEditMode, setIsEditMode] = useState(false)
   // Fullscreen slide dimensions (calculated via JS for accuracy)
@@ -346,19 +345,14 @@ export function PresentationViewer({
   }, [])
 
   // Toggle grid overlay via postMessage (fire-and-forget to avoid timeout on hide)
-  // Layout Service quirk: first activation needs 1 command, every subsequent toggle needs 2
   const handleToggleGrid = useCallback(() => {
     if (!iframeRef.current) return
     const nextActive = !isGridActive
     setIsGridActive(nextActive)
-    const action = nextActive ? 'showGridOverlay' : 'hideGridOverlay'
-    iframeRef.current.contentWindow?.postMessage({ action }, VIEWER_ORIGIN)
-    if (gridInitializedRef.current) {
-      setTimeout(() => {
-        iframeRef.current?.contentWindow?.postMessage({ action }, VIEWER_ORIGIN)
-      }, 50)
-    }
-    gridInitializedRef.current = true
+    iframeRef.current.contentWindow?.postMessage(
+      { action: nextActive ? 'showGridOverlay' : 'hideGridOverlay' },
+      VIEWER_ORIGIN
+    )
     console.log(`📐 Grid overlay: ${nextActive ? 'ON' : 'OFF'}`)
   }, [isGridActive])
 
@@ -1429,14 +1423,8 @@ export function PresentationViewer({
 
         // Hide grid overlay before entering fullscreen
         if (isGridActive && iframeRef.current) {
-          iframeRef.current.contentWindow?.postMessage({ action: 'hideGridOverlay' }, VIEWER_ORIGIN)
-          if (gridInitializedRef.current) {
-            setTimeout(() => {
-              iframeRef.current?.contentWindow?.postMessage({ action: 'hideGridOverlay' }, VIEWER_ORIGIN)
-            }, 50)
-          }
+          await sendCommand(iframeRef.current, 'hideGridOverlay')
           setIsGridActive(false)
-          gridInitializedRef.current = false
           console.log('📐 Hid grid overlay for fullscreen presentation')
         }
 
