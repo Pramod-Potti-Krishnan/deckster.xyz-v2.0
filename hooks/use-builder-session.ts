@@ -20,6 +20,7 @@ interface UseBuilderSessionParams {
   connected: boolean
   connecting: boolean
   connect: () => void
+  disconnect: () => void
   clearMessages: () => void
   restoreMessages: (messages: DirectorMessage[], sessionState: any) => void
   updateCacheUserMessages: (messages: Array<{ id: string; text: string; timestamp: number }>) => void
@@ -42,6 +43,7 @@ export function useBuilderSession({
   connected,
   connecting,
   connect,
+  disconnect,
   clearMessages,
   restoreMessages,
   updateCacheUserMessages,
@@ -523,13 +525,14 @@ export function useBuilderSession({
   // Handle new chat from sidebar
   const handleNewChat = useCallback(() => {
     console.log('🆕 Starting new unsaved session')
+    disconnect()
     setUserMessages([])
     clearMessages()
     setIsUnsavedSession(true)
     setIsResumedSession(false)
     setCurrentSessionId(null)
     router.push('/builder')
-  }, [router, clearMessages, setIsUnsavedSession])
+  }, [router, clearMessages, disconnect, setIsUnsavedSession])
 
   // Auto-connect WebSocket
   useEffect(() => {

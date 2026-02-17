@@ -255,6 +255,7 @@ function BuilderContent() {
     connected,
     connecting,
     connect,
+    disconnect,
     clearMessages,
     restoreMessages,
     updateCacheUserMessages,
