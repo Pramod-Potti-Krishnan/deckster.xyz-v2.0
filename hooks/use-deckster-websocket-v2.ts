@@ -147,19 +147,6 @@ export interface PresentationInit {
 
 export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse;
 
-// Content context for Director - affects content generation
-export interface ContentContextPayload {
-  audience: {
-    audience_type: string;
-  };
-  purpose: {
-    purpose_type: string;
-  };
-  time: {
-    duration_minutes: number;
-  };
-}
-
 // User message to send to server
 export interface UserMessage {
   type: 'user_message';
@@ -167,7 +154,6 @@ export interface UserMessage {
     text: string;
     store_name?: string;
     file_count?: number;
-    content_context?: ContentContextPayload;
   };
 }
 
@@ -934,7 +920,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     text: string,
     storeName?: string,  // NEW: Gemini File Search Store resource name
     fileCount?: number,  // NEW: Number of files in the store (for logging)
-    contentContext?: ContentContextPayload  // NEW: Content context for Director
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send message: WebSocket not connected');
@@ -951,18 +936,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             store_name: storeName,
             file_count: fileCount || 0
           }),
-          // NEW: Pass content_context to Director for content generation
-          ...(contentContext && {
-            content_context: contentContext
-          })
         },
       };
 
       console.log(
         '📤 Sending message:',
         text,
-        storeName ? `with File Search Store: ${storeName} (${fileCount || 0} files)` : '',
-        contentContext ? `with content context: ${JSON.stringify(contentContext)}` : ''
+        storeName ? `with File Search Store: ${storeName} (${fileCount || 0} files)` : ''
       );
       wsRef.current.send(JSON.stringify(message));
 

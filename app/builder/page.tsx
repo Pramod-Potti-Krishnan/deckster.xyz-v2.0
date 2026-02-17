@@ -19,23 +19,12 @@ import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties } from '@/types/elements'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { iframeTypeToTextLabs, isTextLabsMappable } from '@/lib/element-type-mapping'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
-import {
-  ContentContextForm,
-  ContentContext,
-  DEFAULT_CONTENT_CONTEXT,
-} from '@/components/content-context-form'
-import {
-  RegenerationWarningDialog,
-  useRegenerationWarning
-} from '@/components/regeneration-warning-dialog'
-import { ContentContextPayload } from '@/hooks/use-deckster-websocket-v2'
-
 // Extracted components
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
@@ -91,11 +80,6 @@ function BuilderContent() {
   } | null>(null)
 
 
-  // Content context for presentation generation
-  const [contentContext, setContentContext] = useState<ContentContext>(DEFAULT_CONTENT_CONTEXT)
-  const [showContentContextPanel, setShowContentContextPanel] = useState(false)
-  const [hasGeneratedContent, setHasGeneratedContent] = useState(false)
-
   // Toast notifications
   const { toast } = useToast()
 
@@ -121,7 +105,7 @@ function BuilderContent() {
 
   // Drawer open conditions
   const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel
-  const isSlideDrawerOpen = showFormatPanel || showContentContextPanel
+  const isSlideDrawerOpen = showFormatPanel
   const isDeckDrawerOpen = showChat
   const anyDrawerOpen = isElementDrawerOpen || isSlideDrawerOpen || isDeckDrawerOpen
 
@@ -304,23 +288,6 @@ function BuilderContent() {
     }
   })
 
-  // Helper: Convert ContentContext to ContentContextPayload format for WebSocket
-  const toContentContextPayload = useCallback((ctx: ContentContext): ContentContextPayload => ({
-    audience: { audience_type: ctx.audience_type },
-    purpose: { purpose_type: ctx.purpose_type },
-    time: { duration_minutes: ctx.duration_minutes }
-  }), [])
-
-  // Regeneration warning dialog
-  const regenerationWarning = useRegenerationWarning({
-    currentContext: contentContext,
-    onRegenerate: async (newContext: ContentContext) => {
-      console.log('Regenerating content with new context:', newContext)
-      setContentContext(newContext)
-      setShowContentContextPanel(false)
-    }
-  })
-
   // FIXED: Clear loading state when final presentation URL arrives
   useEffect(() => {
     if (finalPresentationUrl && isGeneratingFinal) {
@@ -415,14 +382,13 @@ function BuilderContent() {
         const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
         const fileCount = successfulFiles.length
 
-        const success = sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
+        const success = sendMessage(messageText, storeName, fileCount)
         if (success) {
           setInputMessage("")
           setPendingActionInput(null)
           if (successfulFiles.length > 0) {
             clearAllFiles()
           }
-          setHasGeneratedContent(true)
         }
 
         setTimeout(() => {
@@ -509,8 +475,7 @@ function BuilderContent() {
             const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
             const fileCount = successfulFiles.length
 
-            sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
-            setHasGeneratedContent(true)
+            sendMessage(messageText, storeName, fileCount)
             if (successfulFiles.length > 0) {
               clearAllFiles()
             }
@@ -562,8 +527,7 @@ function BuilderContent() {
         const fileCount = successfulFiles.length
 
         setTimeout(() => {
-          sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
-          setHasGeneratedContent(true)
+          sendMessage(messageText, storeName, fileCount)
           if (successfulFiles.length > 0) {
             clearAllFiles()
           }
@@ -608,10 +572,9 @@ function BuilderContent() {
       const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
       const fileCount = successfulFiles.length
 
-      const success = sendMessage(messageText, storeName, fileCount, toContentContextPayload(contentContext))
+      const success = sendMessage(messageText, storeName, fileCount)
       if (success) {
         setInputMessage("")
-        setHasGeneratedContent(true)
         if (successfulFiles.length > 0) {
           clearAllFiles()
         }
@@ -621,7 +584,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, contentContext, toContentContextPayload])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -845,37 +808,6 @@ function BuilderContent() {
                 currentSlide={currentSlideIndex + 1}
               />
 
-              {showContentContextPanel && (
-                <div className="absolute inset-0 z-30 bg-white flex flex-col">
-                  <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-gray-900">Strategy</h3>
-                    <button
-                      className="p-1.5 rounded-md hover:bg-gray-200 transition-colors text-gray-500 hover:text-gray-700"
-                      onClick={() => setShowContentContextPanel(false)}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="p-3 overflow-auto flex-1">
-                    <ContentContextForm
-                      value={contentContext}
-                      onChange={(newContext) => {
-                        if (hasGeneratedContent) {
-                          regenerationWarning.showWarning(newContext)
-                        } else {
-                          setContentContext(newContext)
-                        }
-                      }}
-                      disabled={regenerationWarning.isRegenerating}
-                    />
-                    {hasGeneratedContent && (
-                      <p className="mt-3 text-[10px] text-gray-500 bg-gray-50 p-2.5 rounded-lg">
-                        Changing these settings will regenerate your presentation content.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Handle */}
@@ -1080,10 +1012,6 @@ function BuilderContent() {
             onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
             connected={connected}
             connecting={connecting}
-            showContentContextPanel={showContentContextPanel}
-            onToggleContentContextPanel={() => setShowContentContextPanel(!showContentContextPanel)}
-            hasGeneratedContent={hasGeneratedContent}
-            contentContext={contentContext}
             toolbarPortalTarget={toolbarPortalTarget}
           />
           )}
@@ -1103,8 +1031,6 @@ function BuilderContent() {
       {/* Onboarding Modal */}
       <OnboardingModal open={showOnboarding} onClose={() => setShowOnboarding(false)} />
 
-      {/* Regeneration Warning Dialog */}
-      <RegenerationWarningDialog {...regenerationWarning.dialogProps} />
     </div>
   )
 }

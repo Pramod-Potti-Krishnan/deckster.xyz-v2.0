@@ -24,7 +24,6 @@ import {
   TrendingUp,
   Tag,
   Pentagon,
-  SlidersHorizontal,
   Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -48,7 +47,6 @@ import { ElementType, ElementProperties, BaseElementProperties } from '@/types/e
 import { VersionHistoryPanel } from './version-history-panel'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
-import { ContentContextDisplay } from './content-context-form'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
@@ -114,10 +112,6 @@ interface PresentationViewerProps {
   // Bottom toolbar items (moved from header)
   connected?: boolean
   connecting?: boolean
-  showContentContextPanel?: boolean
-  onToggleContentContextPanel?: () => void
-  hasGeneratedContent?: boolean
-  contentContext?: import('@/components/content-context-form').ContentContext
   // Portal target for rendering toolbar in the header bar
   toolbarPortalTarget?: HTMLDivElement | null
   // Generation overlay: keeps viewer mounted but overlays loader
@@ -205,10 +199,6 @@ export function PresentationViewer({
   toolbarPortalTarget,
   connected,
   connecting,
-  showContentContextPanel,
-  onToggleContentContextPanel,
-  hasGeneratedContent,
-  contentContext,
   isGenerating,
   generatingMode,
 }: PresentationViewerProps) {
@@ -2086,27 +2076,6 @@ export function PresentationViewer({
                 <Palette className="h-3.5 w-3.5" />
                 Theme
               </button>
-
-              {/* Strategy */}
-              {onToggleContentContextPanel && (
-                <button
-                  onClick={onToggleContentContextPanel}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    showContentContextPanel
-                      ? 'bg-teal-100 text-teal-700 hover:bg-teal-200'
-                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                  }`}
-                  title="Strategy (Audience, Purpose, Duration)"
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  Strategy
-                </button>
-              )}
-
-              {/* Content Context Display */}
-              {hasGeneratedContent && contentContext && (
-                <ContentContextDisplay context={contentContext} className="text-xs" />
-              )}
 
               {/* Connected indicator */}
               {connected !== undefined && (

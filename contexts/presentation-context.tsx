@@ -13,8 +13,6 @@ import {
   AgentStatus,
   PresentationStructure
 } from '@/lib/types/director-messages';
-import { ContentContext } from '@/components/content-context-form';
-
 // State interface
 export interface PresentationState {
   // Session info
@@ -26,10 +24,6 @@ export interface PresentationState {
   currentSlideIndex: number;
   presentationMetadata: PresentationMetadata | null;
   structure: PresentationStructure | null;
-
-  // Content context (audience, purpose, time)
-  contentContext: ContentContext | null;
-  hasGeneratedContent: boolean;
 
   // Chat and messages
   chatMessages: ChatData[];
@@ -58,8 +52,6 @@ const initialState: PresentationState = {
   currentSlideIndex: 0,
   presentationMetadata: null,
   structure: null,
-  contentContext: null,
-  hasGeneratedContent: false,
   chatMessages: [],
   directorMessages: [],
   phase: null,
@@ -82,8 +74,6 @@ export type PresentationAction =
   | { type: 'UPDATE_SLIDE'; payload: { slideId: string; updates: Partial<Slide> } }
   | { type: 'SET_CURRENT_SLIDE'; payload: number }
   | { type: 'SET_STRUCTURE'; payload: PresentationStructure }
-  | { type: 'SET_CONTENT_CONTEXT'; payload: ContentContext }
-  | { type: 'SET_HAS_GENERATED_CONTENT'; payload: boolean }
   | { type: 'UPDATE_PROGRESS'; payload: ProgressInfo }
   | { type: 'UPDATE_PHASE'; payload: PresentationPhase }
   | { type: 'UPDATE_AGENT_STATUS'; payload: AgentStatus }
@@ -186,18 +176,6 @@ function presentationReducer(
       return {
         ...state,
         structure: action.payload
-      };
-
-    case 'SET_CONTENT_CONTEXT':
-      return {
-        ...state,
-        contentContext: action.payload
-      };
-
-    case 'SET_HAS_GENERATED_CONTENT':
-      return {
-        ...state,
-        hasGeneratedContent: action.payload
       };
 
     case 'UPDATE_PROGRESS':
@@ -322,12 +300,3 @@ export function useChatMessages() {
   return state.chatMessages;
 }
 
-export function useContentContext() {
-  const { state } = usePresentation();
-  return state.contentContext;
-}
-
-export function useHasGeneratedContent() {
-  const { state } = usePresentation();
-  return state.hasGeneratedContent;
-}
