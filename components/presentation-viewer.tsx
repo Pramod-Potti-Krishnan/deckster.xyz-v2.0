@@ -344,20 +344,16 @@ export function PresentationViewer({
     setShowThumbnails(prev => !prev)
   }, [])
 
-  // Toggle grid overlay via postMessage
-  const handleToggleGrid = useCallback(async () => {
+  // Toggle grid overlay via postMessage (fire-and-forget to avoid timeout on hide)
+  const handleToggleGrid = useCallback(() => {
     if (!iframeRef.current) return
-    try {
-      if (isGridActive) {
-        await sendCommand(iframeRef.current, 'hideGridOverlay')
-      } else {
-        await sendCommand(iframeRef.current, 'showGridOverlay')
-      }
-      setIsGridActive(prev => !prev)
-      console.log(`📐 Grid overlay: ${!isGridActive ? 'ON' : 'OFF'}`)
-    } catch (error) {
-      console.error('Error toggling grid:', error)
-    }
+    const nextActive = !isGridActive
+    setIsGridActive(nextActive)
+    iframeRef.current.contentWindow?.postMessage(
+      { action: nextActive ? 'showGridOverlay' : 'hideGridOverlay' },
+      VIEWER_ORIGIN
+    )
+    console.log(`📐 Grid overlay: ${nextActive ? 'ON' : 'OFF'}`)
   }, [isGridActive])
 
   // Toggle border highlight via postMessage
@@ -2094,18 +2090,16 @@ export function PresentationViewer({
               {/* Spacer */}
               <div className="flex-1" />
 
-              {/* Powered by Deckster */}
-              <div className="flex items-center gap-1">
-                <div className="flex flex-col items-center">
-                  <span className="text-[7px] text-gray-400 leading-tight">Powered by</span>
-                  <div className="flex items-center gap-0.5">
-                    <div className="flex h-3.5 w-3.5 items-center justify-center rounded bg-gradient-to-br from-purple-600 to-blue-600">
-                      <Sparkles className="h-2 w-2 text-white" />
-                    </div>
-                    <span className="text-[9px] font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                      deckster
-                    </span>
+              {/* powered by deckster */}
+              <div className="flex flex-col items-center gap-[6px]">
+                <span className="text-[7px] text-gray-400 leading-none">powered by</span>
+                <div className="flex items-center gap-1">
+                  <div className="flex h-[18px] w-[18px] items-center justify-center rounded bg-gradient-to-br from-purple-600 to-blue-600">
+                    <Sparkles className="h-2.5 w-2.5 text-white" />
                   </div>
+                  <span className="text-[11px] font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    deckster
+                  </span>
                 </div>
               </div>
             </div>
