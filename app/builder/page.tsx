@@ -112,7 +112,19 @@ function BuilderContent() {
   // FIXED: Track when generating final/strawman presentations
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
   const [isGeneratingStrawman, setIsGeneratingStrawman] = useState(false)
-  const [isUnsavedSession, setIsUnsavedSession] = useState(false)
+  // Persist isUnsavedSession in sessionStorage so it survives page refresh.
+  // Without this, refreshing after immediateConnection generates a UUID loses
+  // the "unsaved" flag, causing persistence and uploads to hit 404.
+  const [isUnsavedSession, setIsUnsavedSession] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const urlSessionId = params.get('session_id')
+      if (urlSessionId && urlSessionId !== 'new') {
+        return sessionStorage.getItem(`deckster_unsaved_${urlSessionId}`) === 'true'
+      }
+    }
+    return false
+  })
 
   // Guard to prevent concurrent executions of handleSendMessage
   const isExecutingSendRef = useRef(false)
@@ -408,6 +420,7 @@ function BuilderContent() {
           if (dbSession) {
             session.justCreatedSessionRef.current = dbSession.id
             setIsUnsavedSession(false)
+            try { sessionStorage.removeItem(`deckster_unsaved_${dbSession.id}`) } catch {}
             if (!currentSessionId) {
               setCurrentSessionId(dbSession.id)
               router.push(`/builder?session_id=${dbSession.id}`)

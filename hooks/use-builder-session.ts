@@ -416,6 +416,7 @@ export function useBuilderSession({
               console.log('🚀 [BUILDER-V2] Generating immediate session ID:', newSessionId)
               setCurrentSessionId(newSessionId)
               setIsUnsavedSession(true)
+              try { sessionStorage.setItem(`deckster_unsaved_${newSessionId}`, 'true') } catch {}
               setIsResumedSession(false)
               router.replace(`/builder?session_id=${newSessionId}`, { scroll: false })
             } else {
@@ -480,6 +481,7 @@ export function useBuilderSession({
       if (session) {
         setCurrentSessionId(session.id)
         setIsUnsavedSession(false)
+        try { sessionStorage.removeItem(`deckster_unsaved_${session.id}`) } catch {}
         // Only update URL if session ID changed (avoid redundant navigation)
         if (session.id !== currentSessionId) {
           router.push(`/builder?session_id=${session.id}`)
