@@ -1,5 +1,5 @@
 export const FILE_VALIDATION = {
-  MAX_FILE_SIZE: 20 * 1024 * 1024, // 20 MB
+  MAX_FILE_SIZE: 25 * 1024 * 1024, // 25 MB
   MAX_FILES_PER_SESSION: 5,
 
   // Comprehensive list of supported MIME types
@@ -67,7 +67,7 @@ export function validateFile(file: File): FileValidationError | null {
     const sizeMB = (file.size / 1024 / 1024).toFixed(1)
     return {
       code: 'SIZE_EXCEEDED',
-      message: `File size (${sizeMB} MB) exceeds 20 MB limit`,
+      message: `File size (${sizeMB} MB) exceeds 25 MB limit`,
       fileName: file.name
     }
   }

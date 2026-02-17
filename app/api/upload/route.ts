@@ -22,7 +22,7 @@ import {
   KnowledgeServiceError,
 } from '@/lib/knowledge-service-client';
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         {
-          error: `File size exceeds 20 MB limit (${(file.size / 1024 / 1024).toFixed(1)} MB)`,
+          error: `File size exceeds 25 MB limit (${(file.size / 1024 / 1024).toFixed(1)} MB)`,
         },
         { status: 400 }
       );

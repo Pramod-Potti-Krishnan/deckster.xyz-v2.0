@@ -68,10 +68,11 @@ export async function uploadFile(
   fileName: string
 ): Promise<KnowledgeFileUpload> {
   const formData = new FormData();
+  formData.append('session_id', sessionId);
   formData.append('file', file, fileName);
 
   const response = await fetch(
-    `${BASE_URL}/api/v1/files/upload?session_id=${encodeURIComponent(sessionId)}`,
+    `${BASE_URL}/api/v1/files/upload`,
     {
       method: 'POST',
       body: formData,
