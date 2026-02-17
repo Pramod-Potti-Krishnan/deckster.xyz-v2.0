@@ -60,6 +60,7 @@ import {
   ElementorContext,
   ElementorPosition
 } from '@/lib/elementor-client'
+import { SlideBuildingLoader } from './slide-building-loader'
 
 // Selection info from Layout Service
 export interface SelectionInfo {
@@ -119,6 +120,9 @@ interface PresentationViewerProps {
   contentContext?: import('@/components/content-context-form').ContentContext
   // Portal target for rendering toolbar in the header bar
   toolbarPortalTarget?: HTMLDivElement | null
+  // Generation overlay: keeps viewer mounted but overlays loader
+  isGenerating?: boolean
+  generatingMode?: 'default' | 'strawman'
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -205,6 +209,8 @@ export function PresentationViewer({
   onToggleContentContextPanel,
   hasGeneratedContent,
   contentContext,
+  isGenerating,
+  generatingMode,
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -476,6 +482,7 @@ export function PresentationViewer({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!iframeRef.current) return
+      if (isGenerating) return
 
       // Only handle if not in an input/textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -526,7 +533,7 @@ export function PresentationViewer({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNextSlide, handlePrevSlide, handleToggleOverview, isEditMode, handleForceSave, handleToggleGrid, handleToggleBorders, handleToggleEditModeButton])
+  }, [handleNextSlide, handlePrevSlide, handleToggleOverview, isEditMode, handleForceSave, handleToggleGrid, handleToggleBorders, handleToggleEditModeButton, isGenerating])
 
   // Lazy edit mode: automatically enter edit mode when needed
   const ensureEditMode = useCallback(async (): Promise<boolean> => {
@@ -1685,7 +1692,8 @@ export function PresentationViewer({
         const toolbarContent = (
           <div className={cn(
             "flex items-center justify-between w-full",
-            isFullscreen ? "px-6 py-2" : "px-4 h-full"
+            isFullscreen ? "px-6 py-2" : "px-4 h-full",
+            isGenerating && "pointer-events-none opacity-50"
           )}>
             {/* Left Group: Add Slide + Edit */}
             <div className="flex items-center gap-4">
@@ -1983,6 +1991,13 @@ export function PresentationViewer({
               </div>
             )}
 
+            {/* Generation Overlay - covers slide area during generation */}
+            {isGenerating && (
+              <div className="absolute inset-0 z-20 bg-gray-800 flex items-center justify-center">
+                <SlideBuildingLoader className="w-full h-full" mode={generatingMode} />
+              </div>
+            )}
+
             {/* Edit Mode Instructions - positioned absolutely to not shift slide */}
             {isEditMode && !isFullscreen && (
               <div className="absolute bottom-0 left-0 right-0 px-4 py-2 bg-yellow-50/95 backdrop-blur-sm border-t border-yellow-200 text-sm text-yellow-800">
@@ -1996,7 +2011,10 @@ export function PresentationViewer({
 
           {/* View Mode Controls - Grid, Borders, Edit (below slide, non-fullscreen only) */}
           {!isFullscreen && (
-            <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 flex items-center gap-4">
+            <div className={cn(
+              "px-4 py-2 bg-gray-50 border-t border-gray-200 flex items-center gap-4",
+              isGenerating && "pointer-events-none opacity-50"
+            )}>
               <span className="text-xs text-gray-500 font-medium">View:</span>
 
               {/* Grid Toggle */}

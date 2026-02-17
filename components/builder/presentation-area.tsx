@@ -110,7 +110,7 @@ export function PresentationArea({
 }: PresentationAreaProps) {
   return (
     <div className="flex-1 flex flex-col bg-gray-100 min-w-0">
-      {presentationUrl && !isGeneratingFinal ? (
+      {presentationUrl ? (
         <PresentationViewer
           presentationUrl={presentationUrl}
           presentationId={presentationId}
@@ -170,6 +170,8 @@ export function PresentationArea({
             }
           }}
           toolbarPortalTarget={toolbarPortalTarget}
+          isGenerating={isGeneratingFinal || isGeneratingStrawman}
+          generatingMode={isGeneratingFinal ? 'default' : 'strawman'}
           className="flex-1"
         />
       ) : (
