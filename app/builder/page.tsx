@@ -943,7 +943,7 @@ function BuilderContent() {
 
           {/* Presentation fills the area, shifts right when any drawer is open */}
           <div
-            className="flex-1 min-w-0 flex flex-col transition-[margin] duration-300 ease-out"
+            className="flex-1 min-w-0 min-h-0 flex flex-col transition-[margin] duration-300 ease-out"
             style={{ marginLeft: anyDrawerOpen ? 384 : 0 }}
           >
           {session.isLoadingSession ? (

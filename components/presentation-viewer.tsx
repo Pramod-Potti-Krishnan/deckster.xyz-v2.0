@@ -1938,7 +1938,7 @@ export function PresentationViewer({
       {/* Main Content Area - Flex container for slide and thumbnails */}
       <div className={`flex-1 flex min-h-0 min-w-0 ${isFullscreen ? 'bg-black' : ''}`}>
         {/* Left: Presentation Area */}
-        <div className={`flex-1 flex flex-col min-w-0 ${isFullscreen ? 'bg-black' : 'overflow-hidden'}`}>
+        <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${isFullscreen ? 'bg-black' : 'overflow-hidden'}`}>
           {/* Presentation Iframe */}
           <div
             ref={slideContainerRef}
