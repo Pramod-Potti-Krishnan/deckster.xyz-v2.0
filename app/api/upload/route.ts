@@ -88,9 +88,18 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (!chatSession || chatSession.userId !== user.id) {
+    if (!chatSession) {
+      console.log(`[Upload] Session not found: sessionId=${sessionId}, userId=${userId}`);
       return NextResponse.json(
-        { error: 'Invalid session' },
+        { error: 'Session not found — please start a conversation first' },
+        { status: 404 }
+      );
+    }
+
+    if (chatSession.userId !== user.id) {
+      console.log(`[Upload] User mismatch: sessionId=${sessionId}, userId=${userId}, ownerUserId=${chatSession.userId}`);
+      return NextResponse.json(
+        { error: 'Session does not belong to this user' },
         { status: 403 }
       );
     }

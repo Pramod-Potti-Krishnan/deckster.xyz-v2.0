@@ -106,8 +106,10 @@ export function ChatInput({
         if (features.enableFileUploads) {
           const files = Array.from(e.dataTransfer.files)
           if (files.length > 0) {
-            onRequestSession().catch(() => {}).then(() => {
+            onRequestSession().then(() => {
               onFilesSelected(files)
+            }).catch((error) => {
+              console.error('[ChatInput] Session creation failed for drag-and-drop:', error)
             })
           }
         }

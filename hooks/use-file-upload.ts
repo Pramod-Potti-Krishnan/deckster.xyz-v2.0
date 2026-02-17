@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { UploadedFile } from '@/components/file-chip'
 import { validateFile } from '@/lib/file-validation'
@@ -19,8 +19,26 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
   const [files, setFiles] = useState<UploadedFile[]>([])
   const { toast } = useToast()
 
+  // Keep sessionId in a ref so the uploadFile callback always reads the latest value
+  // (avoids stale closure when session is created just before upload)
+  const sessionIdRef = useRef(sessionId)
+  if (sessionIdRef.current !== sessionId && sessionId) {
+    sessionIdRef.current = sessionId
+  }
+
   const uploadFile = useCallback(async (file: File): Promise<UploadedFile> => {
-    console.log(`[FileUpload] Starting upload: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB), sessionId=${sessionId}`)
+    const currentSessionId = sessionIdRef.current
+    console.log(`[FileUpload] Starting upload: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB), sessionId=${currentSessionId}`)
+
+    if (!currentSessionId) {
+      toast({
+        title: 'No active session',
+        description: 'Please start a conversation before uploading files.',
+        variant: 'destructive'
+      })
+      throw new Error('No active session')
+    }
+
     const fileId = crypto.randomUUID()
 
     // Create initial file object
@@ -38,7 +56,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     try {
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('sessionId', sessionId)
+      formData.append('sessionId', currentSessionId)
       formData.append('userId', userId)
 
       const response = await fetch('/api/upload', {
@@ -88,7 +106,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
 
       throw error
     }
-  }, [sessionId, userId, toast])
+  }, [userId, toast])
 
   const handleFilesSelected = useCallback(async (selectedFiles: File[]) => {
     console.log(`[FileUpload] Files selected: ${selectedFiles.length}`, selectedFiles.map(f => `${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`))
