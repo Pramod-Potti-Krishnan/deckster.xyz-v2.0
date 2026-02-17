@@ -2091,8 +2091,8 @@ export function PresentationViewer({
               <div className="flex-1" />
 
               {/* powered by deckster */}
-              <div className="flex flex-col items-center gap-[6px]">
-                <span className="text-[7px] text-gray-400 leading-none">powered by</span>
+              <div className="flex flex-col items-start gap-[6px] mt-[5px]">
+                <span className="text-[7px] text-gray-400 leading-none pl-[20px]">powered by</span>
                 <div className="flex items-center gap-1">
                   <div className="flex h-[18px] w-[18px] items-center justify-center rounded bg-gradient-to-br from-purple-600 to-blue-600">
                     <Sparkles className="h-2.5 w-2.5 text-white" />
