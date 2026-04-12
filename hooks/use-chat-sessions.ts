@@ -14,6 +14,7 @@ export interface ChatSession {
   slideCount: number | null;
   status: string;
   isFavorite: boolean;
+  geminiStoreName?: string | null;
   messages?: ChatMessage[];
   stateCache?: {
     currentStatus: any;

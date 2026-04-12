@@ -31,13 +31,15 @@ export interface KnowledgeFileUpload {
  */
 export async function createSession(
   userId: string,
-  sessionName?: string
+  sessionName?: string,
+  sessionId?: string
 ): Promise<KnowledgeSession> {
   const response = await fetch(`${BASE_URL}/api/v1/sessions/create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       user_id: userId,
+      ...(sessionId && { session_id: sessionId }),
       session_name: sessionName,
     }),
   });

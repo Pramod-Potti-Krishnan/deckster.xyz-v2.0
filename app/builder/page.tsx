@@ -52,6 +52,7 @@ function BuilderContent() {
   const [researchEnabled, setResearchEnabled] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(false)
+  const [sessionStoreName, setSessionStoreName] = useState<string | null>(null)
   const [pendingActionInput, setPendingActionInput] = useState<{
     action: ActionRequest['payload']['actions'][0];
     messageId: string;
@@ -266,6 +267,7 @@ function BuilderContent() {
     setIsUnsavedSession,
     currentSessionId,
     setCurrentSessionId,
+    setSessionStoreName,
   })
 
   // Text Labs session (depends on presentationId from WebSocket)
@@ -299,6 +301,10 @@ function BuilderContent() {
     userId: user?.email || '',
     onUploadComplete: (files) => {
       console.log('Files uploaded:', files)
+      const storeName = files.find(f => f.geminiStoreName)?.geminiStoreName
+      if (storeName) {
+        setSessionStoreName(storeName)
+      }
     }
   })
 
@@ -393,13 +399,14 @@ function BuilderContent() {
         }
 
         const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
-        const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
         const fileCount = successfulFiles.length
 
-        const success = sendMessage(messageText, storeName, fileCount, {
+        const success = sendMessage(messageText, undefined, fileCount, {
           deepResearch: researchEnabled,
           webSearch: webSearchEnabled,
           extendedGeneration: extendedGenerationEnabled,
+          fileUpload: !!sessionStoreName,
+          storeName: sessionStoreName,
         })
         if (success) {
           setInputMessage("")
@@ -491,13 +498,14 @@ function BuilderContent() {
             setInputMessage("")
 
             const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
-            const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
             const fileCount = successfulFiles.length
 
-            sendMessage(messageText, storeName, fileCount, {
+            sendMessage(messageText, undefined, fileCount, {
               deepResearch: researchEnabled,
               webSearch: webSearchEnabled,
               extendedGeneration: extendedGenerationEnabled,
+              fileUpload: !!sessionStoreName,
+              storeName: sessionStoreName,
             })
             if (successfulFiles.length > 0) {
               clearAllFiles()
@@ -546,14 +554,15 @@ function BuilderContent() {
         setInputMessage("")
 
         const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
-        const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
         const fileCount = successfulFiles.length
 
         setTimeout(() => {
-          sendMessage(messageText, storeName, fileCount, {
+          sendMessage(messageText, undefined, fileCount, {
             deepResearch: researchEnabled,
             webSearch: webSearchEnabled,
             extendedGeneration: extendedGenerationEnabled,
+            fileUpload: !!sessionStoreName,
+            storeName: sessionStoreName,
           })
           if (successfulFiles.length > 0) {
             clearAllFiles()
@@ -596,13 +605,14 @@ function BuilderContent() {
       }
 
       const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
-      const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
       const fileCount = successfulFiles.length
 
-      const success = sendMessage(messageText, storeName, fileCount, {
+      const success = sendMessage(messageText, undefined, fileCount, {
         deepResearch: researchEnabled,
         webSearch: webSearchEnabled,
         extendedGeneration: extendedGenerationEnabled,
+        fileUpload: !!sessionStoreName,
+        storeName: sessionStoreName,
       })
       if (success) {
         setInputMessage("")
@@ -615,7 +625,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, sessionStoreName])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -658,15 +668,18 @@ function BuilderContent() {
         deepResearch: researchEnabled,
         webSearch: webSearchEnabled,
         extendedGeneration: extendedGenerationEnabled,
+        fileUpload: !!sessionStoreName,
+        storeName: sessionStoreName,
       })
     }
-  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled])
+  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, sessionStoreName])
 
   // Wrapped session select handler (clears local UI state too)
   const handleSessionSelectWrapped = useCallback((sessionId: string) => {
     setIsGeneratingFinal(false)
     setIsGeneratingStrawman(false)
     setShowChatHistory(false)
+    setSessionStoreName(null)
     session.handleSessionSelect(sessionId)
   }, [session.handleSessionSelect])
 

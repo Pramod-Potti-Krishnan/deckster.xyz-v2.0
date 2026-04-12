@@ -152,7 +152,7 @@ export interface UserMessage {
   type: 'user_message';
   data: {
     text: string;
-    store_name?: string;
+    store_name: string | null;
     file_count?: number;
     deep_research: boolean;
     web_search: boolean;
@@ -919,15 +919,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }));
   }, [stopHeartbeat]);
 
-  // Send message to server (NEW ARCHITECTURE: with optional File Search Store)
+  // Send message to server (v4.14: includes feature flags and session-sticky file state)
   const sendMessage = useCallback((
     text: string,
-    storeName?: string,  // NEW: Gemini File Search Store resource name
-    fileCount?: number,  // NEW: Number of files in the store (for logging)
+    storeName?: string,
+    fileCount?: number,
     options?: {
       deepResearch?: boolean;
       webSearch?: boolean;
       extendedGeneration?: boolean;
+      fileUpload?: boolean;
+      storeName?: string | null;
     },
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -936,26 +938,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
 
     try {
+      // Session-sticky store_name: prefer options.storeName (from session state) over positional param
+      const effectiveStoreName = options?.storeName !== undefined ? options.storeName : (storeName || null);
+
       const message: UserMessage = {
         type: 'user_message',
         data: {
           text,
-          // NEW: Pass store_name to backend instead of individual file URIs
-          ...(storeName && {
-            store_name: storeName,
-            file_count: fileCount || 0
-          }),
+          store_name: effectiveStoreName,
+          ...(effectiveStoreName && { file_count: fileCount || 0 }),
           deep_research: options?.deepResearch ?? false,
           web_search: options?.webSearch ?? false,
           extended_generation: options?.extendedGeneration ?? false,
-          file_upload: !!storeName,
+          file_upload: options?.fileUpload ?? !!effectiveStoreName,
         },
       };
 
       console.log(
         '📤 Sending message:',
         text,
-        storeName ? `with File Search Store: ${storeName} (${fileCount || 0} files)` : '',
+        effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
         `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}]`
       );
       wsRef.current.send(JSON.stringify(message));

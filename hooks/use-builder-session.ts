@@ -31,6 +31,8 @@ interface UseBuilderSessionParams {
   // Session ID — lifted to page.tsx so useSessionPersistence gets it synchronously
   currentSessionId: string | null
   setCurrentSessionId: (id: string | null) => void
+  // Session-sticky file store name
+  setSessionStoreName: (name: string | null) => void
 }
 
 export function useBuilderSession({
@@ -53,6 +55,7 @@ export function useBuilderSession({
   setIsUnsavedSession,
   currentSessionId,
   setCurrentSessionId,
+  setSessionStoreName,
 }: UseBuilderSessionParams) {
   const router = useRouter()
 
@@ -298,6 +301,7 @@ export function useBuilderSession({
               new: session.id
             })
             setCurrentSessionId(session.id)
+            setSessionStoreName(session.geminiStoreName || null)
             console.log('✅ Session loaded successfully')
 
             if (session.title) {
@@ -531,8 +535,9 @@ export function useBuilderSession({
     setIsUnsavedSession(true)
     setIsResumedSession(false)
     setCurrentSessionId(null)
+    setSessionStoreName(null)
     router.push('/builder')
-  }, [router, clearMessages, disconnect, setIsUnsavedSession])
+  }, [router, clearMessages, disconnect, setIsUnsavedSession, setSessionStoreName])
 
   // Auto-connect WebSocket
   useEffect(() => {

@@ -126,7 +126,8 @@ export async function POST(req: NextRequest) {
       try {
         const ksSession = await createSession(
           user.id,
-          `Session_${sessionId.substring(0, 8)}`
+          `Session_${sessionId.substring(0, 8)}`,
+          sessionId
         );
 
         storeId = ksSession.session_id;
