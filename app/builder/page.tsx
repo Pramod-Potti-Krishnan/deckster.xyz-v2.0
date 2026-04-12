@@ -51,6 +51,7 @@ function BuilderContent() {
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [researchEnabled, setResearchEnabled] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(false)
   const [pendingActionInput, setPendingActionInput] = useState<{
     action: ActionRequest['payload']['actions'][0];
     messageId: string;
@@ -395,7 +396,11 @@ function BuilderContent() {
         const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
         const fileCount = successfulFiles.length
 
-        const success = sendMessage(messageText, storeName, fileCount)
+        const success = sendMessage(messageText, storeName, fileCount, {
+          deepResearch: researchEnabled,
+          webSearch: webSearchEnabled,
+          extendedGeneration: extendedGenerationEnabled,
+        })
         if (success) {
           setInputMessage("")
           setPendingActionInput(null)
@@ -489,7 +494,11 @@ function BuilderContent() {
             const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
             const fileCount = successfulFiles.length
 
-            sendMessage(messageText, storeName, fileCount)
+            sendMessage(messageText, storeName, fileCount, {
+              deepResearch: researchEnabled,
+              webSearch: webSearchEnabled,
+              extendedGeneration: extendedGenerationEnabled,
+            })
             if (successfulFiles.length > 0) {
               clearAllFiles()
             }
@@ -541,7 +550,11 @@ function BuilderContent() {
         const fileCount = successfulFiles.length
 
         setTimeout(() => {
-          sendMessage(messageText, storeName, fileCount)
+          sendMessage(messageText, storeName, fileCount, {
+            deepResearch: researchEnabled,
+            webSearch: webSearchEnabled,
+            extendedGeneration: extendedGenerationEnabled,
+          })
           if (successfulFiles.length > 0) {
             clearAllFiles()
           }
@@ -586,7 +599,11 @@ function BuilderContent() {
       const storeName = successfulFiles.length > 0 ? successfulFiles[0].geminiStoreName : undefined
       const fileCount = successfulFiles.length
 
-      const success = sendMessage(messageText, storeName, fileCount)
+      const success = sendMessage(messageText, storeName, fileCount, {
+        deepResearch: researchEnabled,
+        webSearch: webSearchEnabled,
+        extendedGeneration: extendedGenerationEnabled,
+      })
       if (success) {
         setInputMessage("")
         if (successfulFiles.length > 0) {
@@ -598,7 +615,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -637,9 +654,13 @@ function BuilderContent() {
         console.log('Starting final deck generation - showing loader')
       }
 
-      sendMessage(action.value)
+      sendMessage(action.value, undefined, undefined, {
+        deepResearch: researchEnabled,
+        webSearch: webSearchEnabled,
+        extendedGeneration: extendedGenerationEnabled,
+      })
     }
-  }, [sendMessage, currentSessionId, persistence])
+  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled])
 
   // Wrapped session select handler (clears local UI state too)
   const handleSessionSelectWrapped = useCallback((sessionId: string) => {
@@ -899,6 +920,8 @@ function BuilderContent() {
                     onResearchEnabledChange={setResearchEnabled}
                     webSearchEnabled={webSearchEnabled}
                     onWebSearchEnabledChange={setWebSearchEnabled}
+                    extendedGenerationEnabled={extendedGenerationEnabled}
+                    onExtendedGenerationEnabledChange={setExtendedGenerationEnabled}
                     isReady={isReady}
                     isLoadingSession={session.isLoadingSession}
                     connected={connected}

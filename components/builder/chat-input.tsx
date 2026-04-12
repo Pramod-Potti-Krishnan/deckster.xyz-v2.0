@@ -20,6 +20,8 @@ import {
   Paperclip,
   ArrowUp,
   Loader2,
+  Search,
+  Sparkles,
 } from "lucide-react"
 import { features } from '@/lib/config'
 import type { ActionRequest } from "@/hooks/use-deckster-websocket-v2"
@@ -42,6 +44,8 @@ export interface ChatInputProps {
   onResearchEnabledChange: (enabled: boolean) => void
   webSearchEnabled: boolean
   onWebSearchEnabledChange: (enabled: boolean) => void
+  extendedGenerationEnabled: boolean
+  onExtendedGenerationEnabledChange: (enabled: boolean) => void
   isReady: boolean
   isLoadingSession: boolean
   connected: boolean
@@ -65,6 +69,8 @@ export function ChatInput({
   onResearchEnabledChange,
   webSearchEnabled,
   onWebSearchEnabledChange,
+  extendedGenerationEnabled,
+  onExtendedGenerationEnabledChange,
   isReady,
   isLoadingSession,
   connected,
@@ -272,11 +278,11 @@ export function ChatInput({
                     <SlidersHorizontal className="h-4 w-4 text-gray-500" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-48">
+                <DropdownMenuContent align="start" className="w-52">
                   <div className="flex items-center justify-between px-2 py-2">
                     <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-gray-500" />
-                      <span className="text-xs">Research</span>
+                      <Search className="h-4 w-4 text-gray-500" />
+                      <span className="text-xs">Deep Research</span>
                     </div>
                     <Switch
                       checked={researchEnabled}
@@ -292,6 +298,17 @@ export function ChatInput({
                     <Switch
                       checked={webSearchEnabled}
                       onCheckedChange={onWebSearchEnabledChange}
+                      className="scale-75"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between px-2 py-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-gray-500" />
+                      <span className="text-xs">Extended generation</span>
+                    </div>
+                    <Switch
+                      checked={extendedGenerationEnabled}
+                      onCheckedChange={onExtendedGenerationEnabledChange}
                       className="scale-75"
                     />
                   </div>

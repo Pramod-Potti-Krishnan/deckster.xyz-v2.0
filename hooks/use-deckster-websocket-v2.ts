@@ -154,6 +154,10 @@ export interface UserMessage {
     text: string;
     store_name?: string;
     file_count?: number;
+    deep_research: boolean;
+    web_search: boolean;
+    extended_generation: boolean;
+    file_upload: boolean;
   };
 }
 
@@ -920,6 +924,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     text: string,
     storeName?: string,  // NEW: Gemini File Search Store resource name
     fileCount?: number,  // NEW: Number of files in the store (for logging)
+    options?: {
+      deepResearch?: boolean;
+      webSearch?: boolean;
+      extendedGeneration?: boolean;
+    },
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send message: WebSocket not connected');
@@ -936,13 +945,18 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             store_name: storeName,
             file_count: fileCount || 0
           }),
+          deep_research: options?.deepResearch ?? false,
+          web_search: options?.webSearch ?? false,
+          extended_generation: options?.extendedGeneration ?? false,
+          file_upload: !!storeName,
         },
       };
 
       console.log(
         '📤 Sending message:',
         text,
-        storeName ? `with File Search Store: ${storeName} (${fileCount || 0} files)` : ''
+        storeName ? `with File Search Store: ${storeName} (${fileCount || 0} files)` : '',
+        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}]`
       );
       wsRef.current.send(JSON.stringify(message));
 
