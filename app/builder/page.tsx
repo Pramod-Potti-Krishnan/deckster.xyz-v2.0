@@ -184,8 +184,11 @@ function BuilderContent() {
     blankPresentationId,
     isBlankPresentation,
     activeVersion,
+    slideContextByIndex,
+    ephemeralMessageIds,
     sendMessage,
     clearMessages,
+    clearEphemeralIds,
     restoreMessages,
     switchVersion,
     connect,
@@ -912,6 +915,10 @@ function BuilderContent() {
                         answeredActionsRef={session.answeredActionsRef}
                         onActionClick={handleActionClick}
                         messagesEndRef={messagesEndRef}
+                        slideContextByIndex={slideContextByIndex}
+                        slideStructureReady={slideStructure !== null}
+                        ephemeralMessageIds={ephemeralMessageIds}
+                        onEphemeralFadeComplete={clearEphemeralIds}
                       />
                     </div>
                   </ScrollArea>

@@ -1,8 +1,9 @@
 "use client"
 
-import React, { useMemo } from "react"
+import React, { useMemo, useEffect, useState } from "react"
 import ReactMarkdown from 'react-markdown'
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   Sparkles,
   ExternalLink,
@@ -14,6 +15,7 @@ import {
   type ActionRequest,
   type SlideUpdate,
   type PresentationURL,
+  type SlideContextItem,
 } from "@/hooks/use-deckster-websocket-v2"
 
 export interface MessageListProps {
@@ -25,6 +27,14 @@ export interface MessageListProps {
   answeredActionsRef: React.RefObject<Set<string>>
   onActionClick: (action: ActionRequest['payload']['actions'][0], messageId: string) => void
   messagesEndRef: React.RefObject<HTMLDivElement | null>
+  // Rich strawman: per-slide context keyed by slide_index. Drives narrative_role chip + key_message subtitle.
+  slideContextByIndex?: Record<number, SlideContextItem> | null
+  // Thinking-stream: true once the real slide_update has landed; signals ephemeral bubbles to fade.
+  slideStructureReady?: boolean
+  // Thinking-stream: IDs of ephemeral chat_messages currently in the transcript.
+  ephemeralMessageIds?: string[]
+  // Thinking-stream: called after the fade animation finishes so the WS hook can drain its tracked IDs.
+  onEphemeralFadeComplete?: () => void
 }
 
 export function MessageList({
@@ -36,7 +46,34 @@ export function MessageList({
   answeredActionsRef,
   onActionClick,
   messagesEndRef,
+  slideContextByIndex,
+  slideStructureReady,
+  ephemeralMessageIds,
+  onEphemeralFadeComplete,
 }: MessageListProps) {
+  // Thinking-stream fade-out: when slide_update lands, fade tracked ephemeral
+  // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
+  const [fadingIds, setFadingIds] = useState<Set<string>>(new Set())
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!slideStructureReady || !ephemeralMessageIds?.length) return
+    const idsToFade = ephemeralMessageIds
+    setFadingIds(prev => {
+      const next = new Set(prev)
+      for (const id of idsToFade) next.add(id)
+      return next
+    })
+    const t = setTimeout(() => {
+      setRemovedIds(prev => {
+        const next = new Set(prev)
+        for (const id of idsToFade) next.add(id)
+        return next
+      })
+      onEphemeralFadeComplete?.()
+    }, 350) // 300ms transition + 50ms buffer
+    return () => clearTimeout(t)
+  }, [slideStructureReady, ephemeralMessageIds, onEphemeralFadeComplete])
   // Combine, classify, deduplicate, sort, filter, and group messages
   const processedMessages = useMemo(() => {
     const combined = [
@@ -296,13 +333,26 @@ export function MessageList({
                           {slideUpdate?.payload.slides.length} slides · {slideUpdate?.payload.metadata.presentation_duration} min · {slideUpdate?.payload.metadata.overall_theme}
                         </p>
                         <div className="space-y-1 max-h-36 overflow-y-auto">
-                          {slideUpdate?.payload.slides.map((slide: any, i: number) => (
-                            <div key={i} className="text-[11px] py-1 px-2 bg-white rounded border border-gray-100">
-                              <span className="text-gray-400 mr-1.5">{slide.slide_number}.</span>
-                              <span className="text-gray-700">{slide.title}</span>
-                              <span className="text-gray-400 text-[10px] uppercase ml-1.5">{slide.slide_type}</span>
-                            </div>
-                          ))}
+                          {slideUpdate?.payload.slides.map((slide: any, i: number) => {
+                            const ctx = slideContextByIndex?.[i]
+                            return (
+                              <div key={i} className="text-[11px] py-1 px-2 bg-white rounded border border-gray-100">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-gray-400">{slide.slide_number}.</span>
+                                  <span className="text-gray-700">{slide.title}</span>
+                                  {ctx?.narrative_role && (
+                                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-normal capitalize">
+                                      {ctx.narrative_role.replace(/_/g, ' ')}
+                                    </Badge>
+                                  )}
+                                  <span className="text-gray-400 text-[10px] uppercase ml-auto">{slide.slide_type}</span>
+                                </div>
+                                {ctx?.key_message && (
+                                  <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-2 pl-3">{ctx.key_message}</p>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
 
@@ -353,8 +403,10 @@ export function MessageList({
                 );
               } else if (msg.type === 'chat_message') {
                 const chatMsg = msg as V2ChatMessage
+                if (removedIds.has(chatMsg.message_id)) return null
+                const isFading = fadingIds.has(chatMsg.message_id)
                 return (
-                  <div className="flex gap-3 animate-in fade-in duration-200">
+                  <div className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
                     <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
@@ -445,13 +497,26 @@ export function MessageList({
                           {slideMsg.payload.slides.length} slides · {slideMsg.payload.metadata.presentation_duration} min · {slideMsg.payload.metadata.overall_theme}
                         </p>
                         <div className="space-y-1 max-h-36 overflow-y-auto">
-                          {slideMsg.payload.slides.map((slide, i) => (
-                            <div key={i} className="text-[11px] py-1 px-2 bg-white rounded border border-gray-100">
-                              <span className="text-gray-400 mr-1.5">{slide.slide_number}.</span>
-                              <span className="text-gray-700">{slide.title}</span>
-                              <span className="text-gray-400 text-[10px] uppercase ml-1.5">{slide.slide_type}</span>
-                            </div>
-                          ))}
+                          {slideMsg.payload.slides.map((slide, i) => {
+                            const ctx = slideContextByIndex?.[i]
+                            return (
+                              <div key={i} className="text-[11px] py-1 px-2 bg-white rounded border border-gray-100">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-gray-400">{slide.slide_number}.</span>
+                                  <span className="text-gray-700">{slide.title}</span>
+                                  {ctx?.narrative_role && (
+                                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-normal capitalize">
+                                      {ctx.narrative_role.replace(/_/g, ' ')}
+                                    </Badge>
+                                  )}
+                                  <span className="text-gray-400 text-[10px] uppercase ml-auto">{slide.slide_type}</span>
+                                </div>
+                                {ctx?.key_message && (
+                                  <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-2 pl-3">{ctx.key_message}</p>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     </div>

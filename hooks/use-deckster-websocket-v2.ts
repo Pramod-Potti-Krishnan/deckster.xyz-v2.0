@@ -8,7 +8,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context';
   payload: any;
 }
 
@@ -38,6 +38,9 @@ export interface ChatMessage {
     sub_title: string | null;
     list_items: string[] | null;
     format?: 'markdown' | 'text';
+    // Director thinking-stream: progress-narration chat bubbles emitted during
+    // strawman generation. Frontend fades these out when slide_update arrives.
+    ephemeral?: boolean;
   };
 }
 
@@ -145,7 +148,46 @@ export interface PresentationInit {
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse;
+// Rich strawman frame emitted by Director after V2 Packager runs (extended generation only).
+// Carries per-slide narrative_role + key_message + Researcher v2 content blob, plus
+// deck-level deck_arc / presentation_brief. Round 1 reads narrative_role + key_message.
+export interface SlideContextItem {
+  slide_index: number;
+  canvas_type?: string;
+  slide_kind?: string;
+  narrative_role?: string;
+  key_message?: string;
+  content_type?: string;
+  subtypes?: {
+    chart_subtype?: string | null;
+    infographic_subtype?: string | null;
+    text_subtype?: string | null;
+    diagram_subtype?: string | null;
+  };
+  // Shape varies by content_type — kept loose for forward-compat. Round 2+ readers
+  // will narrow this when consuming body_paragraphs / entities / layers / etc.
+  content?: unknown;
+}
+
+export interface SlideContext {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'slide_context';
+  payload: {
+    operation: 'full_update' | 'partial_update';
+    deck?: {
+      deck_arc?: string;
+      presentation_brief?: string;
+      deck_outline?: Array<{ slide_index: number; slide_title: string }>;
+      deck_tables?: unknown[];
+      theme_session_id?: string;
+    };
+    slides: SlideContextItem[];
+  };
+}
+
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext;
 
 // User message to send to server
 export interface UserMessage {
@@ -185,6 +227,13 @@ export interface UseDecksterWebSocketV2State {
   slideCount: number | null;
   currentStatus: StatusUpdate['payload'] | null;
   slideStructure: SlideUpdate['payload'] | null;
+  // Rich strawman: per-slide context keyed by slide_index, plus deck-level context.
+  // Populated when Director emits slide_context (extended-generation sessions only).
+  slideContextByIndex: Record<number, SlideContextItem> | null;
+  deckContext: SlideContext['payload']['deck'] | null;
+  // Thinking-stream: message IDs of ephemeral chat_messages currently in the
+  // transcript. MessageList drains this via onEphemeralFadeComplete after fading.
+  ephemeralMessageIds: string[];
 }
 
 // Hook options
@@ -334,6 +383,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         slideCount: cached.slideCount || null,
         currentStatus: cached.currentStatus || null,
         slideStructure: cached.slideStructure || null,
+        slideContextByIndex: (cached as any).slideContextByIndex || null,
+        deckContext: (cached as any).deckContext || null,
+        ephemeralMessageIds: (cached as any).ephemeralMessageIds || [],
       };
     }
 
@@ -360,6 +412,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       slideCount: null,
       currentStatus: null,
       slideStructure: null,
+      slideContextByIndex: null,
+      deckContext: null,
+      ephemeralMessageIds: [],
     };
   };
 
@@ -574,13 +629,20 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // Prevent duplicate messages by checking message_id
             const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
 
-            // Don't add status_update, sync_response, or presentation_init messages to chat - they're only for state management
-            const shouldAddToMessages = message.type !== 'status_update' && message.type !== 'sync_response' && message.type !== 'presentation_init' && !isDuplicate;
+            // Don't add status_update, sync_response, presentation_init, or slide_context messages to chat - they're only for state management
+            const shouldAddToMessages = message.type !== 'status_update' && message.type !== 'sync_response' && message.type !== 'presentation_init' && message.type !== 'slide_context' && !isDuplicate;
 
             const newState = {
               ...prev,
               messages: shouldAddToMessages ? [...prev.messages, messageWithTimestamp] : prev.messages,
             };
+
+            // Track ephemeral chat_messages (Director thinking-stream) so MessageList
+            // can fade them out once the real slide_update lands.
+            if (message.type === 'chat_message' && (message.payload as any).ephemeral === true) {
+              newState.ephemeralMessageIds = [...prev.ephemeralMessageIds, message.message_id];
+              console.log('💭 Ephemeral progress message:', (message.payload as any).text);
+            }
 
             // Handle specific message types
             switch (message.type) {
@@ -811,6 +873,21 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   console.log('Checked locations: payload.preview_url, metadata.preview_url, strawman.preview_url, payload.url');
                 }
                 break;
+
+              case 'slide_context': {
+                const ctx = message.payload;
+                const byIndex: Record<number, SlideContextItem> = {};
+                for (const s of ctx.slides ?? []) {
+                  if (typeof s.slide_index === 'number') byIndex[s.slide_index] = s;
+                }
+                newState.slideContextByIndex = byIndex;
+                newState.deckContext = ctx.deck ?? null;
+                console.log('📚 slide_context received:', {
+                  slides: ctx.slides?.length,
+                  deckArc: ctx.deck?.deck_arc?.slice(0, 60),
+                });
+                break;
+              }
             }
 
             return newState;
@@ -1001,6 +1078,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     });
   }, [setStateWithCache]);
 
+  // Drain tracked ephemeral message IDs after MessageList finishes the fade-out animation.
+  const clearEphemeralIds = useCallback(() => {
+    setStateWithCache(prev => ({ ...prev, ephemeralMessageIds: [] }));
+  }, [setStateWithCache]);
+
   // Clear messages
   const clearMessages = useCallback(() => {
     // Also clear the cache
@@ -1023,6 +1105,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       slideCount: null,
       currentStatus: null,
       slideStructure: null,
+      slideContextByIndex: null,
+      deckContext: null,
+      ephemeralMessageIds: [],
     }));
   }, [sessionCache, setStateWithCache]);
 
@@ -1172,6 +1257,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     disconnect,
     sendMessage,
     clearMessages,
+    clearEphemeralIds,
     restoreMessages,
     switchVersion,
     updateCacheUserMessages,
