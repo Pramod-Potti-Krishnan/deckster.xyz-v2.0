@@ -1,10 +1,17 @@
 "use client"
 
 import React from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { ConnectionError } from "@/components/connection-error"
-import { Menu } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { History, Home, Menu } from "lucide-react"
 
 export interface BuilderHeaderProps {
   wsError: any
@@ -22,15 +29,33 @@ export function BuilderHeader({
       <header className="bg-gray-50 border-b h-12 flex-shrink-0">
         <div className="h-full px-4 flex items-center">
           <div className="flex items-center gap-4 flex-shrink-0">
-            {/* Hamburger Menu - Chat History */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onOpenChatHistory}
-              className="flex-shrink-0"
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="flex-shrink-0"
+                  aria-label="Open builder menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-44">
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href="/" className="flex items-center gap-2">
+                    <Home className="h-4 w-4" />
+                    Home
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={onOpenChatHistory}
+                >
+                  <History className="h-4 w-4" />
+                  Chat history
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Portal target for presentation toolbar */}
