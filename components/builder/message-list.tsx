@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo, useEffect, useState } from "react"
+import React, { useMemo, useEffect, useRef, useState } from "react"
 import ReactMarkdown from 'react-markdown'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +19,7 @@ import {
 } from "@/hooks/use-deckster-websocket-v2"
 
 export interface MessageListProps {
+  sessionId?: string | null
   userMessages: Array<{ id: string; text: string; timestamp: number }>
   messages: DirectorMessage[]
   userMessageIdsRef: React.RefObject<Set<string>>
@@ -29,8 +30,8 @@ export interface MessageListProps {
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   // Rich strawman: per-slide context keyed by slide_index. Drives narrative_role chip + key_message subtitle.
   slideContextByIndex?: Record<number, SlideContextItem> | null
-  // Thinking-stream: true once the real slide_update has landed; signals ephemeral bubbles to fade.
-  slideStructureReady?: boolean
+  // Thinking-stream: increments once the real strawman slide_update lands.
+  ephemeralFadeToken?: number
   // Thinking-stream: IDs of ephemeral chat_messages currently in the transcript.
   ephemeralMessageIds?: string[]
   // Thinking-stream: called after the fade animation finishes so the WS hook can drain its tracked IDs.
@@ -38,6 +39,7 @@ export interface MessageListProps {
 }
 
 export function MessageList({
+  sessionId,
   userMessages,
   messages,
   userMessageIdsRef,
@@ -47,7 +49,7 @@ export function MessageList({
   onActionClick,
   messagesEndRef,
   slideContextByIndex,
-  slideStructureReady,
+  ephemeralFadeToken,
   ephemeralMessageIds,
   onEphemeralFadeComplete,
 }: MessageListProps) {
@@ -55,9 +57,22 @@ export function MessageList({
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
   const [fadingIds, setFadingIds] = useState<Set<string>>(new Set())
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
+  const lastFadeTokenRef = useRef(0)
 
   useEffect(() => {
-    if (!slideStructureReady || !ephemeralMessageIds?.length) return
+    setFadingIds(new Set())
+    setRemovedIds(new Set())
+    lastFadeTokenRef.current = 0
+  }, [sessionId])
+
+  useEffect(() => {
+    if (!ephemeralFadeToken) {
+      lastFadeTokenRef.current = 0
+      return
+    }
+    if (ephemeralFadeToken === lastFadeTokenRef.current || !ephemeralMessageIds?.length) return
+    lastFadeTokenRef.current = ephemeralFadeToken
+
     const idsToFade = ephemeralMessageIds
     setFadingIds(prev => {
       const next = new Set(prev)
@@ -73,7 +88,7 @@ export function MessageList({
       onEphemeralFadeComplete?.()
     }, 350) // 300ms transition + 50ms buffer
     return () => clearTimeout(t)
-  }, [slideStructureReady, ephemeralMessageIds, onEphemeralFadeComplete])
+  }, [ephemeralFadeToken, ephemeralMessageIds, onEphemeralFadeComplete])
   // Combine, classify, deduplicate, sort, filter, and group messages
   const processedMessages = useMemo(() => {
     const combined = [

@@ -186,6 +186,7 @@ function BuilderContent() {
     activeVersion,
     slideContextByIndex,
     ephemeralMessageIds,
+    ephemeralFadeToken,
     sendMessage,
     clearMessages,
     clearEphemeralIds,
@@ -907,6 +908,7 @@ function BuilderContent() {
                   <ScrollArea className="flex-1">
                     <div className="px-3 py-4 space-y-4">
                       <MessageList
+                        sessionId={currentSessionId}
                         userMessages={session.userMessages}
                         messages={messages}
                         userMessageIdsRef={session.userMessageIdsRef}
@@ -916,7 +918,7 @@ function BuilderContent() {
                         onActionClick={handleActionClick}
                         messagesEndRef={messagesEndRef}
                         slideContextByIndex={slideContextByIndex}
-                        slideStructureReady={slideStructure !== null}
+                        ephemeralFadeToken={ephemeralFadeToken}
                         ephemeralMessageIds={ephemeralMessageIds}
                         onEphemeralFadeComplete={clearEphemeralIds}
                       />

@@ -46,6 +46,8 @@ export interface CachedSessionState {
   slideCount: number | null
   slideStructure: any | null
   currentStatus: any | null
+  slideContextByIndex?: Record<number, any> | null
+  deckContext?: any | null
 
   // Cache metadata
   lastUpdated: number

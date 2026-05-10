@@ -234,6 +234,9 @@ export interface UseDecksterWebSocketV2State {
   // Thinking-stream: message IDs of ephemeral chat_messages currently in the
   // transcript. MessageList drains this via onEphemeralFadeComplete after fading.
   ephemeralMessageIds: string[];
+  // Incremented only when a real strawman slide_update lands. This keeps
+  // ephemeral bubbles visible while the blank-presentation slideStructure exists.
+  ephemeralFadeToken: number;
 }
 
 // Hook options
@@ -386,6 +389,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         slideContextByIndex: (cached as any).slideContextByIndex || null,
         deckContext: (cached as any).deckContext || null,
         ephemeralMessageIds: (cached as any).ephemeralMessageIds || [],
+        ephemeralFadeToken: 0,
       };
     }
 
@@ -415,6 +419,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       slideContextByIndex: null,
       deckContext: null,
       ephemeralMessageIds: [],
+      ephemeralFadeToken: 0,
     };
   };
 
@@ -463,6 +468,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         slideCount: newState.slideCount,
         currentStatus: newState.currentStatus,
         slideStructure: newState.slideStructure,
+        slideContextByIndex: newState.slideContextByIndex,
+        deckContext: newState.deckContext,
         userMessages: existingUserMessages, // Preserve existing userMessages from cache
       });
 
@@ -640,7 +647,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // Track ephemeral chat_messages (Director thinking-stream) so MessageList
             // can fade them out once the real slide_update lands.
             if (message.type === 'chat_message' && (message.payload as any).ephemeral === true) {
-              newState.ephemeralMessageIds = [...prev.ephemeralMessageIds, message.message_id];
+              newState.ephemeralMessageIds = prev.ephemeralMessageIds.includes(message.message_id)
+                ? prev.ephemeralMessageIds
+                : [...prev.ephemeralMessageIds, message.message_id];
               console.log('💭 Ephemeral progress message:', (message.payload as any).text);
             }
 
@@ -762,6 +771,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               case 'slide_update':
                 console.log('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
                 newState.slideStructure = message.payload;
+
+                if (
+                  message.payload.operation === 'full_update' &&
+                  !message.payload.is_blank &&
+                  prev.ephemeralMessageIds.length > 0
+                ) {
+                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                }
 
                 // Legacy: Handle blank presentation sent as slide_update with is_blank flag
                 // (kept for backward compatibility, but Director now sends presentation_init instead)
@@ -1108,6 +1125,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       slideContextByIndex: null,
       deckContext: null,
       ephemeralMessageIds: [],
+      ephemeralFadeToken: 0,
     }));
   }, [sessionCache, setStateWithCache]);
 
@@ -1202,6 +1220,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       slideStructure: sessionState?.slideStructure || null,
       currentStage: sessionState?.currentStage || null,
       currentStatus: null, // Always clear status on session restore
+      ephemeralMessageIds: [],
+      ephemeralFadeToken: 0,
     }));
   }, [setStateWithCache]);
 
