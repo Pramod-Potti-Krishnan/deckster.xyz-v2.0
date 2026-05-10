@@ -8,6 +8,7 @@ import {
   Sparkles,
   ExternalLink,
   User,
+  ChevronDown,
 } from "lucide-react"
 import {
   type DirectorMessage,
@@ -57,11 +58,13 @@ export function MessageList({
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
   const [fadingIds, setFadingIds] = useState<Set<string>>(new Set())
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
+  const [expandedThinkingGroups, setExpandedThinkingGroups] = useState<Set<string>>(new Set())
   const lastFadeTokenRef = useRef(0)
 
   useEffect(() => {
     setFadingIds(new Set())
     setRemovedIds(new Set())
+    setExpandedThinkingGroups(new Set())
     lastFadeTokenRef.current = 0
   }, [sessionId])
 
@@ -85,12 +88,14 @@ export function MessageList({
         for (const id of idsToFade) next.add(id)
         return next
       })
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
       onEphemeralFadeComplete?.()
     }, 350) // 300ms transition + 50ms buffer
     return () => clearTimeout(t)
-  }, [ephemeralFadeToken, ephemeralMessageIds, onEphemeralFadeComplete])
+  }, [ephemeralFadeToken, ephemeralMessageIds, messagesEndRef, onEphemeralFadeComplete])
   // Combine, classify, deduplicate, sort, filter, and group messages
   const processedMessages = useMemo(() => {
+    const trackedEphemeralIds = new Set(ephemeralMessageIds || [])
     const combined = [
       ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
       ...messages.map(m => {
@@ -251,6 +256,11 @@ export function MessageList({
       slideUpdate?: SlideUpdate,
       presentationUrl?: PresentationURL,
       actionRequest?: ActionRequest
+    } | {
+      messageType: 'bot',
+      type: 'thinking_stream',
+      message_id: string,
+      messages: V2ChatMessage[]
     }> = [];
 
     let i = 0;
@@ -259,6 +269,39 @@ export function MessageList({
 
       if (current.messageType === 'bot') {
         const botMsg = current as DirectorMessage;
+
+        if (botMsg.type === 'chat_message' && (botMsg as V2ChatMessage).payload.ephemeral === true) {
+          const thinkingMessages: V2ChatMessage[] = []
+          while (i < filtered.length && filtered[i].messageType === 'bot') {
+            const maybeThinking = filtered[i] as DirectorMessage
+            if (maybeThinking.type !== 'chat_message' || !(maybeThinking as V2ChatMessage).payload.ephemeral) {
+              break
+            }
+            thinkingMessages.push(maybeThinking as V2ChatMessage)
+            i++
+          }
+
+          if (thinkingMessages.length > 0) {
+            const hasLaterStrawman = filtered.slice(i).some((item) => {
+              if (item.messageType !== 'bot') return false
+              const maybeSlideUpdate = item as DirectorMessage
+              return maybeSlideUpdate.type === 'slide_update' &&
+                (maybeSlideUpdate as SlideUpdate).payload.operation === 'full_update' &&
+                !(maybeSlideUpdate as SlideUpdate).payload.is_blank
+            })
+            const isLiveTrackedGroup = thinkingMessages.some(m => trackedEphemeralIds.has(m.message_id))
+
+            if (!hasLaterStrawman || isLiveTrackedGroup) {
+              processedMessages.push({
+                messageType: 'bot',
+                type: 'thinking_stream',
+                message_id: `thinking_${thinkingMessages[0].message_id}`,
+                messages: thinkingMessages
+              })
+            }
+            continue;
+          }
+        }
 
         if (botMsg.type === 'slide_update') {
           const slideUpdate = botMsg as SlideUpdate;
@@ -302,7 +345,7 @@ export function MessageList({
     }
 
     return processedMessages;
-  }, [userMessages, messages, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef]);
+  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef]);
 
   return (
     <>
@@ -416,6 +459,68 @@ export function MessageList({
                     </div>
                   </div>
                 );
+              } else if (msg.type === 'thinking_stream') {
+                const thinkingMessages = (msg.messages || []) as V2ChatMessage[]
+                const visibleMessages = thinkingMessages.filter(m => !removedIds.has(m.message_id))
+                if (visibleMessages.length === 0) return null
+
+                const latestMessage = visibleMessages[visibleMessages.length - 1]
+                const isFading = visibleMessages.some(m => fadingIds.has(m.message_id))
+                const isExpanded = expandedThinkingGroups.has(msg.message_id)
+                const canExpand = visibleMessages.length > 1
+
+                return (
+                  <div className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                      <Sparkles className="h-3 w-3 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
+                      <div className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2">
+                        <button
+                          type="button"
+                          className="w-full flex items-center gap-2 text-left disabled:cursor-default"
+                          disabled={!canExpand}
+                          onClick={() => {
+                            if (!canExpand) return
+                            setExpandedThinkingGroups(prev => {
+                              const next = new Set(prev)
+                              if (next.has(msg.message_id)) {
+                                next.delete(msg.message_id)
+                              } else {
+                                next.add(msg.message_id)
+                              }
+                              return next
+                            })
+                          }}
+                          aria-expanded={isExpanded}
+                        >
+                          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center gap-0.5">
+                            <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse" />
+                            <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse [animation-delay:120ms]" />
+                            <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse [animation-delay:240ms]" />
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-xs text-gray-700">
+                            {latestMessage.payload.text}
+                          </span>
+                          {canExpand && (
+                            <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 text-purple-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          )}
+                        </button>
+
+                        {isExpanded && (
+                          <div className="mt-2 max-h-24 overflow-y-auto border-t border-purple-100 pt-2 space-y-1">
+                            {visibleMessages.map((thought) => (
+                              <p key={thought.message_id} className="text-[11px] leading-relaxed text-gray-500">
+                                {thought.payload.text}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
               } else if (msg.type === 'chat_message') {
                 const chatMsg = msg as V2ChatMessage
                 if (removedIds.has(chatMsg.message_id)) return null
