@@ -3,6 +3,12 @@ import { useChatSessions, ChatMessage } from './use-chat-sessions';
 import { DirectorMessage } from './use-deckster-websocket-v2';
 import { useSessionCache } from './use-session-cache';
 
+type PersistableDirectorMessage = Exclude<DirectorMessage, { type: 'token_usage' }>;
+
+function isPersistableMessage(message: DirectorMessage): message is PersistableDirectorMessage {
+  return message.type !== 'token_usage';
+}
+
 export interface SessionPersistenceOptions {
   sessionId: string;
   enabled?: boolean;
@@ -98,6 +104,11 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
    * FIX 8: Uses sessionIdRef to avoid stale closure
    */
   const queueMessage = useCallback((message: DirectorMessage, userText?: string) => {
+    if (!isPersistableMessage(message)) {
+      console.log('⏭️ queueMessage skipped - token usage is cached in session state');
+      return;
+    }
+
     // FIX 8: Check sessionIdRef instead of enabled flag
     const currentSessionId = sessionIdRef.current;
     if (!currentSessionId) {
@@ -122,11 +133,11 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
       messageType: message.type,
       timestamp: message.timestamp,
       payload: message.payload,
-      userText: userText || null,
+      userText: userText || undefined,
     });
 
     // For user messages, flush immediately
-    if (message.type === 'user' || userText) {
+    if (userText) {
       console.log('📤 User message detected - triggering immediate save');
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
@@ -154,8 +165,9 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
   const saveBatch = useCallback(async (messages: DirectorMessage[], userText?: string) => {
     // FIX 8: Use ref instead of closure value
     const currentSessionId = sessionIdRef.current;
+    const persistableMessages = messages.filter(isPersistableMessage);
 
-    if (!currentSessionId || messages.length === 0) {
+    if (!currentSessionId || persistableMessages.length === 0) {
       if (!currentSessionId) {
         console.warn('⚠️ saveBatch skipped - no sessionId');
       }
@@ -164,17 +176,17 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
 
     try {
       // STEP 1: Write to browser cache FIRST (synchronous)
-      if (userText && messages.length > 0) {
-        sessionCache.appendMessage(messages[0], userText);
+      if (userText && persistableMessages.length > 0) {
+        sessionCache.appendMessage(persistableMessages[0], userText);
       }
 
       // STEP 2: Format messages for DB save
-      const formattedMessages = messages.map(msg => ({
+      const formattedMessages = persistableMessages.map(msg => ({
         id: msg.message_id,
         messageType: msg.type,
         timestamp: msg.timestamp,
         payload: msg.payload,
-        userText: userText || null, // FIXED: Use provided userText instead of hardcoded null
+        userText: userText || undefined, // FIXED: Use provided userText instead of hardcoded null
       }));
 
       console.log(`💾 Batch saving ${formattedMessages.length} messages to session ${currentSessionId}`);

@@ -8,7 +8,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage';
   payload: any;
 }
 
@@ -114,6 +114,7 @@ export interface SlideUpdate {
       visuals_needed: string | null;
       diagrams_needed: string | null;
       structure_preference: string | null;
+      speaker_notes?: string | null;
     }>;
     affected_slides: string[] | null;
     preview_url?: string;  // Strawman preview URL (may be at payload root)
@@ -187,7 +188,42 @@ export interface SlideContext {
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext;
+export interface StageTokenTotal {
+  stage: string;
+  tokens_in: number;
+  tokens_out: number;
+  total_tokens: number;
+  cached_tokens_in: number;
+  reasoning_tokens: number;
+  call_count: number;
+}
+
+export interface TokenScopeTotal {
+  tokens_in: number;
+  tokens_out: number;
+  total_tokens: number;
+  cached_tokens_in: number;
+  reasoning_tokens: number;
+  per_stage: StageTokenTotal[];
+}
+
+export interface TokenUsagePayload {
+  turn: TokenScopeTotal;
+  session: TokenScopeTotal;
+  coverage: 'full' | 'partial';
+  action_type: string | null;
+}
+
+export interface TokenUsage {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'token_usage';
+  role: 'assistant';
+  payload: TokenUsagePayload;
+}
+
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage;
 
 // User message to send to server
 export interface UserMessage {
@@ -237,6 +273,8 @@ export interface UseDecksterWebSocketV2State {
   // Incremented only when a real strawman slide_update lands. This keeps
   // ephemeral bubbles visible while the blank-presentation slideStructure exists.
   ephemeralFadeToken: number;
+  // Director token-usage ledger, emitted once per completed turn.
+  tokenUsage: TokenUsagePayload | null;
 }
 
 // Hook options
@@ -390,6 +428,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         deckContext: (cached as any).deckContext || null,
         ephemeralMessageIds: (cached as any).ephemeralMessageIds || [],
         ephemeralFadeToken: 0,
+        tokenUsage: (cached as any).tokenUsage || null,
       };
     }
 
@@ -420,6 +459,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       deckContext: null,
       ephemeralMessageIds: [],
       ephemeralFadeToken: 0,
+      tokenUsage: null,
     };
   };
 
@@ -470,6 +510,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         slideStructure: newState.slideStructure,
         slideContextByIndex: newState.slideContextByIndex,
         deckContext: newState.deckContext,
+        tokenUsage: newState.tokenUsage,
         userMessages: existingUserMessages, // Preserve existing userMessages from cache
       });
 
@@ -636,8 +677,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // Prevent duplicate messages by checking message_id
             const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
 
-            // Don't add status_update, sync_response, presentation_init, or slide_context messages to chat - they're only for state management
-            const shouldAddToMessages = message.type !== 'status_update' && message.type !== 'sync_response' && message.type !== 'presentation_init' && message.type !== 'slide_context' && !isDuplicate;
+            // Don't add status_update, sync_response, presentation_init, slide_context, or token_usage messages to chat - they're only for state management
+            const shouldAddToMessages = message.type !== 'status_update' && message.type !== 'sync_response' && message.type !== 'presentation_init' && message.type !== 'slide_context' && message.type !== 'token_usage' && !isDuplicate;
 
             const newState = {
               ...prev,
@@ -905,6 +946,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 });
                 break;
               }
+
+              case 'token_usage':
+                newState.tokenUsage = message.payload;
+                console.log('🧮 token_usage received:', {
+                  action: message.payload.action_type,
+                  turnTotal: message.payload.turn?.total_tokens,
+                  sessionTotal: message.payload.session?.total_tokens,
+                  coverage: message.payload.coverage,
+                });
+                break;
             }
 
             return newState;
@@ -1126,6 +1177,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       deckContext: null,
       ephemeralMessageIds: [],
       ephemeralFadeToken: 0,
+      tokenUsage: null,
     }));
   }, [sessionCache, setStateWithCache]);
 
@@ -1222,6 +1274,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       currentStatus: null, // Always clear status on session restore
       ephemeralMessageIds: [],
       ephemeralFadeToken: 0,
+      tokenUsage: (sessionState as any)?.tokenUsage || null,
     }));
   }, [setStateWithCache]);
 

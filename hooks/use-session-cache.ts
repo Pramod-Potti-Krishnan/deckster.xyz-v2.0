@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react'
-import { DirectorMessage } from './use-deckster-websocket-v2'
+import type { DirectorMessage, TokenUsagePayload } from './use-deckster-websocket-v2'
 
 const CACHE_VERSION = 1 // Increment when schema changes
 const DEFAULT_TTL = 24 * 60 * 60 * 1000 // 24 hours
@@ -48,6 +48,7 @@ export interface CachedSessionState {
   currentStatus: any | null
   slideContextByIndex?: Record<number, any> | null
   deckContext?: any | null
+  tokenUsage?: TokenUsagePayload | null
 
   // Cache metadata
   lastUpdated: number

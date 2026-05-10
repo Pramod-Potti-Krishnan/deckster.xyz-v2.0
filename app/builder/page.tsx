@@ -30,6 +30,7 @@ import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
 import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
+import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
@@ -187,6 +188,7 @@ function BuilderContent() {
     slideContextByIndex,
     ephemeralMessageIds,
     ephemeralFadeToken,
+    tokenUsage,
     sendMessage,
     clearMessages,
     clearEphemeralIds,
@@ -924,6 +926,8 @@ function BuilderContent() {
                       />
                     </div>
                   </ScrollArea>
+
+                  <TokenUsageStrip tokenUsage={tokenUsage} />
 
                   <ChatInput
                     inputMessage={inputMessage}
