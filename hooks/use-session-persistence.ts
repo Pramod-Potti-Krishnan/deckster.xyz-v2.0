@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useChatSessions, ChatMessage } from './use-chat-sessions';
 import { DirectorMessage } from './use-deckster-websocket-v2';
 import { useSessionCache } from './use-session-cache';
+import { debugLog } from '@/lib/debug-log';
 
 type PersistableDirectorMessage = Exclude<DirectorMessage, { type: 'token_usage' }>;
 
@@ -24,11 +25,19 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
   // Same pattern as Fix 7 in use-session-cache.ts
   const sessionIdRef = useRef(sessionId);
 
+  // Track enabled state via ref so callbacks always have the current value
+  const enabledRef = useRef(enabled);
+  if (enabledRef.current !== enabled) enabledRef.current = enabled;
+
+  // Stop retrying after a 404 "session not found" error
+  const sessionInvalidRef = useRef(false);
+
   // FIX 8: Update ref SYNCHRONOUSLY during render, not in useEffect
   // This ensures callbacks always have the latest sessionId
   if (sessionIdRef.current !== sessionId && sessionId) {
-    console.log(`🔄 [Persistence] Session ID updated: ${sessionIdRef.current || '(empty)'} → ${sessionId}`);
+    debugLog(`🔄 [Persistence] Session ID updated: ${sessionIdRef.current || '(empty)'} → ${sessionId}`);
     sessionIdRef.current = sessionId;
+    sessionInvalidRef.current = false; // Reset invalid flag for new session
   }
 
   // Initialize browser cache
@@ -40,7 +49,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
 
   // Queue of pending messages to save
   const messageQueueRef = useRef<Map<string, any>>(new Map());
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const isSavingRef = useRef(false);
 
   /**
@@ -48,14 +57,26 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
    * FIX 8: Uses sessionIdRef.current to avoid stale closure
    */
   const flushMessages = useCallback(async () => {
+    // Guard: don't flush if persistence is disabled (e.g. unsaved session)
+    if (!enabledRef.current) {
+      debugLog('⏭️ flushMessages skipped - persistence disabled');
+      return;
+    }
+
+    // Guard: don't flush if session was invalidated by a prior 404
+    if (sessionInvalidRef.current) {
+      debugLog('⏭️ flushMessages skipped - session invalidated (prior 404)');
+      return;
+    }
+
     // FIX 8: Use ref instead of closure value
     const currentSessionId = sessionIdRef.current;
 
     if (messageQueueRef.current.size === 0 || isSavingRef.current) {
       if (messageQueueRef.current.size === 0) {
-        console.log('✅ No messages to flush (queue empty)');
+        debugLog('✅ No messages to flush (queue empty)');
       } else {
-        console.log('⏳ Already saving messages, skipping duplicate flush');
+        debugLog('⏳ Already saving messages, skipping duplicate flush');
       }
       return;
     }
@@ -69,7 +90,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
 
     try {
       const messages = Array.from(messageQueueRef.current.values());
-      console.log(`💾 Flushing ${messages.length} messages to database:`, messages.map(m => ({
+      debugLog(`💾 Flushing ${messages.length} messages to database:`, messages.map(m => ({
         id: m.id,
         type: m.messageType,
         hasUserText: !!m.userText,
@@ -79,12 +100,13 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
       const result = await saveMessages(currentSessionId, messages);
 
       if (result) {
-        console.log(`✅ Successfully saved ${result.saved}/${result.total} messages to database`);
+        debugLog(`✅ Successfully saved ${result.saved}/${result.total} messages to database`);
         // Clear successfully saved messages
         messageQueueRef.current.clear();
-        console.log('🗑️ Message queue cleared');
+        debugLog('🗑️ Message queue cleared');
       } else {
         console.error('❌ FAILED to save messages to database - check authentication and network');
+        sessionInvalidRef.current = true; // Stop retrying — session may not exist in DB
         if (onError) {
           onError(new Error('Failed to save messages - check authentication'));
         }
@@ -105,7 +127,19 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
    */
   const queueMessage = useCallback((message: DirectorMessage, userText?: string) => {
     if (!isPersistableMessage(message)) {
-      console.log('⏭️ queueMessage skipped - token usage is cached in session state');
+      debugLog('⏭️ queueMessage skipped - token usage is cached in session state');
+      return;
+    }
+
+    // Guard: don't queue if persistence is disabled (e.g. unsaved session)
+    if (!enabledRef.current) {
+      debugLog('⏭️ queueMessage skipped - persistence disabled');
+      return;
+    }
+
+    // Guard: don't queue if session was invalidated by a prior 404
+    if (sessionInvalidRef.current) {
+      debugLog('⏭️ queueMessage skipped - session invalidated (prior 404)');
       return;
     }
 
@@ -116,7 +150,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
       return;
     }
 
-    console.log('📥 Queueing message:', {
+    debugLog('📥 Queueing message:', {
       id: message.message_id,
       type: message.type,
       hasUserText: !!userText,
@@ -138,7 +172,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
 
     // For user messages, flush immediately
     if (userText) {
-      console.log('📤 User message detected - triggering immediate save');
+      debugLog('📤 User message detected - triggering immediate save');
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
@@ -147,7 +181,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     }
 
     // For bot messages, debounce
-    console.log(`⏱️ Bot message - scheduling flush in ${debounceMs}ms`);
+    debugLog(`⏱️ Bot message - scheduling flush in ${debounceMs}ms`);
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
@@ -189,13 +223,13 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         userText: userText || undefined, // FIXED: Use provided userText instead of hardcoded null
       }));
 
-      console.log(`💾 Batch saving ${formattedMessages.length} messages to session ${currentSessionId}`);
-      console.log(`📝 userText parameter:`, userText ? `"${userText.substring(0, 50)}..."` : 'NULL');
-      console.log(`📝 First message userText field:`, formattedMessages[0]?.userText ? `"${formattedMessages[0].userText.substring(0, 30)}..."` : 'NULL');
+      debugLog(`💾 Batch saving ${formattedMessages.length} messages to session ${currentSessionId}`);
+      debugLog(`📝 userText parameter:`, userText ? `"${userText.substring(0, 50)}..."` : 'NULL');
+      debugLog(`📝 First message userText field:`, formattedMessages[0]?.userText ? `"${formattedMessages[0].userText.substring(0, 30)}..."` : 'NULL');
       const result = await saveMessages(currentSessionId, formattedMessages);
 
       if (result) {
-        console.log(`✅ Batch saved ${result.saved}/${result.total} messages`);
+        debugLog(`✅ Batch saved ${result.saved}/${result.total} messages`);
       }
     } catch (error) {
       console.error('❌ Error batch saving messages:', error);
@@ -217,7 +251,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     strawmanPresentationId?: string;
     finalPresentationId?: string;
     slideCount?: number;
-    lastMessageAt?: Date;
+    lastMessageAt?: Date | string;
   }) => {
     // FIX 8: Use ref instead of closure value
     const currentSessionId = sessionIdRef.current;
@@ -227,8 +261,14 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     }
 
     try {
-      console.log('📝 Updating session metadata:', updates);
-      await updateSession(currentSessionId, updates);
+      const normalizedUpdates = {
+        ...updates,
+        lastMessageAt: updates.lastMessageAt instanceof Date
+          ? updates.lastMessageAt.toISOString()
+          : updates.lastMessageAt,
+      };
+      debugLog('📝 Updating session metadata:', normalizedUpdates);
+      await updateSession(currentSessionId, normalizedUpdates);
     } catch (error) {
       console.error('❌ Error updating session metadata:', error);
       if (onError) {
@@ -273,10 +313,6 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     };
   }, [flushMessages]);
 
-  // Track enabled state via ref so beforeunload handler has current value
-  const enabledRef = useRef(enabled);
-  if (enabledRef.current !== enabled) enabledRef.current = enabled;
-
   // Flush on window beforeunload
   // FIX 8: Use sessionIdRef to get current session ID
   useEffect(() => {
@@ -287,7 +323,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
 
       // Synchronous flush attempt
       if (messageQueueRef.current.size > 0) {
-        console.log(`🚨 beforeunload: Attempting to save ${messageQueueRef.current.size} pending messages via sendBeacon`);
+        debugLog(`🚨 beforeunload: Attempting to save ${messageQueueRef.current.size} pending messages via sendBeacon`);
 
         // Use sendBeacon API for synchronous last-ditch save
         const messages = Array.from(messageQueueRef.current.values());
@@ -297,9 +333,9 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
 
         // Best effort - may or may not work depending on browser
         const success = navigator.sendBeacon(`/api/sessions/${currentSessionId}/messages`, blob);
-        console.log(`🚨 sendBeacon ${success ? 'succeeded' : 'failed'} for ${messages.length} messages`);
+        debugLog(`🚨 sendBeacon ${success ? 'succeeded' : 'failed'} for ${messages.length} messages`);
       } else {
-        console.log('✅ beforeunload: No pending messages to save');
+        debugLog('✅ beforeunload: No pending messages to save');
       }
     };
 

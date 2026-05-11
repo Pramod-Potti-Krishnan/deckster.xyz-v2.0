@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
+import { debugLog } from '@/lib/debug-log';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -304,8 +305,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const { user } = useAuth();
 
   // Generate stable session and user IDs
-  const sessionIdRef = useRef<string>();
-  const userIdRef = useRef<string>();
+  const sessionIdRef = useRef<string>('');
+  const userIdRef = useRef<string>('');
 
   // CRITICAL FIX: Initialize session ID with priority order:
   // 1. Use existing session ID from database/URL (if provided)
@@ -313,11 +314,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // This prevents generating new IDs on every page refresh
   if (!sessionIdRef.current) {
     if (options.existingSessionId) {
-      console.log('✅ Initializing with existing session ID:', options.existingSessionId);
+      debugLog('✅ Initializing with existing session ID:', options.existingSessionId);
       sessionIdRef.current = options.existingSessionId;
     } else {
       const newId = crypto.randomUUID();
-      console.log('🆕 Generating new session ID:', newId);
+      debugLog('🆕 Generating new session ID:', newId);
       sessionIdRef.current = newId;
     }
   }
@@ -325,7 +326,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // FIXED: Allow session ID updates only when creating a new database session
   // Prevents session ID from changing once a session is loaded from URL/database
   if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
-    console.log('🔄 [WEBSOCKET-SESSION] Session ID update requested', {
+    debugLog('🔄 [WEBSOCKET-SESSION] Session ID update requested', {
       old: sessionIdRef.current,
       new: options.existingSessionId,
       source: 'builder page (existingSessionId prop)'
@@ -336,7 +337,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     // This allows: initial connection with URL session ID or upgrading unsaved → saved
     sessionIdRef.current = options.existingSessionId;
 
-    console.log('✅ [WEBSOCKET-SESSION] Session ID updated', {
+    debugLog('✅ [WEBSOCKET-SESSION] Session ID updated', {
       sessionId: sessionIdRef.current
     });
   }
@@ -344,8 +345,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // FIXED: Initialize user ID ONLY with authenticated user (no temporary IDs)
   // This prevents user ID from changing during session and breaking continuity
   if (!userIdRef.current && (user?.id || user?.email)) {
-    const authenticatedUserId = user.id || user.email;
-    console.log('✅ [WEBSOCKET-USER] Initializing with authenticated user ID', {
+    const authenticatedUserId = user.id ?? user.email ?? undefined;
+    debugLog('✅ [WEBSOCKET-USER] Initializing with authenticated user ID', {
       user_id: authenticatedUserId,
       source: user.id ? 'user.id' : 'user.email'
     });
@@ -355,13 +356,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // FIXED: Update user ID when authentication completes (but preserve existing ID)
   // This handles initial auth load, but NEVER changes user ID once set
   useEffect(() => {
-    const authenticatedUserId = user?.id || user?.email;
+    const authenticatedUserId = user?.id ?? user?.email ?? undefined;
 
     // Set user ID if we have authenticated user and no ID set yet
     if (authenticatedUserId && !userIdRef.current) {
-      console.log('✅ [WEBSOCKET-USER] Setting authenticated user ID from effect', {
+      debugLog('✅ [WEBSOCKET-USER] Setting authenticated user ID from effect', {
         user_id: authenticatedUserId,
-        source: user.id ? 'user.id' : 'user.email'
+        source: user?.id ? 'user.id' : 'user.email'
       });
       userIdRef.current = authenticatedUserId;
     }
@@ -388,7 +389,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const getInitialState = (): UseDecksterWebSocketV2State => {
     const cached = sessionCache.getCachedState();
     if (cached && sessionCache.isCacheValid()) {
-      console.log('⚡ Initializing from sessionStorage cache:', {
+      debugLog('⚡ Initializing from sessionStorage cache:', {
         messages: cached.messages?.length || 0,
         blank: !!cached.blankPresentationUrl,
         strawman: !!cached.strawmanPreviewUrl,
@@ -463,7 +464,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     };
   };
 
-  const [state, setState] = useState<UseDecksterWebSocketV2State>(getInitialState());
+  const [state, setState] = useState<UseDecksterWebSocketV2State>(() => getInitialState());
 
   // Wrapper for setState that also writes to cache
   const setStateWithCache = useCallback((
@@ -519,18 +520,20 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   }, [sessionCache]);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectAttemptsRef = useRef(0);
   const isConnectingRef = useRef(false);
   const hasConnectedRef = useRef(false);
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout>();
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const lastCloseDiagnosticAtRef = useRef(0);
+  const suppressedCloseDiagnosticsRef = useRef(0);
   const maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
   const reconnectDelay = options.reconnectDelay ?? 3000;
 
   // Reconnect when session ID changes (e.g., after database session creation)
   useEffect(() => {
     if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
-      console.log('🔄 Reconnecting with new session ID:', options.existingSessionId);
+      debugLog('🔄 Reconnecting with new session ID:', options.existingSessionId);
       sessionIdRef.current = options.existingSessionId;
       if (wsRef.current) {
         wsRef.current.close();
@@ -547,14 +550,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       clearInterval(heartbeatIntervalRef.current);
     }
 
-    console.log('💓 Starting heartbeat (ping every 15s)');
+    debugLog('💓 Starting heartbeat (ping every 15s)');
     heartbeatIntervalRef.current = setInterval(() => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         try {
           // Send raw "ping" text to keep connection alive (protocol spec)
           // Backend expects raw text "ping", not JSON object
           wsRef.current.send('ping');
-          console.log('💓 Ping sent');
+          debugLog('💓 Ping sent');
         } catch (error) {
           console.error('❌ Failed to send ping:', error);
         }
@@ -565,7 +568,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Stop heartbeat
   const stopHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
-      console.log('💔 Stopping heartbeat');
+      debugLog('💔 Stopping heartbeat');
       clearInterval(heartbeatIntervalRef.current);
       heartbeatIntervalRef.current = undefined;
     }
@@ -582,13 +585,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     // Prevent multiple simultaneous connection attempts
     if (isConnectingRef.current) {
-      console.log('⏳ Connection attempt already in progress, skipping...');
+      debugLog('⏳ Connection attempt already in progress, skipping...');
       return;
     }
 
     if (wsRef.current?.readyState === WebSocket.OPEN ||
         wsRef.current?.readyState === WebSocket.CONNECTING) {
-      console.log('✅ WebSocket already connected or connecting');
+      debugLog('✅ WebSocket already connected or connecting');
       return;
     }
 
@@ -621,7 +624,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}`;
 
       // DEBUG: Comprehensive logging of connection parameters
-      console.log('🔌 [WEBSOCKET] Initiating connection to Director', {
+      debugLog('🔌 [WEBSOCKET] Initiating connection to Director', {
         session_id: sessionIdRef.current,
         user_id: userIdRef.current,
         skip_history: skipHistory,
@@ -632,13 +635,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         wsUrl: wsUrl,
         timestamp: new Date().toISOString()
       });
-      console.log(`🔌 Connecting to Director v3.4: ${wsUrl}`);
+      debugLog(`🔌 Connecting to Director v3.4: ${wsUrl}`);
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('✅ Connected to Director v3.4');
+        debugLog('✅ Connected to Director v3.4');
         reconnectAttemptsRef.current = 0;
         isConnectingRef.current = false;
         hasConnectedRef.current = true;
@@ -659,7 +662,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         try {
           // Handle raw "pong" response from heartbeat ping
           if (event.data === 'pong') {
-            console.log('💓 Pong received');
+            debugLog('💓 Pong received');
             return;
           }
 
@@ -671,7 +674,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             clientTimestamp: Date.now()
           } as DirectorMessage & { clientTimestamp: number };
 
-          console.log('📨 Received message:', message.type, message);
+          debugLog('📨 Received message:', message.type, message);
 
           setStateWithCache(prev => {
             // Prevent duplicate messages by checking message_id
@@ -691,17 +694,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               newState.ephemeralMessageIds = prev.ephemeralMessageIds.includes(message.message_id)
                 ? prev.ephemeralMessageIds
                 : [...prev.ephemeralMessageIds, message.message_id];
-              console.log('💭 Ephemeral progress message:', (message.payload as any).text);
+              debugLog('💭 Ephemeral progress message:', (message.payload as any).text);
             }
 
             // Handle specific message types
             switch (message.type) {
               case 'status_update':
-                console.log('📊 Status update:', message.payload.text, message.payload.progress ? `${message.payload.progress}%` : '');
+                debugLog('📊 Status update:', message.payload.text, message.payload.progress ? `${message.payload.progress}%` : '');
                 newState.currentStatus = message.payload;
                 // Auto-clear status when complete
                 if (message.payload.status === 'complete' || message.payload.status === 'idle') {
-                  console.log('✅ Status complete/idle - will clear shortly');
+                  debugLog('✅ Status complete/idle - will clear shortly');
                   setTimeout(() => {
                     setState(s => ({ ...s, currentStatus: null }));
                   }, 2000);
@@ -710,7 +713,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
               case 'sync_response':
                 // Sync protocol response - Director confirms whether to skip history
-                console.log('🔄 Sync response received:', {
+                debugLog('🔄 Sync response received:', {
                   action: message.payload.action,
                   message_count: message.payload.message_count,
                   current_state: message.payload.current_state,
@@ -722,7 +725,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 break;
 
               case 'presentation_url':
-                console.log('🎯 Final presentation URL received:', message.payload.url);
+                debugLog('🎯 Final presentation URL received:', message.payload.url);
                 newState.finalPresentationUrl = message.payload.url;
                 newState.finalPresentationId = message.payload.presentation_id;
 
@@ -733,7 +736,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 newState.slideCount = message.payload.slide_count;
 
                 // Clear loading state - final presentation is complete
-                console.log('✅ Final presentation received - clearing loading state, switching to final version');
+                debugLog('✅ Final presentation received - clearing loading state, switching to final version');
                 newState.currentStatus = null;
 
                 // Trigger callbacks
@@ -743,7 +746,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
                 // Notify session state change for persistence
                 if (options.onSessionStateChange) {
-                  console.log('🔔 Calling onSessionStateChange for FINAL presentation:', {
+                  debugLog('🔔 Calling onSessionStateChange for FINAL presentation:', {
                     url: message.payload.url,
                     id: message.payload.presentation_id,
                     slideCount: message.payload.slide_count,
@@ -756,7 +759,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       slideCount: message.payload.slide_count,
                       currentStage: 6, // Stage 6 - final presentation
                     });
-                    console.log('✅ onSessionStateChange completed (final)');
+                    debugLog('✅ onSessionStateChange completed (final)');
                   } catch (error) {
                     console.error('❌ onSessionStateChange threw error (final):', error);
                   }
@@ -768,7 +771,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               case 'presentation_init': {
                 // Director sends presentation_init (instead of slide_update) for blank presentations
                 // This avoids rendering a "1 slides · 0 min" card in chat
-                console.log('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
+                debugLog('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
 
                 const initUrl = message.payload.presentation_url ||
                                 message.payload.preview_url ||
@@ -780,7 +783,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                                message.payload.metadata?.preview_presentation_id ||
                                message.payload.metadata?.presentation_id;
 
-                console.log('🆕 Blank presentation received (presentation_init):', { initUrl, initId });
+                debugLog('🆕 Blank presentation received (presentation_init):', { initUrl, initId });
 
                 if (initUrl) {
                   newState.blankPresentationUrl = initUrl;
@@ -791,7 +794,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   newState.presentationId = initId || null;
                   newState.slideStructure = message.payload as any;
 
-                  console.log('✅ Blank presentation ready - all editing tools now active');
+                  debugLog('✅ Blank presentation ready - all editing tools now active');
 
                   if (options.onPresentationReady) {
                     options.onPresentationReady(initUrl);
@@ -810,7 +813,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               }
 
               case 'slide_update':
-                console.log('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
+                debugLog('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
                 newState.slideStructure = message.payload;
 
                 if (
@@ -829,7 +832,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   const blankId = message.payload.metadata?.preview_presentation_id ||
                                   message.payload.preview_presentation_id;
 
-                  console.log('🆕 Blank presentation received (legacy slide_update):', { blankUrl, blankId });
+                  debugLog('🆕 Blank presentation received (legacy slide_update):', { blankUrl, blankId });
 
                   if (blankUrl) {
                     // Set blank presentation state
@@ -842,7 +845,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     newState.presentationUrl = blankUrl;
                     newState.presentationId = blankId || null;
 
-                    console.log('✅ Blank presentation ready - all editing tools now active');
+                    debugLog('✅ Blank presentation ready - all editing tools now active');
 
                     // Trigger callback for blank presentation ready
                     if (options.onPresentationReady) {
@@ -867,19 +870,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 // Check multiple possible locations
                 const previewUrl = message.payload.preview_url ||
                                    message.payload.metadata?.preview_url ||
-                                   message.payload.strawman?.preview_url ||
+                                   (message.payload as any).strawman?.preview_url ||
                                    (message.payload as any).url;  // Sometimes sent as just 'url'
 
                 // Extract presentation ID for strawman downloads (Stage 4)
                 // Director v3.4 sends this in metadata object (per PREVIEW_PRESENTATION_ID_FIX.md)
                 const previewPresentationId = message.payload.metadata?.preview_presentation_id ||
                                               message.payload.preview_presentation_id ||
-                                              message.payload.strawman?.preview_presentation_id ||
+                                              (message.payload as any).strawman?.preview_presentation_id ||
                                               (message.payload as any).presentation_id;
 
                 if (previewUrl) {
-                  console.log('✅ Found strawman preview URL:', previewUrl);
-                  console.log('🖼️ Setting strawmanPreviewUrl and displaying preview IMMEDIATELY');
+                  debugLog('✅ Found strawman preview URL:', previewUrl);
+                  debugLog('🖼️ Setting strawmanPreviewUrl and displaying preview IMMEDIATELY');
                   newState.strawmanPreviewUrl = previewUrl;
                   newState.strawmanPresentationId = previewPresentationId || null;
 
@@ -889,14 +892,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   newState.presentationId = previewPresentationId || null;
 
                   // Clear loading state - strawman generation is complete
-                  console.log('✅ Strawman received - clearing loading state');
+                  debugLog('✅ Strawman received - clearing loading state');
                   newState.currentStatus = null;
 
                   // Set presentation ID if found (enables download buttons)
                   if (previewPresentationId) {
-                    console.log('✅ Found strawman presentation_id:', previewPresentationId);
+                    debugLog('✅ Found strawman presentation_id:', previewPresentationId);
                   } else {
-                    console.log('⚠️ No preview_presentation_id found - download buttons will be disabled');
+                    debugLog('⚠️ No preview_presentation_id found - download buttons will be disabled');
                   }
 
                   // Trigger callback for preview
@@ -906,7 +909,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
                   // Notify session state change for persistence
                   if (options.onSessionStateChange) {
-                    console.log('🔔 Calling onSessionStateChange for STRAWMAN:', {
+                    debugLog('🔔 Calling onSessionStateChange for STRAWMAN:', {
                       url: previewUrl,
                       id: previewPresentationId,
                       slideCount: message.payload.slides?.length,
@@ -919,7 +922,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                         slideCount: message.payload.slides?.length || undefined,
                         currentStage: 4, // Stage 4 - strawman preview
                       });
-                      console.log('✅ onSessionStateChange completed (strawman)');
+                      debugLog('✅ onSessionStateChange completed (strawman)');
                     } catch (error) {
                       console.error('❌ onSessionStateChange threw error (strawman):', error);
                     }
@@ -927,8 +930,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     console.warn('⚠️ onSessionStateChange NOT defined for strawman!');
                   }
                 } else {
-                  console.log('⚠️ No preview URL found in slide_update message');
-                  console.log('Checked locations: payload.preview_url, metadata.preview_url, strawman.preview_url, payload.url');
+                  debugLog('⚠️ No preview URL found in slide_update message');
+                  debugLog('Checked locations: payload.preview_url, metadata.preview_url, strawman.preview_url, payload.url');
                 }
                 break;
 
@@ -940,7 +943,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 }
                 newState.slideContextByIndex = byIndex;
                 newState.deckContext = ctx.deck ?? null;
-                console.log('📚 slide_context received:', {
+                debugLog('📚 slide_context received:', {
                   slides: ctx.slides?.length,
                   deckArc: ctx.deck?.deck_arc?.slice(0, 60),
                 });
@@ -949,7 +952,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
               case 'token_usage':
                 newState.tokenUsage = message.payload;
-                console.log('🧮 token_usage received:', {
+                debugLog('🧮 token_usage received:', {
                   action: message.payload.action_type,
                   turnTotal: message.payload.turn?.total_tokens,
                   sessionTotal: message.payload.session?.total_tokens,
@@ -986,8 +989,31 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         }
       };
 
-      ws.onclose = () => {
-        console.log('🔌 WebSocket connection closed');
+      ws.onclose = (event) => {
+        const now = Date.now();
+        const suppressedSinceLastLog = suppressedCloseDiagnosticsRef.current;
+
+        if (now - lastCloseDiagnosticAtRef.current > 5000) {
+          console.warn('🔌 WebSocket connection closed', {
+            code: event.code,
+            reason: event.reason || '(no reason provided)',
+            wasClean: event.wasClean,
+            session_id: sessionIdRef.current,
+            ready_state: ws.readyState,
+            suppressed_close_logs: suppressedSinceLastLog,
+          });
+          lastCloseDiagnosticAtRef.current = now;
+          suppressedCloseDiagnosticsRef.current = 0;
+        } else {
+          suppressedCloseDiagnosticsRef.current += 1;
+          debugLog('🔌 WebSocket connection closed', {
+            code: event.code,
+            reason: event.reason || '(no reason provided)',
+            wasClean: event.wasClean,
+            session_id: sessionIdRef.current,
+          });
+        }
+
         isConnectingRef.current = false;
 
         // Stop heartbeat
@@ -1011,7 +1037,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           reconnectAttemptsRef.current++;
           const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current - 1);
 
-          console.log(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+          debugLog(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
 
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
@@ -1038,7 +1064,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
-    console.log('🔌 Disconnecting WebSocket');
+    debugLog('🔌 Disconnecting WebSocket');
 
     // Stop heartbeat
     stopHeartbeat();
@@ -1099,7 +1125,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         },
       };
 
-      console.log(
+      debugLog(
         '📤 Sending message:',
         text,
         effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
@@ -1132,7 +1158,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         newPresentationId = prev.finalPresentationId;
       }
 
-      console.log(`🔄 Switching to ${version} version:`, {
+      debugLog(`🔄 Switching to ${version} version:`, {
         presentationUrl: newPresentationUrl || '(none)',
         presentationId: newPresentationId || '(none)'
       });
@@ -1198,8 +1224,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     currentStage?: number | null;
     activeVersion?: 'blank' | 'strawman' | 'final' | null;
   }) => {
-    console.log(`🔄 Restoring ${historicalMessages.length} messages from database`);
-    console.log(`📊 Restoration data:`, {
+    debugLog(`🔄 Restoring ${historicalMessages.length} messages from database`);
+    debugLog(`📊 Restoration data:`, {
       presentationUrl: sessionState?.presentationUrl || '(none)',
       presentationId: sessionState?.presentationId || '(none)',
       blankPresentationUrl: sessionState?.blankPresentationUrl || '(none)',
@@ -1250,7 +1276,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       displayId = sessionState?.finalPresentationId || null;
     }
 
-    console.log(`✅ Determined activeVersion: ${activeVersion} (display URL: ${displayUrl ? 'present' : 'none'})`);
+    debugLog(`✅ Determined activeVersion: ${activeVersion} (display URL: ${displayUrl ? 'present' : 'none'})`);
 
     setStateWithCache(prev => ({
       ...prev,
@@ -1280,7 +1306,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Auto-connect on mount (only once)
   useEffect(() => {
-    console.log('🚀 WebSocket Hook Mounted', {
+    debugLog('🚀 WebSocket Hook Mounted', {
       autoConnect: options.autoConnect,
       hasConnected: hasConnectedRef.current,
       isConnecting: isConnectingRef.current,
@@ -1289,10 +1315,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     });
 
     if (options.autoConnect !== false && !hasConnectedRef.current && !isConnectingRef.current) {
-      console.log('🎯 Initiating connection...');
+      debugLog('🎯 Initiating connection...');
       connect();
     } else {
-      console.log('⏭️ Skipping auto-connect:', {
+      debugLog('⏭️ Skipping auto-connect:', {
         autoConnect: options.autoConnect,
         hasConnected: hasConnectedRef.current,
         isConnecting: isConnectingRef.current
@@ -1300,7 +1326,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
 
     return () => {
-      console.log('🧹 WebSocket Hook Unmounting');
+      debugLog('🧹 WebSocket Hook Unmounting');
       disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1311,7 +1337,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const updateCacheUserMessages = useCallback((
     userMessages: Array<{ id: string; text: string; timestamp: number }>
   ) => {
-    console.log('💾 Updating cache with user messages:', userMessages.length);
+    debugLog('💾 Updating cache with user messages:', userMessages.length);
 
     // Get current cached state and update just the userMessages
     const cached = sessionCache.getCachedState();
