@@ -11,19 +11,18 @@ import {
   Play,
   Layers,
   Check,
+  CirclePlus,
   Type,
   Image,
   LayoutGrid,
   GitBranch,
-  History,
   Grid2x2,
+  BarChart3,
   Square,
   Pencil,
   Settings,
   Palette,
   TrendingUp,
-  Tag,
-  Pentagon,
   Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -41,9 +40,9 @@ import { useToast } from '@/hooks/use-toast'
 // TextFormatPopover is now replaced by simple text box insertion button
 // Keeping FormatTextParams for backward compatibility if needed
 import { FormatTextParams } from './text-format-popover'
-import { TableInsertPopover, generateTableHTML } from './table-insert-popover'
-import { ChartPickerPopover, InsertChartParams, generateChartConfig } from './chart-picker-popover'
-import { ElementType, ElementProperties, BaseElementProperties } from '@/types/elements'
+import { generateTableHTML } from './table-insert-popover'
+import { InsertChartParams, generateChartConfig } from './chart-picker-popover'
+import { ElementType, ElementProperties, BaseElementProperties, ChartType } from '@/types/elements'
 import { VersionHistoryPanel } from './version-history-panel'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
@@ -114,6 +113,7 @@ interface PresentationViewerProps {
   connecting?: boolean
   // Portal target for rendering toolbar in the header bar
   toolbarPortalTarget?: HTMLDivElement | null
+  toolbarOffset?: number
   // Generation overlay: keeps viewer mounted but overlays loader
   isGenerating?: boolean
   generatingMode?: 'default' | 'strawman'
@@ -197,6 +197,7 @@ export function PresentationViewer({
   onOpenGenerationPanel,
   onElementMoved,
   toolbarPortalTarget,
+  toolbarOffset = 0,
   connected,
   connecting,
   isGenerating,
@@ -928,6 +929,14 @@ export function PresentationViewer({
 
     // Generate a mock element ID for now (Layout Service will assign real IDs when implemented)
     const mockElementId = `chart-${Date.now()}`
+    const chartTypeMap: Record<InsertChartParams['type'], ChartType> = {
+      bar: 'bar_vertical',
+      line: 'line',
+      pie: 'pie',
+      doughnut: 'doughnut',
+      radar: 'radar',
+      polarArea: 'polar_area'
+    }
 
     // Create default properties for new chart
     const properties: ElementProperties = {
@@ -938,7 +947,7 @@ export function PresentationViewer({
       rotation: 0,
       locked: false,
       zIndex: 1,
-      chartType: params.type,
+      chartType: chartTypeMap[params.type],
       colorPalette: 'default'
     }
 
@@ -1675,43 +1684,111 @@ export function PresentationViewer({
 
       {/* Control Toolbar - portaled to header (normal) or floating overlay (fullscreen) */}
       {showControls && (() => {
+        const toolbarButtonClass = "flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+        const toolbarLabelClass = "text-[10px] font-medium"
+        const addElementItems = [
+          {
+            label: 'Table',
+            icon: Grid2x2,
+            disabled: !presentationUrl,
+            action: () => onOpenGenerationPanel ? onOpenGenerationPanel('TABLE') : handleInsertTable(3, 3),
+          },
+          {
+            label: 'Metrics',
+            icon: TrendingUp,
+            disabled: !presentationUrl || !onOpenGenerationPanel,
+            action: () => onOpenGenerationPanel?.('METRICS'),
+          },
+          {
+            label: 'Chart',
+            icon: BarChart3,
+            disabled: !presentationUrl,
+            action: () => onOpenGenerationPanel ? onOpenGenerationPanel('CHART') : handleInsertChart({ type: 'bar' }),
+          },
+          {
+            label: 'Text Box',
+            icon: Type,
+            disabled: !presentationUrl,
+            action: () => onOpenGenerationPanel ? onOpenGenerationPanel('TEXT_BOX') : handleInsertTextBox(),
+          },
+          {
+            label: 'Image',
+            icon: Image,
+            disabled: !presentationUrl,
+            action: () => onOpenGenerationPanel ? onOpenGenerationPanel('IMAGE') : handleInsertImage(),
+          },
+          {
+            label: 'Infographic',
+            icon: LayoutGrid,
+            disabled: !presentationUrl,
+            action: () => onOpenGenerationPanel ? onOpenGenerationPanel('INFOGRAPHIC') : handleInsertInfographic(),
+          },
+          {
+            label: 'Diagram',
+            icon: GitBranch,
+            disabled: !presentationUrl,
+            action: () => onOpenGenerationPanel ? onOpenGenerationPanel('DIAGRAM') : handleInsertDiagram(),
+          },
+        ]
+
         const toolbarContent = (
           <div className={cn(
-            "flex items-center justify-between w-full",
-            isFullscreen ? "px-6 py-2" : "px-4 h-full",
+            "flex items-center justify-between w-full min-w-0 gap-4",
+            isFullscreen ? "px-4 py-2" : "px-3 h-full",
             isGenerating && "pointer-events-none opacity-50"
           )}>
-            {/* Left Group: Add Slide + Edit */}
-            <div className="flex items-center gap-4">
+            {/* Slide-edge actions */}
+            <div
+              className={cn(
+                "flex items-center gap-2 min-w-0",
+                !isFullscreen && "transition-[margin] duration-300 ease-out"
+              )}
+              style={!isFullscreen ? { marginLeft: toolbarOffset } : undefined}
+            >
               {/* Add Slide */}
               <SlideLayoutPicker
                 onAddSlide={handleAddSlide}
                 disabled={!presentationUrl}
+                className="min-w-[80px] justify-center"
               />
 
-              {/* Save */}
-              <>
-                <div className="w-px h-10 bg-gray-200" />
-                <div className="flex items-center gap-2">
+              {/* Add Element */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <button
-                    onClick={handleSaveChanges}
-                    disabled={isSaving || !presentationUrl}
-                    className="flex flex-col items-center gap-0.5 px-3 py-1 rounded bg-green-50 hover:bg-green-100 disabled:opacity-50 transition-colors"
-                    title="Save changes"
+                    disabled={!presentationUrl}
+                    className={cn(
+                      toolbarButtonClass,
+                      "min-w-[88px] bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    )}
+                    title="Add an element"
                   >
-                    <Save className="h-5 w-5 text-green-600" />
-                    <span className="text-[10px] text-green-600 font-medium">{isSaving ? 'Saving' : 'Save'}</span>
+                    <CirclePlus className="h-5 w-5 text-blue-700" />
+                    <span className={toolbarLabelClass}>Add Element</span>
                   </button>
-                </div>
-              </>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={8} className="w-52 p-1">
+                  {addElementItems.map(({ label, icon: Icon, disabled, action }) => (
+                    <DropdownMenuItem
+                      key={label}
+                      disabled={disabled}
+                      onClick={() => { void action() }}
+                      className="cursor-pointer gap-2"
+                    >
+                      <Icon className="h-4 w-4 text-gray-600" />
+                      <span>{label}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
-            {/* Center Group: Insert & Format Tools */}
-            <div className="flex items-center gap-1">
-              {/* Fullscreen / Play */}
+            {/* Right Group: Play + Save + Version + Download */}
+            <div className="ml-auto flex flex-shrink-0 items-center gap-2">
               <button
                 onClick={handleFullscreen}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
+                disabled={!presentationUrl}
+                className={cn(toolbarButtonClass, "text-gray-600 hover:bg-gray-100")}
                 title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
               >
                 {isFullscreen ? (
@@ -1719,149 +1796,28 @@ export function PresentationViewer({
                 ) : (
                   <Play className="h-5 w-5 text-gray-700" />
                 )}
-                <span className="text-[10px] text-gray-500">Play</span>
+                <span className={cn(toolbarLabelClass, "text-gray-500")}>Play</span>
               </button>
 
-              <div className="w-px h-10 bg-gray-200 mx-2" />
-
-              {/* Table */}
-              {onOpenGenerationPanel ? (
-                <button
-                  onClick={() => onOpenGenerationPanel('TABLE')}
-                  disabled={!presentationUrl}
-                  className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  title="Insert table"
-                >
-                  <Grid2x2 className="h-5 w-5 text-gray-700" />
-                  <span className="text-[10px] text-gray-500">Table</span>
-                </button>
-              ) : (
-                <TableInsertPopover
-                  onInsertTable={handleInsertTable}
-                  disabled={!presentationUrl}
-                />
-              )}
-
-              {/* Metrics */}
               <button
-                onClick={() => onOpenGenerationPanel?.('METRICS')}
-                disabled={!presentationUrl || !onOpenGenerationPanel}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Insert metrics (KPI cards)"
+                onClick={handleSaveChanges}
+                disabled={isSaving || !presentationUrl}
+                className={cn(toolbarButtonClass, "bg-green-50 text-green-600 hover:bg-green-100")}
+                title="Save changes"
               >
-                <TrendingUp className="h-5 w-5 text-gray-700" />
-                <span className="text-[10px] text-gray-500">Metrics</span>
-              </button>
-
-              {/* Chart */}
-              {onOpenGenerationPanel ? (
-                <button
-                  onClick={() => onOpenGenerationPanel('CHART')}
-                  disabled={!presentationUrl}
-                  className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  title="Insert chart"
-                >
-                  <svg className="h-5 w-5 text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
-                  </svg>
-                  <span className="text-[10px] text-gray-500">Chart</span>
-                </button>
-              ) : (
-                <ChartPickerPopover
-                  onInsertChart={handleInsertChart}
-                  disabled={!presentationUrl}
-                />
-              )}
-
-              {/* Text Box */}
-              <button
-                onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('TEXT_BOX') : handleInsertTextBox()}
-                disabled={!presentationUrl}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Insert text box"
-              >
-                <Type className="h-5 w-5 text-gray-700" />
-                <span className="text-[10px] text-gray-500">Text</span>
-              </button>
-
-              {/* Image */}
-              <button
-                onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('IMAGE') : handleInsertImage()}
-                disabled={!presentationUrl}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Insert image (AI generated)"
-              >
-                <Image className="h-5 w-5 text-gray-700" />
-                <span className="text-[10px] text-gray-500">Image</span>
-              </button>
-
-              {/* Icon/Label */}
-              <button
-                onClick={() => onOpenGenerationPanel?.('ICON_LABEL')}
-                disabled={!presentationUrl || !onOpenGenerationPanel}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Insert icon or label"
-              >
-                <Tag className="h-5 w-5 text-gray-700" />
-                <span className="text-[10px] text-gray-500">Icon</span>
-              </button>
-
-              {/* Shape */}
-              <button
-                onClick={() => onOpenGenerationPanel?.('SHAPE')}
-                disabled={!presentationUrl || !onOpenGenerationPanel}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Insert shape"
-              >
-                <Pentagon className="h-5 w-5 text-gray-700" />
-                <span className="text-[10px] text-gray-500">Shape</span>
-              </button>
-
-              {/* Infographic */}
-              <button
-                onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('INFOGRAPHIC') : handleInsertInfographic()}
-                disabled={!presentationUrl}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Insert infographic"
-              >
-                <LayoutGrid className="h-5 w-5 text-gray-700" />
-                <span className="text-[10px] text-gray-500">Infographic</span>
-              </button>
-
-              {/* Diagram */}
-              <button
-                onClick={() => onOpenGenerationPanel ? onOpenGenerationPanel('DIAGRAM') : handleInsertDiagram()}
-                disabled={!presentationUrl}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Insert diagram (Mermaid)"
-              >
-                <GitBranch className="h-5 w-5 text-gray-700" />
-                <span className="text-[10px] text-gray-500">Diagram</span>
-              </button>
-            </div>
-
-            {/* Right Group: Version History + Version + Status + Download + Counter */}
-            <div className="flex items-center gap-3">
-              {/* Version History */}
-              <button
-                onClick={() => setShowVersionHistory(true)}
-                disabled={!presentationUrl}
-                className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Version history"
-              >
-                <History className="h-5 w-5 text-gray-700" />
-                <span className="text-[10px] text-gray-500">History</span>
+                <Save className="h-5 w-5 text-green-600" />
+                <span className={toolbarLabelClass}>{isSaving ? 'Saving' : 'Save'}</span>
               </button>
 
               {/* Version Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="flex flex-col items-center gap-0.5 px-3 py-1 rounded hover:bg-gray-100 transition-colors"
+                    className={cn(toolbarButtonClass, "text-gray-600 hover:bg-gray-100")}
                     title="Switch version"
                   >
                     <Layers className="h-5 w-5 text-gray-700" />
-                    <span className="text-[10px] text-gray-500">
+                    <span className={cn(toolbarLabelClass, "text-gray-500")}>
                       {activeVersion === 'final' ? 'Final' : activeVersion === 'strawman' ? 'Strawman' : 'Custom'}
                     </span>
                   </button>
@@ -1903,7 +1859,6 @@ export function PresentationViewer({
 
               {/* Download Controls */}
               {downloadControls}
-
             </div>
           </div>
         )

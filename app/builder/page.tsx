@@ -1194,6 +1194,7 @@ function BuilderContent() {
             connected={connected}
             connecting={connecting}
             toolbarPortalTarget={toolbarPortalTarget}
+            toolbarOffset={anyDrawerOpen ? Math.max(drawerWidth - 112, 0) : 0}
           />
           )}
           </div>

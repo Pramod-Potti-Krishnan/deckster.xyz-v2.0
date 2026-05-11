@@ -69,6 +69,7 @@ export interface PresentationAreaProps {
   connected: boolean
   connecting: boolean
   toolbarPortalTarget?: HTMLDivElement | null
+  toolbarOffset?: number
 }
 
 export function PresentationArea({
@@ -98,6 +99,7 @@ export function PresentationArea({
   connected,
   connecting,
   toolbarPortalTarget,
+  toolbarOffset,
 }: PresentationAreaProps) {
   return (
     <div className="flex-1 flex flex-col bg-gray-100 min-w-0 min-h-0">
@@ -157,6 +159,7 @@ export function PresentationArea({
             }
           }}
           toolbarPortalTarget={toolbarPortalTarget}
+          toolbarOffset={toolbarOffset}
           isGenerating={isGeneratingFinal || isGeneratingStrawman}
           generatingMode={isGeneratingFinal ? 'default' : 'strawman'}
           className="flex-1"
