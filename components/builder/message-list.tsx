@@ -18,6 +18,7 @@ import {
   type PresentationURL,
   type SlideContextItem,
 } from "@/hooks/use-deckster-websocket-v2"
+import { debugLog } from "@/lib/debug-log"
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -111,7 +112,7 @@ export function MessageList({
           const normalizedTimestamp = m.timestamp?.endsWith('Z') ? m.timestamp : m.timestamp + 'Z';
           const timestamp = new Date(normalizedTimestamp).getTime();
 
-          console.log('✅ Director role field detected, transforming to user message format:', {
+          debugLog('✅ Director role field detected, transforming to user message format:', {
             message_id: m.message_id,
             role: mAny.role,
             text: text.substring(0, 30),
@@ -142,7 +143,7 @@ export function MessageList({
             isUserMessage = true;
             classificationMethod = 'CONTENT_MATCH';
             userMessageIdsRef.current.add(m.message_id);
-            console.log('🎯 Content match fallback (pre-Director-fix message):', {
+            debugLog('🎯 Content match fallback (pre-Director-fix message):', {
               directorMessageId: m.message_id,
               matchedUserId: matchingUserId,
               content: normalizedContent.substring(0, 30)
@@ -150,7 +151,7 @@ export function MessageList({
           }
         }
 
-        console.log('🔍 Message classification:', {
+        debugLog('🔍 Message classification:', {
           message_id: m.message_id,
           payload: mAny.payload?.text?.substring(0, 30),
           hasRole: !!mAny.role,
@@ -163,7 +164,7 @@ export function MessageList({
       })
     ];
 
-    console.log('📊 Message rendering - userMessages:', userMessages.length, 'botMessages:', messages.length, 'combined:', combined.length);
+    debugLog('📊 Message rendering - userMessages:', userMessages.length, 'botMessages:', messages.length, 'combined:', combined.length);
 
     // Deduplicate messages by ID and content
     const seenIds = new Set<string>();
@@ -200,7 +201,7 @@ export function MessageList({
       return true;
     });
 
-    console.log('📊 After deduplication:', deduplicated.length);
+    debugLog('📊 After deduplication:', deduplicated.length);
 
     const parseTimestamp = (ts: string | undefined): number => {
       if (!ts) return 0;
@@ -228,7 +229,7 @@ export function MessageList({
             chatMsg.payload.text.toLowerCase().includes("what presentation would you like to build");
 
           if (isWelcome && hasSeenWelcomeRef.current && index > 0) {
-            console.log('🚫 Filtering duplicate welcome message on reconnect');
+            debugLog('🚫 Filtering duplicate welcome message on reconnect');
             return false;
           }
 
@@ -240,8 +241,8 @@ export function MessageList({
       return true;
     });
 
-    console.log('📊 After filtering:', filtered.length, 'messages');
-    console.log('📊 Final message list:', filtered.map((m, i) => ({
+    debugLog('📊 After filtering:', filtered.length, 'messages');
+    debugLog('📊 Final message list:', filtered.map((m, i) => ({
       index: i,
       type: m.messageType,
       id: m.messageType === 'user' ? m.id : (m as any).message_id,

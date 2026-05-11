@@ -26,6 +26,7 @@ import {
   Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { debugLog } from '@/lib/debug-log'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -220,6 +221,8 @@ export function PresentationViewer({
   const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
   const [iframeReady, setIframeReady] = useState(false)
   const [pollingFailureCount, setPollingFailureCount] = useState(0)
+  const lastSlideInfoRef = useRef<{ slide: number; total: number } | null>(null)
+  const onSlideChangeRef = useRef(onSlideChange)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   // Delete dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -239,11 +242,18 @@ export function PresentationViewer({
   const [isGridActive, setIsGridActive] = useState(false)
   const [isBordersActive, setIsBordersActive] = useState(false)
 
+  useEffect(() => {
+    onSlideChangeRef.current = onSlideChange
+  }, [onSlideChange])
+
   // Sync totalSlides with slideCount prop changes
   useEffect(() => {
     if (slideCount && slideCount > 0) {
-      console.log(`📊 Updating totalSlides: ${totalSlides} → ${slideCount}`)
-      setTotalSlides(slideCount)
+      setTotalSlides(prev => {
+        if (prev === slideCount) return prev
+        debugLog(`📊 Updating totalSlides: ${prev} → ${slideCount}`)
+        return slideCount
+      })
     }
   }, [slideCount])
 
@@ -251,22 +261,24 @@ export function PresentationViewer({
   useEffect(() => {
     if (slideStructure?.slides) {
       setSlidesModifiedByCrud(false)
-      console.log('📡 Fresh slideStructure received, reset CRUD flag')
+      debugLog('📡 Fresh slideStructure received, reset CRUD flag')
     }
   }, [slideStructure])
 
   // Reset iframe ready state when presentation URL changes
   useEffect(() => {
-    console.log('🔄 Presentation URL changed, resetting iframe state')
+    debugLog('🔄 Presentation URL changed, resetting iframe state')
     setIframeReady(false)
     setPollingFailureCount(0)
+    lastSlideInfoRef.current = null
   }, [presentationUrl])
 
   // Handle iframe load event
   const handleIframeLoad = useCallback(() => {
-    console.log('✅ Iframe loaded and ready')
+    debugLog('✅ Iframe loaded and ready')
     setIframeReady(true)
     setPollingFailureCount(0) // Reset failure count on load
+    lastSlideInfoRef.current = null
   }, [])
 
   // Extract slide thumbnails from slideStructure
@@ -298,9 +310,9 @@ export function PresentationViewer({
 
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
-    console.log('🔘 Next button clicked!')
+    debugLog('🔘 Next button clicked!')
     if (!iframeRef.current) {
-      console.log('❌ Iframe not ready')
+      debugLog('❌ Iframe not ready')
       return
     }
     try {
@@ -310,7 +322,7 @@ export function PresentationViewer({
         const newSlide = currentSlide + 1
         setCurrentSlide(newSlide)
         onSlideChange?.(newSlide)
-        console.log(`➡️ Next slide (${currentSlide} → ${newSlide})`)
+        debugLog(`➡️ Next slide (${currentSlide} → ${newSlide})`)
       }
     } catch (error) {
       console.error('Error navigating to next slide:', error)
@@ -318,22 +330,22 @@ export function PresentationViewer({
   }, [currentSlide, totalSlides, onSlideChange])
 
   const handlePrevSlide = useCallback(async () => {
-    console.log('🔘 Prev button clicked!')
-    console.log(`   Current slide: ${currentSlide}, Total: ${totalSlides}`)
-    console.log(`   Button should be disabled: ${currentSlide <= 1}`)
+    debugLog('🔘 Prev button clicked!')
+    debugLog(`   Current slide: ${currentSlide}, Total: ${totalSlides}`)
+    debugLog(`   Button should be disabled: ${currentSlide <= 1}`)
     if (!iframeRef.current) {
-      console.log('❌ Iframe not ready')
+      debugLog('❌ Iframe not ready')
       return
     }
     try {
-      console.log('📤 Sending prevSlide command...')
+      debugLog('📤 Sending prevSlide command...')
       await sendCommand(iframeRef.current, 'prevSlide')
       // Immediately update local state (polling will confirm/sync)
       if (currentSlide > 1) {
         const newSlide = currentSlide - 1
         setCurrentSlide(newSlide)
         onSlideChange?.(newSlide)
-        console.log(`⬅️ Previous slide (${currentSlide} → ${newSlide})`)
+        debugLog(`⬅️ Previous slide (${currentSlide} → ${newSlide})`)
       }
     } catch (error) {
       console.error('❌ Error navigating to previous slide:', error)
@@ -341,7 +353,7 @@ export function PresentationViewer({
   }, [currentSlide, totalSlides, onSlideChange])
 
   const handleToggleOverview = useCallback(() => {
-    console.log('🔘 Grid button clicked - toggling thumbnail strip!')
+    debugLog('🔘 Grid button clicked - toggling thumbnail strip!')
     setShowThumbnails(prev => !prev)
   }, [])
 
@@ -354,7 +366,7 @@ export function PresentationViewer({
       { action: nextActive ? 'showGridOverlay' : 'hideGridOverlay' },
       VIEWER_ORIGIN
     )
-    console.log(`📐 Grid overlay: ${nextActive ? 'ON' : 'OFF'}`)
+    debugLog(`📐 Grid overlay: ${nextActive ? 'ON' : 'OFF'}`)
   }, [isGridActive])
 
   // Toggle border highlight via postMessage
@@ -367,7 +379,7 @@ export function PresentationViewer({
         await sendCommand(iframeRef.current, 'showBorderHighlight')
       }
       setIsBordersActive(prev => !prev)
-      console.log(`🔲 Borders: ${!isBordersActive ? 'ON' : 'OFF'}`)
+      debugLog(`🔲 Borders: ${!isBordersActive ? 'ON' : 'OFF'}`)
     } catch (error) {
       console.error('Error toggling borders:', error)
     }
@@ -384,21 +396,21 @@ export function PresentationViewer({
       }
       setIsEditMode(prev => !prev)
       onEditModeChange?.(!isEditMode)
-      console.log(`✏️ Edit mode: ${!isEditMode ? 'ON' : 'OFF'}`)
+      debugLog(`✏️ Edit mode: ${!isEditMode ? 'ON' : 'OFF'}`)
     } catch (error) {
       console.error('Error toggling edit mode:', error)
     }
   }, [isEditMode, onEditModeChange])
 
   const handleGoToSlide = useCallback(async (slideIndex: number) => {
-    console.log(`🎯 Navigating to slide ${slideIndex + 1}`)
+    debugLog(`🎯 Navigating to slide ${slideIndex + 1}`)
     if (!iframeRef.current) {
-      console.log('❌ Iframe not ready')
+      debugLog('❌ Iframe not ready')
       return
     }
     try {
       const result = await sendCommand(iframeRef.current, 'goToSlide', { index: slideIndex })
-      console.log(`✅ Navigated to slide ${slideIndex + 1}`)
+      debugLog(`✅ Navigated to slide ${slideIndex + 1}`)
       setCurrentSlide(slideIndex + 1)
     } catch (error) {
       console.error('Error navigating to slide:', error)
@@ -409,20 +421,20 @@ export function PresentationViewer({
   useEffect(() => {
     // Don't poll if iframe isn't ready
     if (!iframeReady) {
-      console.log('⏸️ Polling paused - iframe not ready yet')
+      debugLog('⏸️ Polling paused - iframe not ready yet')
       return
     }
 
-    // Stop polling after too many consecutive failures (10 failures = ~5 seconds)
+    // Stop polling after too many consecutive failures
     const MAX_FAILURES = 10
     if (pollingFailureCount >= MAX_FAILURES) {
       console.warn(`🛑 Polling stopped after ${MAX_FAILURES} consecutive failures`)
       return
     }
 
-    // Exponential backoff: start at 500ms, double on each failure (max 4s)
-    const baseInterval = 500
-    const backoffInterval = Math.min(baseInterval * Math.pow(2, pollingFailureCount), 4000)
+    // Exponential backoff: steady-state every 3s, slower after failures.
+    const baseInterval = 3000
+    const backoffInterval = Math.min(baseInterval * Math.pow(2, pollingFailureCount), 10000)
 
     const interval = setInterval(async () => {
       if (!iframeRef.current || !iframeReady) return
@@ -431,23 +443,30 @@ export function PresentationViewer({
         const result = await sendCommand(iframeRef.current, 'getCurrentSlideInfo')
         if (result.success && result.data) {
           const slideNum = result.data.index + 1 // Convert 0-based to 1-based
-          console.log(`📊 Slide info: ${slideNum} / ${result.data.total}`)
-          setCurrentSlide(slideNum)
-          setTotalSlides(result.data.total)
-          onSlideChange?.(slideNum)
+          const total = result.data.total || 0
+          const previous = lastSlideInfoRef.current
+          const slideInfoChanged = !previous || previous.slide !== slideNum || previous.total !== total
+
+          if (slideInfoChanged) {
+            debugLog(`📊 Slide info: ${slideNum} / ${total}`)
+            lastSlideInfoRef.current = { slide: slideNum, total }
+            setCurrentSlide(prev => prev === slideNum ? prev : slideNum)
+            setTotalSlides(prev => prev === total ? prev : total)
+            onSlideChangeRef.current?.(slideNum)
+          }
 
           // Reset failure count on success
-          setPollingFailureCount(0)
+          setPollingFailureCount(prev => prev === 0 ? prev : 0)
         }
       } catch (error) {
         // Increment failure count and apply backoff
         setPollingFailureCount(prev => prev + 1)
-        console.log(`⏸️ Polling failed (attempt ${pollingFailureCount + 1}/${MAX_FAILURES})`)
+        debugLog(`⏸️ Polling failed (attempt ${pollingFailureCount + 1}/${MAX_FAILURES})`)
       }
     }, backoffInterval)
 
     return () => clearInterval(interval)
-  }, [iframeReady, pollingFailureCount, onSlideChange])
+  }, [iframeReady, pollingFailureCount])
 
   // Force save handler (for Ctrl+S and retry on error)
   // IMPORTANT: Must be declared BEFORE the keyboard shortcuts useEffect that references it
@@ -458,7 +477,7 @@ export function PresentationViewer({
     try {
       await sendCommand(iframeRef.current, 'forceSave')
       setSaveStatus('saved')
-      console.log('💾 Force save completed')
+      debugLog('💾 Force save completed')
     } catch (error) {
       console.error('Error forcing save:', error)
       setSaveStatus('error')
@@ -528,7 +547,7 @@ export function PresentationViewer({
     if (isEditMode) return true
 
     if (!iframeRef.current) {
-      console.log('❌ Iframe not ready for edit mode')
+      debugLog('❌ Iframe not ready for edit mode')
       return false
     }
 
@@ -537,7 +556,7 @@ export function PresentationViewer({
       if (result.isEditing) {
         setIsEditMode(true)
         onEditModeChange?.(true)
-        console.log('✏️ Auto-entered edit mode')
+        debugLog('✏️ Auto-entered edit mode')
         return true
       }
       return false
@@ -553,7 +572,7 @@ export function PresentationViewer({
     setIsSaving(true)
     try {
       await sendCommand(iframeRef.current, 'saveAllChanges')
-      console.log('💾 Changes saved successfully')
+      debugLog('💾 Changes saved successfully')
 
       // Exit edit mode after saving
       setIsEditMode(false)
@@ -578,7 +597,7 @@ export function PresentationViewer({
       await sendCommand(iframeRef.current, 'cancelEdits')
       setIsEditMode(false)
       onEditModeChange?.(false)
-      console.log('🚫 Edits canceled')
+      debugLog('🚫 Edits canceled')
     } catch (error) {
       console.error('Error canceling edits:', error)
     }
@@ -624,7 +643,7 @@ export function PresentationViewer({
           description: `New slide inserted at position ${newSlideIndex + 1}`
         })
 
-        console.log(`➕ Added ${layoutId} slide at position ${newSlideIndex + 1}`)
+        debugLog(`➕ Added ${layoutId} slide at position ${newSlideIndex + 1}`)
       }
     } catch (error) {
       console.error('Error adding slide:', error)
@@ -660,7 +679,7 @@ export function PresentationViewer({
           description: `Slide copied to position ${newSlideIndex + 1}`
         })
 
-        console.log(`📋 Duplicated slide ${slideIndex + 1} → ${newSlideIndex + 1}`)
+        debugLog(`📋 Duplicated slide ${slideIndex + 1} → ${newSlideIndex + 1}`)
       }
     } catch (error) {
       console.error('Error duplicating slide:', error)
@@ -700,14 +719,14 @@ export function PresentationViewer({
 
     setIsDeleting(true)
     try {
-      console.log('🗑️ Attempting bulk delete with indices:', slidesToDelete)
+      debugLog('🗑️ Attempting bulk delete with indices:', slidesToDelete)
 
       // Use bulk delete endpoint - pass all indices at once
       const result = await sendCommand(iframeRef.current, 'deleteSlides', {
         indices: slidesToDelete  // 0-based indices
       })
 
-      console.log('🗑️ Bulk delete response:', result)
+      debugLog('🗑️ Bulk delete response:', result)
 
       if (!result.success) {
         // Extract error message from various possible response formats
@@ -747,7 +766,7 @@ export function PresentationViewer({
         description: message
       })
 
-      console.log(`🗑️ Bulk deleted ${deletedCount} slide(s), ${remainingCount} remaining`)
+      debugLog(`🗑️ Bulk deleted ${deletedCount} slide(s), ${remainingCount} remaining`)
     } catch (error) {
       console.error('Error deleting slides:', error)
       toast({
@@ -779,7 +798,7 @@ export function PresentationViewer({
           description: `Slide ${slideIndex + 1} layout updated`
         })
 
-        console.log(`🔄 Changed slide ${slideIndex + 1} layout to ${newLayout}`)
+        debugLog(`🔄 Changed slide ${slideIndex + 1} layout to ${newLayout}`)
       }
     } catch (error) {
       console.error('Error changing layout:', error)
@@ -813,7 +832,7 @@ export function PresentationViewer({
           description: `Slide moved from position ${fromIndex + 1} to ${toIndex + 1}`
         })
 
-        console.log(`↕️ Moved slide ${fromIndex + 1} → ${toIndex + 1}`)
+        debugLog(`↕️ Moved slide ${fromIndex + 1} → ${toIndex + 1}`)
       }
     } catch (error) {
       console.error('Error reordering slides:', error)
@@ -841,7 +860,7 @@ export function PresentationViewer({
     try {
       const result = await sendCommand(iframeRef.current, 'formatText', params)
       if (result.success) {
-        console.log('✏️ Text formatted:', params)
+        debugLog('✏️ Text formatted:', params)
         return true
       }
       return false
@@ -900,7 +919,7 @@ export function PresentationViewer({
           if (elementId) {
             properties.elementId = elementId
           }
-          console.log(`📊 Table element inserted via Layout Service: ${properties.elementId}`)
+          debugLog(`📊 Table element inserted via Layout Service: ${properties.elementId}`)
         }
       } catch (error) {
         console.warn('Layout Service insertTable not available, showing panel in mock mode:', error)
@@ -966,7 +985,7 @@ export function PresentationViewer({
           if (elementId) {
             properties.elementId = elementId
           }
-          console.log(`📈 Chart element inserted via Layout Service: ${properties.elementId}`)
+          debugLog(`📈 Chart element inserted via Layout Service: ${properties.elementId}`)
         }
       } catch (error) {
         console.warn('Layout Service insertChart not available, showing panel in mock mode:', error)
@@ -1023,7 +1042,7 @@ export function PresentationViewer({
           if (elementId) {
             properties.elementId = elementId
           }
-          console.log(`📷 Image element inserted via Layout Service: ${properties.elementId}`)
+          debugLog(`📷 Image element inserted via Layout Service: ${properties.elementId}`)
         }
       } catch (error) {
         console.warn('Layout Service insertImage not available, showing panel in mock mode:', error)
@@ -1080,7 +1099,7 @@ export function PresentationViewer({
           if (elementId) {
             properties.elementId = elementId
           }
-          console.log(`📊 Infographic element inserted via Layout Service: ${properties.elementId}`)
+          debugLog(`📊 Infographic element inserted via Layout Service: ${properties.elementId}`)
         }
       } catch (error) {
         console.warn('Layout Service insertInfographic not available, showing panel in mock mode:', error)
@@ -1141,7 +1160,7 @@ export function PresentationViewer({
           if (elementId) {
             properties.elementId = elementId
           }
-          console.log(`🔀 Diagram element inserted via Layout Service: ${properties.elementId}`)
+          debugLog(`🔀 Diagram element inserted via Layout Service: ${properties.elementId}`)
         }
       } catch (error) {
         console.warn('Layout Service insertDiagram not available, showing panel in mock mode:', error)
@@ -1186,7 +1205,7 @@ export function PresentationViewer({
           title: 'Text Box Added',
           description: 'Click to edit your text'
         })
-        console.log(`📝 Inserted text box: ${elementId}`)
+        debugLog(`📝 Inserted text box: ${elementId}`)
       }
     } catch (error) {
       console.error('Error inserting text box:', error)
@@ -1213,7 +1232,7 @@ export function PresentationViewer({
         toast({
           title: 'Text Box Deleted'
         })
-        console.log(`🗑️ Deleted text box: ${selectedTextBoxId}`)
+        debugLog(`🗑️ Deleted text box: ${selectedTextBoxId}`)
       }
     } catch (error) {
       console.error('Error deleting text box:', error)
@@ -1269,7 +1288,7 @@ export function PresentationViewer({
       })
 
       if (result.success) {
-        console.log(`✅ Updated section ${sectionId} on slide ${slideIndex + 1}`)
+        debugLog(`✅ Updated section ${sectionId} on slide ${slideIndex + 1}`)
         return true
       }
       return false
@@ -1301,7 +1320,7 @@ export function PresentationViewer({
       { action: 'refreshSlide' },
       VIEWER_ORIGIN
     )
-    console.log('[Elementor] Triggered iframe refresh after auto-injection')
+    debugLog('[Elementor] Triggered iframe refresh after auto-injection')
   }, [])
 
   // Send element command - routes to Layout Service or Elementor as appropriate
@@ -1314,7 +1333,7 @@ export function PresentationViewer({
 
     // Direct Layout Service command - send to iframe
     if (commandType === 'layout-service') {
-      console.log(`[ElementCommand] Layout Service: ${action}`, params)
+      debugLog(`[ElementCommand] Layout Service: ${action}`, params)
       return sendCommand(iframeRef.current, action, params)
     }
 
@@ -1325,7 +1344,7 @@ export function PresentationViewer({
         throw new Error(`No Elementor endpoint found for: ${action}`)
       }
 
-      console.log(`[ElementCommand] Elementor: ${action} -> ${endpoint}`)
+      debugLog(`[ElementCommand] Elementor: ${action} -> ${endpoint}`)
 
       try {
         // Build Elementor request with context and position
@@ -1379,7 +1398,7 @@ export function PresentationViewer({
           }
         }
 
-        console.log(`[ElementCommand] Elementor generated and auto-injected: ${data.element_id}`)
+        debugLog(`[ElementCommand] Elementor generated and auto-injected: ${data.element_id}`)
 
         // Elementor auto-injects content - trigger iframe refresh to show it
         if (data.injected) {
@@ -1427,32 +1446,32 @@ export function PresentationViewer({
           await sendCommand(iframeRef.current, 'exitEditMode')
           setIsEditMode(false)
           onEditModeChange?.(false)
-          console.log('✏️ Exited edit mode for fullscreen presentation')
+          debugLog('✏️ Exited edit mode for fullscreen presentation')
         }
 
         // Hide grid overlay before entering fullscreen
         if (isGridActive && iframeRef.current) {
           await sendCommand(iframeRef.current, 'hideGridOverlay')
           setIsGridActive(false)
-          console.log('📐 Hid grid overlay for fullscreen presentation')
+          debugLog('📐 Hid grid overlay for fullscreen presentation')
         }
 
         // Hide border highlight before entering fullscreen
         if (isBordersActive && iframeRef.current) {
           await sendCommand(iframeRef.current, 'hideBorderHighlight')
           setIsBordersActive(false)
-          console.log('🔲 Hid borders for fullscreen presentation')
+          debugLog('🔲 Hid borders for fullscreen presentation')
         }
 
         // Enter fullscreen on container - we control the UI with black backgrounds
         await containerRef.current.requestFullscreen()
         setIsFullscreen(true)
-        console.log('🖥️ Entered fullscreen mode')
+        debugLog('🖥️ Entered fullscreen mode')
       } else {
         // Exit fullscreen
         await document.exitFullscreen()
         setIsFullscreen(false)
-        console.log('🖥️ Exited fullscreen mode')
+        debugLog('🖥️ Exited fullscreen mode')
       }
     } catch (error) {
       console.error('❌ Fullscreen error:', error)
@@ -1461,9 +1480,9 @@ export function PresentationViewer({
 
   // Debug: Log button states
   useEffect(() => {
-    console.log(`🎯 Button states - currentSlide: ${currentSlide}, totalSlides: ${totalSlides}`)
-    console.log(`   Prev disabled: ${currentSlide === 1}`)
-    console.log(`   Next disabled: ${currentSlide === totalSlides}`)
+    debugLog(`🎯 Button states - currentSlide: ${currentSlide}, totalSlides: ${totalSlides}`)
+    debugLog(`   Prev disabled: ${currentSlide === 1}`)
+    debugLog(`   Next disabled: ${currentSlide === totalSlides}`)
   }, [currentSlide, totalSlides])
 
   // Handle fullscreen change events (user presses ESC or F11)
@@ -1507,7 +1526,7 @@ export function PresentationViewer({
         width = height * aspectRatio
       }
 
-      console.log(`📐 Fullscreen slide size: ${Math.round(width)}x${Math.round(height)} (container: ${containerWidth}x${containerHeight})`)
+      debugLog(`📐 Fullscreen slide size: ${Math.round(width)}x${Math.round(height)} (container: ${containerWidth}x${containerHeight})`)
       setFullscreenSlideSize({ width, height })
     }
 
@@ -1581,7 +1600,7 @@ export function PresentationViewer({
       if (event.data.type === 'save_status') {
         const status = event.data.status as SaveStatus
         setSaveStatus(status)
-        console.log(`💾 Save status: ${status}`)
+        debugLog(`💾 Save status: ${status}`)
       }
     }
 
@@ -1604,14 +1623,14 @@ export function PresentationViewer({
 
         setSelectedTextBoxId(elementId)
         onTextBoxSelected?.(elementId, formatting)
-        console.log(`📦 Text box selected: ${elementId}`)
+        debugLog(`📦 Text box selected: ${elementId}`)
       }
 
       // Handle text box deselection
       if (event.data.type === 'textBoxDeselected') {
         setSelectedTextBoxId(null)
         onTextBoxDeselected?.()
-        console.log('📦 Text box deselected')
+        debugLog('📦 Text box deselected')
       }
     }
 
@@ -1635,13 +1654,13 @@ export function PresentationViewer({
 
         // Notify parent to show the appropriate format panel
         onElementSelected?.(elementId, elementType, properties)
-        console.log(`🎯 Element selected: ${elementType} (${elementId})`)
+        debugLog(`🎯 Element selected: ${elementType} (${elementId})`)
       }
 
       // Handle element deselection
       if (event.data.type === 'elementDeselected') {
         onElementDeselected?.()
-        console.log('🎯 Element deselected')
+        debugLog('🎯 Element deselected')
       }
     }
 

@@ -579,7 +579,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     // FIXED: Prevent connection if user is not authenticated
     // This ensures we always connect with a real user ID, never temporary ones
     if (!userIdRef.current) {
-      console.warn('⚠️ Cannot connect: user not authenticated yet');
+      debugLog('⚠️ Cannot connect: user not authenticated yet');
       return;
     }
 
