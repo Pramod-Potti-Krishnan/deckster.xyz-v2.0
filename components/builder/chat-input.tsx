@@ -129,7 +129,7 @@ export function ChatInput({
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.py,.js,.ts,.java,.go,.rs"
+        accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp,.py,.js,.ts,.java,.go,.rs"
         onChange={(e) => {
           const files = Array.from(e.target.files || [])
           console.log(`[ChatInput] File input onChange fired, ${files.length} file(s)`, files.map(f => f.name))

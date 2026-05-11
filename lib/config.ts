@@ -6,7 +6,7 @@ export const config = {
     wsUrl: process.env.NEXT_PUBLIC_WS_URL || 'wss://api.deckster.xyz/ws',
     uploadUrl: process.env.NEXT_PUBLIC_UPLOAD_URL || '/api/upload',
     timeout: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000', 10),
-    knowledgeServiceUrl: process.env.KNOWLEDGE_SERVICE_URL || 'https://researcher-v1.up.railway.app',
+    knowledgeServiceUrl: process.env.NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL || process.env.KNOWLEDGE_SERVICE_URL || 'https://researcher-v1.up.railway.app',
   },
 
   // WebSocket Configuration
@@ -44,9 +44,9 @@ export const config = {
 
   // File Upload Configuration
   upload: {
-    maxFileSize: parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE || '26214400', 10), // 25MB
+    maxFileSize: parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE || '104857600', 10), // 100MB
     maxFiles: parseInt(process.env.NEXT_PUBLIC_MAX_FILES || '5', 10),
-    allowedTypes: (process.env.NEXT_PUBLIC_ALLOWED_FILE_TYPES || '.pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg').split(','),
+    allowedTypes: (process.env.NEXT_PUBLIC_ALLOWED_FILE_TYPES || '.pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp').split(','),
   },
 
   // UI Configuration
