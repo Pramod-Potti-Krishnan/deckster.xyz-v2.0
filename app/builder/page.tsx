@@ -907,6 +907,8 @@ function BuilderContent() {
             <div className={`absolute inset-y-0 left-0 w-96 bg-white overflow-hidden flex flex-col ${isDeckDrawerOpen ? 'shadow-xl' : ''}`}>
               {showChat && (
                 <>
+                  <TokenUsageStrip tokenUsage={tokenUsage} />
+
                   <ScrollArea className="flex-1">
                     <div className="px-3 py-4 space-y-4">
                       <MessageList
@@ -926,8 +928,6 @@ function BuilderContent() {
                       />
                     </div>
                   </ScrollArea>
-
-                  <TokenUsageStrip tokenUsage={tokenUsage} />
 
                   <ChatInput
                     inputMessage={inputMessage}

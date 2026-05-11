@@ -31,6 +31,7 @@ export interface UploadedFile {
 interface FileChipProps {
   file: UploadedFile
   onRemove: () => void
+  variant?: 'default' | 'compact'
 }
 
 function getFileIcon(mimeType: string) {
@@ -49,25 +50,43 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
 }
 
-export function FileChip({ file, onRemove }: FileChipProps) {
+export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps) {
   const FileIcon = getFileIcon(file.type)
+  const isCompact = variant === 'compact'
 
   return (
     <div className={cn(
-      "flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors",
+      "flex items-center border transition-colors",
+      isCompact
+        ? "gap-1.5 rounded-md px-2 py-1"
+        : "gap-2 rounded-lg px-3 py-2",
       file.status === 'success' && "bg-secondary border-secondary",
       file.status === 'uploading' && "bg-secondary/50 border-secondary",
       file.status === 'error' && "bg-destructive/10 border-destructive"
     )}>
-      <FileIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+      <FileIcon className={cn(
+        "flex-shrink-0 text-muted-foreground",
+        isCompact ? "h-3.5 w-3.5" : "h-4 w-4"
+      )} />
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate" title={file.name}>
-          {file.name}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {formatFileSize(file.size)}
-        </p>
+        {isCompact ? (
+          <p className="truncate text-[11px] font-medium leading-4" title={file.name}>
+            {file.name}
+            <span className="ml-1 font-normal text-muted-foreground">
+              {formatFileSize(file.size)}
+            </span>
+          </p>
+        ) : (
+          <>
+            <p className="text-sm font-medium truncate" title={file.name}>
+              {file.name}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {formatFileSize(file.size)}
+            </p>
+          </>
+        )}
 
         {file.status === 'uploading' && (
           <Progress value={file.uploadProgress} className="h-1 mt-1" />
@@ -82,19 +101,22 @@ export function FileChip({ file, onRemove }: FileChipProps) {
 
       <div className="flex items-center gap-2 flex-shrink-0">
         {file.status === 'uploading' && (
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className={cn(
+            "animate-spin text-muted-foreground",
+            isCompact ? "h-3.5 w-3.5" : "h-4 w-4"
+          )} />
         )}
         {file.status === 'success' && (
-          <Check className="h-4 w-4 text-green-600" />
+          <Check className={cn("text-green-600", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
         )}
         {file.status === 'error' && (
-          <AlertCircle className="h-4 w-4 text-destructive" />
+          <AlertCircle className={cn("text-destructive", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
         )}
 
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6"
+          className={cn(isCompact ? "h-5 w-5" : "h-6 w-6")}
           onClick={onRemove}
           type="button"
         >

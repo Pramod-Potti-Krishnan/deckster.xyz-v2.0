@@ -7,16 +7,12 @@ import { FileChip, UploadedFile } from '@/components/file-chip'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Switch } from "@/components/ui/switch"
 import {
   Globe,
-  Plus,
   SlidersHorizontal,
-  Camera,
-  Folder,
   Paperclip,
   ArrowUp,
   Loader2,
@@ -128,28 +124,7 @@ export function ChatInput({
         </div>
       )}
 
-      {/* File chips (when files attached) */}
-      {features.enableFileUploads && uploadedFiles.length > 0 && !isDraggingFiles && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {uploadedFiles.map((file) => (
-            <FileChip
-              key={file.id}
-              file={file}
-              onRemove={() => onRemoveFile(file.id)}
-            />
-          ))}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClearAllFiles}
-            className="text-[11px] text-gray-500 hover:text-gray-700 h-6 px-2"
-          >
-            Clear all
-          </Button>
-        </div>
-      )}
-
-      {/* Hidden file input for dropdown menu */}
+      {/* Hidden file input for upload button */}
       <input
         ref={fileInputRef}
         type="file"
@@ -192,6 +167,33 @@ export function ChatInput({
       {/* Main input container - Claude style */}
       <form onSubmit={onSubmit}>
         <div className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all">
+          {/* File chips live inside the composer so the input grows with them */}
+          {features.enableFileUploads && uploadedFiles.length > 0 && !isDraggingFiles && (
+            <div className="max-h-24 overflow-y-auto border-b border-gray-200/70 px-3 py-2">
+              <div className="flex flex-col gap-1.5">
+                {uploadedFiles.map((file) => (
+                  <FileChip
+                    key={file.id}
+                    file={file}
+                    onRemove={() => onRemoveFile(file.id)}
+                    variant="compact"
+                  />
+                ))}
+                {uploadedFiles.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    onClick={onClearAllFiles}
+                    className="h-5 w-fit px-1.5 text-[10px] text-gray-500 hover:text-gray-700"
+                  >
+                    Clear all
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Textarea */}
           <Textarea
             ref={textareaRef}
@@ -229,43 +231,24 @@ export function ChatInput({
           <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-b-xl">
             {/* Left: Action buttons */}
             <div className="flex items-center gap-1">
-              {/* + Menu for attachments */}
+              {/* Direct file upload */}
               {features.enableFileUploads && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors"
-                      disabled={uploadedFiles.length >= 5}
-                    >
-                      <Plus className="h-4 w-4 text-gray-500" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuItem
-                      onClick={async () => {
-                        try {
-                          await onRequestSession()
-                        } catch {
-                          return
-                        }
-                        fileInputRef.current?.click()
-                      }}
-                      className="gap-2 text-xs"
-                    >
-                      <Paperclip className="h-4 w-4" />
-                      Upload a file
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 text-xs text-gray-400" disabled>
-                      <Camera className="h-4 w-4" />
-                      Take a screenshot
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-2 text-xs text-gray-400" disabled>
-                      <Folder className="h-4 w-4" />
-                      Use a project
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={uploadedFiles.length >= 5}
+                  onClick={async () => {
+                    try {
+                      await onRequestSession()
+                    } catch {
+                      return
+                    }
+                    fileInputRef.current?.click()
+                  }}
+                >
+                  <Paperclip className="h-4 w-4" />
+                  Upload a file
+                </button>
               )}
 
               {/* Settings/Options Menu */}
