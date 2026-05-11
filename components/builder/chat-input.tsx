@@ -170,13 +170,13 @@ export function ChatInput({
           {/* File chips live inside the composer so the input grows with them */}
           {features.enableFileUploads && uploadedFiles.length > 0 && !isDraggingFiles && (
             <div className="max-h-24 overflow-y-auto border-b border-gray-200/70 px-3 py-2">
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-wrap items-start gap-2">
                 {uploadedFiles.map((file) => (
                   <FileChip
                     key={file.id}
                     file={file}
                     onRemove={() => onRemoveFile(file.id)}
-                    variant="compact"
+                    variant="icon"
                   />
                 ))}
                 {uploadedFiles.length > 1 && (
