@@ -22,6 +22,9 @@ import {
 import { features } from '@/lib/config'
 import type { ActionRequest } from "@/hooks/use-deckster-websocket-v2"
 
+const TEXTAREA_MIN_HEIGHT = 96
+const TEXTAREA_MAX_HEIGHT = 220
+
 export interface ChatInputProps {
   inputMessage: string
   onInputChange: (value: string) => void
@@ -84,7 +87,7 @@ export function ChatInput({
     const textarea = textareaRef.current
     if (textarea) {
       textarea.style.height = 'auto'
-      const newHeight = Math.min(Math.max(textarea.scrollHeight, 60), 120)
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, TEXTAREA_MIN_HEIGHT), TEXTAREA_MAX_HEIGHT)
       textarea.style.height = `${newHeight}px`
     }
   }, [inputMessage])
@@ -223,7 +226,7 @@ export function ChatInput({
                       : "Message Director..."
             }
             disabled={!user || isLoadingSession}
-            className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[60px] max-h-[120px] text-xs placeholder:text-gray-400 overflow-y-auto"
+            className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[96px] max-h-[220px] text-xs placeholder:text-gray-400 overflow-y-auto"
             rows={1}
           />
 

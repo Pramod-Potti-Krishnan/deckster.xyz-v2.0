@@ -39,6 +39,10 @@ import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
 
+const DEFAULT_DRAWER_WIDTH = 420
+const MIN_DRAWER_WIDTH = 320
+const MAX_DRAWER_WIDTH_RATIO = 0.5
+
 function BuilderContent() {
   const { user, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
@@ -65,6 +69,8 @@ function BuilderContent() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showFormatPanel, setShowFormatPanel] = useState(false)
   const [showChat, setShowChat] = useState(true)
+  const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH)
+  const [isResizingDrawer, setIsResizingDrawer] = useState(false)
   // Text box selection state
   const [showTextBoxPanel, setShowTextBoxPanel] = useState(false)
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
@@ -105,6 +111,67 @@ function BuilderContent() {
     const z = zCounterRef.current
     setPanelZIndices(prev => ({ ...prev, [panel]: z }))
   }, [])
+
+  const clampDrawerWidth = useCallback((width: number) => {
+    if (typeof window === 'undefined') {
+      return Math.min(Math.max(width, MIN_DRAWER_WIDTH), DEFAULT_DRAWER_WIDTH)
+    }
+
+    const maxWidth = Math.max(MIN_DRAWER_WIDTH, Math.floor(window.innerWidth * MAX_DRAWER_WIDTH_RATIO))
+    return Math.min(Math.max(width, MIN_DRAWER_WIDTH), maxWidth)
+  }, [])
+
+  const handleDrawerResizeStart = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+
+    const startX = event.clientX
+    const startWidth = drawerWidth
+    const previousCursor = document.body.style.cursor
+    const previousUserSelect = document.body.style.userSelect
+
+    setIsResizingDrawer(true)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const nextWidth = clampDrawerWidth(startWidth + moveEvent.clientX - startX)
+      setDrawerWidth(nextWidth)
+    }
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      const finalWidth = clampDrawerWidth(startWidth + upEvent.clientX - startX)
+      setDrawerWidth(finalWidth)
+      window.localStorage.setItem('deckster_builder_drawer_width', String(finalWidth))
+      setIsResizingDrawer(false)
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousUserSelect
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+  }, [clampDrawerWidth, drawerWidth])
+
+  useEffect(() => {
+    const savedWidth = Number(window.localStorage.getItem('deckster_builder_drawer_width'))
+    if (Number.isFinite(savedWidth) && savedWidth > 0) {
+      setDrawerWidth(clampDrawerWidth(savedWidth))
+    }
+  }, [clampDrawerWidth])
+
+  useEffect(() => {
+    const handleResize = () => {
+      setDrawerWidth(prev => {
+        const next = clampDrawerWidth(prev)
+        window.localStorage.setItem('deckster_builder_drawer_width', String(next))
+        return next
+      })
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [clampDrawerWidth])
 
   // Drawer open conditions
   const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel
@@ -704,15 +771,22 @@ function BuilderContent() {
         <div className="flex-1 flex relative overflow-hidden">
           {/* === Element Drawer === */}
           <div
-            className="absolute inset-y-0 left-0 w-96 transition-transform duration-300 ease-out"
+            className={cn(
+              "absolute inset-y-0 left-0 ease-out",
+              isResizingDrawer ? "" : "transition-transform duration-300"
+            )}
             style={{
-              transform: isElementDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
+              width: drawerWidth,
+              transform: isElementDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
               zIndex: isElementDrawerOpen ? 10 + panelZIndices.element : 60,
               pointerEvents: isElementDrawerOpen ? 'auto' : 'none',
             }}
           >
             {/* Panel area */}
-            <div className={`absolute inset-y-0 left-0 w-96 bg-white overflow-hidden ${isElementDrawerOpen ? 'shadow-xl' : ''}`}>
+            <div
+              className={`absolute inset-y-0 left-0 bg-white overflow-hidden ${isElementDrawerOpen ? 'shadow-xl' : ''}`}
+              style={{ width: drawerWidth }}
+            >
               {features.useTextLabsGeneration && (
                 <GenerationPanel
                   isOpen={generationPanel.isOpen}
@@ -823,7 +897,7 @@ function BuilderContent() {
                   }
                 }}
                 className={cn(
-                  "absolute top-[33%] -translate-y-1/2 left-96",
+                  "absolute top-[33%] -translate-y-1/2",
                   "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                   "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                   "transition-colors pointer-events-auto",
@@ -831,6 +905,7 @@ function BuilderContent() {
                     ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
                     : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
                 )}
+                style={{ left: drawerWidth }}
                 title={generationPanel.isOpen ? 'Close element panel' : 'Open element panel'}
               >
                 {isElementDrawerOpen ? (
@@ -847,15 +922,22 @@ function BuilderContent() {
 
           {/* === Slide Drawer === */}
           <div
-            className="absolute inset-y-0 left-0 w-96 transition-transform duration-300 ease-out"
+            className={cn(
+              "absolute inset-y-0 left-0 ease-out",
+              isResizingDrawer ? "" : "transition-transform duration-300"
+            )}
             style={{
-              transform: isSlideDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
+              width: drawerWidth,
+              transform: isSlideDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
               zIndex: isSlideDrawerOpen ? 10 + panelZIndices.slide : 60,
               pointerEvents: isSlideDrawerOpen ? 'auto' : 'none',
             }}
           >
             {/* Panel area */}
-            <div className={`absolute inset-y-0 left-0 w-96 bg-white overflow-hidden ${isSlideDrawerOpen ? 'shadow-xl' : ''}`}>
+            <div
+              className={`absolute inset-y-0 left-0 bg-white overflow-hidden ${isSlideDrawerOpen ? 'shadow-xl' : ''}`}
+              style={{ width: drawerWidth }}
+            >
               <SlideGenerationPanel
                 isOpen={showFormatPanel}
                 onClose={() => setShowFormatPanel(false)}
@@ -873,7 +955,7 @@ function BuilderContent() {
                 if (next) bringToFront('slide')
               }}
               className={cn(
-                "absolute top-[45%] -translate-y-1/2 left-96",
+                "absolute top-[45%] -translate-y-1/2",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                 "transition-colors pointer-events-auto",
@@ -881,6 +963,7 @@ function BuilderContent() {
                   ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700"
                   : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600"
               )}
+              style={{ left: drawerWidth }}
               title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
             >
               {isSlideDrawerOpen ? (
@@ -896,15 +979,22 @@ function BuilderContent() {
 
           {/* === Deck Drawer === */}
           <div
-            className="absolute inset-y-0 left-0 w-96 transition-transform duration-300 ease-out"
+            className={cn(
+              "absolute inset-y-0 left-0 ease-out",
+              isResizingDrawer ? "" : "transition-transform duration-300"
+            )}
             style={{
-              transform: isDeckDrawerOpen ? 'translateX(0px)' : 'translateX(-384px)',
+              width: drawerWidth,
+              transform: isDeckDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
               zIndex: isDeckDrawerOpen ? 10 + panelZIndices.deck : 60,
               pointerEvents: isDeckDrawerOpen ? 'auto' : 'none',
             }}
           >
             {/* Panel area */}
-            <div className={`absolute inset-y-0 left-0 w-96 bg-white overflow-hidden flex flex-col ${isDeckDrawerOpen ? 'shadow-xl' : ''}`}>
+            <div
+              className={`absolute inset-y-0 left-0 bg-white overflow-hidden flex flex-col ${isDeckDrawerOpen ? 'shadow-xl' : ''}`}
+              style={{ width: drawerWidth }}
+            >
               {showChat && (
                 <>
                   <TokenUsageStrip tokenUsage={tokenUsage} />
@@ -969,7 +1059,7 @@ function BuilderContent() {
                 if (next) bringToFront('deck')
               }}
               className={cn(
-                "absolute top-[57%] -translate-y-1/2 left-96",
+                "absolute top-[57%] -translate-y-1/2",
                 "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                 "transition-colors pointer-events-auto",
@@ -977,6 +1067,7 @@ function BuilderContent() {
                   ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
                   : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
               )}
+              style={{ left: drawerWidth }}
               title={showChat ? 'Close chat panel' : 'Open chat panel'}
             >
               {isDeckDrawerOpen ? (
@@ -990,10 +1081,37 @@ function BuilderContent() {
             </button>
           </div>
 
+          {anyDrawerOpen && (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize builder panel"
+              title="Drag to resize panel"
+              onMouseDown={handleDrawerResizeStart}
+              onDoubleClick={() => {
+                const next = clampDrawerWidth(DEFAULT_DRAWER_WIDTH)
+                setDrawerWidth(next)
+                window.localStorage.setItem('deckster_builder_drawer_width', String(next))
+              }}
+              className={cn(
+                "absolute inset-y-0 w-2 cursor-col-resize transition-colors",
+                "hover:bg-purple-200/70",
+                isResizingDrawer ? "bg-purple-300/80" : "bg-transparent"
+              )}
+              style={{
+                left: drawerWidth - 3,
+                zIndex: 140,
+              }}
+            />
+          )}
+
           {/* Presentation fills the area, shifts right when any drawer is open */}
           <div
-            className="flex-1 min-w-0 min-h-0 flex flex-col transition-[margin] duration-300 ease-out"
-            style={{ marginLeft: anyDrawerOpen ? 384 : 0 }}
+            className={cn(
+              "flex-1 min-w-0 min-h-0 flex flex-col",
+              isResizingDrawer ? "" : "transition-[margin] duration-300 ease-out"
+            )}
+            style={{ marginLeft: anyDrawerOpen ? drawerWidth : 0 }}
           >
           {session.isLoadingSession ? (
             <div className="flex-1 flex items-center justify-center bg-gray-100 h-full">
