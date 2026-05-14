@@ -78,9 +78,9 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
     description:
       "Turns numbers and concepts into the right picture. Picks the chart type, builds the diagram, lays out the infographic — all on the canvas.",
     capabilities: [
-      "Selects the most legible chart for the data",
-      "Builds 34 diagram patterns and 14 infographic templates",
-      "Re-renders any visual when you change the data",
+      "Picks the right chart from 18 types — bar to Sankey",
+      "Builds 8 diagrams — cloud, logical, data, kanban, gantt",
+      "Generates infographics from any shape you can describe",
       "Keeps every visual on the same color and scale system",
     ],
     detailHref: "/agents/visualizer",

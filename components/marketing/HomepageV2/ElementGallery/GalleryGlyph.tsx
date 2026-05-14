@@ -21,14 +21,7 @@ interface GlyphProps {
 
 const VB = "0 0 64 64"
 
-/** Extract a trailing integer from a type id like "cycle_4_step" → 4. */
-function extractNumber(s: string, fallback: number): number {
-  const m = s.match(/(\d+)/)
-  return m ? Number(m[1]) : fallback
-}
-
 export function GalleryGlyph({ card, color }: GlyphProps) {
-  const [, type] = card.id.split(":")
   return (
     <svg
       viewBox={VB}
@@ -37,7 +30,7 @@ export function GalleryGlyph({ card, color }: GlyphProps) {
       aria-label={card.label}
       preserveAspectRatio="xMidYMid meet"
     >
-      <Paint card={card} color={color} type={type ?? ""} />
+      <Paint card={card} color={color} />
     </svg>
   )
 }
@@ -45,84 +38,93 @@ export function GalleryGlyph({ card, color }: GlyphProps) {
 function Paint({
   card,
   color,
-  type,
 }: {
   card: GalleryCard
   color: string
-  type: string
 }) {
+  const key = card.glyphKey
+
   // ---- Charts -------------------------------------------------------------
   if (card.category === "chart") {
-    if (type.startsWith("bar_horizontal")) return <BarHorizontal color={color} />
-    if (type === "bar_grouped") return <BarGrouped color={color} />
-    if (type === "bar_stacked") return <BarStacked color={color} />
-    if (type === "waterfall") return <Waterfall color={color} />
-    if (type.startsWith("bar_")) return <BarVertical color={color} />
-    if (type === "line") return <LineChart color={color} />
-    if (type === "area") return <AreaChart color={color} stacked={false} />
-    if (type === "area_stacked") return <AreaChart color={color} stacked />
-    if (type === "pie") return <Pie color={color} />
-    if (type === "doughnut") return <Donut color={color} />
-    if (type === "polar_area") return <PolarArea color={color} />
-    if (type === "scatter") return <Scatter color={color} />
-    if (type === "bubble") return <Bubble color={color} />
-    if (type === "radar") return <Radar color={color} />
-    if (type === "d3_treemap") return <Treemap color={color} />
-    if (type === "d3_sunburst") return <Sunburst color={color} />
-    if (type === "d3_choropleth_usa") return <Choropleth color={color} />
-    if (type === "d3_sankey") return <Sankey color={color} />
+    if (key.startsWith("bar_horizontal")) return <BarHorizontal color={color} />
+    if (key === "bar_grouped") return <BarGrouped color={color} />
+    if (key === "bar_stacked") return <BarStacked color={color} />
+    if (key === "waterfall") return <Waterfall color={color} />
+    if (key.startsWith("bar_")) return <BarVertical color={color} />
+    if (key === "line") return <LineChart color={color} />
+    if (key === "area") return <AreaChart color={color} stacked={false} />
+    if (key === "area_stacked") return <AreaChart color={color} stacked />
+    if (key === "pie") return <Pie color={color} />
+    if (key === "doughnut") return <Donut color={color} />
+    if (key === "polar_area") return <PolarArea color={color} />
+    if (key === "scatter") return <Scatter color={color} />
+    if (key === "bubble") return <Bubble color={color} />
+    if (key === "radar") return <Radar color={color} />
+    if (key === "d3_treemap") return <Treemap color={color} />
+    if (key === "d3_sunburst") return <Sunburst color={color} />
+    if (key === "d3_choropleth_usa") return <Choropleth color={color} />
+    if (key === "d3_sankey") return <Sankey color={color} />
     return <BarVertical color={color} />
   }
 
-  // ---- Diagrams -----------------------------------------------------------
+  // ---- Diagrams (8 real Text Labs subtypes) -------------------------------
   if (card.category === "diagram") {
-    if (type.startsWith("cycle_")) return <Cycle n={extractNumber(type, 4)} color={color} />
-    if (type.startsWith("pyramid_")) return <Pyramid n={extractNumber(type, 4)} color={color} />
-    if (type.startsWith("venn_")) return <Venn n={extractNumber(type, 3)} color={color} />
-    if (type.startsWith("honeycomb_")) return <Honeycomb n={extractNumber(type, 5)} color={color} />
-    if (type.startsWith("hub_spoke_")) return <HubSpoke n={extractNumber(type, 6)} color={color} />
-    if (type === "matrix_2x2") return <Matrix dim={2} color={color} />
-    if (type === "matrix_3x3") return <Matrix dim={3} color={color} />
-    if (type === "swot") return <Swot color={color} />
-    if (type === "quadrant" || type === "quadrantChart") return <Quadrant color={color} />
-    if (type.startsWith("funnel_")) return <Funnel n={extractNumber(type, 4)} color={color} />
-    if (type.startsWith("process_flow_")) return <ProcessFlow n={extractNumber(type, 4)} color={color} />
-    if (type === "flowchart") return <Flowchart color={color} />
-    if (type === "timeline_horizontal") return <TimelineHorizontal color={color} />
-    if (type === "gantt") return <Gantt color={color} />
-    if (type === "sequence") return <Sequence color={color} />
-    if (type === "network") return <Network color={color} />
-    if (type === "sankey") return <Sankey color={color} />
-    if (type === "state") return <StateDiagram color={color} />
-    if (type === "erDiagram") return <ERDiagram color={color} />
-    if (type === "journey") return <Journey color={color} />
-    if (type === "class") return <ClassDiagram color={color} />
-    if (type === "gitgraph") return <GitGraph color={color} />
-    if (type === "mindmap") return <Mindmap color={color} />
-    return <Flowchart color={color} />
+    switch (key) {
+      case "code_display":
+        return <CodeDisplay color={color} />
+      case "cloud_architecture":
+        return <CloudArchitecture color={color} />
+      case "logical_architecture":
+        return <LogicalArchitecture color={color} />
+      case "data_architecture":
+        return <DataArchitecture color={color} />
+      case "idea_board":
+        return <IdeaBoard color={color} />
+      case "kanban_board":
+        return <KanbanBoard color={color} />
+      case "gantt_chart":
+        return <Gantt color={color} />
+      case "chevron_maturity":
+        return <ChevronMaturity color={color} />
+      default:
+        return <CloudArchitecture color={color} />
+    }
   }
 
-  // ---- Infographics -------------------------------------------------------
+  // ---- Infographics (examples — generative module ships unlimited) --------
   if (card.category === "infographic") {
-    if (type === "pyramid") return <Pyramid n={4} color={color} />
-    if (type === "hierarchy") return <Hierarchy color={color} />
-    if (type === "funnel") return <Funnel n={4} color={color} />
-    if (type === "timeline") return <TimelineHorizontal color={color} />
-    if (type === "process") return <ProcessFlow n={4} color={color} />
-    if (type === "roadmap") return <Roadmap color={color} />
-    if (type === "comparison") return <Comparison color={color} />
-    if (type === "venn") return <Venn n={3} color={color} />
-    if (type === "matrix") return <Matrix dim={3} color={color} />
-    if (type === "concentric_circles") return <Concentric color={color} />
-    if (type === "concept_spread") return <Honeycomb n={6} color={color} />
-    if (type === "cycle") return <Cycle n={4} color={color} />
-    if (type === "statistics") return <Statistics color={color} />
-    if (type === "list") return <ListVisual color={color} />
-    return <Concentric color={color} />
+    switch (key) {
+      case "pyramid":
+        return <Pyramid n={4} color={color} />
+      case "funnel":
+        return <Funnel n={4} color={color} />
+      case "hexagon":
+        return <Honeycomb n={6} color={color} />
+      case "concentric":
+        return <Concentric color={color} />
+      case "cycle":
+        return <Cycle n={4} color={color} />
+      case "timeline":
+        return <TimelineHorizontal color={color} />
+      case "ladder":
+        return <Ladder color={color} />
+      case "rocket":
+        return <Rocket color={color} />
+      case "tree":
+        return <Tree color={color} />
+      case "ship":
+        return <Ship color={color} />
+      case "rail":
+        return <Rail color={color} />
+      case "anything":
+        return <Anything color={color} />
+      default:
+        return <Concentric color={color} />
+    }
   }
 
   // ---- Element types ------------------------------------------------------
-  switch (type) {
+  switch (key) {
     case "TEXT_BOX":
       return <TextBox color={color} />
     case "METRICS":
@@ -140,7 +142,7 @@ function Paint({
     case "INFOGRAPHIC":
       return <Concentric color={color} />
     case "DIAGRAM":
-      return <Flowchart color={color} />
+      return <CloudArchitecture color={color} />
     default:
       return <Shape color={color} />
   }
@@ -1170,6 +1172,344 @@ function Shape({ color }: { color: string }) {
       <rect x="34" y="14" width="18" height="18" fill={color} opacity={0.55} />
       <polygon points="32,52 14,52 23,38" fill={color} opacity={0.7} />
       <polygon points="42,52 50,38 58,52" fill={color} opacity={0.55} />
+    </g>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// 8 real Text Labs diagram subtypes
+// ---------------------------------------------------------------------------
+
+function CodeDisplay({ color }: { color: string }) {
+  return (
+    <g>
+      <rect x="6" y="10" width="52" height="44" rx={2} fill={fillSoft(color, 0.18)} stroke={color} strokeOpacity={0.4} />
+      {/* Window chrome dots */}
+      <circle cx="11" cy="15" r="1.5" fill={color} opacity={0.45} />
+      <circle cx="16" cy="15" r="1.5" fill={color} opacity={0.45} />
+      <circle cx="21" cy="15" r="1.5" fill={color} opacity={0.45} />
+      <line x1="6" y1="20" x2="58" y2="20" stroke={color} strokeOpacity={0.2} />
+      {/* Indented code lines */}
+      <rect x="11" y="25" width="22" height="2" rx={1} fill={color} opacity={0.85} />
+      <rect x="16" y="30" width="32" height="2" rx={1} fill={color} opacity={0.6} />
+      <rect x="20" y="35" width="20" height="2" rx={1} fill={color} opacity={0.85} />
+      <rect x="20" y="40" width="28" height="2" rx={1} fill={color} opacity={0.6} />
+      <rect x="16" y="45" width="14" height="2" rx={1} fill={color} opacity={0.85} />
+      <rect x="11" y="50" width="8" height="2" rx={1} fill={color} opacity={0.6} />
+    </g>
+  )
+}
+
+function CloudArchitecture({ color }: { color: string }) {
+  return (
+    <g>
+      {/* Cloud silhouette */}
+      <path
+        d="M 18 24 Q 14 22 14 18 Q 14 12 22 12 Q 24 6 32 6 Q 42 6 44 14 Q 52 14 52 22 Q 52 28 44 28 L 22 28 Q 16 28 18 24 Z"
+        fill={fillSoft(color, 0.2)}
+        stroke={color}
+        strokeOpacity={0.5}
+      />
+      {/* Service nodes inside */}
+      <rect x="22" y="14" width="8" height="6" rx={1} fill={color} opacity={0.85} />
+      <rect x="34" y="14" width="8" height="6" rx={1} fill={color} opacity={0.6} />
+      {/* Below-cloud services connected by lines */}
+      <line x1="20" y1="32" x2="20" y2="38" stroke={color} strokeOpacity={0.4} />
+      <line x1="32" y1="32" x2="32" y2="38" stroke={color} strokeOpacity={0.4} />
+      <line x1="44" y1="32" x2="44" y2="38" stroke={color} strokeOpacity={0.4} />
+      <rect x="14" y="38" width="12" height="8" rx={1.5} fill={color} opacity={0.85} />
+      <rect x="26" y="38" width="12" height="8" rx={1.5} fill={color} opacity={0.6} />
+      <rect x="38" y="38" width="12" height="8" rx={1.5} fill={color} opacity={0.85} />
+      {/* Bottom-most layer */}
+      <rect x="8" y="50" width="48" height="6" rx={1.5} fill={color} opacity={0.4} />
+    </g>
+  )
+}
+
+function LogicalArchitecture({ color }: { color: string }) {
+  // Three stacked layers — Presentation / Logic / Data — with arrows down.
+  const opacities = [0.95, 0.7, 0.5]
+  return (
+    <g>
+      {opacities.map((o, i) => (
+        <g key={i}>
+          <rect
+            x="8"
+            y={10 + i * 16}
+            width="48"
+            height="10"
+            rx={1.5}
+            fill={color}
+            opacity={o}
+          />
+          {/* sub-cells inside the layer */}
+          <line
+            x1="24"
+            y1={10 + i * 16}
+            x2="24"
+            y2={20 + i * 16}
+            stroke="white"
+            strokeOpacity={0.55}
+          />
+          <line
+            x1="40"
+            y1={10 + i * 16}
+            x2="40"
+            y2={20 + i * 16}
+            stroke="white"
+            strokeOpacity={0.55}
+          />
+        </g>
+      ))}
+      {/* Down arrows between layers */}
+      <path d="M 32 22 L 32 26 M 30 24 L 32 26 L 34 24" stroke={color} strokeWidth={1.2} fill="none" strokeLinecap="round" />
+      <path d="M 32 38 L 32 42 M 30 40 L 32 42 L 34 40" stroke={color} strokeWidth={1.2} fill="none" strokeLinecap="round" />
+    </g>
+  )
+}
+
+function DataArchitecture({ color }: { color: string }) {
+  // Database cylinder feeding into processors and out to a target.
+  const cylY = 14
+  return (
+    <g>
+      {/* Source DB cylinder (left) */}
+      <ellipse cx="14" cy={cylY} rx="6" ry="2.5" fill={color} opacity={0.85} />
+      <rect x="8" y={cylY} width="12" height="14" fill={color} opacity={0.85} />
+      <ellipse cx="14" cy={cylY + 14} rx="6" ry="2.5" fill={color} opacity={0.6} />
+      <line x1="8" y1={cylY + 4} x2="20" y2={cylY + 4} stroke="white" strokeOpacity={0.4} />
+      <line x1="8" y1={cylY + 9} x2="20" y2={cylY + 9} stroke="white" strokeOpacity={0.4} />
+      {/* Processor nodes */}
+      <rect x="28" y="18" width="14" height="8" rx={1.5} fill={color} opacity={0.85} />
+      <rect x="28" y="32" width="14" height="8" rx={1.5} fill={color} opacity={0.6} />
+      {/* Target DB (right) */}
+      <ellipse cx="54" cy="32" rx="5" ry="2" fill={color} opacity={0.85} />
+      <rect x="49" y="32" width="10" height="12" fill={color} opacity={0.85} />
+      <ellipse cx="54" cy="44" rx="5" ry="2" fill={color} opacity={0.6} />
+      {/* Flow arrows */}
+      <path d="M 20 22 L 27 22 M 25 20 L 27 22 L 25 24" stroke={color} strokeWidth={1.2} fill="none" strokeLinecap="round" />
+      <path d="M 20 36 L 27 36 M 25 34 L 27 36 L 25 38" stroke={color} strokeWidth={1.2} fill="none" strokeLinecap="round" />
+      <path d="M 42 22 L 48 30 M 47 28 L 48 30 L 46 30" stroke={color} strokeWidth={1.2} fill="none" strokeLinecap="round" />
+      <path d="M 42 36 L 48 36 M 46 34 L 48 36 L 46 38" stroke={color} strokeWidth={1.2} fill="none" strokeLinecap="round" />
+    </g>
+  )
+}
+
+function IdeaBoard({ color }: { color: string }) {
+  // Sticky notes scattered at slight angles.
+  const notes = [
+    { x: 8, y: 10, r: -6, o: 0.85 },
+    { x: 26, y: 8, r: 4, o: 0.7 },
+    { x: 44, y: 12, r: -3, o: 0.85 },
+    { x: 12, y: 30, r: 5, o: 0.6 },
+    { x: 30, y: 32, r: -4, o: 0.85 },
+    { x: 46, y: 30, r: 6, o: 0.7 },
+    { x: 18, y: 48, r: -5, o: 0.6 },
+    { x: 38, y: 48, r: 3, o: 0.85 },
+  ]
+  return (
+    <g>
+      {notes.map((n, i) => (
+        <g key={i} transform={`rotate(${n.r} ${n.x + 6} ${n.y + 6})`}>
+          <rect x={n.x} y={n.y} width="12" height="12" rx={1} fill={color} opacity={n.o} />
+          <line x1={n.x + 2} y1={n.y + 4} x2={n.x + 10} y2={n.y + 4} stroke="white" strokeOpacity={0.5} />
+          <line x1={n.x + 2} y1={n.y + 7} x2={n.x + 8} y2={n.y + 7} stroke="white" strokeOpacity={0.5} />
+        </g>
+      ))}
+    </g>
+  )
+}
+
+function KanbanBoard({ color }: { color: string }) {
+  // 3 columns of stacked cards.
+  return (
+    <g>
+      {[0, 1, 2].map((col) => {
+        const x = 8 + col * 17
+        const cardCounts = [3, 2, 1]
+        const opacities = [0.85, 0.7, 0.55]
+        return (
+          <g key={col}>
+            {/* Column header */}
+            <rect x={x} y={8} width={14} height={4} rx={1} fill={color} opacity={opacities[col]} />
+            {/* Cards */}
+            {Array.from({ length: cardCounts[col] }).map((_, i) => (
+              <rect
+                key={i}
+                x={x}
+                y={16 + i * 12}
+                width={14}
+                height={9}
+                rx={1.5}
+                fill={color}
+                opacity={0.4}
+              />
+            ))}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+function ChevronMaturity({ color }: { color: string }) {
+  // 5 chevron tiles pointing right, increasing saturation.
+  const w = 11
+  const h = 18
+  const tip = 4
+  const startX = 6
+  const startY = (64 - h) / 2
+  return (
+    <g>
+      {[0, 1, 2, 3, 4].map((i) => {
+        const x = startX + i * (w - tip)
+        const o = 0.4 + i * 0.13
+        return (
+          <polygon
+            key={i}
+            points={`${x},${startY} ${x + w - tip},${startY} ${x + w},${startY + h / 2} ${x + w - tip},${startY + h} ${x},${startY + h} ${x + tip},${startY + h / 2}`}
+            fill={color}
+            opacity={o}
+          />
+        )
+      })}
+    </g>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Imaginative infographic glyphs (the "anything you can describe" set)
+// ---------------------------------------------------------------------------
+
+function Ladder({ color }: { color: string }) {
+  return (
+    <g>
+      <line x1="20" y1="6" x2="20" y2="58" stroke={color} strokeWidth={2} strokeLinecap="round" />
+      <line x1="44" y1="6" x2="44" y2="58" stroke={color} strokeWidth={2} strokeLinecap="round" />
+      {[14, 22, 30, 38, 46, 54].map((y) => (
+        <line key={y} x1="20" y1={y} x2="44" y2={y} stroke={color} strokeWidth={2.2} strokeLinecap="round" opacity={0.85} />
+      ))}
+    </g>
+  )
+}
+
+function Rocket({ color }: { color: string }) {
+  return (
+    <g>
+      {/* Body */}
+      <path
+        d="M 32 4 Q 40 12 40 28 L 40 44 Q 40 50 32 52 Q 24 50 24 44 L 24 28 Q 24 12 32 4 Z"
+        fill={color}
+        opacity={0.85}
+      />
+      {/* Window */}
+      <circle cx="32" cy="22" r="3.5" fill="white" opacity={0.85} />
+      <circle cx="32" cy="22" r="2" fill={color} opacity={0.7} />
+      {/* Section divider */}
+      <line x1="24" y1="36" x2="40" y2="36" stroke="white" strokeOpacity={0.55} />
+      {/* Fins */}
+      <polygon points="24,40 18,52 24,52" fill={color} opacity={0.6} />
+      <polygon points="40,40 46,52 40,52" fill={color} opacity={0.6} />
+      {/* Flame */}
+      <path
+        d="M 28 52 Q 32 58 36 52 Q 34 60 32 62 Q 30 60 28 52 Z"
+        fill={color}
+        opacity={0.5}
+      />
+    </g>
+  )
+}
+
+function Tree({ color }: { color: string }) {
+  return (
+    <g>
+      {/* Trunk */}
+      <rect x="29" y="40" width="6" height="18" fill={color} opacity={0.7} />
+      {/* Crown — three overlapping circles */}
+      <circle cx="32" cy="22" r="14" fill={color} opacity={0.55} />
+      <circle cx="22" cy="30" r="10" fill={color} opacity={0.7} />
+      <circle cx="42" cy="30" r="10" fill={color} opacity={0.7} />
+      {/* "Leaves" as little dots — each a labeled item */}
+      <circle cx="20" cy="22" r="2" fill={color} />
+      <circle cx="32" cy="14" r="2" fill={color} />
+      <circle cx="44" cy="22" r="2" fill={color} />
+      <circle cx="26" cy="34" r="2" fill={color} />
+      <circle cx="38" cy="34" r="2" fill={color} />
+    </g>
+  )
+}
+
+function Ship({ color }: { color: string }) {
+  return (
+    <g>
+      {/* Hull */}
+      <path
+        d="M 6 38 L 58 38 L 52 50 Q 50 54 46 54 L 18 54 Q 14 54 12 50 Z"
+        fill={color}
+        opacity={0.85}
+      />
+      {/* Hull segment dividers */}
+      <line x1="22" y1="38" x2="22" y2="54" stroke="white" strokeOpacity={0.5} />
+      <line x1="42" y1="38" x2="42" y2="54" stroke="white" strokeOpacity={0.5} />
+      {/* Mast */}
+      <line x1="32" y1="6" x2="32" y2="38" stroke={color} strokeWidth={2} opacity={0.7} />
+      {/* Sails */}
+      <polygon points="32,8 32,30 18,30" fill={color} opacity={0.55} />
+      <polygon points="32,12 32,30 46,30" fill={color} opacity={0.4} />
+      {/* Waves */}
+      <path d="M 4 58 Q 12 56 20 58 T 36 58 T 52 58 T 60 58" stroke={color} strokeOpacity={0.4} fill="none" />
+    </g>
+  )
+}
+
+function Rail({ color }: { color: string }) {
+  return (
+    <g>
+      {/* Two parallel rails */}
+      <line x1="6" y1="22" x2="58" y2="22" stroke={color} strokeWidth={2.5} strokeLinecap="round" opacity={0.85} />
+      <line x1="6" y1="42" x2="58" y2="42" stroke={color} strokeWidth={2.5} strokeLinecap="round" opacity={0.85} />
+      {/* Sleepers (ties) */}
+      {[10, 18, 26, 34, 42, 50].map((x) => (
+        <rect key={x} x={x} y="20" width="4" height="24" fill={color} opacity={0.4} />
+      ))}
+      {/* Two stations along the rail */}
+      <circle cx="20" cy="32" r="3.5" fill={color} />
+      <circle cx="44" cy="32" r="3.5" fill={color} />
+    </g>
+  )
+}
+
+function Anything({ color }: { color: string }) {
+  return (
+    <g>
+      {/* Sparkle cluster signaling "infinite / generated" */}
+      <g opacity={0.85}>
+        <path
+          d="M 32 14 L 34 26 L 46 28 L 34 30 L 32 42 L 30 30 L 18 28 L 30 26 Z"
+          fill={color}
+        />
+        <path
+          d="M 50 14 L 51 18 L 55 19 L 51 20 L 50 24 L 49 20 L 45 19 L 49 18 Z"
+          fill={color}
+          opacity={0.7}
+        />
+        <path
+          d="M 16 44 L 17 48 L 21 49 L 17 50 L 16 54 L 15 50 L 11 49 L 15 48 Z"
+          fill={color}
+          opacity={0.7}
+        />
+        <path
+          d="M 48 44 L 49 47 L 52 48 L 49 49 L 48 52 L 47 49 L 44 48 L 47 47 Z"
+          fill={color}
+          opacity={0.55}
+        />
+      </g>
+      {/* Plus icon center-bottom */}
+      <g transform="translate(32 50)">
+        <circle r="6" fill={color} opacity={0.15} />
+        <line x1="-3" y1="0" x2="3" y2="0" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+        <line x1="0" y1="-3" x2="0" y2="3" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+      </g>
     </g>
   )
 }

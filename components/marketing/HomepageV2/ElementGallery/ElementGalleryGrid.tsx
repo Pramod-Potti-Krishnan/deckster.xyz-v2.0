@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import {
+  CATEGORY_COUNT_DISPLAY,
   CATEGORY_LABEL,
   GALLERY_CARDS,
   type GalleryCard,
@@ -12,25 +13,13 @@ import { GalleryGlyph } from "./GalleryGlyph"
 
 type Filter = "all" | GalleryCategory
 
-const FILTERS: ReadonlyArray<{ id: Filter; label: string }> = [
-  { id: "all", label: "All 75" },
-  { id: "element", label: CATEGORY_LABEL.element },
-  { id: "chart", label: CATEGORY_LABEL.chart },
-  { id: "diagram", label: CATEGORY_LABEL.diagram },
-  { id: "infographic", label: CATEGORY_LABEL.infographic },
+const FILTERS: ReadonlyArray<{ id: Filter; label: string; count?: string }> = [
+  { id: "all", label: "All" },
+  { id: "element", label: CATEGORY_LABEL.element, count: CATEGORY_COUNT_DISPLAY.element },
+  { id: "chart", label: CATEGORY_LABEL.chart, count: CATEGORY_COUNT_DISPLAY.chart },
+  { id: "diagram", label: CATEGORY_LABEL.diagram, count: CATEGORY_COUNT_DISPLAY.diagram },
+  { id: "infographic", label: CATEGORY_LABEL.infographic, count: CATEGORY_COUNT_DISPLAY.infographic },
 ]
-
-const CATEGORY_COUNTS: Record<Filter, number> = (() => {
-  const counts: Record<Filter, number> = {
-    all: GALLERY_CARDS.length,
-    element: 0,
-    chart: 0,
-    diagram: 0,
-    infographic: 0,
-  }
-  for (const card of GALLERY_CARDS) counts[card.category] += 1
-  return counts
-})()
 
 export function ElementGalleryGrid() {
   const [filter, setFilter] = useState<Filter>("all")
@@ -66,15 +55,17 @@ export function ElementGalleryGrid() {
               }`}
             >
               <span>{f.label}</span>
-              <span
-                className={`rounded-full px-1.5 text-[10px] font-bold ${
-                  active
-                    ? "bg-white/20 text-white"
-                    : "bg-foreground/10 text-foreground/60"
-                }`}
-              >
-                {CATEGORY_COUNTS[f.id]}
-              </span>
+              {f.count ? (
+                <span
+                  className={`rounded-full px-1.5 text-[10px] font-bold ${
+                    active
+                      ? "bg-white/20 text-white"
+                      : "bg-foreground/10 text-foreground/60"
+                  }`}
+                >
+                  {f.count}
+                </span>
+              ) : null}
             </button>
           )
         })}

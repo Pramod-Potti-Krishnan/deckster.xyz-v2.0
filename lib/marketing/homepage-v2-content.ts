@@ -7,11 +7,7 @@
  * inventory gallery moves to Phase 3.
  */
 
-import {
-  CHART_TYPES,
-  DIAGRAM_TYPES,
-  INFOGRAPHIC_TYPES,
-} from "@/types/elements"
+import { CHART_TYPES } from "@/types/elements"
 import type { TextLabsComponentType } from "@/types/textlabs"
 
 export type ElementAccent =
@@ -43,11 +39,19 @@ export const ELEMENT_TYPES: ReadonlyArray<ElementTypeMeta> = [
   { id: "DIAGRAM", label: "Diagram", accent: "purple" },
 ]
 
+/**
+ * Marketing surface counts. Diagrams are the **8 real Text Labs subtypes**
+ * (CODE_DISPLAY, CLOUD_ARCHITECTURE, LOGICAL_ARCHITECTURE, DATA_ARCHITECTURE,
+ * IDEA_BOARD, KANBAN_BOARD, GANTT_CHART, CHEVRON_MATURITY). Infographics
+ * ship with a generative module — there is no fixed catalog. Element + chart
+ * counts derive from the live taxonomies.
+ */
 export const INVENTORY_COUNTS = {
   elements: ELEMENT_TYPES.length,
   charts: CHART_TYPES.length,
-  diagrams: DIAGRAM_TYPES.length,
-  infographics: INFOGRAPHIC_TYPES.length,
+  diagrams: 8,
+  /** Sentinel: infographics are unlimited (generated from your description). */
+  infographicsUnlimited: true,
 } as const
 
 export const HERO_COPY = {
@@ -59,7 +63,7 @@ export const HERO_COPY = {
     "Talk to the Director. Reshape any slide. Tweak any element. The team handles the rest.",
   primaryCta: "Start Building Free",
   secondaryCta: "See the team in action",
-  breadthFooter: `Every chart, diagram, and infographic you'd ever need — available through chat. ${INVENTORY_COUNTS.elements} element types · ${INVENTORY_COUNTS.charts} charts · ${INVENTORY_COUNTS.diagrams} diagrams · ${INVENTORY_COUNTS.infographics} infographics.`,
+  breadthFooter: `${INVENTORY_COUNTS.elements} element types · ${INVENTORY_COUNTS.charts} chart variants · ${INVENTORY_COUNTS.diagrams} architectural diagrams · infographics generated from anything you can describe.`,
 } as const
 
 // The canonical specialist agent team shown in the hero. Single source of

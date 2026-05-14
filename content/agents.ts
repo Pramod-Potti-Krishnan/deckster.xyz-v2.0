@@ -455,9 +455,15 @@ export const agents: Agent[] = [
       },
       {
         id: "diagram-builder",
-        title: "Builds 34 diagram patterns and 14 infographic templates",
+        title: "Builds the 8 diagrams engineers and PMs actually need",
         description:
-          "Funnel, cycle, pyramid, hub-and-spoke, matrix, timeline, hierarchy — generated from the brief.",
+          "Code Display, Cloud Architecture, Logical Architecture, Data Architecture, Idea Board, Kanban Board, Gantt Chart, and Multi-Chevron Maturity — rendered from the brief.",
+      },
+      {
+        id: "infographic-generator",
+        title: "Generates any infographic from a description",
+        description:
+          "Pyramid, funnel, hexagon spread, concentric circles — but also a ladder, a rocket, a tree, a ship, a rail. Whatever shape your idea fits into, the Visualizer renders it.",
       },
       {
         id: "rerender",
@@ -501,7 +507,13 @@ export const agents: Agent[] = [
         id: "diagram-engine",
         aspect: "Diagram Engine",
         description:
-          "Template + Mermaid + Python-rendered diagrams for 34 patterns end-to-end.",
+          "Eight purpose-built diagram subtypes covering engineering (Code Display), architecture (Cloud, Logical, Data), planning (Idea Board, Kanban, Gantt), and strategy (Multi-Chevron Maturity).",
+      },
+      {
+        id: "infographic-engine",
+        aspect: "Infographic Engine",
+        description:
+          "Generative module that renders any visual concept you describe — from classic shapes (pyramid, funnel, cycle) to imaginative ones (ladder, rocket, tree, ship, rail).",
       },
     ],
     workflow: [
