@@ -91,6 +91,32 @@ body {
     from { width: 100%; }
     to { width: 0%; }
   }
+
+  /* HomepageV2 — slow drifting gradient mesh in the dark hero/CTA backgrounds */
+  @keyframes hero-mesh {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    33%      { transform: translate3d(-3%, 4%, 0) scale(1.05); }
+    66%      { transform: translate3d(4%, -3%, 0) scale(0.97); }
+  }
+
+  /* HomepageV2 — element-type ticker, infinite horizontal scroll. The list is
+     duplicated in markup, so translating the inner row by -50% lands seamlessly
+     at the start of the second copy. */
+  @keyframes hero-marquee {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-50%, 0, 0); }
+  }
+}
+
+/* Honor prefers-reduced-motion globally. Long-running CSS loops (mesh,
+   marquee) become near-instant; framer-motion respects useReducedMotion via
+   the centralized hook in components/marketing/HomepageV2/shared. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @layer base {
