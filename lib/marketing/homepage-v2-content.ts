@@ -1,10 +1,10 @@
 /**
  * Homepage V2 — canonical inventory + copy strings.
  *
- * The "9 / 18 / 34 / 14" headline numbers are derived from this file by
- * referencing the real product taxonomy in `types/elements.ts` and
- * `types/textlabs.ts`. The hero counters and gallery counts can never drift
- * from what the product actually ships.
+ * Phase 1 focus: AGENTS as the protagonist. The seven specialist agents below
+ * are the canonical roster shown in the hero. Element-type breadth survives
+ * as a small supporting footer line via `HERO_COPY.breadthFooter`; the full
+ * inventory gallery moves to Phase 3.
  */
 
 import {
@@ -51,36 +51,149 @@ export const INVENTORY_COUNTS = {
 } as const
 
 export const HERO_COPY = {
-  badge: `4 AI agents · ${INVENTORY_COUNTS.elements} element types · ${INVENTORY_COUNTS.charts} charts · ${INVENTORY_COUNTS.diagrams} diagrams`,
-  headlineLine1: "Four AI agents.",
-  headlineLine2: "Every kind of slide.",
-  headlineLine3: "From a single sentence.",
-  subhead: `Director, Scripter, Data Visualizer, and Graphic Artist collaborate in real time to build ${INVENTORY_COUNTS.charts} chart types, ${INVENTORY_COUNTS.diagrams} diagram patterns, and ${INVENTORY_COUNTS.infographics} infographics — all from one prompt. PowerPoint and PDF out. No templates, no pixel-pushing, no fiddling.`,
+  eyebrow: "A team of AI agents · Built through conversation",
+  headlineLine1: "A team of AI agents builds your deck.",
+  headlineLine2: "You direct them —",
+  headlineLine3: "one sentence at a time.",
+  subhead:
+    "Talk to the Director. Reshape any slide. Tweak any element. The team handles the rest.",
   primaryCta: "Start Building Free",
-  secondaryCta: "See a deck build itself",
-  countersEyebrow: "Together, they build",
+  secondaryCta: "See the team in action",
+  breadthFooter: `Every chart, diagram, and infographic you'd ever need — available through chat. ${INVENTORY_COUNTS.elements} element types · ${INVENTORY_COUNTS.charts} charts · ${INVENTORY_COUNTS.diagrams} diagrams · ${INVENTORY_COUNTS.infographics} infographics.`,
 } as const
 
-export const TICKER_LABELS: ReadonlyArray<string> = ELEMENT_TYPES.map(
-  (t) => t.id,
-)
+// The canonical specialist agent team shown in the hero. Single source of
+// truth — Phase 6 will port this roster into `content/agents.ts` so the
+// `/agents/[slug]` detail pages match.
+export type AgentId =
+  | "director"
+  | "researcher"
+  | "analyst"
+  | "content_generator"
+  | "visualizer"
+  | "theme_builder"
+  | "slide_composer"
 
-// The 4 specialist agents. Single source of truth used by the hero AgentStrip
-// today and by the full Phase 4 AgentChoreography section later.
-export type AgentId = "director" | "scripter" | "data_visualizer" | "graphic_artist"
+export type AgentIconName =
+  | "Compass"
+  | "Search"
+  | "TrendingUp"
+  | "PenTool"
+  | "BarChart3"
+  | "Palette"
+  | "LayoutTemplate"
 
 export interface AgentMeta {
   id: AgentId
   name: string
   role: string
-  iconName: "Compass" | "Type" | "BarChart3" | "Palette"
-  /** Hex chosen so all four are visually distinct against the dark hero. */
+  iconName: AgentIconName
+  /** Hex chosen for contrast on the dark hero surface (HSL ≈ 240 10% 4%). */
   color: string
 }
 
 export const AGENT_TEAM: ReadonlyArray<AgentMeta> = [
-  { id: "director",         name: "Director",        role: "Plans the deck",     iconName: "Compass",   color: "#a78bfa" },
-  { id: "scripter",         name: "Scripter",        role: "Writes the copy",    iconName: "Type",      color: "#60a5fa" },
-  { id: "data_visualizer",  name: "Data Visualizer", role: "Builds the charts",  iconName: "BarChart3", color: "#34d399" },
-  { id: "graphic_artist",   name: "Graphic Artist",  role: "Designs the layout", iconName: "Palette",   color: "#f472b6" },
+  {
+    id: "director",
+    name: "Director",
+    role: "Builds the team and choreographs every step",
+    iconName: "Compass",
+    color: "#a78bfa",
+  },
+  {
+    id: "researcher",
+    name: "Researcher",
+    role: "Pulls facts from your data and the open web",
+    iconName: "Search",
+    color: "#60a5fa",
+  },
+  {
+    id: "analyst",
+    name: "Analyst",
+    role: "Finds the insight inside the numbers",
+    iconName: "TrendingUp",
+    color: "#34d399",
+  },
+  {
+    id: "content_generator",
+    name: "Content Generator",
+    role: "Writes narrative, headlines, speaker notes",
+    iconName: "PenTool",
+    color: "#fb923c",
+  },
+  {
+    id: "visualizer",
+    name: "Visualizer",
+    role: "Designs charts, diagrams, and infographics",
+    iconName: "BarChart3",
+    color: "#f472b6",
+  },
+  {
+    id: "theme_builder",
+    name: "Theme Builder",
+    role: "Crafts and applies your custom theme",
+    iconName: "Palette",
+    color: "#22d3ee",
+  },
+  {
+    id: "slide_composer",
+    name: "Slide Composer",
+    role: "Conducts each slide — pacing, balance, focus",
+    iconName: "LayoutTemplate",
+    color: "#facc15",
+  },
+]
+
+// The single "alive" line in the hero — cycles through what the team is
+// doing right now. Mix of imperative and quote-style on purpose: feels like
+// a real workspace.
+export const AGENT_ACTIVITY_CAPTIONS: ReadonlyArray<string> = [
+  "Director is scoping a Series A pitch.",
+  "Researcher is pulling market sizing from your sources.",
+  "Theme Builder is matching your brand palette.",
+  "Analyst just spotted a 23% margin gap.",
+  "Visualizer is drafting a waterfall chart.",
+  "Slide Composer is balancing slide 4.",
+  "Content Generator finished your speaker notes.",
+  'Director: "Ready for your review."',
+]
+
+export type ScopeId = "deck" | "slide" | "element"
+
+export type ScopeIconName =
+  | "BookOpen"
+  | "RectangleHorizontal"
+  | "MousePointerSquareDashed"
+
+export interface ScopeMeta {
+  id: ScopeId
+  label: string
+  blurb: string
+  iconName: ScopeIconName
+  /** Tailwind-compatible hex for the card accent (gradient + ring). */
+  color: string
+}
+
+export const CONVERSATION_SCOPES: ReadonlyArray<ScopeMeta> = [
+  {
+    id: "deck",
+    label: "DECK",
+    blurb: "Steer the storyline.",
+    iconName: "BookOpen",
+    color: "#a78bfa",
+  },
+  {
+    id: "slide",
+    label: "SLIDE",
+    blurb: "Reshape any slide in chat.",
+    iconName: "RectangleHorizontal",
+    color: "#22d3ee",
+  },
+  {
+    id: "element",
+    label: "ELEMENT",
+    blurb: "Edit any chart, any layout, any word — by asking.",
+    iconName: "MousePointerSquareDashed",
+    color: "#fb923c",
+  },
 ]

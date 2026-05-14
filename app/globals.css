@@ -98,14 +98,6 @@ body {
     33%      { transform: translate3d(-3%, 4%, 0) scale(1.05); }
     66%      { transform: translate3d(4%, -3%, 0) scale(0.97); }
   }
-
-  /* HomepageV2 — element-type ticker, infinite horizontal scroll. The list is
-     duplicated in markup, so translating the inner row by -50% lands seamlessly
-     at the start of the second copy. */
-  @keyframes hero-marquee {
-    from { transform: translate3d(0, 0, 0); }
-    to   { transform: translate3d(-50%, 0, 0); }
-  }
 }
 
 /* Honor prefers-reduced-motion globally. Long-running CSS loops (mesh,

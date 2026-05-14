@@ -1,9 +1,9 @@
-import { AgentStrip } from "./AgentStrip"
-import { ElementTicker } from "./ElementTicker"
-import { HeroBreadthCounters } from "./HeroBreadthCounters"
+import { HERO_COPY } from "@/lib/marketing/homepage-v2-content"
+import { AgentActivityLoop } from "./AgentActivityLoop"
+import { AgentTeam } from "./AgentTeam"
+import { ConversationalScopes } from "./ConversationalScopes"
 import { HeroCTA } from "./HeroCTA"
 import { HeroHeadline } from "./HeroHeadline"
-import { HeroSpecimens } from "./HeroSpecimens"
 
 export function Hero() {
   return (
@@ -27,27 +27,29 @@ export function Hero() {
         />
       </div>
 
-      <div className="container relative mx-auto px-4 pb-16 sm:px-6 sm:pb-20 lg:px-8">
+      <div className="container relative mx-auto px-4 pb-20 sm:px-6 sm:pb-24 lg:px-8">
         <HeroHeadline />
 
         <div className="mt-9 sm:mt-10">
           <HeroCTA />
         </div>
 
-        <div className="mt-10 sm:mt-12">
-          <AgentStrip />
-        </div>
-
         <div className="mt-12 sm:mt-14">
-          <HeroBreadthCounters />
+          <AgentTeam />
         </div>
 
-        <div className="mt-12 sm:mt-16">
-          <HeroSpecimens />
+        <div className="mt-8 sm:mt-10">
+          <AgentActivityLoop />
         </div>
+
+        <div className="mt-10 sm:mt-12">
+          <ConversationalScopes />
+        </div>
+
+        <p className="mx-auto mt-12 max-w-2xl text-balance text-center text-xs leading-relaxed text-white/45 sm:mt-14">
+          {HERO_COPY.breadthFooter}
+        </p>
       </div>
-
-      <ElementTicker />
     </section>
   )
 }
