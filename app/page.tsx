@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { Footer, Header } from "@/components/layout"
-import { Hero } from "@/components/marketing/HomepageV2"
+import { BuilderDemoSection, Hero } from "@/components/marketing/HomepageV2"
 
 const TITLE = "Deckster — A team of AI agents builds your deck"
 const DESCRIPTION =
@@ -32,7 +32,8 @@ export default function HomePage() {
       <Header />
       <main>
         <Hero />
-        {/* Phase 2+: <BuilderDemo />, <ElementGallery />, <AgentChoreography />,
+        <BuilderDemoSection />
+        {/* Phase 3+: <ElementGallery />, <AgentChoreography />,
             <LivingCanvas />, <SocialProof />, <PricingV2 />, <FinalCTA /> */}
       </main>
       <Footer />
