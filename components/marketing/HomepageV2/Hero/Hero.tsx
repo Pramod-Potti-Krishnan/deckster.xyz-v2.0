@@ -1,3 +1,4 @@
+import { AgentStrip } from "./AgentStrip"
 import { ElementTicker } from "./ElementTicker"
 import { HeroBreadthCounters } from "./HeroBreadthCounters"
 import { HeroCTA } from "./HeroCTA"
@@ -33,7 +34,11 @@ export function Hero() {
           <HeroCTA />
         </div>
 
-        <div className="mt-14 sm:mt-16">
+        <div className="mt-10 sm:mt-12">
+          <AgentStrip />
+        </div>
+
+        <div className="mt-12 sm:mt-14">
           <HeroBreadthCounters />
         </div>
 

@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import { AnimatedCounter } from "../shared/AnimatedCounter"
-import { INVENTORY_COUNTS } from "@/lib/marketing/homepage-v2-content"
+import { HERO_COPY, INVENTORY_COUNTS } from "@/lib/marketing/homepage-v2-content"
 
 const ITEMS = [
   {
@@ -34,8 +34,15 @@ export function HeroBreadthCounters() {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.4 }}
       transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
-      className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-4"
     >
+      <div className="mb-4 flex items-center justify-center gap-3 sm:mb-5">
+        <span aria-hidden className="h-px w-8 bg-white/15" />
+        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-white/50 sm:text-xs">
+          {HERO_COPY.countersEyebrow}
+        </span>
+        <span aria-hidden className="h-px w-8 bg-white/15" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-4">
       {ITEMS.map((item, i) => (
         <div
           key={item.label}
@@ -51,6 +58,7 @@ export function HeroBreadthCounters() {
           </span>
         </div>
       ))}
+      </div>
     </motion.div>
   )
 }

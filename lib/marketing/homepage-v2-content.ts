@@ -51,15 +51,36 @@ export const INVENTORY_COUNTS = {
 } as const
 
 export const HERO_COPY = {
-  badge: `Multi-agent · ${INVENTORY_COUNTS.elements} element types · ${INVENTORY_COUNTS.charts} charts · ${INVENTORY_COUNTS.diagrams} diagrams`,
-  headlineLine1: "Nine element types.",
-  headlineLine2: "One prompt.",
-  headlineLine3: "Zero pixel-pushing.",
-  subhead: `Deckster's four-agent system writes copy, designs layouts, picks colors, and builds ${INVENTORY_COUNTS.charts} chart types, ${INVENTORY_COUNTS.diagrams} diagrams, and ${INVENTORY_COUNTS.infographics} infographics — from a single sentence. PPTX out. No templates. No fiddling.`,
+  badge: `4 AI agents · ${INVENTORY_COUNTS.elements} element types · ${INVENTORY_COUNTS.charts} charts · ${INVENTORY_COUNTS.diagrams} diagrams`,
+  headlineLine1: "Four AI agents.",
+  headlineLine2: "Every kind of slide.",
+  headlineLine3: "From a single sentence.",
+  subhead: `Director, Scripter, Data Visualizer, and Graphic Artist collaborate in real time to build ${INVENTORY_COUNTS.charts} chart types, ${INVENTORY_COUNTS.diagrams} diagram patterns, and ${INVENTORY_COUNTS.infographics} infographics — all from one prompt. PowerPoint and PDF out. No templates, no pixel-pushing, no fiddling.`,
   primaryCta: "Start Building Free",
   secondaryCta: "See a deck build itself",
+  countersEyebrow: "Together, they build",
 } as const
 
 export const TICKER_LABELS: ReadonlyArray<string> = ELEMENT_TYPES.map(
   (t) => t.id,
 )
+
+// The 4 specialist agents. Single source of truth used by the hero AgentStrip
+// today and by the full Phase 4 AgentChoreography section later.
+export type AgentId = "director" | "scripter" | "data_visualizer" | "graphic_artist"
+
+export interface AgentMeta {
+  id: AgentId
+  name: string
+  role: string
+  iconName: "Compass" | "Type" | "BarChart3" | "Palette"
+  /** Hex chosen so all four are visually distinct against the dark hero. */
+  color: string
+}
+
+export const AGENT_TEAM: ReadonlyArray<AgentMeta> = [
+  { id: "director",         name: "Director",        role: "Plans the deck",     iconName: "Compass",   color: "#a78bfa" },
+  { id: "scripter",         name: "Scripter",        role: "Writes the copy",    iconName: "Type",      color: "#60a5fa" },
+  { id: "data_visualizer",  name: "Data Visualizer", role: "Builds the charts",  iconName: "BarChart3", color: "#34d399" },
+  { id: "graphic_artist",   name: "Graphic Artist",  role: "Designs the layout", iconName: "Palette",   color: "#f472b6" },
+]
