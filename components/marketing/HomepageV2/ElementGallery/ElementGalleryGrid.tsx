@@ -2,14 +2,13 @@
 
 import { useMemo, useState } from "react"
 import { motion } from "framer-motion"
-import * as Lucide from "lucide-react"
-import type { LucideIcon } from "lucide-react"
 import {
   CATEGORY_LABEL,
   GALLERY_CARDS,
   type GalleryCard,
   type GalleryCategory,
 } from "@/lib/marketing/homepage-v2-element-gallery"
+import { GalleryGlyph } from "./GalleryGlyph"
 
 type Filter = "all" | GalleryCategory
 
@@ -83,7 +82,7 @@ export function ElementGalleryGrid() {
 
       <motion.ul
         layout
-        className="grid w-full grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5"
+        className="grid w-full grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-2.5 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7"
       >
         {cards.map((card, i) => (
           <GalleryCardItem key={card.id} card={card} index={i} />
@@ -99,51 +98,41 @@ interface GalleryCardItemProps {
 }
 
 function GalleryCardItem({ card, index }: GalleryCardItemProps) {
-  // Look up the icon by name. Fall back to Square if not found.
-  const Icon = (Lucide[card.iconName as keyof typeof Lucide] as
-    | LucideIcon
-    | undefined) ?? Lucide.Square
-
-  // Stagger the entry animation lightly — but cap the delay so the last
-  // cards don't feel sluggish on big lists.
-  const delay = Math.min(index * 0.012, 0.4)
+  // Cap stagger so the long tail doesn't feel sluggish.
+  const delay = Math.min(index * 0.01, 0.35)
 
   return (
     <motion.li
       layout
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: "easeOut", delay }}
-      className="group relative flex aspect-[5/4] flex-col justify-between overflow-hidden rounded-xl border border-foreground/10 bg-white p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-md"
+      transition={{ duration: 0.25, ease: "easeOut", delay }}
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-foreground/10 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-md"
     >
-      <div
-        aria-hidden
-        className="absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-15 blur-2xl transition-opacity group-hover:opacity-30"
-        style={{ backgroundColor: card.color }}
-      />
-      <div className="relative flex items-start justify-between">
-        <span
-          className="flex h-9 w-9 items-center justify-center rounded-lg"
-          style={{
-            backgroundColor: `${card.color}1f`,
-            color: card.color,
-            boxShadow: `inset 0 0 0 1px ${card.color}33`,
-          }}
-        >
-          <Icon className="h-4 w-4" aria-hidden />
+      {card.badge ? (
+        <span className="absolute right-1.5 top-1.5 z-10 rounded-full bg-foreground/[0.08] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-foreground/55">
+          {card.badge}
         </span>
-        {card.badge ? (
-          <span className="rounded-full bg-foreground/8 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-foreground/55">
-            {card.badge}
-          </span>
-        ) : null}
+      ) : null}
+      <div
+        className="relative flex aspect-square items-center justify-center px-2.5 pt-2.5"
+        style={{ backgroundColor: `${card.color}0e` }}
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-4 -top-4 h-12 w-12 rounded-full opacity-30 blur-xl"
+          style={{ backgroundColor: card.color }}
+        />
+        <div className="relative h-full w-full">
+          <GalleryGlyph card={card} color={card.color} />
+        </div>
       </div>
-      <div className="relative">
-        <div className="text-sm font-semibold leading-tight text-foreground">
+      <div className="border-t border-foreground/[0.06] px-2.5 py-1.5">
+        <div className="truncate text-[11px] font-semibold leading-tight text-foreground sm:text-xs">
           {card.label}
         </div>
         {card.group ? (
-          <div className="mt-0.5 text-[10px] uppercase tracking-wider text-foreground/45">
+          <div className="truncate text-[9px] uppercase tracking-wider text-foreground/45">
             {card.group}
           </div>
         ) : null}
