@@ -1,3 +1,7 @@
+"use client"
+
+import { useRef } from "react"
+import { motion } from "framer-motion"
 import Link from "next/link"
 import { ArrowUpRight, Check } from "lucide-react"
 import {
@@ -14,6 +18,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   AGENT_TEAM,
   type AgentIconName,
+  type AgentId,
   type AgentMeta,
 } from "@/lib/marketing/homepage-v2-content"
 import {
@@ -22,6 +27,7 @@ import {
   type AgentDeep,
 } from "@/lib/marketing/homepage-v2-agent-deep"
 import { AgentConnectorOverlay } from "./AgentConnectorOverlay"
+import { KnowledgeGridBackground } from "./KnowledgeGridBackground"
 
 const ICONS: Record<AgentIconName, LucideIcon> = {
   Compass,
@@ -34,19 +40,36 @@ const ICONS: Record<AgentIconName, LucideIcon> = {
   Layers,
 }
 
-// Pyramid podium layout. Director on top, the three "synthesizers" who put a
-// slide together in the middle, and the four upstream specialists below.
-const TOP_ROW = ["director"] as const
-const MIDDLE_ROW = ["content_generator", "slide_composer", "element_generator"] as const
-const BOTTOM_ROW = ["researcher", "analyst", "visualizer", "theme_builder"] as const
+// Pyramid podium layout. Director on top, the three "synthesizers" who put
+// a slide together in the middle, and the four upstream specialists below.
+const TOP_ROW: ReadonlyArray<AgentId> = ["director"]
+const MIDDLE_ROW: ReadonlyArray<AgentId> = [
+  "content_generator",
+  "slide_composer",
+  "element_generator",
+]
+const BOTTOM_ROW: ReadonlyArray<AgentId> = [
+  "researcher",
+  "analyst",
+  "visualizer",
+  "theme_builder",
+]
 
-function getAgent(id: AgentMeta["id"]): AgentMeta {
+function getAgent(id: AgentId): AgentMeta {
   const a = AGENT_TEAM.find((x) => x.id === id)
   if (!a) throw new Error(`Agent ${id} missing from AGENT_TEAM`)
   return a
 }
 
 export function AgentChoreographySection() {
+  // Container ref bounds the connector overlay and the drag constraints.
+  const pyramidRef = useRef<HTMLDivElement | null>(null)
+  // One ref per agent, keyed by id. Passed down to PyramidRow so each
+  // motion.div card can register itself, and shared with the overlay so it
+  // can read live card rects every frame (drag positions update on the
+  // same tick).
+  const cardRefs = useRef<Partial<Record<AgentId, HTMLDivElement | null>>>({})
+
   return (
     <section
       id="agents"
@@ -56,12 +79,10 @@ export function AgentChoreographySection() {
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(280_70%_25%/0.35),transparent_60%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,hsl(200_70%_25%/0.30),transparent_60%)]" />
+        <KnowledgeGridBackground />
       </div>
 
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
-        {/* Title is bigger here than other slides — agents is the "meet the
-            team" moment and deserves weight. Gradient on the second half
-            matches the hero's tonal language. */}
         <div className="mx-auto max-w-3xl text-center">
           <h2 className="text-balance text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl">
             Specialists, not a{" "}
@@ -72,35 +93,60 @@ export function AgentChoreographySection() {
           <p className="mt-2 text-balance text-sm leading-snug text-white/65 sm:mt-3 sm:text-[15px]">
             {CHOREO_COPY.description}
           </p>
+          <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-white/35">
+            Drag any agent to rearrange the graph
+          </p>
         </div>
 
-        {/* Podium pyramid: 1 / 3 / 4. All cards share the same fixed width so
-            top row is narrowest, bottom row widest. The connector overlay
-            sits behind the rows and shows traveling dots between layers. */}
-        <div className="relative mx-auto mt-6 flex max-w-6xl flex-col items-center gap-4 sm:mt-8 sm:gap-6">
-          <AgentConnectorOverlay />
-          <div className="relative z-10 flex w-full justify-center">
-            <PyramidRow ids={TOP_ROW} />
-          </div>
-          <div className="relative z-10 flex w-full justify-center">
-            <PyramidRow ids={MIDDLE_ROW} />
-          </div>
-          <div className="relative z-10 flex w-full justify-center">
-            <PyramidRow ids={BOTTOM_ROW} />
-          </div>
+        {/* Knowledge-graph pyramid. Big row gaps so the connector overlay
+            has room to draw mesh edges that visibly cross between rows. */}
+        <div
+          ref={pyramidRef}
+          className="relative mx-auto mt-6 flex max-w-6xl flex-col items-center gap-10 sm:mt-8 sm:gap-14"
+        >
+          <AgentConnectorOverlay
+            containerRef={pyramidRef}
+            cardRefs={cardRefs}
+          />
+          <PyramidRow ids={TOP_ROW} cardRefs={cardRefs} containerRef={pyramidRef} />
+          <PyramidRow ids={MIDDLE_ROW} cardRefs={cardRefs} containerRef={pyramidRef} />
+          <PyramidRow ids={BOTTOM_ROW} cardRefs={cardRefs} containerRef={pyramidRef} />
         </div>
       </div>
     </section>
   )
 }
 
-function PyramidRow({ ids }: { ids: ReadonlyArray<AgentMeta["id"]> }) {
+function PyramidRow({
+  ids,
+  cardRefs,
+  containerRef,
+}: {
+  ids: ReadonlyArray<AgentId>
+  cardRefs: React.MutableRefObject<Partial<Record<AgentId, HTMLDivElement | null>>>
+  containerRef: React.RefObject<HTMLDivElement | null>
+}) {
   return (
-    <div className="flex w-full flex-wrap items-stretch justify-center gap-4 sm:gap-5">
+    <div className="relative z-10 flex w-full flex-wrap items-stretch justify-center gap-4 sm:gap-5">
       {ids.map((id) => {
         const agent = getAgent(id)
         const deep = AGENT_DEEP[id]
-        return <AgentPodiumCard key={id} agent={agent} deep={deep} />
+        return (
+          <motion.div
+            key={id}
+            ref={(el) => {
+              cardRefs.current[id] = el
+            }}
+            drag
+            dragMomentum={false}
+            dragElastic={0.15}
+            dragConstraints={containerRef}
+            whileDrag={{ scale: 1.04, zIndex: 50 }}
+            className="relative w-full max-w-[260px] flex-1 basis-[220px] cursor-grab touch-none active:cursor-grabbing"
+          >
+            <AgentPodiumCard agent={agent} deep={deep} />
+          </motion.div>
+        )
       })}
     </div>
   )
@@ -113,8 +159,11 @@ interface AgentPodiumCardProps {
 
 function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
   const Icon = ICONS[agent.iconName]
+  // Card lives inside a draggable wrapper — keep h-full so it stretches
+  // to the wrapper's height, but drop the hover translate (it conflicts
+  // with framer-motion's drag transform).
   const cardClass =
-    "group relative flex w-full max-w-[260px] flex-1 basis-[220px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.07]"
+    "group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md transition-colors hover:border-white/25 hover:bg-white/[0.07]"
 
   const bullets = deep.capabilities.slice(0, 3)
 
@@ -180,7 +229,12 @@ function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
 
   if (deep.detailHref) {
     return (
-      <Link href={deep.detailHref} className={cardClass}>
+      <Link
+        href={deep.detailHref}
+        className={cardClass}
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
+      >
         {inner}
       </Link>
     )

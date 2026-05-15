@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Footer, Header } from "@/components/layout"
+import { Header } from "@/components/layout"
 import {
   AgentChoreographySection,
   BuilderDemoSection,
@@ -49,7 +49,6 @@ export default function HomePage() {
         <PricingV2Section />
         <FinalCTASection />
       </main>
-      <Footer />
     </div>
   )
 }
