@@ -8,12 +8,16 @@
 
 ## TL;DR
 
-Homepage V2 is **live in production at deckster.xyz** (PR #2 merged to main).
-The pricing tiers were just rewritten on a new branch with feature-first
-framing (no deck counts, no token amounts). PR is open for review.
+Homepage V2 is **live in production at deckster.xyz** (PR #2 merged at
+commit `2706f01`). The pricing rewrite — feature-first framing, no deck
+counts, no token amounts, "Start free trial" CTAs — was **also merged to
+main** (PR #3, commit `f01cc68`) and is live.
 
 The **trial provisioning backend is not built yet** — that's the main piece
-of work remaining.
+of work remaining. The "Start free trial" CTAs currently route to the same
+`signIn → /builder` flow as before; there is no actual trial logic on the
+backend. **Don't promote the new homepage to a wide audience until the
+trial actually works.**
 
 ---
 
@@ -24,9 +28,10 @@ of work remaining.
 | Repo | `/Users/pk1980/Documents/Software/deckster-frontend` |
 | GitHub | `https://github.com/Pramod-Potti-Krishnan/deckster.xyz-v2.0` |
 | Production domain | https://deckster.xyz |
-| Main branch | `main` (V2 of the homepage is live here as of merge of PR #2) |
-| Active branch | `feat/homepage-v2-pricing-revamp` (this session's work) |
-| Open PR | (created at end of this session — see PR list) |
+| Main branch | `main` (both V2 and the pricing rewrite are live here) |
+| Latest commit on main | `f01cc68` — pricing rewrite (PR #3, merged) |
+| Previous milestone | `2706f01` — Homepage V2 (PR #2, merged) |
+| Active branch | _none — pricing branch was merged & deleted_ |
 | Memory | `/Users/pk1980/.claude/projects/-Users-pk1980-Documents-Software-deckster-frontend/memory/` |
 
 ### Memory — read these first
@@ -58,7 +63,7 @@ Legacy `components/marketing/Homepage/` was deleted (verified zero imports).
 
 ---
 
-## What this PR (`feat/homepage-v2-pricing-revamp`) just did
+## What the pricing rewrite (now merged to main, commit `f01cc68`) did
 
 Rewrote pricing presentation around **features, not quantities**. Two
 sales-psychology decisions baked in:
@@ -186,19 +191,23 @@ In order:
 ## Verification checklist for the next session
 
 ```bash
-# 1. Working tree hygiene
+# 1. Sync to the latest main (both V2 and pricing rewrite are merged here)
 git checkout main
 git pull origin main
-git checkout feat/homepage-v2-pricing-revamp  # or wherever the work continues
-git status   # confirm pre-existing dirty files are not staged
+git log --oneline -5
+# Expect to see f01cc68 (pricing) and 2706f01 (V2 merge) near the top
 
-# 2. TS clean (V2 paths)
+# 2. Cut a fresh branch for the trial-backend work
+git checkout -b feat/trial-backend   # or whatever name fits the chunk
+git status   # confirm pre-existing dirty files (see "Watch out for") are not staged
+
+# 3. TS clean (V2 paths)
 npx tsc --noEmit 2>&1 | grep -E "HomepageV2|homepage-v2" | head
 # Expected: empty (no V2 errors)
 echo -n "Total errors: "; npx tsc --noEmit 2>&1 | grep -c "error TS"
 # Expected: ~30 (baseline, unrelated)
 
-# 3. Local dev
+# 4. Local dev — confirm what's live now
 pnpm dev
 # Open http://localhost:3000 — verify:
 #   - Hero CTA reads "Start free trial" (not "Start Building Free")
@@ -206,6 +215,10 @@ pnpm dev
 #   - FinalCTA button reads "Start free trial"
 #   - No deck counts visible anywhere in pricing
 #   - No token amounts visible anywhere in pricing
+
+# 5. Production (only if testing auth)
+# Auth on Vercel preview URLs fails (Google OAuth whitelist). Always test
+# auth flows on https://deckster.xyz, not the preview URL.
 ```
 
 ---
