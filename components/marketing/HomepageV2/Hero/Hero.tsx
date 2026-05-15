@@ -1,10 +1,16 @@
-import { AgentActivityLoop } from "./AgentActivityLoop"
-import { AgentTeam } from "./AgentTeam"
 import { ConversationalScopes } from "./ConversationalScopes"
 import { HeroCTA } from "./HeroCTA"
 import { HeroHeadline } from "./HeroHeadline"
 import { KnowledgeGraphBackground } from "./KnowledgeGraphBackground"
 
+/**
+ * Hero — keep this slide intentionally light. The agent team grid + activity
+ * loop were pulled out because we cover every agent in detail on the very
+ * next slide (AgentChoreographySection), and stacking them here was making
+ * the headline clip behind the sticky header. What stays: headline + CTAs +
+ * the three conversation scopes (DECK/SLIDE/ELEMENT) since that's product
+ * positioning, not agent detail.
+ */
 export function Hero() {
   return (
     <section
@@ -18,9 +24,7 @@ export function Hero() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,hsl(200_95%_50%/0.35),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,hsl(320_85%_55%/0.30),transparent_55%)]" />
         <div className="absolute inset-0 animate-[hero-mesh_30s_ease-in-out_infinite] bg-[radial-gradient(ellipse_at_60%_40%,hsl(250_90%_60%/0.35),transparent_60%)] motion-reduce:animate-none" />
-        {/* Knowledge graph — interconnected document nodes drifting with traveling pulses (KG = Premium feature tease) */}
         <KnowledgeGraphBackground />
-        {/* Grain — inline SVG, ~1KB */}
         <div
           className="absolute inset-0 opacity-[0.05] mix-blend-overlay"
           style={{
@@ -33,19 +37,11 @@ export function Hero() {
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
         <HeroHeadline />
 
-        <div className="mt-7 sm:mt-8">
+        <div className="mt-8 sm:mt-10">
           <HeroCTA />
         </div>
 
-        <div className="mt-8 sm:mt-10">
-          <AgentTeam />
-        </div>
-
-        <div className="mt-5 sm:mt-6">
-          <AgentActivityLoop />
-        </div>
-
-        <div className="mt-7 sm:mt-9">
+        <div className="mt-10 sm:mt-14">
           <ConversationalScopes />
         </div>
       </div>
