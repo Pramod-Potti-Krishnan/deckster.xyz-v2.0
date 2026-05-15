@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, type RefObject } from "react"
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import {
   AGENT_TEAM,
   type AgentId,
@@ -9,13 +9,12 @@ import {
 /**
  * Knowledge-graph connector overlay. Reads each agent card's live
  * bounding rect every frame so the lines + traveling dots track the cards
- * as the user drags them around the pyramid. Connections are intentionally
- * NOT just top-down — feedback edges and cross-row links give the slide
- * a mesh / knowledge-graph feel rather than a strict org chart.
+ * as the user drags them around the pyramid.
  *
- * Pulses are small, perfectly circular (no halo blur) so they read as
- * data packets traveling the wires. Each line carries two pulses offset
- * by half a cycle so the flow looks continuous.
+ * Coordinates are PIXELS, not viewBox percentages. The viewBox tracks the
+ * container's pixel dimensions exactly so a `<circle r="6">` renders as a
+ * 6-pixel-radius circle on any aspect ratio — previously the SVG was
+ * stretched non-uniformly which turned the pulse dots into ovals.
  */
 
 export type AgentCardRefs = RefObject<Partial<Record<AgentId, HTMLDivElement | null>>>
@@ -38,13 +37,13 @@ const CONNECTIONS: ReadonlyArray<Connection> = [
   { from: "slide_composer", to: "visualizer" },
   { from: "element_generator", to: "visualizer" },
   { from: "element_generator", to: "theme_builder" },
-  // Feedback edges — specialists send back upstream
+  // Feedback edges
   { from: "researcher", to: "director" },
   { from: "analyst", to: "director" },
   { from: "visualizer", to: "content_generator" },
   { from: "theme_builder", to: "content_generator" },
   { from: "theme_builder", to: "slide_composer" },
-  // Cross-row lateral links — the "graph" part
+  // Cross-row laterals
   { from: "researcher", to: "slide_composer" },
   { from: "analyst", to: "visualizer" },
 ]
@@ -56,9 +55,8 @@ function agentColor(id: AgentId): string {
 type EdgeState = { x1: number; y1: number; x2: number; y2: number }
 type PulseSpec = { duration: number; offset: number; color: string }
 
-const VIEW = 100
-// How far inside the card edge to land each endpoint (in viewBox units).
-// Small but enough that lines visually meet the card border, not centre.
+// How far inside the card edge to land each endpoint, as a fraction of the
+// card's half-extent in the connection's direction.
 const EDGE_TUCK = 0.85
 
 export function AgentConnectorOverlay({
@@ -75,6 +73,11 @@ export function AgentConnectorOverlay({
   const runningRef = useRef(false)
   const reducedRef = useRef(false)
   const visibleRef = useRef(false)
+
+  // Track the container's pixel dimensions so the SVG viewBox matches —
+  // this is what keeps the pulse circles perfectly round regardless of
+  // the slide's aspect ratio.
+  const [viewSize, setViewSize] = useState({ w: 0, h: 0 })
 
   const pulses = useMemo<PulseSpec[]>(
     () =>
@@ -102,6 +105,16 @@ export function AgentConnectorOverlay({
 
     let rafId = 0
 
+    const measureSize = () => {
+      const r = container.getBoundingClientRect()
+      setViewSize((prev) => {
+        if (Math.abs(prev.w - r.width) < 0.5 && Math.abs(prev.h - r.height) < 0.5) {
+          return prev
+        }
+        return { w: r.width, h: r.height }
+      })
+    }
+
     const recomputeEdges = () => {
       const containerRect = container.getBoundingClientRect()
       if (containerRect.width === 0 || containerRect.height === 0) return
@@ -111,7 +124,7 @@ export function AgentConnectorOverlay({
         const fromEl = cardRefs.current?.[c.from]
         const toEl = cardRefs.current?.[c.to]
         if (!fromEl || !toEl) {
-          next.push({ x1: 50, y1: 50, x2: 50, y2: 50 })
+          next.push({ x1: 0, y1: 0, x2: 0, y2: 0 })
           continue
         }
         const fr = fromEl.getBoundingClientRect()
@@ -124,12 +137,11 @@ export function AgentConnectorOverlay({
         const dy = tcy - fcy
         const dist = Math.hypot(dx, dy)
         if (dist === 0) {
-          next.push({ x1: 50, y1: 50, x2: 50, y2: 50 })
+          next.push({ x1: 0, y1: 0, x2: 0, y2: 0 })
           continue
         }
         const ux = dx / dist
         const uy = dy / dist
-        // Approximate half-card extent in the direction of the connection.
         const halfA = (Math.abs(ux) * fr.width + Math.abs(uy) * fr.height) / 2
         const halfB = (Math.abs(ux) * tr.width + Math.abs(uy) * tr.height) / 2
         const fromX = fcx + ux * halfA * EDGE_TUCK
@@ -137,10 +149,10 @@ export function AgentConnectorOverlay({
         const toX = tcx - ux * halfB * EDGE_TUCK
         const toY = tcy - uy * halfB * EDGE_TUCK
         next.push({
-          x1: ((fromX - containerRect.left) / containerRect.width) * VIEW,
-          y1: ((fromY - containerRect.top) / containerRect.height) * VIEW,
-          x2: ((toX - containerRect.left) / containerRect.width) * VIEW,
-          y2: ((toY - containerRect.top) / containerRect.height) * VIEW,
+          x1: fromX - containerRect.left,
+          y1: fromY - containerRect.top,
+          x2: toX - containerRect.left,
+          y2: toY - containerRect.top,
         })
       }
       edgeStates.current = next
@@ -168,7 +180,6 @@ export function AgentConnectorOverlay({
 
     const tick = (now: number) => {
       if (!runningRef.current) return
-      // Recompute edges every frame so dragging cards is reflected live.
       recomputeEdges()
       for (let i = 0; i < CONNECTIONS.length; i++) {
         const e = edgeStates.current[i]
@@ -231,12 +242,14 @@ export function AgentConnectorOverlay({
     }
     document.addEventListener("visibilitychange", onVisibility)
 
-    // Resize handler so edges recompute when the layout reflows.
+    // ResizeObserver covers both the initial measurement and any reflow.
     const ro = new ResizeObserver(() => {
+      measureSize()
       if (!runningRef.current) recomputeEdges()
     })
     ro.observe(container)
 
+    measureSize()
     recomputeEdges()
 
     return () => {
@@ -248,10 +261,16 @@ export function AgentConnectorOverlay({
     }
   }, [cardRefs, containerRef, pulses])
 
+  // Pixel sizes — round circles regardless of slide aspect ratio.
+  const linePx = 1.4
+  const portR = 2.8
+  const pulseAR = 5
+  const pulseBR = 3.5
+
   return (
     <svg
       ref={svgRef}
-      viewBox={`0 0 ${VIEW} ${VIEW}`}
+      viewBox={`0 0 ${Math.max(1, viewSize.w)} ${Math.max(1, viewSize.h)}`}
       preserveAspectRatio="none"
       aria-hidden
       className="pointer-events-none absolute inset-0 h-full w-full"
@@ -265,16 +284,15 @@ export function AgentConnectorOverlay({
                 lineRefs.current[i] = el
               }}
               stroke={color}
-              strokeWidth="0.18"
+              strokeWidth={linePx}
               strokeOpacity="0.42"
               strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
             />
             <circle
               ref={(el) => {
                 portFromRefs.current[i] = el
               }}
-              r="0.35"
+              r={portR}
               fill={color}
               opacity="0.85"
             />
@@ -282,17 +300,13 @@ export function AgentConnectorOverlay({
               ref={(el) => {
                 portToRefs.current[i] = el
               }}
-              r="0.35"
+              r={portR}
               fill={color}
               opacity="0.85"
             />
           </g>
         )
       })}
-      {/* Two pulses per line, offset by half cycle, so the flow reads as
-          continuous traffic rather than a single ball bouncing. Perfectly
-          circular (no halo blur) per PK's note that the previous halos
-          read as ovals. */}
       {CONNECTIONS.map((c, i) => {
         const color = agentColor(c.from)
         return (
@@ -301,7 +315,7 @@ export function AgentConnectorOverlay({
               ref={(el) => {
                 pulseARefs.current[i] = el
               }}
-              r="0.55"
+              r={pulseAR}
               fill={color}
               opacity="0"
             />
@@ -309,7 +323,7 @@ export function AgentConnectorOverlay({
               ref={(el) => {
                 pulseBRefs.current[i] = el
               }}
-              r="0.4"
+              r={pulseBR}
               fill={color}
               opacity="0"
             />

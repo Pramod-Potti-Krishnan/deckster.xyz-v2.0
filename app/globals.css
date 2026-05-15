@@ -99,12 +99,6 @@ body {
     66%      { transform: translate3d(4%, -3%, 0) scale(0.97); }
   }
 
-  /* HomepageV2 — knowledge-graph backdrop on the agents slide: each point
-     fades in and out on its own offset so the grid breathes. */
-  @keyframes agentgrid-twinkle {
-    0%, 100% { opacity: 0.08; }
-    50%      { opacity: 0.75; }
-  }
 }
 
 /* HomepageV2 — scroll-snap "deck slide" behaviour, scoped to / via the
