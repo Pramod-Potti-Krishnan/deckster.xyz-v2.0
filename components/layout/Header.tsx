@@ -38,14 +38,14 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <nav className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-12 items-center justify-between">
           {/* Logo */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2 group">
               <img
                 src="/logo-transparent.png"
                 alt="Deckster Logo"
-                className="h-12 w-auto transition-transform group-hover:scale-105"
+                className="h-8 w-auto transition-transform group-hover:scale-105"
               />
             </Link>
           </div>

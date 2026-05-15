@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import {
   CATEGORY_COUNT_DISPLAY,
@@ -21,9 +21,25 @@ const FILTERS: ReadonlyArray<{ id: Filter; label: string; count?: string }> = [
   { id: "infographic", label: CATEGORY_LABEL.infographic, count: CATEGORY_COUNT_DISPLAY.infographic },
 ]
 
+// Autoscroll speed in CSS pixels per animation frame (~60 fps).
+// 0.6 px/frame ≈ 36 px / second — slow enough to read each card glyph as
+// it drifts past.
+const AUTOSCROLL_SPEED_PX_PER_FRAME = 0.6
+// How long to keep the autoscroll paused after a user-triggered scroll
+// (manual drag, arrow-button click). Tuned so a deliberate scroll isn't
+// immediately undone by the autoscroll.
+const RESUME_DELAY_MS = 1500
+
 export function ElementGalleryGrid() {
   const [filter, setFilter] = useState<Filter>("all")
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+
+  // Manual pause sources: hover, focus, recent user-driven scroll, filter change
+  const [hoverPaused, setHoverPaused] = useState(false)
+  const [focusPaused, setFocusPaused] = useState(false)
+  const [interactionPaused, setInteractionPaused] = useState(false)
+  const interactionTimerRef = useRef<number | null>(null)
+  const lastAutoscrollLeftRef = useRef(0)
 
   const cards = useMemo(
     () =>
@@ -36,17 +52,78 @@ export function ElementGalleryGrid() {
   const scrollByCards = (direction: 1 | -1) => {
     const el = scrollerRef.current
     if (!el) return
-    // Scroll roughly one viewport's worth at a time
+    bumpInteractionPause()
     el.scrollBy({ left: direction * (el.clientWidth * 0.85), behavior: "smooth" })
+  }
+
+  const bumpInteractionPause = () => {
+    setInteractionPaused(true)
+    if (interactionTimerRef.current !== null) {
+      window.clearTimeout(interactionTimerRef.current)
+    }
+    interactionTimerRef.current = window.setTimeout(() => {
+      setInteractionPaused(false)
+      interactionTimerRef.current = null
+    }, RESUME_DELAY_MS)
   }
 
   const handleFilter = (next: Filter) => {
     setFilter(next)
-    // Reset scroll to start on filter change
+    bumpInteractionPause()
     requestAnimationFrame(() => {
       scrollerRef.current?.scrollTo({ left: 0, behavior: "smooth" })
     })
   }
+
+  // Detect manual scrolls so the autoscroll yields when the user drags.
+  // We can't just listen for any `scroll` event because we also fire scrolls
+  // ourselves — instead we compare scrollLeft to the value the autoscroll
+  // last wrote.
+  const onScrollerScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
+    const el = e.currentTarget
+    if (Math.abs(el.scrollLeft - lastAutoscrollLeftRef.current) > 2) {
+      bumpInteractionPause()
+    }
+  }
+
+  // Autoscroll rAF loop. Honors prefers-reduced-motion, pauses while tab
+  // is hidden, and yields to any of the pause sources above.
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    const mql = window.matchMedia("(prefers-reduced-motion: reduce)")
+    if (mql.matches) return
+
+    let rafId = 0
+    const tick = () => {
+      if (
+        !hoverPaused &&
+        !focusPaused &&
+        !interactionPaused &&
+        document.visibilityState === "visible"
+      ) {
+        const max = el.scrollWidth - el.clientWidth - 1
+        if (max > 0) {
+          let next = el.scrollLeft + AUTOSCROLL_SPEED_PX_PER_FRAME
+          if (next >= max) next = 0
+          el.scrollLeft = next
+          lastAutoscrollLeftRef.current = el.scrollLeft
+        }
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [hoverPaused, focusPaused, interactionPaused])
+
+  // Cleanup interaction timer on unmount
+  useEffect(() => {
+    return () => {
+      if (interactionTimerRef.current !== null) {
+        window.clearTimeout(interactionTimerRef.current)
+      }
+    }
+  }, [])
 
   return (
     <div className="w-full">
@@ -87,13 +164,18 @@ export function ElementGalleryGrid() {
         })}
       </div>
 
-      <div className="relative">
-        {/* Edge fade — left */}
+      <div
+        className="relative"
+        onMouseEnter={() => setHoverPaused(true)}
+        onMouseLeave={() => setHoverPaused(false)}
+        onFocusCapture={() => setFocusPaused(true)}
+        onBlurCapture={() => setFocusPaused(false)}
+      >
+        {/* Edge fades */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-[hsl(240,10%,98%)] to-transparent"
         />
-        {/* Edge fade — right */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-[hsl(240,10%,98%)] to-transparent"
@@ -119,7 +201,8 @@ export function ElementGalleryGrid() {
 
         <div
           ref={scrollerRef}
-          className="snap-x snap-mandatory overflow-x-auto scroll-smooth px-10 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onScroll={onScrollerScroll}
+          className="snap-x snap-proximity overflow-x-auto scroll-smooth px-10 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <ul className="flex w-max gap-3 sm:gap-3.5">
             {cards.map((card) => (

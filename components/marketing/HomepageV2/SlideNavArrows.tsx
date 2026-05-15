@@ -13,7 +13,7 @@ import { ChevronDown, ChevronUp } from "lucide-react"
  * scroll/resize so the up button greys out on the first slide and the down
  * button greys out on the last.
  */
-const HEADER_OFFSET_PX = 64
+const HEADER_OFFSET_PX = 48
 const SCROLL_TOLERANCE_PX = 32
 
 function getSlides(): HTMLElement[] {

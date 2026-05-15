@@ -21,6 +21,7 @@ import {
   CHOREO_COPY,
   type AgentDeep,
 } from "@/lib/marketing/homepage-v2-agent-deep"
+import { AgentConnectorOverlay } from "./AgentConnectorOverlay"
 
 const ICONS: Record<AgentIconName, LucideIcon> = {
   Compass,
@@ -50,7 +51,7 @@ export function AgentChoreographySection() {
     <section
       id="agents"
       data-snap="slide"
-      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col items-center justify-start overflow-hidden bg-[hsl(240,10%,4%)] pb-8 pt-8 sm:pb-10 sm:pt-10"
+      className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-start overflow-hidden bg-[hsl(240,10%,4%)] pb-6 pt-7 sm:pb-8 sm:pt-9"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(280_70%_25%/0.35),transparent_60%)]" />
@@ -58,24 +59,35 @@ export function AgentChoreographySection() {
       </div>
 
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
-        {/* Compact inline header. Eyebrow dropped, title shrunk, description
-            tightened — agents slide is dense with 8 cards so the header
-            stays out of the way. */}
+        {/* Title is bigger here than other slides — agents is the "meet the
+            team" moment and deserves weight. Gradient on the second half
+            matches the hero's tonal language. */}
         <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-balance text-2xl font-bold leading-tight tracking-tight text-white sm:text-3xl">
-            {CHOREO_COPY.title}
+          <h2 className="text-balance text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl">
+            Specialists, not a{" "}
+            <span className="bg-gradient-to-r from-[hsl(280,90%,75%)] via-[hsl(320,90%,75%)] to-[hsl(200,95%,75%)] bg-clip-text text-transparent">
+              one-size-fits-all model.
+            </span>
           </h2>
-          <p className="mt-2 text-balance text-sm leading-snug text-white/65 sm:text-[15px]">
+          <p className="mt-2 text-balance text-sm leading-snug text-white/65 sm:mt-3 sm:text-[15px]">
             {CHOREO_COPY.description}
           </p>
         </div>
 
         {/* Podium pyramid: 1 / 3 / 4. All cards share the same fixed width so
-            top row is narrowest, bottom row widest. */}
-        <div className="mx-auto mt-5 flex max-w-6xl flex-col items-center gap-3 sm:mt-6 sm:gap-4">
-          <PyramidRow ids={TOP_ROW} />
-          <PyramidRow ids={MIDDLE_ROW} />
-          <PyramidRow ids={BOTTOM_ROW} />
+            top row is narrowest, bottom row widest. The connector overlay
+            sits behind the rows and shows traveling dots between layers. */}
+        <div className="relative mx-auto mt-6 flex max-w-6xl flex-col items-center gap-4 sm:mt-8 sm:gap-6">
+          <AgentConnectorOverlay />
+          <div className="relative z-10 flex w-full justify-center">
+            <PyramidRow ids={TOP_ROW} />
+          </div>
+          <div className="relative z-10 flex w-full justify-center">
+            <PyramidRow ids={MIDDLE_ROW} />
+          </div>
+          <div className="relative z-10 flex w-full justify-center">
+            <PyramidRow ids={BOTTOM_ROW} />
+          </div>
         </div>
       </div>
     </section>
@@ -104,7 +116,7 @@ function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
   const cardClass =
     "group relative flex w-full max-w-[260px] flex-1 basis-[220px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.07]"
 
-  const bullets = deep.capabilities.slice(0, 2)
+  const bullets = deep.capabilities.slice(0, 3)
 
   const inner = (
     <>
@@ -152,14 +164,14 @@ function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
         {bullets.map((cap) => (
           <li
             key={cap}
-            className="flex items-start gap-1.5 text-[11px] leading-snug text-white/70"
+            className="flex items-center gap-1.5 text-[11px] leading-snug text-white/75"
           >
             <Check
-              className="mt-0.5 h-3 w-3 shrink-0"
+              className="h-3 w-3 shrink-0"
               style={{ color: agent.color }}
               aria-hidden
             />
-            <span>{cap}</span>
+            <span className="truncate">{cap}</span>
           </li>
         ))}
       </ul>

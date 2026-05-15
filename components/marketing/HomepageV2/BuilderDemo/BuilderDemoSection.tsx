@@ -6,7 +6,7 @@ export function BuilderDemoSection() {
     <section
       id="builder-demo"
       data-snap="slide"
-      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,5%)] py-12 sm:py-16"
+      className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-start overflow-hidden bg-[hsl(240,10%,5%)] pb-6 pt-8 sm:pb-8 sm:pt-10"
     >
       {/* Subtle gradient fade-in from the dark hero above */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
@@ -22,7 +22,7 @@ export function BuilderDemoSection() {
           description="The agents talk to each other while they work. Here's a single slide assembling, on loop."
         />
 
-        <div className="mx-auto mt-8 max-w-6xl sm:mt-10">
+        <div className="mx-auto mt-6 max-w-6xl sm:mt-8">
           <BuilderDemoLoader />
         </div>
       </div>
