@@ -21,7 +21,6 @@ import {
   CHOREO_COPY,
   type AgentDeep,
 } from "@/lib/marketing/homepage-v2-agent-deep"
-import { SectionHeader } from "../shared/SectionHeader"
 
 const ICONS: Record<AgentIconName, LucideIcon> = {
   Compass,
@@ -51,7 +50,7 @@ export function AgentChoreographySection() {
     <section
       id="agents"
       data-snap="slide"
-      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,4%)] py-12 sm:py-14"
+      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col items-center justify-start overflow-hidden bg-[hsl(240,10%,4%)] pb-10 pt-8 sm:pb-12 sm:pt-10"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(280_70%_25%/0.35),transparent_60%)]" />
@@ -59,16 +58,23 @@ export function AgentChoreographySection() {
       </div>
 
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
-        <SectionHeader
-          tone="dark"
-          eyebrow={CHOREO_COPY.eyebrow}
-          title={CHOREO_COPY.title}
-          description={CHOREO_COPY.description}
-        />
+        {/* Compact header — agents slide is dense with 8 cards, so the title
+            stays smaller than the default SectionHeader to leave room. */}
+        <div className="mx-auto max-w-3xl text-center">
+          <span className="mb-2 inline-block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">
+            {CHOREO_COPY.eyebrow}
+          </span>
+          <h2 className="text-balance text-2xl font-bold leading-tight tracking-tight text-white sm:text-3xl md:text-4xl">
+            {CHOREO_COPY.title}
+          </h2>
+          <p className="mt-2 text-balance text-sm leading-relaxed text-white/70 sm:text-base">
+            {CHOREO_COPY.description}
+          </p>
+        </div>
 
         {/* Podium pyramid: 1 / 3 / 4. All cards share the same fixed width so
             top row is narrowest, bottom row widest. */}
-        <div className="mx-auto mt-8 flex max-w-6xl flex-col items-center gap-4 sm:gap-5">
+        <div className="mx-auto mt-6 flex max-w-6xl flex-col items-center gap-3 sm:mt-8 sm:gap-4">
           <PyramidRow ids={TOP_ROW} />
           <PyramidRow ids={MIDDLE_ROW} />
           <PyramidRow ids={BOTTOM_ROW} />

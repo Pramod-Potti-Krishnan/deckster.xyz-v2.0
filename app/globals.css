@@ -102,13 +102,15 @@ body {
 
 /* HomepageV2 — scroll-snap "deck slide" behaviour, scoped to / via the
    <HomepageSnap /> client component that toggles .snap-homepage on <html>.
-   - `y proximity` snaps to the nearest section when scroll settles without
-     fighting the user mid-scroll (mandatory feels hostile on trackpads).
-   - `scroll-padding-top: 4rem` matches the 64px sticky header so a section's
-     top edge lands cleanly below the header instead of underneath it.
-   - `scroll-snap-stop: normal` lets a quick flick traverse multiple slides. */
+   - `y mandatory` strictly locks the viewport to one slide at a time so
+     users can't drift to a half-snapped state where a title clips behind
+     the header.
+   - `scroll-padding-top: 4rem` matches the 64px sticky header so the
+     section top edge lands cleanly below the header.
+   - `scroll-snap-stop: normal` still lets a quick flick traverse multiple
+     slides on a trackpad — strict snap, lenient stop. */
 html.snap-homepage {
-  scroll-snap-type: y proximity;
+  scroll-snap-type: y mandatory;
   scroll-padding-top: 4rem;
   scroll-behavior: smooth;
 }
