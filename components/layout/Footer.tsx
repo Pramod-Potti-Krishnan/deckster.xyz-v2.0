@@ -3,7 +3,16 @@
 import Link from 'next/link';
 import { Shield, Lock, Award, Heart } from 'lucide-react';
 
-export function Footer() {
+interface FooterProps {
+  /**
+   * Compact mode is used when the footer is composed into a slide
+   * (currently: the FinalCTA snap-slide on /). Shrinks padding and
+   * inverts text colour for use on a dark background.
+   */
+  compact?: boolean
+}
+
+export function Footer({ compact = false }: FooterProps = {}) {
   const footerLinks = {
     product: [
       { name: 'Templates', href: '/templates' },
@@ -31,6 +40,10 @@ export function Footer() {
       { name: 'Cookies', href: '/legal/cookies' },
     ],
   };
+
+  if (compact) {
+    return <CompactFooter />
+  }
 
   return (
     <footer className="border-t bg-muted/40">
@@ -179,5 +192,48 @@ export function Footer() {
         </div>
       </div>
     </footer>
+  );
+}
+
+/**
+ * Compact footer rendered inside the FinalCTA snap-slide on the homepage.
+ * Two rows: a single-line link list + a slim bottom bar. Inverted for the
+ * dark slide background. No social column, no trust badges — keep this
+ * focused so the whole final slide (CTA + footer) fits one viewport.
+ */
+function CompactFooter() {
+  const links = [
+    { name: 'Pricing', href: '/pricing' },
+    { name: 'Compare', href: '/compare' },
+    { name: 'Agents', href: '/agents' },
+    { name: 'Templates', href: '/templates' },
+    { name: 'Docs', href: '/docs' },
+    { name: 'Help', href: '/help' },
+    { name: 'About', href: '/about' },
+    { name: 'Privacy', href: '/legal/privacy' },
+    { name: 'Terms', href: '/legal/terms' },
+  ];
+  return (
+    <div className="relative w-full border-t border-white/10">
+      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-5 text-sm text-white/55 sm:flex-row sm:justify-between sm:gap-4 sm:px-6 sm:py-6 lg:px-8">
+        <p className="order-2 text-xs text-white/45 sm:order-1">
+          © {new Date().getFullYear()} deckster. All rights reserved.
+        </p>
+        <nav
+          aria-label="Footer"
+          className="order-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs sm:order-2 sm:gap-x-5"
+        >
+          {links.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="text-white/60 transition-colors hover:text-white"
+            >
+              {l.name}
+            </Link>
+          ))}
+        </nav>
+      </div>
+    </div>
   );
 }
