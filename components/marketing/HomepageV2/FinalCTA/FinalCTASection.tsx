@@ -22,8 +22,8 @@ export function FinalCTASection() {
         </h2>
 
         <p className="mx-auto mt-6 max-w-2xl text-balance text-base leading-relaxed text-white/70 sm:text-lg">
-          Free to start. No templates. No pixel-pushing. Just a sentence and a
-          few back-and-forths.
+          14-day free trial of Pro features. No templates. No pixel-pushing.
+          Just a sentence and a few back-and-forths.
         </p>
 
         <div className="mt-9 flex justify-center">

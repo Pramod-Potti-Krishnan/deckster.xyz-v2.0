@@ -1,21 +1,37 @@
 /**
- * Phase 5 — homepage pricing teaser data.
+ * Phase 5 — homepage pricing data.
  *
- * The full pricing page lives at /pricing. This file drives only the
- * 3-card teaser on the homepage. Real numbers should be confirmed with
- * billing/finance before launch — current numbers are placeholders that
- * match the legacy site.
+ * Sales-psychology decisions baked in:
+ * - **Lead with features, never with quotas.** Don't show "8 decks/mo" or
+ *   token counts on marketing surfaces. Quotas frame the value as scarcity;
+ *   features frame it as capability. Capability sells, scarcity discourages.
+ * - **Acknowledge usage scales with deck complexity** without committing to
+ *   numbers — actuals depend on slide count, research depth, and visual
+ *   richness, and we shouldn't promise anything we can't predict.
+ * - **Top-ups are a relief valve, not a marketed product.** Mention they
+ *   exist; don't enumerate pack sizes here. Detailed packs live on the
+ *   /pricing route or in-product.
+ *
+ * Trial: 14-day free trial of Pro features, credit card required, auto-
+ * converts to Starter on day 15. The actual trial provisioning isn't built
+ * yet — see HOMEPAGE_V2_PRICING_HANDOVER.md.
  */
 
 export type PricingCtaKind = "primary" | "secondary"
 
 export interface PricingTier {
-  id: "free" | "pro" | "enterprise"
+  id: "starter" | "pro" | "premium"
   name: string
   price: string
   priceSuffix?: string
   blurb: string
-  features: string[]
+  /**
+   * Feature bullets. Use the "Everything in <prev tier>, plus:" pattern so
+   * upsell is visible at a glance.
+   */
+  features: ReadonlyArray<string>
+  /** Short qualitative usage note — never a number. */
+  usageNote: string
   ctaLabel: string
   ctaHref: string
   ctaKind: PricingCtaKind
@@ -24,60 +40,67 @@ export interface PricingTier {
 
 export const PRICING_TIERS: ReadonlyArray<PricingTier> = [
   {
-    id: "free",
-    name: "Free",
-    price: "$0",
-    priceSuffix: "forever",
-    blurb: "Try the agents on real decks.",
+    id: "starter",
+    name: "Starter",
+    price: "$20",
+    priceSuffix: "per user / mo",
+    blurb: "Everything to ship a polished deck on your own.",
     features: [
-      "5 decks per month",
-      "All 9 element types",
-      "PowerPoint & PDF export",
-      "Single user",
+      "Director, Content Generator, Visualizer, Slide Composer, Theme Builder",
+      "All chart, diagram, and infographic types",
+      "Custom themes",
+      "PowerPoint & PDF export — no watermark",
+      "Top-up credits available anytime",
     ],
-    ctaLabel: "Start Building Free",
+    usageNote: "Generous monthly credits for typical workloads.",
+    ctaLabel: "Start free trial",
     ctaHref: "/builder",
     ctaKind: "secondary",
   },
   {
     id: "pro",
     name: "Pro",
-    price: "$24",
+    price: "$50",
     priceSuffix: "per user / mo",
-    blurb: "For people who present every week.",
+    blurb: "For people who present every week — with research.",
     features: [
-      "Unlimited decks",
-      "Custom themes & brand kit",
-      "All charts, diagrams, infographics",
-      "Connect your own data sources",
-      "Priority generation",
+      "Everything in Starter, plus:",
+      "Researcher: pull live data from the open web",
+      "Upload your files as source material (RAG over your corpus)",
+      "Analyst: insight extraction from your numbers",
+      "Higher monthly credit allowance",
     ],
-    ctaLabel: "Upgrade to Pro",
-    ctaHref: "/billing?plan=pro",
+    usageNote: "Suited to research-heavy and frequent presenters.",
+    ctaLabel: "Start free trial",
+    ctaHref: "/builder",
     ctaKind: "primary",
     highlighted: true,
   },
   {
-    id: "enterprise",
-    name: "Enterprise",
-    price: "Custom",
-    blurb: "For teams that ship together.",
+    id: "premium",
+    name: "Premium",
+    price: "$100",
+    priceSuffix: "per user / mo",
+    blurb: "For people who present as their core work.",
     features: [
-      "SSO & SCIM provisioning",
-      "Workspace-wide brand controls",
-      "Audit log & compliance review",
-      "Dedicated success manager",
-      "SLA on uptime and generation latency",
+      "Everything in Pro, plus:",
+      "Knowledge Graph: agents learn your domain across decks",
+      "Priority generation queue",
+      "Highest monthly credit allowance",
     ],
-    ctaLabel: "Talk to Sales",
-    ctaHref: "/contact?plan=enterprise",
+    usageNote: "Built for the heaviest, most demanding workflows.",
+    ctaLabel: "Start free trial",
+    ctaHref: "/builder",
     ctaKind: "secondary",
   },
 ]
 
 export const PRICING_COPY = {
   eyebrow: "Pricing",
-  title: "Free for the first dozen decks. Pro from there.",
+  title: "A team of agents, on tap.",
   description:
-    "Start free. Upgrade when the team becomes the way you build presentations.",
+    "14-day free trial of Pro features. Credit card required, auto-converts to Starter on day 15. Top up credits anytime — no surprise bills.",
+  topUpHeadline: "Need more in a busy month?",
+  topUpBlurb:
+    "Top-up credits available on every tier — no commitment. Actual usage depends on the length and visual richness of each deck.",
 } as const
