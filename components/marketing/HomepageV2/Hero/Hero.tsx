@@ -4,6 +4,7 @@ import { AgentTeam } from "./AgentTeam"
 import { ConversationalScopes } from "./ConversationalScopes"
 import { HeroCTA } from "./HeroCTA"
 import { HeroHeadline } from "./HeroHeadline"
+import { KnowledgeGraphBackground } from "./KnowledgeGraphBackground"
 
 export function Hero() {
   return (
@@ -17,6 +18,8 @@ export function Hero() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,hsl(200_95%_50%/0.35),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,hsl(320_85%_55%/0.30),transparent_55%)]" />
         <div className="absolute inset-0 animate-[hero-mesh_30s_ease-in-out_infinite] bg-[radial-gradient(ellipse_at_60%_40%,hsl(250_90%_60%/0.35),transparent_60%)] motion-reduce:animate-none" />
+        {/* Knowledge graph — interconnected document nodes drifting with traveling pulses (KG = Premium feature tease) */}
+        <KnowledgeGraphBackground />
         {/* Grain — inline SVG, ~1KB */}
         <div
           className="absolute inset-0 opacity-[0.05] mix-blend-overlay"
