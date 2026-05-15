@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Sparkles, PenTool, Palette, BarChart, ArrowRight, Zap, Users, Brain } from 'lucide-react';
+import { Sparkles, PenTool, Palette, BarChart, BarChart3, Compass, Search, TrendingUp, LayoutTemplate, ArrowRight, Zap, Users, Brain } from 'lucide-react';
 import Link from 'next/link';
 
 const iconMap = {
@@ -16,6 +16,11 @@ const iconMap = {
   PenTool,
   Palette,
   BarChart,
+  BarChart3,
+  Compass,
+  Search,
+  TrendingUp,
+  LayoutTemplate,
 };
 
 export default function AgentsPage() {
