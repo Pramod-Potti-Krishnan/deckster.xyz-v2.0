@@ -55,9 +55,29 @@ function agentColor(id: AgentId): string {
 type EdgeState = { x1: number; y1: number; x2: number; y2: number }
 type PulseSpec = { duration: number; offset: number; color: string }
 
-// How far inside the card edge to land each endpoint, as a fraction of the
-// card's half-extent in the connection's direction.
-const EDGE_TUCK = 0.85
+/**
+ * For an axis-aligned rectangle of width × height centred on origin, return
+ * the distance along the unit direction (ux, uy) at which the ray exits
+ * the rectangle. This is min(|hw/ux|, |hh/uy|) — the projection-based
+ * formula `|ux|*hw + |uy|*hh` used previously overestimates on diagonals
+ * and left the line endpoints floating outside the cards.
+ */
+function distToEdgeAlongDir(
+  width: number,
+  height: number,
+  ux: number,
+  uy: number,
+): number {
+  const hw = width / 2
+  const hh = height / 2
+  const tx = ux !== 0 ? Math.abs(hw / ux) : Number.POSITIVE_INFINITY
+  const ty = uy !== 0 ? Math.abs(hh / uy) : Number.POSITIVE_INFINITY
+  return Math.min(tx, ty)
+}
+
+// Land endpoints just inside the card edge so the line visibly touches
+// the card and the port circle reads as plugged in.
+const EDGE_TUCK = 0.98
 
 export function AgentConnectorOverlay({
   containerRef,
@@ -142,12 +162,12 @@ export function AgentConnectorOverlay({
         }
         const ux = dx / dist
         const uy = dy / dist
-        const halfA = (Math.abs(ux) * fr.width + Math.abs(uy) * fr.height) / 2
-        const halfB = (Math.abs(ux) * tr.width + Math.abs(uy) * tr.height) / 2
-        const fromX = fcx + ux * halfA * EDGE_TUCK
-        const fromY = fcy + uy * halfA * EDGE_TUCK
-        const toX = tcx - ux * halfB * EDGE_TUCK
-        const toY = tcy - uy * halfB * EDGE_TUCK
+        const halfA = distToEdgeAlongDir(fr.width, fr.height, ux, uy) * EDGE_TUCK
+        const halfB = distToEdgeAlongDir(tr.width, tr.height, ux, uy) * EDGE_TUCK
+        const fromX = fcx + ux * halfA
+        const fromY = fcy + uy * halfA
+        const toX = tcx - ux * halfB
+        const toY = tcy - uy * halfB
         next.push({
           x1: fromX - containerRect.left,
           y1: fromY - containerRect.top,
