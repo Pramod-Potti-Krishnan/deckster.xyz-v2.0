@@ -27,7 +27,7 @@ import {
   type AgentDeep,
 } from "@/lib/marketing/homepage-v2-agent-deep"
 import { AgentConnectorOverlay } from "./AgentConnectorOverlay"
-import { KnowledgeGridBackground } from "./KnowledgeGridBackground"
+import { LightningGridBackground } from "./LightningGridBackground"
 
 const ICONS: Record<AgentIconName, LucideIcon> = {
   Compass,
@@ -79,7 +79,7 @@ export function AgentChoreographySection() {
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(280_70%_25%/0.35),transparent_60%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,hsl(200_70%_25%/0.30),transparent_60%)]" />
-        <KnowledgeGridBackground />
+        <LightningGridBackground />
       </div>
 
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">

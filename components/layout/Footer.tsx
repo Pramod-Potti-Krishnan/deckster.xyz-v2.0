@@ -197,9 +197,9 @@ export function Footer({ compact = false }: FooterProps = {}) {
 
 /**
  * Compact footer rendered inside the FinalCTA snap-slide on the homepage.
- * Two rows: a single-line link list + a slim bottom bar. Inverted for the
- * dark slide background. No social column, no trust badges — keep this
- * focused so the whole final slide (CTA + footer) fits one viewport.
+ * Two rows: a single-line link list + a slim bottom bar. White background
+ * with dark text — the hard contrast against the FinalCTA's dark gradient
+ * is deliberate so the footer reads as a clearly demarcated section.
  */
 function CompactFooter() {
   const links = [
@@ -214,9 +214,9 @@ function CompactFooter() {
     { name: 'Terms', href: '/legal/terms' },
   ];
   return (
-    <div className="relative w-full border-t border-white/10">
-      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-5 text-sm text-white/55 sm:flex-row sm:justify-between sm:gap-4 sm:px-6 sm:py-6 lg:px-8">
-        <p className="order-2 text-xs text-white/45 sm:order-1">
+    <div className="relative w-full border-t border-foreground/10 bg-white">
+      <div className="container mx-auto flex flex-col items-center gap-3 px-4 py-5 text-sm text-foreground/65 sm:flex-row sm:justify-between sm:gap-4 sm:px-6 sm:py-6 lg:px-8">
+        <p className="order-2 text-xs text-foreground/55 sm:order-1">
           © {new Date().getFullYear()} deckster. All rights reserved.
         </p>
         <nav
@@ -227,7 +227,7 @@ function CompactFooter() {
             <Link
               key={l.href}
               href={l.href}
-              className="text-white/60 transition-colors hover:text-white"
+              className="text-foreground/70 transition-colors hover:text-foreground"
             >
               {l.name}
             </Link>
