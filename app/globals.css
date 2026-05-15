@@ -111,7 +111,7 @@ body {
      slides on a trackpad. */
 html.snap-homepage {
   scroll-snap-type: y mandatory;
-  scroll-padding-top: 4rem;
+  scroll-padding-top: 3rem;
   scroll-behavior: smooth;
 }
 html.snap-homepage main > section[data-snap="slide"] {

@@ -14,7 +14,7 @@ import { useEffect } from "react"
  * - Arrow keys / PageUp / PageDown / Home / End jump exactly one slide,
  *   ignoring focus inside form fields so typing isn't hijacked.
  */
-const HEADER_OFFSET_PX = 64
+const HEADER_OFFSET_PX = 48
 const SCROLL_TOLERANCE_PX = 32
 
 function isTypingTarget(el: EventTarget | null): boolean {

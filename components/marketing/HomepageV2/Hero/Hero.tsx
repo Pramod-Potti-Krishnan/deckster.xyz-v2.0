@@ -16,7 +16,7 @@ export function Hero() {
     <section
       id="hero"
       data-snap="slide"
-      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,4%)] py-10 sm:py-12"
+      className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,4%)] py-10 sm:py-12"
     >
       {/* Background mesh — layered radial gradients, no raster image */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
@@ -41,7 +41,18 @@ export function Hero() {
           <HeroCTA />
         </div>
 
-        <div className="mt-10 sm:mt-14">
+        <div className="mt-6 flex flex-wrap justify-center gap-2 sm:mt-7 sm:gap-3">
+          {["Pitch decks", "Strategy decks", "Product specs"].map((c) => (
+            <span
+              key={c}
+              className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/75 backdrop-blur-md"
+            >
+              {c}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-8 sm:mt-12">
           <ConversationalScopes />
         </div>
       </div>

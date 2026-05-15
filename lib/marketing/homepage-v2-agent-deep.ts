@@ -26,10 +26,10 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
     description:
       "Reads your brief, scopes the deck, picks the team, and coordinates every handoff. The Director is who you talk to first — and who closes the loop after every change.",
     capabilities: [
-      "Decomposes goals into a slide-by-slide plan",
-      "Assigns tasks to the right specialist on each step",
-      "Reviews coherence across the whole deck",
-      "Adapts the plan as you give feedback",
+      "Plans the deck slide-by-slide",
+      "Picks the right agent per step",
+      "Adapts as you give feedback",
+      "Reviews coherence across the deck",
     ],
     detailHref: "/agents/director",
   },
@@ -39,10 +39,10 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
     description:
       "Pulls facts from your uploaded files, your connected data sources, and the open web. Cites where each number came from so you can trust the deck.",
     capabilities: [
-      "Searches your files, drives, and connected sources",
-      "Pulls public market data and benchmarks on demand",
-      "Surfaces source citations for every claim",
-      "Flags conflicting numbers across sources",
+      "Searches files, drives, and web",
+      "Pulls market data on demand",
+      "Cites every source it uses",
+      "Flags conflicting numbers",
     ],
     detailHref: "/agents/researcher",
   },
@@ -52,10 +52,10 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
     description:
       "Looks at the numbers and tells you what they mean. Spots trends, gaps, and outliers — then writes the one-line takeaway your audience actually needs.",
     capabilities: [
-      "Identifies trends, outliers, and inflection points",
-      "Computes ratios, growth rates, and segment splits",
-      "Drafts the headline insight for each chart",
-      "Flags weak data so you don't ship a soft slide",
+      "Spots trends, outliers, and gaps",
+      "Computes ratios and growth rates",
+      "Drafts the headline insight",
+      "Flags weak data before it ships",
     ],
     detailHref: "/agents/analyst",
   },
@@ -65,10 +65,10 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
     description:
       "Writes the words. Headlines, body copy, bullet hierarchies, speaker notes — tuned to your audience and the moment in the narrative arc.",
     capabilities: [
-      "Drafts headlines, body, and per-slide speaker notes",
-      "Adapts tone for board, sales, technical, or hybrid",
-      "Compresses or expands existing copy on request",
-      "Keeps voice consistent across the whole deck",
+      "Writes headlines, body, and notes",
+      "Adapts tone to your audience",
+      "Keeps voice consistent",
+      "Compresses or expands on request",
     ],
     detailHref: "/agents/content-generator",
   },
@@ -78,10 +78,10 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
     description:
       "Turns numbers and concepts into the right picture. Picks the chart type, builds the diagram, lays out the infographic — all on the canvas.",
     capabilities: [
-      "Picks the right chart from 18 types — bar to Sankey",
-      "Builds 8 diagrams — cloud, logical, data, kanban, gantt",
-      "Generates infographics from any shape you can describe",
-      "Keeps every visual on the same color and scale system",
+      "Picks the right chart type",
+      "Builds 8 diagram patterns",
+      "Generates infographics on demand",
+      "Keeps visuals on one color system",
     ],
     detailHref: "/agents/visualizer",
   },
@@ -91,10 +91,10 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
     description:
       "Builds your custom theme — palette, typography, surface treatments — and applies it consistently across every slide and every visual.",
     capabilities: [
-      "Generates a custom theme from your brand or brief",
-      "Applies palette, type, and spacing rules globally",
-      "Keeps charts and diagrams on the theme's color scale",
-      "Switches themes mid-deck without breaking layouts",
+      "Generates a theme from your brand",
+      "Applies palette and type globally",
+      "Switches themes mid-deck",
+      "Keeps visuals on the theme scale",
     ],
     detailHref: "/agents/theme-builder",
   },
@@ -104,10 +104,10 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
     description:
       "Owns each slide's pacing, balance, and focus. Decides what's hero and what's supporting, where the eye should land, and what to cut when it's too busy.",
     capabilities: [
-      "Balances density and white space slide by slide",
-      "Picks the focal element and arranges around it",
-      "Cuts elements that crowd the message",
-      "Re-flows when you ask for a tighter or looser look",
+      "Balances density and white space",
+      "Picks the focal element",
+      "Cuts elements that crowd",
+      "Re-flows tight or loose on request",
     ],
     detailHref: "/agents/slide-composer",
   },
@@ -117,10 +117,10 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
     description:
       "Builds the atomic pieces every slide is made of — text boxes, metrics, tables, icons, shapes. Picks the right component for each idea and renders it cleanly.",
     capabilities: [
-      "Generates 9 element types — text, metrics, tables, more",
-      "Sizes and positions atoms inside each layout",
-      "Re-renders atoms when content or theme changes",
-      "Keeps element spacing and alignment consistent",
+      "Generates 9 element types",
+      "Sizes and positions atoms",
+      "Re-renders on theme change",
+      "Keeps spacing and alignment tight",
     ],
   },
 }
