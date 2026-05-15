@@ -5,56 +5,80 @@ import { AGENT_TEAM } from "@/lib/marketing/homepage-v2-content"
 
 /**
  * Animated SVG overlay layered behind the pyramid rows in
- * AgentChoreographySection. Draws connector lines between Director, the
- * three middle synthesizers, and the four bottom specialists, with small
- * coloured dots travelling along them — a visual hint at how data flows
- * between agents while they build a slide.
+ * AgentChoreographySection. Solid outlined connectors show how the
+ * Director and the three synthesizers route work to their specific
+ * upstream specialists, with coloured pulses travelling each line.
  *
- * Coordinates use a 100×100 viewBox stretched via preserveAspectRatio="none"
- * so the lines anchor to the pyramid layout regardless of viewport width.
- * The positions match the deterministic 1/3/4 flex layout in the parent.
+ * Semantic map:
+ *   Director  ──┬─→ Content Generator   (storyteller)
+ *               ├─→ Slide Composer      (conductor)
+ *               └─→ Element Generator   (builder)
+ *   Content Generator ──→ Researcher    (facts to write about)
+ *   Content Generator ──→ Analyst       (insights to write about)
+ *   Slide Composer    ──→ Visualizer    (decides visual placement)
+ *   Element Generator ──→ Visualizer    (renders chart pieces)
+ *   Element Generator ──→ Theme Builder (themes the atoms)
  *
- * Animation pattern is the same rAF + setAttribute approach used in
- * KnowledgeGraphBackground (no React state per frame). IntersectionObserver
- * pauses when off-screen; prefers-reduced-motion renders a single static
- * frame and skips the loop.
+ * Layout maths is hard-coded to the deterministic 1/3/4 flex layout in
+ * the parent. Each card is `w-full max-w-[260px] flex-1 basis-[220px]`,
+ * rows are `flex justify-center` with `gap-4 sm:gap-6`. Coordinates are
+ * percentages in a 100×100 viewBox stretched via
+ * preserveAspectRatio="none". Anchor points hit the edge of each card,
+ * so connectors look like wires plugging into real ports.
  */
 
 type Point = { x: number; y: number }
 
-const TOP = { x: 50, y: 12 } // Director
-const MIDDLE: Point[] = [
-  { x: 18, y: 50 }, // Content Generator
-  { x: 50, y: 50 }, // Slide Composer
-  { x: 82, y: 50 }, // Element Generator
-]
-const BOTTOM: Point[] = [
-  { x: 12, y: 88 }, // Researcher
-  { x: 38, y: 88 }, // Analyst
-  { x: 62, y: 88 }, // Visualizer
-  { x: 88, y: 88 }, // Theme Builder
-]
+// Card centres (the rendered card grid the parent produces is symmetric).
+// X derived from 3-card centred row → 26/50/74 and 4-card row → 14/38/62/86.
+// Y derived from row heights (Director y≈16, middle y≈50, bottom y≈84).
+const CARD = {
+  director: { x: 50, y: 16 },
+  content_generator: { x: 26, y: 50 },
+  slide_composer: { x: 50, y: 50 },
+  element_generator: { x: 74, y: 50 },
+  researcher: { x: 14, y: 84 },
+  analyst: { x: 38, y: 84 },
+  visualizer: { x: 62, y: 84 },
+  theme_builder: { x: 86, y: 84 },
+} as const
 
-// Source-target pairs. The colour of the traveling dot is taken from the
-// SOURCE agent so a pulse on a Director-out line is Director-coloured, etc.
-type Connection = { a: Point; b: Point; sourceAgentId: string }
+// Each card is ~6 viewBox units tall (card height ≈ 30% of pyramid height
+// / 3 rows ≈ 10% per row, half ≈ 5). Pull the line endpoints in toward
+// the card top/bottom so lines visually "plug into" the card edge rather
+// than crossing into it.
+const CARD_HALF_HEIGHT = 6
+
+function topEdge(c: Point): Point {
+  return { x: c.x, y: c.y - CARD_HALF_HEIGHT }
+}
+function bottomEdge(c: Point): Point {
+  return { x: c.x, y: c.y + CARD_HALF_HEIGHT }
+}
+
+type Connection = {
+  from: Point
+  to: Point
+  /** Source agent id — used to colour the pulse. */
+  source: keyof typeof CARD
+}
 
 const CONNECTIONS: ReadonlyArray<Connection> = [
-  // Director → each middle synthesizer
-  { a: TOP, b: MIDDLE[0], sourceAgentId: "director" },
-  { a: TOP, b: MIDDLE[1], sourceAgentId: "director" },
-  { a: TOP, b: MIDDLE[2], sourceAgentId: "director" },
-  // Middle → adjacent bottom specialists (so every bottom card has at
-  // least one feed from a synthesizer above it)
-  { a: MIDDLE[0], b: BOTTOM[0], sourceAgentId: "content_generator" },
-  { a: MIDDLE[0], b: BOTTOM[1], sourceAgentId: "content_generator" },
-  { a: MIDDLE[1], b: BOTTOM[1], sourceAgentId: "slide_composer" },
-  { a: MIDDLE[1], b: BOTTOM[2], sourceAgentId: "slide_composer" },
-  { a: MIDDLE[2], b: BOTTOM[2], sourceAgentId: "element_generator" },
-  { a: MIDDLE[2], b: BOTTOM[3], sourceAgentId: "element_generator" },
+  // Director → three synthesizers in the middle row
+  { from: bottomEdge(CARD.director), to: topEdge(CARD.content_generator), source: "director" },
+  { from: bottomEdge(CARD.director), to: topEdge(CARD.slide_composer), source: "director" },
+  { from: bottomEdge(CARD.director), to: topEdge(CARD.element_generator), source: "director" },
+  // Content Generator → Researcher + Analyst (facts + insights to write about)
+  { from: bottomEdge(CARD.content_generator), to: topEdge(CARD.researcher), source: "content_generator" },
+  { from: bottomEdge(CARD.content_generator), to: topEdge(CARD.analyst), source: "content_generator" },
+  // Slide Composer → Visualizer (composer places visuals on the slide)
+  { from: bottomEdge(CARD.slide_composer), to: topEdge(CARD.visualizer), source: "slide_composer" },
+  // Element Generator → Visualizer + Theme Builder (renders chart pieces, themes atoms)
+  { from: bottomEdge(CARD.element_generator), to: topEdge(CARD.visualizer), source: "element_generator" },
+  { from: bottomEdge(CARD.element_generator), to: topEdge(CARD.theme_builder), source: "element_generator" },
 ]
 
-function agentColor(id: string): string {
+function agentColor(id: keyof typeof CARD): string {
   return AGENT_TEAM.find((a) => a.id === id)?.color ?? "hsl(280, 90%, 75%)"
 }
 
@@ -66,15 +90,16 @@ type PulseSpec = {
 
 function buildPulses(): PulseSpec[] {
   return CONNECTIONS.map((c, i) => ({
-    duration: 3200 + (i % 4) * 700,
-    offset: i * 480,
-    color: agentColor(c.sourceAgentId),
+    duration: 2800 + (i % 4) * 600,
+    offset: i * 420,
+    color: agentColor(c.source),
   }))
 }
 
 export function AgentConnectorOverlay() {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const pulseRefs = useRef<Array<SVGCircleElement | null>>([])
+  const haloRefs = useRef<Array<SVGCircleElement | null>>([])
   const runningRef = useRef(false)
   const reducedRef = useRef(false)
   const visibleRef = useRef(false)
@@ -101,24 +126,45 @@ export function AgentConnectorOverlay() {
       for (let i = 0; i < CONNECTIONS.length; i++) {
         const c = CONNECTIONS[i]
         const p = pulses[i]
-        const phase = (((now + p.offset) % p.duration) / p.duration)
-        const x = c.a.x + (c.b.x - c.a.x) * phase
-        const y = c.a.y + (c.b.y - c.a.y) * phase
-        const op = Math.sin(phase * Math.PI) * 0.95
-        const el = pulseRefs.current[i]
-        if (el) {
-          el.setAttribute("cx", String(x))
-          el.setAttribute("cy", String(y))
-          el.setAttribute("opacity", String(op))
+        const phase = ((now + p.offset) % p.duration) / p.duration
+        const x = c.from.x + (c.to.x - c.from.x) * phase
+        const y = c.from.y + (c.to.y - c.from.y) * phase
+        // Brighter at the middle of the trip, fade in/out at endpoints.
+        const op = Math.sin(phase * Math.PI)
+        const haloOp = op * 0.55
+        const coreEl = pulseRefs.current[i]
+        const haloEl = haloRefs.current[i]
+        if (coreEl) {
+          coreEl.setAttribute("cx", String(x))
+          coreEl.setAttribute("cy", String(y))
+          coreEl.setAttribute("opacity", String(op))
+        }
+        if (haloEl) {
+          haloEl.setAttribute("cx", String(x))
+          haloEl.setAttribute("cy", String(y))
+          haloEl.setAttribute("opacity", String(haloOp))
         }
       }
       rafId = requestAnimationFrame(tick)
     }
 
     const renderStaticFrame = () => {
+      // Park each pulse at its source endpoint, fully transparent, so the
+      // SVG isn't blank for reduced-motion users.
       for (let i = 0; i < CONNECTIONS.length; i++) {
-        const el = pulseRefs.current[i]
-        if (el) el.setAttribute("opacity", "0")
+        const c = CONNECTIONS[i]
+        const coreEl = pulseRefs.current[i]
+        const haloEl = haloRefs.current[i]
+        if (coreEl) {
+          coreEl.setAttribute("cx", String(c.from.x))
+          coreEl.setAttribute("cy", String(c.from.y))
+          coreEl.setAttribute("opacity", "0")
+        }
+        if (haloEl) {
+          haloEl.setAttribute("cx", String(c.from.x))
+          haloEl.setAttribute("cy", String(c.from.y))
+          haloEl.setAttribute("opacity", "0")
+        }
       }
     }
 
@@ -172,7 +218,7 @@ export function AgentConnectorOverlay() {
     >
       <defs>
         <filter id="agent-pulse-glow" x="-200%" y="-200%" width="500%" height="500%">
-          <feGaussianBlur stdDeviation="0.6" result="b" />
+          <feGaussianBlur stdDeviation="1.1" result="b" />
           <feMerge>
             <feMergeNode in="b" />
             <feMergeNode in="SourceGraphic" />
@@ -180,35 +226,58 @@ export function AgentConnectorOverlay() {
         </filter>
       </defs>
 
-      {/* Static connector lines (subtle so they don't compete with cards) */}
-      {CONNECTIONS.map((c, i) => (
-        <line
-          key={`line-${i}`}
-          x1={c.a.x}
-          y1={c.a.y}
-          x2={c.b.x}
-          y2={c.b.y}
-          stroke="hsl(220, 80%, 80%)"
-          strokeWidth="0.18"
-          strokeOpacity="0.25"
-          strokeDasharray="0.8 0.6"
-          vectorEffect="non-scaling-stroke"
-        />
-      ))}
+      {/* Solid outlined connector lines, coloured subtly with the source
+          agent so each cable reads as belonging to its owner. vector-effect
+          non-scaling-stroke so the lines stay crisp across resizes. */}
+      {CONNECTIONS.map((c, i) => {
+        const color = agentColor(c.source)
+        return (
+          <g key={`line-${i}`}>
+            <line
+              x1={c.from.x}
+              y1={c.from.y}
+              x2={c.to.x}
+              y2={c.to.y}
+              stroke={color}
+              strokeWidth="0.35"
+              strokeOpacity="0.55"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+            {/* Tiny ports at each endpoint so the connection visually "plugs in" */}
+            <circle cx={c.from.x} cy={c.from.y} r="0.7" fill={color} opacity="0.85" />
+            <circle cx={c.to.x} cy={c.to.y} r="0.7" fill={color} opacity="0.85" />
+          </g>
+        )
+      })}
 
-      {/* Traveling pulses */}
+      {/* Traveling pulse halos (large soft glow) */}
       {CONNECTIONS.map((c, i) => (
         <circle
-          key={`pulse-${i}`}
+          key={`halo-${i}`}
           ref={(el) => {
-            pulseRefs.current[i] = el
+            haloRefs.current[i] = el
           }}
-          cx={c.a.x}
-          cy={c.a.y}
-          r="0.65"
+          cx={c.from.x}
+          cy={c.from.y}
+          r="2.2"
           fill={pulses[i].color}
           opacity="0"
           filter="url(#agent-pulse-glow)"
+        />
+      ))}
+      {/* Traveling pulse cores (bright dot) */}
+      {CONNECTIONS.map((c, i) => (
+        <circle
+          key={`core-${i}`}
+          ref={(el) => {
+            pulseRefs.current[i] = el
+          }}
+          cx={c.from.x}
+          cy={c.from.y}
+          r="1.1"
+          fill={pulses[i].color}
+          opacity="0"
         />
       ))}
     </svg>
