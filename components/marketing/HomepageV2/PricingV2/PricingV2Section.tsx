@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Check } from "lucide-react"
+import { Check, Plus } from "lucide-react"
 import {
   PRICING_COPY,
   PRICING_TIERS,
@@ -27,13 +27,15 @@ export function PricingV2Section() {
           ))}
         </div>
 
-        <p className="mx-auto mt-10 max-w-2xl text-center text-xs text-muted-foreground">
-          Need the full breakdown? See the{" "}
+        <TopUpStrip />
+
+        <p className="mx-auto mt-8 max-w-2xl text-center text-xs text-muted-foreground">
+          Need the full breakdown?{" "}
           <Link
             href="/pricing"
             className="font-semibold text-primary underline-offset-4 hover:underline"
           >
-            full pricing page
+            See the pricing page
           </Link>
           .
         </p>
@@ -75,22 +77,37 @@ function PricingTierCard({ tier }: { tier: PricingTier }) {
         <p className="mt-2 text-sm text-muted-foreground">{tier.blurb}</p>
       </header>
 
-      <ul className="my-6 flex-1 space-y-2.5">
-        {tier.features.map((f) => (
-          <li
-            key={f}
-            className="flex items-start gap-2 text-sm leading-snug text-foreground/85"
-          >
-            <Check
-              className={`mt-0.5 h-4 w-4 shrink-0 ${
-                isHighlighted ? "text-primary" : "text-foreground/55"
+      <ul className="mt-6 mb-4 flex-1 space-y-2.5">
+        {tier.features.map((f) => {
+          const isPlusPrefix = f.startsWith("+ ") || f.endsWith(", plus:")
+          return (
+            <li
+              key={f}
+              className={`flex items-start gap-2 text-sm leading-snug ${
+                f.endsWith(", plus:")
+                  ? "font-semibold text-foreground/65"
+                  : "text-foreground/85"
               }`}
-              aria-hidden
-            />
-            <span>{f}</span>
-          </li>
-        ))}
+            >
+              {f.endsWith(", plus:") ? (
+                <span className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              ) : (
+                <Check
+                  className={`mt-0.5 h-4 w-4 shrink-0 ${
+                    isHighlighted ? "text-primary" : "text-foreground/55"
+                  }`}
+                  aria-hidden
+                />
+              )}
+              <span>{f}</span>
+            </li>
+          )
+        })}
       </ul>
+
+      <p className="mb-5 text-[11px] italic leading-snug text-muted-foreground">
+        {tier.usageNote}
+      </p>
 
       <Link
         href={tier.ctaHref}
@@ -103,5 +120,26 @@ function PricingTierCard({ tier }: { tier: PricingTier }) {
         {tier.ctaLabel}
       </Link>
     </article>
+  )
+}
+
+function TopUpStrip() {
+  return (
+    <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center gap-2 rounded-2xl border border-foreground/10 bg-white px-6 py-5 text-center shadow-sm sm:flex-row sm:items-start sm:gap-4 sm:text-left">
+      <span
+        aria-hidden
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+      >
+        <Plus className="h-4 w-4" />
+      </span>
+      <div className="flex-1">
+        <div className="text-sm font-semibold text-foreground">
+          {PRICING_COPY.topUpHeadline}
+        </div>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">
+          {PRICING_COPY.topUpBlurb}
+        </p>
+      </div>
+    </div>
   )
 }

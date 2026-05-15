@@ -61,7 +61,7 @@ export const HERO_COPY = {
   headlineLine3: "one sentence at a time.",
   subhead:
     "Talk to the Director. Reshape any slide. Tweak any element. The team handles the rest.",
-  primaryCta: "Start Building Free",
+  primaryCta: "Start free trial",
   secondaryCta: "See the team in action",
   breadthFooter: `${INVENTORY_COUNTS.elements} element types · ${INVENTORY_COUNTS.charts} chart variants · ${INVENTORY_COUNTS.diagrams} architectural diagrams · infographics generated from anything you can describe.`,
 } as const
