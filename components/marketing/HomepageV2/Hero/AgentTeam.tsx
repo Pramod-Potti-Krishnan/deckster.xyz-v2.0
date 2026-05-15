@@ -4,6 +4,7 @@ import { motion } from "framer-motion"
 import {
   BarChart3,
   Compass,
+  Layers,
   LayoutTemplate,
   Palette,
   PenTool,
@@ -26,6 +27,7 @@ const ICONS: Record<AgentIconName, LucideIcon> = {
   BarChart3,
   Palette,
   LayoutTemplate,
+  Layers,
 }
 
 export function AgentTeam() {
@@ -40,18 +42,10 @@ export function AgentTeam() {
       aria-label="Specialist AI agents"
       className="mx-auto grid w-full max-w-5xl list-none grid-cols-2 gap-3 px-0 sm:gap-3.5 md:grid-cols-4 lg:[grid-template-columns:repeat(12,minmax(0,1fr))]"
     >
-      {AGENT_TEAM.map((agent, index) => {
+      {AGENT_TEAM.map((agent) => {
         const Icon = ICONS[agent.iconName]
-        // Last row on lg: 3 cards (Visualizer/Theme/Composer) centered.
-        // First row: 4 cards (Director/Researcher/Analyst/ContentGen).
-        // 12-col grid: row 1 → spans 3 each. Row 2 → first col-start=2,
-        // each spans 3 → centered.
-        const lgClasses =
-          index < 4
-            ? "lg:col-span-3"
-            : index === 4
-              ? "lg:col-span-3 lg:col-start-2"
-              : "lg:col-span-3"
+        // 8 agents on 12-col lg grid → 2 rows of 4 cards, each col-span-3.
+        const lgClasses = "lg:col-span-3"
         return (
           <motion.li
             key={agent.id}

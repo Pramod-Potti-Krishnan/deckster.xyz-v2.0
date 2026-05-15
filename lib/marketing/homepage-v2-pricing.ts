@@ -12,9 +12,8 @@
  *   exist; don't enumerate pack sizes here. Detailed packs live on the
  *   /pricing route or in-product.
  *
- * Trial: 14-day free trial of Pro features, credit card required, auto-
- * converts to Starter on day 15. The actual trial provisioning isn't built
- * yet — see HOMEPAGE_V2_PRICING_HANDOVER.md.
+ * Trial: trial backend not built yet — see HOMEPAGE_V2_PRICING_HANDOVER.md.
+ * Marketing copy intentionally omits trial promises until that ships.
  */
 
 export type PricingCtaKind = "primary" | "secondary"
@@ -53,7 +52,7 @@ export const PRICING_TIERS: ReadonlyArray<PricingTier> = [
       "Top-up credits available anytime",
     ],
     usageNote: "Generous monthly credits for typical workloads.",
-    ctaLabel: "Start free trial",
+    ctaLabel: "Get Started",
     ctaHref: "/builder",
     ctaKind: "secondary",
   },
@@ -71,7 +70,7 @@ export const PRICING_TIERS: ReadonlyArray<PricingTier> = [
       "Higher monthly credit allowance",
     ],
     usageNote: "Suited to research-heavy and frequent presenters.",
-    ctaLabel: "Start free trial",
+    ctaLabel: "Get Started",
     ctaHref: "/builder",
     ctaKind: "primary",
     highlighted: true,
@@ -89,7 +88,7 @@ export const PRICING_TIERS: ReadonlyArray<PricingTier> = [
       "Highest monthly credit allowance",
     ],
     usageNote: "Built for the heaviest, most demanding workflows.",
-    ctaLabel: "Start free trial",
+    ctaLabel: "Get Started",
     ctaHref: "/builder",
     ctaKind: "secondary",
   },
@@ -99,7 +98,7 @@ export const PRICING_COPY = {
   eyebrow: "Pricing",
   title: "A team of agents, on tap.",
   description:
-    "14-day free trial of Pro features. Credit card required, auto-converts to Starter on day 15. Top up credits anytime — no surprise bills.",
+    "Three tiers. Monthly credits scale with how much you present. Top up anytime — no surprise bills.",
   topUpHeadline: "Need more in a busy month?",
   topUpBlurb:
     "Top-up credits available on every tier — no commitment. Actual usage depends on the length and visual richness of each deck.",

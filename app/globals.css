@@ -100,6 +100,28 @@ body {
   }
 }
 
+/* HomepageV2 — scroll-snap "deck slide" behaviour, scoped to / via the
+   <HomepageSnap /> client component that toggles .snap-homepage on <html>.
+   - `y proximity` snaps to the nearest section when scroll settles without
+     fighting the user mid-scroll (mandatory feels hostile on trackpads).
+   - `scroll-padding-top: 4rem` matches the 64px sticky header so a section's
+     top edge lands cleanly below the header instead of underneath it.
+   - `scroll-snap-stop: normal` lets a quick flick traverse multiple slides. */
+html.snap-homepage {
+  scroll-snap-type: y proximity;
+  scroll-padding-top: 4rem;
+  scroll-behavior: smooth;
+}
+html.snap-homepage main > section[data-snap="slide"] {
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.snap-homepage {
+    scroll-behavior: auto;
+  }
+}
+
 /* Honor prefers-reduced-motion globally. Long-running CSS loops (mesh,
    marquee) become near-instant; framer-motion respects useReducedMotion via
    the centralized hook in components/marketing/HomepageV2/shared. */

@@ -7,7 +7,8 @@ export function ElementGallerySection() {
   return (
     <section
       id="gallery"
-      className="relative isolate flex min-h-[100svh] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,98%)] py-16 sm:py-20"
+      data-snap="slide"
+      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,98%)] py-12 sm:py-16"
     >
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
         <SectionHeader

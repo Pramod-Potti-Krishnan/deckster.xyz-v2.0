@@ -5,7 +5,8 @@ export function FinalCTASection() {
   return (
     <section
       id="final-cta"
-      className="relative isolate flex min-h-[100svh] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,4%)] py-16 sm:py-20"
+      data-snap="slide"
+      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,4%)] py-12 sm:py-16"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(280_90%_45%/0.45),transparent_55%)]" />
@@ -41,8 +42,8 @@ export function FinalCTASection() {
         </h2>
 
         <p className="mx-auto mt-5 max-w-2xl text-balance text-base leading-relaxed text-white/70 sm:text-lg">
-          14-day free trial of Pro features. No templates. No pixel-pushing.
-          Just a sentence and a few back-and-forths.
+          No templates. No pixel-pushing. Just a sentence and a few
+          back-and-forths with a team of agents.
         </p>
 
         <div className="mt-8 flex justify-center">

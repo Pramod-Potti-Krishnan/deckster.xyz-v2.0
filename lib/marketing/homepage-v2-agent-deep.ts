@@ -111,6 +111,18 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
     ],
     detailHref: "/agents/slide-composer",
   },
+  element_generator: {
+    id: "element_generator",
+    title: "The Builder",
+    description:
+      "Builds the atomic pieces every slide is made of — text boxes, metrics, tables, icons, shapes. Picks the right component for each idea and renders it cleanly.",
+    capabilities: [
+      "Generates 9 element types — text, metrics, tables, more",
+      "Sizes and positions atoms inside each layout",
+      "Re-renders atoms when content or theme changes",
+      "Keeps element spacing and alignment consistent",
+    ],
+  },
 }
 
 export const CHOREO_COPY = {
