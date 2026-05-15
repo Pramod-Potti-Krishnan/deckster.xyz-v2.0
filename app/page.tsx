@@ -7,7 +7,6 @@ import {
   FinalCTASection,
   Hero,
   PricingV2Section,
-  SocialProofSection,
 } from "@/components/marketing/HomepageV2"
 
 const TITLE = "Deckster — A team of AI agents builds your deck"
@@ -44,7 +43,6 @@ export default function HomePage() {
         <ElementGallerySection />
         <AgentChoreographySection />
         <PricingV2Section />
-        <SocialProofSection />
         <FinalCTASection />
       </main>
       <Footer />

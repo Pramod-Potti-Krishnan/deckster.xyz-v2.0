@@ -36,14 +36,14 @@ export function AgentChoreographySection() {
   return (
     <section
       id="agents"
-      className="relative isolate overflow-hidden bg-[hsl(240,10%,4%)] py-20 sm:py-24 lg:py-28"
+      className="relative isolate flex min-h-[100svh] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,4%)] py-16 sm:py-20"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(280_70%_25%/0.35),transparent_60%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,hsl(200_70%_25%/0.30),transparent_60%)]" />
       </div>
 
-      <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
         <SectionHeader
           tone="dark"
           eyebrow={CHOREO_COPY.eyebrow}
@@ -51,11 +51,15 @@ export function AgentChoreographySection() {
           description={CHOREO_COPY.description}
         />
 
-        <div className="mx-auto mt-14 grid max-w-6xl grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {AGENT_TEAM.map((agent) => {
+        {/* 3 cards on top, 4 cards on bottom — 12-col grid with col-span 4 then 3 */}
+        <div className="mx-auto mt-10 grid max-w-6xl grid-cols-1 gap-4 sm:gap-5 md:grid-cols-12">
+          {AGENT_TEAM.map((agent, index) => {
             const deep = AGENT_DEEP[agent.id]
+            const spanClass = index < 3 ? "md:col-span-4" : "md:col-span-3"
             return (
-              <AgentDeepCard key={agent.id} agent={agent} deep={deep} />
+              <div key={agent.id} className={spanClass}>
+                <AgentDeepCard agent={agent} deep={deep} />
+              </div>
             )
           })}
         </div>

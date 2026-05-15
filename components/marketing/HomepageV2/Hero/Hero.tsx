@@ -10,7 +10,7 @@ export function Hero() {
   return (
     <section
       id="hero"
-      className="relative isolate overflow-hidden bg-[hsl(240,10%,4%)] pt-28 sm:pt-32"
+      className="relative isolate flex min-h-[100svh] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,4%)] pb-10 pt-20 sm:pt-24"
     >
       {/* Background mesh — layered radial gradients, no raster image */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
@@ -30,26 +30,26 @@ export function Hero() {
         />
       </div>
 
-      <div className="container relative mx-auto px-4 pb-20 sm:px-6 sm:pb-24 lg:px-8">
+      <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
         <HeroHeadline />
 
-        <div className="mt-9 sm:mt-10">
+        <div className="mt-7 sm:mt-8">
           <HeroCTA />
         </div>
 
-        <div className="mt-12 sm:mt-14">
+        <div className="mt-8 sm:mt-10">
           <AgentTeam />
         </div>
 
-        <div className="mt-8 sm:mt-10">
+        <div className="mt-5 sm:mt-6">
           <AgentActivityLoop />
         </div>
 
-        <div className="mt-10 sm:mt-12">
+        <div className="mt-7 sm:mt-9">
           <ConversationalScopes />
         </div>
 
-        <p className="mx-auto mt-12 max-w-2xl text-balance text-center text-xs leading-relaxed text-white/45 sm:mt-14">
+        <p className="mx-auto mt-7 max-w-2xl text-balance text-center text-xs leading-relaxed text-white/45 sm:mt-8">
           {HERO_COPY.breadthFooter}
         </p>
       </div>

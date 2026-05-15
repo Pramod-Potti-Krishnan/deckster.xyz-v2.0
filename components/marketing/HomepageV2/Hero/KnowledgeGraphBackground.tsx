@@ -11,12 +11,21 @@ const DRIFT_X = 1.2
 const DRIFT_Y = 1.0
 const SEED = 1337
 
-const NODE_COLORS = [
-  "hsl(280, 90%, 78%)",
-  "hsl(200, 95%, 78%)",
-  "hsl(320, 88%, 78%)",
-  "hsl(250, 92%, 80%)",
+type NodeType = "doc" | "sheet" | "chart" | "agent"
+
+const TYPE_PATTERN: NodeType[] = [
+  "doc", "agent", "sheet", "chart", "agent", "doc",
+  "agent", "sheet", "doc", "chart", "agent", "sheet",
+  "chart", "doc", "agent", "sheet", "doc", "chart",
+  "doc", "agent", "chart", "doc",
 ]
+
+const TYPE_COLOR: Record<NodeType, string> = {
+  agent: "hsl(195, 100%, 78%)",
+  doc: "hsl(260, 85%, 80%)",
+  sheet: "hsl(160, 80%, 72%)",
+  chart: "hsl(335, 90%, 78%)",
+}
 
 type GraphNode = {
   id: number
@@ -25,6 +34,7 @@ type GraphNode = {
   phase: number
   speed: number
   scale: number
+  type: NodeType
   color: string
 }
 
@@ -56,28 +66,30 @@ function buildGraph(): { nodes: GraphNode[]; edges: GraphEdge[]; pulses: Pulse[]
     const row = Math.floor(i / GRID_COLS)
     const cellW = VIEW_W / GRID_COLS
     const cellH = VIEW_H / GRID_ROWS
+    const type = TYPE_PATTERN[i] ?? "doc"
     nodes.push({
       id: i,
       x: (col + 0.5) * cellW + (rand() - 0.5) * cellW * 0.55,
       y: (row + 0.5) * cellH + (rand() - 0.5) * cellH * 0.55,
       phase: rand() * Math.PI * 2,
       speed: 0.18 + rand() * 0.22,
-      scale: 0.85 + rand() * 0.5,
-      color: NODE_COLORS[Math.floor(rand() * NODE_COLORS.length)],
+      scale: type === "agent" ? 1.0 + rand() * 0.25 : 0.85 + rand() * 0.45,
+      type,
+      color: TYPE_COLOR[type],
     })
   }
 
   const edges: GraphEdge[] = []
   const seen = new Set<string>()
+  // Each node connects to its 2 nearest neighbors; agents also get one extra link
+  // so they become hubs (suggesting agents querying many content nodes).
   for (let i = 0; i < nodes.length; i++) {
+    const limit = nodes[i].type === "agent" ? 3 : 2
     const dists = nodes
-      .map((n, j) => ({
-        j,
-        d: (n.x - nodes[i].x) ** 2 + (n.y - nodes[i].y) ** 2,
-      }))
+      .map((n, j) => ({ j, d: (n.x - nodes[i].x) ** 2 + (n.y - nodes[i].y) ** 2 }))
       .filter(({ j }) => j !== i)
       .sort((a, b) => a.d - b.d)
-      .slice(0, 2)
+      .slice(0, limit)
     for (const { j } of dists) {
       const key = i < j ? `${i}-${j}` : `${j}-${i}`
       if (!seen.has(key)) {
@@ -87,12 +99,20 @@ function buildGraph(): { nodes: GraphNode[]; edges: GraphEdge[]; pulses: Pulse[]
     }
   }
 
-  const pulses: Pulse[] = edges.map((_, i) => ({
-    edge: i,
-    offsetMs: rand() * 8000,
-    durationMs: 3800 + rand() * 3200,
-    color: NODE_COLORS[i % NODE_COLORS.length],
-  }))
+  // One pulse per edge; pulses on agent-touching edges use the agent's color
+  // (cyan), suggesting an agent reading/writing to the content node.
+  const pulses: Pulse[] = edges.map((e, i) => {
+    const a = nodes[e.a]
+    const b = nodes[e.b]
+    const agentColor =
+      a.type === "agent" ? a.color : b.type === "agent" ? b.color : null
+    return {
+      edge: i,
+      offsetMs: rand() * 8000,
+      durationMs: 3800 + rand() * 3200,
+      color: agentColor ?? TYPE_COLOR.doc,
+    }
+  })
 
   return { nodes, edges, pulses }
 }
@@ -109,6 +129,7 @@ export function KnowledgeGraphBackground() {
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   const nodeRefs = useRef<Array<SVGGElement | null>>([])
+  const haloRefs = useRef<Array<SVGCircleElement | null>>([])
   const lineRefs = useRef<Array<SVGLineElement | null>>([])
   const pulseRefs = useRef<Array<SVGCircleElement | null>>([])
   const runningRef = useRef(false)
@@ -140,6 +161,17 @@ export function KnowledgeGraphBackground() {
         const { x, y } = driftFor(n, tSec)
         const el = nodeRefs.current[i]
         if (el) el.setAttribute("transform", `translate(${x} ${y}) scale(${n.scale})`)
+
+        if (n.type === "agent") {
+          const haloEl = haloRefs.current[i]
+          if (haloEl) {
+            const haloPhase = tSec * 0.6 + n.phase
+            const r = 2.4 + Math.sin(haloPhase) * 0.45
+            const op = 0.32 + (Math.sin(haloPhase) * 0.5 + 0.5) * 0.45
+            haloEl.setAttribute("r", String(r))
+            haloEl.setAttribute("opacity", String(op))
+          }
+        }
       }
 
       for (let i = 0; i < edges.length; i++) {
@@ -156,7 +188,7 @@ export function KnowledgeGraphBackground() {
         const p = pulses[i]
         const pulseEl = pulseRefs.current[i]
         if (pulseEl) {
-          const phase = (((now + p.offsetMs) % p.durationMs) / p.durationMs)
+          const phase = ((now + p.offsetMs) % p.durationMs) / p.durationMs
           const px = a.x + (b.x - a.x) * phase
           const py = a.y + (b.y - a.y) * phase
           const op = Math.sin(phase * Math.PI) * 0.95
@@ -177,6 +209,13 @@ export function KnowledgeGraphBackground() {
         const { x, y } = driftFor(n, tSec)
         const el = nodeRefs.current[i]
         if (el) el.setAttribute("transform", `translate(${x} ${y}) scale(${n.scale})`)
+        if (n.type === "agent") {
+          const haloEl = haloRefs.current[i]
+          if (haloEl) {
+            haloEl.setAttribute("r", "2.4")
+            haloEl.setAttribute("opacity", "0.4")
+          }
+        }
       }
       for (let i = 0; i < edges.length; i++) {
         const e = edges[i]
@@ -240,7 +279,7 @@ export function KnowledgeGraphBackground() {
       ref={svgRef}
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
       preserveAspectRatio="xMidYMid slice"
-      className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.32] mix-blend-screen motion-reduce:opacity-[0.22]"
+      className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.34] mix-blend-screen motion-reduce:opacity-[0.22]"
       aria-hidden
     >
       <defs>
@@ -253,6 +292,13 @@ export function KnowledgeGraphBackground() {
         </filter>
         <filter id="kg-node-glow" x="-100%" y="-100%" width="300%" height="300%">
           <feGaussianBlur stdDeviation="0.35" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="kg-agent-glow" x="-200%" y="-200%" width="500%" height="500%">
+          <feGaussianBlur stdDeviation="0.6" result="b" />
           <feMerge>
             <feMergeNode in="b" />
             <feMergeNode in="SourceGraphic" />
@@ -292,27 +338,22 @@ export function KnowledgeGraphBackground() {
               nodeRefs.current[i] = el
             }}
             transform={`translate(${n.x} ${n.y}) scale(${n.scale})`}
-            filter="url(#kg-node-glow)"
+            filter={n.type === "agent" ? "url(#kg-agent-glow)" : "url(#kg-node-glow)"}
           >
-            <path
-              d="M -1.4 -1.7 L 0.7 -1.7 L 1.4 -1.0 L 1.4 1.7 L -1.4 1.7 Z"
-              fill="hsl(230, 35%, 12%)"
-              fillOpacity="0.85"
-              stroke={n.color}
-              strokeWidth="0.12"
-              strokeOpacity="0.9"
-            />
-            <path
-              d="M 0.7 -1.7 L 0.7 -1.0 L 1.4 -1.0"
-              fill="none"
-              stroke={n.color}
-              strokeWidth="0.1"
-              strokeOpacity="0.7"
-            />
-            <line x1="-0.9" y1="-0.5" x2="0.8" y2="-0.5" stroke={n.color} strokeWidth="0.09" strokeOpacity="0.6" />
-            <line x1="-0.9" y1="-0.05" x2="0.6" y2="-0.05" stroke={n.color} strokeWidth="0.09" strokeOpacity="0.55" />
-            <line x1="-0.9" y1="0.4" x2="0.8" y2="0.4" stroke={n.color} strokeWidth="0.09" strokeOpacity="0.5" />
-            <line x1="-0.9" y1="0.85" x2="0.4" y2="0.85" stroke={n.color} strokeWidth="0.09" strokeOpacity="0.45" />
+            {n.type === "agent" ? (
+              <AgentGlyph
+                color={n.color}
+                haloRef={(el) => {
+                  haloRefs.current[i] = el
+                }}
+              />
+            ) : n.type === "sheet" ? (
+              <SheetGlyph color={n.color} />
+            ) : n.type === "chart" ? (
+              <ChartGlyph color={n.color} />
+            ) : (
+              <DocGlyph color={n.color} />
+            )}
           </g>
         ))}
 
@@ -324,7 +365,7 @@ export function KnowledgeGraphBackground() {
             }}
             cx={nodes[edges[p.edge].a].x}
             cy={nodes[edges[p.edge].a].y}
-            r="0.35"
+            r="0.4"
             fill={p.color}
             opacity="0"
             filter="url(#kg-pulse-glow)"
@@ -332,5 +373,118 @@ export function KnowledgeGraphBackground() {
         ))}
       </g>
     </svg>
+  )
+}
+
+function DocGlyph({ color }: { color: string }) {
+  return (
+    <>
+      <path
+        d="M -1.4 -1.7 L 0.7 -1.7 L 1.4 -1.0 L 1.4 1.7 L -1.4 1.7 Z"
+        fill="hsl(230, 35%, 12%)"
+        fillOpacity="0.85"
+        stroke={color}
+        strokeWidth="0.12"
+        strokeOpacity="0.9"
+      />
+      <path
+        d="M 0.7 -1.7 L 0.7 -1.0 L 1.4 -1.0"
+        fill="none"
+        stroke={color}
+        strokeWidth="0.1"
+        strokeOpacity="0.7"
+      />
+      <line x1="-0.9" y1="-0.5" x2="0.8" y2="-0.5" stroke={color} strokeWidth="0.09" strokeOpacity="0.6" />
+      <line x1="-0.9" y1="-0.05" x2="0.6" y2="-0.05" stroke={color} strokeWidth="0.09" strokeOpacity="0.55" />
+      <line x1="-0.9" y1="0.4" x2="0.8" y2="0.4" stroke={color} strokeWidth="0.09" strokeOpacity="0.5" />
+      <line x1="-0.9" y1="0.85" x2="0.4" y2="0.85" stroke={color} strokeWidth="0.09" strokeOpacity="0.45" />
+    </>
+  )
+}
+
+function SheetGlyph({ color }: { color: string }) {
+  return (
+    <>
+      <rect
+        x="-1.7"
+        y="-1.4"
+        width="3.4"
+        height="2.8"
+        rx="0.18"
+        fill="hsl(230, 35%, 12%)"
+        fillOpacity="0.85"
+        stroke={color}
+        strokeWidth="0.12"
+        strokeOpacity="0.9"
+      />
+      <rect x="-1.7" y="-1.4" width="3.4" height="0.65" fill={color} fillOpacity="0.35" />
+      <line x1="-0.55" y1="-1.4" x2="-0.55" y2="1.4" stroke={color} strokeWidth="0.09" strokeOpacity="0.5" />
+      <line x1="0.55" y1="-1.4" x2="0.55" y2="1.4" stroke={color} strokeWidth="0.09" strokeOpacity="0.5" />
+      <line x1="-1.7" y1="-0.1" x2="1.7" y2="-0.1" stroke={color} strokeWidth="0.09" strokeOpacity="0.55" />
+      <line x1="-1.7" y1="0.55" x2="1.7" y2="0.55" stroke={color} strokeWidth="0.09" strokeOpacity="0.45" />
+      <line x1="-1.7" y1="-0.75" x2="1.7" y2="-0.75" stroke={color} strokeWidth="0.09" strokeOpacity="0.4" />
+    </>
+  )
+}
+
+function ChartGlyph({ color }: { color: string }) {
+  return (
+    <>
+      <rect
+        x="-1.7"
+        y="-1.6"
+        width="3.4"
+        height="3.2"
+        rx="0.18"
+        fill="hsl(230, 35%, 12%)"
+        fillOpacity="0.85"
+        stroke={color}
+        strokeWidth="0.12"
+        strokeOpacity="0.9"
+      />
+      {/* Bars */}
+      <rect x="-1.2" y="0.55" width="0.42" height="0.75" fill={color} fillOpacity="0.85" />
+      <rect x="-0.55" y="-0.35" width="0.42" height="1.65" fill={color} fillOpacity="0.85" />
+      <rect x="0.1" y="-0.05" width="0.42" height="1.35" fill={color} fillOpacity="0.85" />
+      <rect x="0.75" y="0.75" width="0.42" height="0.55" fill={color} fillOpacity="0.85" />
+      {/* Baseline */}
+      <line x1="-1.45" y1="1.3" x2="1.45" y2="1.3" stroke={color} strokeWidth="0.1" strokeOpacity="0.75" />
+      {/* Tiny trend dot */}
+      <circle cx="0.95" cy="-0.8" r="0.18" fill={color} fillOpacity="0.9" />
+    </>
+  )
+}
+
+function AgentGlyph({
+  color,
+  haloRef,
+}: {
+  color: string
+  haloRef: (el: SVGCircleElement | null) => void
+}) {
+  return (
+    <>
+      {/* Pulsing halo (driven by rAF) */}
+      <circle
+        ref={haloRef}
+        r="2.4"
+        fill="none"
+        stroke={color}
+        strokeWidth="0.16"
+        strokeOpacity="0.7"
+        strokeDasharray="0.7 0.4"
+        opacity="0.4"
+      />
+      {/* Soft core glow */}
+      <circle r="1.5" fill={color} fillOpacity="0.16" />
+      <circle r="1.05" fill={color} fillOpacity="0.32" />
+      <circle r="0.7" fill={color} fillOpacity="0.55" />
+      {/* Brand 4-point sparkle */}
+      <path
+        d="M 0 -0.95 L 0.22 -0.22 L 0.95 0 L 0.22 0.22 L 0 0.95 L -0.22 0.22 L -0.95 0 L -0.22 -0.22 Z"
+        fill="white"
+        fillOpacity="0.95"
+      />
+    </>
   )
 }
