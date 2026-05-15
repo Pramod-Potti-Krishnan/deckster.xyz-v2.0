@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { motion } from "framer-motion"
+import { useMemo, useRef, useState } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import {
   CATEGORY_COUNT_DISPLAY,
   CATEGORY_LABEL,
@@ -23,6 +23,7 @@ const FILTERS: ReadonlyArray<{ id: Filter; label: string; count?: string }> = [
 
 export function ElementGalleryGrid() {
   const [filter, setFilter] = useState<Filter>("all")
+  const scrollerRef = useRef<HTMLDivElement | null>(null)
 
   const cards = useMemo(
     () =>
@@ -32,12 +33,27 @@ export function ElementGalleryGrid() {
     [filter],
   )
 
+  const scrollByCards = (direction: 1 | -1) => {
+    const el = scrollerRef.current
+    if (!el) return
+    // Scroll roughly one viewport's worth at a time
+    el.scrollBy({ left: direction * (el.clientWidth * 0.85), behavior: "smooth" })
+  }
+
+  const handleFilter = (next: Filter) => {
+    setFilter(next)
+    // Reset scroll to start on filter change
+    requestAnimationFrame(() => {
+      scrollerRef.current?.scrollTo({ left: 0, behavior: "smooth" })
+    })
+  }
+
   return (
     <div className="w-full">
       <div
         role="tablist"
         aria-label="Filter element types"
-        className="mx-auto mb-8 flex flex-wrap items-center justify-center gap-2"
+        className="mx-auto mb-6 flex flex-wrap items-center justify-center gap-2"
       >
         {FILTERS.map((f) => {
           const active = filter === f.id
@@ -47,7 +63,7 @@ export function ElementGalleryGrid() {
               type="button"
               role="tab"
               aria-selected={active}
-              onClick={() => setFilter(f.id)}
+              onClick={() => handleFilter(f.id)}
               className={`group inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all ${
                 active
                   ? "border-primary bg-primary text-white shadow-sm"
@@ -71,34 +87,59 @@ export function ElementGalleryGrid() {
         })}
       </div>
 
-      <motion.ul
-        layout
-        className="grid w-full grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-2.5 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7"
-      >
-        {cards.map((card, i) => (
-          <GalleryCardItem key={card.id} card={card} index={i} />
-        ))}
-      </motion.ul>
+      <div className="relative">
+        {/* Edge fade — left */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-[hsl(240,10%,98%)] to-transparent"
+        />
+        {/* Edge fade — right */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-[hsl(240,10%,98%)] to-transparent"
+        />
+
+        {/* Nav arrows */}
+        <button
+          type="button"
+          onClick={() => scrollByCards(-1)}
+          aria-label="Scroll left"
+          className="absolute left-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-foreground/15 bg-white p-2 text-foreground/75 shadow-md transition-all hover:border-foreground/30 hover:bg-foreground/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <ChevronLeft className="h-5 w-5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => scrollByCards(1)}
+          aria-label="Scroll right"
+          className="absolute right-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-foreground/15 bg-white p-2 text-foreground/75 shadow-md transition-all hover:border-foreground/30 hover:bg-foreground/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <ChevronRight className="h-5 w-5" aria-hidden />
+        </button>
+
+        <div
+          ref={scrollerRef}
+          className="snap-x snap-mandatory overflow-x-auto scroll-smooth px-10 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <ul className="flex w-max gap-3 sm:gap-3.5">
+            {cards.map((card) => (
+              <GalleryCardItem key={card.id} card={card} />
+            ))}
+          </ul>
+        </div>
+
+        <p className="mt-3 text-center text-[11px] text-foreground/45">
+          Drag, scroll, or use the arrows — {cards.length} {cards.length === 1 ? "element" : "elements"}
+        </p>
+      </div>
     </div>
   )
 }
 
-interface GalleryCardItemProps {
-  card: GalleryCard
-  index: number
-}
-
-function GalleryCardItem({ card, index }: GalleryCardItemProps) {
-  // Cap stagger so the long tail doesn't feel sluggish.
-  const delay = Math.min(index * 0.01, 0.35)
-
+function GalleryCardItem({ card }: { card: GalleryCard }) {
   return (
-    <motion.li
-      layout
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: "easeOut", delay }}
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-foreground/10 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-md"
+    <li
+      className="group relative flex w-40 shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/10 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-md sm:w-44"
     >
       {card.badge ? (
         <span className="absolute right-1.5 top-1.5 z-10 rounded-full bg-foreground/[0.08] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-foreground/55">
@@ -128,6 +169,6 @@ function GalleryCardItem({ card, index }: GalleryCardItemProps) {
           </div>
         ) : null}
       </div>
-    </motion.li>
+    </li>
   )
 }

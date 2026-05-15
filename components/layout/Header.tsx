@@ -43,9 +43,9 @@ export function Header() {
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2 group">
               <img
-                src="/logo-full.png"
+                src="/logo-transparent.png"
                 alt="Deckster Logo"
-                className="h-14 w-auto transition-transform group-hover:scale-105"
+                className="h-12 w-auto transition-transform group-hover:scale-105"
               />
             </Link>
           </div>

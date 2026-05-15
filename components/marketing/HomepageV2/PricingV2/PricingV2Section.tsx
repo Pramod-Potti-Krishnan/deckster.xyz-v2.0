@@ -11,9 +11,9 @@ export function PricingV2Section() {
   return (
     <section
       id="pricing"
-      className="relative isolate overflow-hidden bg-[hsl(240,10%,98%)] py-20 sm:py-24 lg:py-28"
+      className="relative isolate flex min-h-[100svh] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,98%)] py-12 sm:py-16"
     >
-      <div className="container relative mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
         <SectionHeader
           tone="light"
           eyebrow={PRICING_COPY.eyebrow}
@@ -21,7 +21,7 @@ export function PricingV2Section() {
           description={PRICING_COPY.description}
         />
 
-        <div className="mx-auto mt-14 grid w-full max-w-5xl grid-cols-1 gap-4 sm:gap-5 md:grid-cols-3">
+        <div className="mx-auto mt-8 grid w-full max-w-5xl grid-cols-1 gap-4 sm:gap-5 md:grid-cols-3">
           {PRICING_TIERS.map((tier) => (
             <PricingTierCard key={tier.id} tier={tier} />
           ))}
@@ -29,7 +29,7 @@ export function PricingV2Section() {
 
         <TopUpStrip />
 
-        <p className="mx-auto mt-8 max-w-2xl text-center text-xs text-muted-foreground">
+        <p className="mx-auto mt-4 max-w-2xl text-center text-xs text-muted-foreground">
           Need the full breakdown?{" "}
           <Link
             href="/pricing"
@@ -48,7 +48,7 @@ function PricingTierCard({ tier }: { tier: PricingTier }) {
   const isHighlighted = tier.highlighted ?? false
   return (
     <article
-      className={`relative flex flex-col overflow-hidden rounded-2xl border p-6 sm:p-7 ${
+      className={`relative flex flex-col overflow-hidden rounded-2xl border p-5 sm:p-6 ${
         isHighlighted
           ? "border-primary/40 bg-white shadow-[0_30px_70px_-20px_hsl(250_90%_60%/0.35)] ring-1 ring-primary/10"
           : "border-foreground/10 bg-white shadow-sm"
@@ -77,7 +77,7 @@ function PricingTierCard({ tier }: { tier: PricingTier }) {
         <p className="mt-2 text-sm text-muted-foreground">{tier.blurb}</p>
       </header>
 
-      <ul className="mt-6 mb-4 flex-1 space-y-2.5">
+      <ul className="mt-5 mb-3 flex-1 space-y-2">
         {tier.features.map((f) => {
           const isPlusPrefix = f.startsWith("+ ") || f.endsWith(", plus:")
           return (
@@ -105,7 +105,7 @@ function PricingTierCard({ tier }: { tier: PricingTier }) {
         })}
       </ul>
 
-      <p className="mb-5 text-[11px] italic leading-snug text-muted-foreground">
+      <p className="mb-4 text-[11px] italic leading-snug text-muted-foreground">
         {tier.usageNote}
       </p>
 
@@ -125,7 +125,7 @@ function PricingTierCard({ tier }: { tier: PricingTier }) {
 
 function TopUpStrip() {
   return (
-    <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center gap-2 rounded-2xl border border-foreground/10 bg-white px-6 py-5 text-center shadow-sm sm:flex-row sm:items-start sm:gap-4 sm:text-left">
+    <div className="mx-auto mt-5 flex max-w-3xl flex-col items-center gap-2 rounded-2xl border border-foreground/10 bg-white px-6 py-4 text-center shadow-sm sm:flex-row sm:items-start sm:gap-4 sm:text-left">
       <span
         aria-hidden
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
