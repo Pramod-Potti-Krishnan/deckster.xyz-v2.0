@@ -11,7 +11,8 @@ export function PricingV2Section() {
   return (
     <section
       id="pricing"
-      className="relative isolate flex min-h-[100svh] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,98%)] py-12 sm:py-16"
+      data-snap="slide"
+      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,98%)] py-10 sm:py-14"
     >
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
         <SectionHeader

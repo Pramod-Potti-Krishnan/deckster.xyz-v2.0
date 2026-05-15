@@ -3,6 +3,7 @@ import { ArrowUpRight, Check } from "lucide-react"
 import {
   BarChart3,
   Compass,
+  Layers,
   LayoutTemplate,
   Palette,
   PenTool,
@@ -30,13 +31,27 @@ const ICONS: Record<AgentIconName, LucideIcon> = {
   BarChart3,
   Palette,
   LayoutTemplate,
+  Layers,
+}
+
+// Pyramid podium layout. Director on top, the three "synthesizers" who put a
+// slide together in the middle, and the four upstream specialists below.
+const TOP_ROW = ["director"] as const
+const MIDDLE_ROW = ["content_generator", "slide_composer", "element_generator"] as const
+const BOTTOM_ROW = ["researcher", "analyst", "visualizer", "theme_builder"] as const
+
+function getAgent(id: AgentMeta["id"]): AgentMeta {
+  const a = AGENT_TEAM.find((x) => x.id === id)
+  if (!a) throw new Error(`Agent ${id} missing from AGENT_TEAM`)
+  return a
 }
 
 export function AgentChoreographySection() {
   return (
     <section
       id="agents"
-      className="relative isolate flex min-h-[100svh] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,4%)] py-16 sm:py-20"
+      data-snap="slide"
+      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,4%)] py-12 sm:py-14"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(280_70%_25%/0.35),transparent_60%)]" />
@@ -51,61 +66,70 @@ export function AgentChoreographySection() {
           description={CHOREO_COPY.description}
         />
 
-        {/* 3 cards on top, 4 cards on bottom — 12-col grid with col-span 4 then 3 */}
-        <div className="mx-auto mt-10 grid max-w-6xl grid-cols-1 gap-4 sm:gap-5 md:grid-cols-12">
-          {AGENT_TEAM.map((agent, index) => {
-            const deep = AGENT_DEEP[agent.id]
-            const spanClass = index < 3 ? "md:col-span-4" : "md:col-span-3"
-            return (
-              <div key={agent.id} className={spanClass}>
-                <AgentDeepCard agent={agent} deep={deep} />
-              </div>
-            )
-          })}
+        {/* Podium pyramid: 1 / 3 / 4. All cards share the same fixed width so
+            top row is narrowest, bottom row widest. */}
+        <div className="mx-auto mt-8 flex max-w-6xl flex-col items-center gap-4 sm:gap-5">
+          <PyramidRow ids={TOP_ROW} />
+          <PyramidRow ids={MIDDLE_ROW} />
+          <PyramidRow ids={BOTTOM_ROW} />
         </div>
       </div>
     </section>
   )
 }
 
-interface AgentDeepCardProps {
+function PyramidRow({ ids }: { ids: ReadonlyArray<AgentMeta["id"]> }) {
+  return (
+    <div className="flex w-full flex-wrap items-stretch justify-center gap-4 sm:gap-5">
+      {ids.map((id) => {
+        const agent = getAgent(id)
+        const deep = AGENT_DEEP[id]
+        return <AgentPodiumCard key={id} agent={agent} deep={deep} />
+      })}
+    </div>
+  )
+}
+
+interface AgentPodiumCardProps {
   agent: AgentMeta
   deep: AgentDeep
 }
 
-function AgentDeepCard({ agent, deep }: AgentDeepCardProps) {
+function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
   const Icon = ICONS[agent.iconName]
   const cardClass =
-    "group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.07]"
+    "group relative flex w-full max-w-[260px] flex-1 basis-[220px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.07]"
+
+  const bullets = deep.capabilities.slice(0, 2)
 
   const inner = (
     <>
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full opacity-25 blur-3xl transition-opacity group-hover:opacity-45"
+        className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-25 blur-3xl transition-opacity group-hover:opacity-45"
         style={{ backgroundColor: agent.color }}
       />
-      <header className="relative mb-3 flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <header className="relative mb-2 flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2.5">
           <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
             style={{
               backgroundColor: `${agent.color}1f`,
-              boxShadow: `inset 0 0 0 1px ${agent.color}66, 0 0 22px -4px ${agent.color}66`,
+              boxShadow: `inset 0 0 0 1px ${agent.color}66, 0 0 18px -4px ${agent.color}66`,
             }}
           >
             <Icon
-              className="h-5 w-5"
+              className="h-4 w-4"
               style={{ color: agent.color }}
               aria-hidden
             />
           </span>
-          <div>
-            <div className="text-base font-semibold leading-tight text-white">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold leading-tight text-white">
               {agent.name}
             </div>
             <div
-              className="text-[11px] font-medium uppercase tracking-wider"
+              className="truncate text-[10px] font-medium uppercase tracking-wider"
               style={{ color: agent.color }}
             >
               {deep.title}
@@ -114,24 +138,20 @@ function AgentDeepCard({ agent, deep }: AgentDeepCardProps) {
         </div>
         {deep.detailHref ? (
           <ArrowUpRight
-            className="h-4 w-4 shrink-0 text-white/35 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white"
+            className="h-3.5 w-3.5 shrink-0 text-white/35 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white"
             aria-hidden
           />
         ) : null}
       </header>
 
-      <p className="relative text-sm leading-relaxed text-white/70">
-        {deep.description}
-      </p>
-
-      <ul className="relative mt-4 space-y-1.5">
-        {deep.capabilities.map((cap) => (
+      <ul className="relative mt-1 space-y-1">
+        {bullets.map((cap) => (
           <li
             key={cap}
-            className="flex items-start gap-2 text-[12.5px] leading-snug text-white/75"
+            className="flex items-start gap-1.5 text-[11.5px] leading-snug text-white/70"
           >
             <Check
-              className="mt-0.5 h-3.5 w-3.5 shrink-0"
+              className="mt-0.5 h-3 w-3 shrink-0"
               style={{ color: agent.color }}
               aria-hidden
             />

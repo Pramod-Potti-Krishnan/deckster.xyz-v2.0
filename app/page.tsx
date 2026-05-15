@@ -8,6 +8,7 @@ import {
   Hero,
   PricingV2Section,
 } from "@/components/marketing/HomepageV2"
+import { HomepageSnap } from "@/components/marketing/HomepageV2/HomepageSnap"
 
 const TITLE = "Deckster — A team of AI agents builds your deck"
 const DESCRIPTION =
@@ -36,6 +37,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col bg-background font-sans selection:bg-primary/20">
+      <HomepageSnap />
       <Header />
       <main>
         <Hero />

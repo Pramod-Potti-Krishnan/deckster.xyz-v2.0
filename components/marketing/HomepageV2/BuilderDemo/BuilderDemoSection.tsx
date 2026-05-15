@@ -5,7 +5,8 @@ export function BuilderDemoSection() {
   return (
     <section
       id="builder-demo"
-      className="relative isolate flex min-h-[100svh] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,5%)] py-16 sm:py-20"
+      data-snap="slide"
+      className="relative isolate flex min-h-[calc(100svh-4rem)] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,5%)] py-12 sm:py-16"
     >
       {/* Subtle gradient fade-in from the dark hero above */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">

@@ -61,9 +61,8 @@ export const HERO_COPY = {
   headlineLine3: "one sentence at a time.",
   subhead:
     "Talk to the Director. Reshape any slide. Tweak any element. The team handles the rest.",
-  primaryCta: "Start free trial",
+  primaryCta: "Get Started",
   secondaryCta: "See the team in action",
-  breadthFooter: `${INVENTORY_COUNTS.elements} element types · ${INVENTORY_COUNTS.charts} chart variants · ${INVENTORY_COUNTS.diagrams} architectural diagrams · infographics generated from anything you can describe.`,
 } as const
 
 // The canonical specialist agent team shown in the hero. Single source of
@@ -77,6 +76,7 @@ export type AgentId =
   | "visualizer"
   | "theme_builder"
   | "slide_composer"
+  | "element_generator"
 
 export type AgentIconName =
   | "Compass"
@@ -86,6 +86,7 @@ export type AgentIconName =
   | "BarChart3"
   | "Palette"
   | "LayoutTemplate"
+  | "Layers"
 
 export interface AgentMeta {
   id: AgentId
@@ -145,6 +146,13 @@ export const AGENT_TEAM: ReadonlyArray<AgentMeta> = [
     role: "Conducts each slide — pacing, balance, focus",
     iconName: "LayoutTemplate",
     color: "#facc15",
+  },
+  {
+    id: "element_generator",
+    name: "Element Generator",
+    role: "Builds the atomic pieces every slide is made of",
+    iconName: "Layers",
+    color: "#c084fc",
   },
 ]
 
