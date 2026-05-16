@@ -1,0 +1,37 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 100 100"
+  role="img"
+  aria-label="Deckster"
+>
+  <defs>
+    <linearGradient id="d-back" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#CCA8FE" />
+      <stop offset="100%" stop-color="#A578F0" />
+    </linearGradient>
+    <linearGradient id="d-front" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9070F5" />
+      <stop offset="100%" stop-color="#6840E0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Back card (light), tilted slightly counter-clockwise -->
+  <g transform="rotate(-4 63 38)">
+    <rect x="38" y="20" width="50" height="36" rx="5" fill="url(#d-back)" />
+  </g>
+
+  <!-- Front card (dark) + sparkles, tilted slightly clockwise so the two cards "fan" -->
+  <g transform="rotate(4 40 60)">
+    <rect x="12" y="38" width="56" height="44" rx="5" fill="url(#d-front)" />
+    <!-- Big sparkle: 4-point twinkle in white -->
+    <path
+      d="M 32 52 L 33.4 58.6 L 40 60 L 33.4 61.4 L 32 68 L 30.6 61.4 L 24 60 L 30.6 58.6 Z"
+      fill="#FFFFFF"
+    />
+    <!-- Small sparkle: lighter lavender -->
+    <path
+      d="M 54 45 L 54.5 47.5 L 57 48 L 54.5 48.5 L 54 51 L 53.5 48.5 L 51 48 L 53.5 47.5 Z"
+      fill="#D6BFFB"
+    />
+  </g>
+</svg>
