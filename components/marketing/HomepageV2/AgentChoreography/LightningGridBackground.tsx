@@ -20,7 +20,7 @@ import { useEffect, useRef } from "react"
 const COLS = 24
 const ROWS = 14
 
-const SWEEP_MS = 500 // active sweep duration — the wave itself is brief
+const SWEEP_MS = 1200 // active sweep duration — wave traverses L→R in this time
 const CYCLE_MS = 4000 // total cycle so a wave fires once every ~4 s
 const BAND_WIDTH = 30 // viewBox units (0-100), gradient band that slides
 
