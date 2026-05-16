@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
 import { ArrowRight, BookOpen, FileText, LifeBuoy, Sparkles, Wand2 } from 'lucide-react';
 
 import { Header, Footer } from '@/components/layout';
@@ -9,32 +8,25 @@ import { SnapDeck } from '@/components/marketing/SnapDeck/SnapDeck';
 import { SlideNavArrows } from '@/components/marketing/SnapDeck/SlideNavArrows';
 import { ArticleCard } from '@/components/marketing/Resources/ArticleCard';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getAllArticles, getArticleCategories, getFeaturedArticles } from '@/lib/articles';
 import { getFeaturedExamples } from '@/lib/examples';
-import { ArticleCategory } from '@/types/article';
 
 // Slides:
-//   1. Hero          — "Learn to Use Deckster" intro + tagline
-//   2. Examples      — featured example teasers, link to /examples gallery
-//   3. Articles      — full article grid + category filter (interactivity preserved)
-//   4. Docs + Help   — two big nav cards directing to /docs and /help
-//   5. CTA + footer  — "Start building" CTA with compact footer baked in
+//   1. Hero               — "Learn to Use Deckster" intro
+//   2. Featured examples  — 3 example teasers, link to /examples gallery
+//   3. Featured reads     — 3 hand-picked articles
+//   4. Browse by topic    — 3 category cards (with sample articles + counts)
+//   5. Docs + Help        — two big nav cards
+//   6. CTA + footer       — dark gradient "Start building" CTA
 
 const slideShellBase =
   'relative isolate flex min-h-[calc(100svh-3rem)] flex-col px-4 py-12 sm:px-6 lg:px-8';
 
 export default function LearnPage() {
   const allArticles = getAllArticles();
-  const featuredArticles = getFeaturedArticles();
+  const featuredArticles = getFeaturedArticles().slice(0, 3);
   const articleCategories = getArticleCategories();
   const featuredExamples = getFeaturedExamples().slice(0, 3);
-  const [selectedCategory, setSelectedCategory] = useState<ArticleCategory | 'all'>('all');
-
-  const filteredArticles =
-    selectedCategory === 'all'
-      ? allArticles
-      : allArticles.filter((article) => article.category === selectedCategory);
 
   return (
     <div className="flex min-h-screen flex-col bg-background font-sans">
@@ -42,7 +34,7 @@ export default function LearnPage() {
       <SlideNavArrows />
       <Header />
       <main>
-        {/* ──────────────────────────── Slide 1 — Hero ──────────────────────────── */}
+        {/* ─────────────────────────── Slide 1 — Hero ─────────────────────────── */}
         <section
           id="learn-hero"
           data-snap="slide"
@@ -84,7 +76,7 @@ export default function LearnPage() {
           </div>
         </section>
 
-        {/* ────────────────────────── Slide 2 — Examples ───────────────────────── */}
+        {/* ────────────────────── Slide 2 — Featured Examples ────────────────────── */}
         <section
           id="learn-examples"
           data-snap="slide"
@@ -122,7 +114,6 @@ export default function LearnPage() {
                     className="group flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
                   >
                     <div className="flex h-44 w-full items-center justify-center bg-gradient-to-br from-purple-100 to-blue-100 text-5xl dark:from-purple-900/30 dark:to-blue-900/30">
-                      {/* Thumbnail placeholder consistent with ArticleCard */}
                       📊
                     </div>
                     <div className="flex flex-1 flex-col gap-3 p-5">
@@ -157,93 +148,106 @@ export default function LearnPage() {
           </div>
         </section>
 
-        {/* ────────────────────── Slide 3 — Articles + Guides ──────────────────── */}
+        {/* ────────────────────── Slide 3 — Featured Reads ────────────────────── */}
         <section
           id="learn-articles"
           data-snap="slide"
           className={`${slideShellBase} justify-center`}
         >
           <div className="mx-auto w-full max-w-6xl">
-            <div className="mb-8">
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-blue-600 dark:text-blue-300">
-                <BookOpen className="h-4 w-4" />
-                Articles &amp; guides
+            <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-blue-600 dark:text-blue-300">
+                  <BookOpen className="h-4 w-4" />
+                  Featured reads
+                </div>
+                <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                  Hand-picked starting points
+                </h2>
+                <p className="mt-2 max-w-2xl text-muted-foreground">
+                  A few deep dives on getting the most out of Deckster&apos;s multi-agent system.
+                </p>
               </div>
-              <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                Best practices, tutorials, and AI insights
-              </h2>
-              <p className="mt-2 max-w-2xl text-muted-foreground">
-                Long-form writing on getting more out of Deckster's multi-agent system.
-              </p>
+              <Link
+                href="#learn-topics"
+                className="inline-flex items-center gap-2 self-start rounded-md border border-input bg-background px-5 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                Browse by topic
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
 
-            {/* Category filter — preserved from the original /resources page */}
-            <Tabs
-              value={selectedCategory}
-              onValueChange={(value) => setSelectedCategory(value as ArticleCategory | 'all')}
-              className="mb-6 w-full"
-            >
-              <TabsList className="flex h-auto w-full flex-wrap justify-start">
-                <TabsTrigger value="all" className="flex-shrink-0">
-                  All ({allArticles.length})
-                </TabsTrigger>
-                {articleCategories.map((category) => (
-                  <TabsTrigger
-                    key={category.value}
-                    value={category.value}
-                    className="flex-shrink-0"
-                  >
-                    {category.label} ({category.count})
-                  </TabsTrigger>
+            {featuredArticles.length > 0 ? (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {featuredArticles.map((article) => (
+                  <ArticleCard key={article.id} article={article} />
                 ))}
-              </TabsList>
-            </Tabs>
-
-            {/* Featured shelf — only when no filter is applied */}
-            {selectedCategory === 'all' && featuredArticles.length > 0 && (
-              <div className="mb-10">
-                <div className="mb-4 flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-yellow-500" />
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                    Featured
-                  </h3>
-                </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {featuredArticles.slice(0, 3).map((article) => (
-                    <ArticleCard key={article.id} article={article} />
-                  ))}
-                </div>
               </div>
-            )}
-
-            {filteredArticles.length > 0 ? (
-              <>
-                <p className="mb-4 text-sm text-muted-foreground">
-                  Showing {filteredArticles.length}{' '}
-                  {filteredArticles.length === 1 ? 'article' : 'articles'}
-                </p>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {filteredArticles.slice(0, 6).map((article) => (
-                    <ArticleCard key={article.id} article={article} />
-                  ))}
-                </div>
-              </>
             ) : (
-              <div className="rounded-lg border border-dashed border-border p-12 text-center">
-                <h3 className="mb-2 text-lg font-semibold">No articles found</h3>
-                <p className="mb-4 text-muted-foreground">Try selecting a different category.</p>
-                <button
-                  onClick={() => setSelectedCategory('all')}
-                  className="text-primary hover:underline"
-                >
-                  View all articles
-                </button>
+              <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
+                New articles coming soon.
               </div>
             )}
           </div>
         </section>
 
-        {/* ────────────────────── Slide 4 — Docs + Help entry ──────────────────── */}
+        {/* ─────────────────────── Slide 4 — Browse by Topic ─────────────────────── */}
+        <section
+          id="learn-topics"
+          data-snap="slide"
+          className={`${slideShellBase} items-center justify-center bg-muted/30`}
+        >
+          <div className="mx-auto w-full max-w-6xl">
+            <div className="mb-10 text-center">
+              <div className="mb-2 flex items-center justify-center gap-2 text-sm font-medium uppercase tracking-wide text-purple-600 dark:text-purple-300">
+                <Sparkles className="h-4 w-4" />
+                Browse by topic
+              </div>
+              <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                Pick a topic, go deeper
+              </h2>
+              <p className="mx-auto mt-3 max-w-2xl text-balance text-base text-muted-foreground sm:text-lg">
+                {allArticles.length} articles across {articleCategories.length} categories.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              {articleCategories.map((category) => {
+                const samples = allArticles
+                  .filter((a) => a.category === category.value)
+                  .slice(0, 3);
+                return (
+                  <div
+                    key={category.value}
+                    className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className="flex items-baseline justify-between">
+                      <h3 className="text-lg font-semibold tracking-tight">{category.label}</h3>
+                      <Badge variant="secondary">{category.count}</Badge>
+                    </div>
+                    <ul className="flex-1 space-y-2.5">
+                      {samples.map((article) => (
+                        <li key={article.id}>
+                          <Link
+                            href={`/learn/${article.id}`}
+                            className="group flex items-start gap-2 text-sm leading-snug text-foreground/85 transition-colors hover:text-primary"
+                          >
+                            <ArrowRight className="mt-1 h-3 w-3 flex-shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                            <span className="line-clamp-2 group-hover:underline">
+                              {article.title}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* ───────────────────── Slide 5 — Docs + Help entry ────────────────────── */}
         <section
           id="learn-docs-help"
           data-snap="slide"
@@ -255,7 +259,7 @@ export default function LearnPage() {
                 Need answers? Go deeper.
               </h2>
               <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-                Reference docs for the full surface area, or the help center if you're stuck.
+                Reference docs for the full surface area, or the help center if you&apos;re stuck.
               </p>
             </div>
 
@@ -302,7 +306,7 @@ export default function LearnPage() {
           </div>
         </section>
 
-        {/* ───────────────────── Slide 5 — CTA + compact footer ────────────────── */}
+        {/* ──────────────────── Slide 6 — CTA + compact footer ──────────────────── */}
         <section
           data-snap="slide"
           className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col overflow-hidden bg-[hsl(240,10%,4%)]"

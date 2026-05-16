@@ -45,7 +45,7 @@ export function PricingV2Section() {
   )
 }
 
-function PricingTierCard({ tier }: { tier: PricingTier }) {
+export function PricingTierCard({ tier }: { tier: PricingTier }) {
   const isHighlighted = tier.highlighted ?? false
   return (
     <article
