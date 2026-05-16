@@ -22,7 +22,6 @@ export function Footer({ compact = false }: FooterProps = {}) {
     ],
     company: [
       { name: 'About', href: '/about' },
-      { name: 'Blog', href: '/blog' },
       { name: 'Agents', href: '/agents' },
       { name: 'Compare', href: '/compare' },
       { name: 'Careers', href: '/careers' },
@@ -31,7 +30,6 @@ export function Footer({ compact = false }: FooterProps = {}) {
       { name: 'Help Center', href: '/help' },
       { name: 'Documentation', href: '/docs' },
       { name: 'API', href: '/docs/api' },
-      { name: 'Community', href: '/community' },
     ],
     legal: [
       { name: 'Privacy', href: '/legal/privacy' },
@@ -118,7 +116,6 @@ export function Footer({ compact = false }: FooterProps = {}) {
               <li><Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">About Us</Link></li>
               <li><Link href="/careers" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Careers</Link></li>
               <li><Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</Link></li>
-              <li><Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Blog</Link></li>
             </ul>
           </div>
 
@@ -206,7 +203,6 @@ function CompactFooter() {
     { name: 'Pricing', href: '/pricing' },
     { name: 'Compare', href: '/compare' },
     { name: 'Agents', href: '/agents' },
-    { name: 'Templates', href: '/templates' },
     { name: 'Docs', href: '/docs' },
     { name: 'Help', href: '/help' },
     { name: 'About', href: '/about' },
