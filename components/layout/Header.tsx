@@ -1,39 +1,24 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Menu, X, ChevronDown } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { UserProfileMenu } from '@/components/user-profile-menu';
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
-} from '@/components/ui/navigation-menu';
 import { cn } from '@/lib/utils';
+
+const NAV_ITEMS = [
+  { name: 'Meet the Team', href: '/agents' },
+  { name: 'How We Compare', href: '/compare' },
+  { name: 'Learn to Use', href: '/learn' },
+  { name: 'Start Your Journey', href: '/pricing' },
+] as const;
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: session, status } = useSession();
   const isLoading = status === 'loading';
-
-  const productLinks = [
-    { name: 'Templates', href: '/templates', description: 'Browse presentation templates' },
-    { name: 'Examples', href: '/examples', description: 'See example presentations' },
-    { name: 'Agents', href: '/agents', description: 'Meet our AI agents' },
-  ];
-
-  const learnLinks = [
-    { name: 'Documentation', href: '/docs', description: 'Complete guides and API docs' },
-    { name: 'Resources', href: '/resources', description: 'Tutorials and best practices' },
-    { name: 'Help Center', href: '/help', description: 'Get help and support' },
-  ];
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -50,65 +35,20 @@ export function Header() {
             </Link>
           </div>
 
-          {/* Desktop Navigation */}
+          {/* Desktop Navigation — 4 flat invitation phrases, no dropdowns */}
           <div className="hidden md:flex md:items-center md:space-x-1">
-            <NavigationMenu>
-              <NavigationMenuList>
-                {/* Product Dropdown */}
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger>Product</NavigationMenuTrigger>
-                  <NavigationMenuContent>
-                    <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-                      {productLinks.map((item) => (
-                        <ListItem
-                          key={item.name}
-                          title={item.name}
-                          href={item.href}
-                        >
-                          {item.description}
-                        </ListItem>
-                      ))}
-                    </ul>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-
-                {/* Pricing Link */}
-                <NavigationMenuItem>
-                  <Link href="/pricing" legacyBehavior passHref>
-                    <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                      Pricing
-                    </NavigationMenuLink>
-                  </Link>
-                </NavigationMenuItem>
-
-                {/* Compare Link */}
-                <NavigationMenuItem>
-                  <Link href="/compare" legacyBehavior passHref>
-                    <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                      Compare
-                    </NavigationMenuLink>
-                  </Link>
-                </NavigationMenuItem>
-
-                {/* Learn Dropdown */}
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger>Learn</NavigationMenuTrigger>
-                  <NavigationMenuContent>
-                    <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-                      {learnLinks.map((item) => (
-                        <ListItem
-                          key={item.name}
-                          title={item.name}
-                          href={item.href}
-                        >
-                          {item.description}
-                        </ListItem>
-                      ))}
-                    </ul>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-              </NavigationMenuList>
-            </NavigationMenu>
+            {NAV_ITEMS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors',
+                  'hover:bg-accent hover:text-foreground',
+                )}
+              >
+                {item.name}
+              </Link>
+            ))}
           </div>
 
           {/* CTA Buttons / User Profile */}
@@ -146,59 +86,20 @@ export function Header() {
           </div>
         </div>
 
-        {/* Mobile menu */}
+        {/* Mobile menu — 4 flat links mirroring desktop */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t">
             <div className="space-y-1 px-2 pb-3 pt-2">
-              {/* Product Section */}
-              <div className="space-y-1">
-                <div className="px-3 py-2 text-sm font-semibold text-foreground">
-                  Product
-                </div>
-                {productLinks.map((item) => (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className="block rounded-md px-6 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {item.name}
-                  </Link>
-                ))}
-              </div>
-
-              {/* Standalone Links */}
-              <Link
-                href="/pricing"
-                className="block rounded-md px-3 py-2 text-base font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Pricing
-              </Link>
-              <Link
-                href="/compare"
-                className="block rounded-md px-3 py-2 text-base font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Compare
-              </Link>
-
-              {/* Learn Section */}
-              <div className="space-y-1">
-                <div className="px-3 py-2 text-sm font-semibold text-foreground">
-                  Learn
-                </div>
-                {learnLinks.map((item) => (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className="block rounded-md px-6 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {item.name}
-                  </Link>
-                ))}
-              </div>
+              {NAV_ITEMS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="block rounded-md px-3 py-2 text-base font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {item.name}
+                </Link>
+              ))}
 
               {/* Mobile CTA / Profile */}
               <div className="mt-4 flex flex-col space-y-2 px-3">
@@ -226,30 +127,3 @@ export function Header() {
     </header>
   );
 }
-
-const ListItem = React.forwardRef<
-  React.ElementRef<'a'>,
-  React.ComponentPropsWithoutRef<'a'> & { title: string }
->(({ className, title, children, href, ...props }, ref) => {
-  return (
-    <li>
-      <NavigationMenuLink asChild>
-        <Link
-          ref={ref}
-          href={href || '#'}
-          className={cn(
-            'block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground',
-            className
-          )}
-          {...props}
-        >
-          <div className="text-sm font-medium leading-none">{title}</div>
-          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-            {children}
-          </p>
-        </Link>
-      </NavigationMenuLink>
-    </li>
-  );
-});
-ListItem.displayName = 'ListItem';
