@@ -122,6 +122,7 @@ export const AGENT_DEEP: Readonly<Record<AgentId, AgentDeep>> = {
       "Re-renders on theme change",
       "Keeps spacing and alignment tight",
     ],
+    detailHref: "/agents/element-generator",
   },
 }
 

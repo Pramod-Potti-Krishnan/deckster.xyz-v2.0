@@ -1,7 +1,7 @@
 import { Agent } from "@/types/agents"
 
 /**
- * Canonical agent roster — 7 specialists.
+ * Canonical agent roster — 8 specialists.
  *
  * The homepage hero (lib/marketing/homepage-v2-content.ts → AGENT_TEAM) and
  * the homepage agent deep-dive (lib/marketing/homepage-v2-agent-deep.ts →
@@ -753,6 +753,143 @@ export const agents: Agent[] = [
       },
     ],
   },
+  {
+    id: "element-generator",
+    name: "Element Generator",
+    slug: "element-generator",
+    title: "The Builder",
+    tagline: "Builds the atomic pieces every slide is made of",
+    description:
+      "The Element Generator builds the atoms every slide is made of — text boxes, metrics, tables, charts, images, icon-label rows, shapes, infographics, and diagrams. Picks the right component for each idea, fills it with content, and renders it cleanly to the canvas.",
+    color: {
+      primary: "purple-500",
+      secondary: "purple-100",
+      gradient: "from-purple-500 to-fuchsia-500",
+    },
+    icon: "Layers",
+    capabilities: [
+      {
+        id: "nine-element-types",
+        title: "Generates 9 element types from a single brief",
+        description:
+          "Text boxes, metrics, tables, charts, images, icon-label rows, shapes, infographics, and diagrams — all from a structured spec produced by the upstream specialists.",
+      },
+      {
+        id: "size-and-position",
+        title: "Sizes and positions atoms on the canvas grid",
+        description:
+          "Snaps every element onto a 32×18 layout grid at the right cell, span, and aspect ratio so the slide composes cleanly.",
+      },
+      {
+        id: "theme-aware",
+        title: "Re-renders elements when the theme changes",
+        description:
+          "Listens to Theme Builder updates and re-applies palette, typography, and surface treatments without breaking placement.",
+      },
+      {
+        id: "tight-spacing",
+        title: "Keeps spacing and alignment tight across elements",
+        description:
+          "Coordinates with the Slide Composer so atoms align to a shared baseline grid and never collide or overflow.",
+      },
+      {
+        id: "diagram-subtypes",
+        title: "Handles 8 diagram subtypes natively",
+        description:
+          "Code Display, Kanban Board, Gantt Chart, Multi-Chevron Maturity, Idea Board, Cloud Architecture, Logical Architecture, Data Architecture — each rendered with its own purpose-built component.",
+      },
+      {
+        id: "responsive-render",
+        title: "Renders responsively across deck aspect ratios",
+        description:
+          "Adjusts layout when the deck switches between 16:9, 4:3, or vertical formats so atoms reflow without loss of meaning.",
+      },
+    ],
+    useCases: [
+      {
+        id: "metrics-dashboard",
+        title: "Metrics Dashboards",
+        description:
+          "Builds 3- and 4-column metric strips that anchor financial and product slides.",
+        example:
+          "Quarterly review opener with MRR, NRR, churn, and CAC payback as metric atoms.",
+      },
+      {
+        id: "infographic-from-spec",
+        title: "Infographics from a JSON Spec",
+        description:
+          "Renders pyramids, funnels, ladders, and other shape-driven visuals from a structured description.",
+        example:
+          "Maturity model rendered as a 5-step pyramid infographic with on-theme colors.",
+      },
+      {
+        id: "code-display-slides",
+        title: "Engineering & Architecture Slides",
+        description:
+          "Drops in code-display blocks, cloud architecture diagrams, and data flow diagrams that read at a glance.",
+        example:
+          "Tech-deep-dive slide with a syntax-highlighted code snippet and a cloud architecture diagram side by side.",
+      },
+      {
+        id: "feature-comparison",
+        title: "Feature Comparisons",
+        description:
+          "Builds icon-label rows and comparison tables that contrast options at a glance.",
+        example:
+          "Plan comparison slide with feature checkmarks across three pricing tiers.",
+      },
+    ],
+    technicalDetails: [
+      {
+        id: "element-library",
+        aspect: "Element Library",
+        description:
+          "Nine element types (text box, metrics, table, chart, image, icon-label, shape, infographic, diagram) backed by purpose-built React components and a shared layout-grid contract.",
+      },
+      {
+        id: "grid-system",
+        aspect: "Grid System",
+        description:
+          "32-column × 18-row canvas grid with 60px cells. Every atom declares its cell origin and span, so layouts stay aligned across screen sizes and aspect ratios.",
+      },
+      {
+        id: "theme-binding",
+        aspect: "Theme Binding",
+        description:
+          "Atoms subscribe to Theme Builder tokens for color, typography, and surface treatment so a theme swap updates every element without re-composition.",
+      },
+    ],
+    workflow: [
+      {
+        id: "step-1",
+        step: 1,
+        title: "Receive the Layout Slot",
+        description:
+          "Gets the slot, content payload, and theme tokens from the Slide Composer.",
+      },
+      {
+        id: "step-2",
+        step: 2,
+        title: "Pick the Right Element Type",
+        description:
+          "Chooses from the 9 element types based on the content shape — numeric data goes to metrics or charts, processes go to diagrams, and so on.",
+      },
+      {
+        id: "step-3",
+        step: 3,
+        title: "Render to the Canvas",
+        description:
+          "Builds the element with the right size, position, and theme tokens applied, then commits it to the slide canvas.",
+      },
+      {
+        id: "step-4",
+        step: 4,
+        title: "Re-render on Updates",
+        description:
+          "Re-renders when the theme changes, the data updates, or the Slide Composer requests a different layout slot.",
+      },
+    ],
+  },
 ]
 
 export const agentsNavigation = [
@@ -763,4 +900,5 @@ export const agentsNavigation = [
   { name: "Visualizer", href: "/agents/visualizer" },
   { name: "Theme Builder", href: "/agents/theme-builder" },
   { name: "Slide Composer", href: "/agents/slide-composer" },
+  { name: "Element Generator", href: "/agents/element-generator" },
 ]
