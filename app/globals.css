@@ -101,26 +101,26 @@ body {
 
 }
 
-/* HomepageV2 — scroll-snap "deck slide" behaviour, scoped to / via the
-   <HomepageSnap /> client component that toggles .snap-homepage on <html>.
+/* Snap-deck pattern — scroll-snap "deck slide" behaviour, opt-in per page
+   via the <SnapDeck /> client component that toggles .snap-deck on <html>.
    - `y mandatory` strictly locks the viewport to one slide at a time so
      users can't drift to a half-snapped state where a title clips behind
      the header.
-   - `scroll-padding-top: 4rem` matches the 64px sticky header so the
+   - `scroll-padding-top: 3rem` matches the 48px sticky header so the
      section top edge lands cleanly below the header.
    - `scroll-snap-stop: normal` still lets a quick flick traverse multiple
      slides on a trackpad. */
-html.snap-homepage {
+html.snap-deck {
   scroll-snap-type: y mandatory;
   scroll-padding-top: 3rem;
   scroll-behavior: smooth;
 }
-html.snap-homepage main > section[data-snap="slide"] {
+html.snap-deck main > section[data-snap="slide"] {
   scroll-snap-align: start;
   scroll-snap-stop: normal;
 }
 @media (prefers-reduced-motion: reduce) {
-  html.snap-homepage {
+  html.snap-deck {
     scroll-behavior: auto;
   }
 }
