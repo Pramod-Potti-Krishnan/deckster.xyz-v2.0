@@ -16,6 +16,13 @@ const nextConfig = {
   reactStrictMode: true,
   // Enable source maps for debugging production issues (Round 18)
   productionBrowserSourceMaps: true,
+  // Redirects — preserve inbound links to renamed routes.
+  async redirects() {
+    return [
+      { source: '/resources', destination: '/learn', permanent: true },
+      { source: '/resources/:slug', destination: '/learn/:slug', permanent: true },
+    ];
+  },
   // Headers for security
   async headers() {
     return [

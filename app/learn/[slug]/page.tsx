@@ -49,11 +49,11 @@ export default function ArticlePage() {
             The article you're looking for doesn't exist.
           </p>
           <Link
-            href="/resources"
+            href="/learn"
             className="inline-flex items-center gap-2 text-primary hover:underline"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Resources
+            Back to Learn hub
           </Link>
         </div>
         <Footer />
@@ -76,11 +76,11 @@ export default function ArticlePage() {
       <div className="border-b">
         <div className="container mx-auto px-4 py-4">
           <Link
-            href="/resources"
+            href="/learn"
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Resources
+            Back to Learn hub
           </Link>
         </div>
       </div>
