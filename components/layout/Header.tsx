@@ -24,11 +24,17 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <nav className="container mx-auto px-4">
         <div className="flex h-12 items-center justify-between">
-          {/* Logo */}
+          {/* Logo — icon + wordmark as two separate elements */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-2 group">
+            <Link href="/" className="group flex items-center gap-2">
               <img
-                src="/logo-deckster.png"
+                src="/logo-icon.png"
+                alt=""
+                aria-hidden
+                className="h-10 w-auto transition-transform group-hover:scale-105"
+              />
+              <img
+                src="/logo-wordmark.png"
                 alt="Deckster"
                 className="h-8 w-auto transition-transform group-hover:scale-105"
               />
