@@ -11,6 +11,7 @@ import {
   Search,
   TrendingUp,
   LayoutTemplate,
+  Layers,
   ArrowRight,
   Brain,
   Zap,
@@ -36,6 +37,7 @@ const iconMap = {
   Search,
   TrendingUp,
   LayoutTemplate,
+  Layers,
 };
 
 // Director → specialists → output story for the workflow slide. Mirrors the

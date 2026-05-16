@@ -12,6 +12,7 @@ import {
   Search,
   TrendingUp,
   LayoutTemplate,
+  Layers,
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
@@ -36,6 +37,7 @@ const iconMap = {
   Search,
   TrendingUp,
   LayoutTemplate,
+  Layers,
 };
 
 const slideClass =

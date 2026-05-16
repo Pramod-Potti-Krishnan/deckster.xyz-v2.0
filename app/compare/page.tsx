@@ -25,38 +25,62 @@ export default function ComparePage() {
       <Header />
 
       <main>
-        {/* Slide 1: Hero — Why Deckster */}
+        {/* Slide 1: Hero — light, just the headline + CTAs */}
         <section
           id="compare-hero"
           data-snap="slide"
-          className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 px-4 py-12 dark:from-purple-950/20 dark:to-blue-950/20"
+          className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-purple-50 via-background to-blue-50 px-4 py-12 dark:from-purple-950/20 dark:via-background dark:to-blue-950/20"
+        >
+          <div className="mx-auto max-w-4xl text-center">
+            <Badge className="mb-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
+              <Award className="mr-1 h-3 w-3" />
+              Honest Comparisons
+            </Badge>
+            <h1 className="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
+              How Deckster{' '}
+              <span className="bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
+                Compares
+              </span>
+            </h1>
+            <p className="mx-auto mt-5 max-w-2xl text-balance text-lg leading-relaxed text-muted-foreground sm:text-xl">
+              How our multi-agent AI system stacks up against the rest of the
+              presentation landscape.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Button
+                asChild
+                size="lg"
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+              >
+                <Link href="/builder">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Get Started
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/agents">Meet the Team</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Slide 2: What makes Deckster different — the 3 differentiators */}
+        <section
+          id="compare-differentiators"
+          data-snap="slide"
+          className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-center px-4 py-12"
         >
           <div className="mx-auto w-full max-w-6xl">
-            <div className="mx-auto max-w-4xl text-center">
-              <Badge className="mb-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white">
-                <Award className="mr-1 h-3 w-3" />
-                Honest Comparisons
-              </Badge>
-              <h1 className="mb-6 text-4xl font-bold tracking-tight md:text-6xl">
-                How Deckster Compares
-              </h1>
-              <p className="mb-8 text-xl text-muted-foreground md:text-2xl">
-                See how our multi-agent AI system stacks up against other presentation tools
+            <div className="mx-auto max-w-3xl text-center">
+              <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
+                What makes Deckster different
+              </h2>
+              <p className="mt-3 text-balance text-base text-muted-foreground sm:text-lg">
+                Three things you won&apos;t find in other tools.
               </p>
-              <div className="mb-12 flex flex-col justify-center gap-4 sm:flex-row">
-                <Button asChild size="lg">
-                  <Link href="/builder">
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Try Deckster Free
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" size="lg">
-                  <Link href="/agents">Learn About Our AI</Link>
-                </Button>
-              </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3">
               <Card className="border-2">
                 <CardHeader>
                   <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-blue-600">
@@ -64,7 +88,9 @@ export default function ComparePage() {
                   </div>
                   <CardTitle>Specialized AI Agents</CardTitle>
                   <CardDescription>
-                    Four AI specialists (Director, Scripter, Graphic Artist, Data Visualizer) work together - not just one general AI.
+                    Eight AI specialists — Director, Researcher, Analyst, Content Generator,
+                    Visualizer, Theme Builder, Slide Composer, Element Generator — work
+                    together. Not one general AI doing everything.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -76,7 +102,8 @@ export default function ComparePage() {
                   </div>
                   <CardTitle>True Content Creation</CardTitle>
                   <CardDescription>
-                    AI actually writes your content, not just helps with design or suggests templates.
+                    AI actually writes your content — headlines, body, speaker notes — not
+                    just nudges your design or suggests templates.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -88,7 +115,8 @@ export default function ComparePage() {
                   </div>
                   <CardTitle>Minutes, Not Hours</CardTitle>
                   <CardDescription>
-                    Complete presentations from scratch in minutes - AI handles the heavy lifting of creation.
+                    Complete decks from scratch in minutes. The agents handle the heavy
+                    lifting so you stay in the conversation, not in the tool.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -144,7 +172,7 @@ export default function ComparePage() {
                 Try the Difference Yourself
               </h2>
               <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground">
-                Experience how multi-agent AI creates better presentations. No credit card required.
+                See how a multi-agent team builds a deck end-to-end.
               </p>
               <div className="flex flex-col justify-center gap-4 sm:flex-row">
                 <Button
@@ -154,7 +182,7 @@ export default function ComparePage() {
                 >
                   <Link href="/builder">
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Start Creating Free
+                    Get Started
                   </Link>
                 </Button>
                 <Button asChild variant="outline" size="lg">
