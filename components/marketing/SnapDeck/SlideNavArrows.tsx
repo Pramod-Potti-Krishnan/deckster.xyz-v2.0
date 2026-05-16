@@ -2,59 +2,18 @@
 
 import { useEffect, useState } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
+import { computeBounds, snapToAdjacent } from "./use-snap-navigation"
 
 /**
  * Soft up/down arrow buttons fixed to the bottom-right corner. Click moves
  * the page exactly one slide via the same scrollIntoView call that the
- * keyboard navigation in HomepageSnap uses, so click/key/scroll all land at
- * the same snap points.
+ * keyboard navigation in SnapDeck uses, so click/key/scroll all land at the
+ * same snap points.
  *
  * The active state (which buttons are enabled) is recomputed on every
  * scroll/resize so the up button greys out on the first slide and the down
  * button greys out on the last.
  */
-const HEADER_OFFSET_PX = 48
-const SCROLL_TOLERANCE_PX = 32
-
-function getSlides(): HTMLElement[] {
-  return Array.from(
-    document.querySelectorAll<HTMLElement>('main section[data-snap="slide"]'),
-  )
-}
-
-function snapToAdjacent(direction: 1 | -1) {
-  const slides = getSlides()
-  if (slides.length === 0) return
-  const currentTop = window.scrollY + HEADER_OFFSET_PX
-
-  if (direction === 1) {
-    const next = slides.find(
-      (s) => s.offsetTop > currentTop + SCROLL_TOLERANCE_PX,
-    )
-    next?.scrollIntoView({ behavior: "smooth", block: "start" })
-  } else {
-    let prev: HTMLElement | null = null
-    for (const s of slides) {
-      if (s.offsetTop < currentTop - SCROLL_TOLERANCE_PX) prev = s
-      else break
-    }
-    prev?.scrollIntoView({ behavior: "smooth", block: "start" })
-  }
-}
-
-function computeBounds(): { canUp: boolean; canDown: boolean } {
-  const slides = getSlides()
-  if (slides.length === 0) return { canUp: false, canDown: false }
-  const currentTop = window.scrollY + HEADER_OFFSET_PX
-  const canUp = slides.some(
-    (s) => s.offsetTop < currentTop - SCROLL_TOLERANCE_PX,
-  )
-  const canDown = slides.some(
-    (s) => s.offsetTop > currentTop + SCROLL_TOLERANCE_PX,
-  )
-  return { canUp, canDown }
-}
-
 export function SlideNavArrows() {
   const [canUp, setCanUp] = useState(false)
   const [canDown, setCanDown] = useState(true)
