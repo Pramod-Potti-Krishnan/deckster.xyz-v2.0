@@ -42,7 +42,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
   });
 
   return (
-    <Link href={`/resources/${article.id}`}>
+    <Link href={`/learn/${article.id}`}>
       <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1 h-full flex flex-col">
         {/* Cover Image */}
         <div className="w-full h-48 bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20 overflow-hidden">
