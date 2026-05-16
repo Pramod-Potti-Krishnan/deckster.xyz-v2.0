@@ -328,13 +328,13 @@ export default function ComparisonDetailPage() {
               Experience the Difference
             </h3>
             <p className="text-lg mb-8 max-w-2xl mx-auto opacity-90">
-              See how our multi-agent AI system creates presentations. Try it free - no credit card required.
+              See how a multi-agent AI team builds a deck end-to-end.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg" variant="secondary">
                 <Link href="/builder">
                   <Sparkles className="h-4 w-4 mr-2" />
-                  Start Creating Free
+                  Get Started
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">

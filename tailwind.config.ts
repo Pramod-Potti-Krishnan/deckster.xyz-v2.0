@@ -8,6 +8,21 @@ const config: Config = {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "*.{js,ts,jsx,tsx,mdx}"
   ],
+  // Agent color classes are assembled via template literals in
+  // /agents and /agents/[slug] (e.g. `bg-gradient-to-br ${agent.color.gradient}`),
+  // so Tailwind's static scan can't see them and they get tree-shaken
+  // unless safelisted. Without this, only agents whose hues happen to
+  // appear elsewhere in source render their gradient backgrounds —
+  // the rest fall back to transparent and white-on-white text becomes
+  // invisible.
+  safelist: [
+    {
+      pattern: /^(from|to|via)-(violet|purple|blue|cyan|emerald|teal|orange|amber|pink|rose|yellow|sky|fuchsia)-(500|600)$/,
+    },
+    {
+      pattern: /^(bg|text|border)-(violet|purple|blue|cyan|emerald|teal|orange|amber|pink|rose|yellow|sky|fuchsia)-(100|500|600|700)$/,
+    },
+  ],
   theme: {
   	extend: {
   		colors: {
