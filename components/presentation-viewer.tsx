@@ -24,7 +24,6 @@ import {
   Palette,
   TrendingUp,
   Sparkles,
-  Eye,
   LayoutTemplate,
   SlidersHorizontal,
 } from 'lucide-react'
@@ -1832,27 +1831,14 @@ export function PresentationViewer({
                 <span className={toolbarLabelClass}>Theme</span>
               </button>
 
-              {/* View — active mode hinted with subtle text accent, no fill */}
+              {/* Edit toggle — click to flip between View (off) and Edit (on) mode */}
               <button
-                onClick={isEditMode ? () => void handleToggleEditModeButton() : undefined}
-                className={cn(
-                  toolbarButtonClass,
-                  !isEditMode ? toolbarBtnActive : toolbarBtnBase
-                )}
-                title="View mode (preview)"
-              >
-                <Eye className="h-5 w-5" />
-                <span className={toolbarLabelClass}>View</span>
-              </button>
-
-              {/* Edit */}
-              <button
-                onClick={!isEditMode ? () => void handleToggleEditModeButton() : undefined}
+                onClick={() => void handleToggleEditModeButton()}
                 className={cn(
                   toolbarButtonClass,
                   isEditMode ? toolbarBtnActive : toolbarBtnBase
                 )}
-                title="Edit mode (modify content)"
+                title={isEditMode ? "Switch to View mode (read-only)" : "Switch to Edit mode (modify content)"}
               >
                 <Pencil className="h-5 w-5" />
                 <span className={toolbarLabelClass}>Edit</span>
