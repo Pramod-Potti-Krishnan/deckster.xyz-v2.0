@@ -2040,7 +2040,19 @@ export function PresentationViewer({
               >
                 <iframe
                   ref={iframeRef}
-                  src={presentationUrl}
+                  src={(() => {
+                    // Append showNotes=false in fullscreen so the Layout Service
+                    // can hide the speaker-notes panel during presentation. If
+                    // the service doesn't honor the param it's a harmless no-op.
+                    if (!isFullscreen) return presentationUrl
+                    try {
+                      const u = new URL(presentationUrl, window.location.href)
+                      u.searchParams.set('showNotes', 'false')
+                      return u.toString()
+                    } catch {
+                      return presentationUrl
+                    }
+                  })()}
                   onLoad={handleIframeLoad}
                   className={`w-full h-full border-0 ${isFullscreen ? 'shadow-2xl' : 'rounded-sm shadow-2xl'}`}
                   title="Presentation Viewer"
@@ -2105,7 +2117,7 @@ export function PresentationViewer({
           <div className={cn(
             "flex flex-col border-l border-gray-200 bg-gray-50 overflow-hidden flex-shrink-0",
             "transition-[width] duration-300 ease-out",
-            showThumbnails ? "w-32" : "w-0"
+            showThumbnails ? "w-36" : "w-0"
           )}>
             {showThumbnails && slideThumbnails.length > 0 && (
               <SlideThumbnailStrip

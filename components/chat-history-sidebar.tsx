@@ -213,7 +213,7 @@ export function ChatHistorySidebar({
           sidebar coexists with the main content rather than dimming it. */}
       <div
         className={`
-          fixed top-14 left-0 bottom-0 w-80 bg-white dark:bg-slate-900
+          fixed top-14 left-0 bottom-0 w-80 bg-slate-50 dark:bg-slate-950
           shadow-xl border-r border-slate-200 dark:border-slate-800 z-40
           transform transition-transform duration-300 ease-in-out
           flex flex-col
