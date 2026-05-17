@@ -71,22 +71,10 @@ function BuilderContent() {
   const [showChat, setShowChat] = useState(true)
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH)
   const [isResizingDrawer, setIsResizingDrawer] = useState(false)
-  // Theme: 'dark' (default) | 'light'. Persisted in localStorage so it
-  // sticks across sessions. Loaded after mount so SSR stays deterministic.
-  const [builderTheme, setBuilderTheme] = useState<'dark' | 'light'>('dark')
-  useEffect(() => {
-    const stored = window.localStorage.getItem('deckster_builder_theme')
-    if (stored === 'dark' || stored === 'light') {
-      setBuilderTheme(stored)
-    }
-  }, [])
-  const toggleBuilderTheme = useCallback(() => {
-    setBuilderTheme((prev) => {
-      const next = prev === 'dark' ? 'light' : 'dark'
-      window.localStorage.setItem('deckster_builder_theme', next)
-      return next
-    })
-  }, [])
+  // Theme is owned by next-themes' ThemeProvider (app/layout.tsx). The
+  // sun/moon toggle in BuilderHeader and the "Dark Mode" entry in the
+  // user-profile menu both call setTheme(), so they stay in sync. No
+  // local builder-only theme state.
   // Text box selection state
   const [showTextBoxPanel, setShowTextBoxPanel] = useState(false)
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
@@ -773,10 +761,7 @@ function BuilderContent() {
   }, [session.handleSessionSelect])
 
   return (
-    <div className={cn(
-      "flex h-screen w-screen overflow-hidden",
-      builderTheme === 'dark' ? "dark bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100" : "bg-white text-slate-900"
-    )}>
+    <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-full min-w-0">
         {/* Header */}
@@ -785,8 +770,6 @@ function BuilderContent() {
           onOpenChatHistory={() => setShowChatHistory((prev) => !prev)}
           isChatHistoryOpen={showChatHistory}
           toolbarSlotRef={setToolbarPortalTarget}
-          builderTheme={builderTheme}
-          onToggleTheme={toggleBuilderTheme}
         />
 
         {/* Main Content Area */}
