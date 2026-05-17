@@ -11,6 +11,7 @@ import {
   Play,
   Layers,
   Check,
+  Plus,
   Type,
   Image,
   LayoutGrid,
@@ -1780,30 +1781,16 @@ export function PresentationViewer({
                 className="min-w-[80px] justify-center"
               />
 
-              {/* Add Element — custom square + plus icon mirroring Add Slide's icon language */}
+              {/* Add Element — same Plus icon as Add Slide; label disambiguates */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
                     disabled={!presentationUrl}
-                    className={cn(toolbarButtonClass, toolbarBtnBase)}
+                    className={cn(toolbarButtonClass, toolbarBtnBase, "min-w-[96px]")}
                     title="Add an element"
                   >
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden
-                    >
-                      <rect x="2" y="2" width="16" height="16" rx="2" />
-                      <line x1="10" y1="7" x2="10" y2="13" />
-                      <line x1="7" y1="10" x2="13" y2="10" />
-                    </svg>
-                    <span className={toolbarLabelClass}>Add Element</span>
+                    <Plus className="h-5 w-5" />
+                    <span className={cn(toolbarLabelClass, "whitespace-nowrap")}>Add Element</span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" sideOffset={8} className="w-52 p-1">
@@ -2047,7 +2034,7 @@ export function PresentationViewer({
           {/* Presentation Iframe */}
           <div
             ref={slideContainerRef}
-            className={`flex-1 min-h-0 relative flex items-center justify-center overflow-hidden ${isFullscreen ? 'bg-black' : 'bg-gray-800 p-4'}`}
+            className={`flex-1 min-h-0 relative flex items-center justify-center overflow-hidden ${isFullscreen ? 'bg-black' : 'bg-slate-200 dark:bg-slate-800 p-4'}`}
           >
             {presentationUrl ? (
               <div
@@ -2084,7 +2071,7 @@ export function PresentationViewer({
 
             {/* Generation Overlay - covers slide area during generation */}
             {isGenerating && (
-              <div className="absolute inset-0 z-20 bg-gray-800 flex items-center justify-center">
+              <div className="absolute inset-0 z-20 bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
                 <SlideBuildingLoader className="w-full h-full" mode={generatingMode} />
               </div>
             )}
@@ -2112,8 +2099,8 @@ export function PresentationViewer({
                 "w-4 py-3 rounded-l-md shadow-sm border border-r-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
                 showThumbnails
-                  ? "bg-indigo-200 hover:bg-indigo-300 border-indigo-400 text-indigo-700"
-                  : "bg-indigo-100 hover:bg-indigo-200 border-indigo-300 text-indigo-600"
+                  ? "bg-indigo-200 hover:bg-indigo-300 border-indigo-400 text-indigo-700 dark:bg-indigo-900/50 dark:hover:bg-indigo-800/60 dark:border-indigo-700 dark:text-indigo-200"
+                  : "bg-indigo-100 hover:bg-indigo-200 border-indigo-300 text-indigo-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-indigo-300"
               )}
               title={showThumbnails ? "Hide thumbnails" : "Show thumbnails"}
             >

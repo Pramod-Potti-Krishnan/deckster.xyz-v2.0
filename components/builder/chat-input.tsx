@@ -238,7 +238,7 @@ export function ChatInput({
               {features.enableFileUploads && (
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center justify-center rounded-lg p-1.5 text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-200 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={uploadedFiles.length >= 5}
                   onClick={async () => {
                     try {
@@ -248,9 +248,10 @@ export function ChatInput({
                     }
                     fileInputRef.current?.click()
                   }}
+                  title="Upload a file"
+                  aria-label="Upload a file"
                 >
                   <Paperclip className="h-4 w-4" />
-                  Upload a file
                 </button>
               )}
 
@@ -259,7 +260,7 @@ export function ChatInput({
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                   >
                     <SlidersHorizontal className="h-4 w-4 text-gray-500 dark:text-slate-400" />
                   </button>
@@ -309,7 +310,7 @@ export function ChatInput({
               className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
                 inputMessage.trim()
                   ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                  : 'bg-purple-100 text-purple-300 cursor-not-allowed'
+                  : 'bg-purple-100 text-purple-300 dark:bg-slate-700 dark:text-slate-500 cursor-not-allowed'
               }`}
             >
               <ArrowUp className="h-4 w-4" />
