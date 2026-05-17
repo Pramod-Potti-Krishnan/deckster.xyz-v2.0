@@ -20,7 +20,7 @@ export function BuilderHeader({
 }: BuilderHeaderProps) {
   return (
     <>
-      <header className="bg-slate-900 border-b border-slate-800 h-12 flex-shrink-0">
+      <header className="bg-slate-900 border-b border-slate-800 h-14 flex-shrink-0">
         <div className="h-full px-4 flex items-center">
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <Button
