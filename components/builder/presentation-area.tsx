@@ -102,7 +102,7 @@ export function PresentationArea({
   toolbarOffset,
 }: PresentationAreaProps) {
   return (
-    <div className="flex-1 flex flex-col bg-gray-100 min-w-0 min-h-0">
+    <div className="flex-1 flex flex-col bg-slate-800 min-w-0 min-h-0">
       {presentationUrl ? (
         <PresentationViewer
           presentationUrl={presentationUrl}
@@ -173,9 +173,9 @@ export function PresentationArea({
             />
           ) : (
             <div className="text-center">
-              <Sparkles className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-lg text-gray-600">Your presentation will appear here</p>
-              <p className="text-sm text-gray-400 mt-2">
+              <Sparkles className="h-16 w-16 text-slate-500 mx-auto mb-4" />
+              <p className="text-lg text-slate-300">Your presentation will appear here</p>
+              <p className="text-sm text-slate-500 mt-2">
                 Start by telling Director what presentation you'd like to create
               </p>
             </div>

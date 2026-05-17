@@ -132,13 +132,13 @@ export function SlideLayoutPicker({
         <button
           disabled={disabled || isAdding}
           className={cn(
-            "flex flex-col items-center gap-0.5 px-3 py-1 rounded",
-            "hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors",
+            "flex flex-col items-center gap-0.5 px-3 py-1 rounded text-slate-200",
+            "hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors",
             className
           )}
         >
-          <Plus className="h-5 w-5 text-gray-700" />
-          <span className="text-[10px] text-gray-500">{isAdding ? 'Adding' : 'Add Slide'}</span>
+          <Plus className="h-5 w-5" />
+          <span className="text-[10px]">{isAdding ? 'Adding' : 'Add Slide'}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent

@@ -757,7 +757,7 @@ function BuilderContent() {
   }, [session.handleSessionSelect])
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-900">
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-full min-w-0">
         {/* Header */}
@@ -1114,10 +1114,10 @@ function BuilderContent() {
             style={{ marginLeft: anyDrawerOpen ? drawerWidth : 0 }}
           >
           {session.isLoadingSession ? (
-            <div className="flex-1 flex items-center justify-center bg-gray-100 h-full">
+            <div className="flex-1 flex items-center justify-center bg-slate-800 h-full">
               <div className="text-center">
-                <div className="h-8 w-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-sm text-gray-500">Loading session...</p>
+                <div className="h-8 w-8 border-3 border-purple-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-slate-400">Loading session...</p>
               </div>
             </div>
           ) : (
