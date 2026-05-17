@@ -199,11 +199,11 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
         <div className="space-y-2">
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Columns</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Columns</label>
               <select
                 value={columns}
                 onChange={(e) => { setColumns(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {[2, 3, 4, 5, 6].map(n => (
                   <option key={n} value={n}>{n}</option>
@@ -211,11 +211,11 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Rows</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Rows</label>
               <select
                 value={rows}
                 onChange={(e) => { setRows(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                   <option key={n} value={n}>{n}</option>
@@ -223,11 +223,11 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Count</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
               <select
                 value={count}
                 onChange={(e) => setCount(Number(e.target.value))}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {[1, 2].map(n => (
                   <option key={n} value={n}>{n}</option>
@@ -249,11 +249,11 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
           {/* Column Widths */}
           <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 font-medium">Column Widths (%)</label>
+            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Column Widths (%)</label>
             <div className="grid grid-cols-3 gap-1">
               {columnWidths.map((w, i) => (
                 <div key={i} className="space-y-0.5">
-                  <label className="text-[9px] text-gray-600">Col {i + 1}</label>
+                  <label className="text-[9px] text-gray-600 dark:text-slate-300">Col {i + 1}</label>
                   <input
                     type="number"
                     value={w}
@@ -265,12 +265,12 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
                       setColumnWidths(newWidths)
                       setAdvancedModified(true)
                     }}
-                    className="w-full px-1.5 py-0.5 rounded bg-gray-50 border border-gray-300 text-[10px] text-gray-900"
+                    className="w-full px-1.5 py-0.5 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-[10px] text-gray-900 dark:text-slate-100"
                   />
                 </div>
               ))}
             </div>
-            <div className="text-[10px] text-gray-400">
+            <div className="text-[10px] text-gray-400 dark:text-slate-500">
               Total: {columnWidths.reduce((a, b) => a + b, 0)}% / {positionConfig.position_width} grids
             </div>
           </div>
@@ -359,19 +359,19 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
           {/* Header Color */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Header Color</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Header Color</label>
             <div className="flex gap-2 items-center">
               <input
                 type="color"
                 value={config.header_color || '#4A5568'}
                 onChange={(e) => updateConfig('header_color', e.target.value)}
-                className="h-6 w-6 rounded border border-gray-300 cursor-pointer"
+                className="h-6 w-6 rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
               />
-              <span className="text-[10px] text-gray-400">{config.header_color || 'Auto'}</span>
+              <span className="text-[10px] text-gray-400 dark:text-slate-500">{config.header_color || 'Auto'}</span>
               {config.header_color && (
                 <button
                   onClick={() => updateConfig('header_color', null)}
-                  className="text-[10px] text-gray-400 hover:text-gray-700"
+                  className="text-[10px] text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:text-slate-200"
                 >
                   Reset
                 </button>
@@ -381,19 +381,19 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
           {/* Header char limits + font */}
           <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 font-medium">Header Char Limits</label>
+            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Header Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Min</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
                 <input type="number" value={config.header_min_chars} min={1} max={config.header_max_chars}
                   onChange={(e) => updateConfig('header_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900" />
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Max</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
                 <input type="number" value={config.header_max_chars} min={config.header_min_chars} max={60}
                   onChange={(e) => updateConfig('header_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900" />
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
               </div>
             </div>
           </div>
@@ -401,19 +401,19 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
           {/* Cell char limits + font */}
           <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 font-medium">Cell Char Limits</label>
+            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Cell Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Min</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
                 <input type="number" value={config.cell_min_chars} min={1} max={config.cell_max_chars}
                   onChange={(e) => updateConfig('cell_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900" />
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Max</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
                 <input type="number" value={config.cell_max_chars} min={config.cell_min_chars} max={100}
                   onChange={(e) => updateConfig('cell_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900" />
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
               </div>
             </div>
           </div>

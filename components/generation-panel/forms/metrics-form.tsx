@@ -202,11 +202,11 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Count</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
               <select
                 value={count}
                 onChange={(e) => setCount(Number(e.target.value))}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {[1, 2, 3, 4].map(n => (
                   <option key={n} value={n}>{n}</option>
@@ -214,7 +214,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Layout</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Layout</label>
               <div className="flex gap-1">
                 {[
                   { value: 'horizontal', label: 'H' },
@@ -226,7 +226,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
                     className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
                       layout === option.value
                         ? 'bg-primary text-white border border-primary'
-                        : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
+                        : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
                     }`}
                   >
                     {option.label}
@@ -274,12 +274,12 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
           />
           {/* Card Color */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Card Color</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Card Color</label>
             <div className="flex flex-wrap gap-1.5">
               {/* Auto (rainbow) */}
               <button
                 onClick={() => updateConfig('color_variant', null)}
-                className={`h-6 w-6 rounded-full border border-gray-300 bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 transition-all ${
+                className={`h-6 w-6 rounded-full border border-gray-300 dark:border-slate-600 bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 transition-all ${
                   config.color_variant === null
                     ? 'ring-2 ring-primary ring-offset-1'
                     : 'hover:scale-110'
@@ -291,7 +291,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
                   key={preset.name}
                   onClick={() => updateConfig('color_variant', preset.name)}
                   style={{ backgroundColor: config.color_scheme === 'accent' ? preset.pastelHex : preset.hex }}
-                  className={`h-6 w-6 rounded-full border border-gray-200 transition-all ${
+                  className={`h-6 w-6 rounded-full border border-gray-200 dark:border-slate-700 transition-all ${
                     config.color_variant === preset.name
                       ? 'ring-2 ring-primary ring-offset-1'
                       : 'hover:scale-110'
@@ -308,28 +308,28 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
       <CollapsibleSection title="Value" isOpen={showValue} onToggle={() => setShowValue(!showValue)}>
         <div className="space-y-2">
           <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 font-medium">Value Char Limits</label>
+            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Value Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Min</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
                 <input
                   type="number"
                   value={config.value_min_chars}
                   min={1}
                   max={config.value_max_chars}
                   onChange={(e) => updateConfig('value_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Max</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
                 <input
                   type="number"
                   value={config.value_max_chars}
                   min={config.value_min_chars}
                   max={20}
                   onChange={(e) => updateConfig('value_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 />
               </div>
             </div>
@@ -349,28 +349,28 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
       <CollapsibleSection title="Label" isOpen={showLabel} onToggle={() => setShowLabel(!showLabel)}>
         <div className="space-y-2">
           <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 font-medium">Label Char Limits</label>
+            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Label Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Min</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
                 <input
                   type="number"
                   value={config.label_min_chars}
                   min={1}
                   max={config.label_max_chars}
                   onChange={(e) => updateConfig('label_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Max</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
                 <input
                   type="number"
                   value={config.label_max_chars}
                   min={config.label_min_chars}
                   max={50}
                   onChange={(e) => updateConfig('label_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 />
               </div>
             </div>
@@ -390,28 +390,28 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
       <CollapsibleSection title="Description" isOpen={showDescription} onToggle={() => setShowDescription(!showDescription)}>
         <div className="space-y-2">
           <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 font-medium">Description Char Limits</label>
+            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Description Char Limits</label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Min</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
                 <input
                   type="number"
                   value={config.description_min_chars}
                   min={1}
                   max={config.description_max_chars}
                   onChange={(e) => updateConfig('description_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Max</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
                 <input
                   type="number"
                   value={config.description_max_chars}
                   min={config.description_min_chars}
                   max={200}
                   onChange={(e) => updateConfig('description_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 />
               </div>
             </div>

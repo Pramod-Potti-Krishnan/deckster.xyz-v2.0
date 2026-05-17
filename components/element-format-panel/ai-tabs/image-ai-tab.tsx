@@ -89,7 +89,7 @@ export function ImageAITab({
                 "py-1.5 px-1 rounded-md text-[10px] font-medium truncate transition-all",
                 style === s
                   ? "bg-green-600 text-white shadow-sm"
-                  : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                  : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
               )}
               title={label}
             >
@@ -101,7 +101,7 @@ export function ImageAITab({
 
       {/* Aspect Ratio */}
       <PanelSection title="Aspect Ratio">
-        <div className="flex bg-gray-800/50 rounded-lg p-[3px]">
+        <div className="flex bg-gray-800 dark:bg-slate-700/50 rounded-lg p-[3px]">
           {ASPECT_RATIOS.map(({ ratio, label }) => (
             <button
               key={ratio}
@@ -111,7 +111,7 @@ export function ImageAITab({
                 "flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all",
                 aspectRatio === ratio
                   ? "bg-green-600 text-white shadow-sm"
-                  : "text-gray-400 hover:text-white"
+                  : "text-gray-400 dark:text-slate-500 hover:text-white"
               )}
             >
               {label}
@@ -122,7 +122,7 @@ export function ImageAITab({
 
       {/* Remove Background */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-gray-400">Remove background</span>
+        <span className="text-[11px] text-gray-400 dark:text-slate-500">Remove background</span>
         <Toggle
           checked={removeBackground}
           onChange={setRemoveBackground}
@@ -135,8 +135,8 @@ export function ImageAITab({
       <PanelSection title="Advanced" collapsible defaultOpen={false}>
         {/* Quality */}
         <div className="space-y-2">
-          <span className="text-[10px] text-gray-500">Quality</span>
-          <div className="flex bg-gray-800/50 rounded-lg p-[3px]">
+          <span className="text-[10px] text-gray-500 dark:text-slate-400">Quality</span>
+          <div className="flex bg-gray-800 dark:bg-slate-700/50 rounded-lg p-[3px]">
             {IMAGE_QUALITY_OPTIONS.map(({ quality: q, label }) => (
               <button
                 key={q}
@@ -146,19 +146,19 @@ export function ImageAITab({
                   "flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all",
                   quality === q
                     ? "bg-green-600 text-white shadow-sm"
-                    : "text-gray-400 hover:text-white"
+                    : "text-gray-400 dark:text-slate-500 hover:text-white"
                 )}
               >
                 {label}
               </button>
             ))}
           </div>
-          <p className="text-[9px] text-gray-600">High quality takes longer</p>
+          <p className="text-[9px] text-gray-600 dark:text-slate-300">High quality takes longer</p>
         </div>
 
         {/* Negative Prompt */}
         <div className="space-y-2 pt-3">
-          <span className="text-[10px] text-gray-500">Negative Prompt</span>
+          <span className="text-[10px] text-gray-500 dark:text-slate-400">Negative Prompt</span>
           <textarea
             value={negativePrompt}
             onChange={(e) => setNegativePrompt(e.target.value)}
@@ -167,13 +167,13 @@ export function ImageAITab({
             rows={2}
             className={cn(
               "w-full px-3 py-2 rounded-lg resize-none",
-              "bg-gray-800/60 border border-gray-700/50",
-              "text-[11px] text-white placeholder:text-gray-500",
+              "bg-gray-800 dark:bg-slate-700/60 border border-gray-700/50",
+              "text-[11px] text-white placeholder:text-gray-500 dark:text-slate-400",
               "focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/20",
               "transition-all duration-150"
             )}
           />
-          <p className="text-[9px] text-gray-600">Describe what to avoid</p>
+          <p className="text-[9px] text-gray-600 dark:text-slate-300">Describe what to avoid</p>
         </div>
       </PanelSection>
 
@@ -181,7 +181,7 @@ export function ImageAITab({
 
       {/* AI Prompt */}
       <div className="space-y-2">
-        <span className="text-[10px] text-gray-500">Describe the image</span>
+        <span className="text-[10px] text-gray-500 dark:text-slate-400">Describe the image</span>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -190,8 +190,8 @@ export function ImageAITab({
           rows={4}
           className={cn(
             "w-full px-3 py-2 rounded-lg resize-none",
-            "bg-gray-800/60 border border-gray-700/50",
-            "text-[11px] text-white placeholder:text-gray-500",
+            "bg-gray-800 dark:bg-slate-700/60 border border-gray-700/50",
+            "text-[11px] text-white placeholder:text-gray-500 dark:text-slate-400",
             "focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/20",
             "transition-all duration-150"
           )}
@@ -217,7 +217,7 @@ export function ImageAITab({
           "w-full flex items-center justify-center gap-2 h-10 rounded-lg",
           "text-[11px] font-medium transition-all duration-150",
           isGenerating || isApplying || !prompt.trim()
-            ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+            ? "bg-gray-800 dark:bg-slate-700 text-gray-500 dark:text-slate-400 cursor-not-allowed"
             : "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20"
         )}
       >
@@ -235,7 +235,7 @@ export function ImageAITab({
       </button>
 
       {/* Helper Text */}
-      <p className="text-[9px] text-gray-600 text-center">
+      <p className="text-[9px] text-gray-600 dark:text-slate-300 text-center">
         AI generates images from your description
       </p>
     </div>

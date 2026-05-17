@@ -271,7 +271,7 @@ export function SlideFormatPanel({
 
         return (
           <div key={category} className="space-y-1.5">
-            <label className="text-xs text-gray-500 uppercase tracking-wide">{label}</label>
+            <label className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">{label}</label>
             <div className={cn(
               "grid gap-1.5",
               compact ? "grid-cols-4" : "grid-cols-3"
@@ -287,17 +287,17 @@ export function SlideFormatPanel({
                     disabled={isProcessing || isApplying}
                     className={cn(
                       "flex flex-col items-center justify-center p-2 rounded-lg border-2 transition-all",
-                      "hover:border-teal-500/50 hover:bg-gray-800/50",
+                      "hover:border-teal-500/50 hover:bg-gray-800 dark:bg-slate-700/50",
                       isSelected
                         ? "border-teal-500 bg-teal-500/10"
-                        : "border-gray-700 bg-gray-800/30",
+                        : "border-gray-700 bg-gray-800 dark:bg-slate-700/30",
                       compact && "p-1.5"
                     )}
                     title={description}
                   >
                     {IconComponent && (
                       <IconComponent className={cn(
-                        "text-gray-400",
+                        "text-gray-400 dark:text-slate-500",
                         isSelected && "text-teal-400",
                         compact ? "h-4 w-4" : "h-5 w-5 mb-1"
                       )} />
@@ -305,7 +305,7 @@ export function SlideFormatPanel({
                     {!compact && (
                       <span className={cn(
                         "text-[10px] text-center leading-tight",
-                        isSelected ? "text-teal-300" : "text-gray-400"
+                        isSelected ? "text-teal-300" : "text-gray-400 dark:text-slate-500"
                       )}>
                         {layoutLabel}
                       </span>
@@ -340,7 +340,7 @@ export function SlideFormatPanel({
               value={value || '#1e3a5f'}
               onChange={(e) => handleFieldChange(field.key, e.target.value)}
               disabled={isProcessing}
-              className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-gray-200 font-mono"
+              className="flex-1 px-2 py-1.5 bg-gray-800 dark:bg-slate-700 border border-gray-700 rounded text-xs text-gray-200 font-mono"
               placeholder={field.placeholder}
             />
           </div>
@@ -354,7 +354,7 @@ export function SlideFormatPanel({
             onChange={(e) => handleFieldChange(field.key, e.target.value)}
             disabled={isProcessing}
             rows={field.rows || 3}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 resize-none focus:outline-none focus:border-teal-500"
+            className="w-full px-3 py-2 bg-gray-800 dark:bg-slate-700 border border-gray-700 rounded-lg text-sm text-gray-200 resize-none focus:outline-none focus:border-teal-500"
             placeholder={field.placeholder}
           />
         )
@@ -366,7 +366,7 @@ export function SlideFormatPanel({
             value={value}
             onChange={(e) => handleFieldChange(field.key, e.target.value)}
             disabled={isProcessing}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-teal-500"
+            className="w-full px-3 py-2 bg-gray-800 dark:bg-slate-700 border border-gray-700 rounded-lg text-sm text-gray-200 focus:outline-none focus:border-teal-500"
             placeholder={field.placeholder}
           />
         )
@@ -374,7 +374,7 @@ export function SlideFormatPanel({
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div className="h-full flex flex-col bg-gray-900 dark:bg-slate-600">
       {/* Header */}
       <div className="p-3 border-b border-gray-800">
         <div className="flex items-center justify-between">
@@ -387,7 +387,7 @@ export function SlideFormatPanel({
             <button
               onClick={handleDuplicateSlide}
               disabled={isProcessing || isApplying}
-              className="p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+              className="p-1.5 rounded hover:bg-gray-700 text-gray-400 dark:text-slate-500 hover:text-white transition-colors"
               title="Duplicate slide"
             >
               <Copy className="h-3.5 w-3.5" />
@@ -395,7 +395,7 @@ export function SlideFormatPanel({
             <button
               onClick={handleDeleteSlide}
               disabled={isProcessing || isApplying}
-              className="p-1.5 rounded hover:bg-red-600/20 text-gray-400 hover:text-red-400 transition-colors"
+              className="p-1.5 rounded hover:bg-red-600/20 text-gray-400 dark:text-slate-500 hover:text-red-400 transition-colors"
               title="Delete slide"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -406,14 +406,14 @@ export function SlideFormatPanel({
 
       {/* Tab Selector */}
       <div className="px-3 pt-3">
-        <div className="flex bg-gray-800 rounded-lg p-0.5">
+        <div className="flex bg-gray-800 dark:bg-slate-700 rounded-lg p-0.5">
           <button
             onClick={() => setActiveTab('add')}
             className={cn(
               "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-md transition-colors",
               activeTab === 'add'
                 ? "bg-teal-600 text-white"
-                : "text-gray-400 hover:text-white"
+                : "text-gray-400 dark:text-slate-500 hover:text-white"
             )}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -425,7 +425,7 @@ export function SlideFormatPanel({
               "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-md transition-colors",
               activeTab === 'layout'
                 ? "bg-teal-600 text-white"
-                : "text-gray-400 hover:text-white"
+                : "text-gray-400 dark:text-slate-500 hover:text-white"
             )}
           >
             <LayoutGrid className="h-3.5 w-3.5" />
@@ -437,7 +437,7 @@ export function SlideFormatPanel({
               "flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium rounded-md transition-colors",
               activeTab === 'format'
                 ? "bg-teal-600 text-white"
-                : "text-gray-400 hover:text-white"
+                : "text-gray-400 dark:text-slate-500 hover:text-white"
             )}
           >
             <Palette className="h-3.5 w-3.5" />
@@ -459,14 +459,14 @@ export function SlideFormatPanel({
           <>
             {/* Layout Selector */}
             <div className="space-y-2">
-              <label className="text-xs text-gray-400 uppercase tracking-wide">Choose Layout</label>
+              <label className="text-xs text-gray-400 dark:text-slate-500 uppercase tracking-wide">Choose Layout</label>
               {renderLayoutSelector(selectedLayout, setSelectedLayout)}
             </div>
 
             {/* Divider */}
             <div className="flex items-center gap-2 pt-2">
               <div className="flex-1 h-px bg-gray-700" />
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-500 dark:text-slate-400">
                 {isAILayout ? 'AI Generation' : 'Content'}
               </span>
               <div className="flex-1 h-px bg-gray-700" />
@@ -475,7 +475,7 @@ export function SlideFormatPanel({
             {/* Content Fields or AI Prompt */}
             {isAILayout ? (
               <div className="space-y-1.5">
-                <label className="text-xs text-gray-400">Describe your title slide</label>
+                <label className="text-xs text-gray-400 dark:text-slate-500">Describe your title slide</label>
                 <PromptInput
                   value={prompt}
                   onChange={setPrompt}
@@ -488,7 +488,7 @@ export function SlideFormatPanel({
               <div className="space-y-3">
                 {fields.map((field) => (
                   <div key={field.key} className="space-y-1">
-                    <label className="text-xs text-gray-400">{field.label}</label>
+                    <label className="text-xs text-gray-400 dark:text-slate-500">{field.label}</label>
                     {renderContentField(field)}
                   </div>
                 ))}
@@ -502,7 +502,7 @@ export function SlideFormatPanel({
               className={cn(
                 "w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors",
                 isProcessing || isApplying || (isAILayout && !prompt.trim())
-                  ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                  ? "bg-gray-700 text-gray-400 dark:text-slate-500 cursor-not-allowed"
                   : "bg-teal-600 hover:bg-teal-700 text-white"
               )}
             >
@@ -520,7 +520,7 @@ export function SlideFormatPanel({
             </button>
 
             {/* Info Text */}
-            <p className="text-xs text-gray-500 text-center">
+            <p className="text-xs text-gray-500 dark:text-slate-400 text-center">
               {isAILayout
                 ? 'AI will generate a beautiful title slide based on your description'
                 : `Adds a new ${selectedLayoutInfo?.label?.toLowerCase() || 'slide'} after the current slide`
@@ -532,13 +532,13 @@ export function SlideFormatPanel({
         {activeTab === 'layout' && (
           <>
             {/* Layout Change Info */}
-            <div className="text-xs text-gray-400 mb-2">
+            <div className="text-xs text-gray-400 dark:text-slate-500 mb-2">
               Change the layout of the current slide. Content will be preserved where possible.
             </div>
 
             {/* Layout Selector */}
             <div className="space-y-2">
-              <label className="text-xs text-gray-400 uppercase tracking-wide">New Layout</label>
+              <label className="text-xs text-gray-400 dark:text-slate-500 uppercase tracking-wide">New Layout</label>
               {renderLayoutSelector(newLayout, setNewLayout, true)}
             </div>
 
@@ -549,7 +549,7 @@ export function SlideFormatPanel({
               className={cn(
                 "w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors mt-4",
                 isProcessing || isApplying
-                  ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                  ? "bg-gray-700 text-gray-400 dark:text-slate-500 cursor-not-allowed"
                   : "bg-teal-600 hover:bg-teal-700 text-white"
               )}
             >
@@ -572,7 +572,7 @@ export function SlideFormatPanel({
           <>
             {/* Background Color */}
             <div className="space-y-1.5">
-              <label className="text-xs text-gray-400 uppercase tracking-wide">Background Color</label>
+              <label className="text-xs text-gray-400 dark:text-slate-500 uppercase tracking-wide">Background Color</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -586,7 +586,7 @@ export function SlideFormatPanel({
                   value={backgroundColor}
                   onChange={(e) => setBackgroundColor(e.target.value)}
                   disabled={isApplying || isProcessing}
-                  className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-gray-200 font-mono"
+                  className="flex-1 px-2 py-1.5 bg-gray-800 dark:bg-slate-700 border border-gray-700 rounded text-xs text-gray-200 font-mono"
                   placeholder="#1a1a2e"
                 />
               </div>
@@ -594,7 +594,7 @@ export function SlideFormatPanel({
 
             {/* Gradient Presets */}
             <div className="space-y-1.5">
-              <label className="text-xs text-gray-400 uppercase tracking-wide">Gradient</label>
+              <label className="text-xs text-gray-400 dark:text-slate-500 uppercase tracking-wide">Gradient</label>
               <div className="grid grid-cols-4 gap-1.5">
                 {GRADIENT_PRESETS.map(({ name, value, style }) => (
                   <button
@@ -612,7 +612,7 @@ export function SlideFormatPanel({
                     {style ? (
                       <div className="w-full h-full" style={{ background: style }} />
                     ) : (
-                      <div className="w-full h-full bg-gray-800 flex items-center justify-center text-[10px] text-gray-500">
+                      <div className="w-full h-full bg-gray-800 dark:bg-slate-700 flex items-center justify-center text-[10px] text-gray-500 dark:text-slate-400">
                         None
                       </div>
                     )}
@@ -624,7 +624,7 @@ export function SlideFormatPanel({
             {/* Opacity Slider */}
             <div className="space-y-1.5">
               <div className="flex justify-between">
-                <label className="text-xs text-gray-400 uppercase tracking-wide">Opacity</label>
+                <label className="text-xs text-gray-400 dark:text-slate-500 uppercase tracking-wide">Opacity</label>
                 <span className="text-xs text-teal-400 font-medium">{backgroundOpacity}%</span>
               </div>
               <input
@@ -645,7 +645,7 @@ export function SlideFormatPanel({
               className={cn(
                 "w-full py-2.5 rounded-lg text-sm font-medium transition-colors",
                 isApplying || isProcessing
-                  ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                  ? "bg-gray-700 text-gray-400 dark:text-slate-500 cursor-not-allowed"
                   : "bg-teal-600 hover:bg-teal-700 text-white"
               )}
             >

@@ -82,9 +82,9 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs text-gray-700 transition-colors"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 text-xs text-gray-700 dark:text-slate-200 transition-colors"
           >
-            <Upload className="h-3 w-3 text-gray-400" />
+            <Upload className="h-3 w-3 text-gray-400 dark:text-slate-500" />
             {referenceImage ? (
               <span className="truncate max-w-[100px]">{referenceImage.name}</span>
             ) : (
@@ -95,7 +95,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
             <button
               type="button"
               onClick={() => setReferenceImage(null)}
-              className="text-[10px] text-gray-400 hover:text-gray-600"
+              className="text-[10px] text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:text-slate-300"
             >
               &times;
             </button>
@@ -168,11 +168,11 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
         <div className="space-y-2">
           {/* Aspect Ratio (with 9:16) */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Aspect Ratio</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Aspect Ratio</label>
             <select
               value={aspectRatio}
               onChange={(e) => { setAspectRatio(e.target.value as InfographicConfig['aspect_ratio']); setAdvancedModified(true) }}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="auto">Auto</option>
               <option value="16:9">16:9</option>
@@ -185,11 +185,11 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
 
           {/* Segments (1-8) */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Segments</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Segments</label>
             <select
               value={segments}
               onChange={(e) => { setSegments(e.target.value as InfographicConfig['segments']); setAdvancedModified(true) }}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="auto">Auto</option>
               {['1', '2', '3', '4', '5', '6', '7', '8'].map(n => (
@@ -241,7 +241,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
         <div className="space-y-2">
           {/* 9 Position Presets */}
           <div className="space-y-1">
-            <label className="text-[10px] text-gray-400">Presets</label>
+            <label className="text-[10px] text-gray-400 dark:text-slate-500">Presets</label>
             <div className="grid grid-cols-3 gap-1">
               {Object.entries(POSITION_PRESETS).map(([key, preset]) => (
                 <button
@@ -250,7 +250,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
                   className={`px-1.5 py-1 rounded text-[10px] transition-colors ${
                     positionPreset === key
                       ? 'bg-primary text-white border border-primary'
-                      : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
+                      : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
                   }`}
                 >
                   {preset.label}
@@ -260,7 +260,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
           </div>
 
           {/* Size display */}
-          <div className="text-[10px] text-gray-400">
+          <div className="text-[10px] text-gray-400 dark:text-slate-500">
             Size: {width} x {height} grid ({pixelW} x {pixelH}px) &mdash; Aspect: {displayAspect}
           </div>
 
@@ -272,14 +272,14 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, elemen
               { label: 'Height', value: height, setter: setHeight, min: 1, max: 18 },
             ].map(({ label, value, setter, min, max }) => (
               <div key={label} className="space-y-1">
-                <label className="text-[10px] text-gray-400">{label}</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">{label}</label>
                 <input
                   type="number"
                   value={value}
                   min={min}
                   max={max}
                   onChange={(e) => { setter(Number(e.target.value)); setPositionPreset('custom'); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 />
               </div>
             ))}

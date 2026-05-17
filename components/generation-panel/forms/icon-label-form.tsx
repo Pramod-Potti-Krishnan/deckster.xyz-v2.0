@@ -94,11 +94,11 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, 
       {showAdvanced && (<>
       {/* Count */}
       <div className="space-y-1">
-        <label className="text-[11px] font-medium text-gray-600">Count</label>
+        <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
         <select
           value={count}
           onChange={(e) => setCount(Number(e.target.value))}
-          className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
         >
           {[1, 2, 3, 4, 5, 6].map(n => (
             <option key={n} value={n}>{n}</option>
@@ -125,14 +125,14 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, 
       {/* Style (icon mode only) */}
       {mode === 'icon' && (
         <div className="space-y-1">
-          <label className="text-[11px] font-medium text-gray-600">Style</label>
+          <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Style</label>
           <select
             value={style}
             onChange={(e) => {
               setStyle(e.target.value as IconLabelConfig['style'])
               setAdvancedModified(true)
             }}
-            className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {ICON_STYLES.map(s => (
               <option key={s.value} value={s.value}>{s.label}</option>
@@ -144,14 +144,14 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, 
       {/* Font (label mode only) */}
       {mode === 'label' && (
         <div className="space-y-1">
-          <label className="text-[11px] font-medium text-gray-600">Font</label>
+          <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Font</label>
           <select
             value={font}
             onChange={(e) => {
               setFont(e.target.value as IconLabelConfig['font'])
               setAdvancedModified(true)
             }}
-            className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {LABEL_FONTS.map(f => (
               <option key={f.value} value={f.value}>{f.label}</option>
@@ -162,7 +162,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, 
 
       {/* Color */}
       <div className="space-y-1">
-        <label className="text-[11px] font-medium text-gray-600">Color</label>
+        <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Color</label>
         <div className="flex gap-2 items-center">
           <input
             type="color"
@@ -171,13 +171,13 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, 
               setColor(e.target.value)
               setAdvancedModified(true)
             }}
-            className="h-6 w-6 rounded border border-gray-300 cursor-pointer"
+            className="h-6 w-6 rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
           />
-          <span className="text-[10px] text-gray-400">{color || 'Auto'}</span>
+          <span className="text-[10px] text-gray-400 dark:text-slate-500">{color || 'Auto'}</span>
           {color && (
             <button
               onClick={() => { setColor(null); setAdvancedModified(true) }}
-              className="text-[10px] text-gray-400 hover:text-gray-700"
+              className="text-[10px] text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:text-slate-200"
             >
               Reset
             </button>

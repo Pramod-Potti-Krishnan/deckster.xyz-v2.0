@@ -257,7 +257,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
         <div className="flex gap-2">
           {/* Font Size with dropdown */}
           <div className="relative w-20">
-            <div className="flex items-center h-7 bg-gray-800/60 rounded-md border border-transparent hover:border-gray-700 transition-colors">
+            <div className="flex items-center h-7 bg-gray-800 dark:bg-slate-700/60 rounded-md border border-transparent hover:border-gray-700 transition-colors">
               <input
                 ref={fontSizeInputRef}
                 type="text"
@@ -273,17 +273,17 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
                 disabled={isApplying}
                 className="w-full px-2 py-1 bg-transparent text-[11px] text-white focus:outline-none text-center"
               />
-              <span className="text-[10px] text-gray-500 pr-1">pt</span>
+              <span className="text-[10px] text-gray-500 dark:text-slate-400 pr-1">pt</span>
               <button
                 onClick={() => setIsSizeDropdownOpen(!isSizeDropdownOpen)}
                 disabled={isApplying}
                 className="px-1 py-1 hover:bg-gray-700 rounded-r-md transition-colors border-l border-gray-700"
               >
-                <ChevronDown className="h-2.5 w-2.5 text-gray-400" />
+                <ChevronDown className="h-2.5 w-2.5 text-gray-400 dark:text-slate-500" />
               </button>
             </div>
             {isSizeDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-md shadow-xl z-20 max-h-32 overflow-y-auto border border-gray-700">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 dark:bg-slate-700 rounded-md shadow-xl z-20 max-h-32 overflow-y-auto border border-gray-700">
                 {FONT_SIZES.map((size) => (
                   <button
                     key={size}
@@ -301,7 +301,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
           </div>
 
           {/* Style Buttons (B/I/U/S) */}
-          <div className="flex flex-1 bg-gray-800/60 rounded-md h-7">
+          <div className="flex flex-1 bg-gray-800 dark:bg-slate-700/60 rounded-md h-7">
             <IconButton
               icon={<Bold className="h-3.5 w-3.5" />}
               onClick={() => handleFormatCommand('bold')}
@@ -359,7 +359,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
       <PanelSection title="Alignment">
         <div className="flex gap-2">
           {/* Horizontal Alignment */}
-          <div className="flex flex-[3] bg-gray-800/60 rounded-md h-7">
+          <div className="flex flex-[3] bg-gray-800 dark:bg-slate-700/60 rounded-md h-7">
             <IconButton
               icon={<AlignLeft className="h-3.5 w-3.5" />}
               onClick={() => handleAlignment('left')}
@@ -387,7 +387,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
           </div>
 
           {/* Vertical Alignment */}
-          <div className="flex flex-[2] bg-gray-800/60 rounded-md h-7">
+          <div className="flex flex-[2] bg-gray-800 dark:bg-slate-700/60 rounded-md h-7">
             <IconButton
               icon={<AlignVerticalJustifyStart className="h-3.5 w-3.5" />}
               onClick={() => handleVerticalAlignment('top')}
@@ -469,7 +469,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
             disabled={isApplying}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 h-8",
-              "bg-gray-800/60 rounded-md",
+              "bg-gray-800 dark:bg-slate-700/60 rounded-md",
               "text-[11px] text-gray-300 hover:text-white hover:bg-gray-700/50",
               "transition-colors disabled:opacity-50"
             )}
@@ -482,7 +482,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
             disabled={isApplying}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 h-8",
-              "bg-gray-800/60 rounded-md",
+              "bg-gray-800 dark:bg-slate-700/60 rounded-md",
               "text-[11px] text-gray-300 hover:text-white hover:bg-gray-700/50",
               "transition-colors disabled:opacity-50"
             )}
@@ -559,7 +559,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
         <Divider />
 
         <div className="space-y-2">
-          <span className="text-[10px] text-gray-500">CSS Classes</span>
+          <span className="text-[10px] text-gray-500 dark:text-slate-400">CSS Classes</span>
           <CSSClassesInput
             value={cssClasses}
             onChange={handleCssClassesChange}

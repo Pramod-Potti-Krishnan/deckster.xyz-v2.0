@@ -95,7 +95,7 @@ export function GenerationPanel({
       {/* Panel content */}
       <div
         className={cn(
-          "flex-1 bg-white flex flex-col shadow-2xl overflow-hidden transition-all duration-200 ease-out",
+          "flex-1 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden transition-all duration-200 ease-out",
           isOpen ? "pointer-events-auto opacity-100" : "opacity-0 max-w-0"
         )}
       >
@@ -111,7 +111,7 @@ export function GenerationPanel({
 
         {/* Canvas position indicator */}
         {elementContext && (
-          <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 flex items-center gap-2">
+          <div className="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
             Position from canvas ({elementContext.width}&times;{elementContext.height} cells)
           </div>

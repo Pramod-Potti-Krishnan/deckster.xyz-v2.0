@@ -136,14 +136,14 @@ export function TableAITab({
   return (
     <div className="p-4 space-y-5">
       {/* Mode Selector */}
-      <div className="flex bg-gray-800/50 rounded-lg p-[3px]">
+      <div className="flex bg-gray-800 dark:bg-slate-700/50 rounded-lg p-[3px]">
         <button
           onClick={() => setMode('text')}
           className={cn(
             "flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium rounded-md transition-all",
             mode === 'text'
               ? "bg-indigo-600 text-white shadow-sm"
-              : "text-gray-400 hover:text-white"
+              : "text-gray-400 dark:text-slate-500 hover:text-white"
           )}
         >
           <Type className="h-3.5 w-3.5" />
@@ -155,7 +155,7 @@ export function TableAITab({
             "flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium rounded-md transition-all",
             mode === 'table'
               ? "bg-blue-600 text-white shadow-sm"
-              : "text-gray-400 hover:text-white"
+              : "text-gray-400 dark:text-slate-500 hover:text-white"
           )}
         >
           <Table className="h-3.5 w-3.5" />
@@ -178,7 +178,7 @@ export function TableAITab({
                     "py-1.5 rounded-md text-[10px] font-medium transition-all",
                     textFormat === format
                       ? "bg-indigo-600 text-white shadow-sm"
-                      : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                      : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                   )}
                 >
                   {label}
@@ -199,7 +199,7 @@ export function TableAITab({
                     "py-1.5 rounded-md text-[10px] font-medium transition-all",
                     textTone === tone
                       ? "bg-indigo-600 text-white shadow-sm"
-                      : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                      : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                   )}
                 >
                   {label}
@@ -221,7 +221,7 @@ export function TableAITab({
                       "py-2 rounded-md text-sm font-medium transition-all flex flex-col items-center",
                       bulletStyle === style
                         ? "bg-indigo-600 text-white shadow-sm"
-                        : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50"
+                        : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50"
                     )}
                     title={label}
                   >
@@ -234,7 +234,7 @@ export function TableAITab({
 
           {/* Include Emoji */}
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-gray-400">Include emoji</span>
+            <span className="text-[11px] text-gray-400 dark:text-slate-500">Include emoji</span>
             <Toggle
               checked={includeEmoji}
               onChange={setIncludeEmoji}
@@ -294,7 +294,7 @@ export function TableAITab({
             disabled={isApplying}
             className={cn(
               "w-full py-2 rounded-lg text-[11px] font-medium transition-all",
-              "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white",
+              "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white",
               "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
           >
@@ -313,7 +313,7 @@ export function TableAITab({
                     "py-1.5 rounded-md text-[10px] font-medium transition-all",
                     tableStyle === style
                       ? "bg-blue-600 text-white shadow-sm"
-                      : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                      : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                   )}
                 >
                   {label}
@@ -328,7 +328,7 @@ export function TableAITab({
 
       {/* AI Prompt */}
       <div className="space-y-2">
-        <span className="text-[10px] text-gray-500">
+        <span className="text-[10px] text-gray-500 dark:text-slate-400">
           {mode === 'text' ? 'Describe the content' : 'Describe the data'}
         </span>
         <textarea
@@ -347,8 +347,8 @@ export function TableAITab({
           rows={3}
           className={cn(
             "w-full px-3 py-2 rounded-lg resize-none",
-            "bg-gray-800/60 border border-gray-700/50",
-            "text-[11px] text-white placeholder:text-gray-500",
+            "bg-gray-800 dark:bg-slate-700/60 border border-gray-700/50",
+            "text-[11px] text-white placeholder:text-gray-500 dark:text-slate-400",
             mode === 'text'
               ? "focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20"
               : "focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20",
@@ -376,7 +376,7 @@ export function TableAITab({
           "w-full flex items-center justify-center gap-2 h-10 rounded-lg",
           "text-[11px] font-medium transition-all duration-150",
           isGenerating || isApplying || !prompt.trim()
-            ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+            ? "bg-gray-800 dark:bg-slate-700 text-gray-500 dark:text-slate-400 cursor-not-allowed"
             : mode === 'text'
             ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20"
             : "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20"
@@ -396,7 +396,7 @@ export function TableAITab({
       </button>
 
       {/* Helper Text */}
-      <p className="text-[9px] text-gray-600 text-center">
+      <p className="text-[9px] text-gray-600 dark:text-slate-300 text-center">
         {mode === 'text'
           ? 'AI generates text from your description'
           : 'AI generates table data from your description'}

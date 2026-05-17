@@ -303,7 +303,7 @@ export function SlideThumbnailStrip({
               ? "border-blue-600 bg-blue-50 shadow-lg ring-2 ring-blue-500"
               : isSelected
               ? "border-blue-400 bg-blue-100 shadow-md"
-              : "border-gray-300 bg-white hover:bg-gray-50",
+              : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800",
             isDragging && "opacity-50 scale-95",
             isDropTarget && "border-green-500 bg-green-50",
             isItemProcessing && "opacity-70 pointer-events-none",
@@ -314,7 +314,7 @@ export function SlideThumbnailStrip({
           {/* Slide Number */}
           <div className={cn(
             "text-xs font-semibold mb-1",
-            isActive ? "text-blue-700" : isSelected ? "text-blue-600" : "text-gray-500"
+            isActive ? "text-blue-700" : isSelected ? "text-blue-600" : "text-gray-500 dark:text-slate-400"
           )}>
             {slide.slideNumber}
           </div>
@@ -322,7 +322,7 @@ export function SlideThumbnailStrip({
           {/* Slide Title/Preview */}
           <div className={cn(
             "text-[10px] leading-tight text-center line-clamp-2 w-full",
-            isActive ? "text-blue-900 font-medium" : isSelected ? "text-blue-800" : "text-gray-600"
+            isActive ? "text-blue-900 font-medium" : isSelected ? "text-blue-800" : "text-gray-600 dark:text-slate-300"
           )}>
             {slide.title || 'Untitled Slide'}
           </div>
@@ -432,8 +432,8 @@ export function SlideThumbnailStrip({
       tabIndex={0}
       className={cn(
         isVertical
-          ? "h-full bg-gray-50 border-l border-gray-200 py-4 px-2"
-          : "w-full bg-gray-50 border-t border-gray-200 py-3 px-4",
+          ? "h-full bg-gray-50 dark:bg-slate-800 border-l border-gray-200 dark:border-slate-700 py-4 px-2"
+          : "w-full bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 py-3 px-4",
         "focus:outline-none",
         className
       )}

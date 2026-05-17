@@ -30,14 +30,14 @@ export function GenerationPanelHeader({ elementType, onClose, mode, regenerateEn
   const info = COMPONENT_TYPE_INFO[elementType] || { label: elementType, description: '' }
 
   return (
-    <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
+    <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
       <div className="flex items-center gap-2.5">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
           <Icon className="h-3.5 w-3.5 text-primary" />
         </div>
         <div>
-          <h3 className="text-xs font-semibold text-gray-900">{info.label}</h3>
-          <p className="text-[10px] text-gray-500">
+          <h3 className="text-xs font-semibold text-gray-900 dark:text-slate-100">{info.label}</h3>
+          <p className="text-[10px] text-gray-500 dark:text-slate-400">
             {mode === 'edit' ? 'Edit element settings' : info.description}
           </p>
         </div>
@@ -45,8 +45,8 @@ export function GenerationPanelHeader({ elementType, onClose, mode, regenerateEn
       <div className="flex items-center gap-2">
         {mode === 'edit' && (
           <label className="flex items-center gap-1.5 cursor-pointer">
-            <RefreshCw className="h-3 w-3 text-gray-500" />
-            <span className="text-[10px] text-gray-500">Regenerate</span>
+            <RefreshCw className="h-3 w-3 text-gray-500 dark:text-slate-400" />
+            <span className="text-[10px] text-gray-500 dark:text-slate-400">Regenerate</span>
             <Switch
               checked={regenerateEnabled}
               onCheckedChange={onRegenerateToggle}
@@ -56,10 +56,10 @@ export function GenerationPanelHeader({ elementType, onClose, mode, regenerateEn
         )}
         <button
           onClick={onClose}
-          className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+          className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700 transition-colors"
           title="Close panel"
         >
-          <X className="h-4 w-4 text-gray-500" />
+          <X className="h-4 w-4 text-gray-500 dark:text-slate-400" />
         </button>
       </div>
     </div>

@@ -216,11 +216,11 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
         <div className="space-y-2">
           {/* Count */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Count</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
             <select
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {[1, 2, 3, 4, 5, 6].map(n => (
                 <option key={n} value={n}>{n}</option>
@@ -244,11 +244,11 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
           {/* Grid Columns (visible when layout=grid) */}
           {layout === 'grid' && (
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Grid Columns</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Grid Columns</label>
               <select
                 value={gridCols}
                 onChange={(e) => { setGridCols(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {[2, 3, 4, 5, 6].map(n => (
                   <option key={n} value={n}>{n}</option>
@@ -269,7 +269,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
           {/* Color Variant (disabled when bg=transparent) */}
           {config.background === 'colored' && (
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Box Color</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Box Color</label>
               <div className="flex flex-wrap gap-1.5">
                 {/* Auto swatch — rainbow gradient */}
                 <button
@@ -278,7 +278,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                   className={`h-6 w-6 rounded-full border transition-all ${
                     config.color_variant === null
                       ? 'ring-2 ring-primary ring-offset-1'
-                      : 'border-gray-200 hover:scale-110'
+                      : 'border-gray-200 dark:border-slate-700 hover:scale-110'
                   }`}
                   title="Auto"
                 />
@@ -291,14 +291,14 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                     className={`h-6 w-6 rounded-full border transition-all ${
                       config.color_variant === preset.name
                         ? 'ring-2 ring-primary ring-offset-1'
-                        : 'border-gray-200 hover:scale-110'
+                        : 'border-gray-200 dark:border-slate-700 hover:scale-110'
                     }`}
                     title={preset.label}
                   />
                 ))}
               </div>
               {config.color_variant && (
-                <span className="text-[10px] text-gray-400 capitalize">{config.color_variant}</span>
+                <span className="text-[10px] text-gray-400 dark:text-slate-500 capitalize">{config.color_variant}</span>
               )}
             </div>
           )}
@@ -405,26 +405,26 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
               />
               {/* Title Char Limits */}
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 font-medium">
+                <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
                   Title Chars (auto: {calcLimits.title_min_chars}–{calcLimits.title_max_chars})
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-[10px] text-gray-400">Min</label>
+                    <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
                     <input
                       type="number"
                       value={config.title_min_chars}
                       onChange={(e) => handleCharLimitChange('title_min_chars', Number(e.target.value))}
-                      className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] text-gray-400">Max</label>
+                    <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
                     <input
                       type="number"
                       value={config.title_max_chars}
                       onChange={(e) => handleCharLimitChange('title_max_chars', Number(e.target.value))}
-                      className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                 </div>
@@ -451,11 +451,11 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
         <div className="space-y-2">
           {/* Items per box */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Items/Box (auto: {calcLimits.items_per_instance})</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Items/Box (auto: {calcLimits.items_per_instance})</label>
             <select
               value={config.items_per_instance}
               onChange={(e) => updateConfig('items_per_instance', Number(e.target.value))}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {Array.from({ length: 14 }, (_, i) => i + 1).map(n => (
                 <option key={n} value={n}>{n}</option>
@@ -503,11 +503,11 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
           {/* Line Spacing */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Line Spacing</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Line Spacing</label>
             <select
               value={config.content_line_height || 'auto'}
               onChange={(e) => updateConfig('content_line_height', e.target.value === 'auto' ? null : e.target.value)}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="auto">Auto</option>
               {['1.0', '1.2', '1.4', '1.5', '1.6', '1.8', '2.0', '2.2', '2.5'].map(v => (
@@ -518,26 +518,26 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
 
           {/* Item Char Limits */}
           <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 font-medium">
+            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
               Item Chars (auto: {calcLimits.item_min_chars}–{calcLimits.item_max_chars})
             </label>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Min</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
                 <input
                   type="number"
                   value={config.item_min_chars}
                   onChange={(e) => handleCharLimitChange('item_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Max</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
                 <input
                   type="number"
                   value={config.item_max_chars}
                   onChange={(e) => handleCharLimitChange('item_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
             </div>

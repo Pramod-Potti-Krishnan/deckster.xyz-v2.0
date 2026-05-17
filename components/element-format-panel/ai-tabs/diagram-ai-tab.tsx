@@ -153,7 +153,7 @@ export function DiagramAITab({
               {/* Group Header */}
               <button
                 onClick={() => toggleGroup(group)}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-[10px] font-medium text-gray-300 transition-colors"
+                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-800 dark:bg-slate-700/60 hover:bg-gray-800 dark:bg-slate-700 text-[10px] font-medium text-gray-300 transition-colors"
               >
                 <span className="flex items-center gap-2">
                   {group}
@@ -172,7 +172,7 @@ export function DiagramAITab({
               </button>
               {/* Group Content */}
               {expandedGroups.has(group) && (
-                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-900/50">
+                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-900 dark:bg-slate-600/50">
                   {diagrams.map(({ type, label, comingSoon }) => (
                     <button
                       key={type}
@@ -181,10 +181,10 @@ export function DiagramAITab({
                       className={cn(
                         "px-2 py-1.5 rounded-md text-[10px] font-medium transition-all text-left truncate",
                         comingSoon
-                          ? "bg-gray-800/30 text-gray-500 cursor-not-allowed"
+                          ? "bg-gray-800 dark:bg-slate-700/30 text-gray-500 dark:text-slate-400 cursor-not-allowed"
                           : diagramType === type
                           ? "bg-pink-600 text-white shadow-sm"
-                          : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                          : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                       )}
                       title={comingSoon ? `${label} - Coming Soon` : label}
                     >
@@ -226,7 +226,7 @@ export function DiagramAITab({
                 "py-1.5 rounded-md text-[10px] font-medium transition-all",
                 diagramStyle === style
                   ? "bg-pink-600 text-white shadow-sm"
-                  : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                  : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
               )}
             >
               {label}
@@ -252,7 +252,7 @@ export function DiagramAITab({
             disabled={isGenerating || isApplying}
             className={cn(
               "flex-1 px-2 py-1.5 rounded-lg",
-              "bg-gray-800/60 border border-gray-700/50",
+              "bg-gray-800 dark:bg-slate-700/60 border border-gray-700/50",
               "text-[11px] text-gray-200 font-mono",
               "focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20",
               "transition-all duration-150"
@@ -281,7 +281,7 @@ export function DiagramAITab({
       {/* Direction (for directional diagrams) */}
       {showDirectionSelector && (
         <PanelSection title="Direction">
-          <div className="flex bg-gray-800/50 rounded-lg p-[3px]">
+          <div className="flex bg-gray-800 dark:bg-slate-700/50 rounded-lg p-[3px]">
             {DIRECTION_OPTIONS.map(({ value, label, title }) => (
               <button
                 key={value}
@@ -291,7 +291,7 @@ export function DiagramAITab({
                   "flex-1 py-1.5 text-[10px] font-medium rounded-md transition-all",
                   direction === value
                     ? "bg-pink-600 text-white shadow-sm"
-                    : "text-gray-400 hover:text-white"
+                    : "text-gray-400 dark:text-slate-500 hover:text-white"
                 )}
                 title={title}
               >
@@ -306,7 +306,7 @@ export function DiagramAITab({
 
       {/* AI Prompt */}
       <div className="space-y-2">
-        <span className="text-[10px] text-gray-500">Describe your diagram</span>
+        <span className="text-[10px] text-gray-500 dark:text-slate-400">Describe your diagram</span>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -333,8 +333,8 @@ export function DiagramAITab({
           rows={4}
           className={cn(
             "w-full px-3 py-2 rounded-lg resize-none",
-            "bg-gray-800/60 border border-gray-700/50",
-            "text-[11px] text-white placeholder:text-gray-500",
+            "bg-gray-800 dark:bg-slate-700/60 border border-gray-700/50",
+            "text-[11px] text-white placeholder:text-gray-500 dark:text-slate-400",
             "focus:outline-none focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20",
             "transition-all duration-150"
           )}
@@ -360,7 +360,7 @@ export function DiagramAITab({
           "w-full flex items-center justify-center gap-2 h-10 rounded-lg",
           "text-[11px] font-medium transition-all duration-150",
           isGenerating || isApplying || !diagramType || !prompt.trim() || selectedDiagram?.comingSoon
-            ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+            ? "bg-gray-800 dark:bg-slate-700 text-gray-500 dark:text-slate-400 cursor-not-allowed"
             : "bg-pink-600 hover:bg-pink-500 text-white shadow-lg shadow-pink-900/20"
         )}
       >
@@ -378,7 +378,7 @@ export function DiagramAITab({
       </button>
 
       {/* Helper Text */}
-      <p className="text-[9px] text-gray-600 text-center">
+      <p className="text-[9px] text-gray-600 dark:text-slate-300 text-center">
         AI generates diagrams from your description
       </p>
     </div>
