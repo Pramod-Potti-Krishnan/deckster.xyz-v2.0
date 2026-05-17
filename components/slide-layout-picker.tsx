@@ -137,8 +137,22 @@ export function SlideLayoutPicker({
             className
           )}
         >
-          <Plus className="h-5 w-5" />
-          <span className="text-[10px]">{isAdding ? 'Adding' : 'Add Slide'}</span>
+          <svg
+            width="22"
+            height="14"
+            viewBox="0 0 22 14"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <rect x="1" y="1" width="20" height="12" rx="1.5" />
+            <line x1="11" y1="5" x2="11" y2="9" />
+            <line x1="9" y1="7" x2="13" y2="7" />
+          </svg>
+          <span className="text-[10px] font-medium">{isAdding ? 'Adding' : 'Add Slide'}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent
