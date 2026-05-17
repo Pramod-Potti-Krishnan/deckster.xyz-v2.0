@@ -2105,7 +2105,7 @@ export function PresentationViewer({
               ) : (
                 <ChevronLeft className="h-2.5 w-2.5" />
               )}
-              <span className="[writing-mode:vertical-rl] rotate-180 text-[8px] font-medium select-none leading-none">
+              <span className="[writing-mode:vertical-rl] rotate-180 text-[9px] font-semibold uppercase tracking-wider select-none leading-none">
                 Thumbnails
               </span>
             </button>
