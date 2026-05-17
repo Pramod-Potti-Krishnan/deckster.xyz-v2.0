@@ -1783,7 +1783,7 @@ export function PresentationViewer({
                     disabled={!presentationUrl}
                     className={cn(
                       toolbarButtonClass,
-                      "min-w-[88px] bg-blue-500/15 text-blue-200 hover:bg-blue-500/25 hover:text-blue-100"
+                      "text-slate-200 hover:bg-slate-800 hover:text-white"
                     )}
                     title="Add an element"
                   >
