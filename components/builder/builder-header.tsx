@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { ConnectionError } from "@/components/connection-error"
-import { Home, Menu } from "lucide-react"
+import { Home, FolderOpen } from "lucide-react"
 
 export interface BuilderHeaderProps {
   wsError: any
@@ -24,24 +24,27 @@ export function BuilderHeader({
         <div className="h-full px-4 flex items-center">
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <Button
-              variant="ghost"
-              size="icon"
-              onClick={onOpenChatHistory}
-              className="flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white"
-              aria-label="Open chat history"
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-            <Button
               asChild
               variant="ghost"
               size="icon"
               className="flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white"
               aria-label="Go home"
+              title="Home"
             >
               <Link href="/">
                 <Home className="h-5 w-5" />
               </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onOpenChatHistory}
+              className="flex-shrink-0 h-9 px-3 gap-1.5 text-slate-200 hover:bg-slate-800 hover:text-white"
+              aria-label="Open all decks"
+              title="All decks"
+            >
+              <FolderOpen className="h-4 w-4" />
+              <span className="text-sm font-medium">Decks</span>
             </Button>
           </div>
 
