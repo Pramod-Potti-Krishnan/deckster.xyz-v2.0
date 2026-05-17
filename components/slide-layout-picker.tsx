@@ -132,8 +132,8 @@ export function SlideLayoutPicker({
         <button
           disabled={disabled || isAdding}
           className={cn(
-            "flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-200",
-            "hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors",
+            "flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 dark:text-slate-200",
+            "hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors",
             className
           )}
         >
