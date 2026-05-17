@@ -11,7 +11,6 @@ import {
   Play,
   Layers,
   Check,
-  CirclePlus,
   Type,
   Image,
   LayoutGrid,
@@ -26,6 +25,7 @@ import {
   Sparkles,
   Eye,
   LayoutTemplate,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { debugLog } from '@/lib/debug-log'
@@ -1710,6 +1710,10 @@ export function PresentationViewer({
       {showControls && (() => {
         const toolbarButtonClass = "flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
         const toolbarLabelClass = "text-[10px] font-medium"
+        // Uniform default style — no persistent fill, only hover bg + slight text lift on hover.
+        const toolbarBtnBase = "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
+        // Active mode (View/Edit) — subtle text accent only, no background block.
+        const toolbarBtnActive = "text-purple-700 hover:bg-slate-100 hover:text-purple-800 dark:text-purple-300 dark:hover:bg-slate-800 dark:hover:text-purple-200"
         const addElementItems = [
           {
             label: 'Table',
@@ -1776,18 +1780,29 @@ export function PresentationViewer({
                 className="min-w-[80px] justify-center"
               />
 
-              {/* Add Element */}
+              {/* Add Element — custom square + plus icon mirroring Add Slide's icon language */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
                     disabled={!presentationUrl}
-                    className={cn(
-                      toolbarButtonClass,
-                      "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                    )}
+                    className={cn(toolbarButtonClass, toolbarBtnBase)}
                     title="Add an element"
                   >
-                    <CirclePlus className="h-5 w-5" />
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <rect x="2" y="2" width="16" height="16" rx="2" />
+                      <line x1="10" y1="7" x2="10" y2="13" />
+                      <line x1="7" y1="10" x2="13" y2="10" />
+                    </svg>
                     <span className={toolbarLabelClass}>Add Element</span>
                   </button>
                 </DropdownMenuTrigger>
@@ -1823,26 +1838,19 @@ export function PresentationViewer({
               <button
                 onClick={() => setShowThemePanel(true)}
                 disabled={!presentationUrl}
-                className={cn(
-                  toolbarButtonClass,
-                  showThemePanel
-                    ? "bg-pink-500/20 text-pink-200"
-                    : "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                )}
+                className={cn(toolbarButtonClass, toolbarBtnBase)}
                 title="Presentation theme"
               >
                 <Palette className="h-5 w-5" />
                 <span className={toolbarLabelClass}>Theme</span>
               </button>
 
-              {/* View */}
+              {/* View — active mode hinted with subtle text accent, no fill */}
               <button
                 onClick={isEditMode ? () => void handleToggleEditModeButton() : undefined}
                 className={cn(
                   toolbarButtonClass,
-                  !isEditMode
-                    ? "bg-slate-200 dark:bg-slate-700 text-white"
-                    : "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                  !isEditMode ? toolbarBtnActive : toolbarBtnBase
                 )}
                 title="View mode (preview)"
               >
@@ -1855,9 +1863,7 @@ export function PresentationViewer({
                 onClick={!isEditMode ? () => void handleToggleEditModeButton() : undefined}
                 className={cn(
                   toolbarButtonClass,
-                  isEditMode
-                    ? "bg-yellow-500/25 text-yellow-100"
-                    : "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                  isEditMode ? toolbarBtnActive : toolbarBtnBase
                 )}
                 title="Edit mode (modify content)"
               >
@@ -1869,15 +1875,10 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={cn(
-                      toolbarButtonClass,
-                      (isGridActive || isBordersActive)
-                        ? "bg-slate-200 dark:bg-slate-700 text-white"
-                        : "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                    )}
+                    className={cn(toolbarButtonClass, toolbarBtnBase)}
                     title="Display options"
                   >
-                    <Eye className="h-5 w-5" />
+                    <SlidersHorizontal className="h-5 w-5" />
                     <span className={toolbarLabelClass}>Show</span>
                   </button>
                 </DropdownMenuTrigger>
@@ -1903,12 +1904,7 @@ export function PresentationViewer({
               {/* Master — opens PresentationSettingsPanel */}
               <button
                 onClick={() => setShowPresentationSettings(true)}
-                className={cn(
-                  toolbarButtonClass,
-                  showPresentationSettings
-                    ? "bg-indigo-500/20 text-indigo-200"
-                    : "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                )}
+                className={cn(toolbarButtonClass, toolbarBtnBase)}
                 title="Master settings (footer, logo)"
               >
                 <Settings className="h-5 w-5" />
@@ -1921,7 +1917,7 @@ export function PresentationViewer({
               <button
                 onClick={handleFullscreen}
                 disabled={!presentationUrl}
-                className={cn(toolbarButtonClass, "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white")}
+                className={cn(toolbarButtonClass, toolbarBtnBase)}
                 title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
               >
                 {isFullscreen ? (
@@ -1967,7 +1963,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={cn(toolbarButtonClass, "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white")}
+                    className={cn(toolbarButtonClass, toolbarBtnBase)}
                     title="Switch version"
                   >
                     <Layers className="h-5 w-5" />
