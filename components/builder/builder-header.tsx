@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { ConnectionError } from "@/components/connection-error"
-import { Home, FolderOpen, Sun, Moon } from "lucide-react"
+import { PanelLeft, Sun, Moon } from "lucide-react"
 
 export interface BuilderHeaderProps {
   wsError: any
@@ -39,30 +39,34 @@ export function BuilderHeader({
               size="icon"
               className={
                 builderTheme === 'dark'
-                  ? "flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white"
-                  : "flex-shrink-0 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  ? "flex-shrink-0 hover:bg-slate-800"
+                  : "flex-shrink-0 hover:bg-slate-100"
               }
               aria-label="Go home"
-              title="Home"
+              title="Deckster home"
             >
               <Link href="/">
-                <Home className="h-5 w-5" />
+                <img
+                  src="/logo-icon.png"
+                  alt=""
+                  aria-hidden
+                  className="h-7 w-7"
+                />
               </Link>
             </Button>
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={onOpenChatHistory}
               className={
                 builderTheme === 'dark'
-                  ? "flex-shrink-0 h-9 px-3 gap-1.5 text-slate-200 hover:bg-slate-800 hover:text-white"
-                  : "flex-shrink-0 h-9 px-3 gap-1.5 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  ? "flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white"
+                  : "flex-shrink-0 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
               }
               aria-label="Open all decks"
               title="All decks"
             >
-              <FolderOpen className="h-4 w-4" />
-              <span className="text-sm font-medium">Decks</span>
+              <PanelLeft className="h-5 w-5" />
             </Button>
           </div>
 
