@@ -757,7 +757,7 @@ function BuilderContent() {
   }, [session.handleSessionSelect])
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-900">
+    <div className="dark flex h-screen w-screen overflow-hidden bg-slate-900 text-slate-100">
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-full min-w-0">
         {/* Header */}
@@ -784,7 +784,7 @@ function BuilderContent() {
           >
             {/* Panel area */}
             <div
-              className={`absolute inset-y-0 left-0 bg-white overflow-hidden ${isElementDrawerOpen ? 'shadow-xl' : ''}`}
+              className={`absolute inset-y-0 left-0 bg-slate-900 text-slate-100 overflow-hidden ${isElementDrawerOpen ? 'shadow-xl' : ''}`}
               style={{ width: drawerWidth }}
             >
               {features.useTextLabsGeneration && (
@@ -935,7 +935,7 @@ function BuilderContent() {
           >
             {/* Panel area */}
             <div
-              className={`absolute inset-y-0 left-0 bg-white overflow-hidden ${isSlideDrawerOpen ? 'shadow-xl' : ''}`}
+              className={`absolute inset-y-0 left-0 bg-slate-900 text-slate-100 overflow-hidden ${isSlideDrawerOpen ? 'shadow-xl' : ''}`}
               style={{ width: drawerWidth }}
             >
               <SlideGenerationPanel
@@ -992,7 +992,7 @@ function BuilderContent() {
           >
             {/* Panel area */}
             <div
-              className={`absolute inset-y-0 left-0 bg-white overflow-hidden flex flex-col ${isDeckDrawerOpen ? 'shadow-xl' : ''}`}
+              className={`absolute inset-y-0 left-0 bg-slate-900 text-slate-100 overflow-hidden flex flex-col ${isDeckDrawerOpen ? 'shadow-xl' : ''}`}
               style={{ width: drawerWidth }}
             >
               {showChat && (
