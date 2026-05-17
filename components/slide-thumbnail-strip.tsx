@@ -292,37 +292,66 @@ export function SlideThumbnailStrip({
           onDrop={(e) => handleDrop(e, slide.slideNumber)}
           onDragEnd={handleDragEnd}
           className={cn(
-            isVertical
-              ? "flex-shrink-0 w-24 h-16 rounded-md border-2 transition-all duration-200"
-              : "flex-shrink-0 w-32 h-20 rounded-md border-2 transition-all duration-200",
-            "flex flex-col items-center justify-center p-2",
+            "relative flex-shrink-0 w-28 rounded-md border-2 transition-all duration-200 overflow-hidden group",
             "hover:border-blue-400 hover:shadow-md",
             "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-            // Visual states priority: Active > Selected > Default
             isActive
-              ? "border-blue-600 bg-blue-50 shadow-lg ring-2 ring-blue-500"
+              ? "border-blue-600 shadow-lg ring-2 ring-blue-500"
               : isSelected
-              ? "border-blue-400 bg-blue-100 shadow-md"
-              : "border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800",
+              ? "border-blue-400 shadow-md"
+              : "border-slate-300 dark:border-slate-700",
             isDragging && "opacity-50 scale-95",
-            isDropTarget && "border-green-500 bg-green-50",
+            isDropTarget && "border-green-500",
             isItemProcessing && "opacity-70 pointer-events-none",
             enableDragDrop && onReorderSlides && "cursor-grab active:cursor-grabbing"
           )}
           disabled={isItemProcessing}
         >
-          {/* Slide Number */}
+          {/* Mini-slide preview — 16:9 schematic showing a slide silhouette.
+              Not a real render (that needs Layout Service support); this is
+              the strongest interim visual cue that beats text-only thumbs. */}
           <div className={cn(
-            "text-xs font-semibold mb-1",
-            isActive ? "text-blue-700" : isSelected ? "text-blue-600" : "text-gray-500 dark:text-slate-400"
+            "relative w-full aspect-[16/9] flex flex-col justify-end p-2 gap-1",
+            isActive
+              ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-slate-700 dark:to-slate-800"
+              : isSelected
+              ? "bg-blue-50 dark:bg-slate-800"
+              : "bg-slate-100 dark:bg-slate-800"
           )}>
-            {slide.slideNumber}
+            {/* Schematic title bar */}
+            <div className={cn(
+              "h-1 w-3/4 rounded-sm",
+              isActive ? "bg-blue-400 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
+            )} />
+            {/* Schematic body lines */}
+            <div className={cn(
+              "h-0.5 w-2/3 rounded-sm",
+              isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
+            )} />
+            <div className={cn(
+              "h-0.5 w-1/2 rounded-sm",
+              isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
+            )} />
+
+            {/* Slide number badge in corner */}
+            <div className={cn(
+              "absolute top-1.5 left-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded px-1 text-[9px] font-semibold leading-none",
+              isActive
+                ? "bg-blue-600 text-white"
+                : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+            )}>
+              {slide.slideNumber}
+            </div>
           </div>
 
-          {/* Slide Title/Preview */}
+          {/* Title strip below the mini-preview */}
           <div className={cn(
-            "text-[10px] leading-tight text-center line-clamp-2 w-full",
-            isActive ? "text-blue-900 font-medium" : isSelected ? "text-blue-800" : "text-gray-600 dark:text-slate-300"
+            "px-2 py-1.5 text-[10px] leading-tight text-left line-clamp-2 w-full",
+            isActive
+              ? "text-blue-900 font-medium bg-blue-50 dark:bg-slate-900 dark:text-blue-200"
+              : isSelected
+              ? "text-blue-800 bg-blue-50 dark:bg-slate-900 dark:text-blue-300"
+              : "text-slate-700 bg-white dark:bg-slate-900 dark:text-slate-300"
           )}>
             {slide.title || 'Untitled Slide'}
           </div>

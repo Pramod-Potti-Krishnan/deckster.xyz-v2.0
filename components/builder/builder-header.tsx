@@ -10,6 +10,7 @@ import { PanelLeft, Sun, Moon } from "lucide-react"
 export interface BuilderHeaderProps {
   wsError: any
   onOpenChatHistory: () => void
+  isChatHistoryOpen?: boolean
   toolbarSlotRef?: (el: HTMLDivElement | null) => void
   builderTheme: 'dark' | 'light'
   onToggleTheme: () => void
@@ -18,6 +19,7 @@ export interface BuilderHeaderProps {
 export function BuilderHeader({
   wsError,
   onOpenChatHistory,
+  isChatHistoryOpen = false,
   toolbarSlotRef,
   builderTheme,
   onToggleTheme,
@@ -60,11 +62,11 @@ export function BuilderHeader({
               onClick={onOpenChatHistory}
               className={
                 builderTheme === 'dark'
-                  ? "flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white"
-                  : "flex-shrink-0 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  ? `flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white ${isChatHistoryOpen ? 'bg-slate-800 text-white' : ''}`
+                  : `flex-shrink-0 text-slate-700 hover:bg-slate-100 hover:text-slate-900 ${isChatHistoryOpen ? 'bg-slate-200 text-slate-900' : ''}`
               }
-              aria-label="Open all decks"
-              title="All decks"
+              aria-label={isChatHistoryOpen ? 'Close deck list' : 'Open deck list'}
+              title={isChatHistoryOpen ? 'Close decks' : 'All decks'}
             >
               <PanelLeft className="h-5 w-5" />
             </Button>
