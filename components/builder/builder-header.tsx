@@ -2,6 +2,7 @@
 
 import React from "react"
 import Link from "next/link"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { ConnectionError } from "@/components/connection-error"
@@ -12,8 +13,6 @@ export interface BuilderHeaderProps {
   onOpenChatHistory: () => void
   isChatHistoryOpen?: boolean
   toolbarSlotRef?: (el: HTMLDivElement | null) => void
-  builderTheme: 'dark' | 'light'
-  onToggleTheme: () => void
 }
 
 export function BuilderHeader({
@@ -21,14 +20,18 @@ export function BuilderHeader({
   onOpenChatHistory,
   isChatHistoryOpen = false,
   toolbarSlotRef,
-  builderTheme,
-  onToggleTheme,
 }: BuilderHeaderProps) {
+  // Read the actual resolved theme from next-themes — this is the same
+  // source of truth that powers the "Dark Mode" toggle in the user profile
+  // menu, so toggling from either place stays in sync.
+  const { resolvedTheme, setTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
+
   return (
     <>
       <header
         className={
-          builderTheme === 'dark'
+          isDark
             ? "bg-slate-900 border-b border-slate-800 h-14 flex-shrink-0"
             : "bg-white border-b border-slate-200 h-14 flex-shrink-0"
         }
@@ -40,7 +43,7 @@ export function BuilderHeader({
               variant="ghost"
               size="icon"
               className={
-                builderTheme === 'dark'
+                isDark
                   ? "flex-shrink-0 hover:bg-slate-800"
                   : "flex-shrink-0 hover:bg-slate-100"
               }
@@ -61,7 +64,7 @@ export function BuilderHeader({
               size="icon"
               onClick={onOpenChatHistory}
               className={
-                builderTheme === 'dark'
+                isDark
                   ? `flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white ${isChatHistoryOpen ? 'bg-slate-800 text-white' : ''}`
                   : `flex-shrink-0 text-slate-700 hover:bg-slate-100 hover:text-slate-900 ${isChatHistoryOpen ? 'bg-slate-200 text-slate-900' : ''}`
               }
@@ -79,16 +82,16 @@ export function BuilderHeader({
             <Button
               variant="ghost"
               size="icon"
-              onClick={onToggleTheme}
+              onClick={() => setTheme(isDark ? 'light' : 'dark')}
               className={
-                builderTheme === 'dark'
+                isDark
                   ? "flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white"
                   : "flex-shrink-0 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
               }
-              aria-label={builderTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              title={builderTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {builderTheme === 'dark' ? (
+              {isDark ? (
                 <Sun className="h-5 w-5" />
               ) : (
                 <Moon className="h-5 w-5" />
