@@ -1835,35 +1835,35 @@ export function PresentationViewer({
                 <span className={toolbarLabelClass}>Theme</span>
               </button>
 
-              {/* Edit / View segmented */}
-              <div className="inline-flex h-8 items-center rounded-md bg-slate-800/80 p-0.5">
-                <button
-                  onClick={isEditMode ? () => void handleToggleEditModeButton() : undefined}
-                  className={cn(
-                    "flex items-center gap-1 rounded px-2.5 h-7 text-[11px] font-medium transition-colors",
-                    !isEditMode
-                      ? "bg-slate-700 text-white"
-                      : "text-slate-300 hover:text-white"
-                  )}
-                  title="View mode (preview)"
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                  View
-                </button>
-                <button
-                  onClick={!isEditMode ? () => void handleToggleEditModeButton() : undefined}
-                  className={cn(
-                    "flex items-center gap-1 rounded px-2.5 h-7 text-[11px] font-medium transition-colors",
-                    isEditMode
-                      ? "bg-yellow-500/25 text-yellow-100"
-                      : "text-slate-300 hover:text-white"
-                  )}
-                  title="Edit mode (modify content)"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Edit
-                </button>
-              </div>
+              {/* View */}
+              <button
+                onClick={isEditMode ? () => void handleToggleEditModeButton() : undefined}
+                className={cn(
+                  toolbarButtonClass,
+                  !isEditMode
+                    ? "bg-slate-700 text-white"
+                    : "text-slate-200 hover:bg-slate-800 hover:text-white"
+                )}
+                title="View mode (preview)"
+              >
+                <Eye className="h-5 w-5" />
+                <span className={toolbarLabelClass}>View</span>
+              </button>
+
+              {/* Edit */}
+              <button
+                onClick={!isEditMode ? () => void handleToggleEditModeButton() : undefined}
+                className={cn(
+                  toolbarButtonClass,
+                  isEditMode
+                    ? "bg-yellow-500/25 text-yellow-100"
+                    : "text-slate-200 hover:bg-slate-800 hover:text-white"
+                )}
+                title="Edit mode (modify content)"
+              >
+                <Pencil className="h-5 w-5" />
+                <span className={toolbarLabelClass}>Edit</span>
+              </button>
 
               {/* Show menu — display toggles */}
               <DropdownMenu>
@@ -1932,22 +1932,24 @@ export function PresentationViewer({
                 <span className={toolbarLabelClass}>Play</span>
               </button>
 
-              {/* Saved indicator (replaces Save button) — quiet when saved, button when not */}
+              {/* Saved indicator — uniform square format like the other toolbar buttons */}
               {saveStatus === 'saved' ? (
                 <div
-                  className="flex items-center gap-1.5 px-2.5 h-12 text-[11px] font-medium text-slate-400"
+                  className={cn(toolbarButtonClass, "text-slate-400 cursor-default")}
                   title="All changes saved"
                 >
-                  <Check className="h-3.5 w-3.5 text-green-400" />
-                  Saved
+                  <Check className="h-5 w-5 text-green-400" />
+                  <span className={toolbarLabelClass}>Saved</span>
                 </div>
               ) : saveStatus === 'saving' || isSaving ? (
                 <div
-                  className="flex items-center gap-1.5 px-2.5 h-12 text-[11px] font-medium text-slate-300"
+                  className={cn(toolbarButtonClass, "text-slate-300 cursor-default")}
                   title="Saving…"
                 >
-                  <div className="h-3 w-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                  Saving
+                  <div className="h-5 w-5 flex items-center justify-center">
+                    <div className="h-3.5 w-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                  <span className={toolbarLabelClass}>Saving</span>
                 </div>
               ) : (
                 <button

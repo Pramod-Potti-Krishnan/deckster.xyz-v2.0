@@ -355,10 +355,10 @@ export function MessageList({
           return (
             <div key={item.id} className="flex gap-3 justify-end animate-in fade-in duration-200">
               <div className="flex-1 max-w-[85%] text-right">
-                <p className="text-[11px] font-medium text-gray-500 mb-0.5">You</p>
-                <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">{item.text}</p>
+                <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">You</p>
+                <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{item.text}</p>
               </div>
-              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center">
+              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-800 dark:bg-slate-700 flex items-center justify-center">
                 <User className="h-3 w-3 text-white" />
               </div>
             </div>
@@ -378,36 +378,36 @@ export function MessageList({
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
+                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
 
                       {/* Slide Structure Card */}
-                      <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
-                          <p className="text-xs font-medium text-gray-900">
+                          <p className="text-xs font-medium text-gray-900 dark:text-slate-100">
                             {slideUpdate?.payload.metadata.main_title}
                           </p>
                         </div>
-                        <p className="text-[11px] text-gray-500 mb-2">
+                        <p className="text-[11px] text-gray-500 dark:text-slate-400 mb-2">
                           {slideUpdate?.payload.slides.length} slides · {slideUpdate?.payload.metadata.presentation_duration} min · {slideUpdate?.payload.metadata.overall_theme}
                         </p>
                         <div className="space-y-1 max-h-36 overflow-y-auto">
                           {slideUpdate?.payload.slides.map((slide: any, i: number) => {
                             const ctx = slideContextByIndex?.[i]
                             return (
-                              <div key={i} className="text-[11px] py-1 px-2 bg-white rounded border border-gray-100">
+                              <div key={i} className="text-[11px] py-1 px-2 bg-white dark:bg-slate-900 rounded border border-gray-100 dark:border-slate-800">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-gray-400">{slide.slide_number}.</span>
-                                  <span className="text-gray-700">{slide.title}</span>
+                                  <span className="text-gray-400 dark:text-slate-500">{slide.slide_number}.</span>
+                                  <span className="text-gray-700 dark:text-slate-200">{slide.title}</span>
                                   {ctx?.narrative_role && (
                                     <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-normal capitalize">
                                       {ctx.narrative_role.replace(/_/g, ' ')}
                                     </Badge>
                                   )}
-                                  <span className="text-gray-400 text-[10px] uppercase ml-auto">{slide.slide_type}</span>
+                                  <span className="text-gray-400 dark:text-slate-500 text-[10px] uppercase ml-auto">{slide.slide_type}</span>
                                 </div>
                                 {ctx?.key_message && (
-                                  <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-2 pl-3">{ctx.key_message}</p>
+                                  <p className="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5 line-clamp-2 pl-3">{ctx.key_message}</p>
                                 )}
                               </div>
                             )
@@ -417,16 +417,16 @@ export function MessageList({
 
                       {/* Presentation Ready */}
                       {presentationUrl && (
-                        <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                        <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                           <span className="text-sm">✅</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-700">{presentationUrl.payload.message}</p>
-                            <p className="text-[10px] text-gray-500">{presentationUrl.payload.slide_count} slides</p>
+                            <p className="text-xs text-gray-700 dark:text-slate-200">{presentationUrl.payload.message}</p>
+                            <p className="text-[10px] text-gray-500 dark:text-slate-400">{presentationUrl.payload.slide_count} slides</p>
                           </div>
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-[11px] h-7 px-2 border-gray-200 hover:bg-white"
+                            className="text-[11px] h-7 px-2 border-gray-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 dark:bg-slate-900"
                             onClick={() => window.open(presentationUrl.payload.url, '_blank')}
                           >
                             <ExternalLink className="h-3 w-3 mr-1" />
@@ -438,7 +438,7 @@ export function MessageList({
                       {/* Action Buttons */}
                       {actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
                         <div className="mt-3">
-                          <p className="text-xs text-gray-700 mb-2">{actionRequest.payload.prompt_text}</p>
+                          <p className="text-xs text-gray-700 dark:text-slate-200 mb-2">{actionRequest.payload.prompt_text}</p>
                           <div className="flex flex-wrap gap-1.5">
                             {actionRequest.payload.actions.map((action: any, i: number) => (
                               <Button
@@ -447,8 +447,8 @@ export function MessageList({
                                 variant={action.primary ? "default" : "outline"}
                                 onClick={() => onActionClick(action, actionRequest.message_id)}
                                 className={action.primary
-                                  ? "text-xs h-7 bg-gray-900 hover:bg-gray-800"
-                                  : "text-xs h-7 border-gray-200 hover:bg-gray-50"
+                                  ? "text-xs h-7 bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700 dark:bg-slate-700"
+                                  : "text-xs h-7 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
                                 }
                               >
                                 {action.label}
@@ -476,7 +476,7 @@ export function MessageList({
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
+                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
                       <div className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2">
                         <button
                           type="button"
@@ -501,7 +501,7 @@ export function MessageList({
                             <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse [animation-delay:120ms]" />
                             <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse [animation-delay:240ms]" />
                           </span>
-                          <span className="min-w-0 flex-1 truncate text-xs text-gray-700">
+                          <span className="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-slate-200">
                             {latestMessage.payload.text}
                           </span>
                           {canExpand && (
@@ -512,7 +512,7 @@ export function MessageList({
                         {isExpanded && (
                           <div className="mt-2 max-h-24 overflow-y-auto border-t border-purple-100 pt-2 space-y-1">
                             {visibleMessages.map((thought) => (
-                              <p key={thought.message_id} className="text-[11px] leading-relaxed text-gray-500">
+                              <p key={thought.message_id} className="text-[11px] leading-relaxed text-gray-500 dark:text-slate-400">
                                 {thought.payload.text}
                               </p>
                             ))}
@@ -532,8 +532,8 @@ export function MessageList({
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
-                      <div className="text-xs text-gray-700 leading-relaxed">
+                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <div className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed">
                         <ReactMarkdown
                           components={{
                             a: ({ node, ...props }) => (
@@ -545,7 +545,7 @@ export function MessageList({
                               />
                             ),
                             p: ({ node, ...props }) => <p {...props} className="leading-relaxed mb-1 last:mb-0" />,
-                            strong: ({ node, ...props }) => <strong {...props} className="font-semibold text-gray-900" />,
+                            strong: ({ node, ...props }) => <strong {...props} className="font-semibold text-gray-900 dark:text-slate-100" />,
                             ul: ({ node, ...props }) => <ul {...props} className="list-disc pl-4 mb-1 space-y-0.5" />,
                             li: ({ node, ...props }) => <li {...props} className="leading-relaxed" />
                           }}
@@ -554,12 +554,12 @@ export function MessageList({
                         </ReactMarkdown>
                       </div>
                       {chatMsg.payload.sub_title && (
-                        <p className="text-[11px] text-gray-500 mt-1">{chatMsg.payload.sub_title}</p>
+                        <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{chatMsg.payload.sub_title}</p>
                       )}
                       {chatMsg.payload.list_items && chatMsg.payload.list_items.length > 0 && (
                         <ul className="text-[11px] mt-1.5 space-y-0.5">
                           {chatMsg.payload.list_items.map((listItem, i) => (
-                            <li key={i} className="ml-4 list-disc text-gray-600">{listItem}</li>
+                            <li key={i} className="ml-4 list-disc text-gray-600 dark:text-slate-300">{listItem}</li>
                           ))}
                         </ul>
                       )}
@@ -577,8 +577,8 @@ export function MessageList({
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
-                      <p className="text-xs text-gray-700 mb-2">{actionMsg.payload.prompt_text}</p>
+                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <p className="text-xs text-gray-700 dark:text-slate-200 mb-2">{actionMsg.payload.prompt_text}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {actionMsg.payload.actions.map((action, i) => (
                           <Button
@@ -587,8 +587,8 @@ export function MessageList({
                             variant={action.primary ? "default" : "outline"}
                             onClick={() => onActionClick(action, actionMsg.message_id)}
                             className={action.primary
-                              ? "text-xs h-7 bg-gray-900 hover:bg-gray-800"
-                              : "text-xs h-7 border-gray-200 hover:bg-gray-50"
+                              ? "text-xs h-7 bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700 dark:bg-slate-700"
+                              : "text-xs h-7 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
                             }
                           >
                             {action.label}
@@ -606,34 +606,34 @@ export function MessageList({
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
-                      <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <div className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
-                          <p className="text-xs font-medium text-gray-900">
+                          <p className="text-xs font-medium text-gray-900 dark:text-slate-100">
                             {slideMsg.payload.metadata.main_title}
                           </p>
                         </div>
-                        <p className="text-[11px] text-gray-500 mb-2">
+                        <p className="text-[11px] text-gray-500 dark:text-slate-400 mb-2">
                           {slideMsg.payload.slides.length} slides · {slideMsg.payload.metadata.presentation_duration} min · {slideMsg.payload.metadata.overall_theme}
                         </p>
                         <div className="space-y-1 max-h-36 overflow-y-auto">
                           {slideMsg.payload.slides.map((slide, i) => {
                             const ctx = slideContextByIndex?.[i]
                             return (
-                              <div key={i} className="text-[11px] py-1 px-2 bg-white rounded border border-gray-100">
+                              <div key={i} className="text-[11px] py-1 px-2 bg-white dark:bg-slate-900 rounded border border-gray-100 dark:border-slate-800">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-gray-400">{slide.slide_number}.</span>
-                                  <span className="text-gray-700">{slide.title}</span>
+                                  <span className="text-gray-400 dark:text-slate-500">{slide.slide_number}.</span>
+                                  <span className="text-gray-700 dark:text-slate-200">{slide.title}</span>
                                   {ctx?.narrative_role && (
                                     <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-normal capitalize">
                                       {ctx.narrative_role.replace(/_/g, ' ')}
                                     </Badge>
                                   )}
-                                  <span className="text-gray-400 text-[10px] uppercase ml-auto">{slide.slide_type}</span>
+                                  <span className="text-gray-400 dark:text-slate-500 text-[10px] uppercase ml-auto">{slide.slide_type}</span>
                                 </div>
                                 {ctx?.key_message && (
-                                  <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-2 pl-3">{ctx.key_message}</p>
+                                  <p className="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5 line-clamp-2 pl-3">{ctx.key_message}</p>
                                 )}
                               </div>
                             )
@@ -651,17 +651,17 @@ export function MessageList({
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 mb-0.5">Director</p>
-                      <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <span className="text-sm">✅</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-700">{presMsg.payload.message}</p>
-                          <p className="text-[10px] text-gray-500">{presMsg.payload.slide_count} slides</p>
+                          <p className="text-xs text-gray-700 dark:text-slate-200">{presMsg.payload.message}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-slate-400">{presMsg.payload.slide_count} slides</p>
                         </div>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-[11px] h-7 px-2 border-gray-200 hover:bg-white"
+                          className="text-[11px] h-7 px-2 border-gray-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 dark:bg-slate-900"
                           onClick={() => window.open(presMsg.payload.url, '_blank')}
                         >
                           <ExternalLink className="h-3 w-3 mr-1" />

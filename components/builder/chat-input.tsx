@@ -94,8 +94,8 @@ export function ChatInput({
 
   return (
     <div
-      className={`p-3 border-t border-gray-100 bg-white transition-colors ${
-        isDraggingFiles ? 'bg-purple-50 border-purple-200' : ''
+      className={`p-3 border-t border-gray-100 bg-white transition-colors dark:border-slate-800 dark:bg-slate-900 ${
+        isDraggingFiles ? 'bg-purple-50 border-purple-200 dark:bg-purple-950/30 dark:border-purple-700' : ''
       }`}
       onDragOver={(e) => {
         e.preventDefault()
@@ -148,12 +148,12 @@ export function ChatInput({
 
       {/* Action Input Banner */}
       {pendingActionInput && (
-        <div className="mb-2 p-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
+        <div className="mb-2 p-2 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-gray-700 font-medium text-xs">
+            <span className="text-gray-700 dark:text-slate-200 font-medium text-xs">
               {pendingActionInput.action.label}
             </span>
-            <span className="text-gray-500 text-[11px]">
+            <span className="text-gray-500 dark:text-slate-400 text-[11px]">
               Type your input and press Enter
             </span>
           </div>
@@ -161,7 +161,7 @@ export function ChatInput({
             size="sm"
             variant="ghost"
             onClick={onCancelAction}
-            className="h-5 text-[11px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 px-1.5"
+            className="h-5 text-[11px] text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700 px-1.5"
           >
             Cancel
           </Button>
@@ -169,7 +169,7 @@ export function ChatInput({
       )}
       {/* Main input container - Claude style */}
       <form onSubmit={onSubmit}>
-        <div className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all">
+        <div className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:focus-within:border-slate-600">
           {/* File chips live inside the composer so the input grows with them */}
           {features.enableFileUploads && uploadedFiles.length > 0 && !isDraggingFiles && (
             <div className="max-h-24 overflow-y-auto border-b border-gray-200/70 px-3 py-2">
@@ -188,7 +188,7 @@ export function ChatInput({
                     size="sm"
                     type="button"
                     onClick={onClearAllFiles}
-                    className="h-5 w-fit px-1.5 text-[10px] text-gray-500 hover:text-gray-700"
+                    className="h-5 w-fit px-1.5 text-[10px] text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200"
                   >
                     Clear all
                   </Button>
@@ -226,19 +226,19 @@ export function ChatInput({
                       : "Message Director..."
             }
             disabled={!user || isLoadingSession}
-            className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[96px] max-h-[220px] text-xs placeholder:text-gray-400 overflow-y-auto"
+            className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[96px] max-h-[220px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto dark:text-slate-100 dark:placeholder:text-slate-500"
             rows={1}
           />
 
           {/* Bottom toolbar inside input */}
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-b-xl">
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-b-xl dark:bg-slate-800">
             {/* Left: Action buttons */}
             <div className="flex items-center gap-1">
               {/* Direct file upload */}
               {features.enableFileUploads && (
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={uploadedFiles.length >= 5}
                   onClick={async () => {
                     try {
@@ -259,15 +259,15 @@ export function ChatInput({
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 transition-colors"
                   >
-                    <SlidersHorizontal className="h-4 w-4 text-gray-500" />
+                    <SlidersHorizontal className="h-4 w-4 text-gray-500 dark:text-slate-400" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-52">
                   <div className="flex items-center justify-between px-2 py-2">
                     <div className="flex items-center gap-2">
-                      <Search className="h-4 w-4 text-gray-500" />
+                      <Search className="h-4 w-4 text-gray-500 dark:text-slate-400" />
                       <span className="text-xs">Deep Research</span>
                     </div>
                     <Switch
@@ -278,7 +278,7 @@ export function ChatInput({
                   </div>
                   <div className="flex items-center justify-between px-2 py-2">
                     <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-gray-500" />
+                      <Globe className="h-4 w-4 text-gray-500 dark:text-slate-400" />
                       <span className="text-xs">Web search</span>
                     </div>
                     <Switch
@@ -289,7 +289,7 @@ export function ChatInput({
                   </div>
                   <div className="flex items-center justify-between px-2 py-2">
                     <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-gray-500" />
+                      <Sparkles className="h-4 w-4 text-gray-500 dark:text-slate-400" />
                       <span className="text-xs">Extended generation</span>
                     </div>
                     <Switch
@@ -318,8 +318,8 @@ export function ChatInput({
 
           {/* Only show loading overlay when actually loading session */}
           {isLoadingSession && (
-            <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] rounded-xl flex items-center justify-center">
-              <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
+            <div className="absolute inset-0 bg-white dark:bg-slate-900/50 backdrop-blur-[2px] rounded-xl flex items-center justify-center">
+              <Loader2 className="h-4 w-4 animate-spin text-gray-600 dark:text-slate-300" />
             </div>
           )}
         </div>

@@ -122,17 +122,17 @@ export function TokenUsageStrip({ tokenUsage }: TokenUsageStripProps) {
     : "Waiting for first usage update"
 
   return (
-    <div className="border-b border-gray-100 bg-white px-3 py-1.5">
+    <div className="border-b border-gray-100 bg-white px-3 py-1.5 dark:border-slate-800 dark:bg-slate-900">
       <div className="rounded-md px-1 py-1">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <Coins className="h-3.5 w-3.5 shrink-0 text-purple-600" />
-              <span className="text-[11px] font-medium text-gray-600">Token usage</span>
-              <span className="text-[11px] font-semibold text-gray-900">
+              <Coins className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-300" />
+              <span className="text-[11px] font-medium text-gray-600 dark:text-slate-400">Token usage</span>
+              <span className="text-[11px] font-semibold text-gray-900 dark:text-slate-100">
                 {formatNumber(displayTotal)}
               </span>
-              <span className="text-[10px] text-gray-500">used</span>
+              <span className="text-[10px] text-gray-500 dark:text-slate-500">used</span>
               {hasUsage && (
                 <TooltipProvider delayDuration={150}>
                   <Tooltip>
@@ -159,7 +159,7 @@ export function TokenUsageStrip({ tokenUsage }: TokenUsageStripProps) {
                 </TooltipProvider>
               )}
             </div>
-            <p className="mt-0.5 truncate text-[10px] text-gray-500">{usageCopy}</p>
+            <p className="mt-0.5 truncate text-[10px] text-gray-500 dark:text-slate-500">{usageCopy}</p>
           </div>
 
           {hasUsage && (
