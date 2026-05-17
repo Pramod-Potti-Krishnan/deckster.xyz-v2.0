@@ -782,7 +782,7 @@ function BuilderContent() {
         {/* Header */}
         <BuilderHeader
           wsError={wsError}
-          onOpenChatHistory={() => setShowChatHistory(true)}
+          onOpenChatHistory={() => setShowChatHistory((prev) => !prev)}
           toolbarSlotRef={setToolbarPortalTarget}
           builderTheme={builderTheme}
           onToggleTheme={toggleBuilderTheme}

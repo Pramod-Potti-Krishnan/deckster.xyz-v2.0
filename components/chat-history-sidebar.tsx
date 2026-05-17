@@ -207,26 +207,22 @@ export function ChatHistorySidebar({
 
   return (
     <>
-      {/* Overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 transition-opacity"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Sidebar */}
+      {/* Sidebar — slides in from the left, BELOW the h-14 toolbar so the
+          toggle button (PanelLeft in BuilderHeader) stays accessible.
+          No backdrop: same pattern as ChatGPT / Notion / VS Code where the
+          sidebar coexists with the main content rather than dimming it. */}
       <div
         className={`
-          fixed top-0 left-0 h-full w-80 bg-white dark:bg-gray-900
-          shadow-2xl z-50 transform transition-transform duration-300 ease-in-out
+          fixed top-14 left-0 bottom-0 w-80 bg-white dark:bg-slate-900
+          shadow-xl border-r border-slate-200 dark:border-slate-800 z-40
+          transform transition-transform duration-300 ease-in-out
           flex flex-col
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        {/* Header */}
+        {/* Header — no X close; the toolbar's PanelLeft button toggles open/close */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xs font-semibold text-gray-900">Chat History</h2>
+          <h2 className="text-xs font-semibold text-gray-900 dark:text-slate-100">Your decks</h2>
           <div className="flex items-center gap-2">
             {/* Select Mode Toggle */}
             <Button
@@ -238,12 +234,6 @@ export function ChatHistorySidebar({
               <CheckSquare className="w-3 h-3 mr-1" />
               {isSelectionMode ? 'Cancel' : 'Select'}
             </Button>
-            <button
-              onClick={onClose}
-              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
 
