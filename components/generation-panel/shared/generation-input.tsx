@@ -58,7 +58,7 @@ export function GenerationInput({
       )}
 
       {/* Chat-style input container */}
-      <div className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all">
+      <div className="relative bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 focus-within:border-gray-300 dark:border-slate-600 focus-within:shadow-sm transition-all">
         {/* Textarea */}
         <div className="relative">
           <textarea
@@ -67,7 +67,7 @@ export function GenerationInput({
             onChange={(e) => onPromptChange(e.target.value)}
             placeholder={placeholder}
             disabled={isGenerating}
-            className="w-full resize-y border-0 bg-transparent focus:ring-0 focus:outline-none px-3 pt-3 pb-12 min-h-[60px] max-h-[160px] text-xs placeholder:text-gray-400 overflow-y-auto text-gray-900 disabled:opacity-50"
+            className="w-full resize-y border-0 bg-transparent focus:ring-0 focus:outline-none px-3 pt-3 pb-12 min-h-[60px] max-h-[160px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto text-gray-900 dark:text-slate-100 disabled:opacity-50"
             rows={2}
           />
           {/* Resize grip indicator */}
@@ -80,7 +80,7 @@ export function GenerationInput({
         </div>
 
         {/* Bottom toolbar */}
-        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-2 py-1.5 bg-gray-50 rounded-b-xl">
+        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-2 py-1.5 bg-gray-50 dark:bg-slate-800 rounded-b-xl">
           {/* Left: Mandatory chip + Advanced toggle */}
           <div className="flex items-center gap-1">
             {/* Mandatory config chip (or custom render) */}
@@ -99,7 +99,7 @@ export function GenerationInput({
               className={`p-1.5 rounded-lg transition-colors ${
                 showAdvanced
                   ? 'bg-primary/10 text-primary'
-                  : 'text-gray-400 hover:bg-gray-200'
+                  : 'text-gray-400 dark:text-slate-500 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
               }`}
               title={showAdvanced ? 'Hide advanced options' : 'Show advanced options'}
             >
@@ -122,7 +122,7 @@ export function GenerationInput({
               disabled={isGenerating}
               className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
                 isGenerating
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'bg-gray-200 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed'
                   : 'bg-purple-600 hover:bg-purple-700 text-white'
               }`}
               title="Generate (⌘↵)"
@@ -147,7 +147,7 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
   if (!hasGroups && !hasOptions) {
     // No options — just show a static chip
     return (
-      <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 text-xs text-gray-600">
+      <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-slate-700 text-xs text-gray-600 dark:text-slate-300">
         <span className="truncate max-w-[120px]">{config.displayLabel}</span>
       </div>
     )
@@ -158,9 +158,9 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs text-gray-700 transition-colors"
+          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 text-xs text-gray-700 dark:text-slate-200 transition-colors"
         >
-          <ChevronDown className="h-3 w-3 text-gray-400" />
+          <ChevronDown className="h-3 w-3 text-gray-400 dark:text-slate-500" />
           <span className="truncate max-w-[120px]">{config.displayLabel}</span>
         </button>
       </PopoverTrigger>
@@ -170,7 +170,7 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
           <div className="space-y-1">
             {config.optionGroups!.map((group) => (
               <div key={group.group}>
-                <div className="px-2 py-1 text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+                <div className="px-2 py-1 text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">
                   {group.group}
                 </div>
                 {group.options.map((option) => (
@@ -180,7 +180,7 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
                     className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
                       config.displayLabel === option.label
                         ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-gray-700 hover:bg-gray-100'
+                        : 'text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700'
                     }`}
                   >
                     {config.displayLabel === option.label && (
@@ -204,7 +204,7 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
                   config.displayLabel === option.label
                     ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    : 'text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700'
                 }`}
               >
                 {config.displayLabel === option.label && (

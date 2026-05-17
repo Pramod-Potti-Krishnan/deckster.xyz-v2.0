@@ -108,7 +108,7 @@ export function ChartAITab({
                 "py-1.5 px-1 rounded-md text-[10px] font-medium truncate transition-all",
                 chartType === type
                   ? "bg-amber-600 text-white shadow-sm"
-                  : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                  : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
               )}
               title={label}
             >
@@ -127,7 +127,7 @@ export function ChartAITab({
                   "py-1.5 px-1 rounded-md text-[10px] font-medium truncate transition-all",
                   chartType === type
                     ? "bg-amber-600 text-white shadow-sm"
-                    : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                    : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                 )}
                 title={label}
               >
@@ -150,7 +150,7 @@ export function ChartAITab({
                 "py-1.5 px-1 rounded-md text-[10px] font-medium truncate transition-all",
                 chartType === type
                   ? "bg-purple-600 text-white shadow-sm"
-                  : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                  : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
               )}
               title={label}
             >
@@ -183,7 +183,7 @@ export function ChartAITab({
                   "py-1.5 rounded-md text-[10px] font-medium transition-all flex items-center justify-center gap-1",
                   dataFormat === format
                     ? "bg-amber-600 text-white shadow-sm"
-                    : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                    : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                 )}
               >
                 <span className="text-amber-300">{symbol}</span>
@@ -198,7 +198,7 @@ export function ChartAITab({
 
       {/* Synthetic Data Toggle */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-gray-400">Use synthetic/demo data</span>
+        <span className="text-[11px] text-gray-400 dark:text-slate-500">Use synthetic/demo data</span>
         <Toggle
           checked={useSynthetic}
           onChange={setUseSynthetic}
@@ -209,7 +209,7 @@ export function ChartAITab({
 
       {/* AI Prompt */}
       <div className="space-y-2">
-        <span className="text-[10px] text-gray-500">
+        <span className="text-[10px] text-gray-500 dark:text-slate-400">
           {useSynthetic ? 'Describe the chart topic (optional)' : 'Describe the data'}
         </span>
         <textarea
@@ -224,8 +224,8 @@ export function ChartAITab({
           rows={3}
           className={cn(
             "w-full px-3 py-2 rounded-lg resize-none",
-            "bg-gray-800/60 border border-gray-700/50",
-            "text-[11px] text-white placeholder:text-gray-500",
+            "bg-gray-800 dark:bg-slate-700/60 border border-gray-700/50",
+            "text-[11px] text-white placeholder:text-gray-500 dark:text-slate-400",
             "focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20",
             "transition-all duration-150"
           )}
@@ -251,7 +251,7 @@ export function ChartAITab({
           "w-full flex items-center justify-center gap-2 h-10 rounded-lg",
           "text-[11px] font-medium transition-all duration-150",
           isGenerating || isApplying || (!prompt.trim() && !useSynthetic)
-            ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+            ? "bg-gray-800 dark:bg-slate-700 text-gray-500 dark:text-slate-400 cursor-not-allowed"
             : "bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/20"
         )}
       >
@@ -269,7 +269,7 @@ export function ChartAITab({
       </button>
 
       {/* Helper Text */}
-      <p className="text-[9px] text-gray-600 text-center">
+      <p className="text-[9px] text-gray-600 dark:text-slate-300 text-center">
         {useSynthetic
           ? "AI will generate realistic demo data"
           : "AI will generate data based on your description"}

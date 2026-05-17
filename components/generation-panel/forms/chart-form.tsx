@@ -213,11 +213,11 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
         <div className="space-y-2">
           {/* Count */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Count</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
             <select
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {[1, 2].map(n => (
                 <option key={n} value={n}>{n}</option>
@@ -260,7 +260,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
           {/* Series Names (only for multi-series chart types) */}
           {MULTI_SERIES_TYPES.includes(chartType) && (
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Series Names</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Series Names</label>
               <input
                 type="text"
                 value={seriesNamesInput}
@@ -269,9 +269,9 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
                   setAdvancedModified(true)
                 }}
                 placeholder="e.g., Revenue, Costs, Profit"
-                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
               />
-              <p className="text-[10px] text-gray-400">Comma-separated names for each data series</p>
+              <p className="text-[10px] text-gray-400 dark:text-slate-500">Comma-separated names for each data series</p>
             </div>
           )}
 
@@ -294,7 +294,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
           {dataSource === 'custom' && (
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium text-gray-600">Custom Data (JSON)</label>
+                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Custom Data (JSON)</label>
                 <button
                   onClick={loadTemplate}
                   className="text-[10px] text-primary hover:text-primary/80"
@@ -310,8 +310,8 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
                   setAdvancedModified(true)
                 }}
                 rows={6}
-                className={`w-full px-2.5 py-2 rounded-md bg-gray-50 border text-xs text-gray-900 font-mono placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary resize-y ${
-                  dataError ? 'border-red-500' : 'border-gray-300'
+                className={`w-full px-2.5 py-2 rounded-md bg-gray-50 dark:bg-slate-800 border text-xs text-gray-900 dark:text-slate-100 font-mono placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary resize-y ${
+                  dataError ? 'border-red-500' : 'border-gray-300 dark:border-slate-600'
                 }`}
                 placeholder='[{ "label": "Jan", "value": 100 }]'
               />

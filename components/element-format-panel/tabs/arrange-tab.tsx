@@ -187,7 +187,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
             title="Send to Back"
             className={cn(
               "flex-1 flex items-center justify-center gap-1 h-8",
-              "bg-gray-800/60 rounded-l-md",
+              "bg-gray-800 dark:bg-slate-700/60 rounded-l-md",
               "text-[10px] text-gray-300 hover:text-white hover:bg-gray-700/50",
               "transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             )}
@@ -201,7 +201,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
             title="Send Backward"
             className={cn(
               "flex-1 flex items-center justify-center gap-1 h-8",
-              "bg-gray-800/60",
+              "bg-gray-800 dark:bg-slate-700/60",
               "text-[10px] text-gray-300 hover:text-white hover:bg-gray-700/50",
               "transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             )}
@@ -214,7 +214,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
             title="Bring Forward"
             className={cn(
               "flex-1 flex items-center justify-center gap-1 h-8",
-              "bg-gray-800/60",
+              "bg-gray-800 dark:bg-slate-700/60",
               "text-[10px] text-gray-300 hover:text-white hover:bg-gray-700/50",
               "transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             )}
@@ -227,7 +227,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
             title="Bring to Front"
             className={cn(
               "flex-1 flex items-center justify-center gap-1 h-8",
-              "bg-gray-800/60 rounded-r-md",
+              "bg-gray-800 dark:bg-slate-700/60 rounded-r-md",
               "text-[10px] text-gray-300 hover:text-white hover:bg-gray-700/50",
               "transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             )}
@@ -288,7 +288,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
               "flex items-center justify-center w-7 h-7 rounded-md mt-1",
               constrainProportions
                 ? "text-blue-400 hover:text-blue-300"
-                : "text-gray-500 hover:text-gray-300",
+                : "text-gray-500 dark:text-slate-400 hover:text-gray-300",
               "transition-colors disabled:opacity-50"
             )}
           >
@@ -367,7 +367,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
               "rounded-md transition-all",
               flippedH
                 ? "bg-blue-600/20 text-blue-400 border border-blue-500/30"
-                : "bg-gray-800/60 text-gray-300 hover:text-white hover:bg-gray-700/50"
+                : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:text-white hover:bg-gray-700/50"
             )}
           >
             <FlipHorizontal className="h-3.5 w-3.5" />
@@ -381,7 +381,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
               "rounded-md transition-all",
               flippedV
                 ? "bg-blue-600/20 text-blue-400 border border-blue-500/30"
-                : "bg-gray-800/60 text-gray-300 hover:text-white hover:bg-gray-700/50"
+                : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:text-white hover:bg-gray-700/50"
             )}
           >
             <FlipVertical className="h-3.5 w-3.5" />
@@ -402,7 +402,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
             "rounded-lg transition-all",
             isLocked
               ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-              : "bg-gray-800/60 text-gray-300 hover:text-white hover:bg-gray-700/50"
+              : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:text-white hover:bg-gray-700/50"
           )}
         >
           {isLocked ? (

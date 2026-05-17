@@ -203,11 +203,11 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
           {subtype === 'CODE_DISPLAY' && (
             <>
               <div className="space-y-1">
-                <label className="text-[11px] font-medium text-gray-600">Language</label>
+                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Language</label>
                 <select
                   value={language}
                   onChange={(e) => { setLanguage(e.target.value); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   {LANGUAGES.map(l => (
                     <option key={l} value={l}>{l}</option>
@@ -215,11 +215,11 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-[11px] font-medium text-gray-600">Theme</label>
+                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Theme</label>
                 <select
                   value={colorTheme}
                   onChange={(e) => { setColorTheme(e.target.value as CodeDisplayConfig['color_theme']); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   {COLOR_THEMES.map(t => (
                     <option key={t.value} value={t.value}>{t.label}</option>
@@ -271,11 +271,11 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
               />
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-gray-600">Size</label>
+                  <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Size</label>
                   <select
                     value={codeSize}
                     onChange={(e) => { setCodeSize(e.target.value as 'full' | 'half' | 'third'); setAdvancedModified(true) }}
-                    className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                    className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                   >
                     <option value="full">Full</option>
                     <option value="half">Half</option>
@@ -284,11 +284,11 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
                 </div>
                 {codeSize !== 'full' && (
                   <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-gray-600">Position</label>
+                    <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Position</label>
                     <select
                       value={codePosition}
                       onChange={(e) => { setCodePosition(e.target.value as 'left' | 'center' | 'right'); setAdvancedModified(true) }}
-                      className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                      className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                     >
                       <option value="left">Left</option>
                       {codeSize === 'third' && <option value="center">Center</option>}
@@ -303,11 +303,11 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
           {subtype === 'KANBAN_BOARD' && (
             <>
               <div className="space-y-1">
-                <label className="text-[11px] font-medium text-gray-600">Columns</label>
+                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Columns</label>
                 <select
                   value={columnCount}
                   onChange={(e) => { setColumnCount(Number(e.target.value)); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 >
                   {[2, 3, 4, 5, 6].map(n => (
                     <option key={n} value={n}>{n}</option>
@@ -341,11 +341,11 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
           {subtype === 'CHEVRON_MATURITY' && (
             <>
               <div className="space-y-1">
-                <label className="text-[11px] font-medium text-gray-600">Stages</label>
+                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Stages</label>
                 <select
                   value={numStages}
                   onChange={(e) => { setNumStages(Number(e.target.value)); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 >
                   {[3, 4, 5, 6, 7, 8].map(n => (
                     <option key={n} value={n}>{n}</option>
@@ -371,11 +371,11 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
           {subtype === 'IDEA_BOARD' && (
             <>
               <div className="space-y-1">
-                <label className="text-[11px] font-medium text-gray-600">Axis Preset</label>
+                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Axis Preset</label>
                 <select
                   value={axisPreset}
                   onChange={(e) => { setAxisPreset(e.target.value as IdeaBoardConfig['axis_preset']); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 >
                   <option value="impact_urgency">Impact / Urgency</option>
                   <option value="impact_effort">Impact / Effort</option>
@@ -479,11 +479,11 @@ function ThemeSelect({ value, onChange }: { value: 'default' | 'dark' | 'minimal
 function PositionPresetSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="space-y-1">
-      <label className="text-[11px] font-medium text-gray-600">Position</label>
+      <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Position</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+        className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
       >
         {POSITION_PRESETS.map(p => (
           <option key={p.value} value={p.value}>{p.label}</option>

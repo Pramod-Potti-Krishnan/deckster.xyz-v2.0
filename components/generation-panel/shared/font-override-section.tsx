@@ -50,14 +50,14 @@ export function FontOverrideSection({
 
   return (
     <div className="space-y-2">
-      <label className="text-[11px] font-medium text-gray-600">{label}</label>
+      <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">{label}</label>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-[10px] text-gray-400">Size</label>
+          <label className="text-[10px] text-gray-400 dark:text-slate-500">Size</label>
           <select
             value={(config[sizeField] as string) || ''}
             onChange={(e) => onChange(sizeField, e.target.value || null)}
-            className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+            className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
           >
             <option value="">Auto</option>
             {FONT_SIZES.map(s => (
@@ -66,11 +66,11 @@ export function FontOverrideSection({
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] text-gray-400">Family</label>
+          <label className="text-[10px] text-gray-400 dark:text-slate-500">Family</label>
           <select
             value={(config[familyField] as string) || ''}
             onChange={(e) => onChange(familyField, e.target.value || null)}
-            className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+            className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
           >
             <option value="">Auto</option>
             {FONT_FAMILIES.map(f => (
@@ -80,7 +80,7 @@ export function FontOverrideSection({
         </div>
       </div>
       <div className="space-y-1">
-        <label className="text-[10px] text-gray-400">Color</label>
+        <label className="text-[10px] text-gray-400 dark:text-slate-500">Color</label>
         <div className="flex flex-wrap gap-1">
           {(colorPresets ?? FONT_COLOR_PRESETS).map(preset => (
             <button
@@ -91,7 +91,7 @@ export function FontOverrideSection({
                 (config[colorField] || null) === preset.value
                   ? 'ring-2 ring-primary ring-offset-1'
                   : 'hover:scale-110'
-              } ${!preset.hex ? 'bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 border-gray-300' : 'border-gray-200'}`}
+              } ${!preset.hex ? 'bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 border-gray-300 dark:border-slate-600' : 'border-gray-200 dark:border-slate-700'}`}
               title={preset.label}
             />
           ))}
@@ -113,7 +113,7 @@ export function FontOverrideSection({
             className={`w-6 h-6 rounded text-xs ${style} transition-colors ${
               config[field]
                 ? 'bg-primary text-white border border-primary'
-                : 'bg-gray-100 text-gray-500 border border-gray-300 hover:bg-gray-200'
+                : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
             }`}
           >
             {btnLabel}

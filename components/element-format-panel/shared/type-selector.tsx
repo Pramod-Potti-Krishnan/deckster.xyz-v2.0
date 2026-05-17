@@ -21,7 +21,7 @@ export function TypeSelector<T extends string>({
 }: TypeSelectorProps<T>) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs text-gray-400 uppercase tracking-wide">{label}</label>
+      <label className="text-xs text-gray-400 dark:text-slate-500 uppercase tracking-wide">{label}</label>
       <div
         className="grid gap-1.5"
         style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
@@ -36,7 +36,7 @@ export function TypeSelector<T extends string>({
               "disabled:opacity-50 disabled:cursor-not-allowed",
               value === type
                 ? "bg-blue-600 text-white"
-                : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                : "bg-gray-800 dark:bg-slate-700 text-gray-300 hover:bg-gray-700"
             )}
           >
             {optionLabel}

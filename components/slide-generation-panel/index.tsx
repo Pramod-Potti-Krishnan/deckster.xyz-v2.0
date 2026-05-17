@@ -99,27 +99,27 @@ export function SlideGenerationPanel({
     <div className="absolute inset-0 z-20 flex pointer-events-none">
       <div
         className={cn(
-          "flex-1 bg-white flex flex-col shadow-2xl overflow-hidden transition-all duration-200 ease-out",
+          "flex-1 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden transition-all duration-200 ease-out",
           isOpen ? "pointer-events-auto opacity-100" : "opacity-0 max-w-0"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
           <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
               <Layout className="h-3.5 w-3.5 text-primary" />
             </div>
             <div>
-              <h3 className="text-xs font-semibold text-gray-900">Slide</h3>
-              <p className="text-[10px] text-gray-500">Generate or edit slide content</p>
+              <h3 className="text-xs font-semibold text-gray-900 dark:text-slate-100">Slide</h3>
+              <p className="text-[10px] text-gray-500 dark:text-slate-400">Generate or edit slide content</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700 transition-colors"
             title="Close panel"
           >
-            <X className="h-4 w-4 text-gray-500" />
+            <X className="h-4 w-4 text-gray-500 dark:text-slate-400" />
           </button>
         </div>
 
@@ -152,12 +152,12 @@ export function SlideGenerationPanel({
           >
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-700">{getLayoutLabel(selectedLayout)}</span>
-                <span className="text-[10px] text-gray-400">{selectedLayout}</span>
+                <span className="text-xs font-medium text-gray-700 dark:text-slate-200">{getLayoutLabel(selectedLayout)}</span>
+                <span className="text-[10px] text-gray-400 dark:text-slate-500">{selectedLayout}</span>
               </div>
-              <p className="text-[10px] text-gray-500">{getLayoutDescription(selectedLayout)}</p>
-              <div className="bg-gray-50 rounded-md p-3 text-center">
-                <p className="text-[10px] text-gray-400">Layout preview coming soon</p>
+              <p className="text-[10px] text-gray-500 dark:text-slate-400">{getLayoutDescription(selectedLayout)}</p>
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">Layout preview coming soon</p>
               </div>
             </div>
           </CollapsibleSection>
@@ -170,20 +170,20 @@ export function SlideGenerationPanel({
           >
             <div className="space-y-2">
               <div>
-                <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Title</label>
-                <div className="mt-1 h-8 rounded-md bg-gray-100 border border-gray-200 px-2 flex items-center">
+                <label className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Title</label>
+                <div className="mt-1 h-8 rounded-md bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 px-2 flex items-center">
                   <span className="text-xs text-gray-300">Title text</span>
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Subtitle</label>
-                <div className="mt-1 h-8 rounded-md bg-gray-100 border border-gray-200 px-2 flex items-center">
+                <label className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Subtitle</label>
+                <div className="mt-1 h-8 rounded-md bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 px-2 flex items-center">
                   <span className="text-xs text-gray-300">Subtitle text</span>
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Body</label>
-                <div className="mt-1 h-16 rounded-md bg-gray-100 border border-gray-200 px-2 pt-2">
+                <label className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Body</label>
+                <div className="mt-1 h-16 rounded-md bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 px-2 pt-2">
                   <span className="text-xs text-gray-300">Body content</span>
                 </div>
               </div>
@@ -196,8 +196,8 @@ export function SlideGenerationPanel({
             isOpen={openSections.background}
             onToggle={() => toggleSection('background')}
           >
-            <div className="bg-gray-50 rounded-md p-3 text-center">
-              <p className="text-[10px] text-gray-400">Color, gradient, and background image options — Coming soon</p>
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+              <p className="text-[10px] text-gray-400 dark:text-slate-500">Color, gradient, and background image options — Coming soon</p>
             </div>
           </CollapsibleSection>
 
@@ -207,8 +207,8 @@ export function SlideGenerationPanel({
             isOpen={openSections.typography}
             onToggle={() => toggleSection('typography')}
           >
-            <div className="bg-gray-50 rounded-md p-3 text-center">
-              <p className="text-[10px] text-gray-400">Heading font, body font, size scale — Coming soon</p>
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+              <p className="text-[10px] text-gray-400 dark:text-slate-500">Heading font, body font, size scale — Coming soon</p>
             </div>
           </CollapsibleSection>
 
@@ -218,8 +218,8 @@ export function SlideGenerationPanel({
             isOpen={openSections.elements}
             onToggle={() => toggleSection('elements')}
           >
-            <div className="bg-gray-50 rounded-md p-3 text-center">
-              <p className="text-[10px] text-gray-400">Image, chart, and diagram configuration — Coming soon</p>
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+              <p className="text-[10px] text-gray-400 dark:text-slate-500">Image, chart, and diagram configuration — Coming soon</p>
             </div>
           </CollapsibleSection>
 
@@ -229,8 +229,8 @@ export function SlideGenerationPanel({
             isOpen={openSections.animation}
             onToggle={() => toggleSection('animation')}
           >
-            <div className="bg-gray-50 rounded-md p-3 text-center">
-              <p className="text-[10px] text-gray-400">Slide transitions and timing — Coming soon</p>
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+              <p className="text-[10px] text-gray-400 dark:text-slate-500">Slide transitions and timing — Coming soon</p>
             </div>
           </CollapsibleSection>
         </div>

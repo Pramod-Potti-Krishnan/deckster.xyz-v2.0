@@ -74,14 +74,14 @@ export function ElementFormatPanel({
   // Get element info for display
   const elementInfo = elementType ? ELEMENT_INFO[elementType] : null
   const ElementIcon = elementType ? ELEMENT_ICONS[elementType] : null
-  const accentColor = elementType ? ELEMENT_ACCENT_COLORS[elementType] : 'text-gray-400'
+  const accentColor = elementType ? ELEMENT_ACCENT_COLORS[elementType] : 'text-gray-400 dark:text-slate-500'
 
   // Render SlideFormatPanel when no element selected
   if (showSlidePanel) {
     return (
       <div
         className={cn(
-          "absolute inset-0 bg-gray-900 text-white shadow-2xl z-20 flex flex-col"
+          "absolute inset-0 bg-gray-900 dark:bg-slate-600 text-white shadow-2xl z-20 flex flex-col"
         )}
       >
         <SlideFormatPanel
@@ -108,7 +108,7 @@ export function ElementFormatPanel({
   return (
     <div
       className={cn(
-        "absolute inset-0 bg-gray-900 text-white shadow-2xl z-20 flex flex-col"
+        "absolute inset-0 bg-gray-900 dark:bg-slate-600 text-white shadow-2xl z-20 flex flex-col"
       )}
     >
       {/* Header - Refined with icon and better spacing */}
@@ -126,7 +126,7 @@ export function ElementFormatPanel({
             onClick={onDelete}
             className={cn(
               "flex items-center justify-center w-7 h-7 rounded-md",
-              "text-gray-500 hover:text-red-400 hover:bg-red-500/10",
+              "text-gray-500 dark:text-slate-400 hover:text-red-400 hover:bg-red-500/10",
               "transition-colors"
             )}
             title="Delete element"

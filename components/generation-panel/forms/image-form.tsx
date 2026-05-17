@@ -209,14 +209,14 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
         <div className="space-y-2">
           {/* Quality */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Quality</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Quality</label>
             <select
               value={quality}
               onChange={(e) => {
                 setQuality(e.target.value as 'standard' | 'hd')
                 setAdvancedModified(true)
               }}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="standard">Standard</option>
               <option value="hd">HD</option>
@@ -260,7 +260,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
         <div className="space-y-2">
           {/* Aspect Ratio Presets */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Aspect Ratio</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Aspect Ratio</label>
             <div className="grid grid-cols-3 gap-1">
               {ASPECT_RATIO_PRESETS.map(preset => (
                 <button
@@ -269,7 +269,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
                   className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                     selectedAspectRatio === preset.label
                       ? 'bg-primary text-white border border-primary'
-                      : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
+                      : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
                   }`}
                 >
                   {preset.label}
@@ -283,7 +283,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
                 className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                   selectedAspectRatio === 'custom'
                     ? 'bg-primary text-white border border-primary'
-                    : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
                 }`}
               >
                 Custom
@@ -292,7 +292,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
           </div>
 
           {/* Size info with aspect ratio */}
-          <div className="text-[10px] text-gray-400">
+          <div className="text-[10px] text-gray-400 dark:text-slate-500">
             Size: {width} x {height} grid ({pixelWidth} x {pixelHeight}px) &mdash; Aspect: {displayAspect}
           </div>
 
@@ -315,7 +315,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
             <>
               {/* Position Presets */}
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-400">Position Presets</label>
+                <label className="text-[10px] text-gray-400 dark:text-slate-500">Position Presets</label>
                 <div className="grid grid-cols-3 gap-1">
                   {Object.entries(IMAGE_POSITION_PRESETS).map(([key, preset]) => (
                     <button
@@ -324,7 +324,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
                       className={`px-1.5 py-1 rounded text-[10px] transition-colors ${
                         selectedPositionPreset === key
                           ? 'bg-primary text-white border border-primary'
-                          : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
+                          : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
                       }`}
                     >
                       {preset.label}
@@ -336,16 +336,16 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
               {/* Col/Row Inputs */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-gray-400">Col</label>
+                  <label className="text-[10px] text-gray-400 dark:text-slate-500">Col</label>
                   <input type="number" value={startCol} min={1} max={32}
                     onChange={(e) => { setStartCol(Number(e.target.value)); setSelectedPositionPreset(null); setAdvancedModified(true) }}
-                    className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900" />
+                    className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-gray-400">Row</label>
+                  <label className="text-[10px] text-gray-400 dark:text-slate-500">Row</label>
                   <input type="number" value={startRow} min={1} max={18}
                     onChange={(e) => { setStartRow(Number(e.target.value)); setSelectedPositionPreset(null); setAdvancedModified(true) }}
-                    className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900" />
+                    className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
                 </div>
               </div>
             </>
@@ -354,16 +354,16 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
           {/* Width/Height always visible */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400">Width</label>
+              <label className="text-[10px] text-gray-400 dark:text-slate-500">Width</label>
               <input type="number" value={width} min={1} max={32}
                 onChange={(e) => { setWidth(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900" />
+                className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400">Height</label>
+              <label className="text-[10px] text-gray-400 dark:text-slate-500">Height</label>
               <input type="number" value={height} min={1} max={18}
                 onChange={(e) => { setHeight(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900" />
+                className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
             </div>
           </div>
 

@@ -144,7 +144,7 @@ export function InfographicAITab({
               {/* Group Header */}
               <button
                 onClick={() => toggleGroup(group)}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 text-[10px] font-medium text-gray-300 transition-colors"
+                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-800 dark:bg-slate-700/60 hover:bg-gray-800 dark:bg-slate-700 text-[10px] font-medium text-gray-300 transition-colors"
               >
                 <span>{group}</span>
                 <ChevronDown
@@ -156,7 +156,7 @@ export function InfographicAITab({
               </button>
               {/* Group Content */}
               {expandedGroups.has(group) && (
-                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-900/50">
+                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-900 dark:bg-slate-600/50">
                   {infographics.map(({ type, label, description }) => (
                     <button
                       key={type}
@@ -166,7 +166,7 @@ export function InfographicAITab({
                         "px-2 py-1.5 rounded-md text-[10px] font-medium transition-all text-left truncate",
                         infographicType === type
                           ? "bg-purple-600 text-white shadow-sm"
-                          : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                          : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
                       )}
                       title={description}
                     >
@@ -193,7 +193,7 @@ export function InfographicAITab({
         <PanelSection title="Item Count">
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-[10px] text-gray-400">Number of items</span>
+              <span className="text-[10px] text-gray-400 dark:text-slate-500">Number of items</span>
               <span className="text-[11px] text-purple-400 font-medium">{itemCount}</span>
             </div>
             <input
@@ -205,7 +205,7 @@ export function InfographicAITab({
               disabled={isGenerating || isApplying}
               className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
             />
-            <div className="flex justify-between text-[9px] text-gray-600">
+            <div className="flex justify-between text-[9px] text-gray-600 dark:text-slate-300">
               <span>3</span>
               <span>10</span>
             </div>
@@ -213,7 +213,7 @@ export function InfographicAITab({
         </PanelSection>
       )}
       {infographicType && FIXED_COUNT_TYPES.includes(infographicType) && (
-        <div className="px-3 py-2 bg-gray-800/60 rounded-lg text-[10px] text-gray-400">
+        <div className="px-3 py-2 bg-gray-800 dark:bg-slate-700/60 rounded-lg text-[10px] text-gray-400 dark:text-slate-500">
           Item count is fixed for {selectedInfographic?.label}
         </div>
       )}
@@ -230,7 +230,7 @@ export function InfographicAITab({
                 "py-1.5 rounded-md text-[9px] font-medium transition-all truncate",
                 colorScheme === scheme
                   ? "bg-purple-600 text-white shadow-sm"
-                  : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                  : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
               )}
               title={label}
             >
@@ -252,7 +252,7 @@ export function InfographicAITab({
                 "py-1.5 rounded-md text-[10px] font-medium transition-all",
                 iconStyle === style
                   ? "bg-purple-600 text-white shadow-sm"
-                  : "bg-gray-800/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                  : "bg-gray-800 dark:bg-slate-700/60 text-gray-300 hover:bg-gray-700/50 hover:text-white"
               )}
             >
               {label}
@@ -263,7 +263,7 @@ export function InfographicAITab({
 
       {/* Include Descriptions Toggle */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-gray-400">Include descriptions</span>
+        <span className="text-[11px] text-gray-400 dark:text-slate-500">Include descriptions</span>
         <Toggle
           checked={includeDescriptions}
           onChange={setIncludeDescriptions}
@@ -276,7 +276,7 @@ export function InfographicAITab({
 
       {/* AI Prompt */}
       <div className="space-y-2">
-        <span className="text-[10px] text-gray-500">Describe your infographic</span>
+        <span className="text-[10px] text-gray-500 dark:text-slate-400">Describe your infographic</span>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -303,8 +303,8 @@ export function InfographicAITab({
           rows={3}
           className={cn(
             "w-full px-3 py-2 rounded-lg resize-none",
-            "bg-gray-800/60 border border-gray-700/50",
-            "text-[11px] text-white placeholder:text-gray-500",
+            "bg-gray-800 dark:bg-slate-700/60 border border-gray-700/50",
+            "text-[11px] text-white placeholder:text-gray-500 dark:text-slate-400",
             "focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20",
             "transition-all duration-150"
           )}
@@ -330,7 +330,7 @@ export function InfographicAITab({
           "w-full flex items-center justify-center gap-2 h-10 rounded-lg",
           "text-[11px] font-medium transition-all duration-150",
           isGenerating || isApplying || !infographicType || !prompt.trim()
-            ? "bg-gray-800 text-gray-500 cursor-not-allowed"
+            ? "bg-gray-800 dark:bg-slate-700 text-gray-500 dark:text-slate-400 cursor-not-allowed"
             : "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20"
         )}
       >
@@ -348,7 +348,7 @@ export function InfographicAITab({
       </button>
 
       {/* Helper Text */}
-      <p className="text-[9px] text-gray-600 text-center">
+      <p className="text-[9px] text-gray-600 dark:text-slate-300 text-center">
         AI creates visual infographics from your description
       </p>
     </div>

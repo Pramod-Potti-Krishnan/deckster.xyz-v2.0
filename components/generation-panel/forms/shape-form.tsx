@@ -153,27 +153,27 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Fill</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Fill</label>
               <input
                 type="color"
                 value={fillColor}
                 onChange={(e) => { setFillColor(e.target.value); setAdvancedModified(true) }}
-                className="h-7 w-full rounded border border-gray-300 cursor-pointer"
+                className="h-7 w-full rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Stroke</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Stroke</label>
               <input
                 type="color"
                 value={strokeColor}
                 onChange={(e) => { setStrokeColor(e.target.value); setAdvancedModified(true) }}
-                className="h-7 w-full rounded border border-gray-300 cursor-pointer"
+                className="h-7 w-full rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Stroke Width</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Stroke Width</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
@@ -184,12 +184,12 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
                 className="flex-1"
                 style={{ accentColor: 'hsl(var(--primary))' }}
               />
-              <span className="text-xs text-gray-400 w-8 text-right">{strokeWidth}px</span>
+              <span className="text-xs text-gray-400 dark:text-slate-500 w-8 text-right">{strokeWidth}px</span>
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Opacity</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Opacity</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
@@ -200,12 +200,12 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
                 className="flex-1"
                 style={{ accentColor: 'hsl(var(--primary))' }}
               />
-              <span className="text-xs text-gray-400 w-8 text-right">{Math.round(opacity * 100)}%</span>
+              <span className="text-xs text-gray-400 dark:text-slate-500 w-8 text-right">{Math.round(opacity * 100)}%</span>
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Rotation</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Rotation</label>
             <div className="flex items-center gap-2">
               <input
                 type="range"
@@ -216,12 +216,12 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
                 className="flex-1"
                 style={{ accentColor: 'hsl(var(--primary))' }}
               />
-              <span className="text-xs text-gray-400 w-10 text-right">{rotation}&deg;</span>
+              <span className="text-xs text-gray-400 dark:text-slate-500 w-10 text-right">{rotation}&deg;</span>
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Size</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Size</label>
             <div className="flex gap-1">
               {(['small', 'medium', 'large'] as const).map(s => (
                 <button
@@ -230,7 +230,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
                   className={`flex-1 px-2 py-1 rounded text-xs font-medium capitalize transition-colors ${
                     size === s
                       ? 'bg-primary text-white border border-primary'
-                      : 'bg-gray-100 text-gray-400 border border-gray-300 hover:bg-gray-200'
+                      : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
                   }`}
                 >
                   {s}
@@ -241,11 +241,11 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
 
           {/* Count */}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600">Count</label>
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
             <select
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {[1, 2, 3, 4, 5, 6].map(n => (
                 <option key={n} value={n}>{n}</option>
@@ -256,11 +256,11 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
           {/* Polygon Sides (conditional) */}
           {shapeType === 'polygon' && (
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600">Number of Sides</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Number of Sides</label>
               <select
                 value={sides}
                 onChange={(e) => { setSides(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 border border-gray-300 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {Array.from({ length: 10 }, (_, i) => i + 3).map(n => (
                   <option key={n} value={n}>{n} sides</option>
@@ -276,47 +276,47 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400">X (px)</label>
+              <label className="text-[10px] text-gray-400 dark:text-slate-500">X (px)</label>
               <input
                 type="number"
                 value={x}
                 min={0}
                 max={1919}
                 onChange={(e) => { setX(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400">Y (px)</label>
+              <label className="text-[10px] text-gray-400 dark:text-slate-500">Y (px)</label>
               <input
                 type="number"
                 value={y}
                 min={0}
                 max={1079}
                 onChange={(e) => { setY(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400">Width (px)</label>
+              <label className="text-[10px] text-gray-400 dark:text-slate-500">Width (px)</label>
               <input
                 type="number"
                 value={widthPx}
                 min={1}
                 max={1920}
                 onChange={(e) => { setWidthPx(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400">Height (px)</label>
+              <label className="text-[10px] text-gray-400 dark:text-slate-500">Height (px)</label>
               <input
                 type="number"
                 value={heightPx}
                 min={1}
                 max={1080}
                 onChange={(e) => { setHeightPx(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
           </div>
@@ -324,47 +324,47 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
           {/* Grid inputs (bidirectional sync with pixel) */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400">Col (grid)</label>
+              <label className="text-[10px] text-gray-400 dark:text-slate-500">Col (grid)</label>
               <input
                 type="number"
                 value={startCol}
                 min={1}
                 max={32}
                 onChange={(e) => { setX((Number(e.target.value) - 1) * GRID_CELL_SIZE); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400">Row (grid)</label>
+              <label className="text-[10px] text-gray-400 dark:text-slate-500">Row (grid)</label>
               <input
                 type="number"
                 value={startRow}
                 min={1}
                 max={18}
                 onChange={(e) => { setY((Number(e.target.value) - 1) * GRID_CELL_SIZE); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400">Width (grid)</label>
+              <label className="text-[10px] text-gray-400 dark:text-slate-500">Width (grid)</label>
               <input
                 type="number"
                 value={gridW}
                 min={1}
                 max={32}
                 onChange={(e) => { setWidthPx(Number(e.target.value) * GRID_CELL_SIZE); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400">Height (grid)</label>
+              <label className="text-[10px] text-gray-400 dark:text-slate-500">Height (grid)</label>
               <input
                 type="number"
                 value={gridH}
                 min={1}
                 max={18}
                 onChange={(e) => { setHeightPx(Number(e.target.value) * GRID_CELL_SIZE); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded bg-gray-50 border border-gray-300 text-xs text-gray-900"
+                className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
           </div>
