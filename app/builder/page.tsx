@@ -923,8 +923,8 @@ function BuilderContent() {
                   "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                   "transition-colors pointer-events-auto",
                   generationPanel.isOpen
-                    ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
-                    : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
+                    ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700 dark:bg-purple-900/50 dark:hover:bg-purple-800/60 dark:border-purple-700 dark:text-purple-200"
+                    : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-purple-300"
                 )}
                 style={{ left: drawerWidth }}
                 title={generationPanel.isOpen ? 'Close element panel' : 'Open element panel'}
@@ -981,8 +981,8 @@ function BuilderContent() {
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                 "transition-colors pointer-events-auto",
                 showFormatPanel
-                  ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700"
-                  : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600"
+                  ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700 dark:bg-blue-900/50 dark:hover:bg-blue-800/60 dark:border-blue-700 dark:text-blue-200"
+                  : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-blue-300"
               )}
               style={{ left: drawerWidth }}
               title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
@@ -1085,8 +1085,8 @@ function BuilderContent() {
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                 "transition-colors pointer-events-auto",
                 showChat
-                  ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700"
-                  : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600"
+                  ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700 dark:bg-purple-900/50 dark:hover:bg-purple-800/60 dark:border-purple-700 dark:text-purple-200"
+                  : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-purple-300"
               )}
               style={{ left: drawerWidth }}
               title={showChat ? 'Close chat panel' : 'Open chat panel'}
