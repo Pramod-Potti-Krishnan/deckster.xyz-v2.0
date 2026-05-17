@@ -918,7 +918,7 @@ function BuilderContent() {
                 ) : (
                   <ChevronRight className="h-2.5 w-2.5" />
                 )}
-                <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+                <span className="[writing-mode:vertical-rl] text-[9px] font-semibold uppercase tracking-wider select-none leading-none">
                   Element
                 </span>
               </button>
@@ -976,7 +976,7 @@ function BuilderContent() {
               ) : (
                 <ChevronRight className="h-2.5 w-2.5" />
               )}
-              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+              <span className="[writing-mode:vertical-rl] text-[9px] font-semibold uppercase tracking-wider select-none leading-none">
                 Slide
               </span>
             </button>
@@ -1080,7 +1080,7 @@ function BuilderContent() {
               ) : (
                 <ChevronRight className="h-2.5 w-2.5" />
               )}
-              <span className="[writing-mode:vertical-rl] text-[8px] font-medium select-none leading-none">
+              <span className="[writing-mode:vertical-rl] text-[9px] font-semibold uppercase tracking-wider select-none leading-none">
                 Deck
               </span>
             </button>
