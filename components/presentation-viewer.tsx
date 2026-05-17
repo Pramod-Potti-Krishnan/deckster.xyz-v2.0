@@ -34,7 +34,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -1855,21 +1854,20 @@ export function PresentationViewer({
                     <span className={toolbarLabelClass}>Show</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" sideOffset={8} className="w-44">
-                  <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">Display</DropdownMenuLabel>
+                <DropdownMenuContent align="center" sideOffset={8} className="w-40">
                   <DropdownMenuCheckboxItem
                     checked={isGridActive}
                     onCheckedChange={() => handleToggleGrid()}
-                    className="cursor-pointer"
+                    className="cursor-pointer whitespace-nowrap"
                   >
-                    <Grid2x2 className="h-4 w-4 mr-2" /> Grid overlay
+                    <Grid2x2 className="h-4 w-4 mr-2" /> Grids
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
                     checked={isBordersActive}
                     onCheckedChange={() => handleToggleBorders()}
-                    className="cursor-pointer"
+                    className="cursor-pointer whitespace-nowrap"
                   >
-                    <Square className="h-4 w-4 mr-2" /> Element borders
+                    <Square className="h-4 w-4 mr-2" /> Borders
                   </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
