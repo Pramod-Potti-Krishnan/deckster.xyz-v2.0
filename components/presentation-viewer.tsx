@@ -1783,7 +1783,7 @@ export function PresentationViewer({
                     disabled={!presentationUrl}
                     className={cn(
                       toolbarButtonClass,
-                      "text-slate-200 hover:bg-slate-800 hover:text-white"
+                      "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                     )}
                     title="Add an element"
                   >
@@ -1809,7 +1809,7 @@ export function PresentationViewer({
               {/* Template — placeholder for now */}
               <button
                 disabled
-                className={cn(toolbarButtonClass, "text-slate-500 cursor-not-allowed")}
+                className={cn(toolbarButtonClass, "text-slate-400 dark:text-slate-500 cursor-not-allowed")}
                 title="Templates — coming soon"
               >
                 <LayoutTemplate className="h-5 w-5" />
@@ -1827,7 +1827,7 @@ export function PresentationViewer({
                   toolbarButtonClass,
                   showThemePanel
                     ? "bg-pink-500/20 text-pink-200"
-                    : "text-slate-200 hover:bg-slate-800 hover:text-white"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                 )}
                 title="Presentation theme"
               >
@@ -1841,8 +1841,8 @@ export function PresentationViewer({
                 className={cn(
                   toolbarButtonClass,
                   !isEditMode
-                    ? "bg-slate-700 text-white"
-                    : "text-slate-200 hover:bg-slate-800 hover:text-white"
+                    ? "bg-slate-200 dark:bg-slate-700 text-white"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                 )}
                 title="View mode (preview)"
               >
@@ -1857,7 +1857,7 @@ export function PresentationViewer({
                   toolbarButtonClass,
                   isEditMode
                     ? "bg-yellow-500/25 text-yellow-100"
-                    : "text-slate-200 hover:bg-slate-800 hover:text-white"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                 )}
                 title="Edit mode (modify content)"
               >
@@ -1872,8 +1872,8 @@ export function PresentationViewer({
                     className={cn(
                       toolbarButtonClass,
                       (isGridActive || isBordersActive)
-                        ? "bg-slate-700 text-white"
-                        : "text-slate-200 hover:bg-slate-800 hover:text-white"
+                        ? "bg-slate-200 dark:bg-slate-700 text-white"
+                        : "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                     )}
                     title="Display options"
                   >
@@ -1907,7 +1907,7 @@ export function PresentationViewer({
                   toolbarButtonClass,
                   showPresentationSettings
                     ? "bg-indigo-500/20 text-indigo-200"
-                    : "text-slate-200 hover:bg-slate-800 hover:text-white"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                 )}
                 title="Master settings (footer, logo)"
               >
@@ -1921,7 +1921,7 @@ export function PresentationViewer({
               <button
                 onClick={handleFullscreen}
                 disabled={!presentationUrl}
-                className={cn(toolbarButtonClass, "text-slate-200 hover:bg-slate-800 hover:text-white")}
+                className={cn(toolbarButtonClass, "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white")}
                 title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
               >
                 {isFullscreen ? (
@@ -1935,7 +1935,7 @@ export function PresentationViewer({
               {/* Saved indicator — uniform square format like the other toolbar buttons */}
               {saveStatus === 'saved' ? (
                 <div
-                  className={cn(toolbarButtonClass, "text-slate-400 cursor-default")}
+                  className={cn(toolbarButtonClass, "text-slate-400 dark:text-slate-500 dark:text-slate-400 cursor-default")}
                   title="All changes saved"
                 >
                   <Check className="h-5 w-5 text-green-400" />
@@ -1943,7 +1943,7 @@ export function PresentationViewer({
                 </div>
               ) : saveStatus === 'saving' || isSaving ? (
                 <div
-                  className={cn(toolbarButtonClass, "text-slate-300 cursor-default")}
+                  className={cn(toolbarButtonClass, "text-slate-600 dark:text-slate-300 cursor-default")}
                   title="Saving…"
                 >
                   <div className="h-5 w-5 flex items-center justify-center">
@@ -1967,7 +1967,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={cn(toolbarButtonClass, "text-slate-200 hover:bg-slate-800 hover:text-white")}
+                    className={cn(toolbarButtonClass, "text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white")}
                     title="Switch version"
                   >
                     <Layers className="h-5 w-5" />

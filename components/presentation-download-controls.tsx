@@ -150,7 +150,7 @@ export function PresentationDownloadControls({
         <DropdownMenuTrigger asChild>
           <button
             disabled={!isDownloadEnabled || isDownloading}
-            className="flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-200 transition-colors hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-200"
+            className="flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 dark:text-slate-200 transition-colors hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-700 dark:text-slate-200"
             title={!isDownloadEnabled ? 'Waiting for presentation...' : 'Download as PDF or PPTX'}
           >
             <Download className={`h-5 w-5 ${isDownloading ? 'animate-pulse' : ''}`} />

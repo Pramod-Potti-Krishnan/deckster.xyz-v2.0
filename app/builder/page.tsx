@@ -71,6 +71,22 @@ function BuilderContent() {
   const [showChat, setShowChat] = useState(true)
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH)
   const [isResizingDrawer, setIsResizingDrawer] = useState(false)
+  // Theme: 'dark' (default) | 'light'. Persisted in localStorage so it
+  // sticks across sessions. Loaded after mount so SSR stays deterministic.
+  const [builderTheme, setBuilderTheme] = useState<'dark' | 'light'>('dark')
+  useEffect(() => {
+    const stored = window.localStorage.getItem('deckster_builder_theme')
+    if (stored === 'dark' || stored === 'light') {
+      setBuilderTheme(stored)
+    }
+  }, [])
+  const toggleBuilderTheme = useCallback(() => {
+    setBuilderTheme((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark'
+      window.localStorage.setItem('deckster_builder_theme', next)
+      return next
+    })
+  }, [])
   // Text box selection state
   const [showTextBoxPanel, setShowTextBoxPanel] = useState(false)
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
@@ -757,7 +773,10 @@ function BuilderContent() {
   }, [session.handleSessionSelect])
 
   return (
-    <div className="dark flex h-screen w-screen overflow-hidden bg-slate-900 text-slate-100">
+    <div className={cn(
+      "flex h-screen w-screen overflow-hidden",
+      builderTheme === 'dark' ? "dark bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100" : "bg-white text-slate-900"
+    )}>
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-full min-w-0">
         {/* Header */}
@@ -765,6 +784,8 @@ function BuilderContent() {
           wsError={wsError}
           onOpenChatHistory={() => setShowChatHistory(true)}
           toolbarSlotRef={setToolbarPortalTarget}
+          builderTheme={builderTheme}
+          onToggleTheme={toggleBuilderTheme}
         />
 
         {/* Main Content Area */}
@@ -784,7 +805,7 @@ function BuilderContent() {
           >
             {/* Panel area */}
             <div
-              className={`absolute inset-y-0 left-0 bg-slate-900 text-slate-100 overflow-hidden ${isElementDrawerOpen ? 'shadow-xl' : ''}`}
+              className={`absolute inset-y-0 left-0 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100 overflow-hidden ${isElementDrawerOpen ? 'shadow-xl' : ''}`}
               style={{ width: drawerWidth }}
             >
               {features.useTextLabsGeneration && (
@@ -935,7 +956,7 @@ function BuilderContent() {
           >
             {/* Panel area */}
             <div
-              className={`absolute inset-y-0 left-0 bg-slate-900 text-slate-100 overflow-hidden ${isSlideDrawerOpen ? 'shadow-xl' : ''}`}
+              className={`absolute inset-y-0 left-0 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100 overflow-hidden ${isSlideDrawerOpen ? 'shadow-xl' : ''}`}
               style={{ width: drawerWidth }}
             >
               <SlideGenerationPanel
@@ -992,7 +1013,7 @@ function BuilderContent() {
           >
             {/* Panel area */}
             <div
-              className={`absolute inset-y-0 left-0 bg-slate-900 text-slate-100 overflow-hidden flex flex-col ${isDeckDrawerOpen ? 'shadow-xl' : ''}`}
+              className={`absolute inset-y-0 left-0 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100 overflow-hidden flex flex-col ${isDeckDrawerOpen ? 'shadow-xl' : ''}`}
               style={{ width: drawerWidth }}
             >
               {showChat && (
@@ -1114,10 +1135,10 @@ function BuilderContent() {
             style={{ marginLeft: anyDrawerOpen ? drawerWidth : 0 }}
           >
           {session.isLoadingSession ? (
-            <div className="flex-1 flex items-center justify-center bg-slate-800 h-full">
+            <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-slate-800 h-full">
               <div className="text-center">
                 <div className="h-8 w-8 border-3 border-purple-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-sm text-slate-400">Loading session...</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 dark:text-slate-400">Loading session...</p>
               </div>
             </div>
           ) : (
