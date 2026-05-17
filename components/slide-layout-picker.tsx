@@ -133,7 +133,7 @@ export function SlideLayoutPicker({
           disabled={disabled || isAdding}
           className={cn(
             "flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 dark:text-slate-200",
-            "hover:bg-gray-100 dark:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors",
+            "hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors",
             className
           )}
         >
@@ -143,12 +143,12 @@ export function SlideLayoutPicker({
             viewBox="0 0 22 14"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden
           >
-            <rect x="1" y="1" width="20" height="12" rx="1.5" />
+            <rect x="1" y="1" width="20" height="12" rx="2" />
             <line x1="11" y1="5" x2="11" y2="9" />
             <line x1="9" y1="7" x2="13" y2="7" />
           </svg>
