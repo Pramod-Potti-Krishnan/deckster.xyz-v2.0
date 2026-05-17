@@ -1807,24 +1807,24 @@ export function PresentationViewer({
               <button
                 onClick={handleFullscreen}
                 disabled={!presentationUrl}
-                className={cn(toolbarButtonClass, "text-gray-600 hover:bg-gray-100")}
+                className={cn(toolbarButtonClass, "text-slate-200 hover:bg-slate-800 hover:text-white")}
                 title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
               >
                 {isFullscreen ? (
-                  <Minimize2 className="h-5 w-5 text-gray-700" />
+                  <Minimize2 className="h-5 w-5" />
                 ) : (
-                  <Play className="h-5 w-5 text-gray-700" />
+                  <Play className="h-5 w-5" />
                 )}
-                <span className={cn(toolbarLabelClass, "text-gray-500")}>Play</span>
+                <span className={toolbarLabelClass}>Play</span>
               </button>
 
               <button
                 onClick={handleSaveChanges}
                 disabled={isSaving || !presentationUrl}
-                className={cn(toolbarButtonClass, "bg-green-50 text-green-600 hover:bg-green-100")}
+                className={cn(toolbarButtonClass, "bg-green-500/15 text-green-300 hover:bg-green-500/25 hover:text-green-200")}
                 title="Save changes"
               >
-                <Save className="h-5 w-5 text-green-600" />
+                <Save className="h-5 w-5" />
                 <span className={toolbarLabelClass}>{isSaving ? 'Saving' : 'Save'}</span>
               </button>
 
@@ -1832,11 +1832,11 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={cn(toolbarButtonClass, "text-gray-600 hover:bg-gray-100")}
+                    className={cn(toolbarButtonClass, "text-slate-200 hover:bg-slate-800 hover:text-white")}
                     title="Switch version"
                   >
-                    <Layers className="h-5 w-5 text-gray-700" />
-                    <span className={cn(toolbarLabelClass, "text-gray-500")}>
+                    <Layers className="h-5 w-5" />
+                    <span className={toolbarLabelClass}>
                       {activeVersion === 'final' ? 'Final' : activeVersion === 'strawman' ? 'Strawman' : 'Custom'}
                     </span>
                   </button>
@@ -2065,8 +2065,8 @@ export function PresentationViewer({
               <div className="flex-1" />
 
               {/* powered by deckster */}
-              <div className="flex flex-col items-start gap-[6px] mt-[5px]">
-                <span className="text-[7px] text-gray-400 leading-none pl-[20px]">powered by</span>
+              <div className="flex flex-col items-start gap-0">
+                <span className="text-[7px] text-gray-400 leading-none pl-[20px] mb-[-1px]">powered by</span>
                 <div className="flex items-center gap-1">
                   <div className="flex h-[18px] w-[18px] items-center justify-center rounded bg-gradient-to-br from-purple-600 to-blue-600">
                     <Sparkles className="h-2.5 w-2.5 text-white" />

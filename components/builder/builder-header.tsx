@@ -20,14 +20,14 @@ export function BuilderHeader({
 }: BuilderHeaderProps) {
   return (
     <>
-      <header className="bg-gray-50 border-b h-12 flex-shrink-0">
+      <header className="bg-slate-900 border-b border-slate-800 h-12 flex-shrink-0">
         <div className="h-full px-4 flex items-center">
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <Button
               variant="ghost"
               size="icon"
               onClick={onOpenChatHistory}
-              className="flex-shrink-0"
+              className="flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white"
               aria-label="Open chat history"
             >
               <Menu className="h-5 w-5" />
@@ -36,7 +36,7 @@ export function BuilderHeader({
               asChild
               variant="ghost"
               size="icon"
-              className="flex-shrink-0"
+              className="flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white"
               aria-label="Go home"
             >
               <Link href="/">
