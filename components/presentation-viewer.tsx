@@ -27,6 +27,10 @@ import {
   LayoutTemplate,
   SlidersHorizontal,
   FileText,
+  Settings2,
+  Eye,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { debugLog } from '@/lib/debug-log'
@@ -35,9 +39,13 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useTheme } from 'next-themes'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
@@ -250,6 +258,9 @@ export function PresentationViewer({
   // Layout Service honors ?showNotes=true/false on the iframe URL; in
   // fullscreen we always force false regardless of this state.
   const [isNotesActive, setIsNotesActive] = useState(false)
+  // Theme — read from next-themes (canonical theme source, shared with
+  // the profile-menu's "Dark Mode" toggle). Used inside the Mode dropdown.
+  const { resolvedTheme, setTheme } = useTheme()
 
   useEffect(() => {
     onSlideChangeRef.current = onSlideChange
@@ -1835,20 +1846,54 @@ export function PresentationViewer({
                 <span className={toolbarLabelClass}>Theme</span>
               </button>
 
-              {/* Edit toggle — click to flip between View (off) and Edit (on) mode */}
-              <button
-                onClick={() => void handleToggleEditModeButton()}
-                className={cn(
-                  toolbarButtonClass,
-                  isEditMode ? toolbarBtnActive : toolbarBtnBase
-                )}
-                title={isEditMode ? "Switch to View mode (read-only)" : "Switch to Edit mode (modify content)"}
-              >
-                <Pencil className="h-5 w-5" />
-                <span className={toolbarLabelClass}>Edit</span>
-              </button>
+              {/* Mode — editing mode (View/Edit) + UI theme (Light/Dark) */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(toolbarButtonClass, toolbarBtnBase)}
+                    title="Editing mode + theme"
+                  >
+                    <Settings2 className="h-5 w-5" />
+                    <span className={toolbarLabelClass}>Mode</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center" sideOffset={8} className="w-44">
+                  <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Editing mode
+                  </DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={isEditMode ? 'edit' : 'view'}
+                    onValueChange={(v) => {
+                      const wantsEdit = v === 'edit'
+                      if (wantsEdit !== isEditMode) void handleToggleEditModeButton()
+                    }}
+                  >
+                    <DropdownMenuRadioItem value="view" className="cursor-pointer whitespace-nowrap">
+                      <Eye className="h-4 w-4 mr-2" /> View
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="edit" className="cursor-pointer whitespace-nowrap">
+                      <Pencil className="h-4 w-4 mr-2" /> Edit
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Theme
+                  </DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={resolvedTheme === 'dark' ? 'dark' : 'light'}
+                    onValueChange={(v) => setTheme(v)}
+                  >
+                    <DropdownMenuRadioItem value="light" className="cursor-pointer whitespace-nowrap">
+                      <Sun className="h-4 w-4 mr-2" /> Light
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark" className="cursor-pointer whitespace-nowrap">
+                      <Moon className="h-4 w-4 mr-2" /> Dark
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-              {/* Show menu — display toggles */}
+              {/* Show menu — display toggles + Master settings */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -1859,7 +1904,7 @@ export function PresentationViewer({
                     <span className={toolbarLabelClass}>Show</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" sideOffset={8} className="w-40">
+                <DropdownMenuContent align="center" sideOffset={8} className="w-44">
                   <DropdownMenuCheckboxItem
                     checked={isGridActive}
                     onCheckedChange={() => handleToggleGrid()}
@@ -1881,18 +1926,15 @@ export function PresentationViewer({
                   >
                     <FileText className="h-4 w-4 mr-2" /> Notes
                   </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => setShowPresentationSettings(true)}
+                    className="cursor-pointer whitespace-nowrap"
+                  >
+                    <Settings className="h-4 w-4 mr-2" /> Master…
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-
-              {/* Master — opens PresentationSettingsPanel */}
-              <button
-                onClick={() => setShowPresentationSettings(true)}
-                className={cn(toolbarButtonClass, toolbarBtnBase)}
-                title="Master settings (footer, logo)"
-              >
-                <Settings className="h-5 w-5" />
-                <span className={toolbarLabelClass}>Master</span>
-              </button>
             </div>
 
             {/* RIGHT — presentation actions */}
