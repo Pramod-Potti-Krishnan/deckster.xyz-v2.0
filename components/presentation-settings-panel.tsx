@@ -461,16 +461,16 @@ export function PresentationSettingsPanel({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200">
+    <div className="fixed inset-y-0 left-0 w-96 bg-white dark:bg-slate-900 shadow-2xl z-50 flex flex-col border-r border-gray-200 dark:border-slate-700">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
-        <h2 className="text-xs font-semibold text-gray-900">Master</h2>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+        <h2 className="text-xs font-semibold text-gray-900 dark:text-slate-100">Master</h2>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-md hover:bg-gray-200 transition-colors"
+          className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 transition-colors"
           title="Close panel"
         >
-          <X className="h-4 w-4 text-gray-600" />
+          <X className="h-4 w-4 text-gray-600 dark:text-slate-300" />
         </button>
       </div>
 
@@ -478,19 +478,19 @@ export function PresentationSettingsPanel({
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-slate-500" />
           </div>
         ) : (
           <>
             {/* Footer Section */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Footer</h3>
+                <h3 className="text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Footer</h3>
               </div>
 
               {/* Template Input */}
               <div className="space-y-1.5">
-                <Label htmlFor="footer-template" className="text-[10px] text-gray-600">
+                <Label htmlFor="footer-template" className="text-[10px] text-gray-600 dark:text-slate-300">
                   Template
                 </Label>
                 <Input
@@ -513,7 +513,7 @@ export function PresentationSettingsPanel({
                         setFooterTemplate(t.template)
                         handleInputChange()
                       }}
-                      className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-600 transition-colors"
+                      className="px-2 py-1 text-xs bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 rounded text-gray-600 dark:text-slate-300 transition-colors"
                     >
                       {t.label}
                     </button>
@@ -523,19 +523,19 @@ export function PresentationSettingsPanel({
 
               {/* Preview */}
               {previewText && (
-                <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
-                  <div className="text-[10px] text-gray-500 mb-0.5">Preview:</div>
+                <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2.5 border border-gray-200 dark:border-slate-700">
+                  <div className="text-[10px] text-gray-500 dark:text-slate-400 mb-0.5">Preview:</div>
                   <div className="text-xs text-gray-800 font-medium">{previewText}</div>
                 </div>
               )}
 
               {/* Variables */}
               <div className="space-y-2 pt-1">
-                <div className="text-[10px] font-medium text-gray-500">Variables</div>
+                <div className="text-[10px] font-medium text-gray-500 dark:text-slate-400">Variables</div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="footer-title" className="text-[10px] text-gray-600">
-                    Title <span className="text-gray-400">{'{title}'}</span>
+                  <Label htmlFor="footer-title" className="text-[10px] text-gray-600 dark:text-slate-300">
+                    Title <span className="text-gray-400 dark:text-slate-500">{'{title}'}</span>
                   </Label>
                   <Input
                     id="footer-title"
@@ -550,8 +550,8 @@ export function PresentationSettingsPanel({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="footer-date" className="text-[10px] text-gray-600">
-                    Date <span className="text-gray-400">{'{date}'}</span>
+                  <Label htmlFor="footer-date" className="text-[10px] text-gray-600 dark:text-slate-300">
+                    Date <span className="text-gray-400 dark:text-slate-500">{'{date}'}</span>
                   </Label>
                   <Input
                     id="footer-date"
@@ -566,8 +566,8 @@ export function PresentationSettingsPanel({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="footer-author" className="text-[10px] text-gray-600">
-                    Author <span className="text-gray-400">{'{author}'}</span>
+                  <Label htmlFor="footer-author" className="text-[10px] text-gray-600 dark:text-slate-300">
+                    Author <span className="text-gray-400 dark:text-slate-500">{'{author}'}</span>
                   </Label>
                   <Input
                     id="footer-author"
@@ -584,16 +584,16 @@ export function PresentationSettingsPanel({
             </div>
 
             {/* Divider */}
-            <div className="border-t border-gray-200" />
+            <div className="border-t border-gray-200 dark:border-slate-700" />
 
             {/* Logo Section */}
             <div className="space-y-3">
-              <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Logo</h3>
+              <h3 className="text-[10px] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Logo</h3>
 
               {/* Logo Preview */}
               {logoUrl ? (
-                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="w-16 h-12 flex items-center justify-center bg-white rounded border border-gray-200 overflow-hidden">
+                <div className="flex items-center gap-4 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
+                  <div className="w-16 h-12 flex items-center justify-center bg-white dark:bg-slate-900 rounded border border-gray-200 dark:border-slate-700 overflow-hidden">
                     <img
                       src={logoUrl}
                       alt={logoAltText || 'Logo preview'}
@@ -604,7 +604,7 @@ export function PresentationSettingsPanel({
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium text-gray-700 truncate">
+                    <div className="text-xs font-medium text-gray-700 dark:text-slate-200 truncate">
                       {logoFileName || 'Logo'}
                     </div>
                     <button
@@ -617,10 +617,10 @@ export function PresentationSettingsPanel({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                <div className="flex items-center justify-center p-4 bg-gray-50 dark:bg-slate-800 rounded-lg border-2 border-dashed border-gray-200 dark:border-slate-700">
                   <div className="text-center">
                     <ImageIcon className="h-6 w-6 text-gray-300 mx-auto mb-1.5" />
-                    <div className="text-[11px] text-gray-500">No logo configured</div>
+                    <div className="text-[11px] text-gray-500 dark:text-slate-400">No logo configured</div>
                   </div>
                 </div>
               )}
@@ -690,7 +690,7 @@ export function PresentationSettingsPanel({
 
               {/* Direct URL Input */}
               <div className="space-y-1.5">
-                <Label htmlFor="logo-url" className="text-[10px] text-gray-600">
+                <Label htmlFor="logo-url" className="text-[10px] text-gray-600 dark:text-slate-300">
                   Or enter URL directly
                 </Label>
                 <Input
@@ -709,7 +709,7 @@ export function PresentationSettingsPanel({
               {/* Alt Text */}
               {logoUrl && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="logo-alt" className="text-[10px] text-gray-600">
+                  <Label htmlFor="logo-alt" className="text-[10px] text-gray-600 dark:text-slate-300">
                     Alt text (for accessibility)
                   </Label>
                   <Input
@@ -730,7 +730,7 @@ export function PresentationSettingsPanel({
       </div>
 
       {/* Footer */}
-      <div className="px-3 py-2 border-t border-gray-200 bg-gray-50 space-y-1.5">
+      <div className="px-3 py-2 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 space-y-1.5">
         {/* Clear All Button */}
         <Button
           variant="ghost"

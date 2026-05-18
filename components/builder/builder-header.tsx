@@ -6,7 +6,7 @@ import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { ConnectionError } from "@/components/connection-error"
-import { PanelLeft, Sun, Moon } from "lucide-react"
+import { PanelLeft } from "lucide-react"
 
 export interface BuilderHeaderProps {
   wsError: any
@@ -21,10 +21,10 @@ export function BuilderHeader({
   isChatHistoryOpen = false,
   toolbarSlotRef,
 }: BuilderHeaderProps) {
-  // Read the actual resolved theme from next-themes — this is the same
-  // source of truth that powers the "Dark Mode" toggle in the user profile
-  // menu, so toggling from either place stays in sync.
-  const { resolvedTheme, setTheme } = useTheme()
+  // Theme is owned by next-themes; the in-toolbar light/dark toggle lives
+  // in the Mode dropdown (inside presentation-viewer.tsx). We still read
+  // resolvedTheme here to flip BuilderHeader's own chrome styling.
+  const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === 'dark'
 
   return (
@@ -79,24 +79,6 @@ export function BuilderHeader({
           <div ref={toolbarSlotRef} className="flex-1 min-w-0 h-full overflow-hidden" />
 
           <div className="flex items-center gap-1 flex-shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(isDark ? 'light' : 'dark')}
-              className={
-                isDark
-                  ? "flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white"
-                  : "flex-shrink-0 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-              }
-              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {isDark ? (
-                <Sun className="h-5 w-5" />
-              ) : (
-                <Moon className="h-5 w-5" />
-              )}
-            </Button>
             <UserProfileMenu />
           </div>
         </div>
