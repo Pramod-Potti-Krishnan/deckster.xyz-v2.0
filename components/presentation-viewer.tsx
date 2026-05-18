@@ -26,6 +26,7 @@ import {
   Sparkles,
   LayoutTemplate,
   SlidersHorizontal,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { debugLog } from '@/lib/debug-log'
@@ -245,6 +246,10 @@ export function PresentationViewer({
   // View mode toggles (grid, borders, edit) - only shown in non-fullscreen
   const [isGridActive, setIsGridActive] = useState(false)
   const [isBordersActive, setIsBordersActive] = useState(false)
+  // Speaker notes — default OFF (user opts in via the Show menu). The
+  // Layout Service honors ?showNotes=true/false on the iframe URL; in
+  // fullscreen we always force false regardless of this state.
+  const [isNotesActive, setIsNotesActive] = useState(false)
 
   useEffect(() => {
     onSlideChangeRef.current = onSlideChange
@@ -1869,6 +1874,13 @@ export function PresentationViewer({
                   >
                     <Square className="h-4 w-4 mr-2" /> Borders
                   </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={isNotesActive}
+                    onCheckedChange={() => setIsNotesActive((prev) => !prev)}
+                    className="cursor-pointer whitespace-nowrap"
+                  >
+                    <FileText className="h-4 w-4 mr-2" /> Notes
+                  </DropdownMenuCheckboxItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -2041,13 +2053,14 @@ export function PresentationViewer({
                 <iframe
                   ref={iframeRef}
                   src={(() => {
-                    // Append showNotes=false in fullscreen so the Layout Service
-                    // can hide the speaker-notes panel during presentation. If
-                    // the service doesn't honor the param it's a harmless no-op.
-                    if (!isFullscreen) return presentationUrl
+                    // showNotes: true when the user has the Notes toggle on
+                    // AND we're not in fullscreen presentation mode.
+                    // Layout Service honors ?showNotes=true|false on the
+                    // iframe URL (see docs/BACKEND_REQUEST_THUMBNAILS_AND_NOTES.md).
+                    const showNotesInIframe = !isFullscreen && isNotesActive
                     try {
                       const u = new URL(presentationUrl, window.location.href)
-                      u.searchParams.set('showNotes', 'false')
+                      u.searchParams.set('showNotes', String(showNotesInIframe))
                       return u.toString()
                     } catch {
                       return presentationUrl
