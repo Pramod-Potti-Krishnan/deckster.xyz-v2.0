@@ -237,6 +237,7 @@ export interface UserMessage {
     web_search: boolean;
     extended_generation: boolean;
     file_upload: boolean;
+    use_knowledge_graph?: boolean;
   };
 }
 
@@ -1101,6 +1102,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       extendedGeneration?: boolean;
       fileUpload?: boolean;
       storeName?: string | null;
+      useKnowledgeGraph?: boolean;
     },
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -1122,6 +1124,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           web_search: options?.webSearch ?? false,
           extended_generation: options?.extendedGeneration ?? false,
           file_upload: options?.fileUpload ?? !!effectiveStoreName,
+          ...(options?.useKnowledgeGraph && { use_knowledge_graph: true }),
         },
       };
 
@@ -1129,7 +1132,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         '📤 Sending message:',
         text,
         effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
-        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}]`
+        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}]`
       );
       wsRef.current.send(JSON.stringify(message));
 

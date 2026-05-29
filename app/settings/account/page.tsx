@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
+import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,17 +12,18 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { 
-  ArrowLeft, 
-  Shield, 
-  Bell, 
-  Eye, 
-  Download, 
-  Trash2, 
+import {
+  ArrowLeft,
+  Shield,
+  Bell,
+  Eye,
+  Download,
+  Trash2,
   AlertTriangle,
   Mail,
   Lock,
-  Globe
+  Globe,
+  Brain,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -44,6 +46,12 @@ export default function AccountSettingsPage() {
   // Security settings
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  // Knowledge Graph
+  const kg = useKnowledgeGraph()
+  const [showKgPurgeConfirm, setShowKgPurgeConfirm] = useState(false)
+  const [kgPurgeResult, setKgPurgeResult] = useState<string | null>(null)
+  const [kgToggleLoading, setKgToggleLoading] = useState(false)
 
   if (isLoading) {
     return (
@@ -198,6 +206,109 @@ export default function AccountSettingsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Knowledge Graph — Premium only */}
+            {kg.isPremium && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5" />
+                    Knowledge Graph
+                  </CardTitle>
+                  <CardDescription>
+                    Build a knowledge graph across your decks so agents learn your domain over time
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Build a knowledge graph across my decks</Label>
+                      <p className="text-sm text-muted-foreground">
+                        When enabled, research from each deck enriches future decks on related topics
+                      </p>
+                    </div>
+                    <Switch
+                      checked={kg.isSubscribed}
+                      disabled={kg.isLoading || kgToggleLoading}
+                      onCheckedChange={async (checked) => {
+                        setKgToggleLoading(true)
+                        if (checked) {
+                          await kg.subscribe()
+                        } else {
+                          kg.unsubscribe()
+                        }
+                        setKgToggleLoading(false)
+                      }}
+                    />
+                  </div>
+
+                  {kg.error && (
+                    <p className="text-sm text-red-600">{kg.error}</p>
+                  )}
+
+                  {kgPurgeResult && (
+                    <p className="text-sm text-green-600">{kgPurgeResult}</p>
+                  )}
+
+                  {kg.isSubscribed && (
+                    <>
+                      <Separator />
+                      {!showKgPurgeConfirm ? (
+                        <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <Trash2 className="h-5 w-5 text-red-500" />
+                            <div>
+                              <p className="font-medium text-red-700">Delete my knowledge graph</p>
+                              <p className="text-sm text-muted-foreground">
+                                Permanently removes all stored knowledge
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => setShowKgPurgeConfirm(true)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      ) : (
+                        <Alert className="border-red-200">
+                          <AlertTriangle className="h-4 w-4 text-red-600" />
+                          <AlertDescription className="space-y-4">
+                            <p>This will permanently delete your entire knowledge graph. This cannot be undone.</p>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={async () => {
+                                  const result = await kg.purge()
+                                  setShowKgPurgeConfirm(false)
+                                  if (result) {
+                                    setKgPurgeResult(
+                                      `Deleted ${result.nodes_deleted} entities, ${result.edges_deleted} relations, and ${result.evidence_deleted} evidence items.`
+                                    )
+                                  }
+                                }}
+                              >
+                                Yes, Delete Everything
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowKgPurgeConfirm(false)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Notifications Tab */}

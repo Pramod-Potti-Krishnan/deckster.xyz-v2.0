@@ -18,6 +18,7 @@ import {
   Loader2,
   Search,
   Sparkles,
+  Brain,
 } from "lucide-react"
 import { features } from '@/lib/config'
 import type { ActionRequest } from "@/hooks/use-deckster-websocket-v2"
@@ -45,6 +46,9 @@ export interface ChatInputProps {
   onWebSearchEnabledChange: (enabled: boolean) => void
   extendedGenerationEnabled: boolean
   onExtendedGenerationEnabledChange: (enabled: boolean) => void
+  knowledgeGraphEnabled: boolean
+  onKnowledgeGraphEnabledChange: (enabled: boolean) => void
+  showKnowledgeGraphToggle: boolean
   isReady: boolean
   isLoadingSession: boolean
   connected: boolean
@@ -70,6 +74,9 @@ export function ChatInput({
   onWebSearchEnabledChange,
   extendedGenerationEnabled,
   onExtendedGenerationEnabledChange,
+  knowledgeGraphEnabled,
+  onKnowledgeGraphEnabledChange,
+  showKnowledgeGraphToggle,
   isReady,
   isLoadingSession,
   connected,
@@ -299,6 +306,19 @@ export function ChatInput({
                       className="scale-75"
                     />
                   </div>
+                  {showKnowledgeGraphToggle && (
+                    <div className="flex items-center justify-between px-2 py-2">
+                      <div className="flex items-center gap-2">
+                        <Brain className="h-4 w-4 text-gray-500 dark:text-slate-400" />
+                        <span className="text-xs">Knowledge graph</span>
+                      </div>
+                      <Switch
+                        checked={knowledgeGraphEnabled}
+                        onCheckedChange={onKnowledgeGraphEnabledChange}
+                        className="scale-75"
+                      />
+                    </div>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
