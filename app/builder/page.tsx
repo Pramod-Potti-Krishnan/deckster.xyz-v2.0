@@ -35,6 +35,7 @@ import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
 import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
+import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -57,6 +58,14 @@ function BuilderContent() {
   const [researchEnabled, setResearchEnabled] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(false)
+  const { isSubscribed: kgSubscribed, isPremium: kgIsPremium } = useKnowledgeGraph()
+  const [knowledgeGraphEnabled, setKnowledgeGraphEnabled] = useState(false)
+  const showKnowledgeGraphToggle = kgIsPremium && kgSubscribed
+
+  useEffect(() => {
+    if (kgSubscribed) setKnowledgeGraphEnabled(true)
+  }, [kgSubscribed])
+
   const [sessionStoreName, setSessionStoreName] = useState<string | null>(null)
   const [pendingActionInput, setPendingActionInput] = useState<{
     action: ActionRequest['payload']['actions'][0];
@@ -482,6 +491,7 @@ function BuilderContent() {
           deepResearch: researchEnabled,
           webSearch: webSearchEnabled,
           extendedGeneration: extendedGenerationEnabled,
+          useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
           fileUpload: !!sessionStoreName,
           storeName: sessionStoreName,
         })
@@ -581,6 +591,7 @@ function BuilderContent() {
               deepResearch: researchEnabled,
               webSearch: webSearchEnabled,
               extendedGeneration: extendedGenerationEnabled,
+              useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
               fileUpload: !!sessionStoreName,
               storeName: sessionStoreName,
             })
@@ -638,6 +649,7 @@ function BuilderContent() {
             deepResearch: researchEnabled,
             webSearch: webSearchEnabled,
             extendedGeneration: extendedGenerationEnabled,
+            useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
             fileUpload: !!sessionStoreName,
             storeName: sessionStoreName,
           })
@@ -688,6 +700,7 @@ function BuilderContent() {
         deepResearch: researchEnabled,
         webSearch: webSearchEnabled,
         extendedGeneration: extendedGenerationEnabled,
+        useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
       })
@@ -702,7 +715,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, sessionStoreName])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -745,11 +758,12 @@ function BuilderContent() {
         deepResearch: researchEnabled,
         webSearch: webSearchEnabled,
         extendedGeneration: extendedGenerationEnabled,
+        useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
       })
     }
-  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, sessionStoreName])
+  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName])
 
   // Wrapped session select handler (clears local UI state too)
   const handleSessionSelectWrapped = useCallback((sessionId: string) => {
@@ -1043,6 +1057,9 @@ function BuilderContent() {
                     onWebSearchEnabledChange={setWebSearchEnabled}
                     extendedGenerationEnabled={extendedGenerationEnabled}
                     onExtendedGenerationEnabledChange={setExtendedGenerationEnabled}
+                    knowledgeGraphEnabled={knowledgeGraphEnabled}
+                    onKnowledgeGraphEnabledChange={setKnowledgeGraphEnabled}
+                    showKnowledgeGraphToggle={showKnowledgeGraphToggle}
                     isReady={isReady}
                     isLoadingSession={session.isLoadingSession}
                     connected={connected}
