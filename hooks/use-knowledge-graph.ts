@@ -1,9 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSubscription } from './use-subscription'
-import { config } from '@/lib/config'
-
-const KG_BASE_URL = config.api.knowledgeServiceUrl
 
 interface KgSettings {
   user_id: string
@@ -41,7 +38,7 @@ export function useKnowledgeGraph() {
     }
 
     try {
-      const resp = await fetch(`${KG_BASE_URL}/api/v1/kg/settings/${userId}`)
+      const resp = await fetch('/api/knowledge-graph/settings')
       if (resp.ok) {
         setSettings(await resp.json())
       } else {
@@ -50,8 +47,8 @@ export function useKnowledgeGraph() {
       setError(null)
     } catch (e) {
       console.error('Failed to fetch KG settings:', e)
-      setError('Failed to load knowledge graph settings')
       setSettings(null)
+      // Don't show error for network issues — just treat as unsubscribed
     } finally {
       setIsLoading(false)
     }
@@ -64,21 +61,16 @@ export function useKnowledgeGraph() {
   const subscribe = useCallback(async (): Promise<boolean> => {
     if (!userId) return false
     try {
-      const resp = await fetch(`${KG_BASE_URL}/api/v1/kg/subscribe`, {
+      const resp = await fetch('/api/knowledge-graph/subscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userId,
-          cross_session_enabled: true,
-          consent_version: '2026-05-28-v1',
-        }),
       })
       if (resp.ok) {
         setSettings(await resp.json())
         setError(null)
         return true
       }
-      setError('Failed to enable knowledge graph')
+      const body = await resp.json().catch(() => ({}))
+      setError(body.error || 'Failed to enable knowledge graph')
       return false
     } catch (e) {
       console.error('KG subscribe error:', e)
@@ -96,7 +88,7 @@ export function useKnowledgeGraph() {
   const purge = useCallback(async (): Promise<PurgeResult | null> => {
     if (!userId) return null
     try {
-      const resp = await fetch(`${KG_BASE_URL}/api/v1/kg/${userId}`, {
+      const resp = await fetch('/api/knowledge-graph/purge', {
         method: 'DELETE',
       })
       if (resp.ok) {
@@ -105,7 +97,8 @@ export function useKnowledgeGraph() {
         setError(null)
         return result
       }
-      setError('Failed to delete knowledge graph')
+      const body = await resp.json().catch(() => ({}))
+      setError(body.error || 'Failed to delete knowledge graph')
       return null
     } catch (e) {
       console.error('KG purge error:', e)
