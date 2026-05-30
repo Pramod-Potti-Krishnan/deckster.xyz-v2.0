@@ -10,10 +10,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { UserProfileMenu } from "@/components/user-profile-menu"
 import { Plus, Search, Filter, MoreVertical, Sparkles, Calendar, Users, Crown, Folder, Tag, X, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -42,7 +40,7 @@ interface Folder {
 }
 
 export default function DashboardPage() {
-  const { user, logout, isLoading } = useAuth()
+  const { user, isLoading } = useAuth()
   const { loadSessions } = useChatSessions()
   const [presentations, setPresentations] = useState<Presentation[]>([])
   const [folders, setFolders] = useState<Folder[]>([])
@@ -123,10 +121,6 @@ export default function DashboardPage() {
     ])
   }, [presentations])
 
-  const handleSignOut = async () => {
-    await logout()
-  }
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "completed":
@@ -154,6 +148,14 @@ export default function DashboardPage() {
 
   // Get all unique tags from presentations
   const allTags = Array.from(new Set(presentations.flatMap(p => p.tags)))
+
+  // Real "this month" count derived from createdAt
+  const now = new Date()
+  const presentationsThisMonth = presentations.filter((p) => {
+    const d = new Date(p.createdAt)
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  }).length
+  const thisMonthLabel = now.toLocaleDateString("en-US", { month: "long" })
 
   // Tab-based filtering: split presentations by completion status
   const completedPresentations = presentations.filter(p => p.finalPresentationUrl)
@@ -220,43 +222,26 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold">deckster.xyz</span>
-            </Link>
-            <Badge variant="outline" className="ml-4">
+    <main className="container mx-auto px-4 py-8">
+      {/* Welcome Section */}
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-3">
+            <h1 className="text-3xl font-bold">Welcome back, {user?.name || 'there'}!</h1>
+            <Badge variant="outline">
               {user?.tier === "free" ? "Free Plan" : user?.tier === "pro" ? "Pro Plan" : "Enterprise"}
               {user?.tier === "pro" && <Crown className="ml-1 h-3 w-3" />}
             </Badge>
           </div>
-
-          <div className="flex items-center space-x-4">
-            <Button asChild>
-              <Link href="/builder">
-                <Plus className="mr-2 h-4 w-4" />
-                New Presentation
-              </Link>
-            </Button>
-
-            <UserProfileMenu />
-          </div>
+          <p className="text-slate-600 dark:text-slate-400">Ready to create amazing presentations with your AI agent team?</p>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.name || 'there'}!</h1>
-          <p className="text-slate-600">Ready to create amazing presentations with your AI agent team?</p>
-        </div>
+        <Button asChild>
+          <Link href="/builder">
+            <Plus className="mr-2 h-4 w-4" />
+            New Presentation
+          </Link>
+        </Button>
+      </div>
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -279,8 +264,8 @@ export default function DashboardPage() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">2</div>
-              <p className="text-xs text-muted-foreground">+1 from last month</p>
+              <div className="text-2xl font-bold">{presentationsThisMonth}</div>
+              <p className="text-xs text-muted-foreground">Created in {thisMonthLabel}</p>
             </CardContent>
           </Card>
 
@@ -290,8 +275,8 @@ export default function DashboardPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">47</div>
-              <p className="text-xs text-muted-foreground">Agent interactions this month</p>
+              <div className="text-2xl font-bold text-muted-foreground">—</div>
+              <p className="text-xs text-muted-foreground">Coming soon</p>
             </CardContent>
           </Card>
         </div>
@@ -613,7 +598,6 @@ export default function DashboardPage() {
             )}
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+    </main>
   )
 }

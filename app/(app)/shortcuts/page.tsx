@@ -7,13 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { 
-  ArrowLeft,
+import {
   Command,
   Search,
   Keyboard
 } from "lucide-react"
-import Link from "next/link"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -106,23 +104,7 @@ export default function ShortcutsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/dashboard">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Dashboard
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+    <main className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8 text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-purple-100 rounded-lg">
@@ -242,7 +224,6 @@ export default function ShortcutsPage() {
             </div>
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </main>
   )
 }

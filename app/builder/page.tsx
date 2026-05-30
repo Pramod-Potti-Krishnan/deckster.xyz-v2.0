@@ -245,6 +245,20 @@ function BuilderContent() {
     currentSessionIdRef.current = currentSessionId
   }, [currentSessionId])
 
+  // Remember the active session so "Back to builder" (in the account-area header)
+  // can return the user to this exact deck. Covers create, resume, and
+  // dashboard-initiated navigation since they all funnel through currentSessionId.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (currentSessionId && currentSessionId !== "new") {
+      try {
+        window.localStorage.setItem("deckster:last_session_id", currentSessionId)
+      } catch {
+        // ignore storage errors (Safari private mode, quota)
+      }
+    }
+  }, [currentSessionId])
+
   // WebSocket v2 integration
   const {
     connected,
