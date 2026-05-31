@@ -5,7 +5,7 @@ import { signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
+import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Globe, Lock, Trash2, AlertTriangle } from "lucide-react"
 
@@ -65,13 +65,15 @@ export default function SecuritySettingsPage() {
               <Lock className="h-5 w-5 text-muted-foreground" />
               <div>
                 <p className="font-medium">Two-Factor Authentication</p>
-                <p className="text-sm text-muted-foreground">Add an extra layer of security</p>
+                <p className="text-sm text-muted-foreground">
+                  Your Google account&apos;s 2FA protects your sign-in.
+                  App-level TOTP is planned for a future release.
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Coming soon</span>
-              <Switch disabled />
-            </div>
+            <Badge variant="outline" className="text-muted-foreground">
+              Planned
+            </Badge>
           </div>
         </CardContent>
       </Card>

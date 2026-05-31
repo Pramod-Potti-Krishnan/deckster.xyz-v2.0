@@ -334,7 +334,9 @@ export default function BillingPage() {
 
               <div className="flex justify-between text-sm">
                 <span>AI Agent Interactions</span>
-                <span className="text-xs text-muted-foreground">Coming soon</span>
+                <Badge variant="outline" className="text-muted-foreground text-xs">
+                  Planned
+                </Badge>
               </div>
 
               <div className="flex justify-between text-sm">

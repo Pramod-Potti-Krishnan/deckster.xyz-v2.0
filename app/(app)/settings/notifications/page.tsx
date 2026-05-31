@@ -1,12 +1,12 @@
 "use client"
 
 import { useAuth } from "@/hooks/use-auth"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
-import { Mail } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Mail, CheckCircle2 } from "lucide-react"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
@@ -29,7 +29,9 @@ export default function NotificationsSettingsPage() {
               <CardTitle>Email Notifications</CardTitle>
               <CardDescription>Choose what emails you want to receive</CardDescription>
             </div>
-            <span className="text-xs text-muted-foreground">Coming soon</span>
+            <Badge variant="outline" className="text-muted-foreground">
+              Planned
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -45,26 +47,29 @@ export default function NotificationsSettingsPage() {
               </div>
             </div>
           ))}
+          <p className="text-xs text-muted-foreground pt-2">
+            Preferences will be saved once notification delivery is activated.
+          </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Notification Preferences</CardTitle>
-          <CardDescription>How you receive notifications</CardDescription>
+          <CardTitle>Email Address</CardTitle>
+          <CardDescription>Your notification delivery address</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3 rounded-lg border p-4">
             <Mail className="h-5 w-5 text-muted-foreground" />
             <div className="flex-1">
-              <p className="font-medium">Email Address</p>
-              <p className="text-sm text-muted-foreground">{user?.email}</p>
+              <p className="font-medium">{user?.email}</p>
+              <p className="text-sm text-muted-foreground">
+                Verified via Google sign-in
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Coming soon</span>
-              <Button variant="outline" size="sm" disabled>
-                Verify
-              </Button>
+            <div className="flex items-center gap-1.5 text-green-600">
+              <CheckCircle2 className="h-4 w-4" />
+              <span className="text-sm font-medium">Verified</span>
             </div>
           </div>
         </CardContent>
