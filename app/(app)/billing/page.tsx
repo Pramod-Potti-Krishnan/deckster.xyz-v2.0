@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useSubscription } from "@/hooks/use-subscription"
 import { ManageSubscriptionButton } from "@/components/billing/ManageSubscriptionButton"
@@ -10,7 +10,7 @@ import { UpgradeButton } from "@/components/billing/UpgradeButton"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download, Wallet } from "lucide-react"
+import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download, Wallet, Plus, Loader2 } from "lucide-react"
 import { useWallet } from "@/hooks/use-wallet"
 import { features } from "@/lib/config"
 
@@ -41,11 +41,13 @@ function formatBytes(bytes: number): string {
 export default function BillingPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { subscription, isLoading: isLoadingSubscription, isActive, isPro } = useSubscription()
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [usage, setUsage] = useState<Usage | null>(null)
   const wallet = useWallet()
+  const [topUpLoading, setTopUpLoading] = useState<string | null>(null)
 
   // Real usage (deck count + storage) for every signed-in user.
   useEffect(() => {
@@ -89,6 +91,25 @@ export default function BillingPage() {
 
   const handleUpgrade = () => {
     router.push("/pricing")
+  }
+
+  const handleTopUp = async (packId: string) => {
+    setTopUpLoading(packId)
+    try {
+      const res = await fetch("/api/stripe/create-topup-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packId }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch {
+      console.error("Failed to create top-up session")
+    } finally {
+      setTopUpLoading(null)
+    }
   }
 
   return (
@@ -229,12 +250,50 @@ export default function BillingPage() {
               <CardDescription>Your available credits for AI generation</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {searchParams?.get("topup") === "success" && (
+                <Alert className="border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/30">
+                  <Check className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-900 dark:text-green-300">
+                    Top-up successful! Your credits have been added.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 p-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Available Balance</p>
                   <p className="text-3xl font-bold">
                     {wallet.isLoading ? "…" : `$${(wallet.balanceCents / 100).toFixed(2)}`}
                   </p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium mb-2">Add Credits</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: "pack_10", label: "$10" },
+                    { id: "pack_25", label: "$25" },
+                    { id: "pack_50", label: "$50" },
+                    { id: "pack_100", label: "$100" },
+                  ].map((pack) => (
+                    <Button
+                      key={pack.id}
+                      variant="outline"
+                      className="h-auto py-3 flex flex-col gap-1"
+                      onClick={() => handleTopUp(pack.id)}
+                      disabled={topUpLoading !== null}
+                    >
+                      {topUpLoading === pack.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4" />
+                          <span className="font-semibold">{pack.label}</span>
+                        </>
+                      )}
+                    </Button>
+                  ))}
                 </div>
               </div>
 
