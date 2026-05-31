@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { getStripe } from '@/lib/stripe/stripe'
 import { prisma } from '@/lib/prisma'
+import { creditWallet } from '@/lib/wallet'
 import Stripe from 'stripe'
 
 export async function POST(req: NextRequest) {
@@ -74,9 +75,50 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     return
   }
 
+  if (session.metadata?.kind === 'wallet_topup') {
+    await handleWalletTopup(session)
+    return
+  }
+
   // Subscription will be created by subscription.created event
   // Just log success here
   console.log(`User ${userId} completed checkout for subscription ${session.subscription}`)
+}
+
+async function handleWalletTopup(session: Stripe.Checkout.Session) {
+  const userId = session.metadata?.userId
+  const amountCents = parseInt(session.metadata?.amountCents || '0', 10)
+
+  if (!userId || amountCents <= 0) {
+    console.error('[wallet_topup] Missing userId or invalid amountCents in metadata')
+    return
+  }
+
+  const sourceRef = `stripe_topup:${session.id}`
+
+  try {
+    const { balanceAfterCents } = await creditWallet({
+      userId,
+      amountCents,
+      reason: 'card_topup',
+      sourceRef,
+      metadata: {
+        stripeSessionId: session.id,
+        stripePaymentIntent: typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id ?? null,
+        packId: session.metadata?.packId ?? null,
+      },
+    })
+
+    console.log(`✅ Wallet topped up: user=${userId}, credited=${amountCents}c, balance=${balanceAfterCents}c`)
+  } catch (error: any) {
+    if (error?.message?.includes('Unique constraint')) {
+      console.log(`[wallet_topup] Already processed: ${sourceRef}`)
+      return
+    }
+    throw error
+  }
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
