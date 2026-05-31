@@ -107,6 +107,12 @@ export const authOptions: NextAuthOptions = {
           if (typeof session.image === "string") {
             token.picture = session.image
           }
+          if (typeof session.approved === "boolean") {
+            token.approved = session.approved
+          }
+          if (typeof session.walletBalanceCents === "number") {
+            token.walletBalanceCents = session.walletBalanceCents
+          }
           return token
         }
 
@@ -115,7 +121,7 @@ export const authOptions: NextAuthOptions = {
           try {
             const dbUser = await prisma.user.findUnique({
               where: { email: user.email! },
-              select: { id: true, approved: true, tier: true }
+              select: { id: true, approved: true, tier: true, walletBalanceCents: true }
             })
 
             // Fetch subscription data
@@ -126,6 +132,7 @@ export const authOptions: NextAuthOptions = {
               id: dbUser?.id || user.id,
               tier: dbUser?.tier || "free",
               approved: dbUser?.approved || false,
+              walletBalanceCents: dbUser?.walletBalanceCents ?? 0,
               subscription: subscription ? {
                 status: subscription.status,
                 tier: subscription.tier,
@@ -141,7 +148,8 @@ export const authOptions: NextAuthOptions = {
               ...token,
               id: user.id,
               tier: "free" as const,
-              approved: false, // Default to false for safety
+              approved: false,
+              walletBalanceCents: 0,
               subscription: null,
               exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
             }
@@ -161,6 +169,7 @@ export const authOptions: NextAuthOptions = {
           session.user.tier = token.tier as "free" | "pro" | "enterprise"
           session.user.subscription = token.subscription as { status: string; tier: string; currentPeriodEnd: string } | null
           session.user.approved = token.approved as boolean
+          session.user.walletBalanceCents = (token.walletBalanceCents as number) ?? 0
         }
         return session
       } catch (error) {

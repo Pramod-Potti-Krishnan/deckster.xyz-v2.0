@@ -68,12 +68,17 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  accounts      Account[]
-  sessions      Session[]
-  chatSessions  ChatSession[]
-  uploadedFiles UploadedFile[]
-  subscriptions Subscription[]
-  preferences   UserPreferences?
+  // Wallet
+  walletBalanceCents Int @default(0) @map("wallet_balance_cents")
+
+  accounts           Account[]
+  sessions           Session[]
+  chatSessions       ChatSession[]
+  uploadedFiles      UploadedFile[]
+  subscriptions      Subscription[]
+  preferences        UserPreferences?
+  couponRedemptions  CouponRedemption[]
+  walletTransactions WalletTransaction[]
 
   @@map("auth_users")
 }
@@ -292,6 +297,61 @@ model UserPreferences {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("fe_user_preferences")
+}
+
+// Coupon-based authorization + credit wallet
+model Coupon {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  valueCents      Int       @map("value_cents")
+  currency        String    @default("usd")
+  maxRedemptions  Int?      @map("max_redemptions")
+  timesRedeemed   Int       @default(0) @map("times_redeemed")
+  perUserLimit    Int       @default(1) @map("per_user_limit")
+  expiresAt       DateTime? @map("expires_at")
+  active          Boolean   @default(true)
+  note            String?
+  createdBy       String?   @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  redemptions CouponRedemption[]
+
+  @@index([active])
+  @@map("fe_coupons")
+}
+
+model CouponRedemption {
+  id          String   @id @default(cuid())
+  couponId    String   @map("coupon_id")
+  userId      String   @map("user_id")
+  amountCents Int      @map("amount_cents")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, userId])
+  @@index([userId])
+  @@map("fe_coupon_redemptions")
+}
+
+model WalletTransaction {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  type             String   // 'credit' | 'debit'
+  amountCents      Int      @map("amount_cents")
+  reason           String   // 'coupon_redemption' | 'token_usage' | 'card_topup' | 'admin_adjust'
+  balanceAfterCents Int     @map("balance_after_cents")
+  sourceRef        String?  @unique @map("source_ref")
+  metadata         Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([reason])
+  @@map("fe_wallet_transactions")
 }
 
 // Element Conversation Models (for format panel chat-based AI)

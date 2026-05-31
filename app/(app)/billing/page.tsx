@@ -10,7 +10,9 @@ import { UpgradeButton } from "@/components/billing/UpgradeButton"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download } from "lucide-react"
+import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download, Wallet } from "lucide-react"
+import { useWallet } from "@/hooks/use-wallet"
+import { features } from "@/lib/config"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
@@ -43,6 +45,7 @@ export default function BillingPage() {
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [usage, setUsage] = useState<Usage | null>(null)
+  const wallet = useWallet()
 
   // Real usage (deck count + storage) for every signed-in user.
   useEffect(() => {
@@ -214,6 +217,61 @@ export default function BillingPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Credit Balance Card */}
+        {features.couponAuthEnabled && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5" />
+                Credit Balance
+              </CardTitle>
+              <CardDescription>Your available credits for AI generation</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 p-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Available Balance</p>
+                  <p className="text-3xl font-bold">
+                    {wallet.isLoading ? "…" : `$${(wallet.balanceCents / 100).toFixed(2)}`}
+                  </p>
+                </div>
+              </div>
+
+              {!wallet.isLoading && wallet.transactions.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Recent Transactions</h4>
+                  <div className="space-y-2">
+                    {wallet.transactions.slice(0, 5).map((txn) => (
+                      <div
+                        key={txn.id}
+                        className="flex items-center justify-between text-sm py-1.5 border-b last:border-0"
+                      >
+                        <div>
+                          <span className="capitalize">
+                            {txn.reason.replace(/_/g, " ")}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {new Date(txn.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <span
+                          className={
+                            txn.type === "credit"
+                              ? "text-green-600 font-medium"
+                              : "text-red-600 font-medium"
+                          }
+                        >
+                          {txn.type === "credit" ? "+" : "-"}${(txn.amountCents / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Payment Method Card */}
         {user.tier !== "free" && (

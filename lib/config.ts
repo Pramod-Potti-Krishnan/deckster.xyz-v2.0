@@ -40,6 +40,7 @@ export const config = {
     // When true: Toolbar buttons open the GenerationPanel (Text Labs unified API)
     // When false: Toolbar buttons use legacy Elementor per-element endpoints
     useTextLabsGeneration: process.env.NEXT_PUBLIC_USE_TEXTLABS_GENERATION !== 'false',
+    couponAuthEnabled: process.env.NEXT_PUBLIC_COUPON_AUTH_ENABLED === 'true',
   },
 
   // File Upload Configuration
