@@ -277,6 +277,7 @@ export interface UseDecksterWebSocketV2State {
   ephemeralFadeToken: number;
   // Director token-usage ledger, emitted once per completed turn.
   tokenUsage: TokenUsagePayload | null;
+  tokenUsageMessageId: string | null;
 }
 
 // Hook options
@@ -431,6 +432,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         ephemeralMessageIds: (cached as any).ephemeralMessageIds || [],
         ephemeralFadeToken: 0,
         tokenUsage: (cached as any).tokenUsage || null,
+        tokenUsageMessageId: (cached as any).tokenUsageMessageId || null,
       };
     }
 
@@ -462,6 +464,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralMessageIds: [],
       ephemeralFadeToken: 0,
       tokenUsage: null,
+      tokenUsageMessageId: null,
     };
   };
 
@@ -513,6 +516,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         slideContextByIndex: newState.slideContextByIndex,
         deckContext: newState.deckContext,
         tokenUsage: newState.tokenUsage,
+        tokenUsageMessageId: newState.tokenUsageMessageId,
         userMessages: existingUserMessages, // Preserve existing userMessages from cache
       });
 
@@ -953,6 +957,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
               case 'token_usage':
                 newState.tokenUsage = message.payload;
+                newState.tokenUsageMessageId = message.message_id;
                 debugLog('🧮 token_usage received:', {
                   action: message.payload.action_type,
                   turnTotal: message.payload.turn?.total_tokens,
@@ -1207,6 +1212,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralMessageIds: [],
       ephemeralFadeToken: 0,
       tokenUsage: null,
+      tokenUsageMessageId: null,
     }));
   }, [sessionCache, setStateWithCache]);
 
@@ -1304,6 +1310,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralMessageIds: [],
       ephemeralFadeToken: 0,
       tokenUsage: (sessionState as any)?.tokenUsage || null,
+      tokenUsageMessageId: (sessionState as any)?.tokenUsageMessageId || null,
     }));
   }, [setStateWithCache]);
 

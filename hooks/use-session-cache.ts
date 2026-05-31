@@ -49,6 +49,7 @@ export interface CachedSessionState {
   slideContextByIndex?: Record<number, any> | null
   deckContext?: any | null
   tokenUsage?: TokenUsagePayload | null
+  tokenUsageMessageId?: string | null
 
   // Cache metadata
   lastUpdated: number
