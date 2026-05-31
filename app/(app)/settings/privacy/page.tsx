@@ -1,17 +1,50 @@
 "use client"
 
+import { useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { Eye, Download } from "lucide-react"
+import { Eye, Download, Loader2 } from "lucide-react"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
 
 export default function PrivacySettingsPage() {
+  const [activityTracking, setActivityTracking] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/preferences")
+      .then((r) => r.json())
+      .then((data) => {
+        setActivityTracking(data.activityTracking ?? false)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
+  const toggleTracking = useCallback(async () => {
+    const next = !activityTracking
+    setActivityTracking(next)
+    setSaving(true)
+    try {
+      const res = await fetch("/api/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activityTracking: next }),
+      })
+      if (!res.ok) setActivityTracking(!next)
+    } catch {
+      setActivityTracking(!next)
+    } finally {
+      setSaving(false)
+    }
+  }, [activityTracking])
+
   return (
     <>
       <Card>
@@ -47,7 +80,15 @@ export default function PrivacySettingsPage() {
                 Allow us to collect usage data to improve the product
               </p>
             </div>
-            <Switch disabled />
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            ) : (
+              <Switch
+                checked={activityTracking}
+                onCheckedChange={toggleTracking}
+                disabled={saving}
+              />
+            )}
           </div>
         </CardContent>
       </Card>
