@@ -1,8 +1,11 @@
 "use client"
 
+import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
@@ -14,6 +17,12 @@ export const dynamic = "force-dynamic"
 
 export default function ProfileSettingsPage() {
   const { user, isLoading } = useAuth()
+  const { update } = useSession()
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [displayName, setDisplayName] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (isLoading) {
     return <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
@@ -28,17 +37,67 @@ export default function ProfileSettingsPage() {
       .toUpperCase()
       .slice(0, 2) || "U"
 
+  const startEditing = () => {
+    setDisplayName(user.name || "")
+    setError(null)
+    setIsEditing(true)
+  }
+
+  const cancelEditing = () => {
+    setIsEditing(false)
+    setError(null)
+  }
+
+  const handleSave = async () => {
+    const name = displayName.trim()
+    if (!name) {
+      setError("Display name is required")
+      return
+    }
+    setIsSaving(true)
+    setError(null)
+    try {
+      const resp = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      })
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}))
+        setError(body.error || "Failed to update profile")
+        return
+      }
+      // Refresh the JWT-backed session so the new name shows everywhere
+      // (header avatar, dropdown) without a re-login.
+      await update({ name })
+      setIsEditing(false)
+    } catch (e) {
+      console.error("Profile save error:", e)
+      setError("Network error. Please try again.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Profile Information</CardTitle>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Editing coming soon</span>
-            <Button variant="outline" size="sm" disabled>
+          {isEditing ? (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={cancelEditing} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={isSaving}>
+                {isSaving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          ) : (
+            <Button variant="outline" size="sm" onClick={startEditing}>
               Edit Profile
             </Button>
-          </div>
+          )}
         </div>
         <CardDescription>Your personal details and account information</CardDescription>
       </CardHeader>
@@ -66,7 +125,20 @@ export default function ProfileSettingsPage() {
               <User className="h-4 w-4" />
               Display Name
             </Label>
-            <p className="text-sm">{user.name || "Not set"}</p>
+            {isEditing ? (
+              <>
+                <Input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Enter your display name"
+                  maxLength={80}
+                  disabled={isSaving}
+                />
+                {error && <p className="text-sm text-red-600">{error}</p>}
+              </>
+            ) : (
+              <p className="text-sm">{user.name || "Not set"}</p>
+            )}
           </div>
 
           <div className="grid gap-2">

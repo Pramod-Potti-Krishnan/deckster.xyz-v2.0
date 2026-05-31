@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -9,7 +10,7 @@ import { UpgradeButton } from "@/components/billing/UpgradeButton"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle } from "lucide-react"
+import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download } from "lucide-react"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
@@ -18,8 +19,21 @@ interface Invoice {
   id: string
   date: string
   amount: number
-  status: "paid" | "pending" | "failed"
-  downloadUrl?: string
+  status: string
+  downloadUrl?: string | null
+}
+
+interface Usage {
+  presentationCount: number
+  storageBytes: number
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes) return "0 B"
+  const units = ["B", "KB", "MB", "GB", "TB"]
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / Math.pow(1024, i)
+  return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
 
 export default function BillingPage() {
@@ -27,8 +41,37 @@ export default function BillingPage() {
   const router = useRouter()
   const { subscription, isLoading: isLoadingSubscription, isActive, isPro } = useSubscription()
 
-  // FIX: invoices were never declared — crashed any paid user
-  const invoices: Invoice[] = []
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [usage, setUsage] = useState<Usage | null>(null)
+
+  // Real usage (deck count + storage) for every signed-in user.
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/account/usage")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d) setUsage(d)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Real invoice history (from Payment rows) for paying users only.
+  useEffect(() => {
+    if (!user || user.tier === "free") return
+    let cancelled = false
+    fetch("/api/billing/invoices")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.invoices) setInvoices(d.invoices)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   if (isLoading || isLoadingSubscription) {
     return (
@@ -233,13 +276,27 @@ export default function BillingPage() {
                             })}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            ${invoice.amount}.00
+                            ${invoice.amount.toFixed(2)}
                           </p>
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-xs text-green-700">
-                        {invoice.status}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs text-green-700">
+                          {invoice.status}
+                        </Badge>
+                        {invoice.downloadUrl && (
+                          <Button variant="ghost" size="sm" asChild>
+                            <a
+                              href={invoice.downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label="Download invoice"
+                            >
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -260,7 +317,11 @@ export default function BillingPage() {
                 <div className="mb-1 flex justify-between text-sm">
                   <span>Presentations</span>
                   <span className="font-medium">
-                    {user.tier === "free" ? "— / 3" : "— / Unlimited"}
+                    {usage
+                      ? user.tier === "free"
+                        ? `${usage.presentationCount} / 3`
+                        : `${usage.presentationCount} / Unlimited`
+                      : "…"}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -278,7 +339,9 @@ export default function BillingPage() {
 
               <div className="flex justify-between text-sm">
                 <span>Storage Used</span>
-                <span className="text-xs text-muted-foreground">Coming soon</span>
+                <span className="font-medium">
+                  {usage ? formatBytes(usage.storageBytes) : "…"}
+                </span>
               </div>
             </div>
           </CardContent>

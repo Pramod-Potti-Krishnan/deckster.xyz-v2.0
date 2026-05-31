@@ -96,8 +96,20 @@ export const authOptions: NextAuthOptions = {
     error: "/auth/error",
   },
   callbacks: {
-    async jwt({ token, user, account, trigger }) {
+    async jwt({ token, user, account, trigger, session }) {
       try {
+        // Client-initiated session update (e.g. after a profile edit).
+        // Refresh the mutable fields on the token without a full re-login.
+        if (trigger === "update" && session) {
+          if (typeof session.name === "string") {
+            token.name = session.name
+          }
+          if (typeof session.image === "string") {
+            token.picture = session.image
+          }
+          return token
+        }
+
         // Initial sign in - fetch user data from database
         if (account && user) {
           try {
