@@ -36,6 +36,7 @@ import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { useBuilderSession } from '@/hooks/use-builder-session'
 import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
+import { useWalletDebit } from '@/hooks/use-wallet-debit'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -283,6 +284,7 @@ function BuilderContent() {
     ephemeralMessageIds,
     ephemeralFadeToken,
     tokenUsage,
+    tokenUsageMessageId,
     sendMessage,
     clearMessages,
     clearEphemeralIds,
@@ -345,6 +347,8 @@ function BuilderContent() {
       }
     }
   })
+
+  const walletDebit = useWalletDebit(tokenUsage, tokenUsageMessageId ?? undefined)
 
   // Builder session hook (session init, loading, switching, persistence effects)
   const session = useBuilderSession({
@@ -1030,7 +1034,7 @@ function BuilderContent() {
             >
               {showChat && (
                 <>
-                  <TokenUsageStrip tokenUsage={tokenUsage} />
+                  <TokenUsageStrip tokenUsage={tokenUsage} walletDebit={walletDebit} />
 
                   <ScrollArea className="flex-1">
                     <div className="px-3 py-4 space-y-4">

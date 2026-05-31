@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Coins, Info } from "lucide-react"
+import { Coins, Info, Wallet, AlertTriangle } from "lucide-react"
 import type { TokenUsagePayload } from "@/hooks/use-deckster-websocket-v2"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -12,8 +12,16 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
+interface WalletDebitState {
+  balanceCents: number | null
+  lastCostCents: number | null
+  isLowBalance: boolean
+  insufficientFunds: boolean
+}
+
 interface TokenUsageStripProps {
   tokenUsage: TokenUsagePayload | null
+  walletDebit?: WalletDebitState
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -44,7 +52,11 @@ function formatActionLabel(actionType: string | null | undefined): string {
     .join(" ")
 }
 
-export function TokenUsageStrip({ tokenUsage }: TokenUsageStripProps) {
+function formatCents(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`
+}
+
+export function TokenUsageStrip({ tokenUsage, walletDebit }: TokenUsageStripProps) {
   const sessionTotal = tokenUsage?.session?.total_tokens ?? 0
   const turnTotal = tokenUsage?.turn?.total_tokens ?? 0
   const actionLabel = useMemo(
@@ -53,6 +65,7 @@ export function TokenUsageStrip({ tokenUsage }: TokenUsageStripProps) {
   )
   const isPartial = tokenUsage?.coverage === "partial"
   const hasUsage = Boolean(tokenUsage)
+  const hasWallet = walletDebit && walletDebit.balanceCents !== null
 
   const [displayTotal, setDisplayTotal] = useState(sessionTotal)
   const [showDelta, setShowDelta] = useState(false)
@@ -125,7 +138,7 @@ export function TokenUsageStrip({ tokenUsage }: TokenUsageStripProps) {
     <div className="border-b border-gray-100 bg-white px-3 py-1.5 dark:border-slate-800 dark:bg-slate-900">
       <div className="rounded-md px-1 py-1">
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <Coins className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-300" />
               <span className="text-[11px] font-medium text-gray-600 dark:text-slate-400">Token usage</span>
@@ -159,20 +172,49 @@ export function TokenUsageStrip({ tokenUsage }: TokenUsageStripProps) {
                 </TooltipProvider>
               )}
             </div>
-            <p className="mt-0.5 truncate text-[10px] text-gray-500 dark:text-slate-500">{usageCopy}</p>
+            <div className="mt-0.5 flex items-center gap-2">
+              <p className="truncate text-[10px] text-gray-500 dark:text-slate-500">{usageCopy}</p>
+              {hasUsage && walletDebit?.lastCostCents != null && walletDebit.lastCostCents > 0 && (
+                <span className="text-[10px] text-gray-400 dark:text-slate-600">
+                  ({formatCents(walletDebit.lastCostCents)})
+                </span>
+              )}
+            </div>
           </div>
 
-          {hasUsage && (
-            <div
-              className={cn(
-                "shrink-0 rounded-full border border-purple-100 bg-white px-2 py-1 text-[10px] font-semibold text-purple-700 shadow-sm transition-all duration-300",
-                showDelta ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
-              )}
-              aria-hidden={!showDelta}
-            >
-              +{formatNumber(turnTotal)}
-            </div>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {hasWallet && (
+              <div
+                className={cn(
+                  "flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold",
+                  walletDebit.insufficientFunds
+                    ? "border-red-200 bg-red-50 text-red-700"
+                    : walletDebit.isLowBalance
+                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                )}
+              >
+                {walletDebit.insufficientFunds ? (
+                  <AlertTriangle className="h-3 w-3" />
+                ) : (
+                  <Wallet className="h-3 w-3" />
+                )}
+                {formatCents(walletDebit.balanceCents!)}
+              </div>
+            )}
+
+            {hasUsage && (
+              <div
+                className={cn(
+                  "rounded-full border border-purple-100 bg-white px-2 py-1 text-[10px] font-semibold text-purple-700 shadow-sm transition-all duration-300",
+                  showDelta ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+                )}
+                aria-hidden={!showDelta}
+              >
+                +{formatNumber(turnTotal)}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
