@@ -73,6 +73,7 @@ model User {
   chatSessions  ChatSession[]
   uploadedFiles UploadedFile[]
   subscriptions Subscription[]
+  preferences   UserPreferences?
 
   @@map("auth_users")
 }
@@ -270,3 +271,27 @@ model Payment {
   @@index([userId])
   @@index([status])
 }
+
+// User notification & privacy preferences (1:1 with User)
+model UserPreferences {
+  id                    String   @id @default(cuid())
+  userId                String   @unique @map("user_id")
+
+  // Email notification preferences (store-only — no email provider wired yet)
+  emailAccountActivity  Boolean  @default(true)  @map("email_account_activity")
+  emailProductUpdates   Boolean  @default(true)  @map("email_product_updates")
+  emailMarketing        Boolean  @default(false) @map("email_marketing")
+
+  // Privacy preferences
+  activityTracking      Boolean  @default(false) @map("activity_tracking")
+
+  // Timestamps
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("fe_user_preferences")
+}
+
+// Element Conversation Models (for format panel chat-based AI)

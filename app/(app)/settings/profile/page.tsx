@@ -1,15 +1,15 @@
 "use client"
 
-import { useState } from "react"
-import { useSession } from "next-auth/react"
+import { useRef, useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { Mail, User } from "lucide-react"
+import { Camera, Mail, User, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 // Force dynamic rendering to prevent build-time errors
@@ -19,10 +19,16 @@ export default function ProfileSettingsPage() {
   const { user, isLoading } = useAuth()
   const { update } = useSession()
 
+  // Display-name editing state
   const [isEditing, setIsEditing] = useState(false)
   const [displayName, setDisplayName] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Avatar upload state
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
 
   if (isLoading) {
     return <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
@@ -79,6 +85,40 @@ export default function ProfileSettingsPage() {
     }
   }
 
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setAvatarError(null)
+    setIsUploading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append("avatar", file)
+
+      const res = await fetch("/api/profile/avatar", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || "Upload failed")
+      }
+
+      const { image } = await res.json()
+
+      // Refresh the JWT token with the new image URL
+      await update({ image })
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "Upload failed")
+    } finally {
+      setIsUploading(false)
+      // Reset file input so re-selecting the same file triggers onChange
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -104,15 +144,40 @@ export default function ProfileSettingsPage() {
       <CardContent className="space-y-6">
         {/* Avatar */}
         <div className="flex items-center space-x-4">
-          <Avatar className="h-20 w-20">
-            <AvatarImage src={user.image || undefined} alt={user.name || "User avatar"} />
-            <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-500 text-xl font-medium text-white">
-              {userInitials}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative group">
+            <Avatar className="h-20 w-20">
+              <AvatarImage src={user.image || undefined} alt={user.name || "User avatar"} />
+              <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-500 text-xl font-medium text-white">
+                {userInitials}
+              </AvatarFallback>
+            </Avatar>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 disabled:cursor-not-allowed"
+              aria-label="Change avatar"
+            >
+              {isUploading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-white" />
+              ) : (
+                <Camera className="h-5 w-5 text-white" />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={handleAvatarUpload}
+            />
+          </div>
           <div className="space-y-1">
             <h3 className="text-lg font-medium">{user.name}</h3>
             <p className="text-sm text-muted-foreground">{user.email}</p>
+            {avatarError && (
+              <p className="text-xs text-red-600">{avatarError}</p>
+            )}
           </div>
         </div>
 
