@@ -22,6 +22,7 @@ declare module "next-auth" {
         currentPeriodEnd: string
       } | null
       approved: boolean
+      walletBalanceCents: number
     } & DefaultSession["user"]
   }
 }
@@ -36,5 +37,6 @@ declare module "next-auth/jwt" {
       currentPeriodEnd: string
     } | null
     approved: boolean
+    walletBalanceCents: number
   }
 }
