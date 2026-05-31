@@ -87,12 +87,16 @@ export default function PrivacySettingsPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Coming soon</span>
-              <Button variant="outline" disabled>
-                Export
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                // GET route responds with Content-Disposition: attachment,
+                // so this triggers a download rather than a navigation.
+                window.location.href = "/api/account/export"
+              }}
+            >
+              Export
+            </Button>
           </div>
         </CardContent>
       </Card>
