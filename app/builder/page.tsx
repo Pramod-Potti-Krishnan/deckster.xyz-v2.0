@@ -31,12 +31,13 @@ import { ChatInput } from '@/components/builder/chat-input'
 import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
+import { TopUpModal } from '@/components/builder/topup-modal'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
 import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
-import { useWalletDebit } from '@/hooks/use-wallet-debit'
+import { useQuota } from '@/hooks/use-quota'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -348,7 +349,9 @@ function BuilderContent() {
     }
   })
 
-  const walletDebit = useWalletDebit(tokenUsage, tokenUsageMessageId ?? undefined)
+  const quota = useQuota(tokenUsage, tokenUsageMessageId ?? undefined)
+  const [topUpOpen, setTopUpOpen] = useState(false)
+  const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
 
   // Builder session hook (session init, loading, switching, persistence effects)
   const session = useBuilderSession({
@@ -467,6 +470,28 @@ function BuilderContent() {
 
     if (!user) {
       console.warn('Cannot send message: user not authenticated')
+      return
+    }
+
+    // Pre-flight quota gate: block a new turn only when a plan cap is fully
+    // exhausted AND there is no prepaid reserve to cover the overflow.
+    const q = quota.status
+    if (q && (q.flags.dailyAt || q.flags.weeklyAt) && q.walletBalanceCents <= 0) {
+      const isDaily = q.flags.dailyAt
+      const which = isDaily ? 'daily' : 'weekly'
+      const resetIso = isDaily ? q.resetAt.daily : q.resetAt.weekly
+      const resetLabel = new Date(resetIso).toLocaleString(undefined, {
+        weekday: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+      setTopUpReason(`You've reached your ${which} limit.`)
+      setTopUpOpen(true)
+      toast({
+        title: `${isDaily ? 'Daily' : 'Weekly'} limit reached`,
+        description: `Your ${which} budget resets ${resetLabel}. Top up reserve credits to keep generating now.`,
+        variant: 'destructive',
+      })
       return
     }
 
@@ -733,7 +758,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, quota.status, toast])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -1034,7 +1059,14 @@ function BuilderContent() {
             >
               {showChat && (
                 <>
-                  <TokenUsageStrip tokenUsage={tokenUsage} walletDebit={walletDebit} />
+                  <TokenUsageStrip
+                    tokenUsage={tokenUsage}
+                    quota={quota}
+                    onTopUp={() => {
+                      setTopUpReason(undefined)
+                      setTopUpOpen(true)
+                    }}
+                  />
 
                   <ScrollArea className="flex-1">
                     <div className="px-3 py-4 space-y-4">
@@ -1252,6 +1284,9 @@ function BuilderContent() {
 
       {/* Onboarding Modal */}
       <OnboardingModal open={showOnboarding} onClose={() => setShowOnboarding(false)} />
+
+      {/* Reserve credit top-up */}
+      <TopUpModal open={topUpOpen} onOpenChange={setTopUpOpen} reason={topUpReason} />
 
     </div>
   )

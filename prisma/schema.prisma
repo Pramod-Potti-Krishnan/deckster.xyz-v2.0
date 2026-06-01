@@ -345,6 +345,7 @@ model WalletTransaction {
   reason           String   // 'coupon_redemption' | 'token_usage' | 'card_topup' | 'admin_adjust'
   balanceAfterCents Int     @map("balance_after_cents")
   sourceRef        String?  @unique @map("source_ref")
+  tokens           Int?
   metadata         Json?
   createdAt        DateTime @default(now()) @map("created_at")
 
@@ -352,6 +353,7 @@ model WalletTransaction {
 
   @@index([userId])
   @@index([reason])
+  @@index([userId, reason, createdAt])
   @@map("fe_wallet_transactions")
 }
 

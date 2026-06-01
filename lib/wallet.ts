@@ -14,6 +14,7 @@ interface WalletMutationParams {
   amountCents: number
   reason: WalletTransactionReason
   sourceRef?: string
+  tokens?: number
   metadata?: Prisma.JsonValue
   tx?: TransactionClient
 }
@@ -22,7 +23,7 @@ async function mutateWallet(
   type: "credit" | "debit",
   params: WalletMutationParams,
 ): Promise<{ balanceAfterCents: number; transactionId: string }> {
-  const { userId, amountCents, reason, sourceRef, metadata, tx } = params
+  const { userId, amountCents, reason, sourceRef, tokens, metadata, tx } = params
   if (amountCents <= 0) throw new Error("amountCents must be positive")
 
   const run = async (client: TransactionClient) => {
@@ -56,6 +57,7 @@ async function mutateWallet(
         reason,
         balanceAfterCents: user.walletBalanceCents,
         sourceRef: sourceRef ?? undefined,
+        tokens: tokens ?? undefined,
         metadata: metadata ?? undefined,
       },
     })
@@ -73,6 +75,58 @@ export async function creditWallet(params: WalletMutationParams) {
 
 export async function debitWallet(params: WalletMutationParams) {
   return mutateWallet("debit", params)
+}
+
+/**
+ * Record plan-included token usage in the ledger WITHOUT touching the prepaid
+ * balance. Within-cap turns are covered by the (virtual) monthly plan
+ * allowance, so only the ledger row is written — the wallet is reserved for
+ * overflow once a cap is hit. Idempotent via `sourceRef`.
+ */
+export async function recordPlanUsage(params: {
+  userId: string
+  amountCents: number
+  tokens?: number
+  sourceRef?: string
+  metadata?: Prisma.JsonValue
+  tx?: TransactionClient
+}): Promise<{ balanceAfterCents: number; transactionId: string }> {
+  const { userId, amountCents, tokens, sourceRef, metadata, tx } = params
+
+  const run = async (client: TransactionClient) => {
+    if (sourceRef) {
+      const existing = await client.walletTransaction.findUnique({
+        where: { sourceRef },
+        select: { id: true, balanceAfterCents: true },
+      })
+      if (existing) {
+        return { balanceAfterCents: existing.balanceAfterCents, transactionId: existing.id }
+      }
+    }
+
+    const user = await client.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { walletBalanceCents: true },
+    })
+
+    const txn = await client.walletTransaction.create({
+      data: {
+        userId,
+        type: "debit",
+        amountCents,
+        reason: "token_usage",
+        balanceAfterCents: user.walletBalanceCents,
+        sourceRef: sourceRef ?? undefined,
+        tokens: tokens ?? undefined,
+        metadata: metadata ?? undefined,
+      },
+    })
+
+    return { balanceAfterCents: user.walletBalanceCents, transactionId: txn.id }
+  }
+
+  if (tx) return run(tx)
+  return prisma.$transaction(async (txClient) => run(txClient))
 }
 
 export async function getBalance(userId: string): Promise<number> {
