@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { Camera, Mail, User, Loader2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Camera, Crown, Mail, Shield, Sparkles, User, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 // Force dynamic rendering to prevent build-time errors
@@ -173,7 +174,26 @@ export default function ProfileSettingsPage() {
             />
           </div>
           <div className="space-y-1">
-            <h3 className="text-lg font-medium">{user.name}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-medium">{user.name}</h3>
+              {user.tier && user.tier !== "free" && (
+                <Badge
+                  className={
+                    user.tier === "premium"
+                      ? "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400"
+                      : user.tier === "pro"
+                        ? "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
+                        : "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400"
+                  }
+                  variant="outline"
+                >
+                  {user.tier === "premium" && <Sparkles className="h-3 w-3 mr-1" />}
+                  {user.tier === "pro" && <Crown className="h-3 w-3 mr-1" />}
+                  {user.tier === "starter" && <Shield className="h-3 w-3 mr-1" />}
+                  <span className="capitalize">{user.tier}</span>
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">{user.email}</p>
             {avatarError && (
               <p className="text-xs text-red-600">{avatarError}</p>

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { signIn, useSession } from "next-auth/react"
+import { useSession } from "next-auth/react"
 import { ArrowRight, PlayCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { HERO_COPY } from "@/lib/marketing/homepage-v2-content"
@@ -19,7 +19,7 @@ export function HeroCTA() {
       return
     }
     setLoading(true)
-    signIn("google", { callbackUrl: "/builder" }).catch(() => setLoading(false))
+    router.push("/pricing")
   }
 
   const handleScrollToDemo = () => {

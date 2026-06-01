@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { signIn, useSession } from "next-auth/react"
+import { useSession } from "next-auth/react"
 import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -18,7 +18,7 @@ export function FinalCTAButton() {
       return
     }
     setLoading(true)
-    signIn("google", { callbackUrl: "/builder" }).catch(() => setLoading(false))
+    router.push("/pricing")
   }
 
   const isWorking = loading || status === "loading"

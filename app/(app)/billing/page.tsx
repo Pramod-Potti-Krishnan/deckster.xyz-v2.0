@@ -160,9 +160,13 @@ function BillingPageContent() {
                       ? subscription.billingCycle === "yearly"
                         ? "$290/year"
                         : "$29/month"
-                      : user.tier !== "free"
-                        ? "$29/month"
-                        : "No charge"}
+                      : user.tier === "premium"
+                        ? "$100/month"
+                        : user.tier === "pro"
+                          ? "$50/month"
+                          : user.tier === "starter"
+                            ? "$20/month"
+                            : "No charge"}
                   </p>
                 </div>
               </div>
