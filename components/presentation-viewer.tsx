@@ -2073,7 +2073,7 @@ export function PresentationViewer({
           {/* Presentation Iframe */}
           <div
             ref={slideContainerRef}
-            className={`flex-1 min-h-0 relative flex items-center justify-center overflow-hidden ${isFullscreen ? 'bg-black' : 'bg-slate-200 dark:bg-slate-800 p-4'}`}
+            className={`flex-1 min-h-0 relative flex items-center justify-center overflow-hidden ${isFullscreen ? 'bg-black' : 'bg-gray-100 dark:bg-slate-800 p-4'}`}
           >
             {presentationUrl ? (
               <div
@@ -2123,7 +2123,7 @@ export function PresentationViewer({
 
             {/* Generation Overlay - covers slide area during generation */}
             {isGenerating && (
-              <div className="absolute inset-0 z-20 bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+              <div className="absolute inset-0 z-20 bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
                 <SlideBuildingLoader className="w-full h-full" mode={generatingMode} />
               </div>
             )}
