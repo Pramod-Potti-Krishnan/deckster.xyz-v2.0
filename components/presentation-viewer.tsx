@@ -46,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useTheme } from 'next-themes'
+import Link from 'next/link'
 import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
@@ -2137,6 +2138,20 @@ export function PresentationViewer({
               </div>
             )}
           </div>
+
+          {/* powered by deckster — inside slide column so it tracks the slide's right edge */}
+          {!isFullscreen && (
+            <div className="flex-shrink-0 flex justify-end pr-4 py-0.5">
+              <Link
+                href="/"
+                className="group flex items-center opacity-60 hover:opacity-90 transition-opacity"
+              >
+                <span className="text-xs text-slate-600 dark:text-slate-300 mr-1">powered by</span>
+                <img src="/logo-icon.png" alt="" aria-hidden className="h-8 w-auto" />
+                <img src="/logo-wordmark.png" alt="Deckster" className="h-6 w-auto -ml-0.5" />
+              </Link>
+            </div>
+          )}
 
         </div>
 
