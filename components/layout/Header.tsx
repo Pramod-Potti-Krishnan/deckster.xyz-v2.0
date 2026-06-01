@@ -21,12 +21,12 @@ export function Header() {
   const isLoading = status === 'loading';
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b bg-background">
       <nav className="container mx-auto px-4">
         <div className="flex h-12 items-center justify-between">
           {/* Logo — icon + wordmark as two separate elements */}
           <div className="flex items-center">
-            <Link href="/" className="group flex items-center gap-2">
+            <Link href="/" className="group flex items-center gap-0.5">
               <img
                 src="/logo-icon.png"
                 alt=""

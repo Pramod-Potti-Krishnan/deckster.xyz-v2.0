@@ -12,7 +12,7 @@ export function PricingV2Section() {
     <section
       id="pricing"
       data-snap="slide"
-      className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-start overflow-hidden bg-[hsl(240,10%,98%)] pb-6 pt-6 sm:pb-8 sm:pt-8"
+      className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-start overflow-hidden bg-[hsl(240,10%,98%)] dark:bg-[hsl(240,10%,8%)] pb-6 pt-6 sm:pb-8 sm:pt-8"
     >
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
         <SectionHeader
@@ -51,8 +51,8 @@ export function PricingTierCard({ tier }: { tier: PricingTier }) {
     <article
       className={`relative flex flex-col overflow-hidden rounded-2xl border p-4 sm:p-5 ${
         isHighlighted
-          ? "border-primary/40 bg-white shadow-[0_30px_70px_-20px_hsl(250_90%_60%/0.35)] ring-1 ring-primary/10"
-          : "border-foreground/10 bg-white shadow-sm"
+          ? "border-primary/40 bg-white dark:bg-white/[0.06] shadow-[0_30px_70px_-20px_hsl(250_90%_60%/0.35)] ring-1 ring-primary/10"
+          : "border-foreground/10 bg-white dark:bg-white/[0.04] shadow-sm"
       }`}
     >
       {isHighlighted ? (
@@ -62,11 +62,11 @@ export function PricingTierCard({ tier }: { tier: PricingTier }) {
       ) : null}
 
       <header>
-        <div className="text-xs font-bold uppercase tracking-[0.18em] text-foreground/55">
+        <div className="text-xs font-bold uppercase tracking-[0.18em] text-foreground/55 dark:text-white/55">
           {tier.name}
         </div>
         <div className="mt-2 flex items-baseline gap-1.5">
-          <span className="text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+          <span className="text-3xl font-extrabold tracking-tight text-foreground dark:text-white sm:text-4xl">
             {tier.price}
           </span>
           {tier.priceSuffix ? (
@@ -86,8 +86,8 @@ export function PricingTierCard({ tier }: { tier: PricingTier }) {
               key={f}
               className={`flex items-start gap-2 text-sm leading-snug ${
                 f.endsWith(", plus:")
-                  ? "font-semibold text-foreground/65"
-                  : "text-foreground/85"
+                  ? "font-semibold text-foreground/65 dark:text-white/65"
+                  : "text-foreground/85 dark:text-white/85"
               }`}
             >
               {f.endsWith(", plus:") ? (
@@ -115,7 +115,7 @@ export function PricingTierCard({ tier }: { tier: PricingTier }) {
         className={`group inline-flex h-10 w-full items-center justify-center rounded-full px-6 text-sm font-semibold transition-all ${
           tier.ctaKind === "primary"
             ? "bg-primary text-white hover:scale-[1.02] hover:bg-primary/90"
-            : "border border-foreground/15 bg-white text-foreground hover:border-foreground/30 hover:bg-foreground/[0.04]"
+            : "border border-foreground/15 dark:border-white/15 bg-white dark:bg-white/[0.06] text-foreground dark:text-white hover:border-foreground/30 dark:hover:border-white/30 hover:bg-foreground/[0.04] dark:hover:bg-white/10"
         }`}
       >
         {tier.ctaLabel}
@@ -126,7 +126,7 @@ export function PricingTierCard({ tier }: { tier: PricingTier }) {
 
 function TopUpStrip() {
   return (
-    <div className="mx-auto mt-4 flex max-w-3xl flex-col items-center gap-2 rounded-2xl border border-foreground/10 bg-white px-6 py-3 text-center shadow-sm sm:flex-row sm:items-start sm:gap-4 sm:text-left">
+    <div className="mx-auto mt-4 flex max-w-3xl flex-col items-center gap-2 rounded-2xl border border-foreground/10 dark:border-white/10 bg-white dark:bg-white/[0.04] px-6 py-3 text-center shadow-sm sm:flex-row sm:items-start sm:gap-4 sm:text-left">
       <span
         aria-hidden
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
@@ -134,7 +134,7 @@ function TopUpStrip() {
         <Plus className="h-4 w-4" />
       </span>
       <div className="flex-1">
-        <div className="text-sm font-semibold text-foreground">
+        <div className="text-sm font-semibold text-foreground dark:text-white">
           {PRICING_COPY.topUpHeadline}
         </div>
         <p className="mt-1 text-xs leading-snug text-muted-foreground">

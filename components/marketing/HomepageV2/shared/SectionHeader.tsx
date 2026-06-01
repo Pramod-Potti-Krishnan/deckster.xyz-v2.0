@@ -28,7 +28,7 @@ export function SectionHeader({
         <span
           className={cn(
             "mb-4 inline-block text-xs font-semibold uppercase tracking-[0.18em]",
-            isDark ? "text-white/60" : "text-primary/80",
+            isDark ? "text-white/60" : "text-primary/80 dark:text-primary/70",
           )}
         >
           {eyebrow}
@@ -37,7 +37,7 @@ export function SectionHeader({
       <h2
         className={cn(
           "text-balance text-4xl font-bold leading-tight tracking-tight md:text-5xl",
-          isDark ? "text-white" : "text-foreground",
+          isDark ? "text-white" : "text-foreground dark:text-white",
         )}
       >
         {title}
@@ -46,7 +46,7 @@ export function SectionHeader({
         <p
           className={cn(
             "mt-5 text-balance text-lg leading-relaxed md:text-xl",
-            isDark ? "text-white/70" : "text-muted-foreground",
+            isDark ? "text-white/70" : "text-muted-foreground dark:text-white/65",
           )}
         >
           {description}

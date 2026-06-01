@@ -144,7 +144,7 @@ export function ElementGalleryGrid() {
               className={`group inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all ${
                 active
                   ? "border-primary bg-primary text-white shadow-sm"
-                  : "border-foreground/15 bg-white text-foreground/75 hover:border-foreground/30 hover:bg-foreground/[0.04]"
+                  : "border-foreground/15 dark:border-white/15 bg-white dark:bg-white/[0.06] text-foreground/75 dark:text-white/75 hover:border-foreground/30 dark:hover:border-white/30 hover:bg-foreground/[0.04] dark:hover:bg-white/10"
               }`}
             >
               <span>{f.label}</span>
@@ -153,7 +153,7 @@ export function ElementGalleryGrid() {
                   className={`rounded-full px-1.5 text-[10px] font-bold ${
                     active
                       ? "bg-white/20 text-white"
-                      : "bg-foreground/10 text-foreground/60"
+                      : "bg-foreground/10 dark:bg-white/10 text-foreground/60 dark:text-white/60"
                   }`}
                 >
                   {f.count}
@@ -174,11 +174,11 @@ export function ElementGalleryGrid() {
         {/* Edge fades */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-[hsl(240,10%,98%)] to-transparent"
+          className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-[hsl(240,10%,98%)] dark:from-[hsl(240,10%,8%)] to-transparent"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-[hsl(240,10%,98%)] to-transparent"
+          className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-[hsl(240,10%,98%)] dark:from-[hsl(240,10%,8%)] to-transparent"
         />
 
         {/* Nav arrows */}
@@ -186,7 +186,7 @@ export function ElementGalleryGrid() {
           type="button"
           onClick={() => scrollByCards(-1)}
           aria-label="Scroll left"
-          className="absolute left-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-foreground/15 bg-white p-2 text-foreground/75 shadow-md transition-all hover:border-foreground/30 hover:bg-foreground/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="absolute left-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-foreground/15 dark:border-white/15 bg-white dark:bg-white/10 p-2 text-foreground/75 dark:text-white/75 shadow-md transition-all hover:border-foreground/30 dark:hover:border-white/30 hover:bg-foreground/[0.04] dark:hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <ChevronLeft className="h-5 w-5" aria-hidden />
         </button>
@@ -194,7 +194,7 @@ export function ElementGalleryGrid() {
           type="button"
           onClick={() => scrollByCards(1)}
           aria-label="Scroll right"
-          className="absolute right-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-foreground/15 bg-white p-2 text-foreground/75 shadow-md transition-all hover:border-foreground/30 hover:bg-foreground/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="absolute right-1 top-1/2 z-20 -translate-y-1/2 rounded-full border border-foreground/15 dark:border-white/15 bg-white dark:bg-white/10 p-2 text-foreground/75 dark:text-white/75 shadow-md transition-all hover:border-foreground/30 dark:hover:border-white/30 hover:bg-foreground/[0.04] dark:hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <ChevronRight className="h-5 w-5" aria-hidden />
         </button>
@@ -211,7 +211,7 @@ export function ElementGalleryGrid() {
           </ul>
         </div>
 
-        <p className="mt-3 text-center text-[11px] text-foreground/45">
+        <p className="mt-3 text-center text-[11px] text-foreground/45 dark:text-white/45">
           Drag, scroll, or use the arrows — {cards.length} {cards.length === 1 ? "element" : "elements"}
         </p>
       </div>
@@ -222,10 +222,10 @@ export function ElementGalleryGrid() {
 function GalleryCardItem({ card }: { card: GalleryCard }) {
   return (
     <li
-      className="group relative flex w-40 shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/10 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-md sm:w-44"
+      className="group relative flex w-40 shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-foreground/10 dark:border-white/10 bg-white dark:bg-white/[0.04] shadow-sm transition-all hover:-translate-y-0.5 hover:border-foreground/25 dark:hover:border-white/25 hover:shadow-md sm:w-44"
     >
       {card.badge ? (
-        <span className="absolute right-1.5 top-1.5 z-10 rounded-full bg-foreground/[0.08] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-foreground/55">
+        <span className="absolute right-1.5 top-1.5 z-10 rounded-full bg-foreground/[0.08] dark:bg-white/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-foreground/55 dark:text-white/55">
           {card.badge}
         </span>
       ) : null}
@@ -242,12 +242,12 @@ function GalleryCardItem({ card }: { card: GalleryCard }) {
           <GalleryGlyph card={card} color={card.color} />
         </div>
       </div>
-      <div className="border-t border-foreground/[0.06] px-2.5 py-1.5">
-        <div className="truncate text-[11px] font-semibold leading-tight text-foreground sm:text-xs">
+      <div className="border-t border-foreground/[0.06] dark:border-white/[0.06] px-2.5 py-1.5">
+        <div className="truncate text-[11px] font-semibold leading-tight text-foreground dark:text-white sm:text-xs">
           {card.label}
         </div>
         {card.group ? (
-          <div className="truncate text-[9px] uppercase tracking-wider text-foreground/45">
+          <div className="truncate text-[9px] uppercase tracking-wider text-foreground/45 dark:text-white/45">
             {card.group}
           </div>
         ) : null}
