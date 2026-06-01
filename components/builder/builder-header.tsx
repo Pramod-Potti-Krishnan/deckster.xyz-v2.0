@@ -47,10 +47,10 @@ export function BuilderHeader({
                   ? "flex-shrink-0 hover:bg-slate-800"
                   : "flex-shrink-0 hover:bg-slate-100"
               }
-              aria-label="Go to dashboard"
-              title="Dashboard"
+              aria-label="Go to home"
+              title="Home"
             >
-              <Link href="/dashboard">
+              <Link href="https://deckster.xyz">
                 <Home className="h-5 w-5" />
               </Link>
             </Button>
