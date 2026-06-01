@@ -10,19 +10,15 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuShortcut,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
-  User,
   Settings,
   CreditCard,
   Moon,
   Sun,
-  Keyboard,
-  HelpCircle,
   LogOut,
   LayoutDashboard,
   ChevronRight,
@@ -230,11 +226,6 @@ export function UserProfileMenu() {
           <span>Dashboard</span>
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={() => handleNavigation("/settings/profile")}>
-          <User className="mr-2 h-4 w-4" />
-          <span>Profile</span>
-        </DropdownMenuItem>
-
         <DropdownMenuItem onClick={() => handleNavigation("/settings")}>
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
@@ -250,8 +241,6 @@ export function UserProfileMenu() {
           )}
         </DropdownMenuItem>
 
-        <DropdownMenuSeparator />
-
         <DropdownMenuItem onClick={toggleTheme}>
           {theme === "dark" ? (
             <>
@@ -264,17 +253,6 @@ export function UserProfileMenu() {
               <span>Dark Mode</span>
             </>
           )}
-        </DropdownMenuItem>
-
-        <DropdownMenuItem onClick={() => handleNavigation("/shortcuts")}>
-          <Keyboard className="mr-2 h-4 w-4" />
-          <span>Keyboard Shortcuts</span>
-          <DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
-        </DropdownMenuItem>
-
-        <DropdownMenuItem onClick={() => handleNavigation("/help")}>
-          <HelpCircle className="mr-2 h-4 w-4" />
-          <span>Support</span>
         </DropdownMenuItem>
 
         {quota && (
