@@ -228,8 +228,12 @@ export default function DashboardPage() {
         <div>
           <div className="mb-2 flex items-center gap-3">
             <h1 className="text-3xl font-bold">Welcome back, {user?.name || 'there'}!</h1>
-            <Badge variant="outline" className="capitalize">
-              {user?.tier && user.tier !== "free" ? `${user.tier} Plan` : "Free Plan"}
+            <Badge variant="outline">
+              {user?.tier === "premium"
+                ? "Max Plan"
+                : user?.tier && user.tier !== "free"
+                  ? `${user.tier.charAt(0).toUpperCase() + user.tier.slice(1)} Plan`
+                  : "Free Plan"}
               {(user?.tier === "pro" || user?.tier === "premium") && <Crown className="ml-1 h-3 w-3" />}
             </Badge>
           </div>

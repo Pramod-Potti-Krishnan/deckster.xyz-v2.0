@@ -12,7 +12,7 @@ import Link from 'next/link'
 const PLAN_LABELS: Record<string, string> = {
   starter: 'Starter',
   pro: 'Pro',
-  premium: 'Premium',
+  premium: 'Max',
 }
 
 function sanitizePlan(value: string | null | undefined): string | null {

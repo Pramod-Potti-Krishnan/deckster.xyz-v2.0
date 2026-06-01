@@ -203,7 +203,7 @@ export default function PricingPage() {
               </h2>
               <p className="mx-auto mt-3 max-w-2xl text-balance text-base text-muted-foreground sm:text-lg">
                 Every tier ships with the agent team, every element type, and the export quality
-                to walk into a meeting with — Starter to Premium.
+                to walk into a meeting with — Starter to Max.
               </p>
             </div>
 
@@ -337,7 +337,7 @@ export default function PricingPage() {
                   <li className="flex items-start gap-2 text-sm text-foreground/85">
                     <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
                     <span>
-                      <strong>Premium</strong> — for people whose core work is presentations.
+                      <strong>Max</strong> — for people whose core work is presentations.
                     </span>
                   </li>
                 </ul>

@@ -77,7 +77,7 @@ export const PRICING_TIERS: ReadonlyArray<PricingTier> = [
   },
   {
     id: "premium",
-    name: "Premium",
+    name: "Max",
     price: "$100",
     priceSuffix: "per user / mo",
     blurb: "For people who present as their core work.",

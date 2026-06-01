@@ -284,7 +284,7 @@ export default function AdminCouponsPage() {
                     >
                       <option value="starter">Starter</option>
                       <option value="pro">Pro</option>
-                      <option value="premium">Premium</option>
+                      <option value="premium">Max</option>
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -368,8 +368,8 @@ export default function AdminCouponsPage() {
                           <Badge variant="outline">
                             ${(coupon.valueCents / 100).toFixed(2)}
                           </Badge>
-                          <Badge variant="secondary" className="capitalize">
-                            {coupon.tier}
+                          <Badge variant="secondary">
+                            {coupon.tier === "premium" ? "Max" : coupon.tier.charAt(0).toUpperCase() + coupon.tier.slice(1)}
                           </Badge>
                         </div>
                         <div className="text-sm text-muted-foreground space-x-3">

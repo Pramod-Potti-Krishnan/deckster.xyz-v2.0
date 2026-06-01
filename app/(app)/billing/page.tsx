@@ -152,8 +152,12 @@ function BillingPageContent() {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold capitalize">
-                    {user.tier && user.tier !== "free" ? `${user.tier} Plan` : "Free Plan"}
+                  <h3 className="text-lg font-semibold">
+                    {user.tier === "premium"
+                      ? "Max Plan"
+                      : user.tier && user.tier !== "free"
+                        ? `${user.tier.charAt(0).toUpperCase() + user.tier.slice(1)} Plan`
+                        : "Free Plan"}
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     {subscription
@@ -218,7 +222,7 @@ function BillingPageContent() {
                     <Feature included text="All 4 AI agents" />
                     <Feature included text="Custom branding" />
                     <Feature included text="Advanced analytics" />
-                    <Feature text="Knowledge Graph (upgrade to Premium)" />
+                    <Feature text="Knowledge Graph (upgrade to Max)" />
                   </>
                 ) : (
                   <>

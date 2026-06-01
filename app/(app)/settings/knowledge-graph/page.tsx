@@ -39,9 +39,9 @@ export default function KnowledgeGraphSettingsPage() {
               <Lock className="h-8 w-8 text-muted-foreground" />
             </div>
             <div className="space-y-1">
-              <p className="font-medium">Premium Feature</p>
+              <p className="font-medium">Max Feature</p>
               <p className="text-sm text-muted-foreground">
-                Knowledge Graph is available on Premium plans. Upgrade to build
+                Knowledge Graph is available on Max plans. Upgrade to build
                 a persistent knowledge graph that enriches every new deck you create.
               </p>
             </div>

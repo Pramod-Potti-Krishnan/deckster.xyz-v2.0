@@ -190,7 +190,7 @@ export default function ProfileSettingsPage() {
                   {user.tier === "premium" && <Sparkles className="h-3 w-3 mr-1" />}
                   {user.tier === "pro" && <Crown className="h-3 w-3 mr-1" />}
                   {user.tier === "starter" && <Shield className="h-3 w-3 mr-1" />}
-                  <span className="capitalize">{user.tier}</span>
+                  {user.tier === "premium" ? "Max" : <span className="capitalize">{user.tier}</span>}
                 </Badge>
               )}
             </div>
