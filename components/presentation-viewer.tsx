@@ -2017,11 +2017,11 @@ export function PresentationViewer({
                 </DropdownMenu>
               )}
 
-              {/* Play — primary present action (brand accent) */}
+              {/* Play */}
               <button
                 onClick={handleFullscreen}
                 disabled={!presentationUrl}
-                className={cn(toolbarButtonClass, toolbarBtnPlay)}
+                className={cn(toolbarButtonClass, toolbarBtnBase)}
                 title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
               >
                 {isFullscreen ? (

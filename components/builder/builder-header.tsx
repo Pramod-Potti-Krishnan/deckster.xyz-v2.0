@@ -73,8 +73,8 @@ export function BuilderHeader({
           {/* Portal target for presentation toolbar */}
           <div ref={toolbarSlotRef} className="flex-1 min-w-0 h-full overflow-hidden" />
 
-          {/* Spacing before the profile so the present actions don't butt against the avatar */}
-          <div className="flex items-center gap-1 flex-shrink-0 ml-3">
+          {/* One-button-width gap before the profile so it reads as separate from present actions */}
+          <div className="flex items-center gap-1 flex-shrink-0 ml-[72px]">
             <UserProfileMenu />
           </div>
         </div>
