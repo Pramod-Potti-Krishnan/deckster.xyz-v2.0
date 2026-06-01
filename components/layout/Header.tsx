@@ -69,7 +69,7 @@ export function Header() {
                   <Link href="/auth/signin">Sign In</Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/builder">Get Started</Link>
+                  <Link href="/auth/signup">Get Started</Link>
                 </Button>
               </>
             )}
@@ -121,7 +121,7 @@ export function Header() {
                       <Link href="/auth/signin">Sign In</Link>
                     </Button>
                     <Button asChild className="w-full">
-                      <Link href="/builder">Get Started</Link>
+                      <Link href="/auth/signup">Get Started</Link>
                     </Button>
                   </>
                 )}

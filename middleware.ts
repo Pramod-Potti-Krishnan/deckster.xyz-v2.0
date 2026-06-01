@@ -30,7 +30,7 @@ export default withAuth(
       authorized: ({ token }) => !!token,
     },
     pages: {
-      signIn: "/",
+      signIn: "/auth/signin",
     },
   }
 )

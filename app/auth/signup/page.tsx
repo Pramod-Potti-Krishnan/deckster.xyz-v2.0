@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sparkles, Check } from 'lucide-react';
 import Link from 'next/link';
+import { features } from '@/lib/config';
 
 export default function SignUpPage() {
   const { data: session, status } = useSession();
@@ -79,7 +80,9 @@ export default function SignUpPage() {
                   'Multi-agent collaboration system',
                   'Real-time slide editing',
                   'Professional templates',
-                  'Manual approval for early access'
+                  features.couponAuthEnabled
+                    ? 'Instant access with an access code'
+                    : 'Manual approval for early access',
                 ].map((benefit, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
                     <Check className="h-4 w-4 text-purple-600 flex-shrink-0" />
@@ -133,7 +136,11 @@ export default function SignUpPage() {
             {/* Approval Notice */}
             <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
               <p className="text-xs text-blue-800 dark:text-blue-200 text-center">
-                <strong>Note:</strong> New accounts require manual approval. You'll be notified within 24-48 hours.
+                {features.couponAuthEnabled ? (
+                  <><strong>Note:</strong> You&apos;ll need an access code after sign-up. Enter it to unlock your account and receive credits.</>
+                ) : (
+                  <><strong>Note:</strong> New accounts require manual approval. You&apos;ll be notified within 24-48 hours.</>
+                )}
               </p>
             </div>
 
