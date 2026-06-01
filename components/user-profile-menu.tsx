@@ -87,35 +87,35 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
         </span>
       </button>
       {isExpanded && (
-        <div className="px-2 pb-1.5 space-y-2">
-          <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{data.resetAt ? formatRemainingTime(data.resetAt.daily) : "Daily"}</span>
-              <span className="tabular-nums font-medium">{dailyPct}%</span>
-              {data.resetAt && <span className="text-muted-foreground tabular-nums">{formatResetTime(data.resetAt.daily)}</span>}
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Weekly</span>
-              <span className="tabular-nums font-medium">{weeklyPct}%</span>
-              {data.resetAt && <span className="text-muted-foreground tabular-nums">{formatResetTime(data.resetAt.weekly)}</span>}
-            </div>
+        <div className="pl-8 pr-3 pb-2 space-y-0.5">
+          <div className="flex items-center justify-between py-1 text-[11px]">
+            <span className="text-muted-foreground w-14">{data.resetAt ? formatRemainingTime(data.resetAt.daily) : "Daily"}</span>
+            <span className="tabular-nums font-medium w-12 text-center">{dailyPct}%</span>
+            <span className="text-muted-foreground tabular-nums w-16 text-right">{data.resetAt ? formatResetTime(data.resetAt.daily) : ""}</span>
           </div>
-          <a
-            href="/billing"
-            className="flex items-center justify-between px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span>Upgrade for more usage</span>
-            <ExternalLink className="h-3 w-3" />
-          </a>
-          <a
-            href="https://deckster.xyz/pricing"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span>Learn more</span>
-            <ExternalLink className="h-3 w-3" />
-          </a>
+          <div className="flex items-center justify-between py-1 text-[11px]">
+            <span className="text-muted-foreground w-14">Weekly</span>
+            <span className="tabular-nums font-medium w-12 text-center">{weeklyPct}%</span>
+            <span className="text-muted-foreground tabular-nums w-16 text-right">{data.resetAt ? formatResetTime(data.resetAt.weekly) : ""}</span>
+          </div>
+          <div className="pt-1.5 space-y-0">
+            <a
+              href="/billing"
+              className="flex items-center justify-between py-1 text-[11px] text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+            >
+              <span>Upgrade for more usage</span>
+              <ExternalLink className="h-2.5 w-2.5" />
+            </a>
+            <a
+              href="https://deckster.xyz/pricing"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between py-1 text-[11px] text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+            >
+              <span>Learn more</span>
+              <ExternalLink className="h-2.5 w-2.5" />
+            </a>
+          </div>
         </div>
       )}
     </div>
