@@ -1730,6 +1730,10 @@ export function PresentationViewer({
         const toolbarBtnBase = "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white"
         // Active mode (View/Edit) — subtle text accent only, no background block.
         const toolbarBtnActive = "text-purple-700 hover:bg-slate-100 hover:text-purple-800 dark:text-purple-300 dark:hover:bg-slate-800 dark:hover:text-purple-200"
+        // Quiet helper (Mode/Show/version) — lighter than the build actions to signal lower weight.
+        const toolbarBtnQuiet = "text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+        // Play — the single most important present action, given a solid brand accent so it pops.
+        const toolbarBtnPlay = "bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-600 dark:text-white dark:hover:bg-purple-500"
         const addElementItems = [
           {
             label: 'Table',
@@ -1781,7 +1785,7 @@ export function PresentationViewer({
             isFullscreen ? "px-4 py-2" : "px-3 h-full",
             isGenerating && "pointer-events-none opacity-50"
           )}>
-            {/* LEFT — creation actions */}
+            {/* LEFT — build cluster (Add Slide, Add Element, Template, Theme) + quiet view helpers (Mode, Show) */}
             <div
               className={cn(
                 "flex items-center gap-1 min-w-0",
@@ -1832,11 +1836,8 @@ export function PresentationViewer({
                 <LayoutTemplate className="h-5 w-5" />
                 <span className={toolbarLabelClass}>Template</span>
               </button>
-            </div>
 
-            {/* CENTER — deck configuration */}
-            <div className="flex items-center gap-1 flex-shrink-0">
-              {/* Theme */}
+              {/* Theme — 4th primary build action; sits with its build siblings */}
               <button
                 onClick={() => setShowThemePanel(true)}
                 disabled={!presentationUrl}
@@ -1847,11 +1848,14 @@ export function PresentationViewer({
                 <span className={toolbarLabelClass}>Theme</span>
               </button>
 
-              {/* Mode — editing mode (View/Edit) + UI theme (Light/Dark) */}
+              {/* Divider — separates the four primary build actions from the quiet view helpers */}
+              <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+
+              {/* Mode — quiet helper: editing mode (View/Edit) + UI theme (Light/Dark) */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={cn(toolbarButtonClass, toolbarBtnBase)}
+                    className={cn(toolbarButtonClass, toolbarBtnQuiet)}
                     title="Editing mode + theme"
                   >
                     <Settings2 className="h-5 w-5" />
@@ -1898,7 +1902,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={cn(toolbarButtonClass, toolbarBtnBase)}
+                    className={cn(toolbarButtonClass, toolbarBtnQuiet)}
                     title="Display options"
                   >
                     <SlidersHorizontal className="h-5 w-5" />
@@ -1938,32 +1942,10 @@ export function PresentationViewer({
               </DropdownMenu>
             </div>
 
-            {/* RIGHT — presentation actions */}
+            {/* RIGHT — present: the two highest-value present actions (Play, Download) */}
             <div className="flex flex-shrink-0 items-center gap-1">
-              <button
-                onClick={handleFullscreen}
-                disabled={!presentationUrl}
-                className={cn(toolbarButtonClass, toolbarBtnBase)}
-                title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="h-5 w-5" />
-                ) : (
-                  <Play className="h-5 w-5" />
-                )}
-                <span className={toolbarLabelClass}>Play</span>
-              </button>
-
-              {/* Saved indicator — uniform square format like the other toolbar buttons */}
-              {saveStatus === 'saved' ? (
-                <div
-                  className={cn(toolbarButtonClass, "text-slate-400 dark:text-slate-500 dark:text-slate-400 cursor-default")}
-                  title="All changes saved"
-                >
-                  <Check className="h-5 w-5 text-green-400" />
-                  <span className={toolbarLabelClass}>Saved</span>
-                </div>
-              ) : saveStatus === 'saving' || isSaving ? (
+              {/* Save — transient status only; autosave is automatic, so nothing shows at rest */}
+              {saveStatus === 'saving' || isSaving ? (
                 <div
                   className={cn(toolbarButtonClass, "text-slate-600 dark:text-slate-300 cursor-default")}
                   title="Saving…"
@@ -1973,65 +1955,82 @@ export function PresentationViewer({
                   </div>
                   <span className={toolbarLabelClass}>Saving</span>
                 </div>
-              ) : (
+              ) : saveStatus === 'unsaved' || saveStatus === 'error' ? (
                 <button
                   onClick={handleSaveChanges}
                   disabled={isSaving || !presentationUrl}
-                  className={cn(toolbarButtonClass, "bg-amber-500/20 text-amber-200 hover:bg-amber-500/30")}
-                  title="Save changes"
+                  className={cn(toolbarButtonClass, "bg-amber-500/20 text-amber-700 hover:bg-amber-500/30 dark:text-amber-200")}
+                  title="Save changes now"
                 >
                   <Save className="h-5 w-5" />
                   <span className={toolbarLabelClass}>Save</span>
                 </button>
+              ) : null}
+
+              {/* Version switcher — only surfaces once a tagged strawman/final version exists */}
+              {(strawmanPreviewUrl || finalPresentationUrl) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={cn(toolbarButtonClass, toolbarBtnQuiet)}
+                      title="Switch version"
+                    >
+                      <Layers className="h-5 w-5" />
+                      <span className={toolbarLabelClass}>
+                        {activeVersion === 'final' ? 'Final' : activeVersion === 'strawman' ? 'Strawman' : 'Custom'}
+                      </span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem
+                      onClick={() => onVersionSwitch?.('blank')}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>Custom</span>
+                        {activeVersion === 'blank' && <Check className="h-4 w-4 text-blue-500" />}
+                      </div>
+                    </DropdownMenuItem>
+                    {strawmanPreviewUrl && (
+                      <DropdownMenuItem
+                        onClick={() => onVersionSwitch?.('strawman')}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span>Strawman</span>
+                          {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
+                        </div>
+                      </DropdownMenuItem>
+                    )}
+                    {finalPresentationUrl && (
+                      <DropdownMenuItem
+                        onClick={() => onVersionSwitch?.('final')}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span>Final</span>
+                          {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
+                        </div>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
 
-              {/* Version Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className={cn(toolbarButtonClass, toolbarBtnBase)}
-                    title="Switch version"
-                  >
-                    <Layers className="h-5 w-5" />
-                    <span className={toolbarLabelClass}>
-                      {activeVersion === 'final' ? 'Final' : activeVersion === 'strawman' ? 'Strawman' : 'Custom'}
-                    </span>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem
-                    onClick={() => onVersionSwitch?.('blank')}
-                    className="cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span>Custom</span>
-                      {activeVersion === 'blank' && <Check className="h-4 w-4 text-blue-500" />}
-                    </div>
-                  </DropdownMenuItem>
-                  {strawmanPreviewUrl && (
-                    <DropdownMenuItem
-                      onClick={() => onVersionSwitch?.('strawman')}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span>Strawman</span>
-                        {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
-                      </div>
-                    </DropdownMenuItem>
-                  )}
-                  {finalPresentationUrl && (
-                    <DropdownMenuItem
-                      onClick={() => onVersionSwitch?.('final')}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span>Final</span>
-                        {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
-                      </div>
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* Play — primary present action (brand accent) */}
+              <button
+                onClick={handleFullscreen}
+                disabled={!presentationUrl}
+                className={cn(toolbarButtonClass, toolbarBtnPlay)}
+                title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-5 w-5" />
+                ) : (
+                  <Play className="h-5 w-5" />
+                )}
+                <span className={toolbarLabelClass}>Play</span>
+              </button>
 
               {/* Download Controls */}
               {downloadControls}
