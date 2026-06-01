@@ -185,12 +185,12 @@ export function PresentationArea({
       )}
       </div>
 
-      {/* Powered by deckster branding */}
-      <div className="flex-shrink-0 flex justify-end px-4 py-1.5">
-        <Link href="/" className="group flex items-center gap-0.5 opacity-50 hover:opacity-80 transition-opacity">
-          <span className="text-[10px] text-slate-500 dark:text-slate-400 mr-0.5">Powered by</span>
-          <img src="/logo-icon.png" alt="" aria-hidden className="h-4 w-auto" />
-          <img src="/logo-wordmark.png" alt="Deckster" className="h-3 w-auto" />
+      {/* powered by deckster branding — right-aligned with slide edge */}
+      <div className="flex-shrink-0 flex justify-end py-1">
+        <Link href="/" className="group flex items-center opacity-50 hover:opacity-80 transition-opacity">
+          <span className="text-xs text-slate-500 dark:text-slate-400 mr-1">powered by</span>
+          <img src="/logo-icon.png" alt="" aria-hidden className="h-8 w-auto" />
+          <img src="/logo-wordmark.png" alt="Deckster" className="h-6 w-auto -ml-0.5" />
         </Link>
       </div>
     </div>
