@@ -53,17 +53,17 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:border-slate-800 dark:bg-slate-900/95 dark:supports-[backdrop-filter]:bg-slate-900/80">
       <div className="container mx-auto flex h-14 items-center justify-between px-4">
-        <Link href="/" className="group flex items-center gap-2" aria-label="Deckster home">
+        <Link href="/" className="group flex items-center gap-0.5" aria-label="Deckster home">
           <img
             src="/logo-icon.png"
             alt=""
             aria-hidden
-            className="h-8 w-auto transition-transform group-hover:scale-105"
+            className="h-10 w-auto transition-transform group-hover:scale-105"
           />
           <img
             src="/logo-wordmark.png"
             alt="Deckster"
-            className="hidden h-6 w-auto transition-transform group-hover:scale-105 sm:block"
+            className="hidden h-8 w-auto transition-transform group-hover:scale-105 sm:block"
           />
         </Link>
 

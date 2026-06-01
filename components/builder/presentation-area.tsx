@@ -4,7 +4,7 @@ import React from "react"
 import { PresentationViewer, TextBoxFormatting } from "@/components/presentation-viewer"
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
-import { Sparkles } from "lucide-react"
+import Link from "next/link"
 import { ElementType, ElementProperties } from '@/types/elements'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 
@@ -103,6 +103,7 @@ export function PresentationArea({
 }: PresentationAreaProps) {
   return (
     <div className="flex-1 flex flex-col bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
+      <div className="flex-1 flex flex-col min-h-0">
       {presentationUrl ? (
         <PresentationViewer
           presentationUrl={presentationUrl}
@@ -173,7 +174,7 @@ export function PresentationArea({
             />
           ) : (
             <div className="text-center">
-              <Sparkles className="h-16 w-16 text-slate-400 dark:text-slate-500 mx-auto mb-4" />
+              <img src="/logo-icon.png" alt="" aria-hidden className="h-16 w-16 mx-auto mb-4 opacity-40" />
               <p className="text-lg text-slate-600 dark:text-slate-300">Your presentation will appear here</p>
               <p className="text-sm text-slate-400 dark:text-slate-500 mt-2">
                 Start by telling Director what presentation you'd like to create
@@ -182,6 +183,16 @@ export function PresentationArea({
           )}
         </div>
       )}
+      </div>
+
+      {/* Powered by deckster branding */}
+      <div className="flex-shrink-0 flex justify-end px-4 py-1.5">
+        <Link href="/" className="group flex items-center gap-0.5 opacity-50 hover:opacity-80 transition-opacity">
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 mr-0.5">Powered by</span>
+          <img src="/logo-icon.png" alt="" aria-hidden className="h-4 w-auto" />
+          <img src="/logo-wordmark.png" alt="Deckster" className="h-3 w-auto" />
+        </Link>
+      </div>
     </div>
   )
 }

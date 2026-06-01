@@ -118,13 +118,9 @@ function RedeemContent() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 dark:from-purple-950/20 dark:via-blue-950/20 dark:to-pink-950/20 flex flex-col">
       <header className="border-b bg-white/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4">
-          <Link href="/" className="flex items-center gap-2 group w-fit">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 transition-transform group-hover:scale-105">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              deckster
-            </span>
+          <Link href="/" className="flex items-center gap-0.5 group w-fit">
+            <img src="/logo-icon.png" alt="" aria-hidden className="h-10 w-auto transition-transform group-hover:scale-105" />
+            <img src="/logo-wordmark.png" alt="Deckster" className="h-8 w-auto transition-transform group-hover:scale-105" />
           </Link>
         </div>
       </header>

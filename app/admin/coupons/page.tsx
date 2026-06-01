@@ -178,13 +178,9 @@ export default function AdminCouponsPage() {
       <header className="border-b bg-white">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 group">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 transition-transform group-hover:scale-105">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                deckster
-              </span>
+            <Link href="/" className="flex items-center gap-0.5 group">
+              <img src="/logo-icon.png" alt="" aria-hidden className="h-10 w-auto transition-transform group-hover:scale-105" />
+              <img src="/logo-wordmark.png" alt="Deckster" className="h-8 w-auto transition-transform group-hover:scale-105" />
             </Link>
             <div className="flex items-center gap-4">
               <Badge variant="outline" className="gap-2">

@@ -6,7 +6,7 @@ import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { ConnectionError } from "@/components/connection-error"
-import { PanelLeft } from "lucide-react"
+import { Home, PanelLeft } from "lucide-react"
 
 export interface BuilderHeaderProps {
   wsError: any
@@ -47,16 +47,11 @@ export function BuilderHeader({
                   ? "flex-shrink-0 hover:bg-slate-800"
                   : "flex-shrink-0 hover:bg-slate-100"
               }
-              aria-label="Go home"
-              title="Deckster home"
+              aria-label="Go to dashboard"
+              title="Dashboard"
             >
-              <Link href="/">
-                <img
-                  src="/logo-icon.png"
-                  alt=""
-                  aria-hidden
-                  className="h-7 w-7"
-                />
+              <Link href="/dashboard">
+                <Home className="h-5 w-5" />
               </Link>
             </Button>
             <Button
