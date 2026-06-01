@@ -40,9 +40,9 @@ interface QuotaSnapshot {
 }
 
 function barColor(near: boolean, at: boolean): string {
-  if (at) return "bg-red-500"
-  if (near) return "bg-amber-500"
-  return "bg-emerald-500"
+  if (at) return "bg-red-300 dark:bg-red-400/60"
+  if (near) return "bg-amber-300 dark:bg-amber-400/60"
+  return "bg-gray-300 dark:bg-slate-500"
 }
 
 function QuotaBars({ data }: { data: QuotaSnapshot }) {
@@ -51,7 +51,7 @@ function QuotaBars({ data }: { data: QuotaSnapshot }) {
   const weeklyPct = Math.round(Math.max(0, Math.min(1, remainingPct.weekly)) * 100)
 
   return (
-    <div className="space-y-1.5 px-2 py-1.5">
+    <div className="mx-4 space-y-1.5 py-1.5">
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
         <span>Daily</span>
         <span className="tabular-nums">{dailyPct}% left</span>
