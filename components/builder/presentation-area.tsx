@@ -102,8 +102,7 @@ export function PresentationArea({
   toolbarOffset,
 }: PresentationAreaProps) {
   return (
-    <div className="flex-1 flex flex-col bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
-      <div className="flex-1 flex flex-col min-h-0">
+    <div className="relative flex-1 flex flex-col bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
       {presentationUrl ? (
         <PresentationViewer
           presentationUrl={presentationUrl}
@@ -183,16 +182,16 @@ export function PresentationArea({
           )}
         </div>
       )}
-      </div>
 
-      {/* powered by deckster branding — right-aligned with slide edge */}
-      <div className="flex-shrink-0 flex justify-end py-1">
-        <Link href="/" className="group flex items-center opacity-50 hover:opacity-80 transition-opacity">
-          <span className="text-xs text-slate-500 dark:text-slate-400 mr-1">powered by</span>
-          <img src="/logo-icon.png" alt="" aria-hidden className="h-8 w-auto" />
-          <img src="/logo-wordmark.png" alt="Deckster" className="h-6 w-auto -ml-0.5" />
-        </Link>
-      </div>
+      {/* powered by deckster — absolutely positioned, no background, right-aligned with slide */}
+      <Link
+        href="/"
+        className="absolute bottom-1.5 right-2 z-10 group flex items-center opacity-40 hover:opacity-70 transition-opacity"
+      >
+        <span className="text-xs text-slate-500 dark:text-slate-400 mr-1">powered by</span>
+        <img src="/logo-icon.png" alt="" aria-hidden className="h-8 w-auto" />
+        <img src="/logo-wordmark.png" alt="Deckster" className="h-6 w-auto -ml-0.5" />
+      </Link>
     </div>
   )
 }
