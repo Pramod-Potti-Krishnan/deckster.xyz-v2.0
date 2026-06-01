@@ -25,6 +25,10 @@ import {
   HelpCircle,
   LogOut,
   LayoutDashboard,
+  ChevronRight,
+  ChevronDown,
+  ExternalLink,
+  Clock,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
@@ -37,42 +41,83 @@ interface QuotaSnapshot {
   tierLabel: string
   remainingPct: { daily: number; weekly: number }
   flags: { dailyNear: boolean; dailyAt: boolean; weeklyNear: boolean; weeklyAt: boolean }
+  resetAt?: { daily: string; weekly: string }
+  caps?: { dailyCents: number; weeklyCents: number }
+  spent?: { dailyCents: number; weeklyCents: number }
 }
 
-function barColor(near: boolean, at: boolean): string {
-  if (at) return "bg-red-300 dark:bg-red-400/60"
-  if (near) return "bg-amber-300 dark:bg-amber-400/60"
-  return "bg-gray-300 dark:bg-slate-500"
+function formatResetTime(isoString: string): string {
+  const d = new Date(isoString)
+  const now = new Date()
+  const diffMs = d.getTime() - now.getTime()
+  const diffH = Math.round(diffMs / (1000 * 60 * 60))
+  if (diffH <= 24) {
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  }
+  return d.toLocaleDateString([], { month: "short", day: "numeric" })
 }
 
-function QuotaBars({ data }: { data: QuotaSnapshot }) {
-  const { remainingPct, flags } = data
-  const dailyPct = Math.round(Math.max(0, Math.min(1, remainingPct.daily)) * 100)
-  const weeklyPct = Math.round(Math.max(0, Math.min(1, remainingPct.weekly)) * 100)
+function formatRemainingTime(isoString: string): string {
+  const d = new Date(isoString)
+  const now = new Date()
+  const diffMs = d.getTime() - now.getTime()
+  if (diffMs <= 0) return "now"
+  const diffH = Math.floor(diffMs / (1000 * 60 * 60))
+  if (diffH < 1) return "<1h"
+  return `${diffH}h`
+}
+
+function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; isExpanded: boolean; onToggle: () => void }) {
+  const dailyPct = Math.round(Math.max(0, Math.min(1, data.remainingPct.daily)) * 100)
+  const weeklyPct = Math.round(Math.max(0, Math.min(1, data.remainingPct.weekly)) * 100)
 
   return (
-    <div className="mx-4 space-y-1.5 py-1.5">
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-        <span>Daily</span>
-        <span className="tabular-nums">{dailyPct}% left</span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-700">
-        <div
-          className={cn("h-full rounded-full transition-all duration-700 ease-out", barColor(flags.dailyNear, flags.dailyAt))}
-          style={{ width: `${dailyPct}%` }}
-        />
-      </div>
-
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-        <span>Weekly</span>
-        <span className="tabular-nums">{weeklyPct}% left</span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-700">
-        <div
-          className={cn("h-full rounded-full transition-all duration-700 ease-out", barColor(flags.weeklyNear, flags.weeklyAt))}
-          style={{ width: `${weeklyPct}%` }}
-        />
-      </div>
+    <div>
+      <button
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle() }}
+        className="flex w-full items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm cursor-pointer"
+      >
+        <Clock className="h-4 w-4 text-muted-foreground" />
+        <span>Usage remaining</span>
+        <span className="ml-auto">
+          {isExpanded
+            ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          }
+        </span>
+      </button>
+      {isExpanded && (
+        <div className="px-2 pb-1.5 space-y-2">
+          <div className="rounded-md bg-muted/50 px-3 py-2 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">{data.resetAt ? formatRemainingTime(data.resetAt.daily) : "Daily"}</span>
+              <span className="tabular-nums font-medium">{dailyPct}%</span>
+              {data.resetAt && <span className="text-muted-foreground tabular-nums">{formatResetTime(data.resetAt.daily)}</span>}
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Weekly</span>
+              <span className="tabular-nums font-medium">{weeklyPct}%</span>
+              {data.resetAt && <span className="text-muted-foreground tabular-nums">{formatResetTime(data.resetAt.weekly)}</span>}
+            </div>
+          </div>
+          <a
+            href="/billing"
+            className="flex items-center justify-between px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span>Upgrade for more usage</span>
+            <ExternalLink className="h-3 w-3" />
+          </a>
+          <a
+            href="https://deckster.xyz/pricing"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span>Learn more</span>
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      )}
     </div>
   )
 }
@@ -87,6 +132,7 @@ export function UserProfileMenu() {
   const { theme, setTheme } = useTheme()
   const [isOpen, setIsOpen] = useState(false)
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null)
+  const [isUsageExpanded, setIsUsageExpanded] = useState(false)
 
   // Fetch quota when dropdown opens (lightweight GET, cached by React state)
   const fetchQuota = useCallback(async () => {
@@ -98,6 +144,9 @@ export function UserProfileMenu() {
           tierLabel: data.tierLabel,
           remainingPct: data.remainingPct,
           flags: data.flags,
+          resetAt: data.resetAt,
+          caps: data.caps,
+          spent: data.spent,
         })
       }
     } catch {
@@ -174,9 +223,6 @@ export function UserProfileMenu() {
           </div>
         </DropdownMenuLabel>
 
-        {/* Quota bars — compact daily + weekly progress */}
-        {quota && <QuotaBars data={quota} />}
-
         <DropdownMenuSeparator />
 
         <DropdownMenuItem onClick={() => handleNavigation("/dashboard")}>
@@ -230,6 +276,13 @@ export function UserProfileMenu() {
           <HelpCircle className="mr-2 h-4 w-4" />
           <span>Support</span>
         </DropdownMenuItem>
+
+        {quota && (
+          <>
+            <DropdownMenuSeparator />
+            <UsageRemaining data={quota} isExpanded={isUsageExpanded} onToggle={() => setIsUsageExpanded(v => !v)} />
+          </>
+        )}
 
         <DropdownMenuSeparator />
 
