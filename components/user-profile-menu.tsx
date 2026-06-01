@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Settings,
-  CreditCard,
   Moon,
   Sun,
   LogOut,
@@ -94,24 +93,13 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
             <span className="tabular-nums font-medium w-12 text-center">{weeklyPct}%</span>
             <span className="text-muted-foreground tabular-nums w-16 text-right">{data.resetAt ? formatResetTime(data.resetAt.weekly) : ""}</span>
           </div>
-          <div className="pt-1.5 space-y-0">
-            <a
-              href="/billing"
-              className="flex items-center justify-between py-1 text-[11px] text-muted-foreground/70 hover:text-muted-foreground transition-colors"
-            >
-              <span>Upgrade for more usage</span>
-              <ExternalLink className="h-2.5 w-2.5" />
-            </a>
-            <a
-              href="https://deckster.xyz/pricing"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between py-1 text-[11px] text-muted-foreground/70 hover:text-muted-foreground transition-colors"
-            >
-              <span>Learn more</span>
-              <ExternalLink className="h-2.5 w-2.5" />
-            </a>
-          </div>
+          <a
+            href="/billing"
+            className="flex items-center justify-between pt-1.5 py-1 text-[11px] text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+          >
+            <span>Upgrade for more usage</span>
+            <ExternalLink className="h-2.5 w-2.5" />
+          </a>
         </div>
       )}
     </div>
@@ -229,16 +217,6 @@ export function UserProfileMenu() {
         <DropdownMenuItem onClick={() => handleNavigation("/settings")}>
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
-        </DropdownMenuItem>
-
-        <DropdownMenuItem onClick={() => handleNavigation("/billing")}>
-          <CreditCard className="mr-2 h-4 w-4" />
-          <span>Subscription</span>
-          {user.tier === "free" && (
-            <Badge variant="secondary" className="ml-auto text-xs">
-              Upgrade
-            </Badge>
-          )}
         </DropdownMenuItem>
 
         <DropdownMenuItem onClick={toggleTheme}>
