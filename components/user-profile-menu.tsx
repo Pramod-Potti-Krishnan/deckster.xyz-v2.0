@@ -18,6 +18,7 @@ import {
   Settings,
   Moon,
   Sun,
+  HelpCircle,
   LogOut,
   LayoutDashboard,
   ChevronRight,
@@ -231,6 +232,11 @@ export function UserProfileMenu() {
               <span>Dark Mode</span>
             </>
           )}
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={() => handleNavigation("/help")}>
+          <HelpCircle className="mr-2 h-4 w-4" />
+          <span>Help</span>
         </DropdownMenuItem>
 
         {quota && (
