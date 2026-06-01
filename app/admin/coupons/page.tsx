@@ -20,6 +20,7 @@ interface Coupon {
   code: string
   valueCents: number
   currency: string
+  tier: string
   maxRedemptions: number | null
   timesRedeemed: number
   perUserLimit: number
@@ -45,6 +46,7 @@ export default function AdminCouponsPage() {
 
   const [newCode, setNewCode] = useState('')
   const [newValueDollars, setNewValueDollars] = useState('')
+  const [newTier, setNewTier] = useState('starter')
   const [newMaxRedemptions, setNewMaxRedemptions] = useState('')
   const [newExpiresAt, setNewExpiresAt] = useState('')
   const [newNote, setNewNote] = useState('')
@@ -95,6 +97,7 @@ export default function AdminCouponsPage() {
         body: JSON.stringify({
           code: newCode,
           valueCents: Math.round(parseFloat(newValueDollars) * 100),
+          tier: newTier,
           maxRedemptions: newMaxRedemptions ? parseInt(newMaxRedemptions) : null,
           expiresAt: newExpiresAt || null,
           note: newNote || null,
@@ -109,6 +112,7 @@ export default function AdminCouponsPage() {
 
       setNewCode('')
       setNewValueDollars('')
+      setNewTier('starter')
       setNewMaxRedemptions('')
       setNewExpiresAt('')
       setNewNote('')
@@ -271,6 +275,19 @@ export default function AdminCouponsPage() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="tier">Plan tier</Label>
+                    <select
+                      id="tier"
+                      value={newTier}
+                      onChange={(e) => setNewTier(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <option value="starter">Starter</option>
+                      <option value="pro">Pro</option>
+                      <option value="premium">Premium</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="maxRedemptions">Max Redemptions (blank = unlimited)</Label>
                     <Input
                       id="maxRedemptions"
@@ -350,6 +367,9 @@ export default function AdminCouponsPage() {
                           </Badge>
                           <Badge variant="outline">
                             ${(coupon.valueCents / 100).toFixed(2)}
+                          </Badge>
+                          <Badge variant="secondary" className="capitalize">
+                            {coupon.tier}
                           </Badge>
                         </div>
                         <div className="text-sm text-muted-foreground space-x-3">

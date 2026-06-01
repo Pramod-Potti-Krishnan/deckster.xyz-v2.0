@@ -113,6 +113,9 @@ export const authOptions: NextAuthOptions = {
           if (typeof session.walletBalanceCents === "number") {
             token.walletBalanceCents = session.walletBalanceCents
           }
+          if (typeof session.tier === "string") {
+            token.tier = session.tier
+          }
           return token
         }
 
@@ -166,7 +169,7 @@ export const authOptions: NextAuthOptions = {
       try {
         if (session.user && token) {
           session.user.id = token.id as string
-          session.user.tier = token.tier as "free" | "pro" | "enterprise"
+          session.user.tier = token.tier as "free" | "starter" | "pro" | "premium"
           session.user.subscription = token.subscription as { status: string; tier: string; currentPeriodEnd: string } | null
           session.user.approved = token.approved as boolean
           session.user.walletBalanceCents = (token.walletBalanceCents as number) ?? 0

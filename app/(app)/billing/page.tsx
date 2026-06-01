@@ -136,14 +136,14 @@ function BillingPageContent() {
               <div className="flex items-center space-x-4">
                 <div
                   className={`rounded-lg p-3 ${
-                    user.tier === "enterprise"
+                    user.tier === "premium"
                       ? "bg-purple-100 dark:bg-purple-900/30"
                       : user.tier === "pro"
                         ? "bg-blue-100 dark:bg-blue-900/30"
                         : "bg-gray-100 dark:bg-gray-800"
                   }`}
                 >
-                  {user.tier === "enterprise" ? (
+                  {user.tier === "premium" ? (
                     <Sparkles className="h-6 w-6 text-purple-700 dark:text-purple-400" />
                   ) : user.tier === "pro" ? (
                     <Crown className="h-6 w-6 text-blue-700 dark:text-blue-400" />
@@ -152,12 +152,8 @@ function BillingPageContent() {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold">
-                    {user.tier === "enterprise"
-                      ? "Enterprise Plan"
-                      : user.tier === "pro"
-                        ? "Pro Plan"
-                        : "Free Plan"}
+                  <h3 className="text-lg font-semibold capitalize">
+                    {user.tier && user.tier !== "free" ? `${user.tier} Plan` : "Free Plan"}
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     {subscription
@@ -203,13 +199,13 @@ function BillingPageContent() {
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Included in your plan:</h4>
               <div className="grid gap-2">
-                {user.tier === "enterprise" ? (
+                {user.tier === "premium" ? (
                   <>
                     <Feature included text="Unlimited presentations" />
                     <Feature included text="All 4 AI agents" />
                     <Feature included text="Custom branding" />
-                    <Feature included text="Team collaboration" />
-                    <Feature included text="Priority support" />
+                    <Feature included text="Knowledge Graph" />
+                    <Feature included text="Priority generation queue" />
                     <Feature included text="Advanced analytics" />
                   </>
                 ) : user.tier === "pro" ? (
@@ -218,7 +214,7 @@ function BillingPageContent() {
                     <Feature included text="All 4 AI agents" />
                     <Feature included text="Custom branding" />
                     <Feature included text="Advanced analytics" />
-                    <Feature text="Team collaboration (upgrade to Enterprise)" />
+                    <Feature text="Knowledge Graph (upgrade to Premium)" />
                   </>
                 ) : (
                   <>

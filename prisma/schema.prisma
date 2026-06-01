@@ -305,6 +305,7 @@ model Coupon {
   code            String    @unique
   valueCents      Int       @map("value_cents")
   currency        String    @default("usd")
+  tier            String    @default("starter")
   maxRedemptions  Int?      @map("max_redemptions")
   timesRedeemed   Int       @default(0) @map("times_redeemed")
   perUserLimit    Int       @default(1) @map("per_user_limit")

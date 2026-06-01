@@ -228,9 +228,9 @@ export default function DashboardPage() {
         <div>
           <div className="mb-2 flex items-center gap-3">
             <h1 className="text-3xl font-bold">Welcome back, {user?.name || 'there'}!</h1>
-            <Badge variant="outline">
-              {user?.tier === "free" ? "Free Plan" : user?.tier === "pro" ? "Pro Plan" : "Enterprise"}
-              {user?.tier === "pro" && <Crown className="ml-1 h-3 w-3" />}
+            <Badge variant="outline" className="capitalize">
+              {user?.tier && user.tier !== "free" ? `${user.tier} Plan` : "Free Plan"}
+              {(user?.tier === "pro" || user?.tier === "premium") && <Crown className="ml-1 h-3 w-3" />}
             </Badge>
           </div>
           <p className="text-slate-600 dark:text-slate-400">Ready to create amazing presentations with your AI agent team?</p>

@@ -53,7 +53,7 @@ export const PRICING_TIERS: ReadonlyArray<PricingTier> = [
     ],
     usageNote: "Generous monthly credits for typical workloads.",
     ctaLabel: "Get Started",
-    ctaHref: "/builder",
+    ctaHref: "/auth/signup?plan=starter",
     ctaKind: "secondary",
   },
   {
@@ -71,7 +71,7 @@ export const PRICING_TIERS: ReadonlyArray<PricingTier> = [
     ],
     usageNote: "Suited to research-heavy and frequent presenters.",
     ctaLabel: "Get Started",
-    ctaHref: "/builder",
+    ctaHref: "/auth/signup?plan=pro",
     ctaKind: "primary",
     highlighted: true,
   },
@@ -89,7 +89,7 @@ export const PRICING_TIERS: ReadonlyArray<PricingTier> = [
     ],
     usageNote: "Built for the heaviest, most demanding workflows.",
     ctaLabel: "Get Started",
-    ctaHref: "/builder",
+    ctaHref: "/auth/signup?plan=premium",
     ctaKind: "secondary",
   },
 ]

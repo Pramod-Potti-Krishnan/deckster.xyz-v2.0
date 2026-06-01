@@ -1,18 +1,34 @@
 'use client';
 
 import { signIn, useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sparkles, Check } from 'lucide-react';
 import Link from 'next/link';
 import { features } from '@/lib/config';
 
-export default function SignUpPage() {
+const PLAN_LABELS: Record<string, string> = {
+  starter: 'Starter',
+  pro: 'Pro',
+  premium: 'Premium',
+};
+
+function sanitizePlan(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const v = value.toLowerCase();
+  return v in PLAN_LABELS ? v : null;
+}
+
+function SignUpContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
+
+  const selectedPlan = sanitizePlan(searchParams.get('plan'));
+  const planLabel = selectedPlan ? PLAN_LABELS[selectedPlan] : null;
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -24,9 +40,18 @@ export default function SignUpPage() {
   const handleGoogleSignUp = async () => {
     setIsLoading(true);
     try {
-      await signIn('google', {
-        callbackUrl: '/builder'
-      });
+      // Persist the picked plan across the OAuth round-trip. The callbackUrl
+      // carries it through NextAuth; localStorage is a belt-and-suspenders
+      // fallback the /redeem page reads if the query is ever dropped.
+      if (selectedPlan) {
+        try {
+          localStorage.setItem('selectedPlan', selectedPlan);
+        } catch {
+          /* ignore */
+        }
+      }
+      const callbackUrl = selectedPlan ? `/redeem?plan=${selectedPlan}` : '/redeem';
+      await signIn('google', { callbackUrl });
     } catch (error) {
       console.error('Sign-up error:', error);
       setIsLoading(false);
@@ -64,9 +89,13 @@ export default function SignUpPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center space-y-2">
-            <CardTitle className="text-2xl">Create your account</CardTitle>
+            <CardTitle className="text-2xl">
+              {planLabel ? `Create your account — ${planLabel} plan` : 'Create your account'}
+            </CardTitle>
             <CardDescription>
-              Start creating stunning presentations with AI
+              {planLabel
+                ? `Sign up to activate the ${planLabel} plan and start creating with AI`
+                : 'Start creating stunning presentations with AI'}
             </CardDescription>
           </CardHeader>
 
@@ -133,7 +162,7 @@ export default function SignUpPage() {
               )}
             </Button>
 
-            {/* Approval Notice */}
+            {/* Access Notice */}
             <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
               <p className="text-xs text-blue-800 dark:text-blue-200 text-center">
                 {features.couponAuthEnabled ? (
@@ -180,5 +209,20 @@ export default function SignUpPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    }>
+      <SignUpContent />
+    </Suspense>
   );
 }

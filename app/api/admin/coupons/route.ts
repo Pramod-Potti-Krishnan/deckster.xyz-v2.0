@@ -7,6 +7,13 @@ function isAdmin(email: string | null | undefined): boolean {
   return !!email && email === process.env.DEV_BYPASS_EMAIL
 }
 
+const VALID_TIERS = ["starter", "pro", "premium"] as const
+type CouponTier = (typeof VALID_TIERS)[number]
+
+function isValidTier(value: unknown): value is CouponTier {
+  return typeof value === "string" && (VALID_TIERS as readonly string[]).includes(value)
+}
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
@@ -36,13 +43,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { code, valueCents, maxRedemptions, perUserLimit, expiresAt, note } = body
+    const { code, valueCents, tier, maxRedemptions, perUserLimit, expiresAt, note } = body
 
     if (!code || typeof code !== "string") {
       return NextResponse.json({ error: "Code is required" }, { status: 400 })
     }
     if (!valueCents || typeof valueCents !== "number" || valueCents <= 0) {
       return NextResponse.json({ error: "Value (cents) must be a positive number" }, { status: 400 })
+    }
+    if (tier !== undefined && !isValidTier(tier)) {
+      return NextResponse.json(
+        { error: "Tier must be one of: starter, pro, premium" },
+        { status: 400 },
+      )
     }
 
     const normalizedCode = code.trim().toUpperCase()
@@ -56,6 +69,7 @@ export async function POST(request: NextRequest) {
       data: {
         code: normalizedCode,
         valueCents,
+        tier: tier ?? "starter",
         maxRedemptions: maxRedemptions ?? null,
         perUserLimit: perUserLimit ?? 1,
         expiresAt: expiresAt ? new Date(expiresAt) : null,

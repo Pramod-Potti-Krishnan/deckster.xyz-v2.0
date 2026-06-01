@@ -22,10 +22,19 @@ export async function PATCH(
 
     const allowedFields: Record<string, boolean> = {
       active: true,
+      tier: true,
       maxRedemptions: true,
       perUserLimit: true,
       expiresAt: true,
       note: true,
+    }
+
+    const VALID_TIERS = ["starter", "pro", "premium"]
+    if (body.tier !== undefined && !VALID_TIERS.includes(body.tier)) {
+      return NextResponse.json(
+        { error: "Tier must be one of: starter, pro, premium" },
+        { status: 400 },
+      )
     }
 
     const data: Record<string, any> = {}

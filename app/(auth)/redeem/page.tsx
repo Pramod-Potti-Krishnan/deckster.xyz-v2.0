@@ -1,27 +1,57 @@
 'use client'
 
 import { useSession, signOut } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Sparkles, Ticket, LogOut, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
-export default function RedeemPage() {
+const PLAN_LABELS: Record<string, string> = {
+  starter: 'Starter',
+  pro: 'Pro',
+  premium: 'Premium',
+}
+
+function sanitizePlan(value: string | null | undefined): string | null {
+  if (!value) return null
+  const v = value.toLowerCase()
+  return v in PLAN_LABELS ? v : null
+}
+
+function RedeemContent() {
   const { data: session, status, update } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [code, setCode] = useState('')
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<{ creditedCents: number } | null>(null)
+  const [success, setSuccess] = useState<{ creditedCents: number; tier: string } | null>(null)
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
+
+  // Resolve the plan the user picked on the pricing page: query param first,
+  // then localStorage fallback (in case the OAuth round-trip dropped the query).
+  useEffect(() => {
+    const fromQuery = sanitizePlan(searchParams.get('plan'))
+    if (fromQuery) {
+      setSelectedPlan(fromQuery)
+      return
+    }
+    try {
+      setSelectedPlan(sanitizePlan(localStorage.getItem('selectedPlan')))
+    } catch {
+      /* localStorage unavailable — ignore */
+    }
+  }, [searchParams])
 
   useEffect(() => {
-    if (session?.user?.approved) {
+    // Only auto-redirect when there's nothing to acknowledge on this screen.
+    if (session?.user?.approved && !success) {
       router.push('/builder')
     }
-  }, [session, router])
+  }, [session, router, success])
 
   const handleRedeem = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,8 +74,19 @@ export default function RedeemPage() {
         return
       }
 
-      setSuccess({ creditedCents: data.creditedCents })
-      await update({ approved: true, walletBalanceCents: data.balanceCents })
+      setSuccess({ creditedCents: data.creditedCents, tier: data.tier })
+      try {
+        localStorage.removeItem('selectedPlan')
+      } catch {
+        /* ignore */
+      }
+      await update({
+        approved: true,
+        walletBalanceCents: data.balanceCents,
+        tier: data.tier,
+      })
+      // Give the session a beat to refresh, then head into the builder.
+      setTimeout(() => router.push('/builder'), 1200)
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -65,6 +106,13 @@ export default function RedeemPage() {
     router.push('/')
     return null
   }
+
+  const planLabel = selectedPlan ? PLAN_LABELS[selectedPlan] : null
+  // Coupon is authoritative: warn if the redeemed tier differs from the picked plan.
+  const tierMismatch =
+    success && selectedPlan && success.tier !== selectedPlan
+      ? PLAN_LABELS[success.tier] ?? success.tier
+      : null
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 dark:from-purple-950/20 dark:via-blue-950/20 dark:to-pink-950/20 flex flex-col">
@@ -88,9 +136,13 @@ export default function RedeemPage() {
               <Ticket className="h-10 w-10 text-purple-600" />
             </div>
             <div>
-              <CardTitle className="text-2xl mb-2">Enter your access coupon</CardTitle>
+              <CardTitle className="text-2xl mb-2">
+                {planLabel ? `Activate your ${planLabel} plan` : 'Enter your access coupon'}
+              </CardTitle>
               <CardDescription>
-                Enter the coupon code you received to activate your account and get started with credits.
+                {planLabel
+                  ? `Enter the coupon code you received to unlock the ${planLabel} plan and get started with credits.`
+                  : 'Enter the coupon code you received to activate your account and get started with credits.'}
               </CardDescription>
             </div>
           </CardHeader>
@@ -102,8 +154,14 @@ export default function RedeemPage() {
                   Coupon redeemed!
                 </p>
                 <p className="text-sm text-green-700 dark:text-green-200">
-                  ${(success.creditedCents / 100).toFixed(2)} in credits added to your account.
+                  {PLAN_LABELS[success.tier] ?? success.tier} plan activated · $
+                  {(success.creditedCents / 100).toFixed(2)} in credits added.
                 </p>
+                {tierMismatch && (
+                  <p className="text-xs text-green-700 dark:text-green-200">
+                    Your code activated the <strong>{tierMismatch}</strong> plan.
+                  </p>
+                )}
                 <p className="text-sm text-green-700 dark:text-green-200">
                   Redirecting to the builder...
                 </p>
@@ -158,5 +216,19 @@ export default function RedeemPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function RedeemPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="h-8 w-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <RedeemContent />
+    </Suspense>
   )
 }

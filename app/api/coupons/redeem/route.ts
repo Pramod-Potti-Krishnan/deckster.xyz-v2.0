@@ -73,10 +73,11 @@ export async function POST(request: NextRequest) {
           approved: true,
           approvedAt: new Date(),
           approvedBy: `coupon:${coupon.code}`,
+          tier: coupon.tier,
         },
       })
 
-      return { balanceCents: balanceAfterCents, valueCents: coupon.valueCents }
+      return { balanceCents: balanceAfterCents, valueCents: coupon.valueCents, tier: coupon.tier }
     })
 
     return NextResponse.json({
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
       approved: true,
       balanceCents: result.balanceCents,
       creditedCents: result.valueCents,
+      tier: result.tier,
     })
   } catch (error) {
     if (error instanceof RedeemError) {

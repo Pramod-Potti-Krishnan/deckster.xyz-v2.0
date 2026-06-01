@@ -28,7 +28,10 @@ export function useKnowledgeGraph() {
   const [error, setError] = useState<string | null>(null)
 
   const userId = session?.user?.id
-  const isPremium = subscription?.tier === 'premium'
+  // Premium can be granted by a coupon (session user tier) or a Stripe
+  // subscription. Coupon users have no subscription, so check both sources.
+  const isPremium =
+    session?.user?.tier === 'premium' || subscription?.tier === 'premium'
 
   const fetchSettings = useCallback(async () => {
     if (!userId || !isPremium) {
