@@ -219,4 +219,5 @@ export const GALLERY_CARDS: ReadonlyArray<GalleryCard> = [
 export const GALLERY_COPY = {
   eyebrow: "Every kind of slide",
   title: "Every shape your idea fits into.",
+  description: "Describe it. We'll build the right element.",
 } as const
