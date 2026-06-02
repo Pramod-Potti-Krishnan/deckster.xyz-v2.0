@@ -88,12 +88,12 @@ export function AgentChoreographySection() {
           tone="dark"
           eyebrow={CHOREO_COPY.eyebrow}
           title={
-            <>
+            <span className="whitespace-nowrap">
               Specialists, not a{" "}
               <span className="bg-gradient-to-r from-[hsl(280,90%,75%)] via-[hsl(320,90%,75%)] to-[hsl(200,95%,75%)] bg-clip-text text-transparent">
                 one-size-fits-all model.
               </span>
-            </>
+            </span>
           }
           description={CHOREO_COPY.description}
         />
