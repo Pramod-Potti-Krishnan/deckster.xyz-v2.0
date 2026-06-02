@@ -219,7 +219,4 @@ export const GALLERY_CARDS: ReadonlyArray<GalleryCard> = [
 export const GALLERY_COPY = {
   eyebrow: "Every kind of slide",
   title: "Every shape your idea fits into.",
-  description:
-    "Eighteen chart types. Eight diagrams built for engineers and PMs. And infographics generated from whatever you describe — a ladder, a rocket, a tree, a rail.",
-  countersEyebrow: "What ships in the box",
 } as const

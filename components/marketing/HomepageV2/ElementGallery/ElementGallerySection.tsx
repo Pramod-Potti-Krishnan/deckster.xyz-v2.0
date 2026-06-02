@@ -15,13 +15,9 @@ export function ElementGallerySection() {
           tone="light"
           eyebrow={GALLERY_COPY.eyebrow}
           title={GALLERY_COPY.title}
-          description={GALLERY_COPY.description}
         />
 
         <div className="mt-6 sm:mt-8">
-          <p className="mb-4 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/70">
-            {GALLERY_COPY.countersEyebrow}
-          </p>
           <InventoryCounters />
         </div>
 
