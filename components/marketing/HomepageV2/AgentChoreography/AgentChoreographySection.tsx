@@ -26,6 +26,7 @@ import {
   CHOREO_COPY,
   type AgentDeep,
 } from "@/lib/marketing/homepage-v2-agent-deep"
+import { SectionHeader } from "../shared/SectionHeader"
 import { AgentConnectorOverlay } from "./AgentConnectorOverlay"
 import { LightningGridBackground } from "./LightningGridBackground"
 
@@ -83,20 +84,19 @@ export function AgentChoreographySection() {
       </div>
 
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-balance text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl">
-            Specialists, not a{" "}
-            <span className="bg-gradient-to-r from-[hsl(280,90%,75%)] via-[hsl(320,90%,75%)] to-[hsl(200,95%,75%)] bg-clip-text text-transparent">
-              one-size-fits-all model.
-            </span>
-          </h2>
-          <p className="mt-2 text-balance text-sm leading-snug text-white/65 sm:mt-3 sm:text-[15px]">
-            {CHOREO_COPY.description}
-          </p>
-          <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-white/35">
-            Drag any agent to rearrange the graph
-          </p>
-        </div>
+        <SectionHeader
+          tone="dark"
+          eyebrow={CHOREO_COPY.eyebrow}
+          title={
+            <>
+              Specialists, not a{" "}
+              <span className="bg-gradient-to-r from-[hsl(280,90%,75%)] via-[hsl(320,90%,75%)] to-[hsl(200,95%,75%)] bg-clip-text text-transparent">
+                one-size-fits-all model.
+              </span>
+            </>
+          }
+          description={CHOREO_COPY.description}
+        />
 
         {/* Knowledge-graph pyramid. Big row gaps so the connector overlay
             has room to draw mesh edges that visibly cross between rows. */}
@@ -108,9 +108,9 @@ export function AgentChoreographySection() {
             containerRef={pyramidRef}
             cardRefs={cardRefs}
           />
-          <PyramidRow ids={TOP_ROW} cardRefs={cardRefs} containerRef={pyramidRef} />
-          <PyramidRow ids={MIDDLE_ROW} cardRefs={cardRefs} containerRef={pyramidRef} />
-          <PyramidRow ids={BOTTOM_ROW} cardRefs={cardRefs} containerRef={pyramidRef} />
+          <PyramidRow ids={TOP_ROW} cardRefs={cardRefs} containerRef={pyramidRef} offsets={[0]} />
+          <PyramidRow ids={MIDDLE_ROW} cardRefs={cardRefs} containerRef={pyramidRef} offsets={[6, -4, 8]} />
+          <PyramidRow ids={BOTTOM_ROW} cardRefs={cardRefs} containerRef={pyramidRef} offsets={[-3, 7, -5, 4]} />
         </div>
       </div>
     </section>
@@ -121,22 +121,26 @@ function PyramidRow({
   ids,
   cardRefs,
   containerRef,
+  offsets = [],
 }: {
   ids: ReadonlyArray<AgentId>
   cardRefs: React.MutableRefObject<Partial<Record<AgentId, HTMLDivElement | null>>>
   containerRef: React.RefObject<HTMLDivElement | null>
+  offsets?: ReadonlyArray<number>
 }) {
   return (
     <div className="relative z-10 flex w-full flex-wrap items-stretch justify-center gap-4 sm:gap-5">
-      {ids.map((id) => {
+      {ids.map((id, i) => {
         const agent = getAgent(id)
         const deep = AGENT_DEEP[id]
+        const yOffset = offsets[i] ?? 0
         return (
           <motion.div
             key={id}
             ref={(el) => {
               cardRefs.current[id] = el
             }}
+            style={{ translateY: yOffset }}
             drag
             dragMomentum={false}
             dragElastic={0.15}
