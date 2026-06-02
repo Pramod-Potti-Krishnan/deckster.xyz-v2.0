@@ -27,10 +27,9 @@ import { PRICING_COPY, PRICING_TIERS } from '@/lib/marketing/homepage-v2-pricing
 // Slides:
 //   1. Hero + 3 tier cards   — money shot, uses the canonical PricingTierCard
 //   2. What every plan includes — universal floor, 6 capability cards
-//   3. What you get as you go up — per-tier deltas, replaces the legacy 50-row table
-//   4. Credits + top-ups      — pay-as-you-grow framing
-//   5. FAQ                    — 6 trimmed questions, accordion
-//   6. CTA + footer           — dark gradient final slide with compact footer
+//   3. Credits + top-ups      — pay-as-you-grow framing
+//   4. FAQ                    — 6 trimmed questions, accordion
+//   5. CTA + footer           — dark gradient final slide with compact footer
 
 const slideShellBase =
   'relative isolate flex min-h-[calc(100svh-3rem)] flex-col px-4 py-12 sm:px-6 lg:px-8';
@@ -71,39 +70,6 @@ const BASE_CAPABILITIES: ReadonlyArray<{
     body: 'Edit any element by asking — "make the chart a waterfall", "tighten this slide", "re-theme to dark".',
   },
 ];
-
-const TIER_DELTAS: Record<
-  'starter' | 'pro' | 'premium',
-  { label: string; items: ReadonlyArray<string> }
-> = {
-  starter: {
-    label: 'The foundation',
-    items: [
-      'Director, Content Generator, Visualizer, Slide Composer, Theme Builder',
-      'All chart, diagram, and infographic types',
-      'Custom themes',
-      'PPTX & PDF export — no watermark',
-      'Generous monthly credits for typical workloads',
-    ],
-  },
-  pro: {
-    label: 'Adds research depth',
-    items: [
-      'Researcher: pull live data from the open web',
-      'Upload your files as source material (RAG over your corpus)',
-      'Analyst: insight extraction from your numbers',
-      'Higher monthly credit allowance',
-    ],
-  },
-  premium: {
-    label: 'Adds the knowledge layer',
-    items: [
-      'Knowledge Graph: agents learn your domain across decks',
-      'Priority generation queue',
-      'Highest monthly credit allowance',
-    ],
-  },
-};
 
 const FAQS: ReadonlyArray<{ q: string; a: string }> = [
   {
@@ -227,73 +193,7 @@ export default function PricingPage() {
           </div>
         </section>
 
-        {/* ─────────────── Slide 3 — What you get as you go up ─────────────── */}
-        <section
-          id="pricing-deltas"
-          data-snap="slide"
-          className={`${slideShellBase} items-center justify-center bg-muted/30`}
-        >
-          <div className="mx-auto w-full max-w-6xl">
-            <div className="mx-auto max-w-3xl text-center">
-              <div className="mb-2 flex items-center justify-center gap-2 text-sm font-medium uppercase tracking-wide text-blue-600 dark:text-blue-300">
-                <ArrowRight className="h-4 w-4" />
-                Level up
-              </div>
-              <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-                What you get as you go up
-              </h2>
-              <p className="mx-auto mt-3 max-w-2xl text-balance text-base text-muted-foreground sm:text-lg">
-                Each tier builds on the last — no rebuy, just more agents and more capacity.
-              </p>
-            </div>
-
-            <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3">
-              {(['starter', 'pro', 'premium'] as const).map((tierId) => {
-                const tier = PRICING_TIERS.find((t) => t.id === tierId)!;
-                const delta = TIER_DELTAS[tierId];
-                const isHighlight = tierId === 'pro';
-                return (
-                  <div
-                    key={tierId}
-                    className={`relative flex flex-col gap-4 rounded-2xl border bg-card p-6 ${
-                      isHighlight
-                        ? 'border-primary/40 shadow-md ring-1 ring-primary/10'
-                        : 'border-border'
-                    }`}
-                  >
-                    {isHighlight && (
-                      <span className="absolute right-5 top-5 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-                        Most popular
-                      </span>
-                    )}
-                    <div className="flex items-baseline justify-between">
-                      <h3 className="text-lg font-semibold tracking-tight">{tier.name}</h3>
-                      <span className="text-sm font-semibold text-muted-foreground">
-                        {tier.price}
-                      </span>
-                    </div>
-                    <div className="text-xs font-medium uppercase tracking-wide text-purple-600 dark:text-purple-300">
-                      {delta.label}
-                    </div>
-                    <ul className="space-y-2">
-                      {delta.items.map((item) => (
-                        <li
-                          key={item}
-                          className="flex items-start gap-2 text-sm leading-snug text-foreground/85"
-                        >
-                          <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* ─────────────── Slide 4 — Credits + top-ups ─────────────── */}
+        {/* ─────────────── Slide 3 — Credits + top-ups ─────────────── */}
         <section
           id="pricing-credits"
           data-snap="slide"
@@ -378,7 +278,7 @@ export default function PricingPage() {
           </div>
         </section>
 
-        {/* ─────────────── Slide 5 — FAQ ─────────────── */}
+        {/* ─────────────── Slide 4 — FAQ ─────────────── */}
         <section
           id="pricing-faq"
           data-snap="slide"
@@ -418,7 +318,7 @@ export default function PricingPage() {
           </div>
         </section>
 
-        {/* ─────────────── Slide 6 — CTA + footer ─────────────── */}
+        {/* ─────────────── Slide 5 — CTA + footer ─────────────── */}
         <section
           data-snap="slide"
           className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col overflow-hidden bg-[hsl(240,10%,4%)]"
