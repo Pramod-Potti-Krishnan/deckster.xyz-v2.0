@@ -70,7 +70,10 @@ export const HERO_COPY = {
   subhead:
     "They plan the story, research the facts, write the words, and design every slide. You direct in plain English — one sentence at a time.",
   primaryCta: "Get Started",
-  secondaryCta: "See the team in action",
+  // The hero's single secondary path is the scroll connector at the slide's
+  // bottom edge — a promise of what's next, not a second button competing
+  // with Get Started. Rendered in caps by ScrollCue.
+  scrollConnector: "See the team in action",
 } as const
 
 // Honest trust signals — every line is a verifiable product fact stated in

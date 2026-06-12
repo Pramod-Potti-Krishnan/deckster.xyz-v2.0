@@ -1,5 +1,5 @@
 import { ScrollCue } from "@/components/marketing/SnapDeck/ScrollCue"
-import { TRUST_SIGNALS } from "@/lib/marketing/homepage-v2-content"
+import { HERO_COPY, TRUST_SIGNALS } from "@/lib/marketing/homepage-v2-content"
 import { ConversationalScopes } from "./ConversationalScopes"
 import { HeroCTA } from "./HeroCTA"
 import { HeroHeadline } from "./HeroHeadline"
@@ -67,7 +67,7 @@ export function Hero() {
         </div>
       </div>
 
-      <ScrollCue />
+      <ScrollCue label={HERO_COPY.scrollConnector} />
     </section>
   )
 }

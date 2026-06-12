@@ -12,7 +12,6 @@ export type CtaLocation =
   | "header_get_started"
   | "header_sign_in"
   | "hero_primary"
-  | "hero_secondary"
   | "hero_scroll_cue"
   | "demo_meet_team"
   | "pricing_starter"
