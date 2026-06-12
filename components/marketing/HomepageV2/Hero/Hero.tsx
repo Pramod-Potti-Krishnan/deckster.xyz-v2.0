@@ -37,12 +37,12 @@ export function Hero() {
         />
       </div>
 
+      {/* Reading order is the sales arc: claim (headline) → mechanism
+          (subhead) → facts (trust strip) → story beats (cards) → ask
+          (Get Started) at peak conviction, with the scroll connector
+          underneath as the "show me more first" alternative. */}
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
         <HeroHeadline />
-
-        <div className="mt-8 sm:mt-10">
-          <HeroCTA />
-        </div>
 
         {/* Honest trust strip — verifiable product facts in place of the
             social proof we don't have yet. */}
@@ -62,8 +62,12 @@ export function Hero() {
           ))}
         </div>
 
-        <div className="mt-8 sm:mt-12">
+        <div className="mt-8 sm:mt-10">
           <ConversationalScopes />
+        </div>
+
+        <div className="mt-8 sm:mt-10">
+          <HeroCTA />
         </div>
       </div>
 
