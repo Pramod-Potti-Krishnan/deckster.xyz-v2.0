@@ -1,8 +1,4 @@
-import {
-  BookOpen,
-  MousePointerSquareDashed,
-  RectangleHorizontal,
-} from "lucide-react"
+import { Hammer, Map, MessageCircle } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import {
   CONVERSATION_SCOPES,
@@ -10,9 +6,9 @@ import {
 } from "@/lib/marketing/homepage-v2-content"
 
 const ICONS: Record<ScopeIconName, LucideIcon> = {
-  BookOpen,
-  RectangleHorizontal,
-  MousePointerSquareDashed,
+  Map,
+  Hammer,
+  MessageCircle,
 }
 
 export function ConversationalScopes() {

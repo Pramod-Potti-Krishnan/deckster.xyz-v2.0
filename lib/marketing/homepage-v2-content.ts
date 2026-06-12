@@ -54,26 +54,32 @@ export const INVENTORY_COUNTS = {
   infographicsUnlimited: true,
 } as const
 
+/**
+ * Hero rule: visitor vocabulary only. Cold visitors know presentation
+ * terms (deck, slides, charts, PowerPoint) and general AI verbs (plan,
+ * research, write, design) — they do NOT know our product terms yet.
+ * "Director" and friends get introduced on the team slide, after the demo
+ * has shown them working. Display type stays ≤ ~8 words; the explanation
+ * lives in the subhead.
+ */
 export const HERO_COPY = {
-  // Names the category plainly (the headline already owns "team of AI
-  // agents" — repeating it here was redundant).
-  eyebrow: "The AI presentation builder you direct, not drive",
-  headlineLine1: "A team of AI agents builds your deck.",
-  headlineLine2: "You direct them —",
-  headlineLine3: "one sentence at a time.",
+  eyebrow: "AI presentation builder",
+  headlineLine1: "A team of AI agents",
+  // Rendered with the brand gradient — the payoff phrase.
+  headlineAccent: "builds your deck.",
   subhead:
-    "Talk to the Director. Reshape any slide, tweak any element — the team handles the rest.",
+    "They plan the story, research the facts, write the words, and design every slide. You direct in plain English — one sentence at a time.",
   primaryCta: "Get Started",
   secondaryCta: "See the team in action",
 } as const
 
-// Honest trust signals — every line is a verifiable product fact, not
-// social proof (we have none yet and won't fabricate it). Shown under the
-// hero CTAs and again in the final CTA slide.
+// Honest trust signals — every line is a verifiable product fact stated in
+// visitor terms, not social proof (we have none yet and won't fabricate
+// it). Shown under the hero CTAs and again in the final CTA slide.
 export const TRUST_SIGNALS: ReadonlyArray<string> = [
+  "Charts, diagrams & infographics built in",
   "PowerPoint & PDF export — no watermark",
-  "9 elements · 18 charts · 8 diagrams · ∞ infographics",
-  "No templates — built through conversation",
+  "No templates — just conversation",
 ]
 
 // The canonical specialist agent team shown in the hero. Single source of
@@ -181,12 +187,9 @@ export const AGENT_ACTIVITY_CAPTIONS: ReadonlyArray<string> = [
   'Director: "Ready for your review."',
 ]
 
-export type ScopeId = "deck" | "slide" | "element"
+export type ScopeId = "plan" | "build" | "refine"
 
-export type ScopeIconName =
-  | "BookOpen"
-  | "RectangleHorizontal"
-  | "MousePointerSquareDashed"
+export type ScopeIconName = "Map" | "Hammer" | "MessageCircle"
 
 export interface ScopeMeta {
   id: ScopeId
@@ -197,27 +200,32 @@ export interface ScopeMeta {
   color: string
 }
 
+/**
+ * The hero's three cards describe the lifecycle a visitor already
+ * imagines (plan → build → refine), not our editing scopes (deck/slide/
+ * element) — that's insider granularity, taught later in the page.
+ * Blurbs stay short and parallel so the cards scan as one beat each.
+ */
 export const CONVERSATION_SCOPES: ReadonlyArray<ScopeMeta> = [
   {
-    id: "deck",
-    label: "DECK",
-    blurb: "Steer the storyline.",
-    iconName: "BookOpen",
+    id: "plan",
+    label: "PLAN",
+    blurb: "Storyline, structure, research.",
+    iconName: "Map",
     color: "#a78bfa",
   },
   {
-    id: "slide",
-    label: "SLIDE",
-    blurb: "Reshape any slide in chat.",
-    iconName: "RectangleHorizontal",
+    id: "build",
+    label: "BUILD",
+    blurb: "Words, charts, layouts — every slide.",
+    iconName: "Hammer",
     color: "#22d3ee",
   },
   {
-    id: "element",
-    label: "ELEMENT",
-    // Kept to one line so the three scope cards stay equal-height on phones.
-    blurb: "Edit any chart, any word — just ask.",
-    iconName: "MousePointerSquareDashed",
+    id: "refine",
+    label: "REFINE",
+    blurb: "Change anything by asking.",
+    iconName: "MessageCircle",
     color: "#fb923c",
   },
 ]
