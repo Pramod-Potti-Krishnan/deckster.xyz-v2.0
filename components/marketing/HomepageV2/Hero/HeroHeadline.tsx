@@ -1,4 +1,8 @@
-import { HERO_COPY } from "@/lib/marketing/homepage-v2-content"
+import {
+  HERO_COPY,
+  HERO_ROTATING_PHRASES,
+} from "@/lib/marketing/homepage-v2-content"
+import { RotatingHeadline } from "./RotatingHeadline"
 
 export function HeroHeadline() {
   return (
@@ -12,7 +16,7 @@ export function HeroHeadline() {
       </span>
 
       <h1 className="text-balance text-5xl font-extrabold leading-[1.05] tracking-tight text-white sm:text-6xl md:text-7xl">
-        <span className="block">{HERO_COPY.headlineLine1}</span>
+        <RotatingHeadline phrases={HERO_ROTATING_PHRASES} />
         <span className="block bg-gradient-to-r from-[hsl(280,90%,75%)] via-[hsl(320,90%,75%)] to-[hsl(200,95%,75%)] bg-clip-text text-transparent">
           {HERO_COPY.headlineAccent}
         </span>

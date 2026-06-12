@@ -64,17 +64,30 @@ export const INVENTORY_COUNTS = {
  */
 export const HERO_COPY = {
   eyebrow: "AI presentation builder",
-  headlineLine1: "A team of AI agents",
-  // Rendered with the brand gradient — the payoff phrase.
-  headlineAccent: "builds your deck.",
+  // Rendered with the brand gradient — the product payoff under the
+  // rotating personal moment.
+  headlineAccent: "Your deck is getting built.",
   subhead:
-    "They plan the story, research the facts, write the words, and design every slide. You direct in plain English — one sentence at a time.",
+    "A team of AI agents plans the story, researches the facts, writes the words, and designs every slide — checking in with you in plain English at every step.",
   primaryCta: "Get Started",
   // The hero's single secondary path is the scroll connector at the slide's
   // bottom edge — a promise of what's next, not a second button competing
   // with Get Started. Rendered in caps by ScrollCue.
   scrollConnector: "See the team in action",
 } as const
+
+/**
+ * Rotating first headline line — the visitor's reclaimed moment. The hero
+ * sells the person's life with the product; the fixed gradient line below
+ * ("Your deck is getting built.") keeps the product instantly legible.
+ * First phrase is the SSR/reduced-motion fallback.
+ */
+export const HERO_ROTATING_PHRASES: ReadonlyArray<string> = [
+  "Take that walk.",
+  "Drink your tea.",
+  "Rehearse your pitch.",
+  "Call it a night.",
+]
 
 // Honest trust signals — every line is a verifiable product fact stated in
 // visitor terms, not social proof (we have none yet and won't fabricate
@@ -190,9 +203,9 @@ export const AGENT_ACTIVITY_CAPTIONS: ReadonlyArray<string> = [
   'Director: "Ready for your review."',
 ]
 
-export type ScopeId = "plan" | "build" | "refine"
+export type ScopeId = "describe" | "build" | "refine" | "remember"
 
-export type ScopeIconName = "Map" | "Hammer" | "MessageCircle"
+export type ScopeIconName = "PenLine" | "Hammer" | "MessageCircle" | "Brain"
 
 export interface ScopeMeta {
   id: ScopeId
@@ -204,31 +217,39 @@ export interface ScopeMeta {
 }
 
 /**
- * The hero's three cards describe the lifecycle a visitor already
- * imagines (plan → build → refine), not our editing scopes (deck/slide/
- * element) — that's insider granularity, taught later in the page.
- * Blurbs stay short and parallel so the cards scan as one beat each.
+ * The hero's four cards tell the cycle with the person as protagonist:
+ * you describe → they build → you refine → it remembers. The last beat is
+ * the compounding payoff PK considers the biggest benefit — every deck
+ * grows a personal knowledge base the agents lean on next time. Blurbs
+ * stay short and parallel so each card scans as one beat.
  */
 export const CONVERSATION_SCOPES: ReadonlyArray<ScopeMeta> = [
   {
-    id: "plan",
-    label: "PLAN",
-    blurb: "Storyline, structure, research.",
-    iconName: "Map",
+    id: "describe",
+    label: "YOU DESCRIBE",
+    blurb: "A sentence or a full brief — with your data.",
+    iconName: "PenLine",
     color: "#a78bfa",
   },
   {
     id: "build",
-    label: "BUILD",
-    blurb: "Words, charts, layouts — every slide.",
+    label: "THEY BUILD",
+    blurb: "Story, slides, charts, design.",
     iconName: "Hammer",
     color: "#22d3ee",
   },
   {
     id: "refine",
-    label: "REFINE",
+    label: "YOU REFINE",
     blurb: "Change anything by asking.",
     iconName: "MessageCircle",
     color: "#fb923c",
+  },
+  {
+    id: "remember",
+    label: "IT REMEMBERS",
+    blurb: "Your knowledge base grows with every deck.",
+    iconName: "Brain",
+    color: "#34d399",
   },
 ]

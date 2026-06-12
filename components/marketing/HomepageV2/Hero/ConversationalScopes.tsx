@@ -1,4 +1,4 @@
-import { Hammer, Map, MessageCircle } from "lucide-react"
+import { Brain, Hammer, MessageCircle, PenLine } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import {
   CONVERSATION_SCOPES,
@@ -6,14 +6,15 @@ import {
 } from "@/lib/marketing/homepage-v2-content"
 
 const ICONS: Record<ScopeIconName, LucideIcon> = {
-  Map,
+  PenLine,
   Hammer,
   MessageCircle,
+  Brain,
 }
 
 export function ConversationalScopes() {
   return (
-    <div className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+    <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
       {CONVERSATION_SCOPES.map((scope) => {
         const Icon = ICONS[scope.iconName]
         return (
