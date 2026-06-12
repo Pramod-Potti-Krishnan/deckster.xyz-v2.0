@@ -1,3 +1,5 @@
+import { ScrollCue } from "@/components/marketing/SnapDeck/ScrollCue"
+import { TRUST_SIGNALS } from "@/lib/marketing/homepage-v2-content"
 import { ConversationalScopes } from "./ConversationalScopes"
 import { HeroCTA } from "./HeroCTA"
 import { HeroHeadline } from "./HeroHeadline"
@@ -16,6 +18,7 @@ export function Hero() {
     <section
       id="hero"
       data-snap="slide"
+      data-slide-label="Start"
       className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-center overflow-hidden bg-[hsl(240,10%,4%)] py-10 sm:py-12"
     >
       {/* Background mesh — layered radial gradients, no raster image */}
@@ -41,13 +44,20 @@ export function Hero() {
           <HeroCTA />
         </div>
 
-        <div className="mt-6 flex flex-wrap justify-center gap-2 sm:mt-7 sm:gap-3">
-          {["Pitch decks", "Strategy decks", "Product specs"].map((c) => (
+        {/* Honest trust strip — verifiable product facts in place of the
+            social proof we don't have yet. */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 sm:mt-7">
+          {TRUST_SIGNALS.map((signal, i) => (
             <span
-              key={c}
-              className="rounded-full border border-white/15 bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/75 backdrop-blur-md"
+              key={signal}
+              className="flex items-center gap-3 text-xs font-medium text-white/55"
             >
-              {c}
+              {i > 0 ? (
+                <span aria-hidden className="hidden text-white/25 sm:inline">
+                  ·
+                </span>
+              ) : null}
+              {signal}
             </span>
           ))}
         </div>
@@ -56,6 +66,8 @@ export function Hero() {
           <ConversationalScopes />
         </div>
       </div>
+
+      <ScrollCue />
     </section>
   )
 }

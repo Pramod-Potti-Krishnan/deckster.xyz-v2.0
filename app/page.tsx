@@ -10,6 +10,7 @@ import {
 } from "@/components/marketing/HomepageV2"
 import { SnapDeck } from "@/components/marketing/SnapDeck/SnapDeck"
 import { SlideNavArrows } from "@/components/marketing/SnapDeck/SlideNavArrows"
+import { SlideProgressRail } from "@/components/marketing/SnapDeck/SlideProgressRail"
 
 const TITLE = "Deckster — A team of AI agents builds your deck"
 const DESCRIPTION =
@@ -40,12 +41,15 @@ export default function HomePage() {
     <div className="flex min-h-screen flex-col bg-background font-sans selection:bg-primary/20">
       <SnapDeck />
       <SlideNavArrows />
+      <SlideProgressRail />
       <Header />
       <main>
+        {/* Narrative order: watch the team work (demo) → meet them
+            (agents) → see what they build (gallery) → price → close. */}
         <Hero />
         <BuilderDemoSection />
-        <ElementGallerySection />
         <AgentChoreographySection />
+        <ElementGallerySection />
         <PricingV2Section />
         <FinalCTASection />
       </main>

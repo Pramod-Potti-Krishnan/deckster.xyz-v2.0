@@ -55,15 +55,26 @@ export const INVENTORY_COUNTS = {
 } as const
 
 export const HERO_COPY = {
-  eyebrow: "A team of AI agents · Built through conversation",
+  // Names the category plainly (the headline already owns "team of AI
+  // agents" — repeating it here was redundant).
+  eyebrow: "The AI presentation builder you direct, not drive",
   headlineLine1: "A team of AI agents builds your deck.",
   headlineLine2: "You direct them —",
   headlineLine3: "one sentence at a time.",
   subhead:
-    "Talk to the Director. Reshape any slide. Tweak any element. The team handles the rest.",
+    "Talk to the Director. Reshape any slide, tweak any element — the team handles the rest.",
   primaryCta: "Get Started",
   secondaryCta: "See the team in action",
 } as const
+
+// Honest trust signals — every line is a verifiable product fact, not
+// social proof (we have none yet and won't fabricate it). Shown under the
+// hero CTAs and again in the final CTA slide.
+export const TRUST_SIGNALS: ReadonlyArray<string> = [
+  "PowerPoint & PDF export — no watermark",
+  "9 elements · 18 charts · 8 diagrams · ∞ infographics",
+  "No templates — built through conversation",
+]
 
 // The canonical specialist agent team shown in the hero. Single source of
 // truth — Phase 6 will port this roster into `content/agents.ts` so the
@@ -204,7 +215,8 @@ export const CONVERSATION_SCOPES: ReadonlyArray<ScopeMeta> = [
   {
     id: "element",
     label: "ELEMENT",
-    blurb: "Edit any chart, any layout, any word — by asking.",
+    // Kept to one line so the three scope cards stay equal-height on phones.
+    blurb: "Edit any chart, any word — just ask.",
     iconName: "MousePointerSquareDashed",
     color: "#fb923c",
   },

@@ -105,15 +105,30 @@ body {
    via the <SnapDeck /> client component that toggles .snap-deck on <html>.
    - `y mandatory` strictly locks the viewport to one slide at a time so
      users can't drift to a half-snapped state where a title clips behind
-     the header.
+     the header — but only on viewports large enough that every slide
+     plausibly fits. On small phones / short landscape windows the tall
+     slides (gallery, agents, stacked pricing cards) overflow the viewport,
+     and mandatory snapping fights the user's scroll through that content,
+     so we degrade to `proximity`: gentle magnetism near a slide boundary,
+     free scrolling everywhere else. Keyboard/arrow nav uses JS
+     scrollIntoView and behaves identically in both modes.
    - `scroll-padding-top: 3rem` matches the 48px sticky header so the
      section top edge lands cleanly below the header.
    - `scroll-snap-stop: normal` still lets a quick flick traverse multiple
      slides on a trackpad. */
 html.snap-deck {
-  scroll-snap-type: y mandatory;
   scroll-padding-top: 3rem;
   scroll-behavior: smooth;
+}
+@media (min-width: 768px) and (min-height: 640px) {
+  html.snap-deck {
+    scroll-snap-type: y mandatory;
+  }
+}
+@media (max-width: 767px), (max-height: 639px) {
+  html.snap-deck {
+    scroll-snap-type: y proximity;
+  }
 }
 html.snap-deck main > section[data-snap="slide"] {
   scroll-snap-align: start;

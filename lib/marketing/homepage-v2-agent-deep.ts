@@ -130,5 +130,5 @@ export const CHOREO_COPY = {
   eyebrow: "Meet the team",
   title: "Specialists, not a one-size-fits-all model.",
   description:
-    "Each agent owns one part — the Director keeps them in sync.",
+    "Each agent owns one craft — research, numbers, copy, charts, themes. The Director keeps them in sync.",
 } as const

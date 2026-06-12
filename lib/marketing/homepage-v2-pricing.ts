@@ -98,7 +98,7 @@ export const PRICING_COPY = {
   eyebrow: "Pricing",
   title: "A team of agents, on tap.",
   description:
-    "Three tiers. Top up anytime — no surprise bills.",
+    "Three tiers, top-ups anytime. No seats math, no surprise bills.",
   topUpHeadline: "Need more in a busy month?",
   topUpBlurb:
     "Top-up credits available on every tier — no commitment. Actual usage depends on the length and visual richness of each deck.",

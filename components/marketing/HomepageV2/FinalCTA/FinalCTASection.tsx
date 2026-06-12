@@ -1,4 +1,5 @@
 import { Footer } from "@/components/layout/Footer"
+import { TRUST_SIGNALS } from "@/lib/marketing/homepage-v2-content"
 import { FinalCTAButton } from "./FinalCTAButton"
 
 export function FinalCTASection() {
@@ -6,6 +7,7 @@ export function FinalCTASection() {
     <section
       id="final-cta"
       data-snap="slide"
+      data-slide-label="Get Started"
       className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col overflow-hidden bg-[hsl(240,10%,4%)]"
     >
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
@@ -32,6 +34,24 @@ export function FinalCTASection() {
             No templates. No pixel-pushing. Just a sentence and a few
             back-and-forths with a team of agents.
           </p>
+
+          {/* The last thing a fence-sitter reads before the button should
+              be true, concrete facts — same strip as the hero. */}
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+            {TRUST_SIGNALS.map((signal, i) => (
+              <span
+                key={signal}
+                className="flex items-center gap-3 text-[11px] font-medium text-white/45"
+              >
+                {i > 0 ? (
+                  <span aria-hidden className="hidden text-white/20 sm:inline">
+                    ·
+                  </span>
+                ) : null}
+                {signal}
+              </span>
+            ))}
+          </div>
 
           <div className="mt-8 flex justify-center">
             <FinalCTAButton />

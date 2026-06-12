@@ -217,7 +217,10 @@ export const GALLERY_CARDS: ReadonlyArray<GalleryCard> = [
 ]
 
 export const GALLERY_COPY = {
-  eyebrow: "Every kind of slide",
+  // Follows the agents slide in page order — "they" ties the catalog back
+  // to the team the visitor just met.
+  eyebrow: "What they build",
   title: "Every shape your idea fits into.",
-  description: "Describe it. We'll build the right element.",
+  description:
+    "Charts, diagrams, infographics, tables — describe it, and the Visualizer builds the right one.",
 } as const

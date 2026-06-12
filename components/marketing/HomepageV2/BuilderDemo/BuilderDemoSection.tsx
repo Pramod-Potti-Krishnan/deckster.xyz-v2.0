@@ -1,11 +1,13 @@
 import { SectionHeader } from "../shared/SectionHeader"
 import { BuilderDemoLoader } from "./BuilderDemoLoader"
+import { MeetTheTeamLink } from "./MeetTheTeamLink"
 
 export function BuilderDemoSection() {
   return (
     <section
       id="builder-demo"
       data-snap="slide"
+      data-slide-label="Demo"
       className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-start overflow-hidden bg-[hsl(240,10%,5%)] pb-6 pt-8 sm:pb-8 sm:pt-10"
     >
       {/* Subtle gradient fade-in from the dark hero above */}
@@ -19,11 +21,15 @@ export function BuilderDemoSection() {
           tone="dark"
           eyebrow="Watch the team build"
           title="From a sentence to a slide — in real time."
-          description="The agents talk to each other while they work. Here's a single slide assembling, on loop."
+          description="The agents talk to each other while they work. Watch one slide assemble — live, on loop."
         />
 
         <div className="mx-auto mt-6 max-w-6xl sm:mt-8">
           <BuilderDemoLoader />
+        </div>
+
+        <div className="mt-5 flex justify-center sm:mt-6">
+          <MeetTheTeamLink />
         </div>
       </div>
     </section>
