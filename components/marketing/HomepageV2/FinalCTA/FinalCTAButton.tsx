@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { trackCta } from "@/lib/analytics"
 
 export function FinalCTAButton() {
   const router = useRouter()
@@ -12,6 +13,7 @@ export function FinalCTAButton() {
   const [loading, setLoading] = useState(false)
 
   const handleStart = () => {
+    trackCta("final_cta")
     if (status === "authenticated" && session?.user) {
       setLoading(true)
       router.push("/builder")

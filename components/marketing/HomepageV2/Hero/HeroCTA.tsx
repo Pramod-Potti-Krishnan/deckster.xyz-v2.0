@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { ArrowRight, PlayCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { trackCta } from "@/lib/analytics"
 import { HERO_COPY } from "@/lib/marketing/homepage-v2-content"
 
 export function HeroCTA() {
@@ -13,6 +14,7 @@ export function HeroCTA() {
   const [loading, setLoading] = useState(false)
 
   const handleStart = () => {
+    trackCta("hero_primary")
     if (status === "authenticated" && session?.user) {
       setLoading(true)
       router.push("/builder")
@@ -23,6 +25,7 @@ export function HeroCTA() {
   }
 
   const handleScrollToDemo = () => {
+    trackCta("hero_secondary")
     const target = document.getElementById("builder-demo")
     if (target) {
       target.scrollIntoView({ behavior: "smooth", block: "start" })

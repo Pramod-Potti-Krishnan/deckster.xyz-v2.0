@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import { SessionProvider } from '@/components/providers/session-provider'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -31,14 +32,8 @@ export const metadata: Metadata = {
     description: 'Create stunning presentations with AI. Build engaging, professional presentations in minutes.',
     url: 'https://deckster.xyz',
     siteName: 'Deckster',
-    images: [
-      {
-        url: '/og-image.png',
-        width: 1200,
-        height: 630,
-        alt: 'Deckster - AI Presentation Builder',
-      }
-    ],
+    // og:image / twitter:image come from app/opengraph-image.tsx and
+    // app/twitter-image.tsx (Next file-convention metadata routes).
     locale: 'en_US',
     type: 'website',
   },
@@ -46,7 +41,6 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Deckster - AI-Powered Presentation Builder',
     description: 'Create stunning presentations with AI. Build engaging, professional presentations in minutes.',
-    images: ['/og-image.png'],
     creator: '@deckster',
   },
   robots: {
@@ -70,7 +64,6 @@ export const metadata: Metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
 }
 
 export default function RootLayout({
@@ -95,6 +88,7 @@ export default function RootLayout({
             <Toaster />
           </ThemeProvider>
         </SessionProvider>
+        <Analytics />
       </body>
     </html>
   )

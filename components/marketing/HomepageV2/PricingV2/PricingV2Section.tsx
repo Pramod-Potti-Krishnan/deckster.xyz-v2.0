@@ -1,17 +1,25 @@
-import Link from "next/link"
 import { Check, Plus } from "lucide-react"
+import type { CtaLocation } from "@/lib/analytics"
 import {
   PRICING_COPY,
   PRICING_TIERS,
   type PricingTier,
 } from "@/lib/marketing/homepage-v2-pricing"
 import { SectionHeader } from "../shared/SectionHeader"
+import { PricingCtaLink } from "./PricingCtaLink"
+
+const TIER_CTA_LOCATION: Record<PricingTier["id"], CtaLocation> = {
+  starter: "pricing_starter",
+  pro: "pricing_pro",
+  premium: "pricing_max",
+}
 
 export function PricingV2Section() {
   return (
     <section
       id="pricing"
       data-snap="slide"
+      data-slide-label="Pricing"
       className="relative isolate flex min-h-[calc(100svh-3rem)] flex-col items-center justify-start overflow-hidden bg-[hsl(240,10%,98%)] dark:bg-[hsl(240,10%,8%)] pb-6 pt-6 sm:pb-8 sm:pt-8"
     >
       <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
@@ -32,12 +40,13 @@ export function PricingV2Section() {
 
         <p className="mx-auto mt-3 max-w-2xl text-center text-xs text-muted-foreground">
           Need the full breakdown?{" "}
-          <Link
+          <PricingCtaLink
             href="/pricing"
+            location="pricing_full_page"
             className="font-semibold text-primary underline-offset-4 hover:underline"
           >
             See the pricing page
-          </Link>
+          </PricingCtaLink>
           .
         </p>
       </div>
@@ -110,8 +119,9 @@ export function PricingTierCard({ tier }: { tier: PricingTier }) {
         {tier.usageNote}
       </p>
 
-      <Link
+      <PricingCtaLink
         href={tier.ctaHref}
+        location={TIER_CTA_LOCATION[tier.id]}
         className={`group inline-flex h-10 w-full items-center justify-center rounded-full px-6 text-sm font-semibold transition-all ${
           tier.ctaKind === "primary"
             ? "bg-primary text-white hover:scale-[1.02] hover:bg-primary/90"
@@ -119,7 +129,7 @@ export function PricingTierCard({ tier }: { tier: PricingTier }) {
         }`}
       >
         {tier.ctaLabel}
-      </Link>
+      </PricingCtaLink>
     </article>
   )
 }

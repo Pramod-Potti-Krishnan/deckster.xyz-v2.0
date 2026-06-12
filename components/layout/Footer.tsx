@@ -51,14 +51,18 @@ export function Footer({ compact = false }: FooterProps = {}) {
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="group mb-4 flex items-center gap-0.5">
               <img
-                src="/logo-icon.png"
+                src="/logo-icon-sm.png"
                 alt=""
                 aria-hidden
+                width={160}
+                height={160}
                 className="h-10 w-auto transition-transform group-hover:scale-105"
               />
               <img
-                src="/logo-wordmark.png"
+                src="/logo-wordmark-sm.png"
                 alt="Deckster"
+                width={384}
+                height={128}
                 className="h-8 w-auto transition-transform group-hover:scale-105"
               />
             </Link>

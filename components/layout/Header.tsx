@@ -6,6 +6,7 @@ import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { UserProfileMenu } from '@/components/user-profile-menu';
+import { trackCta } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
@@ -28,14 +29,19 @@ export function Header() {
           <div className="flex items-center">
             <Link href="/" className="group flex items-center gap-0.5">
               <img
-                src="/logo-icon.png"
+                src="/logo-icon-sm.png"
                 alt=""
                 aria-hidden
+                width={160}
+                height={160}
+                fetchPriority="high"
                 className="h-10 w-auto transition-transform group-hover:scale-105"
               />
               <img
-                src="/logo-wordmark.png"
+                src="/logo-wordmark-sm.png"
                 alt="Deckster"
+                width={384}
+                height={128}
                 className="h-8 w-auto transition-transform group-hover:scale-105"
               />
             </Link>
@@ -66,10 +72,14 @@ export function Header() {
             ) : (
               <>
                 <Button variant="ghost" asChild>
-                  <Link href="/auth/signin">Sign In</Link>
+                  <Link href="/auth/signin" onClick={() => trackCta('header_sign_in')}>
+                    Sign In
+                  </Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/pricing">Get Started</Link>
+                  <Link href="/pricing" onClick={() => trackCta('header_get_started')}>
+                    Get Started
+                  </Link>
                 </Button>
               </>
             )}
@@ -118,10 +128,14 @@ export function Header() {
                 ) : (
                   <>
                     <Button variant="ghost" asChild className="w-full">
-                      <Link href="/auth/signin">Sign In</Link>
+                      <Link href="/auth/signin" onClick={() => trackCta('header_sign_in')}>
+                        Sign In
+                      </Link>
                     </Button>
                     <Button asChild className="w-full">
-                      <Link href="/pricing">Get Started</Link>
+                      <Link href="/pricing" onClick={() => trackCta('header_get_started')}>
+                        Get Started
+                      </Link>
                     </Button>
                   </>
                 )}

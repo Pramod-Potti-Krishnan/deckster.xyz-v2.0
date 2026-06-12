@@ -49,6 +49,7 @@
     "@supabase/supabase-js": "^2.106.2",
     "@types/bcryptjs": "^3.0.0",
     "@types/jsonwebtoken": "^9.0.10",
+    "@vercel/analytics": "^2.0.1",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
