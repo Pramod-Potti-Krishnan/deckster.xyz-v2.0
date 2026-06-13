@@ -731,6 +731,18 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
               case 'presentation_url':
                 debugLog('🎯 Final presentation URL received:', message.payload.url);
+
+                // Extended-generation builds (Phase 4a) emit one ephemeral
+                // "Building slide N/M…" progress bubble per slide, then close the
+                // turn with presentation_url — NOT a strawman slide_update. Mirror
+                // the slide_update fade trigger here so those bubbles fade out
+                // instead of lingering. Guarded on length so it's a no-op in the
+                // standard path, where the strawman slide_update already drained
+                // the tracked ids.
+                if (prev.ephemeralMessageIds.length > 0) {
+                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                }
+
                 newState.finalPresentationUrl = message.payload.url;
                 newState.finalPresentationId = message.payload.presentation_id;
 
