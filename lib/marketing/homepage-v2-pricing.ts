@@ -65,8 +65,8 @@ export const PRICING_TIERS: ReadonlyArray<PricingTier> = [
     features: [
       "Everything in Starter, plus:",
       "Researcher: pull live data from the open web",
-      "Upload your files as source material (RAG over your corpus)",
-      "Analyst: insight extraction from your numbers",
+      "Upload your own files as source material",
+      "Analyst: finds the story in your numbers",
       "Higher monthly credit allowance",
     ],
     usageNote: "Suited to research-heavy and frequent presenters.",
@@ -96,7 +96,7 @@ export const PRICING_TIERS: ReadonlyArray<PricingTier> = [
 
 export const PRICING_COPY = {
   eyebrow: "Pricing",
-  title: "A team of agents, on tap.",
+  title: "Priced for how you actually present.",
   description:
     "Three tiers, top-ups anytime. No seats math, no surprise bills.",
   topUpHeadline: "Need more in a busy month?",

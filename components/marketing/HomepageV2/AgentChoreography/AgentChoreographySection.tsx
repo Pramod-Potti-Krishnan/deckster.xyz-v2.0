@@ -27,14 +27,14 @@ export function AgentChoreographySection() {
           tone="dark"
           eyebrow={CHOREO_COPY.eyebrow}
           title={
-            // Single line on desktop only — forcing nowrap below md
-            // overflows the viewport sideways on phones.
-            <span className="md:whitespace-nowrap">
-              Specialists, not a{" "}
-              <span className="bg-gradient-to-r from-[hsl(280,90%,75%)] via-[hsl(320,90%,75%)] to-[hsl(200,95%,75%)] bg-clip-text text-transparent">
-                one-size-fits-all model.
+            // Two-altitude like the hero: white claim + gradient payoff.
+            // Echoes the hero's YOU DESCRIBE / THEY BUILD cards.
+            <>
+              <span className="block">You bring the idea.</span>
+              <span className="block bg-gradient-to-r from-[hsl(280,90%,75%)] via-[hsl(320,90%,75%)] to-[hsl(200,95%,75%)] bg-clip-text text-transparent">
+                They bring the craft.
               </span>
-            </span>
+            </>
           }
           description={CHOREO_COPY.description}
         />

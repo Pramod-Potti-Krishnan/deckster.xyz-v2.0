@@ -24,15 +24,15 @@ export function FinalCTASection() {
       <div className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6 sm:py-14 lg:px-8">
         <div className="mx-auto w-full max-w-3xl text-center">
           <h2 className="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-5xl md:text-6xl">
-            Talk to the team.{" "}
+            Take the evening.{" "}
             <span className="block bg-gradient-to-r from-[hsl(280,90%,75%)] via-[hsl(320,90%,75%)] to-[hsl(200,95%,75%)] bg-clip-text text-transparent">
               Ship the deck.
             </span>
           </h2>
 
           <p className="mx-auto mt-5 max-w-2xl text-balance text-base leading-relaxed text-white/70 sm:text-lg">
-            No templates. No pixel-pushing. Just a sentence and a few
-            back-and-forths with a team of agents.
+            No templates. No pixel-pushing. Just a conversation with a team
+            of agents — and a deck at the end of it.
           </p>
 
           {/* The last thing a fence-sitter reads before the button should
