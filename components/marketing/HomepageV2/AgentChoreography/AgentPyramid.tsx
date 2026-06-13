@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
-import { ArrowUpRight, Check, GripVertical } from "lucide-react"
+import { ArrowUpRight, GripVertical } from "lucide-react"
 import {
   BarChart3,
   Compass,
@@ -99,11 +99,12 @@ export function AgentPyramid() {
 
   return (
     <>
-      {/* Knowledge-graph pyramid. Big row gaps so the connector overlay
-          has room to draw mesh edges that visibly cross between rows. */}
+      {/* Knowledge-graph pyramid. Row gaps give the connector overlay room
+          to draw mesh edges between rows while keeping the whole pyramid
+          inside one snap-slide. */}
       <div
         ref={pyramidRef}
-        className="relative mx-auto mt-6 flex max-w-6xl flex-col items-center gap-10 sm:mt-8 sm:gap-14"
+        className="relative mx-auto mt-6 flex max-w-6xl flex-col items-center gap-6 sm:mt-8 sm:gap-8"
       >
         <AgentConnectorOverlay containerRef={pyramidRef} cardRefs={cardRefs} />
         <PyramidRow ids={TOP_ROW} cardRefs={cardRefs} containerRef={pyramidRef} offsets={[0]} canDrag={canDrag} onDragStart={() => setHasDragged(true)} />
@@ -185,9 +186,7 @@ function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
   // to the wrapper's height, but drop the hover translate (it conflicts
   // with framer-motion's drag transform).
   const cardClass =
-    "group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur-md transition-colors hover:border-white/25 hover:bg-white/[0.07]"
-
-  const bullets = deep.capabilities.slice(0, 3)
+    "group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-3 backdrop-blur-md transition-colors hover:border-white/25 hover:bg-white/[0.07]"
 
   const inner = (
     <>
@@ -196,7 +195,7 @@ function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
         className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-25 blur-3xl transition-opacity group-hover:opacity-45"
         style={{ backgroundColor: agent.color }}
       />
-      <header className="relative mb-1.5 flex items-start justify-between gap-2">
+      <header className="relative flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <span
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
@@ -230,22 +229,6 @@ function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
           />
         ) : null}
       </header>
-
-      <ul className="relative mt-1 space-y-0.5">
-        {bullets.map((cap) => (
-          <li
-            key={cap}
-            className="flex items-center gap-1.5 text-[11px] leading-snug text-white/75"
-          >
-            <Check
-              className="h-3 w-3 shrink-0"
-              style={{ color: agent.color }}
-              aria-hidden
-            />
-            <span className="truncate">{cap}</span>
-          </li>
-        ))}
-      </ul>
     </>
   )
 
