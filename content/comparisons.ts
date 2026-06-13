@@ -76,8 +76,8 @@ export const comparisonPages: ComparisonPage[] = [
   {
     competitor: competitors[0],
     summary: {
-      headline: 'Multi-Agent AI vs. Template-Based Design',
-      subheadline: 'Why specialized AI agents create better presentations than smart templates',
+      headline: 'Start from your idea, not a template.',
+      subheadline: "Beautiful.ai's templates keep you on-brand. Deckster's agents write and design the slides themselves — so you start from what you want to say.",
       description: 'Beautiful.ai pioneered AI-powered design automation with smart templates. Deckster takes it further with four specialized AI agents that collaborate to create truly custom presentations, not just template variations.',
     },
     keyDifferentiators: [
@@ -206,8 +206,8 @@ export const comparisonPages: ComparisonPage[] = [
   {
     competitor: competitors[1],
     summary: {
-      headline: 'Specialized Agents vs. General AI',
-      subheadline: 'How multi-agent architecture creates superior presentations',
+      headline: 'For decks that go deeper than one prompt.',
+      subheadline: "Gamma's single general model is great for a fast first draft. Deckster routes your deck through specialists — research, analysis, design — for work you'll present, not just share.",
       description: 'Gamma uses a single AI model to generate presentations. Deckster employs four specialized agents - each an expert in their domain - collaborating to create higher-quality output.',
     },
     keyDifferentiators: [
@@ -343,8 +343,8 @@ export const comparisonPages: ComparisonPage[] = [
   {
     competitor: competitors[2],
     summary: {
-      headline: 'AI-Powered Creation vs. Collaborative Editing',
-      subheadline: 'Different philosophies: AI assistance vs. team collaboration',
+      headline: 'Built for you first. Collaborate after.',
+      subheadline: 'Pitch is built for teams editing together. Deckster builds the deck for you — then you refine it by asking.',
       description: 'Pitch is a collaborative presentation platform designed for teams working together. Deckster is an AI-first platform where agents do the heavy lifting of creation. Different tools for different workflows.',
     },
     keyDifferentiators: [
@@ -473,8 +473,8 @@ export const comparisonPages: ComparisonPage[] = [
   {
     competitor: competitors[3],
     summary: {
-      headline: 'AI-Native vs. Traditional',
-      subheadline: 'The new generation of presentation tools powered by AI',
+      headline: 'PowerPoint, without the hours.',
+      subheadline: 'Keep the PowerPoint export. Skip the blank slide, the formatting, the late night.',
       description: 'PowerPoint is the industry standard with decades of features. Deckster represents the next generation - built from the ground up for the AI era with specialized agents that transform how presentations are created.',
     },
     keyDifferentiators: [

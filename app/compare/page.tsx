@@ -146,8 +146,8 @@ export default function ComparePage() {
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-balance text-lg leading-relaxed text-muted-foreground sm:text-xl">
-              How our multi-agent AI system stacks up against the rest of the
-              presentation landscape.
+              An honest look at where Deckster wins, where the others do, and
+              which one fits how you work.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button
