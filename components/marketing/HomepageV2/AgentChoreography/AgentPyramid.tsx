@@ -103,7 +103,7 @@ export function AgentPyramid() {
           has room to draw mesh edges that visibly cross between rows. */}
       <div
         ref={pyramidRef}
-        className="relative mx-auto mt-6 flex max-w-6xl flex-col items-center gap-10 sm:mt-8 sm:gap-14"
+        className="relative mx-auto mt-6 flex max-w-6xl flex-col items-center gap-9 sm:mt-8 sm:gap-[50px]"
       >
         <AgentConnectorOverlay containerRef={pyramidRef} cardRefs={cardRefs} />
         <PyramidRow ids={TOP_ROW} cardRefs={cardRefs} containerRef={pyramidRef} offsets={[0]} canDrag={canDrag} onDragStart={() => setHasDragged(true)} />
