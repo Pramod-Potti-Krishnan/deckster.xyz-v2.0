@@ -1,12 +1,13 @@
 import { CHOREO_COPY } from "@/lib/marketing/homepage-v2-agent-deep"
 import { SectionHeader } from "../shared/SectionHeader"
-import { AgentPyramidLoader, LightningGridLazy } from "./AgentPyramidLoader"
+import { AgentConstellation } from "./AgentConstellation"
+import { LightningGridLazy } from "./LightningGridLazy"
 
 /**
- * "Meet the team" slide. The shell + header are server-rendered (copy stays
- * crawlable); the interactive pyramid and animated background load lazily
- * through AgentPyramidLoader — see AgentPyramid.tsx for the cards, drag
- * behaviour, and connector overlay.
+ * "Meet the team" slide. Fully server-rendered (copy stays crawlable, no
+ * hydration): a radial constellation of the eight agents — Director at the
+ * centre — that fills the slide's remaining height instead of overflowing.
+ * Only the decorative animated grid loads lazily on the client.
  */
 export function AgentChoreographySection() {
   return (
@@ -22,7 +23,7 @@ export function AgentChoreographySection() {
         <LightningGridLazy />
       </div>
 
-      <div className="container relative mx-auto w-full px-4 sm:px-6 lg:px-8">
+      <div className="container relative mx-auto flex w-full flex-1 flex-col px-4 sm:px-6 lg:px-8">
         <SectionHeader
           tone="dark"
           eyebrow={CHOREO_COPY.eyebrow}
@@ -39,7 +40,7 @@ export function AgentChoreographySection() {
           description={CHOREO_COPY.description}
         />
 
-        <AgentPyramidLoader />
+        <AgentConstellation />
       </div>
     </section>
   )
