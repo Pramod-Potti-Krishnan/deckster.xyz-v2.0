@@ -189,8 +189,8 @@ function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
 
   const bullets = deep.capabilities.slice(0, 3)
 
-  const inner = (
-    <>
+  return (
+    <article className={cardClass}>
       <div
         aria-hidden
         className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-25 blur-3xl transition-opacity group-hover:opacity-45"
@@ -223,11 +223,20 @@ function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
             </div>
           </div>
         </div>
+        {/* The ONLY navigation target — the rest of the card is drag-only,
+            so a drag is never mistaken for a click. stopPropagation on
+            pointer-down keeps a press on the arrow from starting a drag. */}
         {deep.detailHref ? (
-          <ArrowUpRight
-            className="h-3 w-3 shrink-0 text-white/35 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white"
-            aria-hidden
-          />
+          <Link
+            href={deep.detailHref}
+            aria-label={`Open ${agent.name} details`}
+            title={`Open ${agent.name} details`}
+            draggable={false}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="relative z-10 -mr-1 -mt-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-white/40 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          >
+            <ArrowUpRight className="h-4 w-4" aria-hidden />
+          </Link>
         ) : null}
       </header>
 
@@ -246,20 +255,6 @@ function AgentPodiumCard({ agent, deep }: AgentPodiumCardProps) {
           </li>
         ))}
       </ul>
-    </>
+    </article>
   )
-
-  if (deep.detailHref) {
-    return (
-      <Link
-        href={deep.detailHref}
-        className={cardClass}
-        draggable={false}
-        onDragStart={(e) => e.preventDefault()}
-      >
-        {inner}
-      </Link>
-    )
-  }
-  return <article className={cardClass}>{inner}</article>
 }
