@@ -99,8 +99,8 @@ export default function AgentsPage() {
 
           <div className="container mx-auto max-w-4xl text-center">
             <Badge className="mb-6 inline-flex items-center gap-1.5" variant="secondary">
-              <Brain className="h-3 w-3" />
-              Multi-Agent AI System
+              <Users className="h-3 w-3" />
+              The team behind your decks
             </Badge>
             <h1 className="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
               Meet your{' '}
@@ -109,8 +109,8 @@ export default function AgentsPage() {
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-balance text-lg leading-relaxed text-muted-foreground">
-              Eight specialized AI agents working together to research, design, and ship
-              presentations that actually land.
+              A presentation team on demand: they research the facts, write the
+              words, and design every slide — you just direct in plain English.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Button
