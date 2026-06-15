@@ -35,13 +35,13 @@ export default function ExamplesPage() {
           <div className="mx-auto w-full max-w-3xl text-center">
             <Badge variant="secondary" className="mb-4 inline-flex items-center gap-1">
               <Sparkles className="h-3 w-3" />
-              Powered by Multi-Agent AI
+              Built by eight AI agents
             </Badge>
             <h1 className="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
-              Example Presentations
+              See what you could make
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Explore real presentations created with deckster. See what's possible with our multi-agent AI system across different industries and use cases.
+              Real decks built with Deckster, across different industries and use cases. Talk to the Director in chat and your eight AI agents turn out a first draft in minutes.
             </p>
           </div>
         </section>
@@ -107,7 +107,7 @@ export default function ExamplesPage() {
           <div className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
             <div className="mx-auto w-full max-w-3xl py-12 px-6 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 rounded-lg text-center">
               <h2 className="text-2xl md:text-3xl font-bold mb-4">
-                Ready to Create Your Own?
+                Ready to create your own?
               </h2>
               <p className="text-lg text-muted-foreground mb-6 max-w-2xl mx-auto">
                 Start building professional presentations with AI in minutes. Choose from templates or create from scratch.
