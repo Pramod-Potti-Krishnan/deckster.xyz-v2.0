@@ -8,7 +8,7 @@ export const articles: Article[] = [
     content: `
 # How Multi-Agent AI Creates Better Presentations
 
-The future of presentation creation isn't just AI—it's **collaborative AI**. At deckster, we use a multi-agent system where four specialized AI agents work together, each bringing unique expertise to create your perfect presentation.
+The future of presentation creation isn't just AI—it's **collaborative AI**. At deckster, we use a multi-agent system where eight specialized AI agents work together, each bringing unique expertise to create your perfect presentation.
 
 ## The Evolution of AI in Presentations
 
@@ -239,8 +239,8 @@ Ready to create your pitch deck? Sign up for deckster and start building in minu
   },
   {
     id: 'understanding-ai-agents',
-    title: 'Understanding Your AI Team: Director, Scripter, Graphic Artist, Data Viz',
-    excerpt: 'A deep dive into each of deckster\'s four AI agents, their roles, capabilities, and how they collaborate to create perfect presentations.',
+    title: 'Understanding your AI team: the eight specialists behind your deck',
+    excerpt: 'How the Director coordinates seven specialists — research, analysis, writing, charts, themes, layout, and elements — to build your deck.',
     content: `
 # Understanding Your AI Team
 

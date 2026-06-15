@@ -1,30 +1,63 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, BookOpen, FileText, LifeBuoy, Sparkles, Wand2 } from 'lucide-react';
+import {
+  ArrowRight,
+  Download,
+  FileText,
+  LifeBuoy,
+  PenLine,
+  RefreshCw,
+  Sparkles,
+  Users,
+  Wand2,
+} from 'lucide-react';
 
 import { Header, Footer } from '@/components/layout';
 import { SnapDeck } from '@/components/marketing/SnapDeck/SnapDeck';
 import { SlideNavArrows } from '@/components/marketing/SnapDeck/SlideNavArrows';
-import { ArticleCard } from '@/components/marketing/Resources/ArticleCard';
 import { Badge } from '@/components/ui/badge';
-import { getAllArticles, getArticleCategories, getFeaturedArticles } from '@/lib/articles';
+import { getAllArticles, getArticleCategories } from '@/lib/articles';
 import { getFeaturedExamples } from '@/lib/examples';
 
 // Slides:
-//   1. Hero               — "Learn to Use Deckster" intro
+//   1. Hero               — "Ship your first deck" + get-going CTAs
 //   2. Featured examples  — 3 example teasers, link to /examples gallery
-//   3. Featured reads     — 3 hand-picked articles
-//   4. Browse by topic    — 3 category cards (with sample articles + counts)
+//   3. How it works       — the real 4-step builder flow
+//   4. Browse by topic    — category cards (with sample articles + counts)
 //   5. Docs + Help        — two big nav cards
 //   6. CTA + footer       — dark gradient "Start building" CTA
 
 const slideShellBase =
   'relative isolate flex min-h-[calc(100svh-3rem)] flex-col px-4 py-12 sm:px-6 lg:px-8';
 
+// The real builder flow — every step maps to a shipped capability (chat +
+// file upload → 8 agents/strawman → refine + research toggles → PPTX/PDF).
+const HOW_IT_WORKS = [
+  {
+    icon: PenLine,
+    title: 'Describe it',
+    body: 'Tell the Director what you want in plain English. Add as much detail as you like, and attach your own files as source material.',
+  },
+  {
+    icon: Users,
+    title: 'The team builds',
+    body: 'Eight specialists research the facts, write the words, design the charts, and apply your theme — you get a full first draft in minutes.',
+  },
+  {
+    icon: RefreshCw,
+    title: 'Refine by asking',
+    body: 'Change anything in chat: reshape a slide, swap a chart, fix a number. Flip on Deep Research or Web search for live data.',
+  },
+  {
+    icon: Download,
+    title: 'Export',
+    body: 'Download to PowerPoint or PDF — no watermark.',
+  },
+] as const;
+
 export default function LearnPage() {
   const allArticles = getAllArticles();
-  const featuredArticles = getFeaturedArticles().slice(0, 3);
   const articleCategories = getArticleCategories();
   const featuredExamples = getFeaturedExamples().slice(0, 3);
 
@@ -46,31 +79,32 @@ export default function LearnPage() {
               className="mb-6 inline-flex items-center gap-1.5 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200"
             >
               <Sparkles className="h-3 w-3" />
-              The Learn hub
+              Getting started
             </Badge>
             <h1 className="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight text-foreground sm:text-5xl md:text-6xl">
-              Learn to use{' '}
+              Ship your first deck{' '}
               <span className="bg-gradient-to-r from-purple-600 via-pink-500 to-blue-600 bg-clip-text text-transparent">
-                Deckster
+                today.
               </span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg md:text-xl">
-              Examples, articles, guides — everything you need to get shipping decks fast with a
-              team of specialist AI agents.
+              Tell the Director what you want, and a team of eight agents researches, writes, and
+              designs it — then you refine by asking and export to PowerPoint or PDF. Here&apos;s how
+              to get going.
             </p>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
               <Link
-                href="#learn-examples"
+                href="/builder"
                 className="inline-flex h-11 items-center gap-2 rounded-md bg-gradient-to-r from-purple-600 to-blue-600 px-6 text-sm font-medium text-white transition-all hover:from-purple-700 hover:to-blue-700"
               >
-                Browse examples
+                Start building
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="#learn-articles"
+                href="#learn-how"
                 className="inline-flex h-11 items-center gap-2 rounded-md border border-input bg-background px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
               >
-                Read articles
+                See how it works
               </Link>
             </div>
           </div>
@@ -148,46 +182,58 @@ export default function LearnPage() {
           </div>
         </section>
 
-        {/* ────────────────────── Slide 3 — Featured Reads ────────────────────── */}
+        {/* ────────────────────── Slide 3 — How it works ────────────────────── */}
         <section
-          id="learn-articles"
+          id="learn-how"
           data-snap="slide"
           className={`${slideShellBase} justify-center`}
         >
           <div className="mx-auto w-full max-w-6xl">
-            <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-blue-600 dark:text-blue-300">
-                  <BookOpen className="h-4 w-4" />
-                  Featured reads
-                </div>
-                <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
-                  Hand-picked starting points
-                </h2>
-                <p className="mt-2 max-w-2xl text-muted-foreground">
-                  A few deep dives on getting the most out of Deckster&apos;s multi-agent system.
-                </p>
+            <div className="mb-10 text-center">
+              <div className="mb-2 flex items-center justify-center gap-2 text-sm font-medium uppercase tracking-wide text-blue-600 dark:text-blue-300">
+                <Wand2 className="h-4 w-4" />
+                How it works
               </div>
+              <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                From a sentence to a finished deck
+              </h2>
+              <p className="mx-auto mt-3 max-w-2xl text-balance text-muted-foreground">
+                Four steps, all in one chat — no templates, no pixel-pushing.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {HOW_IT_WORKS.map((step, i) => {
+                const Icon = step.icon;
+                return (
+                  <div
+                    key={step.title}
+                    className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-6 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-600/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Step {i + 1}
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-semibold tracking-tight">{step.title}</h3>
+                    <p className="text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-10 text-center">
               <Link
-                href="#learn-topics"
-                className="inline-flex items-center gap-2 self-start rounded-md border border-input bg-background px-5 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                href="/builder"
+                className="inline-flex h-11 items-center gap-2 rounded-md bg-gradient-to-r from-purple-600 to-blue-600 px-6 text-sm font-medium text-white transition-all hover:from-purple-700 hover:to-blue-700"
               >
-                Browse by topic
+                Start building
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
-
-            {featuredArticles.length > 0 ? (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {featuredArticles.map((article) => (
-                  <ArticleCard key={article.id} article={article} />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
-                New articles coming soon.
-              </div>
-            )}
           </div>
         </section>
 
