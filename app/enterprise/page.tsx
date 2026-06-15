@@ -59,7 +59,7 @@ export default function EnterprisePage() {
               Enterprise Ready
             </Badge>
             <h1 className="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
-              Enterprise-Grade AI Presentation Platform
+              Roll out AI presentations across your org
             </h1>
             <p className="mx-auto mt-6 max-w-3xl text-balance text-lg leading-relaxed text-muted-foreground sm:text-xl">
               Secure, scalable, and collaborative. Empower your entire organization with the next generation of presentation tools.
