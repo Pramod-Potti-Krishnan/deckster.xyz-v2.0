@@ -30,10 +30,10 @@ export default function CareersPage() {
                             We&apos;re Hiring
                         </Badge>
                         <h1 className="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
-                            Join Our Mission
+                            Help people build better decks
                         </h1>
                         <p className="mx-auto mt-5 max-w-2xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-                            We&apos;re building the future of presentation design. Come help us democratize creativity with AI.
+                            Deckster turns a conversation into a finished presentation. If that excites you, we&apos;d love to hear from you.
                         </p>
                     </div>
                 </section>
