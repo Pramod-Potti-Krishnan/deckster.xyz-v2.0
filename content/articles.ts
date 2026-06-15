@@ -8,7 +8,7 @@ export const articles: Article[] = [
     content: `
 # How Multi-Agent AI Creates Better Presentations
 
-The future of presentation creation isn't just AI—it's **collaborative AI**. At deckster, we use a multi-agent system where eight specialized AI agents work together, each bringing unique expertise to create your perfect presentation.
+The future of presentation creation isn't just AI—it's **collaborative AI**. At Deckster, we use a multi-agent system where eight specialized AI agents work together, each bringing unique expertise to create your perfect presentation.
 
 ## The Evolution of AI in Presentations
 
@@ -19,16 +19,28 @@ Multi-agent AI solves this by dividing responsibilities among specialists, just 
 ## Meet the Agents
 
 ### Director: The Orchestrator
-The Director analyzes your goals, understands your audience, and creates the perfect presentation structure. It decides which other agents to involve and coordinates their work.
+The Director reads your brief, plans the deck, picks the right specialists, and keeps everything coherent. It's who you talk to in chat.
 
-### Scripter: The Wordsmith
-The Scripter crafts compelling narratives and persuasive copy. It writes slide content that resonates with your audience and creates engaging speaker notes.
+### Researcher: The Investigator
+The Researcher pulls facts from your uploaded files and the open web, and cites where each number came from.
 
-### Graphic Artist: The Designer
-The Graphic Artist handles visual design, selects color schemes, and ensures your presentation looks professional and visually appealing.
+### Analyst: The Insight Finder
+The Analyst reads your numbers and writes the takeaway, spotting trends, gaps, and outliers.
 
-### Data Visualizer: The Analyst
-The Data Visualizer transforms numbers into insights with beautiful charts and graphs that make complex information easy to understand.
+### Content Generator: The Storyteller
+The Content Generator writes the words — headlines, body copy, and speaker notes — tuned to your audience.
+
+### Visualizer: The Designer
+The Visualizer turns ideas and data into the right picture: charts, diagrams, and infographics.
+
+### Theme Builder: The Stylist
+The Theme Builder creates a custom theme and applies your palette and type across every slide.
+
+### Slide Composer: The Conductor
+The Slide Composer owns each slide's pacing and balance — the focal point, and what to cut when it gets crowded.
+
+### Element Generator: The Builder
+The Element Generator assembles the atomic pieces of every slide: text, metrics, tables, icons, and shapes.
 
 ## Why Multi-Agent Beats Single-AI
 
@@ -42,11 +54,11 @@ The Data Visualizer transforms numbers into insights with beautiful charts and g
 
 ## The Results
 
-Users report 75% time savings compared to manual creation, with quality that matches or exceeds what they could create themselves. The multi-agent approach means better structure, more compelling content, professional design, and clearer data visualization—all in minutes.
+The multi-agent approach means better structure, more compelling content, professional design, and clearer data visualization—and a finished deck in minutes instead of hours.
 
 ## Try It Yourself
 
-Ready to experience the power of multi-agent AI? Start creating your first presentation with deckster today.
+Ready to experience the power of multi-agent AI? Start creating your first presentation with Deckster today.
     `,
     category: 'ai-insights',
     author: {
@@ -191,7 +203,7 @@ Quickly review each slide. Make any necessary edits by clicking directly on text
 
 **Include Numbers**: Metrics help AI create better charts and validate your traction.
 
-**Mention Your Team**: The Scripter will highlight relevant experience that builds credibility.
+**Mention Your Team**: The Content Generator will highlight relevant experience that builds credibility.
 
 ## Common Mistakes to Avoid
 
@@ -244,90 +256,49 @@ Ready to create your pitch deck? Sign up for deckster and start building in minu
     content: `
 # Understanding Your AI Team
 
-When you create a presentation with deckster, you're not working with one AI—you're collaborating with a team of four specialized agents. Here's everything you need to know about each one.
+When you build a deck with Deckster, you're not working with one AI—you're directing a team of eight specialists. You talk to one of them, the Director, in plain English, and it coordinates the rest. Here's who's on the team and what each one does.
 
-## The Director: Orchestration Master
+## Director — the orchestrator
+**Plans and coordinates.** Reads your brief, plans the deck slide by slide, decides which specialists to involve, and keeps everything coherent. The Director is the one you talk to — every request goes through it.
+**Ask for**: "Make this more persuasive" → it restructures the deck to build a stronger argument.
 
-**Role**: Strategic planning and coordination
+## Researcher — the investigator
+**Finds the facts.** Pulls information from the files you upload and the open web, and cites where each number came from. Turn on Deep Research or Web search in chat when you need live data.
+**Ask for**: "Find recent market-size numbers for this space" → it gathers figures with sources.
 
-**What it does**:
-- Analyzes your presentation goals
-- Determines the best structure
-- Decides which agents to involve
-- Coordinates the entire process
+## Analyst — the insight finder
+**Reads the numbers.** Spots trends, gaps, and outliers, and writes the takeaway so each chart says something.
+**Ask for**: "What's the story in this revenue table?" → it drafts the headline insight.
 
-**When it helps**:
-- Setting up presentation flow
-- Determining slide order
-- Planning content strategy
-- Ensuring coherence
+## Content Generator — the storyteller
+**Writes the words.** Headlines, body copy, and speaker notes, tuned to your audience and the moment in the narrative.
+**Ask for**: "Make the intro punchier" → it rewrites the opening with a hook.
 
-**Example**: "Director, I need this presentation to be more persuasive" → Restructures slides to build a stronger argument
+## Visualizer — the designer
+**Builds the visuals.** Turns ideas and data into the right picture — picking the chart type, building the diagram, or generating an infographic.
+**Ask for**: "Show this as a trend line" → it builds the chart from your data.
 
-## The Scripter: Content Expert
+## Theme Builder — the stylist
+**Owns the look.** Creates a custom theme — palette, typography, surfaces — and applies it consistently across every slide.
+**Ask for**: "Match our brand colors" → it generates a theme and rolls it out across the deck.
 
-**Role**: Writing and copywriting
+## Slide Composer — the conductor
+**Balances each slide.** Decides the focal point, the white space, and what to cut when a slide gets crowded.
+**Ask for**: "Slide 4 feels busy" → it re-balances the layout and trims the crowding.
 
-**What it does**:
-- Crafts compelling narratives
-- Writes slide content
-- Creates speaker notes
-- Adapts tone for audience
-
-**When it helps**:
-- Writing slide text
-- Creating speaker notes
-- Refining messaging
-- Improving clarity
-
-**Example**: "Scripter, make the intro more engaging" → Rewrites opening with a hook
-
-## The Graphic Artist: Design Specialist
-
-**Role**: Visual design and layout
-
-**What it does**:
-- Designs slide layouts
-- Selects color schemes
-- Arranges visual elements
-- Ensures consistency
-
-**When it helps**:
-- Layout design
-- Color selection
-- Visual hierarchy
-- Brand alignment
-
-**Example**: "Graphic Artist, make this slide more visual" → Redesigns with better imagery
-
-## The Data Visualizer: Analytics Pro
-
-**Role**: Data visualization and charts
-
-**What it does**:
-- Creates charts and graphs
-- Visualizes data insights
-- Selects best chart types
-- Makes numbers clear
-
-**When it helps**:
-- Creating charts
-- Visualizing metrics
-- Presenting data
-- Comparing numbers
-
-**Example**: "Data Visualizer, show this as a trend line" → Creates line chart from data
+## Element Generator — the builder
+**Assembles the pieces.** Builds the individual elements every slide is made of — text boxes, metrics, tables, icons, and shapes — sized and placed cleanly.
+**Ask for**: "Add a metrics row here" → it builds and positions the element.
 
 ## How They Collaborate
 
-The magic happens when agents work together:
+The magic happens when the agents work together:
 
-1. **Director** analyzes your request
-2. **Scripter** drafts content
-3. **Graphic Artist** designs layout
-4. **Data Visualizer** creates charts
-5. Agents review each other's work
-6. Final presentation emerges
+1. The **Director** reads your request and plans the work
+2. The **Researcher** and **Analyst** gather the facts and the insight
+3. The **Content Generator** writes; the **Visualizer** designs the charts and diagrams
+4. The **Slide Composer** balances each slide, the **Theme Builder** keeps it on brand, and the **Element Generator** assembles the pieces
+5. The **Director** reviews for coherence, and your deck comes together
 
 ## Chain of Thought
 
@@ -341,13 +312,13 @@ This transparency builds trust and helps you understand the process.
 
 ## Tips for Working with Agents
 
-**Be specific**: "Scripter, make slide 3 more concise" works better than "improve this"
+**Talk to the Director in plain English**: You don't address agents by name — just describe what you want and the Director routes it to the right specialist
 
-**Use agent names**: Direct requests to specific agents for faster results
+**Be specific**: "Make slide 3 more concise" works better than "improve this"
 
-**Iterate**: Agents learn from your feedback and improve with each revision
+**Iterate**: Refine by asking — each round builds on your feedback
 
-**Combine requests**: "Director, restructure. Scripter, simplify language" works great
+**Bring your own material**: Upload files as source material and the Researcher will use them
 
 ## Getting the Most from Your Team
 
@@ -359,7 +330,7 @@ The agents are most effective when you:
 
 ## Try It Now
 
-Ready to work with your AI team? Start creating with deckster today.
+Ready to work with your AI team? Start creating with Deckster today.
     `,
     category: 'ai-insights',
     author: {
@@ -369,7 +340,7 @@ Ready to work with your AI team? Start creating with deckster today.
     publishedAt: '2025-01-12',
     readTime: 10,
     featured: true,
-    tags: ['ai-agents', 'director', 'scripter', 'graphic-artist', 'data-visualizer'],
+    tags: ['ai-agents', 'director', 'multi-agent', 'how-it-works'],
     coverImage: '/blog/ai-agents-explained.jpg',
   },
   {
@@ -546,10 +517,10 @@ When creating presentations, you see:
 "Director analyzing goals... determining best structure for sales pitch..."
 
 ### 2. Decision Explanations
-"Scripter choosing persuasive language because target audience is executives..."
+"Content Generator choosing persuasive language because target audience is executives..."
 
 ### 3. Collaboration Visibility
-"Graphic Artist coordinating with Data Visualizer for chart placement..."
+"Slide Composer coordinating with the Visualizer for chart placement..."
 
 ## Why Transparency Matters
 
@@ -588,9 +559,9 @@ You can intervene at any step if you disagree with the direction.
 **Chain-of-Thought**:
 1. "Director: Analyzing quarterly review requirements..."
 2. "Director: Structure should include: metrics, highlights, challenges, next quarter..."
-3. "Scripter: Drafting executive summary with key metrics..."
-4. "Data Visualizer: Creating Q-over-Q comparison charts..."
-5. "Graphic Artist: Designing data-focused layout..."
+3. "Content Generator: Drafting executive summary with key metrics..."
+4. "Visualizer: Creating Q-over-Q comparison charts..."
+5. "Slide Composer: Designing data-focused layout..."
 
 ## Benefits for Users
 
