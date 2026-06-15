@@ -37,10 +37,10 @@ export default function DocsPage() {
               Documentation
             </Badge>
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
-              deckster Documentation
+              Get the most out of Deckster
             </h1>
             <p className="text-lg text-muted-foreground mb-8">
-              Everything you need to know to create amazing AI-powered presentations
+              Guides and answers for turning your ideas into finished slides
             </p>
 
             {/* Search */}
@@ -77,8 +77,8 @@ export default function DocsPage() {
             </Card>
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-2xl font-bold">4</CardTitle>
-                <CardDescription>AI Agents to Learn</CardDescription>
+                <CardTitle className="text-2xl font-bold">8</CardTitle>
+                <CardDescription>AI agents to learn</CardDescription>
               </CardHeader>
             </Card>
           </div>
