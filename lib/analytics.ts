@@ -9,6 +9,7 @@ import { track } from "@vercel/analytics"
  * harmlessly while pageviews still record.
  */
 export type CtaLocation =
+  | "header_build_deck"
   | "header_get_started"
   | "header_sign_in"
   | "hero_primary"

@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Menu, X } from 'lucide-react';
+import { Home, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { UserProfileMenu } from '@/components/user-profile-menu';
@@ -11,7 +12,6 @@ import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
   { name: 'Meet the Team', href: '/agents' },
-  { name: 'How We Compare', href: '/compare' },
   { name: 'Learn to Use', href: '/learn' },
   { name: 'Start Your Journey', href: '/pricing' },
 ] as const;
@@ -20,6 +20,15 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: session, status } = useSession();
   const isLoading = status === 'loading';
+  // Show an explicit "Home" link on every page except home itself (the logo
+  // also links home, but a labelled link is a clearer way back from the
+  // info/support pages).
+  const pathname = usePathname();
+  const isHome = pathname === '/';
+
+  // "Build a Deck" is the primary action: signed-in users jump straight into
+  // the builder; signed-out users go through pricing/sign-up first.
+  const buildHref = session ? '/builder' : '/pricing';
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background">
@@ -47,8 +56,20 @@ export function Header() {
             </Link>
           </div>
 
-          {/* Desktop Navigation — 4 flat invitation phrases, no dropdowns */}
+          {/* Desktop Navigation — flat invitation phrases, no dropdowns */}
           <div className="hidden md:flex md:items-center md:space-x-1">
+            {!isHome && (
+              <Link
+                href="/"
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors',
+                  'hover:bg-accent hover:text-foreground',
+                )}
+              >
+                <Home className="h-4 w-4" />
+                Home
+              </Link>
+            )}
             {NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
@@ -68,7 +89,14 @@ export function Header() {
             {isLoading ? (
               <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
             ) : session ? (
-              <UserProfileMenu />
+              <>
+                <Button asChild className="font-semibold shadow-sm">
+                  <Link href={buildHref} onClick={() => trackCta('header_build_deck')}>
+                    Build a Deck
+                  </Link>
+                </Button>
+                <UserProfileMenu />
+              </>
             ) : (
               <>
                 <Button variant="ghost" asChild>
@@ -76,9 +104,9 @@ export function Header() {
                     Sign In
                   </Link>
                 </Button>
-                <Button asChild>
-                  <Link href="/pricing" onClick={() => trackCta('header_get_started')}>
-                    Get Started
+                <Button asChild className="font-semibold shadow-sm">
+                  <Link href={buildHref} onClick={() => trackCta('header_build_deck')}>
+                    Build a Deck
                   </Link>
                 </Button>
               </>
@@ -102,10 +130,20 @@ export function Header() {
           </div>
         </div>
 
-        {/* Mobile menu — 4 flat links mirroring desktop */}
+        {/* Mobile menu — flat links mirroring desktop */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t">
             <div className="space-y-1 px-2 pb-3 pt-2">
+              {!isHome && (
+                <Link
+                  href="/"
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-base font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Home className="h-4 w-4" />
+                  Home
+                </Link>
+              )}
               {NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
@@ -122,9 +160,22 @@ export function Header() {
                 {isLoading ? (
                   <div className="h-10 animate-pulse rounded-md bg-muted" />
                 ) : session ? (
-                  <div className="py-2">
-                    <UserProfileMenu />
-                  </div>
+                  <>
+                    <Button asChild className="w-full font-semibold">
+                      <Link
+                        href={buildHref}
+                        onClick={() => {
+                          trackCta('header_build_deck');
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        Build a Deck
+                      </Link>
+                    </Button>
+                    <div className="py-2">
+                      <UserProfileMenu />
+                    </div>
+                  </>
                 ) : (
                   <>
                     <Button variant="ghost" asChild className="w-full">
@@ -132,9 +183,15 @@ export function Header() {
                         Sign In
                       </Link>
                     </Button>
-                    <Button asChild className="w-full">
-                      <Link href="/pricing" onClick={() => trackCta('header_get_started')}>
-                        Get Started
+                    <Button asChild className="w-full font-semibold">
+                      <Link
+                        href={buildHref}
+                        onClick={() => {
+                          trackCta('header_build_deck');
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        Build a Deck
                       </Link>
                     </Button>
                   </>
