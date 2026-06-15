@@ -36,10 +36,11 @@ export default function AboutPage() {
               Our Story
             </Badge>
             <h1 className="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
-              Building the Future of Presentations
+              We&apos;re retiring the blank slide.
             </h1>
             <p className="mx-auto mt-6 max-w-3xl text-balance text-lg leading-relaxed text-muted-foreground sm:text-xl">
-              We believe presentations should be created by intelligent collaboration, not manual labor.
+              Deckster started from a simple conviction: a deck should come from a conversation — not a
+              blank slide and a lost afternoon.
             </p>
 
             <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -189,9 +190,9 @@ export default function AboutPage() {
               </p>
 
               <p>
-                After months of development, Deckster was born. Our multi-agent system combines the Director&apos;s
-                strategic vision, the Scripter&apos;s storytelling prowess, the Graphic Artist&apos;s design expertise, and the Data
-                Visualizer&apos;s analytical clarity&mdash;all transparent through Chain-of-Thought reasoning.
+                After months of development, Deckster was born. Today it runs as eight specialists&mdash;a
+                Director orchestrating a Researcher, Analyst, Content Generator, Visualizer, Theme Builder,
+                Slide Composer, and Element Generator&mdash;all transparent through chain-of-thought reasoning.
               </p>
             </div>
           </div>
