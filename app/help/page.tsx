@@ -64,7 +64,7 @@ export default function HelpPage() {
     {
       category: "Getting Started",
       question: "What are AI agents and how do they work?",
-      answer: "Our AI agents are specialized assistants: The Director orchestrates the process, The Scripter writes content, The Graphic Artist handles visuals, and The Data Visualizer creates charts. They work together to build your presentations."
+      answer: "Deckster runs as eight specialists: the Director orchestrates, while the Researcher, Analyst, Content Generator, Visualizer, Theme Builder, Slide Composer, and Element Generator each own one part of the deck. They work together to build your presentation."
     },
     {
       category: "Features",
@@ -74,17 +74,17 @@ export default function HelpPage() {
     {
       category: "Features",
       question: "How do I add attachments or data files?",
-      answer: "Use the attachment panel in the builder interface. You can drag and drop files or click to browse. Supported formats include documents, images, videos, and data files (CSV, Excel)."
+      answer: "Use the attach button in the chat. Drag and drop or click to browse — documents, images, and spreadsheets (CSV, Excel) become source material the Researcher can pull from."
     },
     {
       category: "Billing",
-      question: "What's included in the Free plan?",
-      answer: "The Free plan includes 3 presentations, access to 2 AI agents, and basic features. Perfect for trying out the platform!"
+      question: "How do plans and credits work?",
+      answer: "Every plan includes a monthly pool of credits the agents draw on as they build. Starter is $20/user/mo; Pro and Max add more capability and credits. Top up anytime in a busy month."
     },
     {
       category: "Billing",
       question: "How do I upgrade my subscription?",
-      answer: "Go to your Profile > Billing & Subscription, or click 'Upgrade' in the dashboard. Choose between Pro ($29/month) or Enterprise ($99/month) plans."
+      answer: "Go to your Profile > Billing & Subscription, or see the pricing page. Choose Starter ($20), Pro ($50), or Max ($100) per user / month."
     },
     {
       category: "Troubleshooting",
@@ -99,72 +99,72 @@ export default function HelpPage() {
     {
       category: "Getting Started",
       question: "Do I need to install any software?",
-      answer: "No! deckster is entirely web-based. Just sign in through your browser and you're ready to go. Works on Chrome, Firefox, Safari, and Edge."
+      answer: "No! Deckster is entirely web-based. Just sign in through your browser and you're ready to go. Works on Chrome, Firefox, Safari, and Edge."
     },
     {
       category: "Getting Started",
       question: "Can I use templates instead of starting from scratch?",
-      answer: "Absolutely! Visit the Templates page to browse 15+ professional templates across different categories. Click 'Use Template' to start with a pre-built structure."
+      answer: "Absolutely! Visit the Templates page to browse professional starting points, then let the agents shape one into your deck."
     },
     {
       category: "Features",
       question: "How many slides can I create in one presentation?",
-      answer: "There's no hard limit on slide count. The Free plan supports up to 3 presentations, while Pro and Enterprise plans offer unlimited presentations with unlimited slides."
+      answer: "There's no fixed cap on slides. Usage runs on monthly credits that scale with your plan (Starter, Pro, Max), and you can top up anytime."
     },
     {
       category: "Features",
-      question: "Can I collaborate with my team on presentations?",
-      answer: "Team collaboration is available on Pro and Enterprise plans. Share presentations with team members, work together in real-time, and leave comments for feedback."
+      question: "Can I share a presentation with someone?",
+      answer: "Yes — export to PowerPoint or PDF and send the file to anyone. (Live multi-user editing isn't available yet.)"
     },
     {
       category: "AI Agents",
       question: "How do I know which agents are working on my presentation?",
-      answer: "The Chain of Thought panel shows you exactly which agents are active and what they're working on. You'll see real-time updates as the Director, Scripter, Graphic Artist, and Data Visualizer collaborate."
+      answer: "As the team works, the builder streams what it's doing — so you can watch the agents research, write, and design your deck in real time."
     },
     {
       category: "AI Agents",
-      question: "Can I request a specific agent to revise content?",
-      answer: "Yes! In the chat interface, you can ask for specific changes like 'Scripter, make the intro more engaging' or 'Data Visualizer, create a bar chart for this data.'"
+      question: "Can I ask for a specific change?",
+      answer: "Yes — just say it in chat: 'make the intro more engaging' or 'turn this into a bar chart.' The Director routes your request to the right specialist."
     },
     {
       category: "AI Agents",
-      question: "What's the difference between Pro and Free AI capabilities?",
-      answer: "Free plan includes Director and Scripter agents with basic capabilities. Pro adds the Graphic Artist and Data Visualizer, plus advanced features like web research and DALL-E image generation."
+      question: "What do the higher tiers add?",
+      answer: "Starter covers the full creation engine. Pro adds the Researcher (live web + your uploaded files) and the Analyst. Max adds the Knowledge Graph, which learns your domain across decks."
     },
     {
       category: "Exporting & Sharing",
       question: "What export formats are available?",
-      answer: "You can export to PowerPoint (.pptx), PDF, Google Slides, PNG/JPEG images, and shareable web links. All formats preserve your presentation's design and formatting."
+      answer: "You can export to PowerPoint (.pptx) and PDF — both with no watermark, preserving your presentation's design and theme."
     },
     {
       category: "Exporting & Sharing",
       question: "Can I download my presentations for offline use?",
-      answer: "Yes! Export to PowerPoint or PDF for offline presentations. Web link exports require an internet connection to view."
+      answer: "Yes — export to PowerPoint or PDF and the file is yours to present offline, anywhere."
     },
     {
       category: "Exporting & Sharing",
-      question: "How do I share a presentation with someone who doesn't have deckster?",
-      answer: "Generate a shareable web link that anyone can view in their browser, or export to PDF/PowerPoint and send the file via email or file sharing services."
+      question: "How do I share a presentation with someone who doesn't have Deckster?",
+      answer: "Export to PDF or PowerPoint and send the file by email or any file-sharing service — no Deckster account needed to view it."
     },
     {
       category: "Billing",
-      question: "Is there a free trial for Pro or Enterprise?",
-      answer: "Yes! Pro plans include a 14-day free trial with full access to all features. Enterprise plans include a trial period customized to your needs. Contact sales for details."
+      question: "How do I get started?",
+      answer: "Pick a plan on the pricing page and open the builder — your monthly credits start right away. See the pricing page for current details."
     },
     {
       category: "Billing",
       question: "What happens if I downgrade my plan?",
-      answer: "Your existing presentations are preserved, but you'll lose access to premium features. For example, downgrading from Pro to Free limits you to 3 presentations and basic AI agents."
+      answer: "Your existing presentations are preserved. Moving to a lower tier keeps your work but drops that tier's extras — for example, the Researcher and Analyst are on Pro and up."
     },
     {
       category: "Billing",
-      question: "Do you offer refunds?",
-      answer: "Yes! We offer a 14-day money-back guarantee for all paid plans. If you're not satisfied, contact support for a full refund within 14 days of purchase."
+      question: "How is billing handled?",
+      answer: "Plans are billed per user, per month, with top-up credits available anytime. For any billing question, contact support and we'll help."
     },
     {
       category: "Troubleshooting",
       question: "The AI agents aren't responding. What should I check?",
-      answer: "Ensure you have an active internet connection and haven't reached your plan's usage limits. Try refreshing the page. If issues persist, check our status page or contact support."
+      answer: "Ensure you have an active internet connection and haven't reached your plan's usage limits. Try refreshing the page. If issues persist, contact support."
     },
     {
       category: "Troubleshooting",
@@ -475,7 +475,7 @@ export default function HelpPage() {
                 {showSuccess && (
                   <Alert className="mb-6 border-green-200 bg-green-50">
                     <AlertDescription className="text-green-800">
-                      Your message has been sent! We'll get back to you within 24 hours.
+                      Your message has been sent! We'll get back to you as soon as we can.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -520,14 +520,7 @@ export default function HelpPage() {
                       {isSubmitting ? "Sending..." : "Send Message"}
                     </Button>
                     <p className="text-sm text-muted-foreground">
-                      {user?.tier === "enterprise" ? (
-                        <span className="flex items-center gap-1">
-                          <Shield className="h-4 w-4" />
-                          Priority support response within 4 hours
-                        </span>
-                      ) : (
-                        "We typically respond within 24 hours"
-                      )}
+                      We&apos;ll reply by email as soon as we can.
                     </p>
                   </div>
                 </form>
