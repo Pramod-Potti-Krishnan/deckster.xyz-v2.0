@@ -28,10 +28,10 @@ export default function IntegrationsPage() {
       <Header />
 
       <PageHeader
-        title="Integrations & Export Options"
-        subtitle="Connect deckster with your favorite tools and export in multiple formats. Seamlessly integrate into your existing workflow."
+        title="Take your deck wherever you work"
+        subtitle="Export to PowerPoint or PDF with no watermark, then connect Deckster to the tools your team already lives in."
         badge={{
-          text: "Integrations & Exports",
+          text: "Export & integrations",
           icon: <Plug2 className="h-3 w-3" />
         }}
       />
