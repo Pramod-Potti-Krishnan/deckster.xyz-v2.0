@@ -219,10 +219,10 @@ export default function HelpPage() {
 
       {/* Main Content */}
       <PageHeader
-        title="Help & Support"
-        subtitle="Get help with Deckster and learn how to make the most of our platform"
+        title="Stuck? Let's get you unblocked"
+        subtitle="Answers, quick-start steps, and a direct line to support — so you can get back to building your deck."
         badge={{
-          text: "Support Center",
+          text: "We're here to help",
           icon: <Shield className="h-3 w-3" />
         }}
       />
@@ -401,16 +401,32 @@ export default function HelpPage() {
                       <p className="text-sm">Orchestrates the presentation creation process and coordinates other agents</p>
                     </div>
                     <div className="flex items-start gap-3">
-                      <Badge className="bg-blue-100 text-blue-700">Scripter</Badge>
-                      <p className="text-sm">Writes compelling content and ensures consistent messaging</p>
+                      <Badge className="bg-blue-100 text-blue-700">Researcher</Badge>
+                      <p className="text-sm">Pulls facts from your files and the open web, with citations</p>
                     </div>
                     <div className="flex items-start gap-3">
-                      <Badge className="bg-green-100 text-green-700">Graphic Artist</Badge>
-                      <p className="text-sm">Designs layouts and visual elements for your slides</p>
+                      <Badge className="bg-green-100 text-green-700">Analyst</Badge>
+                      <p className="text-sm">Turns your numbers into insight</p>
                     </div>
                     <div className="flex items-start gap-3">
-                      <Badge className="bg-orange-100 text-orange-700">Data Visualizer</Badge>
-                      <p className="text-sm">Creates charts and data visualizations from your data</p>
+                      <Badge className="bg-orange-100 text-orange-700">Content Generator</Badge>
+                      <p className="text-sm">Writes your headlines, body copy, and speaker notes</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Badge className="bg-pink-100 text-pink-700">Visualizer</Badge>
+                      <p className="text-sm">Builds charts, diagrams, and infographics</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Badge className="bg-teal-100 text-teal-700">Theme Builder</Badge>
+                      <p className="text-sm">Creates custom themes so every slide stays on brand</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Badge className="bg-indigo-100 text-indigo-700">Slide Composer</Badge>
+                      <p className="text-sm">Handles layout and balance across each slide</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Badge className="bg-amber-100 text-amber-700">Element Generator</Badge>
+                      <p className="text-sm">Produces individual elements — text, metrics, tables, and more</p>
                     </div>
                   </div>
                 </CardContent>
