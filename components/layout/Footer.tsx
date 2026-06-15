@@ -24,7 +24,6 @@ export function Footer({ compact = false }: FooterProps = {}) {
       { name: 'About', href: '/about' },
       { name: 'Agents', href: '/agents' },
       { name: 'Compare', href: '/compare' },
-      { name: 'Careers', href: '/careers' },
     ],
     resources: [
       { name: 'Help Center', href: '/help' },
@@ -112,7 +111,6 @@ export function Footer({ compact = false }: FooterProps = {}) {
             <h3 className="font-semibold mb-4">Product</h3>
             <ul className="space-y-3">
               <li><Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</Link></li>
-              <li><Link href="/enterprise" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Enterprise</Link></li>
               <li><Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Agents</Link></li>
               <li><Link href="/templates" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Templates</Link></li>
               <li><Link href="/builder" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Builder</Link></li>
@@ -124,8 +122,6 @@ export function Footer({ compact = false }: FooterProps = {}) {
             <h3 className="font-semibold mb-4">Company</h3>
             <ul className="space-y-3">
               <li><Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">About Us</Link></li>
-              <li><Link href="/careers" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Careers</Link></li>
-              <li><Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Contact</Link></li>
             </ul>
           </div>
 

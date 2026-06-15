@@ -384,10 +384,10 @@ export default function LearnPage() {
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
-                  href="/contact"
+                  href="/help"
                   className="inline-flex h-12 items-center gap-2 rounded-md border border-white/20 bg-white/5 px-7 text-base font-semibold text-white backdrop-blur transition-colors hover:bg-white/10"
                 >
-                  Talk to the team
+                  Get help
                 </Link>
               </div>
             </div>
