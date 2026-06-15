@@ -32,10 +32,10 @@ export default function TemplatesPage() {
         >
           <div className="mx-auto w-full max-w-3xl text-center">
             <h1 className="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
-              Presentation Templates
+              Skip the blank slide
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Browse our collection of professionally designed templates. Each template is powered by our AI agents to help you create stunning presentations in minutes.
+              Pick a professionally designed starting point, then let Deckster&apos;s AI agents shape it into your story &mdash; a polished draft in minutes.
             </p>
           </div>
         </section>
