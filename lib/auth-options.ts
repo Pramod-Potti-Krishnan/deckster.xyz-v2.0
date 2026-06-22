@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
+import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import type { Adapter } from "next-auth/adapters"
 import { prisma } from "./prisma"
@@ -55,6 +56,22 @@ if (typeof window === 'undefined' && process.env.NODE_ENV === 'production') {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Dev-only login bypass (LOCAL Template Builder testing without Google OAuth).
+// HARD-GATED: requires NEXT_PUBLIC_ENABLE_DEV_LOGIN=true AND a non-production
+// build, so it can NEVER activate in a production deployment even if the flag
+// leaks into a prod env. The provider returns a fixed user and the jwt/signIn
+// callbacks short-circuit ALL database lookups for it — so it works with no DB.
+// Default id "uat-tpl-user" matches the templates already saved for that user,
+// so they appear in the in-app picker immediately.
+// ---------------------------------------------------------------------------
+const DEV_LOGIN_PROVIDER_ID = "dev-login"
+const DEV_LOGIN_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_DEV_LOGIN === "true" &&
+  process.env.NODE_ENV !== "production"
+const DEV_LOGIN_USER_ID = process.env.DEV_LOGIN_USER_ID || "uat-tpl-user"
+const DEV_LOGIN_EMAIL = process.env.DEV_LOGIN_EMAIL || "dev@deckster.local"
+
 export const authOptions: NextAuthOptions = {
   // Secret for JWT encryption (required by NextAuth)
   secret: process.env.NEXTAUTH_SECRET,
@@ -86,6 +103,21 @@ export const authOptions: NextAuthOptions = {
         }
       }
     }),
+    // Dev-only credentials provider — only present when hard-gated (see above).
+    ...(DEV_LOGIN_ENABLED
+      ? [
+          CredentialsProvider({
+            id: DEV_LOGIN_PROVIDER_ID,
+            name: "Dev Login (local only)",
+            credentials: {},
+            async authorize() {
+              // Re-check the gate at call time; never authorize in production.
+              if (!DEV_LOGIN_ENABLED) return null
+              return { id: DEV_LOGIN_USER_ID, email: DEV_LOGIN_EMAIL, name: "Dev User" }
+            },
+          }),
+        ]
+      : []),
   ],
   session: {
     strategy: "jwt", // Use JWT for sessions (PrismaAdapter still manages users)
@@ -121,6 +153,19 @@ export const authOptions: NextAuthOptions = {
 
         // Initial sign in - fetch user data from database
         if (account && user) {
+          // Dev-only login: deterministic id, pre-approved, NO database. (Gated above.)
+          if (account.provider === DEV_LOGIN_PROVIDER_ID) {
+            // ...token already carries name/email/sub from the credentials user.
+            return {
+              ...token,
+              id: user.id,
+              tier: "free" as const,
+              approved: true,
+              walletBalanceCents: 0,
+              subscription: null,
+              exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
+            }
+          }
           try {
             const dbUser = await prisma.user.findUnique({
               where: { email: user.email! },
@@ -184,6 +229,11 @@ export const authOptions: NextAuthOptions = {
       try {
         if (!user.email) {
           return false
+        }
+
+        // Dev-only login bypass: always allowed, no DB lookup. (Gated above.)
+        if (account?.provider === DEV_LOGIN_PROVIDER_ID) {
+          return true
         }
 
         // Development bypass - allow specific email without approval

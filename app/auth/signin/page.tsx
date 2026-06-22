@@ -35,6 +35,22 @@ function SignInContent() {
     }
   };
 
+  // Dev-only login (local Template Builder testing without Google OAuth).
+  // The matching credentials provider only exists when NEXT_PUBLIC_ENABLE_DEV_LOGIN
+  // is true AND the build is non-production — so this button is inert otherwise.
+  const devLoginEnabled = process.env.NEXT_PUBLIC_ENABLE_DEV_LOGIN === 'true';
+  const handleDevSignIn = async () => {
+    setIsLoading(true);
+    try {
+      await signIn('dev-login', {
+        callbackUrl: searchParams.get('callbackUrl') || '/builder'
+      });
+    } catch (error) {
+      console.error('Dev sign-in error:', error);
+      setIsLoading(false);
+    }
+  };
+
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -123,6 +139,19 @@ function SignInContent() {
                 </>
               )}
             </Button>
+
+            {/* Dev-only login — local testing, gated by NEXT_PUBLIC_ENABLE_DEV_LOGIN */}
+            {devLoginEnabled && (
+              <Button
+                onClick={handleDevSignIn}
+                disabled={isLoading}
+                size="lg"
+                variant="secondary"
+                className="w-full"
+              >
+                Dev login (local only)
+              </Button>
+            )}
 
             {/* Terms */}
             <p className="text-xs text-center text-muted-foreground">
