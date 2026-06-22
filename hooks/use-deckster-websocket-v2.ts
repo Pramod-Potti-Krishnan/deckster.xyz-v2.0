@@ -238,6 +238,10 @@ export interface UserMessage {
     extended_generation: boolean;
     file_upload: boolean;
     use_knowledge_graph?: boolean;
+    // Template Builder (reuse): when a saved template is locked in, these tell
+    // Director to run the reuse path (skip strawman workflow → Fire #2 → Stage E).
+    template_mode?: boolean;
+    template_id?: string;
   };
 }
 
@@ -301,7 +305,9 @@ export interface UseDecksterWebSocketV2Options {
   }) => void;
 }
 
-const DEFAULT_WS_URL = 'wss://directorv33-production.up.railway.app/ws';
+// NEXT_PUBLIC_WS_URL lets local UAT point the builder at a locally-run Director
+// (e.g. ws://localhost:8000/ws); falls back to the deployed Director otherwise.
+const DEFAULT_WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://directorv33-production.up.railway.app/ws';
 
 export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = {}) {
   const { user } = useAuth();
@@ -1120,6 +1126,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       fileUpload?: boolean;
       storeName?: string | null;
       useKnowledgeGraph?: boolean;
+      // Template Builder (reuse): set when a saved template is locked in.
+      templateMode?: boolean;
+      templateId?: string | null;
     },
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -1142,6 +1151,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           extended_generation: options?.extendedGeneration ?? false,
           file_upload: options?.fileUpload ?? !!effectiveStoreName,
           ...(options?.useKnowledgeGraph && { use_knowledge_graph: true }),
+          ...(options?.templateMode && { template_mode: true }),
+          ...(options?.templateId && { template_id: options.templateId }),
         },
       };
 
