@@ -71,6 +71,9 @@ export interface PresentationAreaProps {
   connecting: boolean
   toolbarPortalTarget?: HTMLDivElement | null
   toolbarOffset?: number
+  // Template Builder: WS session id (source for "Save as Template") + gate
+  sessionId?: string | null
+  templateBuilderEnabled?: boolean
 }
 
 export function PresentationArea({
@@ -101,6 +104,8 @@ export function PresentationArea({
   connecting,
   toolbarPortalTarget,
   toolbarOffset,
+  sessionId,
+  templateBuilderEnabled,
 }: PresentationAreaProps) {
   return (
     <div className="flex-1 flex flex-col bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
@@ -160,6 +165,8 @@ export function PresentationArea({
             }
           }}
           toolbarPortalTarget={toolbarPortalTarget}
+          sessionId={sessionId}
+          templateBuilderEnabled={templateBuilderEnabled}
           toolbarOffset={toolbarOffset}
           isGenerating={isGeneratingFinal || isGeneratingStrawman}
           generatingMode={isGeneratingFinal ? 'default' : 'strawman'}

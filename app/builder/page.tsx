@@ -64,6 +64,12 @@ function BuilderContent() {
 
   // UI state
   const [inputMessage, setInputMessage] = useState("")
+  // Template Builder (reuse): the locked-in template, carried on every send.
+  const [activeTemplate, setActiveTemplate] = useState<{ id: string; name: string } | null>(null)
+  const templateSendOptions = useMemo(
+    () => (activeTemplate ? { templateMode: true as const, templateId: activeTemplate.id } : {}),
+    [activeTemplate],
+  )
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [researchEnabled, setResearchEnabled] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
@@ -637,6 +643,7 @@ function BuilderContent() {
           useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
           fileUpload: !!sessionStoreName,
           storeName: sessionStoreName,
+          ...templateSendOptions,
         })
         if (success) {
           setInputMessage("")
@@ -737,6 +744,7 @@ function BuilderContent() {
               useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
               fileUpload: !!sessionStoreName,
               storeName: sessionStoreName,
+              ...templateSendOptions,
             })
             if (successfulFiles.length > 0) {
               clearAllFiles()
@@ -795,6 +803,7 @@ function BuilderContent() {
             useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
             fileUpload: !!sessionStoreName,
             storeName: sessionStoreName,
+            ...templateSendOptions,
           })
           if (successfulFiles.length > 0) {
             clearAllFiles()
@@ -846,6 +855,7 @@ function BuilderContent() {
         useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
+        ...templateSendOptions,
       })
       if (success) {
         setInputMessage("")
@@ -858,7 +868,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, quota.status, toast])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, quota.status, toast, templateSendOptions])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -904,9 +914,10 @@ function BuilderContent() {
         useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
+        ...templateSendOptions,
       })
     }
-  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName])
+  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, templateSendOptions])
 
   // Wrapped session select handler (clears local UI state too)
   const handleSessionSelectWrapped = useCallback((sessionId: string) => {
@@ -1229,6 +1240,10 @@ function BuilderContent() {
                     user={user}
                     currentSessionId={currentSessionId}
                     onRequestSession={session.handleRequestSession}
+                    templateBuilderEnabled={process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'}
+                    activeTemplate={activeTemplate}
+                    onSelectTemplate={(t) => setActiveTemplate(t)}
+                    onClearTemplate={() => setActiveTemplate(null)}
                   />
                 </>
               )}
@@ -1379,6 +1394,8 @@ function BuilderContent() {
             connecting={connecting}
             toolbarPortalTarget={toolbarPortalTarget}
             toolbarOffset={anyDrawerOpen ? Math.max(drawerWidth - 112, 0) : 0}
+            sessionId={wsSessionId}
+            templateBuilderEnabled={process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'}
           />
           )}
           </div>

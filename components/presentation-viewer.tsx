@@ -51,6 +51,7 @@ import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
+import { TemplateSaveDialog } from './template-save-dialog'
 import { useToast } from '@/hooks/use-toast'
 // TextFormatPopover is now replaced by simple text box insertion button
 // Keeping FormatTextParams for backward compatibility if needed
@@ -132,6 +133,9 @@ interface PresentationViewerProps {
   // Generation overlay: keeps viewer mounted but overlays loader
   isGenerating?: boolean
   generatingMode?: 'default' | 'strawman'
+  // Template Builder: the WS session id (source for "Save as Template") + gate
+  sessionId?: string | null
+  templateBuilderEnabled?: boolean
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -217,6 +221,8 @@ export function PresentationViewer({
   connecting,
   isGenerating,
   generatingMode,
+  sessionId,
+  templateBuilderEnabled,
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -228,6 +234,7 @@ export function PresentationViewer({
   // Normal-mode slide dimensions (fit-contain via ResizeObserver)
   const [normalSlideSize, setNormalSlideSize] = useState<{ width: number; height: number } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [showTemplateSave, setShowTemplateSave] = useState(false) // Template Builder: Save dialog
   const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -1827,15 +1834,28 @@ export function PresentationViewer({
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Template — placeholder for now */}
-              <button
-                disabled
-                className={cn(toolbarButtonClass, "text-slate-400 dark:text-slate-500 cursor-not-allowed")}
-                title="Templates — coming soon"
-              >
-                <LayoutTemplate className="h-5 w-5" />
-                <span className={toolbarLabelClass}>Template</span>
-              </button>
+              {/* Template — "Save as Template" (Template Builder). Enabled once a
+                  deck exists and we know the WS session to snapshot. */}
+              {templateBuilderEnabled ? (
+                <button
+                  onClick={() => setShowTemplateSave(true)}
+                  disabled={!presentationUrl || !sessionId}
+                  className={cn(toolbarButtonClass, toolbarBtnBase)}
+                  title="Save this deck as a reusable template"
+                >
+                  <LayoutTemplate className="h-5 w-5" />
+                  <span className={toolbarLabelClass}>Template</span>
+                </button>
+              ) : (
+                <button
+                  disabled
+                  className={cn(toolbarButtonClass, "text-slate-400 dark:text-slate-500 cursor-not-allowed")}
+                  title="Templates — coming soon"
+                >
+                  <LayoutTemplate className="h-5 w-5" />
+                  <span className={toolbarLabelClass}>Template</span>
+                </button>
+              )}
 
               {/* Theme — 4th primary build action; sits with its build siblings */}
               <button
@@ -2220,6 +2240,13 @@ export function PresentationViewer({
         slideNumbers={slidesToDelete ? slidesToDelete.map(i => i + 1) : []}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
+      />
+
+      {/* Save as Template (Template Builder) */}
+      <TemplateSaveDialog
+        open={showTemplateSave}
+        onOpenChange={setShowTemplateSave}
+        sessionId={sessionId ?? null}
       />
 
       {/* Version History Panel */}

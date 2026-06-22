@@ -19,9 +19,12 @@ import {
   Search,
   Sparkles,
   Brain,
+  LayoutTemplate,
+  X,
 } from "lucide-react"
 import { features } from '@/lib/config'
 import type { ActionRequest } from "@/hooks/use-deckster-websocket-v2"
+import { TemplatePicker } from './template-picker'
 
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
@@ -56,6 +59,11 @@ export interface ChatInputProps {
   user: any
   currentSessionId: string | null
   onRequestSession: () => Promise<void>
+  // Template Builder (reuse): in-chat picker beside the attach button
+  templateBuilderEnabled?: boolean
+  activeTemplate?: { id: string; name: string } | null
+  onSelectTemplate?: (template: { id: string; name: string }) => void
+  onClearTemplate?: () => void
 }
 
 export function ChatInput({
@@ -84,6 +92,10 @@ export function ChatInput({
   user,
   currentSessionId,
   onRequestSession,
+  templateBuilderEnabled,
+  activeTemplate,
+  onSelectTemplate,
+  onClearTemplate,
 }: ChatInputProps) {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -174,6 +186,25 @@ export function ChatInput({
           </Button>
         </div>
       )}
+      {/* Template Builder: locked-in template indicator */}
+      {activeTemplate && (
+        <div className="mb-2 px-2 py-1.5 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-300 text-xs font-medium min-w-0">
+            <LayoutTemplate className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Template locked: {activeTemplate.name}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onClearTemplate?.()}
+            className="ml-2 shrink-0 text-purple-500 hover:text-purple-700 dark:hover:text-purple-200"
+            title="Clear template"
+            aria-label="Clear template"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Main input container - Claude style */}
       <form onSubmit={onSubmit}>
         <div className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:focus-within:border-slate-600">
@@ -260,6 +291,11 @@ export function ChatInput({
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>
+              )}
+
+              {/* Template Builder: reuse a saved template (sibling of attach) */}
+              {templateBuilderEnabled && onSelectTemplate && (
+                <TemplatePicker onSelect={onSelectTemplate} disabled={!user || isLoadingSession} />
               )}
 
               {/* Settings/Options Menu */}
