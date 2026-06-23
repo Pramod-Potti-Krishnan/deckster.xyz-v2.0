@@ -74,9 +74,14 @@ export interface SlideComposeBuiltResult {
   slide_title?: string | null
 }
 
-interface SlideComposeNeedsInputResult {
+export interface SlideComposeNeedsInputQuestion {
+  slot: string
+  ask: string
+}
+
+export interface SlideComposeNeedsInputResult {
   status: 'needs_input'
-  questions?: string[]
+  questions?: SlideComposeNeedsInputQuestion[]
   missing_fields?: string[]
   stage?: string
 }
@@ -381,7 +386,7 @@ export function SlideGenerationPanel({
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [needsInput, setNeedsInput] = useState<SlideComposeNeedsInputResult | null>(null)
-  const [answers, setAnswers] = useState<Record<number, string>>({})
+  const [answers, setAnswers] = useState<Record<string, string>>({})
   const [canvasType, setCanvasType] = useState<CanvasType>(initialSelections.canvas_type)
   const [contentType, setContentType] = useState<ContentType>(initialSelections.content_type)
   const [narrativeRole, setNarrativeRole] = useState<NarrativeRole>(initialSelections.narrative_role ?? 'deep_dive')
@@ -458,14 +463,22 @@ export function SlideGenerationPanel({
     return selections
   }, [canvasType, chartSubtype, contentType, diagramSubtype, infographicSubtype, narrativeRole, textSubtype])
 
-  const questions = needsInput?.questions?.length ? needsInput.questions : needsInput?.missing_fields ?? []
+  const questions = useMemo<SlideComposeNeedsInputQuestion[]>(() => {
+    if (needsInput?.questions?.length) {
+      return needsInput.questions.filter(q => q.slot && q.ask)
+    }
+    return (needsInput?.missing_fields ?? []).map(slot => ({
+      slot,
+      ask: `Please provide ${slot.replace(/_/g, ' ')}.`,
+    }))
+  }, [needsInput])
 
   const buildInstruction = useCallback(() => {
     const base = prompt.trim()
     const answered = questions
-      .map((question, index) => {
-        const answer = answers[index]?.trim()
-        return answer ? `Q: ${question}\nA: ${answer}` : null
+      .map((question) => {
+        const answer = answers[question.slot]?.trim()
+        return answer ? `Q: ${question.ask}\nA: ${answer}` : null
       })
       .filter(Boolean)
       .join('\n\n')
@@ -663,12 +676,12 @@ export function SlideGenerationPanel({
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
               <div className="min-w-0 flex-1 space-y-2">
                 <p className="text-xs font-medium text-amber-800">More input needed</p>
-                {questions.map((question, index) => (
-                  <label key={`${question}-${index}`} className="block space-y-1">
-                    <span className="text-[11px] text-amber-800">{question}</span>
+                {questions.map((question) => (
+                  <label key={question.slot} className="block space-y-1">
+                    <span className="text-[11px] text-amber-800">{question.ask}</span>
                     <textarea
-                      value={answers[index] ?? ''}
-                      onChange={(event) => setAnswers(prev => ({ ...prev, [index]: event.target.value }))}
+                      value={answers[question.slot] ?? ''}
+                      onChange={(event) => setAnswers(prev => ({ ...prev, [question.slot]: event.target.value }))}
                       rows={2}
                       className="w-full rounded-md border border-amber-200 bg-white px-2 py-1.5 text-xs text-gray-900 outline-none focus:border-amber-400"
                     />

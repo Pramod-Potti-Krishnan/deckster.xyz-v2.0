@@ -1111,7 +1111,7 @@ function BuilderContent() {
                   research={{
                     useUploadedDocuments: uploadedFiles.some(file => file.status === 'success') || Boolean(sessionStoreName),
                     useWebSearch: webSearchEnabled,
-                    useDeepResearch: researchEnabled,
+                    useDeepResearch: researchEnabled && webSearchEnabled,
                     useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
                   }}
                   enabled={features.slideComposerEnabled}
