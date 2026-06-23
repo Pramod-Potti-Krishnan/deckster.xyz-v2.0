@@ -1,97 +1,50 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
 import { AlertCircle, CheckCircle2, Layout, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
-import { MandatoryConfig, MandatoryFieldOptionGroup } from '@/components/generation-panel/types'
+import { MandatoryConfig } from '@/components/generation-panel/types'
+import { Input } from '@/components/ui/input'
 import {
-  SlideLayoutType,
-  SLIDE_LAYOUTS,
-  SLIDE_LAYOUT_CATEGORIES,
-} from '@/types/elements'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { SlideLayoutType } from '@/types/elements'
+import {
+  AUTO_VALUE,
+  CANVAS_OPTIONS,
+  CONTENT_OPTIONS,
+  NARRATIVE_OPTIONS,
+  SHAPE_OPTIONS,
+  buildInstruction,
+  buildSelections,
+  getLayoutDescription,
+  getLayoutLabel,
+  getShapeBucket,
+  isBuiltResponse,
+  isNeedsInputResponse,
+  layoutDefaults,
+  normalizeQuestions,
+  responseErrorMessage,
+  slideTypeGroups,
+  subtypeFromSelections,
+  type CanvasType,
+  type ContentType,
+  type LayoutChoice,
+  type NarrativeRole,
+  type OptionalChoice,
+  type ShapeSubtype,
+  type SlideComposeBuiltResult,
+  type SlideComposeNeedsInputResult,
+} from './compose-helpers'
 
-type CanvasType = 'C1' | 'I1' | 'I2' | 'I3' | 'I4' | 'H1' | 'H2' | 'H3'
-type NarrativeRole =
-  | 'opening'
-  | 'context_setting'
-  | 'comparison'
-  | 'deep_dive'
-  | 'data_showcase'
-  | 'process_overview'
-  | 'call_to_action'
-  | 'closing'
-type ContentType =
-  | 'text_heavy_columns'
-  | 'text_heavy_rows'
-  | 'text_heavy_grid'
-  | 'chart'
-  | 'table'
-  | 'infographic'
-  | 'diagram_idea_board'
-  | 'diagram_code_display'
-  | 'diagram_kanban_board'
-  | 'diagram_gantt_chart'
-  | 'diagram_multi_chevron_maturity_board'
-  | 'diagram_logical_architecture'
-  | 'diagram_cloud_architecture'
-  | 'diagram_data_architecture'
-  | 'hero'
-type ChartSubtype = 'single' | 'two_vertical' | 'two_horizontal' | 'three_horizontal' | 'four_quadrant'
-type InfographicSubtype = 'vertical_left' | 'vertical_center' | 'horizontal_top' | 'horizontal_center'
-type TextSubtype = 'text_heavy_vertical' | 'text_heavy_horizontal' | 'text_heavy_grid' | 'table'
-type DiagramSubtype =
-  | 'idea_board'
-  | 'code_display'
-  | 'kanban_board'
-  | 'gantt_chart'
-  | 'multi_chevron_maturity_board'
-  | 'logical_architecture'
-  | 'cloud_architecture'
-  | 'data_architecture'
-
-type SlideSelections = {
-  canvas_type: CanvasType
-  content_type: ContentType
-  narrative_role?: NarrativeRole
-  chart_subtype?: ChartSubtype
-  infographic_subtype?: InfographicSubtype
-  text_subtype?: TextSubtype
-  diagram_subtype?: DiagramSubtype
-}
-
-type SlideComposeStatus = 'built' | 'needs_input' | 'error'
-
-export interface SlideComposeBuiltResult {
-  status: 'built'
-  presentation_id: string
-  presentation_url?: string | null
-  slide_index: number
-  appended_index?: number | null
-  insert_after_index?: number | null
-  slides_built?: number
-  slide_title?: string | null
-}
-
-export interface SlideComposeNeedsInputQuestion {
-  slot: string
-  ask: string
-}
-
-export interface SlideComposeNeedsInputResult {
-  status: 'needs_input'
-  questions?: SlideComposeNeedsInputQuestion[]
-  missing_fields?: string[]
-  stage?: string
-}
-
-interface SlideComposeErrorResult {
-  status?: 'error'
-  error?: string
-  errors?: string[]
-  stage?: string
-}
+export type { SlideComposeBuiltResult, SlideComposeNeedsInputResult } from './compose-helpers'
 
 interface SlideComposerResearchState {
   useUploadedDocuments: boolean
@@ -112,382 +65,82 @@ interface SlideGenerationPanelProps {
   onBuilt: (result: SlideComposeBuiltResult) => void
 }
 
-const CANVAS_TYPES = ['C1', 'I1', 'I2', 'I3', 'I4', 'H1', 'H2', 'H3'] as const
-const CONTENT_TYPES = [
-  'text_heavy_columns',
-  'text_heavy_rows',
-  'text_heavy_grid',
-  'chart',
-  'table',
-  'infographic',
-  'diagram_idea_board',
-  'diagram_code_display',
-  'diagram_kanban_board',
-  'diagram_gantt_chart',
-  'diagram_multi_chevron_maturity_board',
-  'diagram_logical_architecture',
-  'diagram_cloud_architecture',
-  'diagram_data_architecture',
-  'hero',
-] as const
-const NARRATIVE_ROLES = [
-  'opening',
-  'context_setting',
-  'comparison',
-  'deep_dive',
-  'data_showcase',
-  'process_overview',
-  'call_to_action',
-  'closing',
-] as const
-const CHART_SUBTYPES = ['single', 'two_vertical', 'two_horizontal', 'three_horizontal', 'four_quadrant'] as const
-const INFOGRAPHIC_SUBTYPES = ['vertical_left', 'vertical_center', 'horizontal_top', 'horizontal_center'] as const
-const TEXT_SUBTYPES = ['text_heavy_vertical', 'text_heavy_horizontal', 'text_heavy_grid', 'table'] as const
-const DIAGRAM_SUBTYPES = [
-  'idea_board',
-  'code_display',
-  'kanban_board',
-  'gantt_chart',
-  'multi_chevron_maturity_board',
-  'logical_architecture',
-  'cloud_architecture',
-  'data_architecture',
-] as const
+type OpenSections = Record<'layout' | 'content' | 'background' | 'typography' | 'elements' | 'animation', boolean>
+type Option<T extends string> = { value: T; label: string }
 
-const DIAGRAM_CONTENT_BY_SUBTYPE: Record<DiagramSubtype, ContentType> = {
-  idea_board: 'diagram_idea_board',
-  code_display: 'diagram_code_display',
-  kanban_board: 'diagram_kanban_board',
-  gantt_chart: 'diagram_gantt_chart',
-  multi_chevron_maturity_board: 'diagram_multi_chevron_maturity_board',
-  logical_architecture: 'diagram_logical_architecture',
-  cloud_architecture: 'diagram_cloud_architecture',
-  data_architecture: 'diagram_data_architecture',
-}
-
-const DIAGRAM_SUBTYPE_BY_CONTENT: Partial<Record<ContentType, DiagramSubtype>> = Object.fromEntries(
-  Object.entries(DIAGRAM_CONTENT_BY_SUBTYPE).map(([subtype, contentType]) => [contentType, subtype]),
-) as Partial<Record<ContentType, DiagramSubtype>>
-
-const LABELS: Record<string, string> = {
-  C1: 'Core',
-  I1: 'Image left',
-  I2: 'Image right',
-  I3: 'Image left narrow',
-  I4: 'Image right narrow',
-  H1: 'Hero',
-  H2: 'Section',
-  H3: 'Closing',
-  text_heavy_columns: 'Text columns',
-  text_heavy_rows: 'Text rows',
-  text_heavy_grid: 'Text grid',
-  chart: 'Chart',
-  table: 'Table',
-  infographic: 'Infographic',
-  diagram_idea_board: 'Diagram: idea board',
-  diagram_code_display: 'Diagram: code display',
-  diagram_kanban_board: 'Diagram: kanban board',
-  diagram_gantt_chart: 'Diagram: gantt chart',
-  diagram_multi_chevron_maturity_board: 'Diagram: maturity board',
-  diagram_logical_architecture: 'Diagram: logical architecture',
-  diagram_cloud_architecture: 'Diagram: cloud architecture',
-  diagram_data_architecture: 'Diagram: data architecture',
-  hero: 'Hero',
-  opening: 'Opening',
-  context_setting: 'Context setting',
-  comparison: 'Comparison',
-  deep_dive: 'Deep dive',
-  data_showcase: 'Data showcase',
-  process_overview: 'Process overview',
-  call_to_action: 'Call to action',
-  closing: 'Closing',
-  single: 'Single',
-  two_vertical: 'Two vertical',
-  two_horizontal: 'Two horizontal',
-  three_horizontal: 'Three horizontal',
-  four_quadrant: 'Four quadrant',
-  vertical_left: 'Vertical left',
-  vertical_center: 'Vertical center',
-  horizontal_top: 'Horizontal top',
-  horizontal_center: 'Horizontal center',
-  text_heavy_vertical: 'Vertical text',
-  text_heavy_horizontal: 'Horizontal text',
-  idea_board: 'Idea board',
-  code_display: 'Code display',
-  kanban_board: 'Kanban board',
-  gantt_chart: 'Gantt chart',
-  multi_chevron_maturity_board: 'Maturity board',
-  logical_architecture: 'Logical architecture',
-  cloud_architecture: 'Cloud architecture',
-  data_architecture: 'Data architecture',
-}
-
-const LAYOUT_DEFAULTS: Record<SlideLayoutType, SlideSelections> = {
-  'H1-generated': { canvas_type: 'H1', content_type: 'hero', narrative_role: 'opening' },
-  'H1-structured': { canvas_type: 'H1', content_type: 'hero', narrative_role: 'opening' },
-  'H2-section': { canvas_type: 'H2', content_type: 'hero', narrative_role: 'context_setting' },
-  'H3-closing': { canvas_type: 'H3', content_type: 'hero', narrative_role: 'closing' },
-  'C1-text': {
-    canvas_type: 'C1',
-    content_type: 'text_heavy_columns',
-    narrative_role: 'deep_dive',
-    text_subtype: 'text_heavy_vertical',
-  },
-  'C3-chart': {
-    canvas_type: 'C1',
-    content_type: 'chart',
-    narrative_role: 'data_showcase',
-    chart_subtype: 'single',
-  },
-  'C4-infographic': {
-    canvas_type: 'C1',
-    content_type: 'infographic',
-    narrative_role: 'process_overview',
-    infographic_subtype: 'vertical_center',
-  },
-  'C5-diagram': {
-    canvas_type: 'C1',
-    content_type: 'diagram_idea_board',
-    narrative_role: 'process_overview',
-    diagram_subtype: 'idea_board',
-  },
-  'V1-image-text': {
-    canvas_type: 'I1',
-    content_type: 'text_heavy_columns',
-    narrative_role: 'deep_dive',
-    text_subtype: 'text_heavy_vertical',
-  },
-  'V2-chart-text': {
-    canvas_type: 'C1',
-    content_type: 'chart',
-    narrative_role: 'data_showcase',
-    chart_subtype: 'single',
-  },
-  'V3-diagram-text': {
-    canvas_type: 'C1',
-    content_type: 'diagram_idea_board',
-    narrative_role: 'process_overview',
-    diagram_subtype: 'idea_board',
-  },
-  'V4-infographic-text': {
-    canvas_type: 'C1',
-    content_type: 'infographic',
-    narrative_role: 'process_overview',
-    infographic_subtype: 'vertical_center',
-  },
-  'I1-image-left': {
-    canvas_type: 'I1',
-    content_type: 'text_heavy_columns',
-    narrative_role: 'deep_dive',
-    text_subtype: 'text_heavy_vertical',
-  },
-  'I2-image-right': {
-    canvas_type: 'I2',
-    content_type: 'text_heavy_columns',
-    narrative_role: 'deep_dive',
-    text_subtype: 'text_heavy_vertical',
-  },
-  'I3-image-left-narrow': {
-    canvas_type: 'I3',
-    content_type: 'text_heavy_columns',
-    narrative_role: 'deep_dive',
-    text_subtype: 'text_heavy_vertical',
-  },
-  'I4-image-right-narrow': {
-    canvas_type: 'I4',
-    content_type: 'text_heavy_columns',
-    narrative_role: 'deep_dive',
-    text_subtype: 'text_heavy_vertical',
-  },
-  'S3-two-visuals': {
-    canvas_type: 'C1',
-    content_type: 'infographic',
-    narrative_role: 'comparison',
-    infographic_subtype: 'horizontal_center',
-  },
-  'S4-comparison': {
-    canvas_type: 'C1',
-    content_type: 'text_heavy_columns',
-    narrative_role: 'comparison',
-    text_subtype: 'text_heavy_horizontal',
-  },
-  'B1-blank': {
-    canvas_type: 'C1',
-    content_type: 'text_heavy_columns',
-    narrative_role: 'deep_dive',
-    text_subtype: 'text_heavy_vertical',
-  },
-}
-
-const slideTypeGroups: MandatoryFieldOptionGroup[] = SLIDE_LAYOUT_CATEGORIES.map(cat => ({
-  group: cat.label,
-  options: SLIDE_LAYOUTS
-    .filter(l => l.category === cat.category)
-    .map(l => ({ value: l.layout, label: l.label })),
-}))
-
-function getLayoutLabel(layout: SlideLayoutType): string {
-  return SLIDE_LAYOUTS.find(l => l.layout === layout)?.label ?? layout
-}
-
-function getLayoutDescription(layout: SlideLayoutType): string {
-  return SLIDE_LAYOUTS.find(l => l.layout === layout)?.description ?? ''
-}
-
-function isAllowedValue<T extends readonly string[]>(value: string, allowed: T): value is T[number] {
-  return (allowed as readonly string[]).includes(value)
-}
-
-function selectOptions(values: readonly string[]) {
-  return values.map(value => (
-    <option key={value} value={value}>
-      {LABELS[value] ?? value}
-    </option>
-  ))
-}
-
-function isBuiltResponse(value: unknown): value is SlideComposeBuiltResult {
-  const result = value as Partial<SlideComposeBuiltResult>
-  return result?.status === 'built' && typeof result.presentation_id === 'string' && typeof result.slide_index === 'number'
-}
-
-function isNeedsInputResponse(value: unknown): value is SlideComposeNeedsInputResult {
-  return (value as SlideComposeNeedsInputResult)?.status === 'needs_input'
-}
-
-function responseErrorMessage(value: unknown): string {
-  const result = value as SlideComposeErrorResult
-  if (Array.isArray(result?.errors) && result.errors.length > 0) return result.errors.join('; ')
-  if (typeof result?.error === 'string') return result.error
-  if (typeof result?.stage === 'string') return `Slide Composer failed during ${result.stage}`
-  return 'Slide Composer failed'
-}
-
-function applyLayoutDefaults(layout: SlideLayoutType): SlideSelections {
-  return { ...LAYOUT_DEFAULTS[layout] }
+const INITIAL_OPEN_SECTIONS: OpenSections = {
+  layout: true,
+  content: false,
+  background: false,
+  typography: false,
+  elements: false,
+  animation: false,
 }
 
 export function SlideGenerationPanel({
   isOpen,
   onClose,
   currentSlide,
-  currentLayout,
   sessionId,
   presentationId,
   research,
   enabled,
   onBuilt,
 }: SlideGenerationPanelProps) {
-  const initialSelections = useMemo(() => applyLayoutDefaults(currentLayout ?? 'C1-text'), [currentLayout])
   const [prompt, setPrompt] = useState('')
-  const [selectedLayout, setSelectedLayout] = useState<SlideLayoutType>(currentLayout ?? 'C1-text')
+  const [selectedLayout, setSelectedLayout] = useState<LayoutChoice>(AUTO_VALUE)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [needsInput, setNeedsInput] = useState<SlideComposeNeedsInputResult | null>(null)
   const [answers, setAnswers] = useState<Record<string, string>>({})
-  const [canvasType, setCanvasType] = useState<CanvasType>(initialSelections.canvas_type)
-  const [contentType, setContentType] = useState<ContentType>(initialSelections.content_type)
-  const [narrativeRole, setNarrativeRole] = useState<NarrativeRole>(initialSelections.narrative_role ?? 'deep_dive')
-  const [chartSubtype, setChartSubtype] = useState<ChartSubtype>(initialSelections.chart_subtype ?? 'single')
-  const [infographicSubtype, setInfographicSubtype] = useState<InfographicSubtype>(
-    initialSelections.infographic_subtype ?? 'vertical_center',
+  const [canvasType, setCanvasType] = useState<OptionalChoice<CanvasType>>(AUTO_VALUE)
+  const [contentType, setContentType] = useState<OptionalChoice<ContentType>>(AUTO_VALUE)
+  const [shapeSubtype, setShapeSubtype] = useState<OptionalChoice<ShapeSubtype>>(AUTO_VALUE)
+  const [narrativeRole, setNarrativeRole] = useState<OptionalChoice<NarrativeRole>>(AUTO_VALUE)
+  const [keyMessage, setKeyMessage] = useState('')
+  const [openSections, setOpenSections] = useState<OpenSections>(INITIAL_OPEN_SECTIONS)
+
+  const questions = useMemo(() => normalizeQuestions(needsInput), [needsInput])
+  const shapeBucket = getShapeBucket(contentType)
+  const shapeOptions = shapeBucket ? SHAPE_OPTIONS[shapeBucket] : []
+  const selections = useMemo(
+    () => buildSelections({ layout: selectedLayout, canvasType, contentType, shapeSubtype, narrativeRole }),
+    [canvasType, contentType, narrativeRole, selectedLayout, shapeSubtype],
   )
-  const [textSubtype, setTextSubtype] = useState<TextSubtype>(initialSelections.text_subtype ?? 'text_heavy_vertical')
-  const [diagramSubtype, setDiagramSubtype] = useState<DiagramSubtype>(
-    initialSelections.diagram_subtype ?? DIAGRAM_SUBTYPE_BY_CONTENT[initialSelections.content_type] ?? 'idea_board',
-  )
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    layout: true,
-    content: true,
-    research: false,
-  })
-
-  const applySelections = useCallback((selections: SlideSelections) => {
-    setCanvasType(selections.canvas_type)
-    setContentType(selections.content_type)
-    setNarrativeRole(selections.narrative_role ?? 'deep_dive')
-    setChartSubtype(selections.chart_subtype ?? 'single')
-    setInfographicSubtype(selections.infographic_subtype ?? 'vertical_center')
-    setTextSubtype(selections.text_subtype ?? 'text_heavy_vertical')
-    setDiagramSubtype(selections.diagram_subtype ?? DIAGRAM_SUBTYPE_BY_CONTENT[selections.content_type] ?? 'idea_board')
-  }, [])
-
-  useEffect(() => {
-    if (!currentLayout) return
-    setSelectedLayout(currentLayout)
-    applySelections(applyLayoutDefaults(currentLayout))
-  }, [applySelections, currentLayout])
-
-  const handleLayoutChange = useCallback((value: string) => {
-    const layout = value as SlideLayoutType
-    setSelectedLayout(layout)
-    applySelections(applyLayoutDefaults(layout))
-  }, [applySelections])
 
   const mandatoryConfig: MandatoryConfig = {
     fieldLabel: 'Slide Layout',
     displayLabel: getLayoutLabel(selectedLayout),
     optionGroups: slideTypeGroups,
-    onChange: handleLayoutChange,
-    promptPlaceholder: 'Describe the one slide you want to build...',
+    onChange: (value: string) => handleLayoutChange(value as LayoutChoice),
+    promptPlaceholder: 'Describe the slide you want to generate or edit...',
   }
 
-  const buildSelections = useCallback((): SlideSelections | null => {
-    if (!isAllowedValue(canvasType, CANVAS_TYPES)) return null
-    if (!isAllowedValue(contentType, CONTENT_TYPES)) return null
-    if (!isAllowedValue(narrativeRole, NARRATIVE_ROLES)) return null
+  function handleLayoutChange(layout: LayoutChoice) {
+    setSelectedLayout(layout)
 
-    const selections: SlideSelections = {
-      canvas_type: canvasType,
-      content_type: contentType,
-      narrative_role: narrativeRole,
-    }
+    const defaults = layoutDefaults(layout)
+    setCanvasType(defaults.canvas_type ?? AUTO_VALUE)
+    setContentType(defaults.content_type ?? AUTO_VALUE)
+    setNarrativeRole(defaults.narrative_role ?? AUTO_VALUE)
+    setShapeSubtype(subtypeFromSelections(defaults))
+    setError(null)
+    setSuccessMessage(null)
+  }
 
-    if (contentType === 'chart') {
-      if (!isAllowedValue(chartSubtype, CHART_SUBTYPES)) return null
-      selections.chart_subtype = chartSubtype
-    } else if (contentType === 'infographic') {
-      if (!isAllowedValue(infographicSubtype, INFOGRAPHIC_SUBTYPES)) return null
-      selections.infographic_subtype = infographicSubtype
-    } else if (contentType.startsWith('diagram_')) {
-      if (!isAllowedValue(diagramSubtype, DIAGRAM_SUBTYPES)) return null
-      selections.diagram_subtype = diagramSubtype
-      selections.content_type = DIAGRAM_CONTENT_BY_SUBTYPE[diagramSubtype]
-    } else if (contentType.startsWith('text_heavy') || contentType === 'table') {
-      if (!isAllowedValue(textSubtype, TEXT_SUBTYPES)) return null
-      selections.text_subtype = textSubtype
-    }
-
-    return selections
-  }, [canvasType, chartSubtype, contentType, diagramSubtype, infographicSubtype, narrativeRole, textSubtype])
-
-  const questions = useMemo<SlideComposeNeedsInputQuestion[]>(() => {
-    if (needsInput?.questions?.length) {
-      return needsInput.questions.filter(q => q.slot && q.ask)
-    }
-    return (needsInput?.missing_fields ?? []).map(slot => ({
-      slot,
-      ask: `Please provide ${slot.replace(/_/g, ' ')}.`,
-    }))
-  }, [needsInput])
-
-  const buildInstruction = useCallback(() => {
-    const base = prompt.trim()
-    const answered = questions
-      .map((question) => {
-        const answer = answers[question.slot]?.trim()
-        return answer ? `Q: ${question.ask}\nA: ${answer}` : null
-      })
-      .filter(Boolean)
-      .join('\n\n')
-
-    if (!answered) return base
-    return [base, 'Additional source material:', answered].filter(Boolean).join('\n\n')
-  }, [answers, prompt, questions])
+  function handleContentTypeChange(value: OptionalChoice<ContentType>) {
+    setContentType(value)
+    setShapeSubtype(AUTO_VALUE)
+    setError(null)
+    setSuccessMessage(null)
+  }
 
   const handleGenerate = useCallback(async () => {
+    const instruction = buildInstruction(prompt, keyMessage, questions, answers)
+    const hasSelections = Object.keys(selections).length > 0
+
     setError(null)
     setSuccessMessage(null)
 
@@ -501,15 +154,8 @@ export function SlideGenerationPanel({
       return
     }
 
-    const selections = buildSelections()
-    if (!selections) {
-      setError('One or more slide selections is not supported by the contract.')
-      return
-    }
-
-    const instruction = buildInstruction()
-    if (!instruction && !selectedLayout) {
-      setError('Add a short instruction or choose a slide layout.')
+    if (!instruction && !hasSelections) {
+      setError('Describe the slide or choose an optional slide setting.')
       return
     }
 
@@ -523,7 +169,7 @@ export function SlideGenerationPanel({
           presentation_id: presentationId,
           insert_after_index: presentationId ? Math.max(0, currentSlide - 1) : null,
           instruction,
-          selections,
+          selections: hasSelections ? selections : undefined,
           research: {
             use_uploaded_documents: research.useUploadedDocuments,
             use_web_search: research.useWebSearch,
@@ -543,7 +189,6 @@ export function SlideGenerationPanel({
       if (isNeedsInputResponse(data)) {
         setNeedsInput(data)
         setAnswers({})
-        setShowAdvanced(false)
         return
       }
 
@@ -551,6 +196,7 @@ export function SlideGenerationPanel({
         setNeedsInput(null)
         setAnswers({})
         setPrompt('')
+        setKeyMessage('')
         setSuccessMessage(`Built slide ${data.slide_index + 1}.`)
         onBuilt(data)
         return
@@ -562,31 +208,25 @@ export function SlideGenerationPanel({
     } finally {
       setIsGenerating(false)
     }
-  }, [buildInstruction, buildSelections, currentSlide, enabled, onBuilt, presentationId, research, selectedLayout, sessionId])
+  }, [
+    answers,
+    currentSlide,
+    enabled,
+    keyMessage,
+    onBuilt,
+    presentationId,
+    prompt,
+    questions,
+    research,
+    selections,
+    sessionId,
+  ])
 
-  const toggleSection = useCallback((key: string) => {
+  const toggleSection = useCallback((key: keyof OpenSections) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
   }, [])
 
-  const handleContentTypeChange = useCallback((value: string) => {
-    if (!isAllowedValue(value, CONTENT_TYPES)) return
-    setContentType(value)
-    const nextDiagramSubtype = DIAGRAM_SUBTYPE_BY_CONTENT[value]
-    if (nextDiagramSubtype) setDiagramSubtype(nextDiagramSubtype)
-    if (value === 'chart') setNarrativeRole('data_showcase')
-    if (value === 'infographic' || value.startsWith('diagram_')) setNarrativeRole('process_overview')
-    if (value === 'table') setTextSubtype('table')
-    if (value === 'text_heavy_columns') setTextSubtype('text_heavy_vertical')
-    if (value === 'text_heavy_rows') setTextSubtype('text_heavy_horizontal')
-    if (value === 'text_heavy_grid') setTextSubtype('text_heavy_grid')
-  }, [])
-
-  const handleDiagramSubtypeChange = useCallback((value: string) => {
-    if (!isAllowedValue(value, DIAGRAM_SUBTYPES)) return
-    setDiagramSubtype(value)
-    setContentType(DIAGRAM_CONTENT_BY_SUBTYPE[value])
-  }, [])
-
+  // Keyboard shortcuts
   useEffect(() => {
     if (!isOpen) return
 
@@ -609,24 +249,22 @@ export function SlideGenerationPanel({
     <div className="absolute inset-0 z-20 flex pointer-events-none">
       <div
         className={cn(
-          'flex-1 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden transition-all duration-200 ease-out',
-          isOpen ? 'pointer-events-auto opacity-100' : 'opacity-0 max-w-0',
+          "flex-1 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden transition-all duration-200 ease-out",
+          isOpen ? "pointer-events-auto opacity-100" : "opacity-0 max-w-0"
         )}
       >
+        {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
               <Layout className="h-3.5 w-3.5 text-primary" />
             </div>
-            <div className="min-w-0">
-              <h3 className="text-xs font-semibold text-gray-900 dark:text-slate-100">Slide Composer</h3>
-              <p className="text-[10px] text-gray-500 dark:text-slate-400 truncate">
-                Build one slide into the current deck
-              </p>
+            <div>
+              <h3 className="text-xs font-semibold text-gray-900 dark:text-slate-100">Slide</h3>
+              <p className="text-[10px] text-gray-500 dark:text-slate-400">Generate or edit slide content</p>
             </div>
           </div>
           <button
-            type="button"
             onClick={onClose}
             className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700 transition-colors"
             title="Close panel"
@@ -635,18 +273,22 @@ export function SlideGenerationPanel({
           </button>
         </div>
 
+        {/* Slide context bar */}
         <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100">
           <p className="text-xs text-blue-800">
             {presentationId ? (
               <>
-                Insert after <span className="font-semibold">Slide {currentSlide}</span>
+                Inserts after <span className="font-semibold">Slide {currentSlide}</span>
               </>
             ) : (
-              'Create a new one-slide deck'
+              <>
+                Editing <span className="font-semibold">Slide {currentSlide}</span>
+              </>
             )}
           </p>
         </div>
 
+        {/* Generation input */}
         <GenerationInput
           prompt={prompt}
           onPromptChange={(value) => {
@@ -679,11 +321,11 @@ export function SlideGenerationPanel({
                 {questions.map((question) => (
                   <label key={question.slot} className="block space-y-1">
                     <span className="text-[11px] text-amber-800">{question.ask}</span>
-                    <textarea
+                    <Textarea
                       value={answers[question.slot] ?? ''}
                       onChange={(event) => setAnswers(prev => ({ ...prev, [question.slot]: event.target.value }))}
                       rows={2}
-                      className="w-full rounded-md border border-amber-200 bg-white px-2 py-1.5 text-xs text-gray-900 outline-none focus:border-amber-400"
+                      className="min-h-0 border-amber-200 bg-white px-2 py-1.5 text-xs text-gray-900 focus-visible:ring-amber-300"
                     />
                   </label>
                 ))}
@@ -700,7 +342,9 @@ export function SlideGenerationPanel({
           </div>
         )}
 
+        {/* Advanced sections */}
         <div className={`flex-1 overflow-y-auto px-3 py-3 space-y-2 ${!showAdvanced ? 'hidden' : ''}`}>
+          {/* Layout */}
           <CollapsibleSection
             title="Layout"
             isOpen={openSections.layout}
@@ -709,141 +353,170 @@ export function SlideGenerationPanel({
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-gray-700 dark:text-slate-200">{getLayoutLabel(selectedLayout)}</span>
-                <span className="text-[10px] text-gray-400 dark:text-slate-500">{selectedLayout}</span>
+                <span className="text-[10px] text-gray-400 dark:text-slate-500">
+                  {selectedLayout === AUTO_VALUE ? 'optional' : selectedLayout}
+                </span>
               </div>
               <p className="text-[10px] text-gray-500 dark:text-slate-400">{getLayoutDescription(selectedLayout)}</p>
+
               <div className="grid grid-cols-2 gap-2">
-                <label className="space-y-1">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">
-                    Canvas
-                  </span>
-                  <select
-                    value={canvasType}
-                    onChange={(event) => setCanvasType(event.target.value as CanvasType)}
-                    className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    {selectOptions(CANVAS_TYPES)}
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">
-                    Role
-                  </span>
-                  <select
-                    value={narrativeRole}
-                    onChange={(event) => setNarrativeRole(event.target.value as NarrativeRole)}
-                    className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    {selectOptions(NARRATIVE_ROLES)}
-                  </select>
-                </label>
+                <CompactSelect
+                  label="Slide type"
+                  value={canvasType}
+                  onValueChange={setCanvasType}
+                  options={CANVAS_OPTIONS}
+                />
+                <CompactSelect
+                  label="Content type"
+                  value={contentType}
+                  onValueChange={handleContentTypeChange}
+                  options={CONTENT_OPTIONS}
+                />
+                <div className="col-span-2">
+                  <CompactSelect
+                    label="Shape"
+                    value={shapeSubtype}
+                    onValueChange={setShapeSubtype}
+                    options={shapeOptions}
+                    disabled={!shapeBucket}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">Layout preview coming soon</p>
               </div>
             </div>
           </CollapsibleSection>
 
+          {/* Content */}
           <CollapsibleSection
             title="Content"
             isOpen={openSections.content}
             onToggle={() => toggleSection('content')}
           >
             <div className="space-y-2">
-              <label className="space-y-1 block">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">
-                  Content type
-                </span>
-                <select
-                  value={contentType}
-                  onChange={(event) => handleContentTypeChange(event.target.value)}
-                  className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  {selectOptions(CONTENT_TYPES)}
-                </select>
-              </label>
-
-              {contentType === 'chart' && (
-                <label className="space-y-1 block">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">
-                    Chart subtype
-                  </span>
-                  <select
-                    value={chartSubtype}
-                    onChange={(event) => setChartSubtype(event.target.value as ChartSubtype)}
-                    className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    {selectOptions(CHART_SUBTYPES)}
-                  </select>
+              <div className="grid grid-cols-2 gap-2">
+                <CompactSelect
+                  label="Purpose"
+                  value={narrativeRole}
+                  onValueChange={setNarrativeRole}
+                  options={NARRATIVE_OPTIONS}
+                />
+                <label className="space-y-1">
+                  <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Key message</span>
+                  <Input
+                    value={keyMessage}
+                    onChange={(event) => setKeyMessage(event.target.value)}
+                    placeholder="Optional"
+                    className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800"
+                  />
                 </label>
-              )}
+              </div>
 
-              {contentType === 'infographic' && (
-                <label className="space-y-1 block">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">
-                    Infographic subtype
-                  </span>
-                  <select
-                    value={infographicSubtype}
-                    onChange={(event) => setInfographicSubtype(event.target.value as InfographicSubtype)}
-                    className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    {selectOptions(INFOGRAPHIC_SUBTYPES)}
-                  </select>
-                </label>
-              )}
-
-              {contentType.startsWith('diagram_') && (
-                <label className="space-y-1 block">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">
-                    Diagram subtype
-                  </span>
-                  <select
-                    value={diagramSubtype}
-                    onChange={(event) => handleDiagramSubtypeChange(event.target.value)}
-                    className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    {selectOptions(DIAGRAM_SUBTYPES)}
-                  </select>
-                </label>
-              )}
-
-              {(contentType.startsWith('text_heavy') || contentType === 'table') && (
-                <label className="space-y-1 block">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">
-                    Text subtype
-                  </span>
-                  <select
-                    value={textSubtype}
-                    onChange={(event) => setTextSubtype(event.target.value as TextSubtype)}
-                    className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    {selectOptions(TEXT_SUBTYPES)}
-                  </select>
-                </label>
-              )}
+              <div>
+                <label className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Title</label>
+                <div className="mt-1 h-8 rounded-md bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 px-2 flex items-center">
+                  <span className="text-xs text-gray-300">Title text</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Subtitle</label>
+                <div className="mt-1 h-8 rounded-md bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 px-2 flex items-center">
+                  <span className="text-xs text-gray-300">Subtitle text</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Body</label>
+                <div className="mt-1 h-16 rounded-md bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 px-2 pt-2">
+                  <span className="text-xs text-gray-300">Body content</span>
+                </div>
+              </div>
             </div>
           </CollapsibleSection>
 
+          {/* Background */}
           <CollapsibleSection
-            title="Research"
-            isOpen={openSections.research}
-            onToggle={() => toggleSection('research')}
+            title="Background"
+            isOpen={openSections.background}
+            onToggle={() => toggleSection('background')}
           >
-            <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-600 dark:text-slate-300">
-              <span className={cn('rounded-md border px-2 py-1', research.useUploadedDocuments ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50')}>
-                Uploaded docs
-              </span>
-              <span className={cn('rounded-md border px-2 py-1', research.useWebSearch ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50')}>
-                Web search
-              </span>
-              <span className={cn('rounded-md border px-2 py-1', research.useDeepResearch ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50')}>
-                Deep research
-              </span>
-              <span className={cn('rounded-md border px-2 py-1', research.useKnowledgeGraph ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50')}>
-                Knowledge graph
-              </span>
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+              <p className="text-[10px] text-gray-400 dark:text-slate-500">Color, gradient, and background image options — Coming soon</p>
+            </div>
+          </CollapsibleSection>
+
+          {/* Typography */}
+          <CollapsibleSection
+            title="Typography"
+            isOpen={openSections.typography}
+            onToggle={() => toggleSection('typography')}
+          >
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+              <p className="text-[10px] text-gray-400 dark:text-slate-500">Heading font, body font, size scale — Coming soon</p>
+            </div>
+          </CollapsibleSection>
+
+          {/* Visual Elements */}
+          <CollapsibleSection
+            title="Visual Elements"
+            isOpen={openSections.elements}
+            onToggle={() => toggleSection('elements')}
+          >
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+              <p className="text-[10px] text-gray-400 dark:text-slate-500">Image, chart, and diagram configuration — Coming soon</p>
+            </div>
+          </CollapsibleSection>
+
+          {/* Animation */}
+          <CollapsibleSection
+            title="Animation"
+            isOpen={openSections.animation}
+            onToggle={() => toggleSection('animation')}
+          >
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+              <p className="text-[10px] text-gray-400 dark:text-slate-500">Slide transitions and timing — Coming soon</p>
             </div>
           </CollapsibleSection>
         </div>
       </div>
     </div>
+  )
+}
+
+function CompactSelect<T extends string>({
+  label,
+  value,
+  onValueChange,
+  options,
+  disabled = false,
+}: {
+  label: string
+  value: OptionalChoice<T>
+  onValueChange: (value: OptionalChoice<T>) => void
+  options: Array<Option<T>>
+  disabled?: boolean
+}) {
+  return (
+    <label className="block space-y-1">
+      <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">{label}</span>
+      <Select
+        value={disabled ? AUTO_VALUE : value}
+        onValueChange={(next) => onValueChange(next as OptionalChoice<T>)}
+        disabled={disabled}
+      >
+        <SelectTrigger className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={AUTO_VALUE}>Auto / let AI decide</SelectItem>
+          {options.map(option => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </label>
   )
 }

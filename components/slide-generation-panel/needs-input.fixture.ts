@@ -1,4 +1,4 @@
-import type { SlideComposeNeedsInputResult } from './index'
+import type { SlideComposeNeedsInputResult } from './compose-helpers'
 
 export const slideComposerNeedsInputFixture = {
   status: 'needs_input',
