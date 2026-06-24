@@ -1,78 +1,228 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
-import { X, Layout } from 'lucide-react'
+import { useCallback, useMemo, useState, useEffect } from 'react'
+import { AlertCircle, CheckCircle2, Layout, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
-import { MandatoryConfig, MandatoryFieldOptionGroup } from '@/components/generation-panel/types'
+import { MandatoryConfig } from '@/components/generation-panel/types'
+import { Input } from '@/components/ui/input'
 import {
-  SlideLayoutType,
-  SLIDE_LAYOUTS,
-  SLIDE_LAYOUT_CATEGORIES,
-} from '@/types/elements'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { SlideLayoutType } from '@/types/elements'
+import {
+  AUTO_VALUE,
+  CANVAS_OPTIONS,
+  CONTENT_OPTIONS,
+  NARRATIVE_OPTIONS,
+  SHAPE_OPTIONS,
+  buildInstruction,
+  buildSelections,
+  getLayoutDescription,
+  getLayoutLabel,
+  getShapeBucket,
+  isBuiltResponse,
+  isNeedsInputResponse,
+  layoutDefaults,
+  normalizeQuestions,
+  responseErrorMessage,
+  slideTypeGroups,
+  subtypeFromSelections,
+  type CanvasType,
+  type ContentType,
+  type LayoutChoice,
+  type NarrativeRole,
+  type OptionalChoice,
+  type ShapeSubtype,
+  type SlideComposeBuiltResult,
+  type SlideComposeNeedsInputResult,
+} from './compose-helpers'
+
+export type { SlideComposeBuiltResult, SlideComposeNeedsInputResult } from './compose-helpers'
+
+interface SlideComposerResearchState {
+  useUploadedDocuments: boolean
+  useWebSearch: boolean
+  useDeepResearch: boolean
+  useKnowledgeGraph: boolean
+}
 
 interface SlideGenerationPanelProps {
   isOpen: boolean
   onClose: () => void
   currentSlide: number
   currentLayout?: SlideLayoutType
+  sessionId: string
+  presentationId: string | null
+  research: SlideComposerResearchState
+  enabled: boolean
+  onBuilt: (result: SlideComposeBuiltResult) => void
 }
 
-// Build grouped options from existing layout data
-const slideTypeGroups: MandatoryFieldOptionGroup[] = SLIDE_LAYOUT_CATEGORIES.map(cat => ({
-  group: cat.label,
-  options: SLIDE_LAYOUTS
-    .filter(l => l.category === cat.category)
-    .map(l => ({ value: l.layout, label: l.label })),
-}))
+type OpenSections = Record<'layout' | 'content' | 'background' | 'typography' | 'elements' | 'animation', boolean>
+type Option<T extends string> = { value: T; label: string }
 
-function getLayoutLabel(layout: SlideLayoutType): string {
-  return SLIDE_LAYOUTS.find(l => l.layout === layout)?.label ?? layout
-}
-
-function getLayoutDescription(layout: SlideLayoutType): string {
-  return SLIDE_LAYOUTS.find(l => l.layout === layout)?.description ?? ''
+const INITIAL_OPEN_SECTIONS: OpenSections = {
+  layout: true,
+  content: false,
+  background: false,
+  typography: false,
+  elements: false,
+  animation: false,
 }
 
 export function SlideGenerationPanel({
   isOpen,
   onClose,
   currentSlide,
-  currentLayout,
+  sessionId,
+  presentationId,
+  research,
+  enabled,
+  onBuilt,
 }: SlideGenerationPanelProps) {
   const [prompt, setPrompt] = useState('')
-  const [selectedLayout, setSelectedLayout] = useState<SlideLayoutType>('C1-text')
+  const [selectedLayout, setSelectedLayout] = useState<LayoutChoice>(AUTO_VALUE)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [isGenerating] = useState(false)
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    layout: true,
-    content: false,
-    background: false,
-    typography: false,
-    elements: false,
-    animation: false,
-  })
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [needsInput, setNeedsInput] = useState<SlideComposeNeedsInputResult | null>(null)
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [canvasType, setCanvasType] = useState<OptionalChoice<CanvasType>>(AUTO_VALUE)
+  const [contentType, setContentType] = useState<OptionalChoice<ContentType>>(AUTO_VALUE)
+  const [shapeSubtype, setShapeSubtype] = useState<OptionalChoice<ShapeSubtype>>(AUTO_VALUE)
+  const [narrativeRole, setNarrativeRole] = useState<OptionalChoice<NarrativeRole>>(AUTO_VALUE)
+  const [keyMessage, setKeyMessage] = useState('')
+  const [openSections, setOpenSections] = useState<OpenSections>(INITIAL_OPEN_SECTIONS)
 
-  // Sync selectedLayout with currentLayout prop when slide changes
-  useEffect(() => {
-    if (currentLayout) setSelectedLayout(currentLayout)
-  }, [currentLayout])
+  const questions = useMemo(() => normalizeQuestions(needsInput), [needsInput])
+  const shapeBucket = getShapeBucket(contentType)
+  const shapeOptions = shapeBucket ? SHAPE_OPTIONS[shapeBucket] : []
+  const selections = useMemo(
+    () => buildSelections({ layout: selectedLayout, canvasType, contentType, shapeSubtype, narrativeRole }),
+    [canvasType, contentType, narrativeRole, selectedLayout, shapeSubtype],
+  )
 
-  // Build mandatory config for the layout chip
   const mandatoryConfig: MandatoryConfig = {
     fieldLabel: 'Slide Layout',
     displayLabel: getLayoutLabel(selectedLayout),
     optionGroups: slideTypeGroups,
-    onChange: (value: string) => setSelectedLayout(value as SlideLayoutType),
+    onChange: (value: string) => handleLayoutChange(value as LayoutChoice),
     promptPlaceholder: 'Describe the slide you want to generate or edit...',
   }
 
-  const handleGenerate = useCallback(() => {
-    console.log('Slide generation requested:', { prompt, layout: selectedLayout, showAdvanced })
-  }, [prompt, selectedLayout, showAdvanced])
+  function handleLayoutChange(layout: LayoutChoice) {
+    setSelectedLayout(layout)
 
-  const toggleSection = useCallback((key: string) => {
+    const defaults = layoutDefaults(layout)
+    setCanvasType(defaults.canvas_type ?? AUTO_VALUE)
+    setContentType(defaults.content_type ?? AUTO_VALUE)
+    setNarrativeRole(defaults.narrative_role ?? AUTO_VALUE)
+    setShapeSubtype(subtypeFromSelections(defaults))
+    setError(null)
+    setSuccessMessage(null)
+  }
+
+  function handleContentTypeChange(value: OptionalChoice<ContentType>) {
+    setContentType(value)
+    setShapeSubtype(AUTO_VALUE)
+    setError(null)
+    setSuccessMessage(null)
+  }
+
+  const handleGenerate = useCallback(async () => {
+    const instruction = buildInstruction(prompt, keyMessage, questions, answers)
+    const hasSelections = Object.keys(selections).length > 0
+
+    setError(null)
+    setSuccessMessage(null)
+
+    if (!enabled) {
+      setError('Slide Composer is disabled.')
+      return
+    }
+
+    if (!sessionId) {
+      setError('No active builder session is available yet.')
+      return
+    }
+
+    if (!instruction && !hasSelections) {
+      setError('Describe the slide or choose an optional slide setting.')
+      return
+    }
+
+    setIsGenerating(true)
+    try {
+      const response = await fetch('/api/slides/compose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          presentation_id: presentationId,
+          insert_after_index: presentationId ? Math.max(0, currentSlide - 1) : null,
+          instruction,
+          selections: hasSelections ? selections : undefined,
+          research: {
+            use_uploaded_documents: research.useUploadedDocuments,
+            use_web_search: research.useWebSearch,
+            use_deep_research: research.useDeepResearch,
+            use_knowledge_graph: research.useKnowledgeGraph,
+          },
+          assume_on_missing: false,
+        }),
+      })
+
+      const data: unknown = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(responseErrorMessage(data))
+      }
+
+      if (isNeedsInputResponse(data)) {
+        setNeedsInput(data)
+        setAnswers({})
+        return
+      }
+
+      if (isBuiltResponse(data)) {
+        setNeedsInput(null)
+        setAnswers({})
+        setPrompt('')
+        setKeyMessage('')
+        setSuccessMessage(`Built slide ${data.slide_index + 1}.`)
+        onBuilt(data)
+        return
+      }
+
+      throw new Error(responseErrorMessage(data))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Slide Composer failed')
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [
+    answers,
+    currentSlide,
+    enabled,
+    keyMessage,
+    onBuilt,
+    presentationId,
+    prompt,
+    questions,
+    research,
+    selections,
+    sessionId,
+  ])
+
+  const toggleSection = useCallback((key: keyof OpenSections) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
   }, [])
 
@@ -87,7 +237,7 @@ export function SlideGenerationPanel({
       }
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !isGenerating) {
         e.preventDefault()
-        handleGenerate()
+        void handleGenerate()
       }
     }
 
@@ -126,21 +276,71 @@ export function SlideGenerationPanel({
         {/* Slide context bar */}
         <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100">
           <p className="text-xs text-blue-800">
-            Editing <span className="font-semibold">Slide {currentSlide}</span>
+            {presentationId ? (
+              <>
+                Inserts after <span className="font-semibold">Slide {currentSlide}</span>
+              </>
+            ) : (
+              <>
+                Editing <span className="font-semibold">Slide {currentSlide}</span>
+              </>
+            )}
           </p>
         </div>
 
         {/* Generation input */}
         <GenerationInput
           prompt={prompt}
-          onPromptChange={setPrompt}
+          onPromptChange={(value) => {
+            setPrompt(value)
+            setNeedsInput(null)
+            setError(null)
+            setSuccessMessage(null)
+          }}
           mandatoryConfig={mandatoryConfig}
           showAdvanced={showAdvanced}
           onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
-          onSubmit={handleGenerate}
+          onSubmit={() => void handleGenerate()}
           isGenerating={isGenerating}
-          error={null}
+          error={error}
         />
+
+        {successMessage && (
+          <div className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-700">
+            <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
+        {needsInput && (
+          <div className="mx-3 mb-2 rounded-md border border-amber-200 bg-amber-50 p-2.5">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="text-xs font-medium text-amber-800">More input needed</p>
+                {questions.map((question) => (
+                  <label key={question.slot} className="block space-y-1">
+                    <span className="text-[11px] text-amber-800">{question.ask}</span>
+                    <Textarea
+                      value={answers[question.slot] ?? ''}
+                      onChange={(event) => setAnswers(prev => ({ ...prev, [question.slot]: event.target.value }))}
+                      rows={2}
+                      className="min-h-0 border-amber-200 bg-white px-2 py-1.5 text-xs text-gray-900 focus-visible:ring-amber-300"
+                    />
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => void handleGenerate()}
+                  disabled={isGenerating}
+                  className="rounded-md bg-amber-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Advanced sections */}
         <div className={`flex-1 overflow-y-auto px-3 py-3 space-y-2 ${!showAdvanced ? 'hidden' : ''}`}>
@@ -153,9 +353,36 @@ export function SlideGenerationPanel({
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-gray-700 dark:text-slate-200">{getLayoutLabel(selectedLayout)}</span>
-                <span className="text-[10px] text-gray-400 dark:text-slate-500">{selectedLayout}</span>
+                <span className="text-[10px] text-gray-400 dark:text-slate-500">
+                  {selectedLayout === AUTO_VALUE ? 'optional' : selectedLayout}
+                </span>
               </div>
               <p className="text-[10px] text-gray-500 dark:text-slate-400">{getLayoutDescription(selectedLayout)}</p>
+
+              <div className="grid grid-cols-2 gap-2">
+                <CompactSelect
+                  label="Slide type"
+                  value={canvasType}
+                  onValueChange={setCanvasType}
+                  options={CANVAS_OPTIONS}
+                />
+                <CompactSelect
+                  label="Content type"
+                  value={contentType}
+                  onValueChange={handleContentTypeChange}
+                  options={CONTENT_OPTIONS}
+                />
+                <div className="col-span-2">
+                  <CompactSelect
+                    label="Shape"
+                    value={shapeSubtype}
+                    onValueChange={setShapeSubtype}
+                    options={shapeOptions}
+                    disabled={!shapeBucket}
+                  />
+                </div>
+              </div>
+
               <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
                 <p className="text-[10px] text-gray-400 dark:text-slate-500">Layout preview coming soon</p>
               </div>
@@ -169,6 +396,24 @@ export function SlideGenerationPanel({
             onToggle={() => toggleSection('content')}
           >
             <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <CompactSelect
+                  label="Purpose"
+                  value={narrativeRole}
+                  onValueChange={setNarrativeRole}
+                  options={NARRATIVE_OPTIONS}
+                />
+                <label className="space-y-1">
+                  <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Key message</span>
+                  <Input
+                    value={keyMessage}
+                    onChange={(event) => setKeyMessage(event.target.value)}
+                    placeholder="Optional"
+                    className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800"
+                  />
+                </label>
+              </div>
+
               <div>
                 <label className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Title</label>
                 <div className="mt-1 h-8 rounded-md bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-700 px-2 flex items-center">
@@ -236,5 +481,42 @@ export function SlideGenerationPanel({
         </div>
       </div>
     </div>
+  )
+}
+
+function CompactSelect<T extends string>({
+  label,
+  value,
+  onValueChange,
+  options,
+  disabled = false,
+}: {
+  label: string
+  value: OptionalChoice<T>
+  onValueChange: (value: OptionalChoice<T>) => void
+  options: Array<Option<T>>
+  disabled?: boolean
+}) {
+  return (
+    <label className="block space-y-1">
+      <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">{label}</span>
+      <Select
+        value={disabled ? AUTO_VALUE : value}
+        onValueChange={(next) => onValueChange(next as OptionalChoice<T>)}
+        disabled={disabled}
+      >
+        <SelectTrigger className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={AUTO_VALUE}>Auto / let AI decide</SelectItem>
+          {options.map(option => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </label>
   )
 }

@@ -8,6 +8,7 @@ Documentation for backend service integration and protocols.
 - [Layout Service API](layout-service.md) - Slide layout optimization service
 - [Downloads Service API](downloads-service.md) - Presentation export service (v7.5)
 - [WebSocket Protocol](websocket-protocol.md) - Real-time communication specification
+- [Slide Composer API](slide-composer.md) - Compose one whole slide into a new or existing deck
 
 ## Service Architecture
 

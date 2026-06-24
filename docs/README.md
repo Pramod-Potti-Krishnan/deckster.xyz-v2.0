@@ -22,6 +22,7 @@ Backend service integration:
 - [Layout Service API](api/layout-service.md) - Slide layout optimization
 - [Downloads Service API](api/downloads-service.md) - Presentation export functionality
 - [WebSocket Protocol](api/websocket-protocol.md) - Real-time communication spec
+- [Slide Composer API](api/slide-composer.md) - Compose one whole slide into a new or existing deck
 
 ### Architecture
 System design and technical decisions:

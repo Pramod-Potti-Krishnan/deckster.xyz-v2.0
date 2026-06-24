@@ -14,11 +14,11 @@ import { useFileUpload } from '@/hooks/use-file-upload'
 import { features } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { SlideGenerationPanel } from '@/components/slide-generation-panel'
+import { SlideGenerationPanel, type SlideComposeBuiltResult } from '@/components/slide-generation-panel'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
-import { ElementType, ElementProperties } from '@/types/elements'
+import { ElementType, ElementProperties, SlideLayoutType } from '@/types/elements'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
@@ -45,6 +45,14 @@ export const dynamic = 'force-dynamic'
 const DEFAULT_DRAWER_WIDTH = 420
 const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
+
+function withSlideComposerRefreshToken(url: string | null, token: number): string | null {
+  if (!url || !token) return url
+  const [base, hash] = url.split('#', 2)
+  const separator = base.includes('?') ? '&' : '?'
+  const refreshed = `${base}${separator}sc_refresh=${encodeURIComponent(String(token))}`
+  return hash ? `${refreshed}#${hash}` : refreshed
+}
 
 function BuilderContent() {
   const { user, isLoading: isAuthLoading } = useAuth()
@@ -109,6 +117,12 @@ function BuilderContent() {
 
   // Current slide tracking
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
+  const [slideComposerOverride, setSlideComposerOverride] = useState<{
+    presentationUrl: string | null
+    presentationId: string | null
+    slideCount: number | null
+    refreshToken: number
+  } | null>(null)
 
   // Portal target for toolbar in header
   const [toolbarPortalTarget, setToolbarPortalTarget] = useState<HTMLDivElement | null>(null)
@@ -190,7 +204,7 @@ function BuilderContent() {
 
   // Drawer open conditions
   const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel
-  const isSlideDrawerOpen = showFormatPanel
+  const isSlideDrawerOpen = features.slideComposerEnabled && showFormatPanel
   const isDeckDrawerOpen = showChat
   const anyDrawerOpen = isElementDrawerOpen || isSlideDrawerOpen || isDeckDrawerOpen
 
@@ -259,6 +273,11 @@ function BuilderContent() {
         // ignore storage errors (Safari private mode, quota)
       }
     }
+  }, [currentSessionId])
+
+  useEffect(() => {
+    setSlideComposerOverride(null)
+    setShowFormatPanel(false)
   }, [currentSessionId])
 
   // WebSocket v2 integration
@@ -353,6 +372,87 @@ function BuilderContent() {
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
 
+  const effectivePresentationId = slideComposerOverride?.presentationId ?? presentationId
+  const effectiveSlideCount = slideComposerOverride?.slideCount ?? slideCount
+  const effectivePresentationUrl = useMemo(
+    () => withSlideComposerRefreshToken(
+      slideComposerOverride?.presentationUrl ?? presentationUrl,
+      slideComposerOverride?.refreshToken ?? 0,
+    ),
+    [presentationUrl, slideComposerOverride],
+  )
+
+  const currentSlideLayout = useMemo<SlideLayoutType | undefined>(() => {
+    const ctx = slideContextByIndex?.[currentSlideIndex]
+    if (!ctx) return undefined
+
+    const canvas = ctx.canvas_type
+    const contentType = ctx.content_type
+    const diagramSubtype = ctx.subtypes?.diagram_subtype
+
+    if (canvas === 'H1') return 'H1-generated'
+    if (canvas === 'H2') return 'H2-section'
+    if (canvas === 'H3') return 'H3-closing'
+    if (canvas === 'I1') return 'I1-image-left'
+    if (canvas === 'I2') return 'I2-image-right'
+    if (canvas === 'I3') return 'I3-image-left-narrow'
+    if (canvas === 'I4') return 'I4-image-right-narrow'
+    if (contentType === 'chart') return 'C3-chart'
+    if (contentType === 'infographic') return 'C4-infographic'
+    if (contentType?.startsWith('diagram') || diagramSubtype) return 'C5-diagram'
+    return 'C1-text'
+  }, [currentSlideIndex, slideContextByIndex])
+
+  const handleSlideComposerBuilt = useCallback((result: SlideComposeBuiltResult) => {
+    const nextSlideIndex = Math.max(0, result.slide_index)
+    const targetPresentationId = result.presentation_id
+    const targetPresentationUrl = result.presentation_url ?? slideComposerOverride?.presentationUrl ?? presentationUrl
+    const existingDeck = !!effectivePresentationId && targetPresentationId === effectivePresentationId
+    const baseSlideCount = effectiveSlideCount ?? 0
+    const nextSlideCount = Math.max(
+      existingDeck ? baseSlideCount + 1 : (result.slides_built ?? 1),
+      nextSlideIndex + 1,
+    )
+
+    setSlideComposerOverride({
+      presentationUrl: targetPresentationUrl ?? null,
+      presentationId: targetPresentationId,
+      slideCount: nextSlideCount,
+      refreshToken: Date.now(),
+    })
+    setCurrentSlideIndex(nextSlideIndex)
+
+    if (persistence) {
+      const updates: any = {
+        slideCount: nextSlideCount,
+        lastMessageAt: new Date(),
+      }
+
+      if (activeVersion === 'strawman') {
+        updates.strawmanPreviewUrl = targetPresentationUrl
+        updates.strawmanPresentationId = targetPresentationId
+      } else {
+        updates.finalPresentationUrl = targetPresentationUrl
+        updates.finalPresentationId = targetPresentationId
+      }
+
+      persistence.updateMetadata(updates)
+    }
+
+    toast({
+      title: 'Slide built',
+      description: `Inserted slide ${nextSlideIndex + 1}.`,
+    })
+  }, [
+    activeVersion,
+    effectivePresentationId,
+    effectiveSlideCount,
+    persistence,
+    presentationUrl,
+    slideComposerOverride?.presentationUrl,
+    toast,
+  ])
+
   // Builder session hook (session init, loading, switching, persistence effects)
   const session = useBuilderSession({
     user,
@@ -377,8 +477,8 @@ function BuilderContent() {
     setSessionStoreName,
   })
 
-  // Text Labs session (depends on presentationId from WebSocket)
-  const textLabsSession = useTextLabsSession(presentationId)
+  // Text Labs session (depends on the currently displayed presentation)
+  const textLabsSession = useTextLabsSession(effectivePresentationId)
 
   // Track active blank element for real-time canvas<->modal position sync
   const trackElementRef = useRef(blankElements.trackElement)
@@ -425,11 +525,11 @@ function BuilderContent() {
 
   // Infer current stage from available data
   const currentStage = useMemo(() => {
-    if (presentationUrl) return 6;
-    if (slideCount && slideCount > 0) return 5;
+    if (effectivePresentationUrl) return 6;
+    if (effectiveSlideCount && effectiveSlideCount > 0) return 5;
     if (slideStructure && (slideStructure as any).length > 0) return 4;
     return 3;
-  }, [presentationUrl, slideCount, slideStructure])
+  }, [effectivePresentationUrl, effectiveSlideCount, slideStructure])
 
   // Set strawman generation flag
   useEffect(() => {
@@ -900,12 +1000,12 @@ function BuilderContent() {
                     console.error('Failed to delete text box:', error)
                   }
                 }}
-                presentationId={presentationId}
+                presentationId={effectivePresentationId}
                 slideIndex={currentSlideIndex}
                 sessionId={currentSessionId}
               />
 
-              {presentationId && (
+              {effectivePresentationId && (
                 <ElementFormatPanel
                   isOpen={showElementPanel}
                   onClose={() => {
@@ -940,7 +1040,7 @@ function BuilderContent() {
                       console.error('Failed to delete element:', error)
                     }
                   }}
-                  presentationId={presentationId}
+                  presentationId={effectivePresentationId}
                   slideIndex={currentSlideIndex}
                 />
               )}
@@ -983,61 +1083,73 @@ function BuilderContent() {
           </div>
 
           {/* === Slide Drawer === */}
-          <div
-            className={cn(
-              "absolute inset-y-0 left-0 ease-out",
-              isResizingDrawer ? "" : "transition-transform duration-300"
-            )}
-            style={{
-              width: drawerWidth,
-              transform: isSlideDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
-              zIndex: isSlideDrawerOpen ? 10 + panelZIndices.slide : 60,
-              pointerEvents: isSlideDrawerOpen ? 'auto' : 'none',
-            }}
-          >
-            {/* Panel area */}
+          {features.slideComposerEnabled && (
             <div
-              className={`absolute inset-y-0 left-0 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100 overflow-hidden ${isSlideDrawerOpen ? 'shadow-xl' : ''}`}
-              style={{ width: drawerWidth }}
-            >
-              <SlideGenerationPanel
-                isOpen={showFormatPanel}
-                onClose={() => setShowFormatPanel(false)}
-                currentSlide={currentSlideIndex + 1}
-              />
-
-            </div>
-
-            {/* Handle */}
-            <button
-              type="button"
-              onClick={() => {
-                const next = !showFormatPanel
-                setShowFormatPanel(next)
-                if (next) bringToFront('slide')
-              }}
               className={cn(
-                "absolute top-[45%] -translate-y-1/2",
-                "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
-                "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
-                "transition-colors pointer-events-auto",
-                showFormatPanel
-                  ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700 dark:bg-blue-900/50 dark:hover:bg-blue-800/60 dark:border-blue-700 dark:text-blue-200"
-                  : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-blue-300"
+                "absolute inset-y-0 left-0 ease-out",
+                isResizingDrawer ? "" : "transition-transform duration-300"
               )}
-              style={{ left: drawerWidth }}
-              title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
+              style={{
+                width: drawerWidth,
+                transform: isSlideDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
+                zIndex: isSlideDrawerOpen ? 10 + panelZIndices.slide : 60,
+                pointerEvents: isSlideDrawerOpen ? 'auto' : 'none',
+              }}
             >
-              {isSlideDrawerOpen ? (
-                <ChevronLeft className="h-2.5 w-2.5" />
-              ) : (
-                <ChevronRight className="h-2.5 w-2.5" />
-              )}
-              <span className="[writing-mode:vertical-rl] text-[9px] font-semibold uppercase tracking-wider select-none leading-none">
-                Slide
-              </span>
-            </button>
-          </div>
+              {/* Panel area */}
+              <div
+                className={`absolute inset-y-0 left-0 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100 overflow-hidden ${isSlideDrawerOpen ? 'shadow-xl' : ''}`}
+                style={{ width: drawerWidth }}
+              >
+                <SlideGenerationPanel
+                  isOpen={showFormatPanel}
+                  onClose={() => setShowFormatPanel(false)}
+                  currentSlide={currentSlideIndex + 1}
+                  currentLayout={currentSlideLayout}
+                  sessionId={wsSessionId || currentSessionId || ''}
+                  presentationId={effectivePresentationId}
+                  research={{
+                    useUploadedDocuments: uploadedFiles.some(file => file.status === 'success') || Boolean(sessionStoreName),
+                    useWebSearch: webSearchEnabled,
+                    useDeepResearch: researchEnabled && webSearchEnabled,
+                    useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
+                  }}
+                  enabled={features.slideComposerEnabled}
+                  onBuilt={handleSlideComposerBuilt}
+                />
+              </div>
+
+              {/* Handle */}
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !showFormatPanel
+                  setShowFormatPanel(next)
+                  if (next) bringToFront('slide')
+                }}
+                className={cn(
+                  "absolute top-[45%] -translate-y-1/2",
+                  "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
+                  "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
+                  "transition-colors pointer-events-auto",
+                  showFormatPanel
+                    ? "bg-blue-200 hover:bg-blue-300 border-blue-400 text-blue-700 dark:bg-blue-900/50 dark:hover:bg-blue-800/60 dark:border-blue-700 dark:text-blue-200"
+                    : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-blue-300"
+                )}
+                style={{ left: drawerWidth }}
+                title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
+              >
+                {isSlideDrawerOpen ? (
+                  <ChevronLeft className="h-2.5 w-2.5" />
+                ) : (
+                  <ChevronRight className="h-2.5 w-2.5" />
+                )}
+                <span className="[writing-mode:vertical-rl] text-[9px] font-semibold uppercase tracking-wider select-none leading-none">
+                  Slide
+                </span>
+              </button>
+            </div>
+          )}
 
           {/* === Deck Drawer === */}
           <div
@@ -1194,9 +1306,9 @@ function BuilderContent() {
             </div>
           ) : (
           <PresentationArea
-            presentationUrl={presentationUrl}
-            presentationId={presentationId}
-            slideCount={slideCount}
+            presentationUrl={effectivePresentationUrl}
+            presentationId={effectivePresentationId}
+            slideCount={effectiveSlideCount}
             slideStructure={slideStructure}
             strawmanPreviewUrl={strawmanPreviewUrl}
             finalPresentationUrl={finalPresentationUrl}
