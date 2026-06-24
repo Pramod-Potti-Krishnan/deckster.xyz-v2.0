@@ -4,6 +4,11 @@ import { authOptions } from '@/lib/auth-options'
 
 const DEFAULT_DIRECTOR_URL = 'http://localhost:8000'
 
+type SessionUserWithId = {
+  id?: string | null
+  email?: string | null
+}
+
 function directorBaseUrl(): string {
   return (
     process.env.SLIDE_COMPOSER_DIRECTOR_URL ||
@@ -22,7 +27,8 @@ export async function POST(req: NextRequest) {
   }
 
   const session = await getServerSession(authOptions)
-  const userId = session?.user?.id || session?.user?.email
+  const sessionUser = session?.user as SessionUserWithId | undefined
+  const userId = sessionUser?.id || sessionUser?.email
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
