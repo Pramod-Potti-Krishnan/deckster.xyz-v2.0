@@ -68,16 +68,13 @@ interface SlideGenerationPanelProps {
   onBuilt: (result: SlideComposeBuiltResult) => void
 }
 
-type OpenSections = Record<'layout' | 'content' | 'background' | 'typography' | 'elements' | 'animation', boolean>
+type OpenSections = Record<'slideSetup' | 'grounding' | 'comingSoon', boolean>
 type Option<T extends string> = { value: T; label: string }
 
 const INITIAL_OPEN_SECTIONS: OpenSections = {
-  layout: true,
-  content: false,
-  background: false,
-  typography: false,
-  elements: false,
-  animation: false,
+  slideSetup: true,
+  grounding: true,
+  comingSoon: false,
 }
 
 export function SlideGenerationPanel({
@@ -384,11 +381,11 @@ export function SlideGenerationPanel({
 
         {/* Advanced sections */}
         <div className={`flex-1 overflow-y-auto px-3 py-3 space-y-2 ${!showAdvanced ? 'hidden' : ''}`}>
-          {/* Layout */}
+          {/* Slide setup */}
           <CollapsibleSection
-            title="Layout"
-            isOpen={openSections.layout}
-            onToggle={() => toggleSection('layout')}
+            title="Slide setup"
+            isOpen={openSections.slideSetup}
+            onToggle={() => toggleSection('slideSetup')}
           >
             <div className="space-y-2">
               <div className="flex items-center gap-2">
@@ -427,19 +424,6 @@ export function SlideGenerationPanel({
                 </div>
               )}
 
-              <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
-                <p className="text-[10px] text-gray-400 dark:text-slate-500">Layout preview coming soon</p>
-              </div>
-            </div>
-          </CollapsibleSection>
-
-          {/* Content */}
-          <CollapsibleSection
-            title="Content"
-            isOpen={openSections.content}
-            onToggle={() => toggleSection('content')}
-          >
-            <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <CompactSelect
                   label="Purpose"
@@ -457,75 +441,95 @@ export function SlideGenerationPanel({
                   />
                 </label>
               </div>
+            </div>
+          </CollapsibleSection>
 
-              <div className="rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-slate-700 dark:bg-slate-800">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">
-                    Ground with research
-                  </span>
-                  <ToggleButton
-                    pressed={groundWithResearch}
-                    onClick={() => setGroundWithResearch(prev => !prev)}
-                  />
-                </div>
-                {groundWithResearch && (
-                  <div className="mt-2 space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <ToggleRow
-                        label="Web search"
-                        pressed={useWebSearch}
-                        onClick={() => {
-                          setUseWebSearch(prev => {
-                            if (prev) setUseDeepResearch(false)
-                            return !prev
-                          })
-                        }}
-                      />
-                      <ToggleRow
-                        label="Deep research"
-                        pressed={useDeepResearch}
-                        disabled={!useWebSearch}
-                        onClick={() => setUseDeepResearch(prev => !prev)}
-                      />
-                      <ToggleRow
-                        label="Uploaded docs"
-                        pressed={useUploadedDocuments}
-                        onClick={() => setUseUploadedDocuments(prev => !prev)}
-                      />
-                      <ToggleRow
-                        label="Knowledge graph"
-                        pressed={useKnowledgeGraph}
-                        onClick={() => setUseKnowledgeGraph(prev => !prev)}
-                      />
-                    </div>
-                    {useWebSearch && (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">
-                          Max queries
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setWebSearchMaxQueries(prev => Math.max(1, prev - 1))}
-                            className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-                            title="Decrease max queries"
-                          >
-                            <Minus className="h-3 w-3" />
-                          </button>
-                          <span className="w-5 text-center text-xs text-gray-700 dark:text-slate-200">{webSearchMaxQueries}</span>
-                          <button
-                            type="button"
-                            onClick={() => setWebSearchMaxQueries(prev => Math.min(10, prev + 1))}
-                            className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-                            title="Increase max queries"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
+          {/* Grounding */}
+          <CollapsibleSection
+            title="Grounding"
+            isOpen={openSections.grounding}
+            onToggle={() => toggleSection('grounding')}
+          >
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-slate-700 dark:bg-slate-800">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                  Ground with research
+                </span>
+                <ToggleButton
+                  pressed={groundWithResearch}
+                  onClick={() => setGroundWithResearch(prev => !prev)}
+                />
+              </div>
+              {groundWithResearch && (
+                <div className="mt-2 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <ToggleRow
+                      label="Web search"
+                      pressed={useWebSearch}
+                      onClick={() => {
+                        setUseWebSearch(prev => {
+                          if (prev) setUseDeepResearch(false)
+                          return !prev
+                        })
+                      }}
+                    />
+                    <ToggleRow
+                      label="Deep research"
+                      pressed={useDeepResearch}
+                      disabled={!useWebSearch}
+                      onClick={() => setUseDeepResearch(prev => !prev)}
+                    />
+                    <ToggleRow
+                      label="Uploaded docs"
+                      pressed={useUploadedDocuments}
+                      onClick={() => setUseUploadedDocuments(prev => !prev)}
+                    />
+                    <ToggleRow
+                      label="Knowledge graph"
+                      pressed={useKnowledgeGraph}
+                      onClick={() => setUseKnowledgeGraph(prev => !prev)}
+                    />
                   </div>
-                )}
+                  {useWebSearch && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                        Max queries
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setWebSearchMaxQueries(prev => Math.max(1, prev - 1))}
+                          className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                          title="Decrease max queries"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <span className="w-5 text-center text-xs text-gray-700 dark:text-slate-200">{webSearchMaxQueries}</span>
+                        <button
+                          type="button"
+                          onClick={() => setWebSearchMaxQueries(prev => Math.min(10, prev + 1))}
+                          className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                          title="Increase max queries"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </CollapsibleSection>
+
+          {/* Coming soon */}
+          <CollapsibleSection
+            title="Coming soon"
+            isOpen={openSections.comingSoon}
+            onToggle={() => toggleSection('comingSoon')}
+          >
+            <div className="space-y-3 opacity-75" aria-disabled="true">
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">Layout preview coming soon</p>
               </div>
 
               <div>
@@ -546,50 +550,22 @@ export function SlideGenerationPanel({
                   <span className="text-xs text-gray-300">Body content</span>
                 </div>
               </div>
-            </div>
-          </CollapsibleSection>
 
-          {/* Background */}
-          <CollapsibleSection
-            title="Background"
-            isOpen={openSections.background}
-            onToggle={() => toggleSection('background')}
-          >
-            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
-              <p className="text-[10px] text-gray-400 dark:text-slate-500">Color, gradient, and background image options — Coming soon</p>
-            </div>
-          </CollapsibleSection>
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">Color, gradient, and background image options — Coming soon</p>
+              </div>
 
-          {/* Typography */}
-          <CollapsibleSection
-            title="Typography"
-            isOpen={openSections.typography}
-            onToggle={() => toggleSection('typography')}
-          >
-            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
-              <p className="text-[10px] text-gray-400 dark:text-slate-500">Heading font, body font, size scale — Coming soon</p>
-            </div>
-          </CollapsibleSection>
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">Heading font, body font, size scale — Coming soon</p>
+              </div>
 
-          {/* Visual Elements */}
-          <CollapsibleSection
-            title="Visual Elements"
-            isOpen={openSections.elements}
-            onToggle={() => toggleSection('elements')}
-          >
-            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
-              <p className="text-[10px] text-gray-400 dark:text-slate-500">Image, chart, and diagram configuration — Coming soon</p>
-            </div>
-          </CollapsibleSection>
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">Image, chart, and diagram configuration — Coming soon</p>
+              </div>
 
-          {/* Animation */}
-          <CollapsibleSection
-            title="Animation"
-            isOpen={openSections.animation}
-            onToggle={() => toggleSection('animation')}
-          >
-            <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
-              <p className="text-[10px] text-gray-400 dark:text-slate-500">Slide transitions and timing — Coming soon</p>
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
+                <p className="text-[10px] text-gray-400 dark:text-slate-500">Slide transitions and timing — Coming soon</p>
+              </div>
             </div>
           </CollapsibleSection>
         </div>
