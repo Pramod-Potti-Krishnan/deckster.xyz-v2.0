@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState, useEffect } from 'react'
-import { AlertCircle, CheckCircle2, Layout, X } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Layout, Minus, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
@@ -18,17 +18,20 @@ import { Textarea } from '@/components/ui/textarea'
 import { SlideLayoutType } from '@/types/elements'
 import {
   AUTO_VALUE,
-  CANVAS_OPTIONS,
   CONTENT_OPTIONS,
+  IMAGE_PLACEMENT_OPTIONS,
   NARRATIVE_OPTIONS,
   SHAPE_OPTIONS,
   buildInstruction,
   buildSelections,
+  canUseImagePlacement,
+  defaultShapeForContent,
   getLayoutDescription,
   getLayoutLabel,
   getShapeBucket,
   isBuiltResponse,
   isNeedsInputResponse,
+  isHeroLayout,
   layoutDefaults,
   normalizeQuestions,
   responseErrorMessage,
@@ -83,7 +86,7 @@ export function SlideGenerationPanel({
   currentSlide,
   sessionId,
   presentationId,
-  research,
+  research: _research,
   enabled,
   onBuilt,
 }: SlideGenerationPanelProps) {
@@ -100,14 +103,33 @@ export function SlideGenerationPanel({
   const [shapeSubtype, setShapeSubtype] = useState<OptionalChoice<ShapeSubtype>>(AUTO_VALUE)
   const [narrativeRole, setNarrativeRole] = useState<OptionalChoice<NarrativeRole>>(AUTO_VALUE)
   const [keyMessage, setKeyMessage] = useState('')
+  const [groundWithResearch, setGroundWithResearch] = useState(false)
+  const [useWebSearch, setUseWebSearch] = useState(false)
+  const [useDeepResearch, setUseDeepResearch] = useState(false)
+  const [webSearchMaxQueries, setWebSearchMaxQueries] = useState(3)
+  const [useUploadedDocuments, setUseUploadedDocuments] = useState(false)
+  const [useKnowledgeGraph, setUseKnowledgeGraph] = useState(false)
   const [openSections, setOpenSections] = useState<OpenSections>(INITIAL_OPEN_SECTIONS)
 
   const questions = useMemo(() => normalizeQuestions(needsInput), [needsInput])
   const shapeBucket = getShapeBucket(contentType)
   const shapeOptions = shapeBucket ? SHAPE_OPTIONS[shapeBucket] : []
+  const isHero = isHeroLayout(selectedLayout) || contentType === 'hero'
+  const showImagePlacement = canUseImagePlacement(contentType, shapeSubtype)
+  const effectiveCanvasType = showImagePlacement
+    ? canvasType
+    : contentType !== AUTO_VALUE && contentType !== 'hero'
+      ? 'C1'
+      : canvasType
   const selections = useMemo(
-    () => buildSelections({ layout: selectedLayout, canvasType, contentType, shapeSubtype, narrativeRole }),
-    [canvasType, contentType, narrativeRole, selectedLayout, shapeSubtype],
+    () => buildSelections({
+      layout: selectedLayout,
+      canvasType: effectiveCanvasType,
+      contentType,
+      shapeSubtype,
+      narrativeRole,
+    }),
+    [contentType, effectiveCanvasType, narrativeRole, selectedLayout, shapeSubtype],
   )
 
   const mandatoryConfig: MandatoryConfig = {
@@ -132,7 +154,19 @@ export function SlideGenerationPanel({
 
   function handleContentTypeChange(value: OptionalChoice<ContentType>) {
     setContentType(value)
-    setShapeSubtype(AUTO_VALUE)
+    setShapeSubtype(defaultShapeForContent(value))
+    if (!canUseImagePlacement(value, defaultShapeForContent(value))) {
+      setCanvasType(value === AUTO_VALUE ? AUTO_VALUE : 'C1')
+    }
+    setError(null)
+    setSuccessMessage(null)
+  }
+
+  function handleShapeChange(value: OptionalChoice<ShapeSubtype>) {
+    setShapeSubtype(value)
+    if (!canUseImagePlacement(contentType, value)) {
+      setCanvasType(contentType === AUTO_VALUE || contentType === 'hero' ? AUTO_VALUE : 'C1')
+    }
     setError(null)
     setSuccessMessage(null)
   }
@@ -171,10 +205,11 @@ export function SlideGenerationPanel({
           instruction,
           selections: hasSelections ? selections : undefined,
           research: {
-            use_uploaded_documents: research.useUploadedDocuments,
-            use_web_search: research.useWebSearch,
-            use_deep_research: research.useDeepResearch,
-            use_knowledge_graph: research.useKnowledgeGraph,
+            use_uploaded_documents: groundWithResearch && useUploadedDocuments,
+            use_web_search: groundWithResearch && useWebSearch,
+            use_deep_research: groundWithResearch && useWebSearch && useDeepResearch,
+            use_knowledge_graph: groundWithResearch && useKnowledgeGraph,
+            web_search_max_queries: webSearchMaxQueries,
           },
           assume_on_missing: false,
         }),
@@ -217,9 +252,14 @@ export function SlideGenerationPanel({
     presentationId,
     prompt,
     questions,
-    research,
     selections,
     sessionId,
+    groundWithResearch,
+    useDeepResearch,
+    useKnowledgeGraph,
+    useUploadedDocuments,
+    useWebSearch,
+    webSearchMaxQueries,
   ])
 
   const toggleSection = useCallback((key: keyof OpenSections) => {
@@ -359,29 +399,33 @@ export function SlideGenerationPanel({
               </div>
               <p className="text-[10px] text-gray-500 dark:text-slate-400">{getLayoutDescription(selectedLayout)}</p>
 
-              <div className="grid grid-cols-2 gap-2">
-                <CompactSelect
-                  label="Slide type"
-                  value={canvasType}
-                  onValueChange={setCanvasType}
-                  options={CANVAS_OPTIONS}
-                />
-                <CompactSelect
-                  label="Content type"
-                  value={contentType}
-                  onValueChange={handleContentTypeChange}
-                  options={CONTENT_OPTIONS}
-                />
-                <div className="col-span-2">
+              {!isHero && (
+                <div className="grid grid-cols-2 gap-2">
                   <CompactSelect
-                    label="Shape"
+                    label="Content type"
+                    value={contentType}
+                    onValueChange={handleContentTypeChange}
+                    options={CONTENT_OPTIONS}
+                  />
+                  <CompactSelect
+                    label="Layout style"
                     value={shapeSubtype}
-                    onValueChange={setShapeSubtype}
+                    onValueChange={handleShapeChange}
                     options={shapeOptions}
                     disabled={!shapeBucket}
                   />
+                  {showImagePlacement && (
+                    <div className="col-span-2">
+                      <CompactSelect
+                        label="Image placement"
+                        value={canvasType.startsWith('I') ? canvasType : AUTO_VALUE}
+                        onValueChange={setCanvasType}
+                        options={IMAGE_PLACEMENT_OPTIONS}
+                      />
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
               <div className="bg-gray-50 dark:bg-slate-800 rounded-md p-3 text-center">
                 <p className="text-[10px] text-gray-400 dark:text-slate-500">Layout preview coming soon</p>
@@ -412,6 +456,76 @@ export function SlideGenerationPanel({
                     className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800"
                   />
                 </label>
+              </div>
+
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-2 dark:border-slate-700 dark:bg-slate-800">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                    Ground with research
+                  </span>
+                  <ToggleButton
+                    pressed={groundWithResearch}
+                    onClick={() => setGroundWithResearch(prev => !prev)}
+                  />
+                </div>
+                {groundWithResearch && (
+                  <div className="mt-2 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <ToggleRow
+                        label="Web search"
+                        pressed={useWebSearch}
+                        onClick={() => {
+                          setUseWebSearch(prev => {
+                            if (prev) setUseDeepResearch(false)
+                            return !prev
+                          })
+                        }}
+                      />
+                      <ToggleRow
+                        label="Deep research"
+                        pressed={useDeepResearch}
+                        disabled={!useWebSearch}
+                        onClick={() => setUseDeepResearch(prev => !prev)}
+                      />
+                      <ToggleRow
+                        label="Uploaded docs"
+                        pressed={useUploadedDocuments}
+                        onClick={() => setUseUploadedDocuments(prev => !prev)}
+                      />
+                      <ToggleRow
+                        label="Knowledge graph"
+                        pressed={useKnowledgeGraph}
+                        onClick={() => setUseKnowledgeGraph(prev => !prev)}
+                      />
+                    </div>
+                    {useWebSearch && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                          Max queries
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setWebSearchMaxQueries(prev => Math.max(1, prev - 1))}
+                            className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                            title="Decrease max queries"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <span className="w-5 text-center text-xs text-gray-700 dark:text-slate-200">{webSearchMaxQueries}</span>
+                          <button
+                            type="button"
+                            onClick={() => setWebSearchMaxQueries(prev => Math.min(10, prev + 1))}
+                            className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                            title="Increase max queries"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -518,5 +632,50 @@ function CompactSelect<T extends string>({
         </SelectContent>
       </Select>
     </label>
+  )
+}
+
+function ToggleButton({
+  pressed,
+  onClick,
+  disabled = false,
+}: {
+  pressed: boolean
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+        pressed
+          ? 'border-primary/30 bg-primary/10 text-primary'
+          : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300',
+      )}
+    >
+      {pressed ? 'On' : 'Off'}
+    </button>
+  )
+}
+
+function ToggleRow({
+  label,
+  pressed,
+  onClick,
+  disabled = false,
+}: {
+  label: string
+  pressed: boolean
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-1.5 dark:bg-slate-900">
+      <span className="min-w-0 truncate text-[11px] text-gray-600 dark:text-slate-300">{label}</span>
+      <ToggleButton pressed={pressed} onClick={onClick} disabled={disabled} />
+    </div>
   )
 }
