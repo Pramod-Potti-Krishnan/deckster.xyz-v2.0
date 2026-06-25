@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 
+export const maxDuration = 300
+
 const DEFAULT_DIRECTOR_URL = 'http://localhost:8000'
 
 type SessionUserWithId = {
