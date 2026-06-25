@@ -1,39 +1,33 @@
 'use client'
 
-import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useCallback, useMemo, useState, useEffect, type ReactNode } from 'react'
 import {
   AlertCircle,
+  BarChart3,
   CheckCircle2,
   ChevronDown,
   FileText,
+  GitBranch,
   Layout,
+  LayoutGrid,
   List,
   Minus,
   Plus,
-  Search,
   Sparkles,
   Type,
-  UploadCloud,
   X,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { SlideLayoutType } from '@/types/elements'
 import {
   AUTO_VALUE,
-  CONTENT_OPTIONS,
-  NARRATIVE_OPTIONS,
   SHAPE_OPTIONS,
   buildInstruction,
   buildSelections,
@@ -82,7 +76,21 @@ interface SlideGenerationPanelProps {
 }
 
 type OpenSections = Record<'slideSetup' | 'grounding', boolean>
-type Option<T extends string> = { value: T; label: string }
+type ShapeGlyph =
+  | 'auto'
+  | 'columns'
+  | 'rows'
+  | 'grid'
+  | 'table'
+  | 'chart_single'
+  | 'chart_two_vertical'
+  | 'chart_two_horizontal'
+  | 'chart_three'
+  | 'chart_quad'
+  | 'spine_left'
+  | 'spine_center'
+  | 'spine_top'
+  | 'diagram'
 
 const INITIAL_OPEN_SECTIONS: OpenSections = {
   slideSetup: true,
@@ -91,16 +99,29 @@ const INITIAL_OPEN_SECTIONS: OpenSections = {
 
 const KG_CARD_ENABLED = process.env.NEXT_PUBLIC_SLIDE_COMPOSER_KG_ENABLED === 'true'
 
-const SLIDE_TYPE_CARDS: Array<{
+const SLIDE_TYPE_OPTIONS: Array<{
   value: LayoutChoice
   label: string
   description: string
   icon: LucideIcon
 }> = [
+  { value: AUTO_VALUE, label: 'Let AI choose', description: 'Infer slide type', icon: Sparkles },
   { value: 'content_text', label: 'Content slide', description: 'Text, charts, diagrams', icon: FileText },
   { value: 'hero_title', label: 'Title slide', description: 'Opening hero', icon: Type },
   { value: 'hero_section', label: 'Section divider', description: 'Chapter break', icon: List },
   { value: 'hero_closing', label: 'Closing slide', description: 'Wrap-up hero', icon: CheckCircle2 },
+]
+
+const CONTENT_TYPE_OPTIONS: Array<{
+  value: OptionalChoice<ContentType>
+  label: string
+  description: string
+  icon: LucideIcon
+}> = [
+  { value: 'text_heavy_columns', label: 'Text', description: 'Text-heavy layout', icon: Type },
+  { value: 'chart', label: 'Chart', description: 'Data visualization', icon: BarChart3 },
+  { value: 'infographic', label: 'Infographic', description: 'Visual explanation', icon: LayoutGrid },
+  { value: 'diagram_idea_board', label: 'Diagram', description: 'Structured diagram', icon: GitBranch },
 ]
 
 const HERO_STYLE_OPTIONS: Record<string, Array<{ value: HeroStyle; label: string }>> = {
@@ -119,6 +140,30 @@ const HERO_STYLE_OPTIONS: Record<string, Array<{ value: HeroStyle; label: string
     { value: 'split_contact', label: 'Contact card' },
     { value: 'quote', label: 'Quote' },
   ],
+}
+
+const SHAPE_GLYPHS: Partial<Record<ShapeSubtype, ShapeGlyph>> = {
+  text_heavy_columns: 'columns',
+  text_heavy_rows: 'rows',
+  text_heavy_grid: 'grid',
+  table: 'table',
+  single: 'chart_single',
+  two_vertical: 'chart_two_vertical',
+  two_horizontal: 'chart_two_horizontal',
+  three_horizontal: 'chart_three',
+  four_quadrant: 'chart_quad',
+  vertical_left: 'spine_left',
+  vertical_center: 'spine_center',
+  horizontal_top: 'spine_top',
+  horizontal_center: 'spine_center',
+  idea_board: 'diagram',
+  code_display: 'diagram',
+  kanban_board: 'columns',
+  gantt_chart: 'rows',
+  multi_chevron_maturity_board: 'diagram',
+  logical_architecture: 'diagram',
+  cloud_architecture: 'diagram',
+  data_architecture: 'diagram',
 }
 
 export function SlideGenerationPanel({
@@ -168,6 +213,25 @@ export function SlideGenerationPanel({
   const showImagePlacement = canUseImagePlacement(contentType, shapeSubtype)
   const imageOptions = imageOptionsFor(contentType, shapeSubtype)
   const heroStyleOptions = selectedLayout !== AUTO_VALUE ? HERO_STYLE_OPTIONS[selectedLayout] ?? [] : []
+  const shapeDropdownOptions = useMemo<Array<{ value: OptionalChoice<ShapeSubtype>; label: string; glyph: ShapeGlyph }>>(
+    () => [
+      { value: AUTO_VALUE, label: 'Auto', glyph: 'auto' as ShapeGlyph },
+      ...shapeOptions.map(option => ({
+        value: option.value,
+        label: option.label,
+        glyph: SHAPE_GLYPHS[option.value] ?? 'diagram',
+      })),
+    ],
+    [shapeOptions],
+  )
+  const heroStyleDropdownOptions = useMemo(
+    () => heroStyleOptions.map(option => ({
+      value: option.value,
+      label: option.label,
+      icon: Layout,
+    })),
+    [heroStyleOptions],
+  )
   const hasUploadedFiles = Boolean(research.useUploadedDocuments)
   const heroVariant: HeroVariant = heroBackgroundImage
     ? heroLight ? 'photo_light' : 'photo_dark'
@@ -179,22 +243,26 @@ export function SlideGenerationPanel({
       ? 'C1'
       : canvasType
   const selections = useMemo(
-    () => buildSelections({
-      layout: selectedLayout,
-      canvasType: effectiveCanvasType,
-      contentType,
-      shapeSubtype,
-      narrativeRole,
-      heroStyle,
-      eyebrow,
-      contactEmail,
-      contactPhone,
-      contactWebsite,
-      contactLinkedin,
-      attribution,
-      heroVariant,
-      allowHeroImage,
-    }),
+    () => {
+      const next = buildSelections({
+        layout: selectedLayout,
+        canvasType: effectiveCanvasType,
+        contentType,
+        shapeSubtype,
+        narrativeRole,
+        heroStyle,
+        eyebrow,
+        contactEmail,
+        contactPhone,
+        contactWebsite,
+        contactLinkedin,
+        attribution,
+        heroVariant,
+        allowHeroImage,
+      })
+      delete next.narrative_role
+      return next
+    },
     [
       allowHeroImage,
       attribution,
@@ -219,7 +287,7 @@ export function SlideGenerationPanel({
     const defaults = layoutDefaults(layout)
     setCanvasType(defaults.canvas_type ?? AUTO_VALUE)
     setContentType(defaults.content_type ?? AUTO_VALUE)
-    setNarrativeRole(defaults.narrative_role ?? AUTO_VALUE)
+    setNarrativeRole(AUTO_VALUE)
     setShapeSubtype(subtypeFromSelections(defaults))
     setHeroStyle(defaultHeroStyle(layout))
     setEyebrow('')
@@ -468,52 +536,35 @@ export function SlideGenerationPanel({
         )}
 
         {/* Advanced sections */}
-        <div className={`flex-1 overflow-y-auto px-3 py-3 space-y-2 ${!showAdvanced ? 'hidden' : ''}`}>
+        <div className={`flex-1 overflow-y-auto px-3 py-2 space-y-2 ${!showAdvanced ? 'hidden' : ''}`}>
           {/* Slide setup */}
           <CollapsibleSection
             title="Slide setup"
             isOpen={openSections.slideSetup}
             onToggle={() => toggleSection('slideSetup')}
           >
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                {SLIDE_TYPE_CARDS.map(card => (
-                  <SlideTypeCard
-                    key={card.value}
-                    card={card}
-                    selected={selectedLayout === card.value}
-                    onClick={() => handleLayoutChange(card.value)}
-                  />
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleLayoutChange(AUTO_VALUE)}
-                className={cn(
-                  'text-[11px] font-medium transition-colors',
-                  selectedLayout === AUTO_VALUE
-                    ? 'text-primary'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200',
-                )}
-              >
-                Let AI choose
-              </button>
+            <div className="space-y-2">
+              <IconDropdown
+                label="Slide type"
+                value={selectedLayout}
+                options={SLIDE_TYPE_OPTIONS}
+                onChange={handleLayoutChange}
+              />
 
               {!isHero && selectedLayout !== AUTO_VALUE && (
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2">
-                    <CompactSelect
-                      label="Content type"
+                    <IconDropdown
+                      label="Content"
                       value={contentType}
-                      onValueChange={handleContentTypeChange}
-                      options={CONTENT_OPTIONS}
+                      options={CONTENT_TYPE_OPTIONS}
+                      onChange={handleContentTypeChange}
                     />
-                    <CompactSelect
+                    <ShapeDropdown
                       label="Layout style"
                       value={shapeSubtype}
-                      onValueChange={handleShapeChange}
-                      options={shapeOptions}
+                      options={shapeDropdownOptions}
+                      onChange={handleShapeChange}
                       disabled={!shapeBucket}
                     />
                   </div>
@@ -529,11 +580,12 @@ export function SlideGenerationPanel({
 
               {isHero && (
                 <div className="space-y-2">
-                  <SegmentedRow
+                  <IconDropdown
                     label="Hero style"
                     value={heroStyle}
-                    options={heroStyleOptions}
+                    options={heroStyleDropdownOptions}
                     onChange={setHeroStyle}
+                    columns={3}
                   />
                   <label className="space-y-1">
                     <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Kicker line</span>
@@ -581,13 +633,7 @@ export function SlideGenerationPanel({
                   More options
                 </button>
                 {showMoreOptions && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <CompactSelect
-                      label="Purpose"
-                      value={narrativeRole}
-                      onValueChange={setNarrativeRole}
-                      options={NARRATIVE_OPTIONS}
-                    />
+                  <div className="mt-2">
                     <label className="space-y-1">
                       <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Key message</span>
                       <Input
@@ -610,24 +656,21 @@ export function SlideGenerationPanel({
             onToggle={() => toggleSection('grounding')}
           >
             <div className="space-y-2">
-              <div className="grid grid-cols-1 gap-2">
-                <ResearchCard
-                  icon={Search}
+              <div className="grid grid-cols-1 gap-1.5">
+                <ToggleRow
                   label="Web search"
                   description="Use live web grounding"
                   pressed={useWebSearch}
                   onClick={() => setUseWebSearch(prev => !prev)}
                 />
-                <ResearchCard
-                  icon={Sparkles}
+                <ToggleRow
                   label="Deep research"
                   badge="Premium"
                   description="Multi-step research pass"
                   pressed={useDeepResearch}
                   onClick={() => setUseDeepResearch(prev => !prev)}
                 />
-                <ResearchCard
-                  icon={UploadCloud}
+                <ToggleRow
                   label="Use my uploaded files"
                   description={hasUploadedFiles ? 'Use files attached to this session' : 'No files uploaded'}
                   pressed={hasUploadedFiles && useUploadedDocuments}
@@ -635,9 +678,8 @@ export function SlideGenerationPanel({
                   onClick={() => setUseUploadedDocuments(prev => !prev)}
                 />
                 {KG_CARD_ENABLED && (
-                  <ResearchCard
-                    icon={FileText}
-                    label="Knowledge graph"
+                  <ToggleRow
+                    label="Use my knowledge repo"
                     description="Use saved domain memory"
                     pressed={useKnowledgeGraph}
                     onClick={() => setUseKnowledgeGraph(prev => !prev)}
@@ -686,38 +728,254 @@ function defaultHeroStyle(layout: LayoutChoice): OptionalChoice<HeroStyle> {
   return AUTO_VALUE
 }
 
-function SlideTypeCard({
-  card,
-  selected,
-  onClick,
+function IconDropdown<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  columns = 3,
+  disabled = false,
 }: {
-  card: (typeof SLIDE_TYPE_CARDS)[number]
-  selected: boolean
-  onClick: () => void
+  label: string
+  value: T
+  options: Array<{ value: T; label: string; description?: string; icon: LucideIcon }>
+  onChange: (value: T) => void
+  columns?: 2 | 3
+  disabled?: boolean
 }) {
-  const Icon = card.icon
+  const [open, setOpen] = useState(false)
+  const selected = options.find(option => option.value === value)
+  const SelectedIcon = selected?.icon ?? Sparkles
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'relative min-h-[72px] rounded-md border p-2 text-left transition-colors',
-        selected
-          ? 'border-primary/30 bg-primary/10 text-primary'
-          : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200',
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <Icon className="h-4 w-4 flex-shrink-0" />
-        {selected && <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />}
-      </div>
-      <div className="mt-2">
-        <div className="text-xs font-medium">{card.label}</div>
-        <div className={cn('mt-0.5 text-[10px]', selected ? 'text-primary/80' : 'text-gray-400 dark:text-slate-500')}>
-          {card.description}
-        </div>
-      </div>
-    </button>
+    <label className="block space-y-1">
+      <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">{label}</span>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            className="flex h-8 w-full items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-2 text-xs text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+          >
+            <span className="flex min-w-0 items-center gap-1.5">
+              <SelectedIcon className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
+              <span className="truncate">{selected?.label ?? 'Auto'}</span>
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-gray-400 dark:text-slate-500" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-64 p-2" sideOffset={4}>
+          <div className={cn('grid gap-2', columns === 2 ? 'grid-cols-2' : 'grid-cols-3')}>
+            {options.map(option => {
+              const Icon = option.icon
+              const isSelected = option.value === value
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value)
+                    setOpen(false)
+                  }}
+                  className={cn(
+                    'flex flex-col items-center gap-1.5 rounded-lg border p-2 text-center transition-colors',
+                    isSelected
+                      ? 'border-primary/30 bg-primary/10 text-primary'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-primary/30 hover:bg-primary/5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200',
+                  )}
+                  title={option.description}
+                >
+                  <div className="flex aspect-[16/10] w-full items-center justify-center rounded border border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-800">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <span className="text-[10px] font-medium leading-tight">{option.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </label>
+  )
+}
+
+function ShapeDropdown({
+  label,
+  value,
+  options,
+  onChange,
+  disabled = false,
+}: {
+  label: string
+  value: OptionalChoice<ShapeSubtype>
+  options: Array<{ value: OptionalChoice<ShapeSubtype>; label: string; glyph: ShapeGlyph }>
+  onChange: (value: OptionalChoice<ShapeSubtype>) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = options.find(option => option.value === value) ?? options[0]
+
+  return (
+    <label className="block space-y-1">
+      <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">{label}</span>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            className="flex h-8 w-full items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-2 text-xs text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+          >
+            <span className="flex min-w-0 items-center gap-1.5">
+              <ShapeGlyphIcon kind={selected?.glyph ?? 'auto'} />
+              <span className="truncate">{selected?.label ?? 'Auto'}</span>
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-gray-400 dark:text-slate-500" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-64 p-2" sideOffset={4}>
+          <div className="grid grid-cols-3 gap-2">
+            {options.map(option => {
+              const isSelected = option.value === value
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value)
+                    setOpen(false)
+                  }}
+                  className={cn(
+                    'flex flex-col items-center gap-1.5 rounded-lg border p-2 text-center transition-colors',
+                    isSelected
+                      ? 'border-primary/30 bg-primary/10 text-primary'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-primary/30 hover:bg-primary/5 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200',
+                  )}
+                >
+                  <div className="flex aspect-[16/10] w-full items-center justify-center rounded border border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-800">
+                    <ShapeGlyphIcon kind={option.glyph} large />
+                  </div>
+                  <span className="text-[10px] font-medium leading-tight">{option.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </label>
+  )
+}
+
+function ShapeGlyphIcon({ kind, large = false }: { kind: ShapeGlyph; large?: boolean }) {
+  const size = large ? 38 : 20
+  const common = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  }
+
+  const content: Record<ShapeGlyph, ReactNode> = {
+    auto: (
+      <>
+        <path d="M10 3l1.1 3.9L15 8l-3.9 1.1L10 13 8.9 9.1 5 8l3.9-1.1L10 3z" {...common} />
+        <path d="M15 13l.5 1.7L17 15l-1.5.3L15 17l-.5-1.7L13 15l1.5-.3L15 13z" {...common} />
+      </>
+    ),
+    columns: (
+      <>
+        <rect x="4" y="4" width="5" height="12" rx="1" {...common} />
+        <rect x="11" y="4" width="5" height="12" rx="1" {...common} />
+      </>
+    ),
+    rows: (
+      <>
+        <path d="M4 5h12" {...common} />
+        <path d="M4 10h12" {...common} />
+        <path d="M4 15h12" {...common} />
+      </>
+    ),
+    grid: (
+      <>
+        <rect x="4" y="4" width="5" height="5" rx="1" {...common} />
+        <rect x="11" y="4" width="5" height="5" rx="1" {...common} />
+        <rect x="4" y="11" width="5" height="5" rx="1" {...common} />
+        <rect x="11" y="11" width="5" height="5" rx="1" {...common} />
+      </>
+    ),
+    table: (
+      <>
+        <rect x="3.5" y="4" width="13" height="12" rx="1" {...common} />
+        <path d="M3.5 8h13M3.5 12h13M8 4v12M12 4v12" {...common} />
+      </>
+    ),
+    chart_single: (
+      <>
+        <path d="M4 16h12" {...common} />
+        <rect x="5" y="9" width="2.5" height="7" rx=".5" {...common} />
+        <rect x="9" y="6" width="2.5" height="10" rx=".5" {...common} />
+        <rect x="13" y="11" width="2.5" height="5" rx=".5" {...common} />
+      </>
+    ),
+    chart_two_vertical: (
+      <>
+        <rect x="4" y="4" width="12" height="5" rx="1" {...common} />
+        <rect x="4" y="11" width="12" height="5" rx="1" {...common} />
+      </>
+    ),
+    chart_two_horizontal: (
+      <>
+        <rect x="4" y="4" width="5" height="12" rx="1" {...common} />
+        <rect x="11" y="4" width="5" height="12" rx="1" {...common} />
+      </>
+    ),
+    chart_three: (
+      <>
+        <rect x="3" y="5" width="4" height="10" rx="1" {...common} />
+        <rect x="8" y="5" width="4" height="10" rx="1" {...common} />
+        <rect x="13" y="5" width="4" height="10" rx="1" {...common} />
+      </>
+    ),
+    chart_quad: (
+      <>
+        <rect x="4" y="4" width="5" height="5" rx="1" {...common} />
+        <rect x="11" y="4" width="5" height="5" rx="1" {...common} />
+        <rect x="4" y="11" width="5" height="5" rx="1" {...common} />
+        <rect x="11" y="11" width="5" height="5" rx="1" {...common} />
+      </>
+    ),
+    spine_left: (
+      <>
+        <path d="M6 4v12" {...common} />
+        <path d="M9 6h7M9 10h7M9 14h7" {...common} />
+      </>
+    ),
+    spine_center: (
+      <>
+        <path d="M10 4v12" {...common} />
+        <path d="M4 6h4M12 6h4M4 10h4M12 10h4M4 14h4M12 14h4" {...common} />
+      </>
+    ),
+    spine_top: (
+      <>
+        <path d="M4 6h12" {...common} />
+        <path d="M6 9v6M10 9v6M14 9v6" {...common} />
+      </>
+    ),
+    diagram: (
+      <>
+        <rect x="4" y="4" width="4" height="4" rx="1" {...common} />
+        <rect x="12" y="4" width="4" height="4" rx="1" {...common} />
+        <rect x="8" y="12" width="4" height="4" rx="1" {...common} />
+        <path d="M8 6h4M10 8v4" {...common} />
+      </>
+    ),
+  }
+
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true" className="flex-shrink-0 text-current">
+      {content[kind]}
+    </svg>
   )
 }
 
@@ -757,41 +1015,6 @@ function ImageOptionRow({
   )
 }
 
-function SegmentedRow<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  value: OptionalChoice<T>
-  options: Array<Option<T>>
-  onChange: (value: OptionalChoice<T>) => void
-}) {
-  return (
-    <div className="space-y-1">
-      <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">{label}</span>
-      <div className="flex flex-wrap gap-1">
-        {options.map(option => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            className={cn(
-              'rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors',
-              value === option.value
-                ? 'border-primary/30 bg-primary/10 text-primary'
-                : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300',
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function HeroTextInput({
   label,
   value,
@@ -814,8 +1037,7 @@ function HeroTextInput({
   )
 }
 
-function ResearchCard({
-  icon: Icon,
+function ToggleRow({
   label,
   description,
   badge,
@@ -823,126 +1045,37 @@ function ResearchCard({
   onClick,
   disabled = false,
 }: {
-  icon: LucideIcon
   label: string
-  description: string
+  description?: string
   badge?: string
   pressed: boolean
   onClick: () => void
   disabled?: boolean
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'flex items-center gap-2 rounded-md border p-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-        pressed
-          ? 'border-primary/30 bg-primary/10 text-primary'
-          : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200',
-      )}
-    >
-      <Icon className="h-4 w-4 flex-shrink-0" />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1 text-xs font-medium">
-          {label}
+    <div className="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-1.5 dark:bg-slate-900">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className="min-w-0 flex-1 text-left disabled:cursor-not-allowed"
+      >
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-[11px] text-gray-600 dark:text-slate-300">{label}</span>
           {badge && (
-            <span className="rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">
+            <span className="rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[9px] leading-none text-primary">
               {badge}
             </span>
           )}
         </span>
-        <span className="block text-[10px] text-gray-400 dark:text-slate-500">{description}</span>
-      </span>
-      {pressed && <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />}
-    </button>
-  )
-}
-
-function CompactSelect<T extends string>({
-  label,
-  value,
-  onValueChange,
-  options,
-  disabled = false,
-}: {
-  label: string
-  value: OptionalChoice<T>
-  onValueChange: (value: OptionalChoice<T>) => void
-  options: Array<Option<T>>
-  disabled?: boolean
-}) {
-  return (
-    <label className="block space-y-1">
-      <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">{label}</span>
-      <Select
-        value={disabled ? AUTO_VALUE : value}
-        onValueChange={(next) => onValueChange(next as OptionalChoice<T>)}
-        disabled={disabled}
-      >
-        <SelectTrigger className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={AUTO_VALUE}>Auto / let AI decide</SelectItem>
-          {options.map(option => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </label>
-  )
-}
-
-function ToggleButton({
-  pressed,
-  onClick,
-  disabled = false,
-}: {
-  pressed: boolean
-  onClick: () => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        pressed
-          ? 'border-primary/30 bg-primary/10 text-primary'
-          : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300',
-      )}
-    >
-      {pressed ? 'On' : 'Off'}
-    </button>
-  )
-}
-
-function ToggleRow({
-  label,
-  description,
-  pressed,
-  onClick,
-  disabled = false,
-}: {
-  label: string
-  description?: string
-  pressed: boolean
-  onClick: () => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-1.5 dark:bg-slate-900">
-      <span className="min-w-0">
-        <span className="block truncate text-[11px] text-gray-600 dark:text-slate-300">{label}</span>
         {description && <span className="block truncate text-[9px] text-gray-400 dark:text-slate-500">{description}</span>}
-      </span>
-      <ToggleButton pressed={pressed} onClick={onClick} disabled={disabled} />
+      </button>
+      <Switch
+        checked={pressed}
+        disabled={disabled}
+        onCheckedChange={() => onClick()}
+        className="h-6 w-10 data-[state=checked]:bg-primary"
+      />
     </div>
   )
 }
