@@ -53,6 +53,17 @@ export type DiagramSubtype =
   | 'cloud_architecture'
   | 'data_architecture'
 export type ShapeSubtype = ChartSubtype | InfographicSubtype | TextLayoutStyle | DiagramSubtype
+export type HeroStyle =
+  | 'editorial'
+  | 'highlight_word'
+  | 'accent_bar'
+  | 'number_left'
+  | 'panel_left'
+  | 'number_watermark'
+  | 'thankyou'
+  | 'split_contact'
+  | 'quote'
+export type HeroVariant = 'solid_dark' | 'solid_light' | 'photo_dark' | 'photo_light'
 
 export type SlideSelections = {
   canvas_type?: CanvasType
@@ -62,6 +73,15 @@ export type SlideSelections = {
   infographic_subtype?: InfographicSubtype
   text_subtype?: TextSubtype
   diagram_subtype?: DiagramSubtype
+  hero_style?: HeroStyle
+  eyebrow?: string
+  contact_email?: string
+  contact_phone?: string
+  contact_website?: string
+  contact_linkedin?: string
+  attribution?: string
+  hero_variant?: HeroVariant
+  allow_hero_image?: boolean
 }
 
 export interface SlideComposeBuiltResult {
@@ -103,6 +123,15 @@ export const IMAGE_PLACEMENT_OPTIONS: Array<{ value: CanvasType; label: string }
   { value: 'I2', label: 'Image right' },
   { value: 'I3', label: 'Image left (narrow)' },
   { value: 'I4', label: 'Image right (narrow)' },
+]
+
+export const IMAGE_OPTION_VALUES: Array<{ value: OptionalChoice<CanvasType>; label: string }> = [
+  { value: 'C1', label: 'None' },
+  { value: AUTO_VALUE, label: 'Auto' },
+  { value: 'I1', label: 'Image left' },
+  { value: 'I2', label: 'Image right' },
+  { value: 'I3', label: 'Left narrow' },
+  { value: 'I4', label: 'Right narrow' },
 ]
 
 export const CONTENT_OPTIONS: Array<{ value: ContentType; label: string }> = [
@@ -287,9 +316,25 @@ export function canUseImagePlacement(
     return textStyle !== 'table'
   }
   if (contentType === 'chart') {
-    return shapeSubtype === AUTO_VALUE || shapeSubtype === 'single' || shapeSubtype === 'two_vertical'
+    return (
+      shapeSubtype === AUTO_VALUE ||
+      shapeSubtype === 'single' ||
+      shapeSubtype === 'two_vertical' ||
+      shapeSubtype === 'two_horizontal'
+    )
   }
   return false
+}
+
+export function imageOptionsFor(
+  contentType: OptionalChoice<ContentType>,
+  shapeSubtype: OptionalChoice<ShapeSubtype>,
+): Array<{ value: OptionalChoice<CanvasType>; label: string }> {
+  if (!canUseImagePlacement(contentType, shapeSubtype)) return []
+  if (contentType === 'chart' && shapeSubtype === 'two_horizontal') {
+    return IMAGE_OPTION_VALUES.filter(option => option.value === 'C1' || option.value === 'I3' || option.value === 'I4')
+  }
+  return IMAGE_OPTION_VALUES
 }
 
 export function layoutDefaults(layout: LayoutChoice): SlideSelections {
@@ -322,7 +367,8 @@ function coerceCanvasForContent(selections: SlideSelections): void {
   }
   if (selections.canvas_type?.startsWith('I')) {
     const shape = selections.chart_subtype ?? selections.text_subtype ?? AUTO_VALUE
-    if (!canUseImagePlacement(contentType, shape as OptionalChoice<ShapeSubtype>)) {
+    const imageOptions = imageOptionsFor(contentType, shape as OptionalChoice<ShapeSubtype>)
+    if (!imageOptions.some(option => option.value === selections.canvas_type)) {
       selections.canvas_type = 'C1'
     }
   }
@@ -334,6 +380,15 @@ export function buildSelections(input: {
   contentType: OptionalChoice<ContentType>
   shapeSubtype: OptionalChoice<ShapeSubtype>
   narrativeRole: OptionalChoice<NarrativeRole>
+  heroStyle?: OptionalChoice<HeroStyle>
+  eyebrow?: string
+  contactEmail?: string
+  contactPhone?: string
+  contactWebsite?: string
+  contactLinkedin?: string
+  attribution?: string
+  heroVariant?: HeroVariant
+  allowHeroImage?: boolean
 }): SlideSelections {
   const selections: SlideSelections = { ...layoutDefaults(input.layout) }
   if (input.canvasType !== AUTO_VALUE) selections.canvas_type = input.canvasType
@@ -355,6 +410,18 @@ export function buildSelections(input: {
     }
   } else if (contentType?.startsWith('diagram_')) {
     selections.diagram_subtype = DIAGRAM_SUBTYPE_BY_CONTENT[contentType]
+  }
+
+  if (selections.content_type === 'hero') {
+    if (input.heroStyle && input.heroStyle !== AUTO_VALUE) selections.hero_style = input.heroStyle
+    if (input.eyebrow?.trim()) selections.eyebrow = input.eyebrow.trim()
+    if (input.contactEmail?.trim()) selections.contact_email = input.contactEmail.trim()
+    if (input.contactPhone?.trim()) selections.contact_phone = input.contactPhone.trim()
+    if (input.contactWebsite?.trim()) selections.contact_website = input.contactWebsite.trim()
+    if (input.contactLinkedin?.trim()) selections.contact_linkedin = input.contactLinkedin.trim()
+    if (input.attribution?.trim()) selections.attribution = input.attribution.trim()
+    if (input.heroVariant) selections.hero_variant = input.heroVariant
+    if (input.allowHeroImage) selections.allow_hero_image = true
   }
 
   coerceCanvasForContent(selections)
