@@ -34,6 +34,12 @@ export function TokenUsageStrip({ tokenUsage, quota, onTopUp }: TokenUsageStripP
   const sessionTotal = tokenUsage?.session?.total_tokens ?? 0
   const turnTotal = tokenUsage?.turn?.total_tokens ?? 0
   const hasUsage = Boolean(tokenUsage)
+  const coverage = tokenUsage?.coverage === "full" ? "full" : "partial"
+  const coverageLabel = coverage === "full" ? "Final" : "Partial"
+  const coverageTitle =
+    coverage === "full"
+      ? "All reported service tokens are included."
+      : "Some services' tokens aren't counted yet, so the true total may be higher."
 
   const status = quota?.status ?? null
   const flags = status?.flags
@@ -115,6 +121,18 @@ export function TokenUsageStrip({ tokenUsage, quota, onTopUp }: TokenUsageStripP
           </span>
           <span className="text-[10px] text-gray-400 dark:text-slate-500">
             tokens this session
+          </span>
+          <span
+            className={cn(
+              "rounded-full border px-1.5 py-0.5 text-[9px] font-medium leading-none",
+              coverage === "full"
+                ? "border-emerald-100 bg-emerald-50 text-emerald-600 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300"
+                : "border-amber-100 bg-amber-50 text-amber-600 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300"
+            )}
+            title={coverageTitle}
+            aria-label={`Token usage coverage: ${coverageLabel}`}
+          >
+            {coverageLabel}
           </span>
         </div>
 
