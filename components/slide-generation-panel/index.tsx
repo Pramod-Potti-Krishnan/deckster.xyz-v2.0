@@ -223,6 +223,7 @@ export function SlideGenerationPanel({
   const shapeBucket = getShapeBucket(contentType)
   const shapeOptions = shapeBucket ? SHAPE_OPTIONS[shapeBucket] : []
   const isHero = isHeroLayout(selectedLayout) || contentType === 'hero'
+  const isDiagram = contentType !== AUTO_VALUE && contentType.startsWith('diagram_')
   const showImagePlacement = canUseImagePlacement(contentType, shapeSubtype)
   const imageOptions = imageOptionsFor(contentType, shapeSubtype)
   const heroStyleOptions = selectedLayout !== AUTO_VALUE ? HERO_STYLE_OPTIONS[selectedLayout] ?? [] : []
@@ -368,10 +369,10 @@ export function SlideGenerationPanel({
           instruction,
           selections: hasSelections ? selections : undefined,
           research: {
-            use_uploaded_documents: hasUploadedFiles && useUploadedDocuments,
-            use_web_search: useWebSearch,
-            use_deep_research: useDeepResearch,
-            use_knowledge_graph: KG_CARD_ENABLED && useKnowledgeGraph,
+            use_uploaded_documents: !isDiagram && hasUploadedFiles && useUploadedDocuments,
+            use_web_search: !isDiagram && useWebSearch,
+            use_deep_research: !isDiagram && useDeepResearch,
+            use_knowledge_graph: !isDiagram && KG_CARD_ENABLED && useKnowledgeGraph,
             web_search_max_queries: webSearchMaxQueries,
           },
           assume_on_missing: false,
@@ -410,6 +411,7 @@ export function SlideGenerationPanel({
     answers,
     currentSlide,
     enabled,
+    isDiagram,
     keyMessage,
     onBuilt,
     presentationId,
@@ -652,72 +654,73 @@ export function SlideGenerationPanel({
             </div>
           </CollapsibleSection>
 
-          {/* Grounding */}
-          <CollapsibleSection
-            title="Grounding"
-            isOpen={openSections.grounding}
-            onToggle={() => toggleSection('grounding')}
-          >
-            <div className="space-y-2">
-              <div className="grid grid-cols-1 gap-1.5">
-                <ToggleRow
-                  label="Web search"
-                  description="Use live web grounding"
-                  pressed={useWebSearch}
-                  onClick={() => setUseWebSearch(prev => !prev)}
-                />
-                <ToggleRow
-                  label="Deep research"
-                  badge="Premium"
-                  description="Multi-step research pass"
-                  pressed={useDeepResearch}
-                  onClick={() => setUseDeepResearch(prev => !prev)}
-                />
-                <ToggleRow
-                  label="Use my uploaded files"
-                  description={hasUploadedFiles ? 'Use files attached to this session' : 'No files uploaded'}
-                  pressed={hasUploadedFiles && useUploadedDocuments}
-                  disabled={!hasUploadedFiles}
-                  onClick={() => setUseUploadedDocuments(prev => !prev)}
-                />
-                {KG_CARD_ENABLED && (
+          {!isDiagram && (
+            <CollapsibleSection
+              title="Grounding"
+              isOpen={openSections.grounding}
+              onToggle={() => toggleSection('grounding')}
+            >
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 gap-1.5">
                   <ToggleRow
-                    label="Use my knowledge repo"
-                    description="Use saved domain memory"
-                    pressed={useKnowledgeGraph}
-                    onClick={() => setUseKnowledgeGraph(prev => !prev)}
+                    label="Web search"
+                    description="Use live web grounding"
+                    pressed={useWebSearch}
+                    onClick={() => setUseWebSearch(prev => !prev)}
                   />
+                  <ToggleRow
+                    label="Deep research"
+                    badge="Premium"
+                    description="Multi-step research pass"
+                    pressed={useDeepResearch}
+                    onClick={() => setUseDeepResearch(prev => !prev)}
+                  />
+                  <ToggleRow
+                    label="Use my uploaded files"
+                    description={hasUploadedFiles ? 'Use files attached to this session' : 'No files uploaded'}
+                    pressed={hasUploadedFiles && useUploadedDocuments}
+                    disabled={!hasUploadedFiles}
+                    onClick={() => setUseUploadedDocuments(prev => !prev)}
+                  />
+                  {KG_CARD_ENABLED && (
+                    <ToggleRow
+                      label="Use my knowledge repo"
+                      description="Use saved domain memory"
+                      pressed={useKnowledgeGraph}
+                      onClick={() => setUseKnowledgeGraph(prev => !prev)}
+                    />
+                  )}
+                </div>
+
+                {(useWebSearch || useDeepResearch) && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                      Max queries
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setWebSearchMaxQueries(prev => Math.max(1, prev - 1))}
+                        className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                        title="Decrease max queries"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="w-5 text-center text-xs text-gray-700 dark:text-slate-200">{webSearchMaxQueries}</span>
+                      <button
+                        type="button"
+                        onClick={() => setWebSearchMaxQueries(prev => Math.min(10, prev + 1))}
+                        className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                        title="Increase max queries"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
-
-              {(useWebSearch || useDeepResearch) && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">
-                    Max queries
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setWebSearchMaxQueries(prev => Math.max(1, prev - 1))}
-                      className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-                      title="Decrease max queries"
-                    >
-                      <Minus className="h-3 w-3" />
-                    </button>
-                    <span className="w-5 text-center text-xs text-gray-700 dark:text-slate-200">{webSearchMaxQueries}</span>
-                    <button
-                      type="button"
-                      onClick={() => setWebSearchMaxQueries(prev => Math.min(10, prev + 1))}
-                      className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-                      title="Increase max queries"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CollapsibleSection>
+            </CollapsibleSection>
+          )}
         </div>
       </div>
     </div>
