@@ -23,6 +23,13 @@ import { GenerationInput } from '@/components/generation-panel/shared/generation
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { SlideLayoutType } from '@/types/elements'
@@ -76,6 +83,7 @@ interface SlideGenerationPanelProps {
 }
 
 type OpenSections = Record<'slideSetup' | 'grounding', boolean>
+type HeroBackgroundChoice = Extract<HeroVariant, 'solid_dark' | 'solid_light' | 'photo_dark'>
 type ShapeGlyph =
   | 'auto'
   | 'columns'
@@ -142,6 +150,12 @@ const HERO_STYLE_OPTIONS: Record<string, Array<{ value: HeroStyle; label: string
   ],
 }
 
+const HERO_BACKGROUND_OPTIONS: Array<{ value: HeroBackgroundChoice; label: string }> = [
+  { value: 'solid_dark', label: 'Dark' },
+  { value: 'solid_light', label: 'Light' },
+  { value: 'photo_dark', label: 'Photo (experimental)' },
+]
+
 const SHAPE_GLYPHS: Partial<Record<ShapeSubtype, ShapeGlyph>> = {
   text_heavy_columns: 'columns',
   text_heavy_rows: 'rows',
@@ -202,8 +216,7 @@ export function SlideGenerationPanel({
   const [contactWebsite, setContactWebsite] = useState('')
   const [contactLinkedin, setContactLinkedin] = useState('')
   const [attribution, setAttribution] = useState('')
-  const [heroBackgroundImage, setHeroBackgroundImage] = useState(false)
-  const [heroLight, setHeroLight] = useState(false)
+  const [heroBackground, setHeroBackground] = useState<HeroBackgroundChoice>('solid_dark')
   const [openSections, setOpenSections] = useState<OpenSections>(INITIAL_OPEN_SECTIONS)
 
   const questions = useMemo(() => normalizeQuestions(needsInput), [needsInput])
@@ -233,10 +246,8 @@ export function SlideGenerationPanel({
     [heroStyleOptions],
   )
   const hasUploadedFiles = Boolean(research.useUploadedDocuments)
-  const heroVariant: HeroVariant = heroBackgroundImage
-    ? heroLight ? 'photo_light' : 'photo_dark'
-    : heroLight ? 'solid_light' : 'solid_dark'
-  const allowHeroImage = isHero && (heroBackgroundImage || heroLight)
+  const heroVariant: HeroVariant = heroBackground
+  const allowHeroImage = isHero && heroBackground !== 'solid_dark'
   const effectiveCanvasType = showImagePlacement
     ? canvasType
     : contentType !== AUTO_VALUE && contentType !== 'hero'
@@ -296,8 +307,7 @@ export function SlideGenerationPanel({
     setContactWebsite('')
     setContactLinkedin('')
     setAttribution('')
-    setHeroBackgroundImage(false)
-    setHeroLight(false)
+    setHeroBackground('solid_dark')
     setError(null)
     setSuccessMessage(null)
   }
@@ -607,19 +617,12 @@ export function SlideGenerationPanel({
                   {selectedLayout === 'hero_closing' && heroStyle === 'quote' && (
                     <HeroTextInput label="Attribution" value={attribution} onChange={setAttribution} />
                   )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <ToggleRow
-                      label="Background image"
-                      description="Experimental"
-                      pressed={heroBackgroundImage}
-                      onClick={() => setHeroBackgroundImage(prev => !prev)}
-                    />
-                    <ToggleRow
-                      label="Light / colored"
-                      pressed={heroLight}
-                      onClick={() => setHeroLight(prev => !prev)}
-                    />
-                  </div>
+                  <CompactSelect
+                    label="Background"
+                    value={heroBackground}
+                    onValueChange={setHeroBackground}
+                    options={HERO_BACKGROUND_OPTIONS}
+                  />
                 </div>
               )}
 
@@ -1033,6 +1036,36 @@ function HeroTextInput({
         placeholder="Optional"
         className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800"
       />
+    </label>
+  )
+}
+
+function CompactSelect<T extends string>({
+  label,
+  value,
+  onValueChange,
+  options,
+}: {
+  label: string
+  value: T
+  onValueChange: (value: T) => void
+  options: Array<{ value: T; label: string }>
+}) {
+  return (
+    <label className="block space-y-1">
+      <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">{label}</span>
+      <Select value={value} onValueChange={(next) => onValueChange(next as T)}>
+        <SelectTrigger className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map(option => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </label>
   )
 }
