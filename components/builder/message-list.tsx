@@ -644,33 +644,17 @@ export function MessageList({
                   </div>
                 )
               } else if (msg.type === 'presentation_url') {
-                const presMsg = msg as PresentationURL
-                return (
-                  <div className="flex gap-3 animate-in fade-in duration-200">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
-                      <Sparkles className="h-3 w-3 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
-                        <span className="text-sm">✅</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-700 dark:text-slate-200">{presMsg.payload.message}</p>
-                          <p className="text-[10px] text-gray-500 dark:text-slate-400">{presMsg.payload.slide_count} slides</p>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-[11px] h-7 px-2 border-gray-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 dark:bg-slate-900"
-                          onClick={() => window.open(presMsg.payload.url, '_blank')}
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Open
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )
+                // The finished deck in the right pane is the single source of truth
+                // (painted by the WS hook's presentation_url handler), and the top
+                // toolbar (Final / Play / Download) + slide thumbnails already provide
+                // "open" affordances. So we intentionally do NOT render a redundant
+                // "Your presentation '…' with N slides is ready! [Open]" completion card
+                // in chat — it duplicated the deck and, on template reuse, showed the
+                // 'your presentation' placeholder title. The completion chat message and
+                // the "What would you like to do next?" action card still render.
+                // (This is the STANDALONE completion frame; strawman previews arrive via
+                // the combined_strawman branch above and are unaffected.)
+                return null
               }
               return null
             })()}
