@@ -731,8 +731,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   has_strawman: message.payload.has_strawman,
                   presentation_url: message.payload.presentation_url
                 });
-                // No state changes needed - frontend already has messages in cache
-                // This message confirms Director acknowledged skip_history request
+                // Resilience: a deck can finish while the socket is down (WS churn during
+                // a long reuse/build). The backend re-delivers its URL here on reconnect.
+                // Restore it so the deck REPAINTS instead of showing the empty placeholder.
+                // Only when we don't already hold one (don't clobber a fresher in-memory URL).
+                if (message.payload.presentation_url && !prev.presentationUrl) {
+                  newState.presentationUrl = message.payload.presentation_url;
+                  newState.finalPresentationUrl = message.payload.presentation_url;
+                  newState.activeVersion = 'final';
+                  const _pid = (message.payload as any).presentation_id;
+                  if (_pid) { newState.presentationId = _pid; newState.finalPresentationId = _pid; }
+                  newState.currentStatus = null;
+                  debugLog('🔁 Restored finished presentation from sync_response (reconnect repaint)');
+                }
                 break;
 
               case 'presentation_url':
