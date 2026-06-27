@@ -823,24 +823,34 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   newState.blankPresentationUrl = initUrl;
                   newState.blankPresentationId = initId || null;
                   newState.isBlankPresentation = true;
-                  newState.activeVersion = 'blank';
-                  newState.presentationUrl = initUrl;
-                  newState.presentationId = initId || null;
-                  newState.slideStructure = message.payload as any;
 
-                  debugLog('✅ Blank presentation ready - all editing tools now active');
+                  // Guard: a blank canvas must NOT clobber a real deck we already have
+                  // (one restored from the session record on reload, a finished build, or
+                  // a strawman). Otherwise reconnect → blank overwrites the deck → blank RHS.
+                  // Only switch the active view + persist when there's no real deck yet.
+                  const hasRealDeck = !!(prev.finalPresentationUrl || prev.strawmanPreviewUrl || prev.presentationUrl);
+                  if (hasRealDeck) {
+                    debugLog('⚠️ presentation_init: keeping existing deck, not switching to blank');
+                  } else {
+                    newState.activeVersion = 'blank';
+                    newState.presentationUrl = initUrl;
+                    newState.presentationId = initId || null;
+                    newState.slideStructure = message.payload as any;
 
-                  if (options.onPresentationReady) {
-                    options.onPresentationReady(initUrl);
-                  }
+                    debugLog('✅ Blank presentation ready - all editing tools now active');
 
-                  if (options.onSessionStateChange) {
-                    options.onSessionStateChange({
-                      presentationUrl: initUrl,
-                      presentationId: initId || undefined,
-                      slideCount: 1,
-                      currentStage: 0,
-                    });
+                    if (options.onPresentationReady) {
+                      options.onPresentationReady(initUrl);
+                    }
+
+                    if (options.onSessionStateChange) {
+                      options.onSessionStateChange({
+                        presentationUrl: initUrl,
+                        presentationId: initId || undefined,
+                        slideCount: 1,
+                        currentStage: 0,
+                      });
+                    }
                   }
                 }
                 break;

@@ -190,20 +190,33 @@ export function useChatSessions() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/sessions/${sessionId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      });
+      // The session row can be uncommitted right after creation (write race), so the
+      // PATCH 404s and finalPresentationUrl would be silently lost — leaving a reload
+      // with no deck URL to restore. Retry a few times on 404 so the URL reliably lands
+      // on the correct row. See the RHS-blank-deck RCA.
+      const maxAttempts = 4;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const response = await fetch(`/api/sessions/${sessionId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updates),
+        });
 
-      if (!response.ok) {
-        throw new Error(`Failed to update session: ${response.statusText}`);
+        if (response.ok) {
+          const data = await response.json();
+          return data.session;
+        }
+
+        if (response.status === 404 && attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 400 * attempt));
+          continue;
+        }
+
+        throw new Error(`Failed to update session: ${response.status} ${response.statusText}`);
       }
-
-      const data = await response.json();
-      return data.session;
+      return null;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error');
       setError(error);
