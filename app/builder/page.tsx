@@ -611,6 +611,15 @@ function BuilderContent() {
     try {
       const messageText = inputMessage.trim()
 
+      // Template reuse skips the strawman→accept step that normally turns on the
+      // build animation, so the right pane would sit static. Flip it on here so a
+      // reuse turn runs the SAME live slide-build animation as a normal build (the
+      // viewer's isGenerating overlay when a deck is shown, or the full loader
+      // otherwise). It auto-hides when the final URL arrives (finalPresentationUrl effect).
+      if (activeTemplate) {
+        setIsGeneratingFinal(true)
+      }
+
       // Handle pending action input
       if (pendingActionInput) {
         const { action, messageId, timestamp } = pendingActionInput
@@ -868,7 +877,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, quota.status, toast, templateSendOptions])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, quota.status, toast, templateSendOptions, activeTemplate])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
