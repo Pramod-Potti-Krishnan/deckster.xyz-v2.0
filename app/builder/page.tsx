@@ -242,29 +242,20 @@ function BuilderContent() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const urlSessionId = params.get('session_id')
-      if (urlSessionId === 'new') {
-        // Explicit fresh start — forget the remembered session.
-        try { sessionStorage.removeItem('deckster_active_session_id') } catch {}
-        return null
-      }
-      if (urlSessionId) return urlSessionId
-      // No URL param (e.g. a bare reload): return to the LAST ACTIVE session instead of
-      // minting a fresh, empty one. A new id lands on an empty row, so Director paints a
-      // blank canvas and the built deck "disappears". See the RHS-blank-deck RCA.
-      try {
-        const stored = sessionStorage.getItem('deckster_active_session_id')
-        if (stored) return stored
-      } catch {}
+      // The URL is the single source of truth for which session to show:
+      //   ?session_id=<uuid> → resume that deck
+      //   ?session_id=new  or  no param → fresh session (Director greets + blank canvas)
+      // A bare /builder must NEVER resurrect a prior deck. Reload persistence is handled
+      // by the URL, not hidden storage: once a session is active the app rewrites the URL
+      // to ?session_id=<uuid> (use-builder-session.ts), so a browser refresh keeps the
+      // param and the deck. PR #77 regressed this by restoring
+      // sessionStorage['deckster_active_session_id'] on every no-param load, so opening a
+      // "new" session silently reopened the last deck with no greeting (empty chat + a
+      // templated deck appearing unrequested). Restoring URL-only intent fixes it.
+      if (urlSessionId && urlSessionId !== 'new') return urlSessionId
     }
     return null
   })
-
-  // Remember the active session id so a reload/reconnect returns to it (session stability).
-  useEffect(() => {
-    if (currentSessionId && typeof window !== 'undefined') {
-      try { sessionStorage.setItem('deckster_active_session_id', currentSessionId) } catch {}
-    }
-  }, [currentSessionId])
 
   const persistence = useSessionPersistence({
     sessionId: currentSessionId || '',
