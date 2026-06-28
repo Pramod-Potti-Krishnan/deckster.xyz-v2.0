@@ -142,6 +142,9 @@ interface PresentationViewerProps {
   sessionId?: string | null
   templateBuilderEnabled?: boolean
   onSelectTemplate?: (template: { id: string; name: string }) => void
+  templateModeOn?: boolean
+  onTemplateModeChange?: (enabled: boolean) => void
+  templateModeAvailable?: boolean
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -230,6 +233,9 @@ export function PresentationViewer({
   sessionId,
   templateBuilderEnabled,
   onSelectTemplate,
+  templateModeOn = false,
+  onTemplateModeChange,
+  templateModeAvailable = false,
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1813,7 +1819,7 @@ export function PresentationViewer({
               {/* Add Slide */}
               <SlideLayoutPicker
                 onAddSlide={handleAddSlide}
-                disabled={!presentationUrl}
+                disabled={!presentationUrl || templateModeOn}
                 className="min-w-[80px] justify-center"
               />
 
@@ -1821,7 +1827,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    disabled={!presentationUrl}
+                    disabled={!presentationUrl || templateModeOn}
                     className={cn(toolbarButtonClass, toolbarBtnBase, "min-w-[96px]")}
                     title="Add an element"
                   >
@@ -1875,10 +1881,21 @@ export function PresentationViewer({
                         <Save className="h-4 w-4 text-gray-600" />
                         <span>Save Template</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem disabled className="gap-2">
+                      <DropdownMenuItem
+                        disabled={!templateModeAvailable && !templateModeOn}
+                        className="cursor-pointer gap-2"
+                        onClick={() => {
+                          onTemplateModeChange?.(!templateModeOn)
+                          setToolbarTemplateMenuOpen(false)
+                        }}
+                      >
                         <Sparkles className="h-4 w-4 text-gray-400" />
-                        <span className="flex-1">Template Mode</span>
-                        <span className="text-xs text-muted-foreground">Soon</span>
+                        <span className="flex-1">
+                          {templateModeOn ? 'Exit Template Mode' : 'Template Mode'}
+                        </span>
+                        {!templateModeAvailable && !templateModeOn && (
+                          <span className="text-xs text-muted-foreground">Select template</span>
+                        )}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuSub
@@ -1918,7 +1935,7 @@ export function PresentationViewer({
               {/* Theme — 4th primary build action; sits with its build siblings */}
               <button
                 onClick={() => setShowThemePanel(true)}
-                disabled={!presentationUrl}
+                disabled={!presentationUrl || templateModeOn}
                 className={cn(toolbarButtonClass, toolbarBtnBase)}
                 title="Presentation theme"
               >
@@ -2156,11 +2173,23 @@ export function PresentationViewer({
           {/* Presentation Iframe */}
           <div
             ref={slideContainerRef}
-            className={`flex-1 min-h-0 relative flex items-center justify-center overflow-hidden ${isFullscreen ? 'bg-black' : 'bg-gray-100 dark:bg-slate-800 p-4'}`}
+            className={cn(
+              "flex-1 min-h-0 relative flex items-center justify-center overflow-hidden",
+              isFullscreen ? 'bg-black' : 'bg-gray-100 dark:bg-slate-800 p-4',
+              templateModeOn && "bg-slate-950/10 dark:bg-slate-950"
+            )}
           >
+            {templateModeOn && (
+              <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-full border border-violet-300 bg-white/95 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-violet-700 shadow-lg dark:border-violet-700 dark:bg-slate-950/95 dark:text-violet-200">
+                Template Mode
+              </div>
+            )}
             {presentationUrl ? (
               <div
-                className={isFullscreen ? '' : 'max-w-7xl'}
+                className={cn(
+                  isFullscreen ? '' : 'max-w-7xl',
+                  templateModeOn && "relative rounded-md border-2 border-dashed border-violet-400 bg-violet-950/5 p-1 shadow-[0_0_0_9999px_rgba(15,23,42,0.08)]"
+                )}
                 style={isFullscreen && fullscreenSlideSize ? {
                   // Use JavaScript-calculated dimensions for accuracy
                   width: fullscreenSlideSize.width,
@@ -2176,7 +2205,7 @@ export function PresentationViewer({
                   height: 'auto',
                 }}
               >
-                <iframe
+                  <iframe
                   ref={iframeRef}
                   src={(() => {
                     // showNotes: true when the user has the Notes toggle on
@@ -2193,7 +2222,11 @@ export function PresentationViewer({
                     }
                   })()}
                   onLoad={handleIframeLoad}
-                  className={`w-full h-full border-0 ${isFullscreen ? 'shadow-2xl' : 'rounded-sm shadow-2xl'}`}
+                  className={cn(
+                    "w-full h-full border-0 transition duration-200",
+                    isFullscreen ? 'shadow-2xl' : 'rounded-sm shadow-2xl',
+                    templateModeOn && "saturate-50 contrast-90"
+                  )}
                   title="Presentation Viewer"
                   allow="fullscreen"
                 />

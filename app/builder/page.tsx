@@ -39,7 +39,9 @@ import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
 import { useQuota } from '@/hooks/use-quota'
 import { useThemeProfiles } from '@/hooks/use-theme-profiles'
+import { useTemplates, type TemplateSnapshot } from '@/hooks/use-templates'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
+import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -157,11 +159,16 @@ function BuilderContent() {
 
   // UI state
   const [inputMessage, setInputMessage] = useState("")
+  const templateBuilderEnabled = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
+  const [templateModeOn, setTemplateModeOn] = useState(false)
+  const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
+  const [templateSnapshotLoading, setTemplateSnapshotLoading] = useState(false)
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
   const standardThemeLoadedRef = useRef(false)
   const { getStandardTheme } = useThemeProfiles()
+  const { getTemplate } = useTemplates()
   const templateSendOptions = useMemo(
     () => (activeTemplate ? { templateMode: true as const, templateId: activeTemplate.id } : {}),
     [activeTemplate],
@@ -169,6 +176,15 @@ function BuilderContent() {
   const buildSendOptions = useMemo(
     () => ({ ...templateSendOptions, theme: buildThemeSelection }),
     [templateSendOptions, buildThemeSelection],
+  )
+  const templateModeSourcePresentationId = templateModeOn
+    ? templateSnapshot?.source_presentation_id ?? null
+    : null
+  const templateModeSourcePresentationUrl = useMemo(
+    () => templateModeSourcePresentationId
+      ? `${LAYOUT_SERVICE_URL}/p/${encodeURIComponent(templateModeSourcePresentationId)}`
+      : null,
+    [templateModeSourcePresentationId],
   )
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [researchEnabled, setResearchEnabled] = useState(false)
@@ -421,6 +437,9 @@ function BuilderContent() {
   useEffect(() => {
     setSlideComposerOverride(null)
     setShowFormatPanel(false)
+    setTemplateModeOn(false)
+    setTemplateSnapshot(null)
+    setTemplateSnapshotLoading(false)
   }, [currentSessionId])
 
   useEffect(() => {
@@ -447,6 +466,64 @@ function BuilderContent() {
 
     writeBuilderSessionOptions(currentSessionId, activeTemplate, buildThemeSelection)
   }, [currentSessionId, activeTemplate, buildThemeSelection])
+
+  const loadTemplateSnapshot = useCallback(async (template: BuilderTemplateSelection): Promise<TemplateSnapshot | null> => {
+    setTemplateSnapshotLoading(true)
+    try {
+      const snapshot = await getTemplate(template.id)
+      if (snapshot) {
+        setTemplateSnapshot(snapshot)
+        return snapshot
+      }
+      toast({
+        title: 'Template unavailable',
+        description: 'The saved template could not be loaded for Template Mode.',
+        variant: 'destructive',
+      })
+      return null
+    } finally {
+      setTemplateSnapshotLoading(false)
+    }
+  }, [getTemplate, toast])
+
+  const handleSelectTemplate = useCallback(async (template: BuilderTemplateSelection) => {
+    setActiveTemplate(template)
+    if (!templateBuilderEnabled) return
+
+    setTemplateModeOn(true)
+    const snapshot = await loadTemplateSnapshot(template)
+    if (!snapshot) {
+      setTemplateModeOn(false)
+    }
+  }, [loadTemplateSnapshot, templateBuilderEnabled])
+
+  const handleClearTemplate = useCallback(() => {
+    setActiveTemplate(null)
+    setTemplateModeOn(false)
+    setTemplateSnapshot(null)
+    setTemplateSnapshotLoading(false)
+  }, [])
+
+  const handleTemplateModeChange = useCallback(async (enabled: boolean) => {
+    if (!enabled) {
+      setTemplateModeOn(false)
+      return
+    }
+
+    if (!activeTemplate) {
+      toast({
+        title: 'Select a template first',
+        description: 'Template Mode opens from an available saved template.',
+      })
+      return
+    }
+
+    setTemplateModeOn(true)
+    if (!templateSnapshot || templateSnapshot.id !== activeTemplate.id) {
+      const snapshot = await loadTemplateSnapshot(activeTemplate)
+      if (!snapshot) setTemplateModeOn(false)
+    }
+  }, [activeTemplate, loadTemplateSnapshot, templateSnapshot, toast])
 
   // WebSocket v2 integration
   const {
@@ -540,14 +617,16 @@ function BuilderContent() {
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
 
-  const effectivePresentationId = slideComposerOverride?.presentationId ?? presentationId
+  const effectivePresentationId = templateModeSourcePresentationId
+    ?? slideComposerOverride?.presentationId
+    ?? presentationId
   const effectiveSlideCount = slideComposerOverride?.slideCount ?? slideCount
   const effectivePresentationUrl = useMemo(
     () => withSlideComposerRefreshToken(
-      slideComposerOverride?.presentationUrl ?? presentationUrl,
+      templateModeSourcePresentationUrl ?? slideComposerOverride?.presentationUrl ?? presentationUrl,
       slideComposerOverride?.refreshToken ?? 0,
     ),
-    [presentationUrl, slideComposerOverride],
+    [presentationUrl, slideComposerOverride, templateModeSourcePresentationUrl],
   )
 
   const currentSlideLayout = useMemo<SlideLayoutType | undefined>(() => {
@@ -684,11 +763,17 @@ function BuilderContent() {
   })
 
   // FIXED: Clear loading state when final presentation URL arrives
+  const lastFinalPresentationUrlRef = useRef<string | null>(null)
   useEffect(() => {
     if (finalPresentationUrl && isGeneratingFinal) {
       setIsGeneratingFinal(false)
       console.log('Final presentation ready - hiding loader')
     }
+
+    if (finalPresentationUrl && finalPresentationUrl !== lastFinalPresentationUrlRef.current) {
+      setTemplateModeOn(false)
+    }
+    lastFinalPresentationUrlRef.current = finalPresentationUrl
   }, [finalPresentationUrl, isGeneratingFinal])
 
   // Infer current stage from available data
@@ -1429,10 +1514,10 @@ function BuilderContent() {
                     user={user}
                     currentSessionId={currentSessionId}
                     onRequestSession={session.handleRequestSession}
-                    templateBuilderEnabled={process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'}
+                    templateBuilderEnabled={templateBuilderEnabled}
                     activeTemplate={activeTemplate}
-                    onSelectTemplate={(t) => setActiveTemplate(t)}
-                    onClearTemplate={() => setActiveTemplate(null)}
+                    onSelectTemplate={handleSelectTemplate}
+                    onClearTemplate={handleClearTemplate}
                     buildTheme={buildThemeSelection}
                     onBuildThemeChange={setBuildThemeSelection}
                   />
@@ -1586,8 +1671,13 @@ function BuilderContent() {
             toolbarPortalTarget={toolbarPortalTarget}
             toolbarOffset={anyDrawerOpen ? Math.max(drawerWidth - 112, 0) : 0}
             sessionId={wsSessionId}
-            templateBuilderEnabled={process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'}
-            onSelectTemplate={(t) => setActiveTemplate(t)}
+            templateBuilderEnabled={templateBuilderEnabled}
+            onSelectTemplate={handleSelectTemplate}
+            templateModeOn={templateModeOn}
+            onTemplateModeChange={handleTemplateModeChange}
+            templateModeAvailable={Boolean(activeTemplate)}
+            templateSnapshot={templateSnapshot}
+            templateSnapshotLoading={templateSnapshotLoading}
           />
           )}
           </div>
