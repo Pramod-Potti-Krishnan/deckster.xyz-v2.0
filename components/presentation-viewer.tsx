@@ -40,6 +40,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -261,6 +262,7 @@ export function PresentationViewer({
   const [selectedSlideIndices, setSelectedSlideIndices] = useState<number[]>([])
   // Track when CRUD operations have modified slides (invalidates stale slideStructure)
   const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
+  const toolbarDropdownPortalContainer = isFullscreen ? containerRef.current ?? undefined : undefined
   // Text box selection state
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   // Version history panel state
@@ -1827,19 +1829,21 @@ export function PresentationViewer({
                     <span className={cn(toolbarLabelClass, "whitespace-nowrap")}>Add Element</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" sideOffset={8} className="w-52 p-1">
-                  {addElementItems.map(({ label, icon: Icon, disabled, action }) => (
-                    <DropdownMenuItem
-                      key={label}
-                      disabled={disabled}
-                      onClick={() => { void action() }}
-                      className="cursor-pointer gap-2"
-                    >
-                      <Icon className="h-4 w-4 text-gray-600" />
-                      <span>{label}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
+                <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
+                  <DropdownMenuContent align="start" sideOffset={8} className="w-52 p-1">
+                    {addElementItems.map(({ label, icon: Icon, disabled, action }) => (
+                      <DropdownMenuItem
+                        key={label}
+                        disabled={disabled}
+                        onClick={() => { void action() }}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Icon className="h-4 w-4 text-gray-600" />
+                        <span>{label}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenuPortal>
               </DropdownMenu>
 
               {/* Template — "Save as Template" (Template Builder). Enabled once a
@@ -1862,41 +1866,43 @@ export function PresentationViewer({
                       <span className={toolbarLabelClass}>Template</span>
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="center" sideOffset={8} className="w-56 p-1">
-                    <DropdownMenuItem
-                      className="cursor-pointer gap-2"
-                      onClick={() => setShowTemplateSave(true)}
-                    >
-                      <Save className="h-4 w-4 text-gray-600" />
-                      <span>Save Template</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem disabled className="gap-2">
-                      <Sparkles className="h-4 w-4 text-gray-400" />
-                      <span className="flex-1">Template Mode</span>
-                      <span className="text-xs text-muted-foreground">Soon</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuSub
-                      open={toolbarTemplatePickerOpen}
-                      onOpenChange={setToolbarTemplatePickerOpen}
-                    >
-                      <DropdownMenuSubTrigger className="cursor-pointer gap-2">
-                        <LayoutTemplate className="h-4 w-4 text-gray-600" />
-                        <span>Available Templates</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent alignOffset={-4} className="w-64">
-                        <TemplatePickerContent
-                          label="Available templates"
-                          isOpen={toolbarTemplatePickerOpen}
-                          onSelect={(template) => {
-                            onSelectTemplate?.(template)
-                            setToolbarTemplatePickerOpen(false)
-                            setToolbarTemplateMenuOpen(false)
-                          }}
-                        />
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  </DropdownMenuContent>
+                  <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
+                    <DropdownMenuContent align="center" sideOffset={8} className="w-56 p-1">
+                      <DropdownMenuItem
+                        className="cursor-pointer gap-2"
+                        onClick={() => setShowTemplateSave(true)}
+                      >
+                        <Save className="h-4 w-4 text-gray-600" />
+                        <span>Save Template</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled className="gap-2">
+                        <Sparkles className="h-4 w-4 text-gray-400" />
+                        <span className="flex-1">Template Mode</span>
+                        <span className="text-xs text-muted-foreground">Soon</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuSub
+                        open={toolbarTemplatePickerOpen}
+                        onOpenChange={setToolbarTemplatePickerOpen}
+                      >
+                        <DropdownMenuSubTrigger className="cursor-pointer gap-2">
+                          <LayoutTemplate className="h-4 w-4 text-gray-600" />
+                          <span>Available Templates</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent alignOffset={-4} className="w-64">
+                          <TemplatePickerContent
+                            label="Available templates"
+                            isOpen={toolbarTemplatePickerOpen}
+                            onSelect={(template) => {
+                              onSelectTemplate?.(template)
+                              setToolbarTemplatePickerOpen(false)
+                              setToolbarTemplateMenuOpen(false)
+                            }}
+                          />
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    </DropdownMenuContent>
+                  </DropdownMenuPortal>
                 </DropdownMenu>
               ) : (
                 <button
@@ -1934,40 +1940,42 @@ export function PresentationViewer({
                     <span className={toolbarLabelClass}>Mode</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" sideOffset={8} className="w-44">
-                  <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Editing mode
-                  </DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={isEditMode ? 'edit' : 'view'}
-                    onValueChange={(v) => {
-                      const wantsEdit = v === 'edit'
-                      if (wantsEdit !== isEditMode) void handleToggleEditModeButton()
-                    }}
-                  >
-                    <DropdownMenuRadioItem value="view" className="cursor-pointer whitespace-nowrap">
-                      <Eye className="h-4 w-4 mr-2" /> View
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="edit" className="cursor-pointer whitespace-nowrap">
-                      <Pencil className="h-4 w-4 mr-2" /> Edit
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Theme
-                  </DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={resolvedTheme === 'dark' ? 'dark' : 'light'}
-                    onValueChange={(v) => setTheme(v)}
-                  >
-                    <DropdownMenuRadioItem value="light" className="cursor-pointer whitespace-nowrap">
-                      <Sun className="h-4 w-4 mr-2" /> Light
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="dark" className="cursor-pointer whitespace-nowrap">
-                      <Moon className="h-4 w-4 mr-2" /> Dark
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
+                <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
+                  <DropdownMenuContent align="center" sideOffset={8} className="w-44">
+                    <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Editing mode
+                    </DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={isEditMode ? 'edit' : 'view'}
+                      onValueChange={(v) => {
+                        const wantsEdit = v === 'edit'
+                        if (wantsEdit !== isEditMode) void handleToggleEditModeButton()
+                      }}
+                    >
+                      <DropdownMenuRadioItem value="view" className="cursor-pointer whitespace-nowrap">
+                        <Eye className="h-4 w-4 mr-2" /> View
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="edit" className="cursor-pointer whitespace-nowrap">
+                        <Pencil className="h-4 w-4 mr-2" /> Edit
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Theme
+                    </DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={resolvedTheme === 'dark' ? 'dark' : 'light'}
+                      onValueChange={(v) => setTheme(v)}
+                    >
+                      <DropdownMenuRadioItem value="light" className="cursor-pointer whitespace-nowrap">
+                        <Sun className="h-4 w-4 mr-2" /> Light
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="dark" className="cursor-pointer whitespace-nowrap">
+                        <Moon className="h-4 w-4 mr-2" /> Dark
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenuPortal>
               </DropdownMenu>
 
               {/* Show menu — display toggles + Master settings */}
@@ -1981,36 +1989,38 @@ export function PresentationViewer({
                     <span className={toolbarLabelClass}>Show</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" sideOffset={8} className="w-44">
-                  <DropdownMenuCheckboxItem
-                    checked={isGridActive}
-                    onCheckedChange={() => handleToggleGrid()}
-                    className="cursor-pointer whitespace-nowrap"
-                  >
-                    <Grid2x2 className="h-4 w-4 mr-2" /> Grids
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={isBordersActive}
-                    onCheckedChange={() => handleToggleBorders()}
-                    className="cursor-pointer whitespace-nowrap"
-                  >
-                    <Square className="h-4 w-4 mr-2" /> Borders
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={isNotesActive}
-                    onCheckedChange={() => setIsNotesActive((prev) => !prev)}
-                    className="cursor-pointer whitespace-nowrap"
-                  >
-                    <FileText className="h-4 w-4 mr-2" /> Notes
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => setShowPresentationSettings(true)}
-                    className="cursor-pointer whitespace-nowrap"
-                  >
-                    <Settings className="h-4 w-4 mr-2" /> Master…
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
+                  <DropdownMenuContent align="center" sideOffset={8} className="w-44">
+                    <DropdownMenuCheckboxItem
+                      checked={isGridActive}
+                      onCheckedChange={() => handleToggleGrid()}
+                      className="cursor-pointer whitespace-nowrap"
+                    >
+                      <Grid2x2 className="h-4 w-4 mr-2" /> Grids
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={isBordersActive}
+                      onCheckedChange={() => handleToggleBorders()}
+                      className="cursor-pointer whitespace-nowrap"
+                    >
+                      <Square className="h-4 w-4 mr-2" /> Borders
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuCheckboxItem
+                      checked={isNotesActive}
+                      onCheckedChange={() => setIsNotesActive((prev) => !prev)}
+                      className="cursor-pointer whitespace-nowrap"
+                    >
+                      <FileText className="h-4 w-4 mr-2" /> Notes
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={() => setShowPresentationSettings(true)}
+                      className="cursor-pointer whitespace-nowrap"
+                    >
+                      <Settings className="h-4 w-4 mr-2" /> Master…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenuPortal>
               </DropdownMenu>
             </div>
 
@@ -2053,39 +2063,41 @@ export function PresentationViewer({
                       </span>
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem
-                      onClick={() => onVersionSwitch?.('blank')}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span>Custom</span>
-                        {activeVersion === 'blank' && <Check className="h-4 w-4 text-blue-500" />}
-                      </div>
-                    </DropdownMenuItem>
-                    {strawmanPreviewUrl && (
+                  <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
+                    <DropdownMenuContent align="end" className="w-40">
                       <DropdownMenuItem
-                        onClick={() => onVersionSwitch?.('strawman')}
+                        onClick={() => onVersionSwitch?.('blank')}
                         className="cursor-pointer"
                       >
                         <div className="flex items-center justify-between w-full">
-                          <span>Strawman</span>
-                          {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
+                          <span>Custom</span>
+                          {activeVersion === 'blank' && <Check className="h-4 w-4 text-blue-500" />}
                         </div>
                       </DropdownMenuItem>
-                    )}
-                    {finalPresentationUrl && (
-                      <DropdownMenuItem
-                        onClick={() => onVersionSwitch?.('final')}
-                        className="cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <span>Final</span>
-                          {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
-                        </div>
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
+                      {strawmanPreviewUrl && (
+                        <DropdownMenuItem
+                          onClick={() => onVersionSwitch?.('strawman')}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span>Strawman</span>
+                            {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
+                          </div>
+                        </DropdownMenuItem>
+                      )}
+                      {finalPresentationUrl && (
+                        <DropdownMenuItem
+                          onClick={() => onVersionSwitch?.('final')}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span>Final</span>
+                            {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
+                          </div>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenuPortal>
                 </DropdownMenu>
               )}
 
