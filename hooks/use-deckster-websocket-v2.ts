@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
+import type { BuildThemeSelection } from '@/lib/theme-builder';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -238,6 +239,7 @@ export interface UserMessage {
     extended_generation: boolean;
     file_upload: boolean;
     use_knowledge_graph?: boolean;
+    theme?: BuildThemeSelection;
     // Template Builder (reuse): when a saved template is locked in, these tell
     // Director to run the reuse path (skip strawman workflow → Fire #2 → Stage E).
     template_mode?: boolean;
@@ -1167,6 +1169,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       fileUpload?: boolean;
       storeName?: string | null;
       useKnowledgeGraph?: boolean;
+      theme?: BuildThemeSelection;
       // Template Builder (reuse): set when a saved template is locked in.
       templateMode?: boolean;
       templateId?: string | null;
@@ -1192,6 +1195,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           extended_generation: options?.extendedGeneration ?? false,
           file_upload: options?.fileUpload ?? !!effectiveStoreName,
           ...(options?.useKnowledgeGraph && { use_knowledge_graph: true }),
+          ...(options?.theme && { theme: options.theme }),
           ...(options?.templateMode && { template_mode: true }),
           ...(options?.templateId && { template_id: options.templateId }),
         },
@@ -1201,7 +1205,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         '📤 Sending message:',
         text,
         effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
-        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}]`
+        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}]`
       );
       wsRef.current.send(JSON.stringify(message));
 
