@@ -258,6 +258,7 @@ export interface UseDecksterWebSocketV2State {
   presentationUrl: string | null; // Currently displayed URL (computed from blank/strawman/final)
   strawmanPreviewUrl: string | null; // Strawman preview URL
   finalPresentationUrl: string | null; // Final presentation URL
+  deckOwnerSessionId: string | null; // Session id that produced the currently-held deck urls
   presentationId: string | null; // Currently displayed presentation ID
   strawmanPresentationId: string | null; // Strawman presentation ID
   finalPresentationId: string | null; // Final presentation ID
@@ -422,6 +423,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         presentationUrl: cached.presentationUrl || null,
         strawmanPreviewUrl: cached.strawmanPreviewUrl || null,
         finalPresentationUrl: cached.finalPresentationUrl || null,
+        deckOwnerSessionId: sessionIdRef.current,
         presentationId: cached.presentationId || null,
         strawmanPresentationId: cached.strawmanPresentationId || null,
         finalPresentationId: cached.finalPresentationId || null,
@@ -454,6 +456,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       presentationUrl: null,
       strawmanPreviewUrl: null,
       finalPresentationUrl: null,
+      deckOwnerSessionId: null,
       presentationId: null,
       strawmanPresentationId: null,
       finalPresentationId: null,
@@ -738,6 +741,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 if (message.payload.presentation_url && !prev.presentationUrl) {
                   newState.presentationUrl = message.payload.presentation_url;
                   newState.finalPresentationUrl = message.payload.presentation_url;
+                  newState.deckOwnerSessionId = sessionIdRef.current;
                   newState.activeVersion = 'final';
                   const _pid = (message.payload as any).presentation_id;
                   if (_pid) { newState.presentationId = _pid; newState.finalPresentationId = _pid; }
@@ -762,6 +766,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
                 newState.finalPresentationUrl = message.payload.url;
                 newState.finalPresentationId = message.payload.presentation_id;
+                newState.deckOwnerSessionId = sessionIdRef.current;
 
                 // Automatically switch to final version when it arrives
                 newState.activeVersion = 'final';
@@ -828,14 +833,21 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   // (one restored from the session record on reload, a finished build, or
                   // a strawman). Otherwise reconnect → blank overwrites the deck → blank RHS.
                   // Only switch the active view + persist when there's no real deck yet.
-                  const hasRealDeck = !!(prev.finalPresentationUrl || prev.strawmanPreviewUrl || prev.presentationUrl);
+                  const heldDeck = !!(prev.finalPresentationUrl || prev.strawmanPreviewUrl || prev.presentationUrl);
+                  const hasRealDeck = heldDeck && prev.deckOwnerSessionId === sessionIdRef.current;
                   if (hasRealDeck) {
                     debugLog('⚠️ presentation_init: keeping existing deck, not switching to blank');
                   } else {
                     newState.activeVersion = 'blank';
                     newState.presentationUrl = initUrl;
                     newState.presentationId = initId || null;
-                    newState.slideStructure = message.payload as any;
+                    newState.strawmanPreviewUrl = null;
+                    newState.strawmanPresentationId = null;
+                    newState.finalPresentationUrl = null;
+                    newState.finalPresentationId = null;
+                    newState.deckOwnerSessionId = sessionIdRef.current;
+                    newState.slideStructure = null;
+                    newState.slideCount = null;
 
                     debugLog('✅ Blank presentation ready - all editing tools now active');
 
@@ -888,6 +900,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     newState.activeVersion = 'blank';
                     newState.presentationUrl = blankUrl;
                     newState.presentationId = blankId || null;
+                    newState.strawmanPreviewUrl = null;
+                    newState.strawmanPresentationId = null;
+                    newState.finalPresentationUrl = null;
+                    newState.finalPresentationId = null;
+                    newState.deckOwnerSessionId = sessionIdRef.current;
+                    newState.slideStructure = null;
+                    newState.slideCount = null;
 
                     debugLog('✅ Blank presentation ready - all editing tools now active');
 
@@ -929,6 +948,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   debugLog('🖼️ Setting strawmanPreviewUrl and displaying preview IMMEDIATELY');
                   newState.strawmanPreviewUrl = previewUrl;
                   newState.strawmanPresentationId = previewPresentationId || null;
+                  newState.deckOwnerSessionId = sessionIdRef.current;
 
                   // Set activeVersion to strawman and update presentationUrl to display it
                   newState.activeVersion = 'strawman';
@@ -1219,7 +1239,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         ...prev,
         activeVersion: newActiveVersion,
         presentationUrl: newPresentationUrl,
-        presentationId: newPresentationId
+        presentationId: newPresentationId,
+        deckOwnerSessionId: newPresentationUrl ? (prev.deckOwnerSessionId || sessionIdRef.current) : prev.deckOwnerSessionId
       };
     });
   }, [setStateWithCache]);
@@ -1240,6 +1261,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       presentationUrl: null,
       strawmanPreviewUrl: null,
       finalPresentationUrl: null,
+      deckOwnerSessionId: null,
       presentationId: null,
       strawmanPresentationId: null,
       finalPresentationId: null,
@@ -1330,6 +1352,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
 
     debugLog(`✅ Determined activeVersion: ${activeVersion} (display URL: ${displayUrl ? 'present' : 'none'})`);
+    const restoredDeckOwnerSessionId = (
+      displayUrl ||
+      sessionState?.blankPresentationUrl ||
+      sessionState?.strawmanPreviewUrl ||
+      sessionState?.finalPresentationUrl
+    ) ? sessionIdRef.current : null;
 
     setStateWithCache(prev => ({
       ...prev,
@@ -1342,6 +1370,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       strawmanPresentationId: sessionState?.strawmanPresentationId || null,
       finalPresentationUrl: sessionState?.finalPresentationUrl || null,
       finalPresentationId: sessionState?.finalPresentationId || null,
+      deckOwnerSessionId: restoredDeckOwnerSessionId,
       // NEW: Blank presentation state (Builder V2)
       blankPresentationUrl: sessionState?.blankPresentationUrl || null,
       blankPresentationId: sessionState?.blankPresentationId || null,
