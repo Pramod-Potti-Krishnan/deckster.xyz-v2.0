@@ -46,6 +46,97 @@ export const dynamic = 'force-dynamic'
 const DEFAULT_DRAWER_WIDTH = 420
 const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
+const BUILDER_SESSION_OPTIONS_VERSION = 1
+
+type BuilderTemplateSelection = { id: string; name: string }
+
+interface BuilderSessionOptions {
+  version: typeof BUILDER_SESSION_OPTIONS_VERSION
+  activeTemplate: BuilderTemplateSelection | null
+  buildThemeSelection: BuildThemeSelection
+}
+
+function getBuilderSessionOptionsKey(sessionId: string): string {
+  return `deckster_builder_options_${sessionId}`
+}
+
+function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection {
+  if (!value || typeof value !== 'object') return { mode: 'auto' }
+
+  const raw = value as Partial<BuildThemeSelection>
+  if (raw.mode === 'preset') {
+    return typeof raw.preset_id === 'string'
+      ? { mode: 'preset', preset_id: raw.preset_id }
+      : { mode: 'auto' }
+  }
+
+  if (raw.mode === 'custom') {
+    const next: BuildThemeSelection = { mode: 'custom' }
+    if (typeof raw.primary_hex === 'string') next.primary_hex = raw.primary_hex
+    if (raw.color_overrides && typeof raw.color_overrides === 'object') {
+      next.color_overrides = raw.color_overrides
+    }
+    return next.primary_hex || next.color_overrides ? next : { mode: 'auto' }
+  }
+
+  return { mode: 'auto' }
+}
+
+function normalizeStoredTemplate(value: unknown): BuilderTemplateSelection | null {
+  if (!value || typeof value !== 'object') return null
+
+  const raw = value as Partial<BuilderTemplateSelection>
+  return typeof raw.id === 'string' && typeof raw.name === 'string'
+    ? { id: raw.id, name: raw.name }
+    : null
+}
+
+function readBuilderSessionOptions(sessionId: string): BuilderSessionOptions {
+  if (typeof window === 'undefined') {
+    return { version: BUILDER_SESSION_OPTIONS_VERSION, activeTemplate: null, buildThemeSelection: { mode: 'auto' } }
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(getBuilderSessionOptionsKey(sessionId))
+    if (!raw) {
+      return { version: BUILDER_SESSION_OPTIONS_VERSION, activeTemplate: null, buildThemeSelection: { mode: 'auto' } }
+    }
+
+    const parsed = JSON.parse(raw) as Partial<BuilderSessionOptions>
+    if (parsed.version !== BUILDER_SESSION_OPTIONS_VERSION) {
+      return { version: BUILDER_SESSION_OPTIONS_VERSION, activeTemplate: null, buildThemeSelection: { mode: 'auto' } }
+    }
+
+    return {
+      version: BUILDER_SESSION_OPTIONS_VERSION,
+      activeTemplate: normalizeStoredTemplate(parsed.activeTemplate),
+      buildThemeSelection: normalizeStoredBuildThemeSelection(parsed.buildThemeSelection),
+    }
+  } catch {
+    return { version: BUILDER_SESSION_OPTIONS_VERSION, activeTemplate: null, buildThemeSelection: { mode: 'auto' } }
+  }
+}
+
+function writeBuilderSessionOptions(
+  sessionId: string,
+  activeTemplate: BuilderTemplateSelection | null,
+  buildThemeSelection: BuildThemeSelection,
+): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.sessionStorage.setItem(
+      getBuilderSessionOptionsKey(sessionId),
+      JSON.stringify({
+        version: BUILDER_SESSION_OPTIONS_VERSION,
+        activeTemplate,
+        buildThemeSelection,
+      } satisfies BuilderSessionOptions),
+    )
+  } catch {
+    // Browser storage can fail in private mode/quota scenarios; the session still works.
+  }
+}
 
 function withSlideComposerRefreshToken(url: string | null, token: number): string | null {
   if (!url || !token) return url
@@ -66,7 +157,7 @@ function BuilderContent() {
   // UI state
   const [inputMessage, setInputMessage] = useState("")
   // Template Builder (reuse): the locked-in template, carried on every send.
-  const [activeTemplate, setActiveTemplate] = useState<{ id: string; name: string } | null>(null)
+  const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
   const templateSendOptions = useMemo(
     () => (activeTemplate ? { templateMode: true as const, templateId: activeTemplate.id } : {}),
@@ -282,6 +373,8 @@ function BuilderContent() {
   useEffect(() => {
     currentSessionIdRef.current = currentSessionId
   }, [currentSessionId])
+  const builderOptionsRestoredSessionRef = useRef<string | null>(null)
+  const skipBuilderOptionsPersistRef = useRef<string | null>(null)
 
   // Remember the active session so "Back to builder" (in the account-area header)
   // can return the user to this exact deck. Covers create, resume, and
@@ -301,6 +394,31 @@ function BuilderContent() {
     setSlideComposerOverride(null)
     setShowFormatPanel(false)
   }, [currentSessionId])
+
+  useEffect(() => {
+    if (!currentSessionId || currentSessionId === "new") {
+      builderOptionsRestoredSessionRef.current = null
+      return
+    }
+
+    const stored = readBuilderSessionOptions(currentSessionId)
+    skipBuilderOptionsPersistRef.current = currentSessionId
+    setActiveTemplate(stored.activeTemplate)
+    setBuildThemeSelection(stored.buildThemeSelection)
+    builderOptionsRestoredSessionRef.current = currentSessionId
+  }, [currentSessionId])
+
+  useEffect(() => {
+    if (!currentSessionId || currentSessionId === "new") return
+    if (builderOptionsRestoredSessionRef.current !== currentSessionId) return
+
+    if (skipBuilderOptionsPersistRef.current === currentSessionId) {
+      skipBuilderOptionsPersistRef.current = null
+      return
+    }
+
+    writeBuilderSessionOptions(currentSessionId, activeTemplate, buildThemeSelection)
+  }, [currentSessionId, activeTemplate, buildThemeSelection])
 
   // WebSocket v2 integration
   const {
@@ -954,6 +1072,7 @@ function BuilderContent() {
   }, [session.handleSessionSelect])
 
   const handleNewChatWrapped = useCallback(() => {
+    if (currentSessionId) skipBuilderOptionsPersistRef.current = currentSessionId
     setInputMessage("")
     setPendingActionInput(null)
     setActiveTemplate(null)
@@ -968,7 +1087,7 @@ function BuilderContent() {
     setSessionStoreName(null)
     clearAllFiles()
     session.handleNewChat()
-  }, [clearAllFiles, kgSubscribed, session.handleNewChat])
+  }, [clearAllFiles, currentSessionId, kgSubscribed, session.handleNewChat])
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
