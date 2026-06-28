@@ -1,7 +1,8 @@
 import type { TemplateSnapshot, TemplateSlot } from '@/hooks/use-templates'
 
 export type TemplateModeOverride = Record<string, unknown>
-export type TemplateOverrides = Record<string, Record<string, TemplateModeOverride>>
+export type TemplateSlideOverrides = Record<string, unknown>
+export type TemplateOverrides = Record<string, TemplateSlideOverrides>
 
 export interface TemplateModeElement {
   overrideKey: string

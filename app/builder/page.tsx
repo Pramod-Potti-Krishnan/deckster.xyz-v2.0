@@ -30,6 +30,7 @@ import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
 import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
+import { TemplateParamsPanel } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { TopUpModal } from '@/components/builder/topup-modal'
 
@@ -42,6 +43,7 @@ import { useThemeProfiles } from '@/hooks/use-theme-profiles'
 import { useTemplates, type TemplateSnapshot } from '@/hooks/use-templates'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
+import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -52,6 +54,15 @@ const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 1
 
 type BuilderTemplateSelection = { id: string; name: string }
+const TEMPLATE_SLOT_OVERRIDE_KEYS = new Set([
+  'abstract_intent',
+  'content_mode',
+  'key_message',
+  'locked',
+  'regenerate_text',
+  'slide_title',
+  'text_mode',
+])
 
 interface BuilderSessionOptions {
   version: typeof BUILDER_SESSION_OPTIONS_VERSION
@@ -141,6 +152,54 @@ function writeBuilderSessionOptions(
   }
 }
 
+function hasTemplateOverrideEntries(overrides: TemplateOverrides): boolean {
+  return Object.values(overrides).some((slideOverrides) => Object.keys(slideOverrides).length > 0)
+}
+
+function mergeTemplateOverride(
+  existing: TemplateModeOverride,
+  patch: TemplateModeOverride,
+): TemplateModeOverride {
+  const next: TemplateModeOverride = { ...existing }
+
+  for (const [key, value] of Object.entries(patch)) {
+    const existingValue = next[key]
+    if (
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      existingValue &&
+      typeof existingValue === 'object' &&
+      !Array.isArray(existingValue)
+    ) {
+      next[key] = {
+        ...(existingValue as Record<string, unknown>),
+        ...(value as Record<string, unknown>),
+      }
+    } else {
+      next[key] = value
+    }
+  }
+
+  return next
+}
+
+function getTemplateSlotOverridePatch(patch: TemplateModeOverride): TemplateModeOverride {
+  const slotPatch: TemplateModeOverride = {}
+  for (const [key, value] of Object.entries(patch)) {
+    if (TEMPLATE_SLOT_OVERRIDE_KEYS.has(key)) {
+      slotPatch[key] = value
+    }
+  }
+  return slotPatch
+}
+
+function asTemplateModeOverride(value: unknown): TemplateModeOverride {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as TemplateModeOverride
+    : {}
+}
+
 function withSlideComposerRefreshToken(url: string | null, token: number): string | null {
   if (!url || !token) return url
   const [base, hash] = url.split('#', 2)
@@ -165,14 +224,24 @@ function BuilderContent() {
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
   const [templateSnapshotLoading, setTemplateSnapshotLoading] = useState(false)
+  const [templateOverrides, setTemplateOverrides] = useState<TemplateOverrides>({})
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
   const standardThemeLoadedRef = useRef(false)
   const { getStandardTheme } = useThemeProfiles()
   const { getTemplate } = useTemplates()
-  const templateSendOptions = useMemo(
-    () => (activeTemplate ? { templateMode: true as const, templateId: activeTemplate.id } : {}),
-    [activeTemplate],
+  const hasTemplateOverrides = useMemo(
+    () => hasTemplateOverrideEntries(templateOverrides),
+    [templateOverrides],
   )
+  const templateSendOptions = useMemo(() => {
+    if (!activeTemplate) return {}
+
+    return {
+      templateMode: true as const,
+      templateId: activeTemplate.id,
+      ...(hasTemplateOverrides ? { elementOverrides: templateOverrides } : {}),
+    }
+  }, [activeTemplate, hasTemplateOverrides, templateOverrides])
   const buildSendOptions = useMemo(
     () => ({ ...templateSendOptions, theme: buildThemeSelection }),
     [templateSendOptions, buildThemeSelection],
@@ -353,7 +422,8 @@ function BuilderContent() {
   const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel
   const isSlideDrawerOpen = features.slideComposerEnabled && showFormatPanel
   const isDeckDrawerOpen = showChat
-  const anyDrawerOpen = isElementDrawerOpen || isSlideDrawerOpen || isDeckDrawerOpen
+  const isTemplateParamsDrawerOpen = templateBuilderEnabled && templateModeOn
+  const anyDrawerOpen = isElementDrawerOpen || isSlideDrawerOpen || isDeckDrawerOpen || isTemplateParamsDrawerOpen
 
   // FIXED: Track when generating final/strawman presentations
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
@@ -440,6 +510,7 @@ function BuilderContent() {
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
     setTemplateSnapshotLoading(false)
+    setTemplateOverrides({})
   }, [currentSessionId])
 
   useEffect(() => {
@@ -488,6 +559,7 @@ function BuilderContent() {
 
   const handleSelectTemplate = useCallback(async (template: BuilderTemplateSelection) => {
     setActiveTemplate(template)
+    setTemplateOverrides({})
     if (!templateBuilderEnabled) return
 
     setTemplateModeOn(true)
@@ -502,6 +574,29 @@ function BuilderContent() {
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
     setTemplateSnapshotLoading(false)
+    setTemplateOverrides({})
+  }, [])
+
+  const handleTemplateOverrideChange = useCallback((
+    slideIndex: number,
+    overrideKey: string,
+    patch: TemplateModeOverride,
+  ) => {
+    setTemplateOverrides((previous) => {
+      const slideKey = String(slideIndex)
+      const currentSlide = previous[slideKey] ?? {}
+      const currentElementOverride = asTemplateModeOverride(currentSlide[overrideKey])
+      const slotPatch = getTemplateSlotOverridePatch(patch)
+
+      return {
+        ...previous,
+        [slideKey]: {
+          ...currentSlide,
+          ...slotPatch,
+          [overrideKey]: mergeTemplateOverride(currentElementOverride, patch),
+        },
+      }
+    })
   }, [])
 
   const handleTemplateModeChange = useCallback(async (enabled: boolean) => {
@@ -1216,6 +1311,19 @@ function BuilderContent() {
 
         {/* Main Content Area */}
         <div className="flex-1 flex relative overflow-hidden">
+          {templateBuilderEnabled && (
+            <TemplateParamsPanel
+              isOpen={isTemplateParamsDrawerOpen}
+              width={drawerWidth}
+              snapshot={templateSnapshot}
+              currentSlideIndex={currentSlideIndex}
+              overrides={templateOverrides}
+              loading={templateSnapshotLoading}
+              onClose={() => setTemplateModeOn(false)}
+              onOverrideChange={handleTemplateOverrideChange}
+            />
+          )}
+
           {/* === Element Drawer === */}
           <div
             className={cn(
