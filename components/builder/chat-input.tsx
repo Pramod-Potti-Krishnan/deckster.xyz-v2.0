@@ -20,9 +20,17 @@ import {
   Sparkles,
   Brain,
   LayoutTemplate,
+  Palette,
   X,
 } from "lucide-react"
-import { features } from '@/lib/config'
+import { config, features } from '@/lib/config'
+import {
+  FALLBACK_THEME_PRESETS,
+  isValidThemeHex,
+  normalizeThemePresetId,
+  type BuildThemeSelection,
+  type ThemePresetSummary,
+} from '@/lib/theme-builder'
 import type { ActionRequest } from "@/hooks/use-deckster-websocket-v2"
 import { TemplatePicker } from './template-picker'
 
@@ -64,6 +72,8 @@ export interface ChatInputProps {
   activeTemplate?: { id: string; name: string } | null
   onSelectTemplate?: (template: { id: string; name: string }) => void
   onClearTemplate?: () => void
+  buildTheme: BuildThemeSelection
+  onBuildThemeChange: (theme: BuildThemeSelection) => void
 }
 
 export function ChatInput({
@@ -96,8 +106,14 @@ export function ChatInput({
   activeTemplate,
   onSelectTemplate,
   onClearTemplate,
+  buildTheme,
+  onBuildThemeChange,
 }: ChatInputProps) {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
+  const [themePresets, setThemePresets] = useState<ThemePresetSummary[]>(FALLBACK_THEME_PRESETS)
+  const [themePresetsLoading, setThemePresetsLoading] = useState(false)
+  const [themePresetsError, setThemePresetsError] = useState<string | null>(null)
+  const [brandHexDraft, setBrandHexDraft] = useState(buildTheme.primary_hex || '#1e40af')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -110,6 +126,72 @@ export function ChatInput({
       textarea.style.height = `${newHeight}px`
     }
   }, [inputMessage])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadPresets() {
+      setThemePresetsLoading(true)
+      setThemePresetsError(null)
+      try {
+        const baseUrl = config.api.themeBuilderUrl.replace(/\/$/, '')
+        const response = await fetch(`${baseUrl}/api/v1/themes/presets`)
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+        const presets = await response.json()
+        if (!cancelled && Array.isArray(presets) && presets.length > 0) {
+          setThemePresets(presets)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setThemePresets(FALLBACK_THEME_PRESETS)
+          setThemePresetsError(error instanceof Error ? error.message : 'Unable to load presets')
+        }
+      } finally {
+        if (!cancelled) {
+          setThemePresetsLoading(false)
+        }
+      }
+    }
+    loadPresets()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (buildTheme.primary_hex) {
+      setBrandHexDraft(buildTheme.primary_hex)
+    }
+  }, [buildTheme.primary_hex])
+
+  const activePreset = buildTheme.mode === 'preset'
+    ? themePresets.find((preset) => preset.preset_id === buildTheme.preset_id)
+    : undefined
+  const activeThemeLabel = buildTheme.mode === 'preset'
+    ? activePreset?.name || buildTheme.preset_id || 'Preset'
+    : buildTheme.mode === 'custom'
+      ? `Brand ${buildTheme.primary_hex || ''}`
+      : 'Auto theme'
+
+  const handlePresetChange = (presetId: string) => {
+    if (presetId === 'auto') {
+      onBuildThemeChange({ mode: 'auto' })
+      return
+    }
+    const normalized = normalizeThemePresetId(presetId)
+    if (normalized) {
+      onBuildThemeChange({ mode: 'preset', preset_id: normalized })
+    }
+  }
+
+  const handleBrandHexChange = (value: string) => {
+    const normalized = value.startsWith('#') ? value : `#${value}`
+    setBrandHexDraft(normalized)
+    if (isValidThemeHex(normalized)) {
+      onBuildThemeChange({ mode: 'custom', primary_hex: normalized.toLowerCase() })
+    }
+  }
 
   return (
     <div
@@ -199,6 +281,23 @@ export function ChatInput({
             className="ml-2 shrink-0 text-purple-500 hover:text-purple-700 dark:hover:text-purple-200"
             title="Clear template"
             aria-label="Clear template"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+      {buildTheme.mode !== 'auto' && (
+        <div className="mb-2 px-2 py-1.5 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 text-xs font-medium min-w-0">
+            <Palette className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Theme locked: {activeThemeLabel}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onBuildThemeChange({ mode: 'auto' })}
+            className="ml-2 shrink-0 text-sky-500 hover:text-sky-700 dark:hover:text-sky-200"
+            title="Clear theme"
+            aria-label="Clear theme"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -297,6 +396,73 @@ export function ChatInput({
               {templateBuilderEnabled && onSelectTemplate && (
                 <TemplatePicker onSelect={onSelectTemplate} disabled={!user || isLoadingSession} />
               )}
+
+              {/* Build-time Theme Builder selection */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={`flex items-center justify-center rounded-lg p-1.5 transition-colors ${
+                      buildTheme.mode === 'auto'
+                        ? 'text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                        : 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:hover:bg-sky-900'
+                    }`}
+                    title={activeThemeLabel}
+                    aria-label="Build theme"
+                    disabled={!user || isLoadingSession}
+                  >
+                    <Palette className="h-4 w-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 p-2">
+                  <div className="space-y-2">
+                    <div>
+                      <div className="mb-1 text-[11px] font-medium text-gray-600 dark:text-slate-300">
+                        Build theme
+                      </div>
+                      <select
+                        value={buildTheme.mode === 'preset' ? buildTheme.preset_id || 'auto' : 'auto'}
+                        onChange={(event) => handlePresetChange(event.target.value)}
+                        className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        disabled={themePresetsLoading}
+                      >
+                        <option value="auto">Auto / default</option>
+                        {themePresets.map((preset) => (
+                          <option key={preset.preset_id} value={preset.preset_id}>
+                            {preset.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <div className="mb-1 text-[11px] font-medium text-gray-600 dark:text-slate-300">
+                        Brand color
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={isValidThemeHex(brandHexDraft) ? brandHexDraft : '#1e40af'}
+                          onChange={(event) => handleBrandHexChange(event.target.value)}
+                          className="h-8 w-9 rounded border border-gray-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900"
+                          aria-label="Brand color"
+                        />
+                        <input
+                          value={brandHexDraft}
+                          onChange={(event) => handleBrandHexChange(event.target.value)}
+                          className="h-8 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 font-mono text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                          placeholder="#1e40af"
+                          aria-label="Brand hex color"
+                        />
+                      </div>
+                    </div>
+                    {themePresetsError && (
+                      <div className="text-[10px] text-amber-600 dark:text-amber-300">
+                        Using local preset list
+                      </div>
+                    )}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Settings/Options Menu */}
               <DropdownMenu>

@@ -7,6 +7,7 @@ export const config = {
     uploadUrl: process.env.NEXT_PUBLIC_UPLOAD_URL || '/api/upload',
     timeout: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000', 10),
     knowledgeServiceUrl: process.env.NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL || process.env.KNOWLEDGE_SERVICE_URL || 'https://researcher-v1.up.railway.app',
+    themeBuilderUrl: process.env.NEXT_PUBLIC_THEME_BUILDER_URL || 'https://theme-v1.up.railway.app',
   },
 
   // WebSocket Configuration
