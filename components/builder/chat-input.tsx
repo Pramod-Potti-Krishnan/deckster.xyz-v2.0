@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { FileChip, UploadedFile } from '@/components/file-chip'
@@ -21,6 +21,9 @@ import {
   Brain,
   LayoutTemplate,
   Palette,
+  Save,
+  Star,
+  Trash2,
   X,
 } from "lucide-react"
 import { config, features } from '@/lib/config'
@@ -32,6 +35,7 @@ import {
   type ThemePresetSummary,
 } from '@/lib/theme-builder'
 import type { ActionRequest } from "@/hooks/use-deckster-websocket-v2"
+import { useThemeProfiles, type SavedThemeProfile } from '@/hooks/use-theme-profiles'
 import { TemplatePicker } from './template-picker'
 
 const TEXTAREA_MIN_HEIGHT = 96
@@ -114,6 +118,19 @@ export function ChatInput({
   const [themePresetsLoading, setThemePresetsLoading] = useState(false)
   const [themePresetsError, setThemePresetsError] = useState<string | null>(null)
   const [brandHexDraft, setBrandHexDraft] = useState(buildTheme.primary_hex || '#1e40af')
+  const [savedThemes, setSavedThemes] = useState<SavedThemeProfile[]>([])
+  const [selectedSavedThemeId, setSelectedSavedThemeId] = useState<string | null>(null)
+  const [saveThemeName, setSaveThemeName] = useState('')
+  const [saveAsStandard, setSaveAsStandard] = useState(false)
+  const {
+    loading: themeProfilesLoading,
+    error: themeProfilesError,
+    listThemes,
+    saveTheme,
+    setStandardTheme,
+    clearStandardTheme,
+    deleteTheme,
+  } = useThemeProfiles()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -165,16 +182,32 @@ export function ChatInput({
     }
   }, [buildTheme.primary_hex])
 
+  const refreshSavedThemes = useCallback(async () => {
+    const res = await listThemes()
+    const nextThemes = res?.themes ?? []
+    setSavedThemes(nextThemes)
+    setSelectedSavedThemeId((current) => (
+      current && nextThemes.some((theme) => theme.id === current) ? current : null
+    ))
+  }, [listThemes])
+
+  const activeSavedTheme = selectedSavedThemeId
+    ? savedThemes.find((theme) => theme.id === selectedSavedThemeId)
+    : undefined
+  const standardTheme = savedThemes.find((theme) => theme.is_standard)
   const activePreset = buildTheme.mode === 'preset'
     ? themePresets.find((preset) => preset.preset_id === buildTheme.preset_id)
     : undefined
-  const activeThemeLabel = buildTheme.mode === 'preset'
+  const activeThemeLabel = activeSavedTheme
+    ? activeSavedTheme.name
+    : buildTheme.mode === 'preset'
     ? activePreset?.name || buildTheme.preset_id || 'Preset'
     : buildTheme.mode === 'custom'
       ? `Brand ${buildTheme.primary_hex || ''}`
       : 'Auto theme'
 
   const handlePresetChange = (presetId: string) => {
+    setSelectedSavedThemeId(null)
     if (presetId === 'auto') {
       onBuildThemeChange({ mode: 'auto' })
       return
@@ -186,10 +219,59 @@ export function ChatInput({
   }
 
   const handleBrandHexChange = (value: string) => {
+    setSelectedSavedThemeId(null)
     const normalized = value.startsWith('#') ? value : `#${value}`
     setBrandHexDraft(normalized)
     if (isValidThemeHex(normalized)) {
       onBuildThemeChange({ mode: 'custom', primary_hex: normalized.toLowerCase() })
+    }
+  }
+
+  const handleSavedThemeChange = (themeId: string) => {
+    if (!themeId) {
+      setSelectedSavedThemeId(null)
+      return
+    }
+    const profile = savedThemes.find((theme) => theme.id === themeId)
+    if (!profile?.theme_payload) return
+    setSelectedSavedThemeId(profile.id)
+    onBuildThemeChange(profile.theme_payload)
+  }
+
+  const handleSaveCurrentTheme = async () => {
+    const name = saveThemeName.trim()
+    if (!name || buildTheme.mode === 'auto') return
+    const saved = await saveTheme({
+      name,
+      theme: buildTheme,
+      setStandard: saveAsStandard,
+    })
+    if (saved) {
+      setSaveThemeName('')
+      setSaveAsStandard(false)
+      onBuildThemeChange(saved.theme_payload)
+      await refreshSavedThemes()
+      setSelectedSavedThemeId(saved.id)
+    }
+  }
+
+  const handleSetStandardTheme = async () => {
+    if (!activeSavedTheme) return
+    await setStandardTheme(activeSavedTheme.id)
+    await refreshSavedThemes()
+  }
+
+  const handleClearStandardTheme = async () => {
+    await clearStandardTheme()
+    await refreshSavedThemes()
+  }
+
+  const handleDeleteSavedTheme = async () => {
+    if (!activeSavedTheme) return
+    const deleted = await deleteTheme(activeSavedTheme.id)
+    if (deleted) {
+      setSelectedSavedThemeId(null)
+      await refreshSavedThemes()
     }
   }
 
@@ -398,7 +480,7 @@ export function ChatInput({
               )}
 
               {/* Build-time Theme Builder selection */}
-              <DropdownMenu>
+              <DropdownMenu onOpenChange={(open) => { if (open) void refreshSavedThemes() }}>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
@@ -414,7 +496,7 @@ export function ChatInput({
                     <Palette className="h-4 w-4" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64 p-2">
+                <DropdownMenuContent align="start" className="w-72 p-2">
                   <div className="space-y-2">
                     <div>
                       <div className="mb-1 text-[11px] font-medium text-gray-600 dark:text-slate-300">
@@ -458,6 +540,105 @@ export function ChatInput({
                     {themePresetsError && (
                       <div className="text-[10px] text-amber-600 dark:text-amber-300">
                         Using local preset list
+                      </div>
+                    )}
+                    <div className="border-t border-gray-100 pt-2 dark:border-slate-800">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-medium text-gray-600 dark:text-slate-300">
+                          My themes
+                        </span>
+                        {themeProfilesLoading && <Loader2 className="h-3 w-3 animate-spin text-gray-400" />}
+                      </div>
+                      <select
+                        value={selectedSavedThemeId || ''}
+                        onChange={(event) => handleSavedThemeChange(event.target.value)}
+                        className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                      >
+                        <option value="">Select saved theme</option>
+                        {savedThemes.map((theme) => (
+                          <option key={theme.id} value={theme.id}>
+                            {theme.is_standard ? '★ ' : ''}{theme.name}
+                          </option>
+                        ))}
+                      </select>
+                      {activeSavedTheme && (
+                        <div className="mt-2 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handleSetStandardTheme}
+                            className="flex h-7 items-center gap-1 rounded-md border border-gray-200 px-2 text-[11px] text-gray-700 hover:bg-gray-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                            title="Set as standard"
+                            aria-label="Set as standard"
+                          >
+                            <Star className="h-3.5 w-3.5" />
+                            {activeSavedTheme.is_standard ? 'Standard' : 'Set standard'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDeleteSavedTheme}
+                            className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-red-600 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                            title="Delete saved theme"
+                            aria-label="Delete saved theme"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      {standardTheme && (
+                        <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-gray-500 dark:text-slate-400">
+                          <span className="truncate">Standard: {standardTheme.name}</span>
+                          <button
+                            type="button"
+                            onClick={handleClearStandardTheme}
+                            className="shrink-0 text-sky-600 hover:text-sky-700 dark:text-sky-300"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="border-t border-gray-100 pt-2 dark:border-slate-800">
+                      <div className="mb-1 text-[11px] font-medium text-gray-600 dark:text-slate-300">
+                        Save current
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          value={saveThemeName}
+                          onChange={(event) => setSaveThemeName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              void handleSaveCurrentTheme()
+                            }
+                          }}
+                          className="h-8 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                          placeholder="Theme name"
+                          aria-label="Theme name"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveCurrentTheme}
+                          disabled={buildTheme.mode === 'auto' || !saveThemeName.trim() || themeProfilesLoading}
+                          className="flex h-8 w-8 items-center justify-center rounded-md bg-sky-600 text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700"
+                          title="Save current theme"
+                          aria-label="Save current theme"
+                        >
+                          <Save className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <label className="mt-1.5 flex items-center gap-1.5 text-[11px] text-gray-600 dark:text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={saveAsStandard}
+                          onChange={(event) => setSaveAsStandard(event.target.checked)}
+                          className="h-3 w-3"
+                        />
+                        Set as standard
+                      </label>
+                    </div>
+                    {themeProfilesError && (
+                      <div className="text-[10px] text-amber-600 dark:text-amber-300">
+                        Saved themes unavailable
                       </div>
                     )}
                   </div>
