@@ -4,10 +4,12 @@ import React from "react"
 import { PresentationViewer, TextBoxFormatting } from "@/components/presentation-viewer"
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
+import { TemplateModeInspector } from "@/components/builder/template-mode-inspector"
 // Branding ("powered by deckster") lives inside PresentationViewer's
 // slide column so it tracks the slide's right edge, not the container.
 import { ElementType, ElementProperties } from '@/types/elements'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
+import type { TemplateSnapshot } from '@/hooks/use-templates'
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -75,6 +77,11 @@ export interface PresentationAreaProps {
   sessionId?: string | null
   templateBuilderEnabled?: boolean
   onSelectTemplate?: (template: { id: string; name: string }) => void
+  templateModeOn?: boolean
+  onTemplateModeChange?: (enabled: boolean) => void
+  templateModeAvailable?: boolean
+  templateSnapshot?: TemplateSnapshot | null
+  templateSnapshotLoading?: boolean
 }
 
 export function PresentationArea({
@@ -108,92 +115,109 @@ export function PresentationArea({
   sessionId,
   templateBuilderEnabled,
   onSelectTemplate,
+  templateModeOn = false,
+  onTemplateModeChange,
+  templateModeAvailable = false,
+  templateSnapshot = null,
+  templateSnapshotLoading = false,
 }: PresentationAreaProps) {
   return (
-    <div className="flex-1 flex flex-col bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
-      {presentationUrl ? (
-        <PresentationViewer
-          presentationUrl={presentationUrl}
-          presentationId={presentationId}
-          slideCount={slideCount}
-          slideStructure={slideStructure}
-          strawmanPreviewUrl={strawmanPreviewUrl}
-          finalPresentationUrl={finalPresentationUrl}
-          activeVersion={activeVersion as any}
-          onVersionSwitch={onVersionSwitch}
-          showControls={true}
-          downloadControls={
-            <PresentationDownloadControls
-              presentationUrl={presentationUrl}
-              presentationId={presentationId}
-              slideCount={slideCount}
-              stage={currentStage}
-            />
-          }
-          onSlideChange={(slideNum) => {
-            onSlideChange(slideNum)
-          }}
-          onEditModeChange={(isEditing) => {
-            console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
-            onEditModeChange?.(isEditing)
-          }}
-          onTextBoxSelected={(elementId, formatting) => {
-            if (handleBlankElementClick(elementId, blankElements, generationPanel)) return
-            onTextBoxSelected(elementId, formatting)
-          }}
-          onTextBoxDeselected={onTextBoxDeselected}
-          onElementSelected={(elementId, elementType, properties) => {
-            if (handleBlankElementClick(elementId, blankElements, generationPanel)) return
-            onElementSelected(elementId, elementType, properties)
-          }}
-          onElementDeselected={onElementDeselected}
-          onApiReady={onApiReady}
-          onOpenGenerationPanel={onOpenGenerationPanel}
-          connected={connected}
-          connecting={connecting}
-          onElementMoved={(elementId, gridRow, gridColumn) => {
-            if (blankElements.isBlankElement(elementId)) {
-              const rowParts = gridRow.split('/').map(Number)
-              const colParts = gridColumn.split('/').map(Number)
-              if (rowParts.length === 2 && colParts.length === 2) {
-                blankElements.updatePosition(
-                  elementId,
-                  colParts[0],
-                  rowParts[0],
-                  colParts[1] - colParts[0],
-                  rowParts[1] - rowParts[0]
-                )
-              }
+    <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        {presentationUrl ? (
+          <PresentationViewer
+            presentationUrl={presentationUrl}
+            presentationId={presentationId}
+            slideCount={slideCount}
+            slideStructure={slideStructure}
+            strawmanPreviewUrl={strawmanPreviewUrl}
+            finalPresentationUrl={finalPresentationUrl}
+            activeVersion={activeVersion as any}
+            onVersionSwitch={onVersionSwitch}
+            showControls={true}
+            downloadControls={
+              <PresentationDownloadControls
+                presentationUrl={presentationUrl}
+                presentationId={presentationId}
+                slideCount={slideCount}
+                stage={currentStage}
+              />
             }
-          }}
-          toolbarPortalTarget={toolbarPortalTarget}
-          sessionId={sessionId}
-          templateBuilderEnabled={templateBuilderEnabled}
-          onSelectTemplate={onSelectTemplate}
-          toolbarOffset={toolbarOffset}
-          isGenerating={isGeneratingFinal || isGeneratingStrawman}
-          generatingMode={isGeneratingFinal ? 'default' : 'strawman'}
-          className="flex-1"
-        />
-      ) : (
-        <div className="flex-1 flex items-center justify-center min-h-0 p-4">
-          {(currentStatus || isGeneratingFinal || isGeneratingStrawman) ? (
-            <SlideBuildingLoader
-              className="w-full h-full"
-              mode={isGeneratingFinal ? 'default' : 'strawman'}
-            />
-          ) : (
-            <div className="text-center">
-              <img src="/logo-icon.png" alt="" aria-hidden className="h-16 w-16 mx-auto mb-4 opacity-40" />
-              <p className="text-lg text-slate-600 dark:text-slate-300">Your presentation will appear here</p>
-              <p className="text-sm text-slate-400 dark:text-slate-500 mt-2">
-                Start by telling Director what presentation you'd like to create
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+            onSlideChange={(slideNum) => {
+              onSlideChange(slideNum)
+            }}
+            onEditModeChange={(isEditing) => {
+              console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
+              onEditModeChange?.(isEditing)
+            }}
+            onTextBoxSelected={(elementId, formatting) => {
+              if (handleBlankElementClick(elementId, blankElements, generationPanel)) return
+              onTextBoxSelected(elementId, formatting)
+            }}
+            onTextBoxDeselected={onTextBoxDeselected}
+            onElementSelected={(elementId, elementType, properties) => {
+              if (handleBlankElementClick(elementId, blankElements, generationPanel)) return
+              onElementSelected(elementId, elementType, properties)
+            }}
+            onElementDeselected={onElementDeselected}
+            onApiReady={onApiReady}
+            onOpenGenerationPanel={onOpenGenerationPanel}
+            connected={connected}
+            connecting={connecting}
+            onElementMoved={(elementId, gridRow, gridColumn) => {
+              if (blankElements.isBlankElement(elementId)) {
+                const rowParts = gridRow.split('/').map(Number)
+                const colParts = gridColumn.split('/').map(Number)
+                if (rowParts.length === 2 && colParts.length === 2) {
+                  blankElements.updatePosition(
+                    elementId,
+                    colParts[0],
+                    rowParts[0],
+                    colParts[1] - colParts[0],
+                    rowParts[1] - rowParts[0]
+                  )
+                }
+              }
+            }}
+            toolbarPortalTarget={toolbarPortalTarget}
+            sessionId={sessionId}
+            templateBuilderEnabled={templateBuilderEnabled}
+            onSelectTemplate={onSelectTemplate}
+            templateModeOn={templateModeOn}
+            onTemplateModeChange={onTemplateModeChange}
+            templateModeAvailable={templateModeAvailable}
+            toolbarOffset={toolbarOffset}
+            isGenerating={isGeneratingFinal || isGeneratingStrawman}
+            generatingMode={isGeneratingFinal ? 'default' : 'strawman'}
+            className="flex-1"
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center min-h-0 p-4">
+            {(currentStatus || isGeneratingFinal || isGeneratingStrawman) ? (
+              <SlideBuildingLoader
+                className="w-full h-full"
+                mode={isGeneratingFinal ? 'default' : 'strawman'}
+              />
+            ) : (
+              <div className="text-center">
+                <img src="/logo-icon.png" alt="" aria-hidden className="h-16 w-16 mx-auto mb-4 opacity-40" />
+                <p className="text-lg text-slate-600 dark:text-slate-300">Your presentation will appear here</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 mt-2">
+                  Start by telling Director what presentation you'd like to create
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
+      {templateBuilderEnabled && templateModeOn && (
+        <TemplateModeInspector
+          snapshot={templateSnapshot}
+          currentSlideIndex={currentSlideIndex}
+          loading={templateSnapshotLoading}
+        />
+      )}
     </div>
   )
 }

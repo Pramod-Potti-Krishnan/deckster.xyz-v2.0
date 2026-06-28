@@ -3,6 +3,7 @@ import { useAuth } from './use-auth';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
+import type { TemplateOverrides } from '@/lib/template-mode';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -244,6 +245,7 @@ export interface UserMessage {
     // Director to run the reuse path (skip strawman workflow → Fire #2 → Stage E).
     template_mode?: boolean;
     template_id?: string;
+    element_overrides?: TemplateOverrides;
   };
 }
 
@@ -1204,6 +1206,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // Template Builder (reuse): set when a saved template is locked in.
       templateMode?: boolean;
       templateId?: string | null;
+      elementOverrides?: TemplateOverrides;
     },
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -1229,6 +1232,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.theme && { theme: options.theme }),
           ...(options?.templateMode && { template_mode: true }),
           ...(options?.templateId && { template_id: options.templateId }),
+          ...(options?.elementOverrides && { element_overrides: options.elementOverrides }),
         },
       };
 
@@ -1236,7 +1240,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         '📤 Sending message:',
         text,
         effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
-        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}]`
+        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}]`
       );
       wsRef.current.send(JSON.stringify(message));
 
