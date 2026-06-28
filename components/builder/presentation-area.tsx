@@ -74,6 +74,7 @@ export interface PresentationAreaProps {
   // Template Builder: WS session id (source for "Save as Template") + gate
   sessionId?: string | null
   templateBuilderEnabled?: boolean
+  onSelectTemplate?: (template: { id: string; name: string }) => void
 }
 
 export function PresentationArea({
@@ -106,6 +107,7 @@ export function PresentationArea({
   toolbarOffset,
   sessionId,
   templateBuilderEnabled,
+  onSelectTemplate,
 }: PresentationAreaProps) {
   return (
     <div className="flex-1 flex flex-col bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
@@ -167,6 +169,7 @@ export function PresentationArea({
           toolbarPortalTarget={toolbarPortalTarget}
           sessionId={sessionId}
           templateBuilderEnabled={templateBuilderEnabled}
+          onSelectTemplate={onSelectTemplate}
           toolbarOffset={toolbarOffset}
           isGenerating={isGeneratingFinal || isGeneratingStrawman}
           generatingMode={isGeneratingFinal ? 'default' : 'strawman'}

@@ -1587,6 +1587,7 @@ function BuilderContent() {
             toolbarOffset={anyDrawerOpen ? Math.max(drawerWidth - 112, 0) : 0}
             sessionId={wsSessionId}
             templateBuilderEnabled={process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'}
+            onSelectTemplate={(t) => setActiveTemplate(t)}
           />
           )}
           </div>

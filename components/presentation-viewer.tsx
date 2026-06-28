@@ -43,6 +43,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useTheme } from 'next-themes'
@@ -62,6 +65,7 @@ import { ElementType, ElementProperties, BaseElementProperties, ChartType } from
 import { VersionHistoryPanel } from './version-history-panel'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
+import { TemplatePickerContent } from './builder/template-picker'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
@@ -136,6 +140,7 @@ interface PresentationViewerProps {
   // Template Builder: the WS session id (source for "Save as Template") + gate
   sessionId?: string | null
   templateBuilderEnabled?: boolean
+  onSelectTemplate?: (template: { id: string; name: string }) => void
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -223,6 +228,7 @@ export function PresentationViewer({
   generatingMode,
   sessionId,
   templateBuilderEnabled,
+  onSelectTemplate,
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -235,6 +241,8 @@ export function PresentationViewer({
   const [normalSlideSize, setNormalSlideSize] = useState<{ width: number; height: number } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [showTemplateSave, setShowTemplateSave] = useState(false) // Template Builder: Save dialog
+  const [toolbarTemplateMenuOpen, setToolbarTemplateMenuOpen] = useState(false)
+  const [toolbarTemplatePickerOpen, setToolbarTemplatePickerOpen] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -1837,15 +1845,59 @@ export function PresentationViewer({
               {/* Template — "Save as Template" (Template Builder). Enabled once a
                   deck exists and we know the WS session to snapshot. */}
               {templateBuilderEnabled ? (
-                <button
-                  onClick={() => setShowTemplateSave(true)}
-                  disabled={!presentationUrl || !sessionId}
-                  className={cn(toolbarButtonClass, toolbarBtnBase)}
-                  title="Save this deck as a reusable template"
+                <DropdownMenu
+                  open={toolbarTemplateMenuOpen}
+                  onOpenChange={(open) => {
+                    setToolbarTemplateMenuOpen(open)
+                    if (!open) setToolbarTemplatePickerOpen(false)
+                  }}
                 >
-                  <LayoutTemplate className="h-5 w-5" />
-                  <span className={toolbarLabelClass}>Template</span>
-                </button>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      disabled={!presentationUrl || !sessionId}
+                      className={cn(toolbarButtonClass, toolbarBtnBase)}
+                      title="Template options"
+                    >
+                      <LayoutTemplate className="h-5 w-5" />
+                      <span className={toolbarLabelClass}>Template</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="center" sideOffset={8} className="w-56 p-1">
+                    <DropdownMenuItem
+                      className="cursor-pointer gap-2"
+                      onClick={() => setShowTemplateSave(true)}
+                    >
+                      <Save className="h-4 w-4 text-gray-600" />
+                      <span>Save Template</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled className="gap-2">
+                      <Sparkles className="h-4 w-4 text-gray-400" />
+                      <span className="flex-1">Template Mode</span>
+                      <span className="text-xs text-muted-foreground">Soon</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuSub
+                      open={toolbarTemplatePickerOpen}
+                      onOpenChange={setToolbarTemplatePickerOpen}
+                    >
+                      <DropdownMenuSubTrigger className="cursor-pointer gap-2">
+                        <LayoutTemplate className="h-4 w-4 text-gray-600" />
+                        <span>Available Templates</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent alignOffset={-4} className="w-64">
+                        <TemplatePickerContent
+                          label="Available templates"
+                          isOpen={toolbarTemplatePickerOpen}
+                          onSelect={(template) => {
+                            onSelectTemplate?.(template)
+                            setToolbarTemplatePickerOpen(false)
+                            setToolbarTemplateMenuOpen(false)
+                          }}
+                        />
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : (
                 <button
                   disabled
