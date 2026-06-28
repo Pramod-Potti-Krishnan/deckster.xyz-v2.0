@@ -655,8 +655,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+      const isCurrentSocket = () => wsRef.current === ws;
 
       ws.onopen = () => {
+        if (!isCurrentSocket()) {
+          debugLog('⏭️ Ignoring open from stale WebSocket');
+          try {
+            ws.close();
+          } catch {
+            // Ignore cleanup errors from a superseded socket.
+          }
+          return;
+        }
+
         debugLog('✅ Connected to Director v3.4');
         reconnectAttemptsRef.current = 0;
         isConnectingRef.current = false;
@@ -675,6 +686,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       };
 
       ws.onmessage = (event) => {
+        if (!isCurrentSocket()) {
+          debugLog('⏭️ Ignoring message from stale WebSocket');
+          return;
+        }
+
         try {
           // Handle raw "pong" response from heartbeat ping
           if (event.data === 'pong') {
@@ -1041,6 +1057,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       };
 
       ws.onerror = (error) => {
+        if (!isCurrentSocket()) {
+          debugLog('⏭️ Ignoring error from stale WebSocket');
+          return;
+        }
+
         console.error('❌ WebSocket error:', error);
         isConnectingRef.current = false;
 
@@ -1057,6 +1078,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       };
 
       ws.onclose = (event) => {
+        if (!isCurrentSocket()) {
+          debugLog('⏭️ Ignoring close from stale WebSocket', {
+            code: event.code,
+            reason: event.reason || '(no reason provided)',
+            wasClean: event.wasClean,
+            current_session_id: sessionIdRef.current,
+          });
+          return;
+        }
+
         const now = Date.now();
         const suppressedSinceLastLog = suppressedCloseDiagnosticsRef.current;
 

@@ -953,6 +953,23 @@ function BuilderContent() {
     session.handleSessionSelect(sessionId)
   }, [session.handleSessionSelect])
 
+  const handleNewChatWrapped = useCallback(() => {
+    setInputMessage("")
+    setPendingActionInput(null)
+    setActiveTemplate(null)
+    setBuildThemeSelection({ mode: 'auto' })
+    setResearchEnabled(false)
+    setWebSearchEnabled(false)
+    setExtendedGenerationEnabled(false)
+    setKnowledgeGraphEnabled(kgSubscribed)
+    setIsGeneratingFinal(false)
+    setIsGeneratingStrawman(false)
+    setShowChatHistory(false)
+    setSessionStoreName(null)
+    clearAllFiles()
+    session.handleNewChat()
+  }, [clearAllFiles, kgSubscribed, session.handleNewChat])
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
       {/* Main Content */}
@@ -1435,7 +1452,7 @@ function BuilderContent() {
         onClose={() => setShowChatHistory(false)}
         currentSessionId={currentSessionId || undefined}
         onSessionSelect={handleSessionSelectWrapped}
-        onNewChat={session.handleNewChat}
+        onNewChat={handleNewChatWrapped}
       />
 
       {/* Onboarding Modal */}
