@@ -37,6 +37,21 @@ export function useThemeProfiles() {
     }
   }, [])
 
+  const getStandardTheme = useCallback(async (): Promise<SavedThemeProfile | null> => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/themes/standard', { cache: 'no-store' })
+      if (!res.ok) return null
+      const data = await res.json()
+      return data.theme as SavedThemeProfile | null
+    } catch {
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   const saveTheme = useCallback(async (args: {
     name: string
     theme: BuildThemeSelection
@@ -119,6 +134,7 @@ export function useThemeProfiles() {
     loading,
     error,
     listThemes,
+    getStandardTheme,
     saveTheme,
     setStandardTheme,
     clearStandardTheme,

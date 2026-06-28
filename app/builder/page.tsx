@@ -38,6 +38,7 @@ import { useBuilderSession } from '@/hooks/use-builder-session'
 import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
 import { useQuota } from '@/hooks/use-quota'
+import { useThemeProfiles } from '@/hooks/use-theme-profiles'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 
 // Force dynamic rendering to prevent build-time errors
@@ -68,6 +69,8 @@ function BuilderContent() {
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<{ id: string; name: string } | null>(null)
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
+  const standardThemeLoadedRef = useRef(false)
+  const { getStandardTheme } = useThemeProfiles()
   const templateSendOptions = useMemo(
     () => (activeTemplate ? { templateMode: true as const, templateId: activeTemplate.id } : {}),
     [activeTemplate],
@@ -87,6 +90,31 @@ function BuilderContent() {
   useEffect(() => {
     if (kgSubscribed) setKnowledgeGraphEnabled(true)
   }, [kgSubscribed])
+
+  useEffect(() => {
+    if (
+      !user ||
+      isAuthLoading ||
+      standardThemeLoadedRef.current ||
+      searchParams.get('theme') ||
+      buildThemeSelection.mode !== 'auto'
+    ) {
+      return
+    }
+
+    standardThemeLoadedRef.current = true
+    void (async () => {
+      try {
+        const profile = await getStandardTheme()
+        if (profile?.theme_payload && profile.theme_payload.mode !== 'auto') {
+          setBuildThemeSelection(profile.theme_payload)
+        }
+      } catch {
+        // Standard-theme hydration is display-only; Director still resolves it.
+      }
+    })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   const [sessionStoreName, setSessionStoreName] = useState<string | null>(null)
   const [pendingActionInput, setPendingActionInput] = useState<{
