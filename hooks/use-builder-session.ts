@@ -424,6 +424,7 @@ export function useBuilderSession({
             if (!currentSessionId) {
               const newSessionId = crypto.randomUUID()
               debugLog('🚀 [BUILDER-V2] Generating immediate session ID:', newSessionId)
+              clearMessages()
               setCurrentSessionId(newSessionId)
               setIsUnsavedSession(true)
               try { sessionStorage.setItem(`deckster_unsaved_${newSessionId}`, 'true') } catch {}
