@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { LayoutTemplate, Loader2 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -17,6 +17,60 @@ interface TemplatePickerProps {
   disabled?: boolean
 }
 
+interface TemplatePickerContentProps {
+  onSelect: (template: { id: string; name: string }) => void
+  isOpen?: boolean
+  label?: string
+}
+
+export function TemplatePickerContent({
+  onSelect,
+  isOpen = true,
+  label = 'Reuse a template',
+}: TemplatePickerContentProps) {
+  const { listTemplates, loading } = useTemplates()
+  const [templates, setTemplates] = useState<SavedTemplate[] | null>(null)
+
+  const refresh = useCallback(async () => {
+    const res = await listTemplates()
+    setTemplates(res?.templates ?? [])
+  }, [listTemplates])
+
+  useEffect(() => {
+    if (isOpen) void refresh()
+  }, [isOpen, refresh])
+
+  return (
+    <>
+      <DropdownMenuLabel>{label}</DropdownMenuLabel>
+      <DropdownMenuSeparator />
+      {loading && templates === null ? (
+        <div className="flex items-center gap-2 px-2 py-3 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      ) : !templates || templates.length === 0 ? (
+        <div className="px-2 py-3 text-sm text-gray-500">
+          No saved templates yet. Build a deck and use “Save as Template”.
+        </div>
+      ) : (
+        templates.map((t) => (
+          <DropdownMenuItem
+            key={t.id}
+            className="cursor-pointer flex-col items-start gap-0.5"
+            onClick={() => onSelect({ id: t.id, name: t.name })}
+          >
+            <span className="font-medium">{t.name}</span>
+            <span className="text-xs text-gray-500">
+              {t.slide_count != null ? `${t.slide_count} slides` : 'template'}
+              {t.description ? ` · ${t.description}` : ''}
+            </span>
+          </DropdownMenuItem>
+        ))
+      )}
+    </>
+  )
+}
+
 /**
  * In-chat template picker — a sibling of the attach button. Click → lists the
  * user's saved templates → selecting one "locks it in" (handled by the parent,
@@ -24,16 +78,10 @@ interface TemplatePickerProps {
  * TEMPLATE_PLAN.md §6 (retrieval = in-chat control beside attach).
  */
 export function TemplatePicker({ onSelect, disabled }: TemplatePickerProps) {
-  const { listTemplates, loading } = useTemplates()
-  const [templates, setTemplates] = useState<SavedTemplate[] | null>(null)
-
-  const refresh = async () => {
-    const res = await listTemplates()
-    setTemplates(res?.templates ?? [])
-  }
+  const [open, setOpen] = useState(false)
 
   return (
-    <DropdownMenu onOpenChange={(open) => { if (open) void refresh() }}>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
@@ -46,31 +94,7 @@ export function TemplatePicker({ onSelect, disabled }: TemplatePickerProps) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel>Reuse a template</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {loading && templates === null ? (
-          <div className="flex items-center gap-2 px-2 py-3 text-sm text-gray-500">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-          </div>
-        ) : !templates || templates.length === 0 ? (
-          <div className="px-2 py-3 text-sm text-gray-500">
-            No saved templates yet. Build a deck and use “Save as Template”.
-          </div>
-        ) : (
-          templates.map((t) => (
-            <DropdownMenuItem
-              key={t.id}
-              className="cursor-pointer flex-col items-start gap-0.5"
-              onClick={() => onSelect({ id: t.id, name: t.name })}
-            >
-              <span className="font-medium">{t.name}</span>
-              <span className="text-xs text-gray-500">
-                {t.slide_count != null ? `${t.slide_count} slides` : 'template'}
-                {t.description ? ` · ${t.description}` : ''}
-              </span>
-            </DropdownMenuItem>
-          ))
-        )}
+        <TemplatePickerContent onSelect={onSelect} isOpen={open} />
       </DropdownMenuContent>
     </DropdownMenu>
   )

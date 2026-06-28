@@ -9,6 +9,39 @@ export interface SavedTemplate {
   updated_at?: string | null;
   usage_count?: number;
   slide_count?: number;
+  source_session_id?: string | null;
+  source_presentation_id?: string | null;
+}
+
+export interface TemplateSlot {
+  slot_id: string;
+  name?: string;
+  element_type?: string | null;
+  slide_index: number;
+  slide_title?: string;
+  slide_subtitle?: string | null;
+  narrative_role?: string;
+  key_message?: string;
+  content_type?: string;
+  canvas_type?: string | null;
+  chart_subtype?: string | null;
+  infographic_subtype?: string | null;
+  text_subtype?: string | null;
+  diagram_subtype?: string | null;
+  abstract_intent?: string | null;
+  overrides?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface TemplateSnapshot extends SavedTemplate {
+  user_id?: string;
+  presentation_brief?: string;
+  deck_arc?: string | null;
+  slide_style_preset?: string | null;
+  strawman_frozen?: Record<string, unknown>;
+  slots?: TemplateSlot[];
+  frozen_plan?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
 }
 
 export interface TemplatesResponse {
@@ -40,6 +73,24 @@ export function useTemplates() {
       if (!res.ok) throw new Error(`list failed: HTTP ${res.status}`);
       const data = await res.json();
       return { templates: data.templates ?? [], count: data.count ?? 0 };
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const getTemplate = useCallback(async (id: string): Promise<TemplateSnapshot | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/templates/${encodeURIComponent(id)}`, { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || `get failed: HTTP ${res.status}`);
+      }
+      return data as TemplateSnapshot;
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
       return null;
@@ -96,5 +147,5 @@ export function useTemplates() {
     }
   }, []);
 
-  return { loading, error, listTemplates, saveTemplate, deleteTemplate };
+  return { loading, error, listTemplates, getTemplate, saveTemplate, deleteTemplate };
 }
