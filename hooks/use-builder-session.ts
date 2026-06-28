@@ -533,16 +533,29 @@ export function useBuilderSession({
 
   // Handle new chat from sidebar
   const handleNewChat = useCallback(() => {
+    const newSessionId = crypto.randomUUID()
+
     debugLog('🆕 Starting new unsaved session')
     disconnect()
     setUserMessages([])
     clearMessages()
+    lastLoadedSessionRef.current = null
+    justCreatedSessionRef.current = newSessionId
+    hasTitleFromUserMessageRef.current = false
+    hasTitleFromPresentationRef.current = false
+    hasSeenWelcomeRef.current = false
+    userMessageIdsRef.current.clear()
+    persistedMessageIdsRef.current.clear()
+    userMessageContentMapRef.current.clear()
+    answeredActionsRef.current.clear()
     setIsUnsavedSession(true)
     setIsResumedSession(false)
-    setCurrentSessionId(null)
+    setCurrentSessionId(newSessionId)
+    currentSessionIdRef.current = newSessionId
     setSessionStoreName(null)
-    router.push('/builder')
-  }, [router, clearMessages, disconnect, setIsUnsavedSession, setSessionStoreName])
+    try { sessionStorage.setItem(`deckster_unsaved_${newSessionId}`, 'true') } catch {}
+    router.push(`/builder?session_id=${newSessionId}`)
+  }, [router, clearMessages, disconnect, setUserMessages, setIsUnsavedSession, setIsResumedSession, setCurrentSessionId, setSessionStoreName])
 
   // Auto-connect WebSocket
   useEffect(() => {
