@@ -55,6 +55,7 @@ const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 1
 
 type BuilderTemplateSelection = { id: string; name: string }
+type ActiveBuildThemeProfile = { id: string; name: string }
 
 type SlideComposeJobStatus = 'building' | 'error'
 
@@ -71,6 +72,7 @@ interface BuilderSessionOptions {
   version: typeof BUILDER_SESSION_OPTIONS_VERSION
   activeTemplate: BuilderTemplateSelection | null
   buildThemeSelection: BuildThemeSelection
+  activeBuildThemeProfile: ActiveBuildThemeProfile | null
 }
 
 function getBuilderSessionOptionsKey(sessionId: string): string {
@@ -108,29 +110,82 @@ function normalizeStoredTemplate(value: unknown): BuilderTemplateSelection | nul
     : null
 }
 
+function normalizeStoredBuildThemeProfile(value: unknown): ActiveBuildThemeProfile | null {
+  if (!value || typeof value !== 'object') return null
+
+  const raw = value as Partial<ActiveBuildThemeProfile>
+  return typeof raw.id === 'string' && typeof raw.name === 'string'
+    ? { id: raw.id, name: raw.name }
+    : null
+}
+
+function stableStringifyRecord(value: Record<string, string> | undefined): string {
+  if (!value) return ''
+  return JSON.stringify(
+    Object.keys(value)
+      .sort()
+      .reduce<Record<string, string>>((acc, key) => {
+        acc[key] = value[key]
+        return acc
+      }, {}),
+  )
+}
+
+function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelection): boolean {
+  if (a.mode !== b.mode) return false
+  if (a.mode === 'auto') return true
+  if (a.mode === 'preset') return a.preset_id === b.preset_id
+
+  return (
+    (a.primary_hex || '').toLowerCase() === (b.primary_hex || '').toLowerCase() &&
+    stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides)
+  )
+}
+
 function readBuilderSessionOptions(sessionId: string): BuilderSessionOptions {
   if (typeof window === 'undefined') {
-    return { version: BUILDER_SESSION_OPTIONS_VERSION, activeTemplate: null, buildThemeSelection: { mode: 'auto' } }
+    return {
+      version: BUILDER_SESSION_OPTIONS_VERSION,
+      activeTemplate: null,
+      buildThemeSelection: { mode: 'auto' },
+      activeBuildThemeProfile: null,
+    }
   }
 
   try {
     const raw = window.sessionStorage.getItem(getBuilderSessionOptionsKey(sessionId))
     if (!raw) {
-      return { version: BUILDER_SESSION_OPTIONS_VERSION, activeTemplate: null, buildThemeSelection: { mode: 'auto' } }
+      return {
+        version: BUILDER_SESSION_OPTIONS_VERSION,
+        activeTemplate: null,
+        buildThemeSelection: { mode: 'auto' },
+        activeBuildThemeProfile: null,
+      }
     }
 
     const parsed = JSON.parse(raw) as Partial<BuilderSessionOptions>
     if (parsed.version !== BUILDER_SESSION_OPTIONS_VERSION) {
-      return { version: BUILDER_SESSION_OPTIONS_VERSION, activeTemplate: null, buildThemeSelection: { mode: 'auto' } }
+      return {
+        version: BUILDER_SESSION_OPTIONS_VERSION,
+        activeTemplate: null,
+        buildThemeSelection: { mode: 'auto' },
+        activeBuildThemeProfile: null,
+      }
     }
 
     return {
       version: BUILDER_SESSION_OPTIONS_VERSION,
       activeTemplate: normalizeStoredTemplate(parsed.activeTemplate),
       buildThemeSelection: normalizeStoredBuildThemeSelection(parsed.buildThemeSelection),
+      activeBuildThemeProfile: normalizeStoredBuildThemeProfile(parsed.activeBuildThemeProfile),
     }
   } catch {
-    return { version: BUILDER_SESSION_OPTIONS_VERSION, activeTemplate: null, buildThemeSelection: { mode: 'auto' } }
+    return {
+      version: BUILDER_SESSION_OPTIONS_VERSION,
+      activeTemplate: null,
+      buildThemeSelection: { mode: 'auto' },
+      activeBuildThemeProfile: null,
+    }
   }
 }
 
@@ -138,6 +193,7 @@ function writeBuilderSessionOptions(
   sessionId: string,
   activeTemplate: BuilderTemplateSelection | null,
   buildThemeSelection: BuildThemeSelection,
+  activeBuildThemeProfile: ActiveBuildThemeProfile | null,
 ): void {
   if (typeof window === 'undefined') return
 
@@ -148,6 +204,7 @@ function writeBuilderSessionOptions(
         version: BUILDER_SESSION_OPTIONS_VERSION,
         activeTemplate,
         buildThemeSelection,
+        activeBuildThemeProfile,
       } satisfies BuilderSessionOptions),
     )
   } catch {
@@ -201,12 +258,11 @@ function withSlideComposerRefreshToken(url: string | null, token: number): strin
   return hash ? `${refreshed}#${hash}` : refreshed
 }
 
-type ActiveBuildThemeProfile = { id: string; name: string }
-
 function BuilderContent() {
   const { user, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const themeSearchOverride = searchParams.get('theme')
 
   // Session management
   const { loadSession, createSession } = useChatSessions()
@@ -269,7 +325,7 @@ function BuilderContent() {
       !user ||
       isAuthLoading ||
       standardThemeLoadedRef.current ||
-      searchParams.get('theme') ||
+      themeSearchOverride ||
       buildThemeSelection.mode !== 'auto'
     ) {
       return
@@ -535,12 +591,36 @@ function BuilderContent() {
       return
     }
 
+    let cancelled = false
     const stored = readBuilderSessionOptions(currentSessionId)
     skipBuilderOptionsPersistRef.current = currentSessionId
     setActiveTemplate(stored.activeTemplate)
     setBuildThemeSelection(stored.buildThemeSelection)
+    setActiveBuildThemeProfile(stored.activeBuildThemeProfile)
     builderOptionsRestoredSessionRef.current = currentSessionId
-  }, [currentSessionId])
+
+    if (
+      !stored.activeBuildThemeProfile &&
+      stored.buildThemeSelection.mode !== 'auto' &&
+      !themeSearchOverride
+    ) {
+      void (async () => {
+        const profile = await getStandardTheme()
+        if (
+          !cancelled &&
+          profile?.theme_payload &&
+          profile.theme_payload.mode !== 'auto' &&
+          buildThemeSelectionsEqual(profile.theme_payload, stored.buildThemeSelection)
+        ) {
+          setActiveBuildThemeProfile({ id: profile.id, name: profile.name })
+        }
+      })()
+    }
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentSessionId, getStandardTheme, themeSearchOverride])
 
   useEffect(() => {
     if (!currentSessionId || currentSessionId === "new") return
@@ -551,8 +631,8 @@ function BuilderContent() {
       return
     }
 
-    writeBuilderSessionOptions(currentSessionId, activeTemplate, buildThemeSelection)
-  }, [currentSessionId, activeTemplate, buildThemeSelection])
+    writeBuilderSessionOptions(currentSessionId, activeTemplate, buildThemeSelection, activeBuildThemeProfile)
+  }, [currentSessionId, activeTemplate, buildThemeSelection, activeBuildThemeProfile])
 
   const loadTemplateSnapshot = useCallback(async (template: BuilderTemplateSelection): Promise<TemplateSnapshot | null> => {
     setTemplateSnapshotLoading(true)
