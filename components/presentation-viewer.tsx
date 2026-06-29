@@ -66,7 +66,9 @@ import { ElementType, ElementProperties, BaseElementProperties, ChartType } from
 import { VersionHistoryPanel } from './version-history-panel'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
+import { TemplateModeOverlay } from './builder/template-mode-overlay'
 import { TemplatePickerContent } from './builder/template-picker'
+import type { TemplateSnapshot } from '@/hooks/use-templates'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
@@ -146,6 +148,11 @@ interface PresentationViewerProps {
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
   composeJobs?: SlideComposeThumbnailJob[]
+  templateSnapshot?: TemplateSnapshot | null
+  templateSnapshotLoading?: boolean
+  templateCurrentSlideIndex?: number
+  selectedTemplateElementId?: string | null
+  onTemplateElementSelect?: (overrideKey: string | null) => void
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -238,6 +245,11 @@ export function PresentationViewer({
   onTemplateModeChange,
   templateModeAvailable = false,
   composeJobs = [],
+  templateSnapshot = null,
+  templateSnapshotLoading = false,
+  templateCurrentSlideIndex,
+  selectedTemplateElementId = null,
+  onTemplateElementSelect,
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -2190,8 +2202,12 @@ export function PresentationViewer({
               <div
                 className={cn(
                   isFullscreen ? '' : 'max-w-7xl',
-                  templateModeOn && "relative rounded-md border-2 border-dashed border-violet-400 bg-violet-950/5 p-1 shadow-[0_0_0_9999px_rgba(15,23,42,0.08)]"
+                  "relative overflow-hidden",
+                  templateModeOn && "rounded-md border-2 border-dashed border-violet-400 bg-violet-950/5 p-1 shadow-[0_0_0_9999px_rgba(15,23,42,0.08)]"
                 )}
+                onClick={() => {
+                  if (templateModeOn) onTemplateElementSelect?.(null)
+                }}
                 style={isFullscreen && fullscreenSlideSize ? {
                   // Use JavaScript-calculated dimensions for accuracy
                   width: fullscreenSlideSize.width,
@@ -2232,6 +2248,15 @@ export function PresentationViewer({
                   title="Presentation Viewer"
                   allow="fullscreen"
                 />
+                {templateModeOn && templateBuilderEnabled && (
+                  <TemplateModeOverlay
+                    snapshot={templateSnapshot}
+                    currentSlideIndex={templateCurrentSlideIndex ?? currentSlide - 1}
+                    loading={templateSnapshotLoading}
+                    selectedElementId={selectedTemplateElementId}
+                    onSelectElement={onTemplateElementSelect}
+                  />
+                )}
               </div>
             ) : (
               <div className="flex items-center justify-center text-gray-400">

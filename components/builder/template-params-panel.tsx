@@ -26,6 +26,7 @@ interface TemplateParamsPanelProps {
   snapshot: TemplateSnapshot | null
   currentSlideIndex: number
   overrides: TemplateOverrides
+  selectedElementId?: string | null
   loading?: boolean
   onClose: () => void
   onOverrideChange: (slideIndex: number, overrideKey: string, patch: TemplateModeOverride) => void
@@ -46,31 +47,6 @@ const COLOR_SLOT_OPTIONS = [
   { value: 'accent-1', label: 'Accent 1' },
   { value: 'accent-2', label: 'Accent 2' },
   { value: 'neutral', label: 'Neutral' },
-]
-
-const CONTENT_INTENT_OPTIONS = [
-  { value: 'main_content', label: 'Main body' },
-  { value: 'thesis', label: 'Framing / intro' },
-  { value: 'metrics', label: 'Metrics' },
-  { value: 'takeaway', label: 'Callout / takeaway' },
-  { value: 'source', label: 'Sources' },
-]
-
-const ABSTRACT_INTENT_OPTIONS = [
-  { value: 'Frame the topic and orient the audience.', label: 'Frame topic' },
-  { value: 'Summarize the key performance signals.', label: 'Summarize signals' },
-  { value: 'Compare changes against the prior period.', label: 'Compare period' },
-  { value: 'Highlight risks, blockers, and decisions.', label: 'Risks / decisions' },
-  { value: 'Show recommendations and next actions.', label: 'Recommendations' },
-  { value: 'Support the main narrative with evidence.', label: 'Evidence support' },
-]
-
-const KEY_MESSAGE_OPTIONS = [
-  { value: 'Emphasize the strongest new-period headline.', label: 'New-period headline' },
-  { value: 'Emphasize the most important change since the prior period.', label: 'Period change' },
-  { value: 'Emphasize the decision or tradeoff the audience must make.', label: 'Decision focus' },
-  { value: 'Emphasize the primary risk and its mitigation.', label: 'Risk focus' },
-  { value: 'Emphasize the recommended next action.', label: 'Next action' },
 ]
 
 const CHART_TYPE_OPTIONS = [
@@ -103,28 +79,6 @@ function nestedValue(record: Record<string, unknown> | null, key: string): unkno
 
 function getOverride(overrides: TemplateOverrides, slideIndex: number, overrideKey: string): TemplateModeOverride {
   return asRecord(overrides[String(slideIndex)]?.[overrideKey]) ?? {}
-}
-
-function selectValue(
-  value: unknown,
-  options: Array<{ value: string; label: string }>,
-  fallback: string,
-): string {
-  const text = typeof value === 'string' ? value.trim() : ''
-  return options.some((option) => option.value === text) ? text : fallback
-}
-
-function inferContentIntentValue(value: unknown): string {
-  const text = typeof value === 'string' ? value.toLowerCase() : ''
-  if (text.includes('metric') || text.includes('quantitative')) return 'metrics'
-  if (text.includes('thesis') || text.includes('intro') || text.includes('framing') || text.includes('context')) {
-    return 'thesis'
-  }
-  if (text.includes('callout') || text.includes('takeaway') || text.includes('quote') || text.includes('decision')) {
-    return 'takeaway'
-  }
-  if (text.includes('source') || text.includes('citation') || text.includes('reference')) return 'source'
-  return 'main_content'
 }
 
 function elementIcon(element: TemplateModeElement) {
@@ -185,18 +139,6 @@ function ElementControls({
   const infographicHints = asRecord(element.renderSpec.infographic_hints)
   const imageMode = String(override.image_mode ?? imageHints?.image_mode ?? 'locked')
   const isTextLike = atomType.includes('TEXT') || atomType.includes('METRICS')
-  const textMode = override.regenerate_text === false ? 'locked' : 'refresh'
-  const contentIntent = String(override.content_intent ?? inferContentIntentValue(element.contentIntent))
-  const abstractIntent = selectValue(
-    override.abstract_intent,
-    ABSTRACT_INTENT_OPTIONS,
-    ABSTRACT_INTENT_OPTIONS[0].value,
-  )
-  const keyMessage = selectValue(
-    override.key_message,
-    KEY_MESSAGE_OPTIONS,
-    KEY_MESSAGE_OPTIONS[0].value,
-  )
 
   return (
     <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
@@ -276,67 +218,17 @@ function ElementControls({
         )}
 
         {isTextLike && (
-          <>
-            <div>
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Wording
-              </span>
-              <div className="mt-1 grid grid-cols-2 overflow-hidden rounded-md border border-slate-200 text-xs dark:border-slate-800">
-                {(['refresh', 'locked'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => onPatch({
-                      regenerate_text: mode === 'refresh',
-                      text_mode: mode,
-                      locked: mode === 'locked',
-                    })}
-                    className={cn(
-                      "px-2 py-2 font-medium transition",
-                      textMode === mode
-                        ? "bg-violet-600 text-white"
-                        : "bg-white text-slate-600 hover:bg-slate-50 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
-                    )}
-                  >
-                    {mode === 'refresh' ? 'Refresh' : 'Keep wording'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <SelectField
-              label="Content source"
-              value={selectValue(contentIntent, CONTENT_INTENT_OPTIONS, 'main_content')}
-              placeholder="Content source"
-              options={CONTENT_INTENT_OPTIONS}
-              onValueChange={(value) => onPatch({ content_intent: value })}
-            />
-            <SelectField
-              label="Slide intent"
-              value={abstractIntent}
-              placeholder="Slide intent"
-              options={ABSTRACT_INTENT_OPTIONS}
-              onValueChange={(value) => onPatch({ abstract_intent: value })}
-            />
-            <SelectField
-              label="Key message"
-              value={keyMessage}
-              placeholder="Key message"
-              options={KEY_MESSAGE_OPTIONS}
-              onValueChange={(value) => onPatch({ key_message: value })}
-            />
-            <SelectField
-              label="Box fill"
-              value={String(nestedValue(styleHints, 'box_fill') ?? 'transparent')}
-              placeholder="Box fill"
-              options={[
-                { value: 'transparent', label: 'Transparent' },
-                { value: 'soft_tint', label: 'Soft tint' },
-                { value: 'colored', label: 'Colored' },
-              ]}
-              onValueChange={(value) => onPatch({ style_hints: { box_fill: value } })}
-            />
-          </>
+          <SelectField
+            label="Box fill"
+            value={String(nestedValue(styleHints, 'box_fill') ?? 'transparent')}
+            placeholder="Box fill"
+            options={[
+              { value: 'transparent', label: 'Transparent' },
+              { value: 'soft_tint', label: 'Soft tint' },
+              { value: 'colored', label: 'Colored' },
+            ]}
+            onValueChange={(value) => onPatch({ style_hints: { box_fill: value } })}
+          />
         )}
 
         {atomType.includes('CHART') && (
@@ -407,11 +299,15 @@ export function TemplateParamsPanel({
   snapshot,
   currentSlideIndex,
   overrides,
+  selectedElementId,
   loading,
   onClose,
   onOverrideChange,
 }: TemplateParamsPanelProps) {
   const elements = getTemplateModeElements(snapshot, currentSlideIndex)
+  const selectedElement = selectedElementId
+    ? elements.find((element) => element.overrideKey === selectedElementId) ?? null
+    : null
 
   return (
     <div
@@ -422,7 +318,7 @@ export function TemplateParamsPanel({
       )}
       style={{ width, pointerEvents: isOpen ? 'auto' : 'none' }}
     >
-      <div className="absolute inset-y-0 left-0 flex flex-col overflow-hidden border-r border-violet-200 bg-white text-slate-900 shadow-xl dark:border-violet-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="absolute inset-y-0 left-0 flex max-h-screen flex-col overflow-hidden border-r border-violet-200 bg-white text-slate-900 shadow-xl dark:border-violet-900 dark:bg-slate-950 dark:text-slate-100">
         <div className="flex items-center justify-between border-b border-slate-200 bg-violet-50 px-4 py-3 dark:border-slate-800 dark:bg-violet-950/40">
           <div className="flex min-w-0 items-center gap-2">
             <Palette className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-300" />
@@ -438,7 +334,7 @@ export function TemplateParamsPanel({
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 max-h-[calc(100vh-5rem)] space-y-3 overflow-y-auto p-4">
           {loading ? (
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
               Loading template snapshot...
@@ -447,19 +343,16 @@ export function TemplateParamsPanel({
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
               Select an available template to edit its reusable parameters.
             </div>
-          ) : elements.length === 0 ? (
+          ) : !selectedElement ? (
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-              Hero design is locked for this slide; the title regenerates with the next deck.
+              Select an element box on the deck to edit image and style parameters.
             </div>
           ) : (
-            elements.map((element) => (
-              <ElementControls
-                key={element.overrideKey}
-                element={element}
-                override={getOverride(overrides, currentSlideIndex, element.overrideKey)}
-                onPatch={(patch) => onOverrideChange(currentSlideIndex, element.overrideKey, patch)}
-              />
-            ))
+            <ElementControls
+              element={selectedElement}
+              override={getOverride(overrides, currentSlideIndex, selectedElement.overrideKey)}
+              onPatch={(patch) => onOverrideChange(currentSlideIndex, selectedElement.overrideKey, patch)}
+            />
           )}
         </div>
       </div>
