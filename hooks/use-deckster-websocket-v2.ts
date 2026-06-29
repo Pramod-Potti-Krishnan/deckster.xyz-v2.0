@@ -4,6 +4,7 @@ import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
+import { normalizeSlideComposeSocketFrame } from '@/lib/slide-compose-async';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -11,7 +12,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_ready' | 'slide_failed';
   payload: any;
 }
 
@@ -226,7 +227,40 @@ export interface TokenUsage {
   payload: TokenUsagePayload;
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage;
+export interface SlideComposeReady {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'slide_ready';
+  payload: {
+    session_id?: string;
+    job_id: string;
+    status: 'built';
+    slide_index: number;
+    real_slide_id?: string | null;
+    presentation_id: string;
+    presentation_url?: string | null;
+  };
+}
+
+export interface SlideComposeFailed {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'slide_failed';
+  payload: {
+    session_id?: string;
+    job_id: string;
+    stage?: string | null;
+    errors?: string[];
+  };
+}
+
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeReady | SlideComposeFailed;
+
+export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
+  return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
+}
 
 // User message to send to server
 export interface UserMessage {
@@ -299,6 +333,8 @@ export interface UseDecksterWebSocketV2Options {
   onError?: (error: Error) => void;
   onMessage?: (message: DirectorMessage) => void;
   onPresentationReady?: (url: string) => void;
+  onSlideComposeReady?: (message: SlideComposeReady) => void;
+  onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onSessionStateChange?: (state: {
     presentationUrl?: string;
     presentationId?: string;
@@ -700,7 +736,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             return;
           }
 
-          const message: DirectorMessage = JSON.parse(event.data);
+          const message = normalizeDirectorMessageFrame(JSON.parse(event.data));
 
           // Add client-side timestamp for message ordering
           const messageWithTimestamp = {
@@ -714,8 +750,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // Prevent duplicate messages by checking message_id
             const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
 
-            // Don't add status_update, sync_response, presentation_init, slide_context, or token_usage messages to chat - they're only for state management
-            const shouldAddToMessages = message.type !== 'status_update' && message.type !== 'sync_response' && message.type !== 'presentation_init' && message.type !== 'slide_context' && message.type !== 'token_usage' && !isDuplicate;
+            // Don't add state-management frames to chat; they drive deck/view state only.
+            const shouldAddToMessages =
+              message.type !== 'status_update' &&
+              message.type !== 'sync_response' &&
+              message.type !== 'presentation_init' &&
+              message.type !== 'slide_context' &&
+              message.type !== 'token_usage' &&
+              message.type !== 'slide_ready' &&
+              message.type !== 'slide_failed' &&
+              !isDuplicate;
 
             const newState = {
               ...prev,
@@ -1044,10 +1088,32 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   coverage: message.payload.coverage,
                 });
                 break;
+
+              case 'slide_ready':
+                debugLog('✅ slide_ready received:', {
+                  job_id: message.payload.job_id,
+                  slide_index: message.payload.slide_index,
+                  presentation_id: message.payload.presentation_id,
+                });
+                break;
+
+              case 'slide_failed':
+                debugLog('❌ slide_failed received:', {
+                  job_id: message.payload.job_id,
+                  stage: message.payload.stage,
+                  errors: message.payload.errors,
+                });
+                break;
             }
 
             return newState;
           });
+
+          if (message.type === 'slide_ready') {
+            options.onSlideComposeReady?.(message);
+          } else if (message.type === 'slide_failed') {
+            options.onSlideComposeFailed?.(message);
+          }
 
           // Trigger message callback
           if (options.onMessage) {

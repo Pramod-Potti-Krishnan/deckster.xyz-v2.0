@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
+import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeReady, type SlideComposeFailed } from "@/hooks/use-deckster-websocket-v2"
 import { useChatSessions } from "@/hooks/use-chat-sessions"
 import { useSessionPersistence } from "@/hooks/use-session-persistence"
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
@@ -14,7 +14,7 @@ import { useFileUpload } from '@/hooks/use-file-upload'
 import { features } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { SlideGenerationPanel, type SlideComposeBuiltResult } from '@/components/slide-generation-panel'
+import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult } from '@/components/slide-generation-panel'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
@@ -33,6 +33,7 @@ import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { TopUpModal } from '@/components/builder/topup-modal'
+import type { SlideComposeThumbnailJob } from '@/components/slide-thumbnail-strip'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
@@ -63,6 +64,17 @@ const TEMPLATE_SLOT_OVERRIDE_KEYS = new Set([
   'slide_title',
   'text_mode',
 ])
+
+type SlideComposeJobStatus = 'building' | 'error'
+
+interface SlideComposeJobState {
+  job_id: string
+  target_visual_index: number
+  status: SlideComposeJobStatus
+  title: string
+  request: Record<string, unknown>
+  errors?: string[]
+}
 
 interface BuilderSessionOptions {
   version: typeof BUILDER_SESSION_OPTIONS_VERSION
@@ -339,6 +351,18 @@ function BuilderContent() {
     slideCount: number | null
     refreshToken: number
   } | null>(null)
+  const [slideComposeJobs, setSlideComposeJobs] = useState<Record<string, SlideComposeJobState>>({})
+  const slideComposerPresentationRef = useRef<{
+    presentationUrl: string | null
+    presentationId: string | null
+    slideCount: number | null
+    activeVersion: 'blank' | 'strawman' | 'final'
+  }>({
+    presentationUrl: null,
+    presentationId: null,
+    slideCount: null,
+    activeVersion: 'final',
+  })
 
   // Portal target for toolbar in header
   const [toolbarPortalTarget, setToolbarPortalTarget] = useState<HTMLDivElement | null>(null)
@@ -506,6 +530,7 @@ function BuilderContent() {
 
   useEffect(() => {
     setSlideComposerOverride(null)
+    setSlideComposeJobs({})
     setShowFormatPanel(false)
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
@@ -705,7 +730,73 @@ function BuilderContent() {
           hasPersistenceRef: !!persistenceRef.current
         });
       }
-    }
+    },
+    onSlideComposeReady: (message: SlideComposeReady) => {
+      const payload = message.payload
+      const nextSlideIndex = Math.max(0, payload.slide_index)
+      const snapshot = slideComposerPresentationRef.current
+      const targetPresentationUrl = payload.presentation_url ?? snapshot.presentationUrl
+      const targetPresentationId = payload.presentation_id ?? snapshot.presentationId
+      const existingDeck = !!snapshot.presentationId && targetPresentationId === snapshot.presentationId
+      const nextSlideCount = Math.max(
+        existingDeck ? (snapshot.slideCount ?? 0) + 1 : (snapshot.slideCount ?? 0),
+        nextSlideIndex + 1,
+      )
+
+      setSlideComposeJobs(prev => {
+        const { [payload.job_id]: _completed, ...rest } = prev
+        return rest
+      })
+
+      setSlideComposerOverride({
+        presentationUrl: targetPresentationUrl ?? null,
+        presentationId: targetPresentationId ?? null,
+        slideCount: nextSlideCount,
+        refreshToken: Date.now(),
+      })
+      setCurrentSlideIndex(nextSlideIndex)
+
+      if (currentSessionIdRef.current && persistenceRef.current) {
+        const updates: any = {
+          slideCount: nextSlideCount,
+          lastMessageAt: new Date(),
+        }
+        if (snapshot.activeVersion === 'strawman') {
+          updates.strawmanPreviewUrl = targetPresentationUrl
+          updates.strawmanPresentationId = targetPresentationId
+        } else {
+          updates.finalPresentationUrl = targetPresentationUrl
+          updates.finalPresentationId = targetPresentationId
+        }
+        persistenceRef.current.updateMetadata(updates)
+      }
+
+      toast({
+        title: 'Slide built',
+        description: `Inserted slide ${nextSlideIndex + 1}.`,
+      })
+    },
+    onSlideComposeFailed: (message: SlideComposeFailed) => {
+      const payload = message.payload
+      const errors = payload.errors?.filter(Boolean) ?? []
+      setSlideComposeJobs(prev => {
+        const existing = prev[payload.job_id]
+        if (!existing) return prev
+        return {
+          ...prev,
+          [payload.job_id]: {
+            ...existing,
+            status: 'error',
+            errors: errors.length > 0 ? errors : [`Slide Composer failed${payload.stage ? ` during ${payload.stage}` : ''}.`],
+          },
+        }
+      })
+      toast({
+        title: 'Slide failed',
+        description: errors[0] ?? (payload.stage ? `Failed during ${payload.stage}.` : 'Slide Composer failed.'),
+        variant: 'destructive',
+      })
+    },
   })
 
   const quota = useQuota(tokenUsage, tokenUsageMessageId ?? undefined)
@@ -723,6 +814,21 @@ function BuilderContent() {
     ),
     [presentationUrl, slideComposerOverride, templateModeSourcePresentationUrl],
   )
+
+  useEffect(() => {
+    slideComposerPresentationRef.current = {
+      presentationUrl: slideComposerOverride?.presentationUrl ?? presentationUrl,
+      presentationId: effectivePresentationId,
+      slideCount: effectiveSlideCount,
+      activeVersion,
+    }
+  }, [
+    activeVersion,
+    effectivePresentationId,
+    effectiveSlideCount,
+    presentationUrl,
+    slideComposerOverride?.presentationUrl,
+  ])
 
   const currentSlideLayout = useMemo<SlideLayoutType | undefined>(() => {
     const ctx = slideContextByIndex?.[currentSlideIndex]
@@ -794,6 +900,115 @@ function BuilderContent() {
     slideComposerOverride?.presentationUrl,
     toast,
   ])
+
+  const handleSlideComposerAccepted = useCallback((job: SlideComposeAcceptedJob) => {
+    setSlideComposeJobs(prev => ({
+      ...prev,
+      [job.job_id]: {
+        job_id: job.job_id,
+        target_visual_index: Math.max(0, job.target_index),
+        status: 'building',
+        title: job.title,
+        request: job.request,
+      },
+    }))
+    toast({
+      title: 'Slide queued',
+      description: `Building slide ${Math.max(0, job.target_index) + 1} in the background.`,
+    })
+  }, [toast])
+
+  const handleRetrySlideCompose = useCallback(async (jobId: string) => {
+    const existing = slideComposeJobs[jobId]
+    if (!existing) return
+
+    const nextJobId = crypto.randomUUID()
+    const retryRequest = {
+      ...existing.request,
+      job_id: nextJobId,
+      async: true,
+      assume_on_missing: true,
+    }
+
+    setSlideComposeJobs(prev => {
+      const { [jobId]: _failed, ...rest } = prev
+      return {
+        ...rest,
+        [nextJobId]: {
+          ...existing,
+          job_id: nextJobId,
+          status: 'building',
+          errors: undefined,
+          request: retryRequest,
+        },
+      }
+    })
+
+    try {
+      const response = await fetch('/api/slides/compose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(retryRequest),
+      })
+      const data = await response.json().catch(() => null) as {
+        status?: string
+        job_id?: string
+        target_index?: number
+        error?: string
+        errors?: string[]
+      } | null
+
+      if (!response.ok || data?.status !== 'accepted' || typeof data.target_index !== 'number') {
+        const message = Array.isArray(data?.errors) && data.errors.length > 0
+          ? data.errors.join('; ')
+          : data?.error ?? 'Slide Composer retry failed.'
+        throw new Error(message)
+      }
+
+      setSlideComposeJobs(prev => {
+        const current = prev[nextJobId]
+        if (!current) return prev
+        return {
+          ...prev,
+          [nextJobId]: {
+            ...current,
+            target_visual_index: Math.max(0, data.target_index ?? current.target_visual_index),
+          },
+        }
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Slide Composer retry failed.'
+      setSlideComposeJobs(prev => {
+        const current = prev[nextJobId]
+        if (!current) return prev
+        return {
+          ...prev,
+          [nextJobId]: {
+            ...current,
+            status: 'error',
+            errors: [message],
+          },
+        }
+      })
+      toast({
+        title: 'Retry failed',
+        description: message,
+        variant: 'destructive',
+      })
+    }
+  }, [slideComposeJobs, toast])
+
+  const slideComposeThumbnailJobs = useMemo<SlideComposeThumbnailJob[]>(
+    () => Object.values(slideComposeJobs).map(job => ({
+      jobId: job.job_id,
+      targetIndex: job.target_visual_index,
+      status: job.status,
+      title: job.title,
+      errors: job.errors,
+      onRetry: handleRetrySlideCompose,
+    })),
+    [handleRetrySlideCompose, slideComposeJobs],
+  )
 
   // Builder session hook (session init, loading, switching, persistence effects)
   const session = useBuilderSession({
@@ -1509,6 +1724,7 @@ function BuilderContent() {
                   }}
                   enabled={features.slideComposerEnabled}
                   onBuilt={handleSlideComposerBuilt}
+                  onAccepted={handleSlideComposerAccepted}
                 />
               </div>
 
@@ -1786,6 +2002,7 @@ function BuilderContent() {
             templateModeAvailable={Boolean(activeTemplate)}
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
+            composeJobs={slideComposeThumbnailJobs}
           />
           )}
           </div>

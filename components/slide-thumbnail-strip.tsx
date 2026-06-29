@@ -12,13 +12,22 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { Copy, Trash2, Layout, ChevronUp, ChevronDown, Check } from 'lucide-react'
+import { Copy, Trash2, Layout, ChevronUp, ChevronDown, Check, Loader2, AlertTriangle, RotateCcw } from 'lucide-react'
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 
 export interface SlideThumbnail {
   slideNumber: number
   title?: string
   content?: string
+}
+
+export interface SlideComposeThumbnailJob {
+  jobId: string
+  targetIndex: number
+  status: 'building' | 'error'
+  title?: string
+  errors?: string[]
+  onRetry?: (jobId: string) => void
 }
 
 export interface SlideThumbnailStripProps {
@@ -38,6 +47,7 @@ export interface SlideThumbnailStripProps {
   onReorderSlides?: (fromIndex: number, toIndex: number) => Promise<void>
   enableDragDrop?: boolean
   totalSlides?: number
+  composeJobs?: SlideComposeThumbnailJob[]
 }
 
 /**
@@ -67,7 +77,8 @@ export function SlideThumbnailStrip({
   onChangeLayout,
   onReorderSlides,
   enableDragDrop = false,
-  totalSlides
+  totalSlides,
+  composeJobs = []
 }: SlideThumbnailStripProps) {
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -153,12 +164,83 @@ export function SlideThumbnailStrip({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentSlide, onDeleteSlide, onDeleteSlides, selectedSlides, slidesTotal, isProcessing, onSelectionChange])
 
-  if (slides.length === 0) {
+  if (slides.length === 0 && composeJobs.length === 0) {
     return null
   }
 
   const isVertical = orientation === 'vertical'
   const hasCrudActions = onDuplicateSlide || onDeleteSlide || onChangeLayout || onReorderSlides
+
+  const orderedItems: Array<
+    | { kind: 'slide'; slide: SlideThumbnail }
+    | { kind: 'compose'; job: SlideComposeThumbnailJob; visualNumber: number }
+  > = []
+  const normalizedComposeJobs = [...composeJobs].sort((a, b) => a.targetIndex - b.targetIndex)
+  for (let index = 0; index <= slides.length; index += 1) {
+    normalizedComposeJobs
+      .filter(job => Math.min(Math.max(job.targetIndex, 0), slides.length) === index)
+      .forEach((job, offset) => {
+        orderedItems.push({ kind: 'compose', job, visualNumber: index + 1 + offset })
+      })
+    if (index < slides.length) {
+      orderedItems.push({ kind: 'slide', slide: slides[index] })
+    }
+  }
+
+  const renderComposeJob = (job: SlideComposeThumbnailJob, visualNumber: number) => {
+    const isError = job.status === 'error'
+    const title = job.title || (isError ? 'Slide failed' : 'Building slide')
+    const errorText = job.errors?.filter(Boolean).join('; ')
+
+    return (
+      <div
+        key={`compose-${job.jobId}`}
+        className="relative group"
+        title={isError ? (errorText || 'Slide Composer failed') : 'Slide Composer is building this slide'}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            if (isError) job.onRetry?.(job.jobId)
+          }}
+          className={cn(
+            "relative flex-shrink-0 w-28 rounded-md border-2 transition-all duration-200 overflow-hidden",
+            "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2",
+            isError
+              ? "border-red-300 bg-red-50 text-red-700 hover:border-red-400 hover:bg-red-100"
+              : "border-purple-300 bg-purple-50 text-purple-700"
+          )}
+          disabled={!isError || !job.onRetry}
+        >
+          <div className={cn(
+            "relative w-full aspect-[16/9] flex flex-col items-center justify-center gap-1.5 p-2",
+            isError ? "bg-red-50" : "bg-purple-50"
+          )}>
+            <div className={cn(
+              "absolute top-1.5 left-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded px-1 text-[9px] font-semibold leading-none",
+              isError ? "bg-red-100 text-red-700" : "bg-purple-100 text-purple-700"
+            )}>
+              {visualNumber}
+            </div>
+            {isError ? (
+              <>
+                <AlertTriangle className="h-5 w-5" />
+                {job.onRetry && <RotateCcw className="h-3.5 w-3.5 opacity-70" />}
+              </>
+            ) : (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            )}
+          </div>
+          <div className={cn(
+            "px-2 py-1.5 text-[10px] leading-tight text-left line-clamp-2 w-full",
+            isError ? "bg-white text-red-700" : "bg-white text-purple-800"
+          )}>
+            {isError ? 'Retry compose' : title}
+          </div>
+        </button>
+      </div>
+    )
+  }
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, slideNumber: number) => {
@@ -472,7 +554,11 @@ export function SlideThumbnailStrip({
           ? "flex flex-col items-center gap-2 overflow-y-auto h-full pt-2 pb-12 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
           : "flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
       )}>
-        {slides.map(renderThumbnail)}
+        {orderedItems.map(item =>
+          item.kind === 'compose'
+            ? renderComposeJob(item.job, item.visualNumber)
+            : renderThumbnail(item.slide)
+        )}
       </div>
     </div>
   )
