@@ -54,3 +54,47 @@ export function getComposeVisualIndexForTarget(
 
   return visualIndex
 }
+
+export function isMatchingSlideComposeCommandResponse(
+  data: unknown,
+  options: {
+    requestId: string
+    action: string
+    expectedJobId?: string | null
+  },
+): boolean {
+  const { requestId, action, expectedJobId } = options
+  if (!data || typeof data !== 'object') return false
+  const record = data as Record<string, unknown>
+  if (record.requestId !== requestId) return false
+  if (record.action !== action) return false
+  if (expectedJobId && record.job_id !== expectedJobId) return false
+  return true
+}
+
+function normalizeComposePresentationUrlForCompare(value: string | null | undefined): string | null {
+  if (!value) return null
+  try {
+    const parsed = new URL(value, 'https://deckster.local')
+    parsed.searchParams.delete('sc_refresh')
+    const origin = parsed.origin === 'https://deckster.local' ? '' : parsed.origin
+    return `${origin}${parsed.pathname}${parsed.search}${parsed.hash}`
+  } catch {
+    return value.replace(/([?&])sc_refresh=\d+(&?)/, (_match, prefix, suffix) => {
+      if (prefix === '?' && !suffix) return ''
+      return suffix ? prefix : ''
+    })
+  }
+}
+
+export function shouldUseIncomingComposePresentationUrl(
+  currentUrl: string | null | undefined,
+  incomingUrl: string | null | undefined,
+): boolean {
+  if (!incomingUrl) return false
+  if (!currentUrl) return true
+  return (
+    normalizeComposePresentationUrlForCompare(currentUrl) !==
+    normalizeComposePresentationUrlForCompare(incomingUrl)
+  )
+}

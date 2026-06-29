@@ -34,7 +34,10 @@ import { TemplateParamsPanel } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { TopUpModal } from '@/components/builder/topup-modal'
 import type { SlideComposeThumbnailJob } from '@/components/slide-thumbnail-strip'
-import { getComposeVisualIndexForTarget } from '@/lib/slide-compose-async'
+import {
+  getComposeVisualIndexForTarget,
+  shouldUseIncomingComposePresentationUrl,
+} from '@/lib/slide-compose-async'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
@@ -397,6 +400,10 @@ function BuilderContent() {
 
   // Current slide tracking
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
+  const currentSlideIndexRef = useRef(0)
+  useEffect(() => {
+    currentSlideIndexRef.current = currentSlideIndex
+  }, [currentSlideIndex])
   const [templateSourceSlideIndex, setTemplateSourceSlideIndex] = useState(0)
   const activeTemplateSlideIndex = templateModeOn ? templateSourceSlideIndex : currentSlideIndex
   const [slideComposerOverride, setSlideComposerOverride] = useState<{
@@ -423,6 +430,53 @@ function BuilderContent() {
   useEffect(() => {
     slideComposeJobsRef.current = slideComposeJobs
   }, [slideComposeJobs])
+  const pendingComposePlaceholdersRef = useRef<Map<string, {
+    jobId: string
+    visualIndex: number
+    replaceJobId?: string
+  }>>(new Map())
+  const slideComposeWatchdogsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const slideComposeReconcileQueuesRef = useRef<Record<string, Promise<void>>>({})
+  const slideComposeFallbackReloadInFlightRef = useRef(false)
+
+  const clearSlideComposeWatchdog = useCallback((jobId: string) => {
+    const timer = slideComposeWatchdogsRef.current[jobId]
+    if (timer) {
+      clearTimeout(timer)
+      delete slideComposeWatchdogsRef.current[jobId]
+    }
+  }, [])
+
+  const triggerCoalescedSlideComposeReload = useCallback((reason: string) => {
+    if (slideComposeFallbackReloadInFlightRef.current) return
+    slideComposeFallbackReloadInFlightRef.current = true
+    const snapshot = slideComposerPresentationRef.current
+    setSlideComposerOverride({
+      presentationUrl: snapshot.presentationUrl,
+      presentationId: snapshot.presentationId,
+      slideCount: snapshot.slideCount,
+      refreshToken: Date.now(),
+    })
+    window.setTimeout(() => {
+      slideComposeFallbackReloadInFlightRef.current = false
+    }, 8000)
+    console.warn('[Slide Composer] Falling back to iframe reload:', reason)
+  }, [])
+
+  const enqueueSlideComposeReconcile = useCallback((
+    presentationKey: string,
+    task: () => Promise<void>,
+  ) => {
+    const key = presentationKey || '__unknown_presentation__'
+    const previous = slideComposeReconcileQueuesRef.current[key] ?? Promise.resolve()
+    const next = previous.catch(() => undefined).then(task)
+    slideComposeReconcileQueuesRef.current[key] = next.finally(() => {
+      if (slideComposeReconcileQueuesRef.current[key] === next) {
+        delete slideComposeReconcileQueuesRef.current[key]
+      }
+    })
+    return next
+  }, [])
 
   // Portal target for toolbar in header
   const [toolbarPortalTarget, setToolbarPortalTarget] = useState<HTMLDivElement | null>(null)
@@ -592,6 +646,11 @@ function BuilderContent() {
     standardThemeLoadedRef.current = false
     setSlideComposerOverride(null)
     setSlideComposeJobs({})
+    Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
+    slideComposeWatchdogsRef.current = {}
+    pendingComposePlaceholdersRef.current.clear()
+    slideComposeReconcileQueuesRef.current = {}
+    slideComposeFallbackReloadInFlightRef.current = false
     setShowFormatPanel(false)
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
@@ -851,32 +910,47 @@ function BuilderContent() {
 
       const persistCompletion = () => {
         if (!currentSessionIdRef.current || !persistenceRef.current) return
+        const metadataPresentationUrl = shouldUseIncomingComposePresentationUrl(
+          snapshot.presentationUrl,
+          targetPresentationUrl,
+        )
+          ? targetPresentationUrl
+          : snapshot.presentationUrl
         const updates: any = {
           slideCount: nextSlideCount,
           lastMessageAt: new Date(),
         }
         if (snapshot.activeVersion === 'strawman') {
-          updates.strawmanPreviewUrl = targetPresentationUrl
+          updates.strawmanPreviewUrl = metadataPresentationUrl
           updates.strawmanPresentationId = targetPresentationId
         } else {
-          updates.finalPresentationUrl = targetPresentationUrl
+          updates.finalPresentationUrl = metadataPresentationUrl
           updates.finalPresentationId = targetPresentationId
         }
         persistenceRef.current.updateMetadata(updates)
       }
 
-      const finishReady = (refreshToken: number) => {
+      const finishReady = (refreshToken: number, navigate: boolean) => {
+        clearSlideComposeWatchdog(payload.job_id)
         setSlideComposeJobs(prev => {
           const { [payload.job_id]: _completed, ...rest } = prev
           return rest
         })
+        const nextPresentationUrl = shouldUseIncomingComposePresentationUrl(
+          snapshot.presentationUrl,
+          targetPresentationUrl,
+        )
+          ? targetPresentationUrl
+          : snapshot.presentationUrl
         setSlideComposerOverride({
-          presentationUrl: targetPresentationUrl ?? null,
+          presentationUrl: nextPresentationUrl ?? targetPresentationUrl ?? null,
           presentationId: targetPresentationId ?? null,
           slideCount: nextSlideCount,
           refreshToken,
         })
-        setCurrentSlideIndex(nextSlideIndex)
+        if (navigate) {
+          setCurrentSlideIndex(nextSlideIndex)
+        }
         persistCompletion()
         toast({
           title: 'Slide built',
@@ -884,25 +958,38 @@ function BuilderContent() {
         })
       }
 
-      void (async () => {
+      const job = slideComposeJobsRef.current[payload.job_id]
+      const shouldNavigate = !!job && (
+        currentSlideIndexRef.current === job.target_visual_index ||
+        currentSlideIndexRef.current === nextSlideIndex
+      )
+      void enqueueSlideComposeReconcile(targetPresentationId ?? '__unknown__', async () => {
         const composeApi = composeViewerApiRef.current
         if (!composeApi) {
-          finishReady(Date.now())
+          triggerCoalescedSlideComposeReload('compose API unavailable on slide_ready')
+          finishReady(Date.now(), shouldNavigate)
           return
         }
 
         try {
-          await composeApi.composeSlideReconcile(payload.job_id, nextSlideIndex, targetPresentationId)
-          finishReady(snapshot.refreshToken)
+          await composeApi.composeSlideReconcile(
+            payload.job_id,
+            nextSlideIndex,
+            payload.real_slide_id,
+            targetPresentationId,
+          )
+          finishReady(snapshot.refreshToken, shouldNavigate)
         } catch (error) {
           console.warn('[Slide Composer] Live slide swap failed; falling back to iframe refresh.', error)
-          finishReady(Date.now())
+          triggerCoalescedSlideComposeReload('compose live swap failed')
+          finishReady(Date.now(), shouldNavigate)
         }
-      })()
+      })
     },
     onSlideComposeFailed: (message: SlideComposeFailed) => {
       const payload = message.payload
       const errors = payload.errors?.filter(Boolean) ?? []
+      clearSlideComposeWatchdog(payload.job_id)
       void composeViewerApiRef.current?.composePlaceholderFail(payload.job_id).catch(error => {
         console.warn('[Slide Composer] Failed to mark in-deck placeholder as error.', error)
       })
@@ -1032,10 +1119,21 @@ function BuilderContent() {
 
   const handleComposeApiReady = useCallback((apis: SlideComposeViewerApi | null) => {
     composeViewerApiRef.current = apis
+    if (!apis) return
+
+    const queued = Array.from(pendingComposePlaceholdersRef.current.values())
+    pendingComposePlaceholdersRef.current.clear()
+    queued.forEach(item => {
+      void apis.composePlaceholderAdd(item.jobId, item.visualIndex, item.replaceJobId).catch(error => {
+        console.warn('[Slide Composer] Failed to flush queued in-deck placeholder.', error)
+        pendingComposePlaceholdersRef.current.set(item.jobId, item)
+      })
+    })
   }, [])
 
   const handleSlideComposerAccepted = useCallback((job: SlideComposeAcceptedJob) => {
     const targetVisualIndex = getComposeVisualIndexForTarget(job.target_index, slideComposeJobsRef.current)
+    clearSlideComposeWatchdog(job.job_id)
     setSlideComposeJobs(prev => ({
       ...prev,
       [job.job_id]: {
@@ -1046,14 +1144,26 @@ function BuilderContent() {
         request: job.request,
       },
     }))
-    void composeViewerApiRef.current?.composePlaceholderAdd(job.job_id, targetVisualIndex).catch(error => {
-      console.warn('[Slide Composer] Failed to add in-deck placeholder.', error)
-    })
+    const placeholderAdd = { jobId: job.job_id, visualIndex: targetVisualIndex }
+    const composeApi = composeViewerApiRef.current
+    if (composeApi) {
+      void composeApi.composePlaceholderAdd(job.job_id, targetVisualIndex).catch(error => {
+        console.warn('[Slide Composer] Failed to add in-deck placeholder.', error)
+        pendingComposePlaceholdersRef.current.set(job.job_id, placeholderAdd)
+      })
+    } else {
+      pendingComposePlaceholdersRef.current.set(job.job_id, placeholderAdd)
+    }
+    slideComposeWatchdogsRef.current[job.job_id] = setTimeout(() => {
+      if (slideComposeJobsRef.current[job.job_id]?.status === 'building') {
+        triggerCoalescedSlideComposeReload(`compose job ${job.job_id} exceeded watchdog`)
+      }
+    }, 90_000)
     toast({
       title: 'Slide queued',
       description: `Building slide ${targetVisualIndex + 1} in the background.`,
     })
-  }, [toast])
+  }, [clearSlideComposeWatchdog, toast, triggerCoalescedSlideComposeReload])
 
   const handleRetrySlideCompose = useCallback(async (jobId: string) => {
     const existing = slideComposeJobs[jobId]
@@ -1080,6 +1190,11 @@ function BuilderContent() {
         },
       }
     })
+    slideComposeWatchdogsRef.current[nextJobId] = setTimeout(() => {
+      if (slideComposeJobsRef.current[nextJobId]?.status === 'building') {
+        triggerCoalescedSlideComposeReload(`compose retry ${nextJobId} exceeded watchdog`)
+      }
+    }, 90_000)
 
     try {
       const response = await fetch('/api/slides/compose', {
@@ -1113,12 +1228,24 @@ function BuilderContent() {
           },
         }
       })
-      void composeViewerApiRef.current
-        ?.composePlaceholderAdd(nextJobId, existing.target_visual_index, jobId)
-        .catch(error => {
-          console.warn('[Slide Composer] Failed to reset in-deck placeholder for retry.', error)
-        })
+      const placeholderAdd = {
+        jobId: nextJobId,
+        visualIndex: existing.target_visual_index,
+        replaceJobId: jobId,
+      }
+      const composeApi = composeViewerApiRef.current
+      if (composeApi) {
+        void composeApi
+          .composePlaceholderAdd(nextJobId, existing.target_visual_index, jobId)
+          .catch(error => {
+            console.warn('[Slide Composer] Failed to reset in-deck placeholder for retry.', error)
+            pendingComposePlaceholdersRef.current.set(nextJobId, placeholderAdd)
+          })
+      } else {
+        pendingComposePlaceholdersRef.current.set(nextJobId, placeholderAdd)
+      }
     } catch (err) {
+      clearSlideComposeWatchdog(nextJobId)
       const message = err instanceof Error ? err.message : 'Slide Composer retry failed.'
       setSlideComposeJobs(prev => {
         const current = prev[nextJobId]
@@ -1138,7 +1265,7 @@ function BuilderContent() {
         variant: 'destructive',
       })
     }
-  }, [slideComposeJobs, toast])
+  }, [clearSlideComposeWatchdog, slideComposeJobs, toast, triggerCoalescedSlideComposeReload])
 
   const slideComposeThumbnailJobs = useMemo<SlideComposeThumbnailJob[]>(
     () => Object.values(slideComposeJobs).map(job => ({

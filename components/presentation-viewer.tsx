@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { debugLog } from '@/lib/debug-log'
+import { isMatchingSlideComposeCommandResponse } from '@/lib/slide-compose-async'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -165,7 +166,12 @@ interface PresentationViewerProps {
 
 export interface SlideComposeViewerApi {
   composePlaceholderAdd: (jobId: string, visualIndex: number, replaceJobId?: string) => Promise<any>
-  composeSlideReconcile: (jobId: string, realSlideIndex: number, presentationId?: string | null) => Promise<any>
+  composeSlideReconcile: (
+    jobId: string,
+    realSlideIndex: number,
+    realSlideId?: string | null,
+    presentationId?: string | null,
+  ) => Promise<any>
   composePlaceholderFail: (jobId: string) => Promise<any>
 }
 
@@ -180,29 +186,64 @@ const VIEWER_ORIGIN = 'https://web-production-f0d13.up.railway.app'
 /**
  * Send command to iframe via postMessage (cross-origin safe)
  */
+type SendCommandOptions = {
+  timeoutMs?: number
+  expectedJobId?: string | null
+}
+
+function createViewerRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `viewer-request-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 function sendCommand(
   iframe: HTMLIFrameElement | null,
   action: string,
   params?: Record<string, any>,
-  timeoutMs = 5000
+  optionsOrTimeout: number | SendCommandOptions = 5000,
 ): Promise<any> {
+  const options = typeof optionsOrTimeout === 'number'
+    ? { timeoutMs: optionsOrTimeout }
+    : optionsOrTimeout
+  const timeoutMs = options.timeoutMs ?? 5000
+  const requestId = createViewerRequestId()
+
   return new Promise((resolve, reject) => {
     if (!iframe) {
       reject(new Error('Iframe not ready'))
       return
     }
 
+    let settled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const settle = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      if (timeoutId) clearTimeout(timeoutId)
+      window.removeEventListener('message', handler)
+      callback()
+    }
+
     const handler = (event: MessageEvent) => {
       // Only accept messages from viewer origin
       if (event.origin !== VIEWER_ORIGIN) return
 
-      if (event.data.action === action) {
-        window.removeEventListener('message', handler)
-
+      if (isMatchingSlideComposeCommandResponse(event.data, {
+        action,
+        requestId,
+        expectedJobId: options.expectedJobId,
+      })) {
         if (event.data.success) {
-          resolve(event.data)
+          settle(() => {
+            resolve(event.data)
+          })
         } else {
-          reject(new Error(event.data.error || 'Command failed'))
+          settle(() => {
+            reject(new Error(event.data.error || 'Command failed'))
+          })
         }
       }
     }
@@ -210,12 +251,11 @@ function sendCommand(
     window.addEventListener('message', handler)
 
     // Timeout after the requested command budget.
-    setTimeout(() => {
-      window.removeEventListener('message', handler)
-      reject(new Error('Command timeout'))
+    timeoutId = setTimeout(() => {
+      settle(() => reject(new Error('Command timeout')))
     }, timeoutMs)
 
-    iframe.contentWindow?.postMessage({ action, params }, VIEWER_ORIGIN)
+    iframe.contentWindow?.postMessage({ action, params, requestId }, VIEWER_ORIGIN)
   })
 }
 
@@ -1500,13 +1540,14 @@ export function PresentationViewer({
         visual_index: visualIndex,
         ...(replaceJobId ? { replace_job_id: replaceJobId } : {}),
       },
-      8000,
+      { timeoutMs: 8000, expectedJobId: jobId },
     )
   }, [])
 
   const handleComposeSlideReconcile = useCallback((
     jobId: string,
     realSlideIndex: number,
+    realSlideId?: string | null,
     targetPresentationId?: string | null,
   ) => {
     return sendCommand(
@@ -1515,9 +1556,10 @@ export function PresentationViewer({
       {
         job_id: jobId,
         real_slide_index: realSlideIndex,
+        ...(realSlideId ? { real_slide_id: realSlideId } : {}),
         ...(targetPresentationId ? { presentation_id: targetPresentationId } : {}),
       },
-      8000,
+      { timeoutMs: 8000, expectedJobId: jobId },
     )
   }, [])
 
@@ -1526,7 +1568,7 @@ export function PresentationViewer({
       iframeRef.current,
       'composePlaceholderFail',
       { job_id: jobId },
-      8000,
+      { timeoutMs: 8000, expectedJobId: jobId },
     )
   }, [])
 

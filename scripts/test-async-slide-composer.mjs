@@ -25,6 +25,8 @@ const {
   withAsyncSlideComposeFields,
   normalizeSlideComposeSocketFrame,
   getComposeVisualIndexForTarget,
+  isMatchingSlideComposeCommandResponse,
+  shouldUseIncomingComposePresentationUrl,
 } = module.exports
 
 const request = withAsyncSlideComposeFields(
@@ -82,5 +84,53 @@ assert.equal(getComposeVisualIndexForTarget(3, {
   'failed-before': { target_visual_index: 2, status: 'error' },
   'building-at-target': { target_visual_index: 3, status: 'building' },
 }), 4)
+
+assert.equal(isMatchingSlideComposeCommandResponse({
+  action: 'composeSlideReconcile',
+  requestId: 'request-1',
+  job_id: 'job-1',
+  success: true,
+}, {
+  action: 'composeSlideReconcile',
+  requestId: 'request-1',
+  expectedJobId: 'job-1',
+}), true)
+
+assert.equal(isMatchingSlideComposeCommandResponse({
+  action: 'composeSlideReconcile',
+  requestId: 'request-2',
+  job_id: 'job-1',
+  success: true,
+}, {
+  action: 'composeSlideReconcile',
+  requestId: 'request-1',
+  expectedJobId: 'job-1',
+}), false)
+
+assert.equal(isMatchingSlideComposeCommandResponse({
+  action: 'composeSlideReconcile',
+  requestId: 'request-1',
+  job_id: 'job-2',
+  success: true,
+}, {
+  action: 'composeSlideReconcile',
+  requestId: 'request-1',
+  expectedJobId: 'job-1',
+}), false)
+
+assert.equal(
+  shouldUseIncomingComposePresentationUrl(
+    'https://layout.test/p/deck-1?sc_refresh=123',
+    'https://layout.test/p/deck-1?sc_refresh=456',
+  ),
+  false,
+)
+assert.equal(
+  shouldUseIncomingComposePresentationUrl(
+    'https://layout.test/p/deck-1',
+    'https://layout.test/p/deck-2',
+  ),
+  true,
+)
 
 console.log('async slide composer unit checks passed')
