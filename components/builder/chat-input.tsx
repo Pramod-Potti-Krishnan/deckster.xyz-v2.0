@@ -41,6 +41,8 @@ import { TemplatePicker } from './template-picker'
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
 
+type ActiveBuildThemeProfile = { id: string; name: string }
+
 export interface ChatInputProps {
   inputMessage: string
   onInputChange: (value: string) => void
@@ -78,6 +80,8 @@ export interface ChatInputProps {
   onClearTemplate?: () => void
   buildTheme: BuildThemeSelection
   onBuildThemeChange: (theme: BuildThemeSelection) => void
+  activeBuildThemeProfile?: ActiveBuildThemeProfile | null
+  onActiveBuildThemeProfileChange?: (profile: ActiveBuildThemeProfile | null) => void
 }
 
 export function ChatInput({
@@ -112,6 +116,8 @@ export function ChatInput({
   onClearTemplate,
   buildTheme,
   onBuildThemeChange,
+  activeBuildThemeProfile,
+  onActiveBuildThemeProfileChange,
 }: ChatInputProps) {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [themePresets, setThemePresets] = useState<ThemePresetSummary[]>(FALLBACK_THEME_PRESETS)
@@ -182,6 +188,10 @@ export function ChatInput({
     }
   }, [buildTheme.primary_hex])
 
+  useEffect(() => {
+    setSelectedSavedThemeId(activeBuildThemeProfile?.id ?? null)
+  }, [activeBuildThemeProfile?.id])
+
   const refreshSavedThemes = useCallback(async () => {
     const res = await listThemes()
     const nextThemes = res?.themes ?? []
@@ -200,6 +210,8 @@ export function ChatInput({
     : undefined
   const activeThemeLabel = activeSavedTheme
     ? activeSavedTheme.name
+    : activeBuildThemeProfile
+    ? activeBuildThemeProfile.name
     : buildTheme.mode === 'preset'
     ? activePreset?.name || buildTheme.preset_id || 'Preset'
     : buildTheme.mode === 'custom'
@@ -208,6 +220,7 @@ export function ChatInput({
 
   const handlePresetChange = (presetId: string) => {
     setSelectedSavedThemeId(null)
+    onActiveBuildThemeProfileChange?.(null)
     if (presetId === 'auto') {
       onBuildThemeChange({ mode: 'auto' })
       return
@@ -220,6 +233,7 @@ export function ChatInput({
 
   const handleBrandHexChange = (value: string) => {
     setSelectedSavedThemeId(null)
+    onActiveBuildThemeProfileChange?.(null)
     const normalized = value.startsWith('#') ? value : `#${value}`
     setBrandHexDraft(normalized)
     if (isValidThemeHex(normalized)) {
@@ -230,11 +244,13 @@ export function ChatInput({
   const handleSavedThemeChange = (themeId: string) => {
     if (!themeId) {
       setSelectedSavedThemeId(null)
+      onActiveBuildThemeProfileChange?.(null)
       return
     }
     const profile = savedThemes.find((theme) => theme.id === themeId)
     if (!profile?.theme_payload) return
     setSelectedSavedThemeId(profile.id)
+    onActiveBuildThemeProfileChange?.({ id: profile.id, name: profile.name })
     onBuildThemeChange(profile.theme_payload)
   }
 
@@ -250,6 +266,7 @@ export function ChatInput({
       setSaveThemeName('')
       setSaveAsStandard(false)
       onBuildThemeChange(saved.theme_payload)
+      onActiveBuildThemeProfileChange?.({ id: saved.id, name: saved.name })
       await refreshSavedThemes()
       setSelectedSavedThemeId(saved.id)
     }
@@ -271,6 +288,7 @@ export function ChatInput({
     const deleted = await deleteTheme(activeSavedTheme.id)
     if (deleted) {
       setSelectedSavedThemeId(null)
+      onActiveBuildThemeProfileChange?.(null)
       await refreshSavedThemes()
     }
   }
@@ -376,7 +394,10 @@ export function ChatInput({
           </div>
           <button
             type="button"
-            onClick={() => onBuildThemeChange({ mode: 'auto' })}
+            onClick={() => {
+              onActiveBuildThemeProfileChange?.(null)
+              onBuildThemeChange({ mode: 'auto' })
+            }}
             className="ml-2 shrink-0 text-sky-500 hover:text-sky-700 dark:hover:text-sky-200"
             title="Clear theme"
             aria-label="Clear theme"
