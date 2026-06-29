@@ -1292,7 +1292,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(effectiveStoreName && { file_count: fileCount || 0 }),
           deep_research: options?.deepResearch ?? false,
           web_search: options?.webSearch ?? false,
-          extended_generation: options?.extendedGeneration ?? false,
+          extended_generation: options?.extendedGeneration ?? true,
           file_upload: options?.fileUpload ?? !!effectiveStoreName,
           ...(options?.useKnowledgeGraph && { use_knowledge_graph: true }),
           ...(options?.theme && { theme: options.theme }),
