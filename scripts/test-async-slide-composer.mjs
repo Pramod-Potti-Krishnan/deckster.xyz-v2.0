@@ -21,7 +21,16 @@ vm.runInNewContext(transpiled.outputText, {
   exports: module.exports,
 })
 
-const { withAsyncSlideComposeFields, normalizeSlideComposeSocketFrame } = module.exports
+const {
+  withAsyncSlideComposeFields,
+  normalizeSlideComposeSocketFrame,
+  getComposeVisualIndexForTarget,
+  isMatchingSlideComposeCommandResponse,
+  resolveSlideComposeCountAfterReady,
+  shouldNavigateToResolvedComposeSlide,
+  shouldUseIncomingComposePresentationUrl,
+  SLIDE_COMPOSE_WATCHDOG_MS,
+} = module.exports
 
 const request = withAsyncSlideComposeFields(
   {
@@ -68,5 +77,96 @@ const payloadFailed = {
 }
 
 assert.equal(normalizeSlideComposeSocketFrame(payloadFailed), payloadFailed)
+
+assert.equal(getComposeVisualIndexForTarget(3, {
+  'job-before': { target_visual_index: 2, status: 'building' },
+  'job-after': { target_visual_index: 7, status: 'building' },
+}), 4)
+
+assert.equal(getComposeVisualIndexForTarget(3, {
+  'failed-before': { target_visual_index: 2, status: 'error' },
+  'building-at-target': { target_visual_index: 3, status: 'building' },
+}), 4)
+
+assert.equal(isMatchingSlideComposeCommandResponse({
+  action: 'composeSlideReconcile',
+  requestId: 'request-1',
+  job_id: 'job-1',
+  success: true,
+}, {
+  action: 'composeSlideReconcile',
+  requestId: 'request-1',
+  expectedJobId: 'job-1',
+}), true)
+
+assert.equal(isMatchingSlideComposeCommandResponse({
+  action: 'composeSlideReconcile',
+  requestId: 'request-2',
+  job_id: 'job-1',
+  success: true,
+}, {
+  action: 'composeSlideReconcile',
+  requestId: 'request-1',
+  expectedJobId: 'job-1',
+}), false)
+
+assert.equal(isMatchingSlideComposeCommandResponse({
+  action: 'composeSlideReconcile',
+  requestId: 'request-1',
+  job_id: 'job-2',
+  success: true,
+}, {
+  action: 'composeSlideReconcile',
+  requestId: 'request-1',
+  expectedJobId: 'job-1',
+}), false)
+
+assert.equal(
+  shouldUseIncomingComposePresentationUrl(
+    'https://layout.test/p/deck-1?sc_refresh=123',
+    'https://layout.test/p/deck-1?sc_refresh=456',
+  ),
+  false,
+)
+assert.equal(
+  shouldUseIncomingComposePresentationUrl(
+    'https://layout.test/p/deck-1',
+    'https://layout.test/p/deck-2',
+  ),
+  true,
+)
+
+assert.equal(SLIDE_COMPOSE_WATCHDOG_MS, 480_000)
+assert.ok(SLIDE_COMPOSE_WATCHDOG_MS > 420_000)
+
+const firstReadyCount = resolveSlideComposeCountAfterReady({
+  currentSlideCount: 5,
+  existingDeck: true,
+  resolvedVisualIndex: 2,
+  viewerSlideCount: 6,
+})
+assert.equal(firstReadyCount, 6)
+assert.equal(resolveSlideComposeCountAfterReady({
+  currentSlideCount: firstReadyCount,
+  existingDeck: true,
+  resolvedVisualIndex: 3,
+  viewerSlideCount: 7,
+}), 7)
+
+assert.equal(shouldNavigateToResolvedComposeSlide({
+  currentSlideIndex: 8,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 2,
+}), false)
+assert.equal(shouldNavigateToResolvedComposeSlide({
+  currentSlideIndex: 2,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 4,
+}), true)
+assert.equal(shouldNavigateToResolvedComposeSlide({
+  currentSlideIndex: 4,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 4,
+}), true)
 
 console.log('async slide composer unit checks passed')

@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { PresentationViewer, TextBoxFormatting } from "@/components/presentation-viewer"
+import { PresentationViewer, TextBoxFormatting, type SlideComposeViewerApi } from "@/components/presentation-viewer"
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
 import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-strip"
@@ -50,6 +50,7 @@ export interface PresentationAreaProps {
   isGeneratingStrawman: boolean
   // Layout Service API setter
   onApiReady: (apis: any) => void
+  onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
   // Text box selection
   onTextBoxSelected: (elementId: string, formatting: TextBoxFormatting | null) => void
   onTextBoxDeselected: () => void
@@ -105,6 +106,7 @@ export function PresentationArea({
   isGeneratingFinal,
   isGeneratingStrawman,
   onApiReady,
+  onComposeApiReady,
   onTextBoxSelected,
   onTextBoxDeselected,
   onElementSelected,
@@ -174,6 +176,7 @@ export function PresentationArea({
             }}
             onElementDeselected={onElementDeselected}
             onApiReady={onApiReady}
+            onComposeApiReady={onComposeApiReady}
             onOpenGenerationPanel={onOpenGenerationPanel}
             connected={connected}
             connecting={connecting}

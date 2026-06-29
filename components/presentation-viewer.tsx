@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { debugLog } from '@/lib/debug-log'
+import { isMatchingSlideComposeCommandResponse } from '@/lib/slide-compose-async'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -160,6 +161,18 @@ interface PresentationViewerProps {
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
   }) => void
+  onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
+}
+
+export interface SlideComposeViewerApi {
+  composePlaceholderAdd: (jobId: string, visualIndex: number, replaceJobId?: string) => Promise<any>
+  composeSlideReconcile: (
+    jobId: string,
+    realSlideIndex: number,
+    realSlideId?: string | null,
+    presentationId?: string | null,
+  ) => Promise<any>
+  composePlaceholderFail: (jobId: string) => Promise<any>
 }
 
 interface SlideInfo {
@@ -173,41 +186,76 @@ const VIEWER_ORIGIN = 'https://web-production-f0d13.up.railway.app'
 /**
  * Send command to iframe via postMessage (cross-origin safe)
  */
+type SendCommandOptions = {
+  timeoutMs?: number
+  expectedJobId?: string | null
+}
+
+function createViewerRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `viewer-request-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 function sendCommand(
   iframe: HTMLIFrameElement | null,
   action: string,
-  params?: Record<string, any>
+  params?: Record<string, any>,
+  optionsOrTimeout: number | SendCommandOptions = 5000,
 ): Promise<any> {
+  const options = typeof optionsOrTimeout === 'number'
+    ? { timeoutMs: optionsOrTimeout }
+    : optionsOrTimeout
+  const timeoutMs = options.timeoutMs ?? 5000
+  const requestId = createViewerRequestId()
+
   return new Promise((resolve, reject) => {
     if (!iframe) {
       reject(new Error('Iframe not ready'))
       return
     }
 
+    let settled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const settle = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      if (timeoutId) clearTimeout(timeoutId)
+      window.removeEventListener('message', handler)
+      callback()
+    }
+
     const handler = (event: MessageEvent) => {
       // Only accept messages from viewer origin
       if (event.origin !== VIEWER_ORIGIN) return
 
-      if (event.data.action === action) {
-        window.removeEventListener('message', handler)
-
+      if (isMatchingSlideComposeCommandResponse(event.data, {
+        action,
+        requestId,
+        expectedJobId: options.expectedJobId,
+      })) {
         if (event.data.success) {
-          resolve(event.data)
+          settle(() => {
+            resolve(event.data)
+          })
         } else {
-          reject(new Error(event.data.error || 'Command failed'))
+          settle(() => {
+            reject(new Error(event.data.error || 'Command failed'))
+          })
         }
       }
     }
 
     window.addEventListener('message', handler)
 
-    // Timeout after 5 seconds
-    setTimeout(() => {
-      window.removeEventListener('message', handler)
-      reject(new Error('Command timeout'))
-    }, 5000)
+    // Timeout after the requested command budget.
+    timeoutId = setTimeout(() => {
+      settle(() => reject(new Error('Command timeout')))
+    }, timeoutMs)
 
-    iframe.contentWindow?.postMessage({ action, params }, VIEWER_ORIGIN)
+    iframe.contentWindow?.postMessage({ action, params, requestId }, VIEWER_ORIGIN)
   })
 }
 
@@ -230,6 +278,7 @@ export function PresentationViewer({
   onElementSelected,
   onElementDeselected,
   onApiReady,
+  onComposeApiReady,
   onOpenGenerationPanel,
   onElementMoved,
   toolbarPortalTarget,
@@ -1482,6 +1531,47 @@ export function PresentationViewer({
     return sendCommand(iframeRef.current, action, params)
   }, [presentationId, currentSlide, triggerIframeRefresh])
 
+  const handleComposePlaceholderAdd = useCallback((jobId: string, visualIndex: number, replaceJobId?: string) => {
+    return sendCommand(
+      iframeRef.current,
+      'composePlaceholderAdd',
+      {
+        job_id: jobId,
+        visual_index: visualIndex,
+        ...(replaceJobId ? { replace_job_id: replaceJobId } : {}),
+      },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
+  const handleComposeSlideReconcile = useCallback((
+    jobId: string,
+    realSlideIndex: number,
+    realSlideId?: string | null,
+    targetPresentationId?: string | null,
+  ) => {
+    return sendCommand(
+      iframeRef.current,
+      'composeSlideReconcile',
+      {
+        job_id: jobId,
+        real_slide_index: realSlideIndex,
+        ...(realSlideId ? { real_slide_id: realSlideId } : {}),
+        ...(targetPresentationId ? { presentation_id: targetPresentationId } : {}),
+      },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
+  const handleComposePlaceholderFail = useCallback((jobId: string) => {
+    return sendCommand(
+      iframeRef.current,
+      'composePlaceholderFail',
+      { job_id: jobId },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {
     if (iframeReady && onApiReady) {
@@ -1493,6 +1583,29 @@ export function PresentationViewer({
       })
     }
   }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand])
+
+  useEffect(() => {
+    if (!onComposeApiReady) return
+
+    if (!iframeReady) {
+      onComposeApiReady(null)
+      return
+    }
+
+    onComposeApiReady({
+      composePlaceholderAdd: handleComposePlaceholderAdd,
+      composeSlideReconcile: handleComposeSlideReconcile,
+      composePlaceholderFail: handleComposePlaceholderFail,
+    })
+
+    return () => onComposeApiReady(null)
+  }, [
+    iframeReady,
+    onComposeApiReady,
+    handleComposePlaceholderAdd,
+    handleComposeSlideReconcile,
+    handleComposePlaceholderFail,
+  ])
 
   const handleFullscreen = useCallback(async () => {
     if (!containerRef.current) return
