@@ -95,6 +95,19 @@ export interface SlideComposeBuiltResult {
   slide_title?: string | null
 }
 
+export interface SlideComposeAcceptedResult {
+  status: 'accepted'
+  job_id: string
+  target_index: number
+  session_id: string
+  presentation_id?: string | null
+}
+
+export interface SlideComposeAcceptedJob extends SlideComposeAcceptedResult {
+  title: string
+  request: Record<string, unknown>
+}
+
 export interface SlideComposeNeedsInputQuestion {
   slot: string
   ask: string
@@ -457,6 +470,11 @@ export function buildInstruction(prompt: string, keyMessage: string, questions: 
 export function isBuiltResponse(value: unknown): value is SlideComposeBuiltResult {
   const result = value as Partial<SlideComposeBuiltResult>
   return result?.status === 'built' && typeof result.presentation_id === 'string' && typeof result.slide_index === 'number'
+}
+
+export function isAcceptedResponse(value: unknown): value is SlideComposeAcceptedResult {
+  const result = value as Partial<SlideComposeAcceptedResult>
+  return result?.status === 'accepted' && typeof result.job_id === 'string' && typeof result.target_index === 'number'
 }
 
 export function isNeedsInputResponse(value: unknown): value is SlideComposeNeedsInputResult {

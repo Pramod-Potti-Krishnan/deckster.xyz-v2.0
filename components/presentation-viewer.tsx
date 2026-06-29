@@ -51,7 +51,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useTheme } from 'next-themes'
 import Link from 'next/link'
-import { SlideThumbnailStrip, SlideThumbnail } from './slide-thumbnail-strip'
+import { SlideThumbnailStrip, SlideThumbnail, type SlideComposeThumbnailJob } from './slide-thumbnail-strip'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
@@ -145,6 +145,7 @@ interface PresentationViewerProps {
   templateModeOn?: boolean
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
+  composeJobs?: SlideComposeThumbnailJob[]
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -236,6 +237,7 @@ export function PresentationViewer({
   templateModeOn = false,
   onTemplateModeChange,
   templateModeAvailable = false,
+  composeJobs = [],
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -2305,7 +2307,7 @@ export function PresentationViewer({
             "transition-[width] duration-300 ease-out",
             showThumbnails ? "w-36" : "w-0"
           )}>
-            {showThumbnails && slideThumbnails.length > 0 && (
+            {showThumbnails && (slideThumbnails.length > 0 || composeJobs.length > 0) && (
               <SlideThumbnailStrip
                 slides={slideThumbnails}
                 currentSlide={currentSlide}
@@ -2324,6 +2326,7 @@ export function PresentationViewer({
                 onReorderSlides={handleReorderSlides}
                 enableDragDrop={true}
                 totalSlides={totalSlides}
+                composeJobs={composeJobs}
               />
             )}
           </div>

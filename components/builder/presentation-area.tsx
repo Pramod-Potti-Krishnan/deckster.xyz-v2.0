@@ -5,6 +5,7 @@ import { PresentationViewer, TextBoxFormatting } from "@/components/presentation
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
 import { TemplateModeInspector } from "@/components/builder/template-mode-inspector"
+import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-strip"
 // Branding ("powered by deckster") lives inside PresentationViewer's
 // slide column so it tracks the slide's right edge, not the container.
 import { ElementType, ElementProperties } from '@/types/elements'
@@ -82,6 +83,7 @@ export interface PresentationAreaProps {
   templateModeAvailable?: boolean
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
+  composeJobs?: SlideComposeThumbnailJob[]
 }
 
 export function PresentationArea({
@@ -120,6 +122,7 @@ export function PresentationArea({
   templateModeAvailable = false,
   templateSnapshot = null,
   templateSnapshotLoading = false,
+  composeJobs = [],
 }: PresentationAreaProps) {
   return (
     <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
@@ -186,6 +189,7 @@ export function PresentationArea({
             templateModeOn={templateModeOn}
             onTemplateModeChange={onTemplateModeChange}
             templateModeAvailable={templateModeAvailable}
+            composeJobs={composeJobs}
             toolbarOffset={toolbarOffset}
             isGenerating={isGeneratingFinal || isGeneratingStrawman}
             generatingMode={isGeneratingFinal ? 'default' : 'strawman'}

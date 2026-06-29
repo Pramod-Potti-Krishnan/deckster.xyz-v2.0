@@ -19,6 +19,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { features } from '@/lib/config'
+import { withAsyncSlideComposeFields } from '@/lib/slide-compose-async'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -41,6 +43,7 @@ import {
   canUseImagePlacement,
   defaultShapeForContent,
   getShapeBucket,
+  isAcceptedResponse,
   imageOptionsFor,
   isBuiltResponse,
   isNeedsInputResponse,
@@ -57,11 +60,12 @@ import {
   type NarrativeRole,
   type OptionalChoice,
   type ShapeSubtype,
+  type SlideComposeAcceptedJob,
   type SlideComposeBuiltResult,
   type SlideComposeNeedsInputResult,
 } from './compose-helpers'
 
-export type { SlideComposeBuiltResult, SlideComposeNeedsInputResult } from './compose-helpers'
+export type { SlideComposeAcceptedJob, SlideComposeBuiltResult, SlideComposeNeedsInputResult } from './compose-helpers'
 
 interface SlideComposerResearchState {
   useUploadedDocuments: boolean
@@ -80,6 +84,7 @@ interface SlideGenerationPanelProps {
   research: SlideComposerResearchState
   enabled: boolean
   onBuilt: (result: SlideComposeBuiltResult) => void
+  onAccepted?: (job: SlideComposeAcceptedJob) => void
 }
 
 type OpenSections = Record<'slideSetup' | 'grounding', boolean>
@@ -189,6 +194,7 @@ export function SlideGenerationPanel({
   research,
   enabled,
   onBuilt,
+  onAccepted,
 }: SlideGenerationPanelProps) {
   const [prompt, setPrompt] = useState('')
   const [selectedLayout, setSelectedLayout] = useState<LayoutChoice>(AUTO_VALUE)
@@ -338,6 +344,21 @@ export function SlideGenerationPanel({
   const handleGenerate = useCallback(async () => {
     const instruction = buildInstruction(prompt, keyMessage, questions, answers)
     const hasSelections = Object.keys(selections).length > 0
+    const insertAfterIndex = presentationId ? Math.max(0, currentSlide - 1) : null
+    const requestBody: Record<string, unknown> = {
+      session_id: sessionId,
+      presentation_id: presentationId,
+      insert_after_index: insertAfterIndex,
+      instruction,
+      selections: hasSelections ? selections : undefined,
+      research: {
+        use_uploaded_documents: !isDiagram && hasUploadedFiles && useUploadedDocuments,
+        use_web_search: !isDiagram && useWebSearch,
+        use_deep_research: !isDiagram && useDeepResearch,
+        use_knowledge_graph: !isDiagram && KG_CARD_ENABLED && useKnowledgeGraph,
+        web_search_max_queries: webSearchMaxQueries,
+      },
+    }
 
     setError(null)
     setSuccessMessage(null)
@@ -357,24 +378,51 @@ export function SlideGenerationPanel({
       return
     }
 
+    if (features.slideComposerAsyncEnabled) {
+      const jobId = crypto.randomUUID()
+      const asyncRequest = withAsyncSlideComposeFields(requestBody, jobId)
+
+      try {
+        const response = await fetch('/api/slides/compose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(asyncRequest),
+        })
+
+        const data: unknown = await response.json().catch(() => null)
+
+        if (!response.ok) {
+          throw new Error(responseErrorMessage(data))
+        }
+
+        if (!isAcceptedResponse(data)) {
+          throw new Error(responseErrorMessage(data))
+        }
+
+        setNeedsInput(null)
+        setAnswers({})
+        setPrompt('')
+        setKeyMessage('')
+        setSuccessMessage(`Building slide ${data.target_index + 1} in the background.`)
+        onAccepted?.({
+          ...data,
+          title: instruction.slice(0, 72) || 'Composing slide',
+          request: asyncRequest,
+        })
+        return
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Slide Composer failed')
+        return
+      }
+    }
+
     setIsGenerating(true)
     try {
       const response = await fetch('/api/slides/compose', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          session_id: sessionId,
-          presentation_id: presentationId,
-          insert_after_index: presentationId ? Math.max(0, currentSlide - 1) : null,
-          instruction,
-          selections: hasSelections ? selections : undefined,
-          research: {
-            use_uploaded_documents: !isDiagram && hasUploadedFiles && useUploadedDocuments,
-            use_web_search: !isDiagram && useWebSearch,
-            use_deep_research: !isDiagram && useDeepResearch,
-            use_knowledge_graph: !isDiagram && KG_CARD_ENABLED && useKnowledgeGraph,
-            web_search_max_queries: webSearchMaxQueries,
-          },
+          ...requestBody,
           assume_on_missing: false,
         }),
       })
@@ -411,15 +459,16 @@ export function SlideGenerationPanel({
     answers,
     currentSlide,
     enabled,
+    hasUploadedFiles,
     isDiagram,
     keyMessage,
+    onAccepted,
     onBuilt,
     presentationId,
     prompt,
     questions,
     selections,
     sessionId,
-    hasUploadedFiles,
     useDeepResearch,
     useKnowledgeGraph,
     useUploadedDocuments,
