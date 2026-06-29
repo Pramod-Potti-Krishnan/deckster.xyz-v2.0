@@ -69,6 +69,10 @@ function pct(value: number, total: number): string {
   return `${(Math.max(0, value) / total) * 100}%`
 }
 
+function gridLinePct(line: number, total: number): string {
+  return pct(line - 1, total)
+}
+
 export function TemplateModeOverlay({
   snapshot,
   currentSlideIndex,
@@ -164,8 +168,8 @@ export function TemplateModeOverlay({
               selected && "ring-2 ring-violet-500 ring-offset-2"
             )}
             style={{
-              left: pct(rect.x, GRID_COLUMNS),
-              top: pct(rect.y, GRID_ROWS),
+              left: gridLinePct(rect.x, GRID_COLUMNS),
+              top: gridLinePct(rect.y, GRID_ROWS),
               width: pct(rect.w, GRID_COLUMNS),
               height: pct(rect.h, GRID_ROWS),
             }}
