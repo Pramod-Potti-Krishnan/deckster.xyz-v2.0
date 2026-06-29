@@ -21,7 +21,11 @@ vm.runInNewContext(transpiled.outputText, {
   exports: module.exports,
 })
 
-const { withAsyncSlideComposeFields, normalizeSlideComposeSocketFrame } = module.exports
+const {
+  withAsyncSlideComposeFields,
+  normalizeSlideComposeSocketFrame,
+  getComposeVisualIndexForTarget,
+} = module.exports
 
 const request = withAsyncSlideComposeFields(
   {
@@ -68,5 +72,15 @@ const payloadFailed = {
 }
 
 assert.equal(normalizeSlideComposeSocketFrame(payloadFailed), payloadFailed)
+
+assert.equal(getComposeVisualIndexForTarget(3, {
+  'job-before': { target_visual_index: 2, status: 'building' },
+  'job-after': { target_visual_index: 7, status: 'building' },
+}), 4)
+
+assert.equal(getComposeVisualIndexForTarget(3, {
+  'failed-before': { target_visual_index: 2, status: 'error' },
+  'building-at-target': { target_visual_index: 3, status: 'building' },
+}), 4)
 
 console.log('async slide composer unit checks passed')

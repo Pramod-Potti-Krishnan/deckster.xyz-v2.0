@@ -31,3 +31,26 @@ export function normalizeSlideComposeSocketFrame<T extends { type?: string; payl
   }
   return raw
 }
+
+export interface SlideComposeVisualJob {
+  target_visual_index: number
+  status: string
+}
+
+export function getComposeVisualIndexForTarget(
+  layoutTargetIndex: number,
+  jobs: Record<string, SlideComposeVisualJob>,
+): number {
+  let visualIndex = Math.max(0, layoutTargetIndex)
+  const buildingJobs = Object.values(jobs)
+    .filter(job => job.status === 'building')
+    .sort((a, b) => a.target_visual_index - b.target_visual_index)
+
+  for (const job of buildingJobs) {
+    if (job.target_visual_index <= visualIndex) {
+      visualIndex += 1
+    }
+  }
+
+  return visualIndex
+}

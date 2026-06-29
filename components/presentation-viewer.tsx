@@ -160,6 +160,13 @@ interface PresentationViewerProps {
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
   }) => void
+  onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
+}
+
+export interface SlideComposeViewerApi {
+  composePlaceholderAdd: (jobId: string, visualIndex: number, replaceJobId?: string) => Promise<any>
+  composeSlideReconcile: (jobId: string, realSlideIndex: number, presentationId?: string | null) => Promise<any>
+  composePlaceholderFail: (jobId: string) => Promise<any>
 }
 
 interface SlideInfo {
@@ -176,7 +183,8 @@ const VIEWER_ORIGIN = 'https://web-production-f0d13.up.railway.app'
 function sendCommand(
   iframe: HTMLIFrameElement | null,
   action: string,
-  params?: Record<string, any>
+  params?: Record<string, any>,
+  timeoutMs = 5000
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     if (!iframe) {
@@ -201,11 +209,11 @@ function sendCommand(
 
     window.addEventListener('message', handler)
 
-    // Timeout after 5 seconds
+    // Timeout after the requested command budget.
     setTimeout(() => {
       window.removeEventListener('message', handler)
       reject(new Error('Command timeout'))
-    }, 5000)
+    }, timeoutMs)
 
     iframe.contentWindow?.postMessage({ action, params }, VIEWER_ORIGIN)
   })
@@ -230,6 +238,7 @@ export function PresentationViewer({
   onElementSelected,
   onElementDeselected,
   onApiReady,
+  onComposeApiReady,
   onOpenGenerationPanel,
   onElementMoved,
   toolbarPortalTarget,
@@ -1482,6 +1491,45 @@ export function PresentationViewer({
     return sendCommand(iframeRef.current, action, params)
   }, [presentationId, currentSlide, triggerIframeRefresh])
 
+  const handleComposePlaceholderAdd = useCallback((jobId: string, visualIndex: number, replaceJobId?: string) => {
+    return sendCommand(
+      iframeRef.current,
+      'composePlaceholderAdd',
+      {
+        job_id: jobId,
+        visual_index: visualIndex,
+        ...(replaceJobId ? { replace_job_id: replaceJobId } : {}),
+      },
+      8000,
+    )
+  }, [])
+
+  const handleComposeSlideReconcile = useCallback((
+    jobId: string,
+    realSlideIndex: number,
+    targetPresentationId?: string | null,
+  ) => {
+    return sendCommand(
+      iframeRef.current,
+      'composeSlideReconcile',
+      {
+        job_id: jobId,
+        real_slide_index: realSlideIndex,
+        ...(targetPresentationId ? { presentation_id: targetPresentationId } : {}),
+      },
+      8000,
+    )
+  }, [])
+
+  const handleComposePlaceholderFail = useCallback((jobId: string) => {
+    return sendCommand(
+      iframeRef.current,
+      'composePlaceholderFail',
+      { job_id: jobId },
+      8000,
+    )
+  }, [])
+
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {
     if (iframeReady && onApiReady) {
@@ -1493,6 +1541,29 @@ export function PresentationViewer({
       })
     }
   }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand])
+
+  useEffect(() => {
+    if (!onComposeApiReady) return
+
+    if (!iframeReady) {
+      onComposeApiReady(null)
+      return
+    }
+
+    onComposeApiReady({
+      composePlaceholderAdd: handleComposePlaceholderAdd,
+      composeSlideReconcile: handleComposeSlideReconcile,
+      composePlaceholderFail: handleComposePlaceholderFail,
+    })
+
+    return () => onComposeApiReady(null)
+  }, [
+    iframeReady,
+    onComposeApiReady,
+    handleComposePlaceholderAdd,
+    handleComposeSlideReconcile,
+    handleComposePlaceholderFail,
+  ])
 
   const handleFullscreen = useCallback(async () => {
     if (!containerRef.current) return

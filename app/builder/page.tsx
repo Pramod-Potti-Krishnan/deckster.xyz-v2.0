@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult } from '@/components/slide-generation-panel'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
-import { TextBoxFormatting } from '@/components/presentation-viewer'
+import { TextBoxFormatting, type SlideComposeViewerApi } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties, SlideLayoutType } from '@/types/elements'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -34,6 +34,7 @@ import { TemplateParamsPanel } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { TopUpModal } from '@/components/builder/topup-modal'
 import type { SlideComposeThumbnailJob } from '@/components/slide-thumbnail-strip'
+import { getComposeVisualIndexForTarget } from '@/lib/slide-compose-async'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
@@ -388,6 +389,7 @@ function BuilderContent() {
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
   } | null>(null)
+  const composeViewerApiRef = useRef<SlideComposeViewerApi | null>(null)
 
 
   // Toast notifications
@@ -409,12 +411,18 @@ function BuilderContent() {
     presentationId: string | null
     slideCount: number | null
     activeVersion: 'blank' | 'strawman' | 'final'
+    refreshToken: number
   }>({
     presentationUrl: null,
     presentationId: null,
     slideCount: null,
     activeVersion: 'final',
+    refreshToken: 0,
   })
+  const slideComposeJobsRef = useRef<Record<string, SlideComposeJobState>>({})
+  useEffect(() => {
+    slideComposeJobsRef.current = slideComposeJobs
+  }, [slideComposeJobs])
 
   // Portal target for toolbar in header
   const [toolbarPortalTarget, setToolbarPortalTarget] = useState<HTMLDivElement | null>(null)
@@ -841,20 +849,8 @@ function BuilderContent() {
         nextSlideIndex + 1,
       )
 
-      setSlideComposeJobs(prev => {
-        const { [payload.job_id]: _completed, ...rest } = prev
-        return rest
-      })
-
-      setSlideComposerOverride({
-        presentationUrl: targetPresentationUrl ?? null,
-        presentationId: targetPresentationId ?? null,
-        slideCount: nextSlideCount,
-        refreshToken: Date.now(),
-      })
-      setCurrentSlideIndex(nextSlideIndex)
-
-      if (currentSessionIdRef.current && persistenceRef.current) {
+      const persistCompletion = () => {
+        if (!currentSessionIdRef.current || !persistenceRef.current) return
         const updates: any = {
           slideCount: nextSlideCount,
           lastMessageAt: new Date(),
@@ -869,14 +865,47 @@ function BuilderContent() {
         persistenceRef.current.updateMetadata(updates)
       }
 
-      toast({
-        title: 'Slide built',
-        description: `Inserted slide ${nextSlideIndex + 1}.`,
-      })
+      const finishReady = (refreshToken: number) => {
+        setSlideComposeJobs(prev => {
+          const { [payload.job_id]: _completed, ...rest } = prev
+          return rest
+        })
+        setSlideComposerOverride({
+          presentationUrl: targetPresentationUrl ?? null,
+          presentationId: targetPresentationId ?? null,
+          slideCount: nextSlideCount,
+          refreshToken,
+        })
+        setCurrentSlideIndex(nextSlideIndex)
+        persistCompletion()
+        toast({
+          title: 'Slide built',
+          description: `Inserted slide ${nextSlideIndex + 1}.`,
+        })
+      }
+
+      void (async () => {
+        const composeApi = composeViewerApiRef.current
+        if (!composeApi) {
+          finishReady(Date.now())
+          return
+        }
+
+        try {
+          await composeApi.composeSlideReconcile(payload.job_id, nextSlideIndex, targetPresentationId)
+          finishReady(snapshot.refreshToken)
+        } catch (error) {
+          console.warn('[Slide Composer] Live slide swap failed; falling back to iframe refresh.', error)
+          finishReady(Date.now())
+        }
+      })()
     },
     onSlideComposeFailed: (message: SlideComposeFailed) => {
       const payload = message.payload
       const errors = payload.errors?.filter(Boolean) ?? []
+      void composeViewerApiRef.current?.composePlaceholderFail(payload.job_id).catch(error => {
+        console.warn('[Slide Composer] Failed to mark in-deck placeholder as error.', error)
+      })
       setSlideComposeJobs(prev => {
         const existing = prev[payload.job_id]
         if (!existing) return prev
@@ -919,12 +948,14 @@ function BuilderContent() {
       presentationId: effectivePresentationId,
       slideCount: effectiveSlideCount,
       activeVersion,
+      refreshToken: slideComposerOverride?.refreshToken ?? 0,
     }
   }, [
     activeVersion,
     effectivePresentationId,
     effectiveSlideCount,
     presentationUrl,
+    slideComposerOverride?.refreshToken,
     slideComposerOverride?.presentationUrl,
   ])
 
@@ -999,20 +1030,28 @@ function BuilderContent() {
     toast,
   ])
 
+  const handleComposeApiReady = useCallback((apis: SlideComposeViewerApi | null) => {
+    composeViewerApiRef.current = apis
+  }, [])
+
   const handleSlideComposerAccepted = useCallback((job: SlideComposeAcceptedJob) => {
+    const targetVisualIndex = getComposeVisualIndexForTarget(job.target_index, slideComposeJobsRef.current)
     setSlideComposeJobs(prev => ({
       ...prev,
       [job.job_id]: {
         job_id: job.job_id,
-        target_visual_index: Math.max(0, job.target_index),
+        target_visual_index: targetVisualIndex,
         status: 'building',
         title: job.title,
         request: job.request,
       },
     }))
+    void composeViewerApiRef.current?.composePlaceholderAdd(job.job_id, targetVisualIndex).catch(error => {
+      console.warn('[Slide Composer] Failed to add in-deck placeholder.', error)
+    })
     toast({
       title: 'Slide queued',
-      description: `Building slide ${Math.max(0, job.target_index) + 1} in the background.`,
+      description: `Building slide ${targetVisualIndex + 1} in the background.`,
     })
   }, [toast])
 
@@ -1074,6 +1113,11 @@ function BuilderContent() {
           },
         }
       })
+      void composeViewerApiRef.current
+        ?.composePlaceholderAdd(nextJobId, existing.target_visual_index, jobId)
+        .catch(error => {
+          console.warn('[Slide Composer] Failed to reset in-deck placeholder for retry.', error)
+        })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Slide Composer retry failed.'
       setSlideComposeJobs(prev => {
@@ -2048,6 +2092,7 @@ function BuilderContent() {
             isGeneratingFinal={isGeneratingFinal}
             isGeneratingStrawman={isGeneratingStrawman}
             onApiReady={setLayoutServiceApis}
+            onComposeApiReady={handleComposeApiReady}
             onTextBoxSelected={(elementId, formatting) => {
               if (features.useTextLabsGeneration) {
                 generationPanel.openPanelForEdit('TEXT_BOX', elementId)
