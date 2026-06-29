@@ -4,7 +4,6 @@ import React from "react"
 import { PresentationViewer, TextBoxFormatting } from "@/components/presentation-viewer"
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
-import { TemplateModeInspector } from "@/components/builder/template-mode-inspector"
 import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-strip"
 // Branding ("powered by deckster") lives inside PresentationViewer's
 // slide column so it tracks the slide's right edge, not the container.
@@ -84,6 +83,8 @@ export interface PresentationAreaProps {
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
   composeJobs?: SlideComposeThumbnailJob[]
+  selectedTemplateElementId?: string | null
+  onTemplateElementSelect?: (overrideKey: string | null) => void
 }
 
 export function PresentationArea({
@@ -123,6 +124,8 @@ export function PresentationArea({
   templateSnapshot = null,
   templateSnapshotLoading = false,
   composeJobs = [],
+  selectedTemplateElementId = null,
+  onTemplateElementSelect,
 }: PresentationAreaProps) {
   return (
     <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
@@ -190,6 +193,11 @@ export function PresentationArea({
             onTemplateModeChange={onTemplateModeChange}
             templateModeAvailable={templateModeAvailable}
             composeJobs={composeJobs}
+            templateSnapshot={templateSnapshot}
+            templateSnapshotLoading={templateSnapshotLoading}
+            templateCurrentSlideIndex={currentSlideIndex}
+            selectedTemplateElementId={selectedTemplateElementId}
+            onTemplateElementSelect={onTemplateElementSelect}
             toolbarOffset={toolbarOffset}
             isGenerating={isGeneratingFinal || isGeneratingStrawman}
             generatingMode={isGeneratingFinal ? 'default' : 'strawman'}
@@ -215,13 +223,6 @@ export function PresentationArea({
         )}
       </div>
 
-      {templateBuilderEnabled && templateModeOn && (
-        <TemplateModeInspector
-          snapshot={templateSnapshot}
-          currentSlideIndex={currentSlideIndex}
-          loading={templateSnapshotLoading}
-        />
-      )}
     </div>
   )
 }

@@ -4,6 +4,13 @@ export type TemplateModeOverride = Record<string, unknown>
 export type TemplateSlideOverrides = Record<string, unknown>
 export type TemplateOverrides = Record<string, TemplateSlideOverrides>
 
+export interface TemplateGridRect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 export interface TemplateModeElement {
   overrideKey: string
   label: string
@@ -11,6 +18,7 @@ export interface TemplateModeElement {
   role: string
   contentIntent: string | null
   geometry: string | null
+  gridRect: TemplateGridRect | null
   styleHints: Record<string, unknown> | null
   renderedImageUrl: string | null
   element: Record<string, unknown> | null
@@ -108,10 +116,18 @@ function getRole(renderSpec: Record<string, unknown>, element: Record<string, un
 }
 
 function getGeometry(element: Record<string, unknown> | null): string | null {
+  const rect = getGridRect(element)
+  if (!rect) return null
+  return `x ${rect.x} / y ${rect.y} / w ${rect.w} / h ${rect.h}`
+}
+
+export function getGridRect(element: Record<string, unknown> | null): TemplateGridRect | null {
   if (!element) return null
   const values = ['x', 'y', 'w', 'h'].map((key) => element[key])
   if (values.some((value) => typeof value !== 'number')) return null
-  return `x ${values[0]} / y ${values[1]} / w ${values[2]} / h ${values[3]}`
+  const [x, y, w, h] = values as number[]
+  if (w <= 0 || h <= 0) return null
+  return { x, y, w, h }
 }
 
 export function getTemplateModeElements(
@@ -138,6 +154,7 @@ export function getTemplateModeElements(
       role,
       contentIntent,
       geometry: getGeometry(element),
+      gridRect: getGridRect(element),
       styleHints: asRecord(element?.style_hints),
       renderedImageUrl: getRenderedImageUrl(renderSpec),
       element,
