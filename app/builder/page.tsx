@@ -1287,14 +1287,16 @@ function BuilderContent() {
   }, [clearSlideComposeWatchdog, slideComposeJobs, toast, triggerCoalescedSlideComposeReload])
 
   const slideComposeThumbnailJobs = useMemo<SlideComposeThumbnailJob[]>(
-    () => Object.values(slideComposeJobs).map(job => ({
-      jobId: job.job_id,
-      targetIndex: job.target_visual_index,
-      status: job.status,
-      title: job.title,
-      errors: job.errors,
-      onRetry: handleRetrySlideCompose,
-    })),
+    () => Object.values(slideComposeJobs)
+      .filter(job => job.status === 'error')
+      .map(job => ({
+        jobId: job.job_id,
+        targetIndex: job.target_visual_index,
+        status: job.status,
+        title: job.title,
+        errors: job.errors,
+        onRetry: handleRetrySlideCompose,
+      })),
     [handleRetrySlideCompose, slideComposeJobs],
   )
 
