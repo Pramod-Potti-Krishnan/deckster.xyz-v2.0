@@ -82,8 +82,10 @@ export interface PresentationAreaProps {
   templateModeAvailable?: boolean
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
+  templateCurrentSlideIndex?: number
   composeJobs?: SlideComposeThumbnailJob[]
   selectedTemplateElementId?: string | null
+  onTemplateSlideChange?: (slideIndex: number) => void
   onTemplateElementSelect?: (overrideKey: string | null) => void
 }
 
@@ -123,8 +125,10 @@ export function PresentationArea({
   templateModeAvailable = false,
   templateSnapshot = null,
   templateSnapshotLoading = false,
+  templateCurrentSlideIndex,
   composeJobs = [],
   selectedTemplateElementId = null,
+  onTemplateSlideChange,
   onTemplateElementSelect,
 }: PresentationAreaProps) {
   return (
@@ -150,6 +154,9 @@ export function PresentationArea({
               />
             }
             onSlideChange={(slideNum) => {
+              if (templateModeOn) {
+                onTemplateSlideChange?.(Math.max(0, slideNum - 1))
+              }
               onSlideChange(slideNum)
             }}
             onEditModeChange={(isEditing) => {
@@ -195,7 +202,7 @@ export function PresentationArea({
             composeJobs={composeJobs}
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
-            templateCurrentSlideIndex={currentSlideIndex}
+            templateCurrentSlideIndex={templateCurrentSlideIndex}
             selectedTemplateElementId={selectedTemplateElementId}
             onTemplateElementSelect={onTemplateElementSelect}
             toolbarOffset={toolbarOffset}

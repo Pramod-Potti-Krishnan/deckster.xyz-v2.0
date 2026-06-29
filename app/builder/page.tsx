@@ -387,6 +387,8 @@ function BuilderContent() {
 
   // Current slide tracking
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
+  const [templateSourceSlideIndex, setTemplateSourceSlideIndex] = useState(0)
+  const activeTemplateSlideIndex = templateModeOn ? templateSourceSlideIndex : currentSlideIndex
   const [slideComposerOverride, setSlideComposerOverride] = useState<{
     presentationUrl: string | null
     presentationId: string | null
@@ -579,11 +581,12 @@ function BuilderContent() {
     setTemplateSnapshotLoading(false)
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
+    setTemplateSourceSlideIndex(0)
   }, [currentSessionId])
 
   useEffect(() => {
     setSelectedTemplateElementId(null)
-  }, [currentSlideIndex, templateModeOn])
+  }, [activeTemplateSlideIndex, templateModeOn])
 
   useEffect(() => {
     if (!currentSessionId || currentSessionId === "new") {
@@ -657,6 +660,7 @@ function BuilderContent() {
     setActiveTemplate(template)
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
+    setTemplateSourceSlideIndex(currentSlideIndex)
     if (!templateBuilderEnabled) return
 
     setTemplateModeOn(true)
@@ -664,7 +668,7 @@ function BuilderContent() {
     if (!snapshot) {
       setTemplateModeOn(false)
     }
-  }, [loadTemplateSnapshot, templateBuilderEnabled])
+  }, [currentSlideIndex, loadTemplateSnapshot, templateBuilderEnabled])
 
   const handleClearTemplate = useCallback(() => {
     setActiveTemplate(null)
@@ -673,6 +677,7 @@ function BuilderContent() {
     setTemplateSnapshotLoading(false)
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
+    setTemplateSourceSlideIndex(0)
   }, [])
 
   const handleTemplateOverrideChange = useCallback((
@@ -722,11 +727,12 @@ function BuilderContent() {
     }
 
     setTemplateModeOn(true)
+    setTemplateSourceSlideIndex(currentSlideIndex)
     if (!templateSnapshot || templateSnapshot.id !== activeTemplate.id) {
       const snapshot = await loadTemplateSnapshot(activeTemplate)
       if (!snapshot) setTemplateModeOn(false)
     }
-  }, [activeTemplate, loadTemplateSnapshot, templateSnapshot, toast])
+  }, [activeTemplate, currentSlideIndex, loadTemplateSnapshot, templateSnapshot, toast])
 
   // WebSocket v2 integration
   const {
@@ -1169,6 +1175,14 @@ function BuilderContent() {
     }
     lastFinalPresentationUrlRef.current = finalPresentationUrl
   }, [finalPresentationUrl, isGeneratingFinal])
+
+  useEffect(() => {
+    if (!templateModeOn) return
+    if (!isGeneratingFinal && !isGeneratingStrawman) return
+
+    setTemplateModeOn(false)
+    setSelectedTemplateElementId(null)
+  }, [isGeneratingFinal, isGeneratingStrawman, templateModeOn])
 
   // Infer current stage from available data
   const currentStage = useMemo(() => {
@@ -1616,7 +1630,7 @@ function BuilderContent() {
               isOpen={isTemplateParamsDrawerOpen}
               width={drawerWidth}
               snapshot={templateSnapshot}
-              currentSlideIndex={currentSlideIndex}
+              currentSlideIndex={activeTemplateSlideIndex}
               overrides={templateOverrides}
               loading={templateSnapshotLoading}
               selectedElementId={selectedTemplateElementId}
@@ -2091,7 +2105,9 @@ function BuilderContent() {
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
             composeJobs={slideComposeThumbnailJobs}
+            templateCurrentSlideIndex={templateSourceSlideIndex}
             selectedTemplateElementId={selectedTemplateElementId}
+            onTemplateSlideChange={setTemplateSourceSlideIndex}
             onTemplateElementSelect={handleTemplateElementSelect}
           />
           )}

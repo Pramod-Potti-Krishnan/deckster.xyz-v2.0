@@ -41,13 +41,17 @@ function stringValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
+function hasSlideIndex(value: Record<string, unknown> | TemplateSlot): boolean {
+  return value.slide_index != null
+}
+
 export function getFrozenPlanEntry(
   snapshot: TemplateSnapshot | null | undefined,
   slideIndex: number,
 ): Record<string, unknown> | null {
   const entries = asRecordArray(snapshot?.frozen_plan)
   return entries.find((entry) => Number(entry.slide_index) === slideIndex)
-    ?? entries[slideIndex]
+    ?? (entries.some(hasSlideIndex) ? null : entries[slideIndex])
     ?? null
 }
 
@@ -61,7 +65,7 @@ export function getTemplateSlot(
 ): TemplateSlot | null {
   const slots = Array.isArray(snapshot?.slots) ? snapshot.slots : []
   return slots.find((slot) => Number(slot.slide_index) === slideIndex)
-    ?? slots[slideIndex]
+    ?? (slots.some(hasSlideIndex) ? null : slots[slideIndex])
     ?? null
 }
 

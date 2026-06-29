@@ -2202,8 +2202,10 @@ export function PresentationViewer({
               <div
                 className={cn(
                   isFullscreen ? '' : 'max-w-7xl',
-                  "relative overflow-hidden",
-                  templateModeOn && "rounded-md border-2 border-dashed border-violet-400 bg-violet-950/5 p-1 shadow-[0_0_0_9999px_rgba(15,23,42,0.08)]"
+                  "relative",
+                  templateModeOn
+                    ? "overflow-visible rounded-md bg-violet-950/5 shadow-[0_0_0_9999px_rgba(15,23,42,0.08)]"
+                    : "overflow-hidden"
                 )}
                 onClick={() => {
                   if (templateModeOn) onTemplateElementSelect?.(null)
@@ -2223,6 +2225,10 @@ export function PresentationViewer({
                   height: 'auto',
                 }}
               >
+                {templateModeOn && (
+                  <div className="pointer-events-none absolute -inset-1 z-0 rounded-md border-2 border-dashed border-violet-400" />
+                )}
+                <div className="relative z-10 h-full w-full overflow-hidden rounded-sm">
                   <iframe
                   ref={iframeRef}
                   src={(() => {
@@ -2257,6 +2263,7 @@ export function PresentationViewer({
                     onSelectElement={onTemplateElementSelect}
                   />
                 )}
+                </div>
               </div>
             ) : (
               <div className="flex items-center justify-center text-gray-400">

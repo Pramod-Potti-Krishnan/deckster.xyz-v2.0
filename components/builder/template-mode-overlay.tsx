@@ -90,7 +90,7 @@ export function TemplateModeOverlay({
   const showLockedChip = !loading && snapshot && elements.length === 0
 
   return (
-    <div className="pointer-events-none absolute inset-1 z-20 overflow-hidden rounded-sm">
+    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-sm">
       <div className="absolute left-3 top-3 z-30 flex max-w-[70%] flex-wrap items-center gap-2">
         <div className="rounded-full border border-white/70 bg-slate-950/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow-lg backdrop-blur">
           Template overlay
