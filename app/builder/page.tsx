@@ -280,6 +280,7 @@ function BuilderContent() {
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
   const [activeBuildThemeProfile, setActiveBuildThemeProfile] = useState<ActiveBuildThemeProfile | null>(null)
   const standardThemeLoadedRef = useRef(false)
+  const buildThemeSelectionRef = useRef(buildThemeSelection)
   const { getStandardTheme } = useThemeProfiles()
   const { getTemplate } = useTemplates()
   const hasTemplateOverrides = useMemo(
@@ -311,7 +312,7 @@ function BuilderContent() {
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [researchEnabled, setResearchEnabled] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
-  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(false)
+  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)
   const { isSubscribed: kgSubscribed, isPremium: kgIsPremium } = useKnowledgeGraph()
   const [knowledgeGraphEnabled, setKnowledgeGraphEnabled] = useState(false)
   const showKnowledgeGraphToggle = kgIsPremium && kgSubscribed
@@ -319,6 +320,10 @@ function BuilderContent() {
   useEffect(() => {
     if (kgSubscribed) setKnowledgeGraphEnabled(true)
   }, [kgSubscribed])
+
+  useEffect(() => {
+    buildThemeSelectionRef.current = buildThemeSelection
+  }, [buildThemeSelection])
 
   useEffect(() => {
     if (
@@ -335,7 +340,11 @@ function BuilderContent() {
     void (async () => {
       try {
         const profile = await getStandardTheme()
-        if (profile?.theme_payload && profile.theme_payload.mode !== 'auto') {
+        if (
+          profile?.theme_payload &&
+          profile.theme_payload.mode !== 'auto' &&
+          buildThemeSelectionRef.current.mode === 'auto'
+        ) {
           setBuildThemeSelection(profile.theme_payload)
           setActiveBuildThemeProfile({ id: profile.id, name: profile.name })
         }
@@ -343,8 +352,7 @@ function BuilderContent() {
         // Standard-theme hydration is display-only; Director still resolves it.
       }
     })()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user])
+  }, [user, isAuthLoading, themeSearchOverride, buildThemeSelection.mode, getStandardTheme])
 
   const [sessionStoreName, setSessionStoreName] = useState<string | null>(null)
   const [pendingActionInput, setPendingActionInput] = useState<{
@@ -573,6 +581,7 @@ function BuilderContent() {
   }, [currentSessionId])
 
   useEffect(() => {
+    standardThemeLoadedRef.current = false
     setSlideComposerOverride(null)
     setSlideComposeJobs({})
     setShowFormatPanel(false)
@@ -1597,11 +1606,12 @@ function BuilderContent() {
     setInputMessage("")
     setPendingActionInput(null)
     setActiveTemplate(null)
+    standardThemeLoadedRef.current = false
     setBuildThemeSelection({ mode: 'auto' })
     setActiveBuildThemeProfile(null)
     setResearchEnabled(false)
     setWebSearchEnabled(false)
-    setExtendedGenerationEnabled(false)
+    setExtendedGenerationEnabled(true)
     setKnowledgeGraphEnabled(kgSubscribed)
     setIsGeneratingFinal(false)
     setIsGeneratingStrawman(false)
@@ -1926,8 +1936,6 @@ function BuilderContent() {
                     onResearchEnabledChange={setResearchEnabled}
                     webSearchEnabled={webSearchEnabled}
                     onWebSearchEnabledChange={setWebSearchEnabled}
-                    extendedGenerationEnabled={extendedGenerationEnabled}
-                    onExtendedGenerationEnabledChange={setExtendedGenerationEnabled}
                     knowledgeGraphEnabled={knowledgeGraphEnabled}
                     onKnowledgeGraphEnabledChange={setKnowledgeGraphEnabled}
                     showKnowledgeGraphToggle={showKnowledgeGraphToggle}

@@ -17,7 +17,6 @@ import {
   ArrowUp,
   Loader2,
   Search,
-  Sparkles,
   Brain,
   LayoutTemplate,
   Palette,
@@ -61,8 +60,6 @@ export interface ChatInputProps {
   onResearchEnabledChange: (enabled: boolean) => void
   webSearchEnabled: boolean
   onWebSearchEnabledChange: (enabled: boolean) => void
-  extendedGenerationEnabled: boolean
-  onExtendedGenerationEnabledChange: (enabled: boolean) => void
   knowledgeGraphEnabled: boolean
   onKnowledgeGraphEnabledChange: (enabled: boolean) => void
   showKnowledgeGraphToggle: boolean
@@ -98,8 +95,6 @@ export function ChatInput({
   onResearchEnabledChange,
   webSearchEnabled,
   onWebSearchEnabledChange,
-  extendedGenerationEnabled,
-  onExtendedGenerationEnabledChange,
   knowledgeGraphEnabled,
   onKnowledgeGraphEnabledChange,
   showKnowledgeGraphToggle,
@@ -696,17 +691,6 @@ export function ChatInput({
                     <Switch
                       checked={webSearchEnabled}
                       onCheckedChange={onWebSearchEnabledChange}
-                      className="scale-75"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between px-2 py-2">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-gray-500 dark:text-slate-400" />
-                      <span className="text-xs">Extended</span>
-                    </div>
-                    <Switch
-                      checked={extendedGenerationEnabled}
-                      onCheckedChange={onExtendedGenerationEnabledChange}
                       className="scale-75"
                     />
                   </div>
