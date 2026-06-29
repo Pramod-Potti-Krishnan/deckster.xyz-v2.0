@@ -220,6 +220,8 @@ function withSlideComposerRefreshToken(url: string | null, token: number): strin
   return hash ? `${refreshed}#${hash}` : refreshed
 }
 
+type ActiveBuildThemeProfile = { id: string; name: string }
+
 function BuilderContent() {
   const { user, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
@@ -238,6 +240,7 @@ function BuilderContent() {
   const [templateSnapshotLoading, setTemplateSnapshotLoading] = useState(false)
   const [templateOverrides, setTemplateOverrides] = useState<TemplateOverrides>({})
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
+  const [activeBuildThemeProfile, setActiveBuildThemeProfile] = useState<ActiveBuildThemeProfile | null>(null)
   const standardThemeLoadedRef = useRef(false)
   const { getStandardTheme } = useThemeProfiles()
   const { getTemplate } = useTemplates()
@@ -296,6 +299,7 @@ function BuilderContent() {
         const profile = await getStandardTheme()
         if (profile?.theme_payload && profile.theme_payload.mode !== 'auto') {
           setBuildThemeSelection(profile.theme_payload)
+          setActiveBuildThemeProfile({ id: profile.id, name: profile.name })
         }
       } catch {
         // Standard-theme hydration is display-only; Director still resolves it.
@@ -1500,6 +1504,7 @@ function BuilderContent() {
     setPendingActionInput(null)
     setActiveTemplate(null)
     setBuildThemeSelection({ mode: 'auto' })
+    setActiveBuildThemeProfile(null)
     setResearchEnabled(false)
     setWebSearchEnabled(false)
     setExtendedGenerationEnabled(false)
@@ -1844,6 +1849,8 @@ function BuilderContent() {
                     onClearTemplate={handleClearTemplate}
                     buildTheme={buildThemeSelection}
                     onBuildThemeChange={setBuildThemeSelection}
+                    activeBuildThemeProfile={activeBuildThemeProfile}
+                    onActiveBuildThemeProfileChange={setActiveBuildThemeProfile}
                   />
                 </>
               )}
