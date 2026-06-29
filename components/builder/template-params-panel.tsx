@@ -1,6 +1,6 @@
 "use client"
 
-import { Image as ImageIcon, LineChart, Palette, Shapes, TextCursorInput, X } from 'lucide-react'
+import { Image as ImageIcon, Palette, Save, TextCursorInput, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -9,11 +9,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
-import type { TemplateSnapshot } from '@/hooks/use-templates'
+import type {
+  TemplateBlueprint,
+  TemplateBlueprintElement,
+  TemplateBlueprintFixedness,
+  TemplateBlueprintSlide,
+  TemplateSnapshot,
+} from '@/hooks/use-templates'
 import {
   asRecord,
+  getBlueprintSlide,
+  getTemplateBlueprint,
   getTemplateModeElements,
   type TemplateModeElement,
   type TemplateModeOverride,
@@ -28,8 +35,12 @@ interface TemplateParamsPanelProps {
   overrides: TemplateOverrides
   selectedElementId?: string | null
   loading?: boolean
+  blueprintDirty?: boolean
+  blueprintSaving?: boolean
   onClose: () => void
   onOverrideChange: (slideIndex: number, overrideKey: string, patch: TemplateModeOverride) => void
+  onBlueprintChange: (blueprint: TemplateBlueprint) => void
+  onSaveBlueprint: () => void | Promise<void>
 }
 
 const VISUAL_STRATEGY_OPTIONS = [
@@ -49,28 +60,10 @@ const COLOR_SLOT_OPTIONS = [
   { value: 'neutral', label: 'Neutral' },
 ]
 
-const CHART_TYPE_OPTIONS = [
-  'line',
-  'bar_vertical',
-  'bar_horizontal',
-  'area',
-  'pie',
-  'donut',
-  'scatter',
-  'waterfall',
-]
-
-const CHART_COLOR_OPTIONS = [
-  { value: 'brand', label: 'Brand', colors: ['#805AA0', '#2980B9', '#16A085'] },
-  { value: 'cool', label: 'Cool', colors: ['#2563EB', '#06B6D4', '#14B8A6'] },
-  { value: 'warm', label: 'Warm', colors: ['#D97706', '#DC2626', '#BE123C'] },
-  { value: 'mono', label: 'Mono', colors: ['#0F172A', '#64748B', '#CBD5E1'] },
-]
-
-const INFOGRAPHIC_COLOR_OPTIONS = [
-  { value: 'brand', label: 'Brand', colors: ['#805AA0', '#2980B9', '#16A085', '#F59E0B'] },
-  { value: 'contrast', label: 'Contrast', colors: ['#111827', '#7C3AED', '#06B6D4', '#F97316'] },
-  { value: 'quiet', label: 'Quiet', colors: ['#475569', '#64748B', '#94A3B8', '#CBD5E1'] },
+const FIXEDNESS_OPTIONS: Array<{ value: TemplateBlueprintFixedness; label: string }> = [
+  { value: 'variable', label: 'Variable' },
+  { value: 'constant', label: 'Constant' },
+  { value: 'locked_media', label: 'Locked media' },
 ]
 
 function nestedValue(record: Record<string, unknown> | null, key: string): unknown {
@@ -81,12 +74,55 @@ function getOverride(overrides: TemplateOverrides, slideIndex: number, overrideK
   return asRecord(overrides[String(slideIndex)]?.[overrideKey]) ?? {}
 }
 
-function elementIcon(element: TemplateModeElement) {
-  const atomType = element.atomType.toUpperCase()
+function textOrEmpty(value: string | null | undefined): string {
+  return value ?? ''
+}
+
+function linesToList(value: string): string[] {
+  return value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+function listToLines(value: string[] | null | undefined): string {
+  return Array.isArray(value) ? value.join('\n') : ''
+}
+
+function elementIcon(element: TemplateModeElement | null) {
+  const atomType = element?.atomType.toUpperCase() ?? ''
   if (atomType.includes('IMAGE')) return <ImageIcon className="h-4 w-4 text-slate-500" />
-  if (atomType.includes('CHART')) return <LineChart className="h-4 w-4 text-slate-500" />
-  if (atomType.includes('INFOGRAPHIC')) return <Shapes className="h-4 w-4 text-slate-500" />
   return <TextCursorInput className="h-4 w-4 text-slate-500" />
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  rows = 2,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  rows?: number
+}) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        {label}
+      </span>
+      <textarea
+        value={value}
+        rows={rows}
+        onChange={(event) => onChange(event.target.value)}
+        className={cn(
+          "w-full resize-y rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs leading-relaxed text-slate-800 shadow-sm",
+          "focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100",
+          "dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-violet-950"
+        )}
+      />
+    </label>
+  )
 }
 
 function SelectField({
@@ -123,40 +159,154 @@ function SelectField({
   )
 }
 
+function updateSlide(
+  blueprint: TemplateBlueprint,
+  slideIndex: number,
+  patch: Partial<TemplateBlueprintSlide>,
+): TemplateBlueprint {
+  return {
+    ...blueprint,
+    slides: blueprint.slides.map((slide) => (
+      Number(slide.slide_index) === slideIndex ? { ...slide, ...patch } : slide
+    )),
+  }
+}
+
+function updateElement(
+  blueprint: TemplateBlueprint,
+  slideIndex: number,
+  elementKey: string,
+  patch: Partial<TemplateBlueprintElement>,
+): TemplateBlueprint {
+  return {
+    ...blueprint,
+    slides: blueprint.slides.map((slide) => {
+      if (Number(slide.slide_index) !== slideIndex) return slide
+      return {
+        ...slide,
+        elements: slide.elements.map((element) => (
+          element.element_key === elementKey ? { ...element, ...patch } : element
+        )),
+      }
+    }),
+  }
+}
+
+function updateElementVisualConstants(
+  blueprint: TemplateBlueprint,
+  slideIndex: number,
+  elementKey: string,
+  patch: Record<string, unknown>,
+): TemplateBlueprint {
+  const slide = blueprint.slides.find((item) => Number(item.slide_index) === slideIndex)
+  const element = slide?.elements.find((item) => item.element_key === elementKey)
+  const constants = asRecord(element?.visual_constants) ?? {}
+
+  return updateElement(blueprint, slideIndex, elementKey, {
+    visual_constants: {
+      ...constants,
+      ...patch,
+    },
+  })
+}
+
 function ElementControls({
+  blueprint,
+  slideIndex,
   element,
+  blueprintElement,
   override,
   onPatch,
+  onBlueprintChange,
 }: {
+  blueprint: TemplateBlueprint
+  slideIndex: number
   element: TemplateModeElement
+  blueprintElement: TemplateBlueprintElement
   override: TemplateModeOverride
   onPatch: (patch: TemplateModeOverride) => void
+  onBlueprintChange: (blueprint: TemplateBlueprint) => void
 }) {
   const atomType = element.atomType.toUpperCase()
-  const styleHints = asRecord(override.style_hints) ?? element.styleHints
+  const constants = asRecord(blueprintElement.visual_constants) ?? {}
+  const styleHints = asRecord(override.style_hints) ?? asRecord(constants.style_hints) ?? element.styleHints
   const imageHints = asRecord(element.renderSpec.image_hints)
-  const chartHints = asRecord(element.renderSpec.chart_hints)
-  const infographicHints = asRecord(element.renderSpec.infographic_hints)
-  const imageMode = String(override.image_mode ?? imageHints?.image_mode ?? 'locked')
-  const isTextLike = atomType.includes('TEXT') || atomType.includes('METRICS')
+  const imageMode = String(override.image_mode ?? imageHints?.image_mode ?? (
+    blueprintElement.fixedness === 'locked_media' ? 'locked' : 'regenerate'
+  ))
+
+  const patchBlueprintElement = (patch: Partial<TemplateBlueprintElement>) => {
+    onBlueprintChange(updateElement(blueprint, slideIndex, blueprintElement.element_key, patch))
+  }
+
+  const patchStyle = (patch: Record<string, unknown>) => {
+    const nextStyleHints = { ...(styleHints ?? {}), ...patch }
+    onBlueprintChange(updateElementVisualConstants(blueprint, slideIndex, blueprintElement.element_key, {
+      style_hints: nextStyleHints,
+      ...(patch.color_slot ? { color_slot: patch.color_slot } : {}),
+    }))
+    onPatch({ style_hints: patch })
+  }
 
   return (
     <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-2">
-          {elementIcon(element)}
-          <div className="min-w-0">
-            <h4 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-              {element.role}
-            </h4>
-            <p className="truncate text-xs text-slate-500">
-              {element.atomType} - key {element.overrideKey}
-            </p>
-          </div>
+      <div className="mb-3 flex items-start gap-2">
+        {elementIcon(element)}
+        <div className="min-w-0">
+          <h4 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {element.role}
+          </h4>
+          <p className="truncate text-xs text-slate-500">
+            {element.atomType} - key {element.overrideKey}
+          </p>
         </div>
       </div>
 
       <div className="space-y-3">
+        <TextField
+          label="Purpose"
+          value={textOrEmpty(blueprintElement.purpose)}
+          rows={3}
+          onChange={(value) => {
+            patchBlueprintElement({ purpose: value })
+          }}
+        />
+        <TextField
+          label="Content intent"
+          value={textOrEmpty(blueprintElement.content_intent)}
+          rows={3}
+          onChange={(value) => {
+            patchBlueprintElement({ content_intent: value })
+            onPatch({ content_intent: value })
+          }}
+        />
+        <TextField
+          label="Required input"
+          value={textOrEmpty(blueprintElement.required_input)}
+          rows={2}
+          onChange={(value) => patchBlueprintElement({ required_input: value })}
+        />
+        <TextField
+          label="Population rule"
+          value={textOrEmpty(blueprintElement.population_rule)}
+          rows={2}
+          onChange={(value) => patchBlueprintElement({ population_rule: value })}
+        />
+
+        <SelectField
+          label="Fixedness"
+          value={blueprintElement.fixedness}
+          placeholder="Fixedness"
+          options={FIXEDNESS_OPTIONS}
+          onValueChange={(value) => {
+            const fixedness = value as TemplateBlueprintFixedness
+            patchBlueprintElement({ fixedness })
+            if (atomType.includes('IMAGE')) {
+              onPatch({ image_mode: fixedness === 'locked_media' ? 'locked' : 'regenerate' })
+            }
+          }}
+        />
+
         {atomType.includes('IMAGE') && (
           <>
             <div>
@@ -168,7 +318,10 @@ function ElementControls({
                   <button
                     key={mode}
                     type="button"
-                    onClick={() => onPatch({ image_mode: mode })}
+                    onClick={() => {
+                      patchBlueprintElement({ fixedness: mode === 'locked' ? 'locked_media' : 'variable' })
+                      onPatch({ image_mode: mode })
+                    }}
                     className={cn(
                       "px-2 py-2 font-medium transition",
                       imageMode === mode
@@ -193,101 +346,30 @@ function ElementControls({
                 { value: 'brand_graphic', label: 'Brand graphic' },
                 { value: 'flat_vector', label: 'Flat vector' },
               ]}
-              onValueChange={(value) => onPatch({ image_hints: { image_style: value } })}
-            />
-          </>
-        )}
-
-        {!atomType.includes('IMAGE') && (
-          <>
-            <SelectField
-              label="Role treatment"
-              value={String(nestedValue(styleHints, 'visual_strategy') ?? 'quiet_support')}
-              placeholder="Role treatment"
-              options={VISUAL_STRATEGY_OPTIONS}
-              onValueChange={(value) => onPatch({ style_hints: { visual_strategy: value } })}
-            />
-            <SelectField
-              label="Color slot"
-              value={String(nestedValue(styleHints, 'color_slot') ?? 'neutral')}
-              placeholder="Color slot"
-              options={COLOR_SLOT_OPTIONS}
-              onValueChange={(value) => onPatch({ style_hints: { color_slot: value } })}
-            />
-          </>
-        )}
-
-        {isTextLike && (
-          <SelectField
-            label="Box fill"
-            value={String(nestedValue(styleHints, 'box_fill') ?? 'transparent')}
-            placeholder="Box fill"
-            options={[
-              { value: 'transparent', label: 'Transparent' },
-              { value: 'soft_tint', label: 'Soft tint' },
-              { value: 'colored', label: 'Colored' },
-            ]}
-            onValueChange={(value) => onPatch({ style_hints: { box_fill: value } })}
-          />
-        )}
-
-        {atomType.includes('CHART') && (
-          <>
-            <SelectField
-              label="Chart type"
-              value={String(asRecord(override.chart_hints)?.chart_type ?? chartHints?.chart_type ?? 'line')}
-              placeholder="Chart type"
-              options={CHART_TYPE_OPTIONS.map((value) => ({ value, label: value.replace(/_/g, ' ') }))}
-              onValueChange={(value) => onPatch({ chart_hints: { chart_type: value } })}
-            />
-            <SelectField
-              label="Chart colors"
-              value={String(asRecord(override.chart_hints)?.color_family ?? 'brand')}
-              placeholder="Chart colors"
-              options={CHART_COLOR_OPTIONS.map(({ value, label }) => ({ value, label }))}
               onValueChange={(value) => {
-                const option = CHART_COLOR_OPTIONS.find((item) => item.value === value)
-                onPatch({ chart_hints: { color_family: value, colors: option?.colors ?? [] } })
+                onBlueprintChange(updateElementVisualConstants(blueprint, slideIndex, blueprintElement.element_key, {
+                  image_hints: { ...(imageHints ?? {}), image_style: value },
+                }))
+                onPatch({ image_hints: { image_style: value } })
               }}
             />
-            <label className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-xs dark:border-slate-800">
-              <span className="font-medium text-slate-600 dark:text-slate-300">Show title</span>
-              <Switch
-                checked={Boolean(asRecord(override.chart_hints)?.show_title ?? chartHints?.show_title ?? false)}
-                onCheckedChange={(checked) => onPatch({ chart_hints: { show_title: checked } })}
-              />
-            </label>
           </>
         )}
 
-        {atomType.includes('INFOGRAPHIC') && (
-          <>
-            <SelectField
-              label="Segments"
-              value={String(asRecord(override.infographic_hints)?.segment_count ?? infographicHints?.segment_count ?? 4)}
-              placeholder="Segments"
-              options={[2, 3, 4, 5, 6].map((value) => ({ value: String(value), label: `${value}` }))}
-              onValueChange={(value) => onPatch({ infographic_hints: { segment_count: Number(value) } })}
-            />
-            <SelectField
-              label="Segment colors"
-              value={String(asRecord(override.infographic_hints)?.color_family ?? 'brand')}
-              placeholder="Segment colors"
-              options={INFOGRAPHIC_COLOR_OPTIONS.map(({ value, label }) => ({ value, label }))}
-              onValueChange={(value) => {
-                const option = INFOGRAPHIC_COLOR_OPTIONS.find((item) => item.value === value)
-                onPatch({ infographic_hints: { color_family: value, segment_colors: option?.colors ?? [] } })
-              }}
-            />
-            <label className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-xs dark:border-slate-800">
-              <span className="font-medium text-slate-600 dark:text-slate-300">Show icons</span>
-              <Switch
-                checked={Boolean(asRecord(override.infographic_hints)?.show_icons ?? infographicHints?.show_icons ?? true)}
-                onCheckedChange={(checked) => onPatch({ infographic_hints: { show_icons: checked } })}
-              />
-            </label>
-          </>
-        )}
+        <SelectField
+          label="Role treatment"
+          value={String(nestedValue(styleHints, 'visual_strategy') ?? 'quiet_support')}
+          placeholder="Role treatment"
+          options={VISUAL_STRATEGY_OPTIONS}
+          onValueChange={(value) => patchStyle({ visual_strategy: value })}
+        />
+        <SelectField
+          label="Color slot"
+          value={String(nestedValue(styleHints, 'color_slot') ?? constants.color_slot ?? 'neutral')}
+          placeholder="Color slot"
+          options={COLOR_SLOT_OPTIONS}
+          onValueChange={(value) => patchStyle({ color_slot: value })}
+        />
       </div>
     </section>
   )
@@ -301,13 +383,25 @@ export function TemplateParamsPanel({
   overrides,
   selectedElementId,
   loading,
+  blueprintDirty,
+  blueprintSaving,
   onClose,
   onOverrideChange,
+  onBlueprintChange,
+  onSaveBlueprint,
 }: TemplateParamsPanelProps) {
+  const blueprint = getTemplateBlueprint(snapshot)
+  const slide = getBlueprintSlide(snapshot, currentSlideIndex)
   const elements = getTemplateModeElements(snapshot, currentSlideIndex)
   const selectedElement = selectedElementId
     ? elements.find((element) => element.overrideKey === selectedElementId) ?? null
     : null
+  const selectedBlueprintElement = selectedElement?.blueprintElement ?? null
+
+  const patchSlide = (patch: Partial<TemplateBlueprintSlide>) => {
+    if (!blueprint) return
+    onBlueprintChange(updateSlide(blueprint, currentSlideIndex, patch))
+  }
 
   return (
     <div
@@ -323,15 +417,27 @@ export function TemplateParamsPanel({
           <div className="flex min-w-0 items-center gap-2">
             <Palette className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-300" />
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-semibold">Template params</h3>
+              <h3 className="truncate text-sm font-semibold">Template details</h3>
               <p className="truncate text-xs text-slate-500 dark:text-slate-400">
                 Slide {currentSlideIndex + 1}
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant={blueprintDirty ? 'default' : 'outline'}
+              size="sm"
+              onClick={onSaveBlueprint}
+              disabled={!blueprint || !blueprintDirty || blueprintSaving}
+              className="h-8 gap-1.5 px-2.5 text-xs"
+            >
+              <Save className="h-3.5 w-3.5" />
+              {blueprintSaving ? 'Saving' : 'Save'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 max-h-[calc(100vh-5rem)] space-y-3 overflow-y-auto p-4">
@@ -343,16 +449,71 @@ export function TemplateParamsPanel({
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
               Select an available template to edit its reusable parameters.
             </div>
-          ) : !selectedElement ? (
+          ) : !blueprint || !slide ? (
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-              Select an element box on the deck to edit image and style parameters.
+              This template is loading its semantic blueprint.
             </div>
           ) : (
-            <ElementControls
-              element={selectedElement}
-              override={getOverride(overrides, currentSlideIndex, selectedElement.overrideKey)}
-              onPatch={(patch) => onOverrideChange(currentSlideIndex, selectedElement.overrideKey, patch)}
-            />
+            <>
+              <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                <div className="mb-3">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Slide details</h4>
+                  <p className="text-xs text-slate-500">{slide.narrative_role ?? slide.slide_title ?? 'Reusable slide role'}</p>
+                </div>
+                <div className="space-y-3">
+                  <TextField
+                    label="Purpose"
+                    value={textOrEmpty(slide.purpose)}
+                    rows={3}
+                    onChange={(value) => patchSlide({ purpose: value })}
+                  />
+                  <TextField
+                    label="Narrative role"
+                    value={textOrEmpty(slide.narrative_role)}
+                    rows={2}
+                    onChange={(value) => patchSlide({ narrative_role: value })}
+                  />
+                  <TextField
+                    label="Reuse instruction"
+                    value={textOrEmpty(slide.reuse_instruction)}
+                    rows={3}
+                    onChange={(value) => patchSlide({ reuse_instruction: value })}
+                  />
+                  <TextField
+                    label="Required inputs"
+                    value={listToLines(slide.required_inputs)}
+                    rows={3}
+                    onChange={(value) => patchSlide({ required_inputs: linesToList(value) })}
+                  />
+                  <SelectField
+                    label="Population policy"
+                    value={slide.population_policy}
+                    placeholder="Population policy"
+                    options={[
+                      { value: 'flexible', label: 'Flexible' },
+                      { value: 'strict', label: 'Strict' },
+                    ]}
+                    onValueChange={(value) => patchSlide({ population_policy: value as TemplateBlueprintSlide['population_policy'] })}
+                  />
+                </div>
+              </section>
+
+              {selectedElement && selectedBlueprintElement ? (
+                <ElementControls
+                  blueprint={blueprint}
+                  slideIndex={currentSlideIndex}
+                  element={selectedElement}
+                  blueprintElement={selectedBlueprintElement}
+                  override={getOverride(overrides, currentSlideIndex, selectedElement.overrideKey)}
+                  onPatch={(patch) => onOverrideChange(currentSlideIndex, selectedElement.overrideKey, patch)}
+                  onBlueprintChange={onBlueprintChange}
+                />
+              ) : (
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
+                  Select a hotspot on the slide to edit element details.
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
