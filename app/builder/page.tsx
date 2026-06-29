@@ -41,7 +41,7 @@ import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
 import { useQuota } from '@/hooks/use-quota'
 import { useThemeProfiles } from '@/hooks/use-theme-profiles'
-import { useTemplates, type TemplateSnapshot } from '@/hooks/use-templates'
+import { useTemplates, type TemplateBlueprint, type TemplateSnapshot } from '@/hooks/use-templates'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
@@ -275,6 +275,8 @@ function BuilderContent() {
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
   const [templateSnapshotLoading, setTemplateSnapshotLoading] = useState(false)
+  const [templateBlueprintDirty, setTemplateBlueprintDirty] = useState(false)
+  const [templateBlueprintSaving, setTemplateBlueprintSaving] = useState(false)
   const [templateOverrides, setTemplateOverrides] = useState<TemplateOverrides>({})
   const [selectedTemplateElementId, setSelectedTemplateElementId] = useState<string | null>(null)
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
@@ -282,7 +284,7 @@ function BuilderContent() {
   const standardThemeLoadedRef = useRef(false)
   const buildThemeSelectionRef = useRef(buildThemeSelection)
   const { getStandardTheme } = useThemeProfiles()
-  const { getTemplate } = useTemplates()
+  const { getTemplate, updateTemplateBlueprint } = useTemplates()
   const hasTemplateOverrides = useMemo(
     () => hasTemplateOverrideEntries(templateOverrides),
     [templateOverrides],
@@ -498,7 +500,7 @@ function BuilderContent() {
   const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel
   const isSlideDrawerOpen = features.slideComposerEnabled && showFormatPanel
   const isDeckDrawerOpen = showChat
-  const isTemplateParamsDrawerOpen = templateBuilderEnabled && templateModeOn && Boolean(selectedTemplateElementId)
+  const isTemplateParamsDrawerOpen = templateBuilderEnabled && templateModeOn
   const anyDrawerOpen = isElementDrawerOpen || isSlideDrawerOpen || isDeckDrawerOpen || isTemplateParamsDrawerOpen
 
   // FIXED: Track when generating final/strawman presentations
@@ -588,6 +590,8 @@ function BuilderContent() {
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
     setTemplateSnapshotLoading(false)
+    setTemplateBlueprintDirty(false)
+    setTemplateBlueprintSaving(false)
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
     setTemplateSourceSlideIndex(0)
@@ -652,6 +656,8 @@ function BuilderContent() {
       const snapshot = await getTemplate(template.id)
       if (snapshot) {
         setTemplateSnapshot(snapshot)
+        setTemplateBlueprintDirty(false)
+        setTemplateBlueprintSaving(false)
         return snapshot
       }
       toast({
@@ -668,6 +674,8 @@ function BuilderContent() {
   const handleSelectTemplate = useCallback(async (template: BuilderTemplateSelection) => {
     setActiveTemplate(template)
     setTemplateOverrides({})
+    setTemplateBlueprintDirty(false)
+    setTemplateBlueprintSaving(false)
     setSelectedTemplateElementId(null)
     setTemplateSourceSlideIndex(currentSlideIndex)
     if (!templateBuilderEnabled) return
@@ -684,6 +692,8 @@ function BuilderContent() {
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
     setTemplateSnapshotLoading(false)
+    setTemplateBlueprintDirty(false)
+    setTemplateBlueprintSaving(false)
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
     setTemplateSourceSlideIndex(0)
@@ -708,6 +718,40 @@ function BuilderContent() {
       }
     })
   }, [])
+
+  const handleTemplateBlueprintChange = useCallback((blueprint: TemplateBlueprint) => {
+    setTemplateSnapshot((previous) => previous
+      ? { ...previous, template_blueprint: blueprint }
+      : previous
+    )
+    setTemplateBlueprintDirty(true)
+  }, [])
+
+  const handleTemplateBlueprintSave = useCallback(async () => {
+    if (!activeTemplate || !templateSnapshot?.template_blueprint) return
+
+    setTemplateBlueprintSaving(true)
+    try {
+      const snapshot = await updateTemplateBlueprint(activeTemplate.id, templateSnapshot.template_blueprint)
+      if (!snapshot) {
+        toast({
+          title: 'Template changes not saved',
+          description: 'Director could not persist the template blueprint.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      setTemplateSnapshot(snapshot)
+      setTemplateBlueprintDirty(false)
+      toast({
+        title: 'Template changes saved',
+        description: 'Reusable slide and element details are now persisted.',
+      })
+    } finally {
+      setTemplateBlueprintSaving(false)
+    }
+  }, [activeTemplate, templateSnapshot?.template_blueprint, toast, updateTemplateBlueprint])
 
   const handleTemplateElementSelect = useCallback((overrideKey: string | null) => {
     setSelectedTemplateElementId(overrideKey)
@@ -1606,6 +1650,14 @@ function BuilderContent() {
     setInputMessage("")
     setPendingActionInput(null)
     setActiveTemplate(null)
+    setTemplateModeOn(false)
+    setTemplateSnapshot(null)
+    setTemplateSnapshotLoading(false)
+    setTemplateBlueprintDirty(false)
+    setTemplateBlueprintSaving(false)
+    setTemplateOverrides({})
+    setSelectedTemplateElementId(null)
+    setTemplateSourceSlideIndex(0)
     standardThemeLoadedRef.current = false
     setBuildThemeSelection({ mode: 'auto' })
     setActiveBuildThemeProfile(null)
@@ -1643,9 +1695,16 @@ function BuilderContent() {
               currentSlideIndex={activeTemplateSlideIndex}
               overrides={templateOverrides}
               loading={templateSnapshotLoading}
+              blueprintDirty={templateBlueprintDirty}
+              blueprintSaving={templateBlueprintSaving}
               selectedElementId={selectedTemplateElementId}
-              onClose={() => setSelectedTemplateElementId(null)}
+              onClose={() => {
+                setTemplateModeOn(false)
+                setSelectedTemplateElementId(null)
+              }}
               onOverrideChange={handleTemplateOverrideChange}
+              onBlueprintChange={handleTemplateBlueprintChange}
+              onSaveBlueprint={handleTemplateBlueprintSave}
             />
           )}
 

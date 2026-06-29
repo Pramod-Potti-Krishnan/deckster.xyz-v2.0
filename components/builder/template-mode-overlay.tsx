@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import type { TemplateSnapshot } from '@/hooks/use-templates'
 import {
   asRecord,
+  getBlueprintSlide,
   getFrozenPlanEntry,
   getLayoutPlan,
   getTemplateModeElements,
@@ -25,6 +26,7 @@ const GRID_COLUMNS = 32
 const GRID_ROWS = 18
 
 function isVariableElement(element: TemplateModeElement): boolean {
+  if (element.fixedness) return element.fixedness === 'variable'
   const atomType = element.atomType.toUpperCase()
   return atomType.includes('TEXT') || atomType.includes('METRICS')
 }
@@ -59,18 +61,8 @@ function getConstantValue(element: TemplateModeElement): string {
   return `${element.role} structure`
 }
 
-function getVariableLabel(element: TemplateModeElement): string {
-  return element.contentIntent
-    ? `${element.role} - ${element.contentIntent}`
-    : element.role
-}
-
 function pct(value: number, total: number): string {
   return `${(Math.max(0, value) / total) * 100}%`
-}
-
-function gridLinePct(line: number, total: number): string {
-  return pct(line - 1, total)
 }
 
 export function TemplateModeOverlay({
@@ -81,6 +73,7 @@ export function TemplateModeOverlay({
   onSelectElement,
 }: TemplateModeOverlayProps) {
   const slot = getTemplateSlot(snapshot, currentSlideIndex)
+  const blueprintSlide = getBlueprintSlide(snapshot, currentSlideIndex)
   const frozenEntry = getFrozenPlanEntry(snapshot, currentSlideIndex)
   const layoutPlan = getLayoutPlan(frozenEntry)
   const elements = getTemplateModeElements(snapshot, currentSlideIndex)
@@ -91,6 +84,7 @@ export function TemplateModeOverlay({
   const themeSummary = summarizeRecord(layoutPlan?.theme_aliases, 3)
     ?? summarizeRecord(layoutPlan?.theme_css_variables, 3)
     ?? summarizeRecord(layoutPlan?.theme_color_ramps, 3)
+  const designSummary = summarizeRecord(blueprintSlide?.design_constants, 3)
   const showLockedChip = !loading && snapshot && elements.length === 0
 
   return (
@@ -116,16 +110,20 @@ export function TemplateModeOverlay({
         </span>
       </div>
 
-      {(selectedPattern || accessoryPlan || themeSummary) && (
+      {(blueprintSlide?.purpose || blueprintSlide?.narrative_role || selectedPattern || accessoryPlan || themeSummary || designSummary) && (
         <details className="pointer-events-auto absolute bottom-3 left-3 z-30 max-w-[340px] rounded-md border border-white/70 bg-white/95 text-xs text-slate-700 shadow-lg backdrop-blur dark:bg-slate-950/95 dark:text-slate-200">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 px-2.5 py-1.5 font-semibold">
             <Info className="h-3.5 w-3.5 text-violet-500" />
             Slide info
           </summary>
           <div className="space-y-1 border-t border-slate-200 px-2.5 py-2 dark:border-slate-800">
+            {blueprintSlide?.purpose && <p><span className="font-semibold">Purpose:</span> {blueprintSlide.purpose}</p>}
+            {blueprintSlide?.narrative_role && <p><span className="font-semibold">Role:</span> {blueprintSlide.narrative_role}</p>}
             {selectedPattern && <p><span className="font-semibold">Blueprint:</span> {selectedPattern}</p>}
             {accessoryPlan && <p><span className="font-semibold">Accessory:</span> {accessoryPlan}</p>}
-            {themeSummary && <p><span className="font-semibold">Theme:</span> {themeSummary}</p>}
+            {(designSummary ?? themeSummary) && (
+              <p><span className="font-semibold">Design:</span> {designSummary ?? themeSummary}</p>
+            )}
           </div>
         </details>
       )}
@@ -160,16 +158,16 @@ export function TemplateModeOverlay({
             key={element.overrideKey}
             type="button"
             className={cn(
-              "pointer-events-auto absolute overflow-hidden rounded-md px-2 py-1 text-left text-[10px] leading-tight shadow-lg transition",
+              "pointer-events-auto absolute overflow-hidden rounded-md px-1.5 py-1 text-left text-[10px] leading-tight transition",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1",
               variable
-                ? "border-2 border-dashed border-violet-400 bg-violet-50/90 text-violet-950 hover:bg-violet-100/95 dark:bg-violet-950/75 dark:text-violet-50"
-                : "border border-slate-300 bg-slate-50/90 text-slate-800 hover:bg-white/95 dark:border-slate-600 dark:bg-slate-950/75 dark:text-slate-100",
+                ? "border-2 border-dashed border-violet-400 bg-violet-50/35 text-violet-950 hover:bg-violet-50/65 dark:bg-violet-950/35 dark:text-violet-50"
+                : "border border-slate-400/70 bg-slate-50/20 text-slate-800 hover:bg-slate-50/55 dark:border-slate-500/70 dark:bg-slate-950/25 dark:text-slate-100",
               selected && "ring-2 ring-violet-500 ring-offset-2"
             )}
             style={{
-              left: gridLinePct(rect.x, GRID_COLUMNS),
-              top: gridLinePct(rect.y, GRID_ROWS),
+              left: pct(rect.x, GRID_COLUMNS),
+              top: pct(rect.y, GRID_ROWS),
               width: pct(rect.w, GRID_COLUMNS),
               height: pct(rect.h, GRID_ROWS),
             }}
@@ -177,8 +175,10 @@ export function TemplateModeOverlay({
               event.stopPropagation()
               onSelectElement?.(element.overrideKey)
             }}
+            aria-label={`${variable ? 'Variable' : 'Constant'} ${element.role}`}
+            title={element.purpose ?? element.contentIntent ?? element.role}
           >
-            <span className="flex h-full min-h-0 items-start gap-1.5">
+            <span className="flex h-full min-h-0 items-start gap-1">
               {variable ? (
                 <Pencil className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               ) : (
@@ -187,9 +187,6 @@ export function TemplateModeOverlay({
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">
                   {variable ? element.role : getConstantValue(element)}
-                </span>
-                <span className="mt-0.5 line-clamp-2 block opacity-80">
-                  {variable ? getVariableLabel(element) : element.atomType}
                 </span>
                 {!variable && element.renderedImageUrl && (
                   <img
