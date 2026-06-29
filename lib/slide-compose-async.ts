@@ -4,6 +4,11 @@ export type AsyncSlideComposeRequest<T extends Record<string, unknown>> = T & {
   assume_on_missing: true
 }
 
+// Director can legally hold same-target async siblings for up to 300s while
+// preserving FIFO, and a Slide Builder pass can take about 120s. Keep this
+// client watchdog above that budget until a backend heartbeat replaces it.
+export const SLIDE_COMPOSE_WATCHDOG_MS = 480_000
+
 export function withAsyncSlideComposeFields<T extends Record<string, unknown>>(
   request: T,
   jobId: string,
@@ -96,5 +101,33 @@ export function shouldUseIncomingComposePresentationUrl(
   return (
     normalizeComposePresentationUrlForCompare(currentUrl) !==
     normalizeComposePresentationUrlForCompare(incomingUrl)
+  )
+}
+
+export function resolveSlideComposeCountAfterReady(options: {
+  currentSlideCount: number | null | undefined
+  resolvedVisualIndex: number
+  viewerSlideCount?: number | null
+  existingDeck: boolean
+}): number {
+  const viewerSlideCount = Number(options.viewerSlideCount)
+  if (Number.isFinite(viewerSlideCount) && viewerSlideCount > 0) {
+    return viewerSlideCount
+  }
+  const currentSlideCount = Math.max(0, options.currentSlideCount ?? 0)
+  return Math.max(
+    options.existingDeck ? currentSlideCount + 1 : currentSlideCount,
+    Math.max(0, options.resolvedVisualIndex) + 1,
+  )
+}
+
+export function shouldNavigateToResolvedComposeSlide(options: {
+  currentSlideIndex: number
+  jobTargetVisualIndex?: number | null
+  resolvedVisualIndex: number
+}): boolean {
+  return (
+    options.currentSlideIndex === options.jobTargetVisualIndex ||
+    options.currentSlideIndex === options.resolvedVisualIndex
   )
 }

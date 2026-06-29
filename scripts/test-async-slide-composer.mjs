@@ -26,7 +26,10 @@ const {
   normalizeSlideComposeSocketFrame,
   getComposeVisualIndexForTarget,
   isMatchingSlideComposeCommandResponse,
+  resolveSlideComposeCountAfterReady,
+  shouldNavigateToResolvedComposeSlide,
   shouldUseIncomingComposePresentationUrl,
+  SLIDE_COMPOSE_WATCHDOG_MS,
 } = module.exports
 
 const request = withAsyncSlideComposeFields(
@@ -132,5 +135,38 @@ assert.equal(
   ),
   true,
 )
+
+assert.equal(SLIDE_COMPOSE_WATCHDOG_MS, 480_000)
+assert.ok(SLIDE_COMPOSE_WATCHDOG_MS > 420_000)
+
+const firstReadyCount = resolveSlideComposeCountAfterReady({
+  currentSlideCount: 5,
+  existingDeck: true,
+  resolvedVisualIndex: 2,
+  viewerSlideCount: 6,
+})
+assert.equal(firstReadyCount, 6)
+assert.equal(resolveSlideComposeCountAfterReady({
+  currentSlideCount: firstReadyCount,
+  existingDeck: true,
+  resolvedVisualIndex: 3,
+  viewerSlideCount: 7,
+}), 7)
+
+assert.equal(shouldNavigateToResolvedComposeSlide({
+  currentSlideIndex: 8,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 2,
+}), false)
+assert.equal(shouldNavigateToResolvedComposeSlide({
+  currentSlideIndex: 2,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 4,
+}), true)
+assert.equal(shouldNavigateToResolvedComposeSlide({
+  currentSlideIndex: 4,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 4,
+}), true)
 
 console.log('async slide composer unit checks passed')

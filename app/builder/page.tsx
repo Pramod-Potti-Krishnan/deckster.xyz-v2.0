@@ -36,7 +36,10 @@ import { TopUpModal } from '@/components/builder/topup-modal'
 import type { SlideComposeThumbnailJob } from '@/components/slide-thumbnail-strip'
 import {
   getComposeVisualIndexForTarget,
+  resolveSlideComposeCountAfterReady,
+  shouldNavigateToResolvedComposeSlide,
   shouldUseIncomingComposePresentationUrl,
+  SLIDE_COMPOSE_WATCHDOG_MS,
 } from '@/lib/slide-compose-async'
 
 // Extracted hooks
@@ -470,12 +473,13 @@ function BuilderContent() {
     const key = presentationKey || '__unknown_presentation__'
     const previous = slideComposeReconcileQueuesRef.current[key] ?? Promise.resolve()
     const next = previous.catch(() => undefined).then(task)
-    slideComposeReconcileQueuesRef.current[key] = next.finally(() => {
-      if (slideComposeReconcileQueuesRef.current[key] === next) {
+    const queued = next.finally(() => {
+      if (slideComposeReconcileQueuesRef.current[key] === queued) {
         delete slideComposeReconcileQueuesRef.current[key]
       }
     })
-    return next
+    slideComposeReconcileQueuesRef.current[key] = queued
+    return queued
   }, [])
 
   // Portal target for toolbar in header
@@ -898,92 +902,103 @@ function BuilderContent() {
     },
     onSlideComposeReady: (message: SlideComposeReady) => {
       const payload = message.payload
-      const nextSlideIndex = Math.max(0, payload.slide_index)
-      const snapshot = slideComposerPresentationRef.current
-      const targetPresentationUrl = payload.presentation_url ?? snapshot.presentationUrl
-      const targetPresentationId = payload.presentation_id ?? snapshot.presentationId
-      const existingDeck = !!snapshot.presentationId && targetPresentationId === snapshot.presentationId
-      const nextSlideCount = Math.max(
-        existingDeck ? (snapshot.slideCount ?? 0) + 1 : (snapshot.slideCount ?? 0),
-        nextSlideIndex + 1,
-      )
+      const presentationKey = payload.presentation_id
+        ?? slideComposerPresentationRef.current.presentationId
+        ?? '__unknown__'
 
-      const persistCompletion = () => {
-        if (!currentSessionIdRef.current || !persistenceRef.current) return
-        const metadataPresentationUrl = shouldUseIncomingComposePresentationUrl(
-          snapshot.presentationUrl,
+      void enqueueSlideComposeReconcile(presentationKey, async () => {
+        const latest = slideComposerPresentationRef.current
+        const targetPresentationUrl = payload.presentation_url ?? latest.presentationUrl
+        const targetPresentationId = payload.presentation_id ?? latest.presentationId
+        const payloadSlideIndex = Math.max(0, payload.slide_index)
+        const existingDeck = !!latest.presentationId && targetPresentationId === latest.presentationId
+        const composeApi = composeViewerApiRef.current
+        let refreshToken = latest.refreshToken
+        let resolvedVisualIndex = payloadSlideIndex
+        let viewerSlideCount: number | null = null
+
+        if (!composeApi) {
+          triggerCoalescedSlideComposeReload('compose API unavailable on slide_ready')
+          refreshToken = Date.now()
+        } else {
+          try {
+            const reconcileResult = await composeApi.composeSlideReconcile(
+              payload.job_id,
+              payloadSlideIndex,
+              payload.real_slide_id,
+              targetPresentationId,
+            )
+            if (Number.isFinite(Number(reconcileResult?.visual_index))) {
+              resolvedVisualIndex = Math.max(0, Number(reconcileResult.visual_index))
+            }
+            if (Number.isFinite(Number(reconcileResult?.total_slides))) {
+              viewerSlideCount = Number(reconcileResult.total_slides)
+            }
+          } catch (error) {
+            console.warn('[Slide Composer] Live slide swap failed; falling back to iframe refresh.', error)
+            triggerCoalescedSlideComposeReload('compose live swap failed')
+            refreshToken = Date.now()
+          }
+        }
+
+        const nextSlideCount = resolveSlideComposeCountAfterReady({
+          currentSlideCount: latest.slideCount,
+          existingDeck,
+          resolvedVisualIndex,
+          viewerSlideCount,
+        })
+        const job = slideComposeJobsRef.current[payload.job_id]
+        const navigate = !!job && shouldNavigateToResolvedComposeSlide({
+          currentSlideIndex: currentSlideIndexRef.current,
+          jobTargetVisualIndex: job.target_visual_index,
+          resolvedVisualIndex,
+        })
+        const nextPresentationUrl = shouldUseIncomingComposePresentationUrl(
+          latest.presentationUrl,
           targetPresentationUrl,
         )
           ? targetPresentationUrl
-          : snapshot.presentationUrl
-        const updates: any = {
-          slideCount: nextSlideCount,
-          lastMessageAt: new Date(),
-        }
-        if (snapshot.activeVersion === 'strawman') {
-          updates.strawmanPreviewUrl = metadataPresentationUrl
-          updates.strawmanPresentationId = targetPresentationId
-        } else {
-          updates.finalPresentationUrl = metadataPresentationUrl
-          updates.finalPresentationId = targetPresentationId
-        }
-        persistenceRef.current.updateMetadata(updates)
-      }
+          : latest.presentationUrl
 
-      const finishReady = (refreshToken: number, navigate: boolean) => {
         clearSlideComposeWatchdog(payload.job_id)
         setSlideComposeJobs(prev => {
           const { [payload.job_id]: _completed, ...rest } = prev
           return rest
         })
-        const nextPresentationUrl = shouldUseIncomingComposePresentationUrl(
-          snapshot.presentationUrl,
-          targetPresentationUrl,
-        )
-          ? targetPresentationUrl
-          : snapshot.presentationUrl
-        setSlideComposerOverride({
+        const nextOverride = {
           presentationUrl: nextPresentationUrl ?? targetPresentationUrl ?? null,
           presentationId: targetPresentationId ?? null,
           slideCount: nextSlideCount,
           refreshToken,
-        })
-        if (navigate) {
-          setCurrentSlideIndex(nextSlideIndex)
         }
-        persistCompletion()
+        slideComposerPresentationRef.current = {
+          ...latest,
+          ...nextOverride,
+        }
+        setSlideComposerOverride(nextOverride)
+        if (navigate) {
+          setCurrentSlideIndex(resolvedVisualIndex)
+        }
+
+        if (currentSessionIdRef.current && persistenceRef.current) {
+          const updates: any = {
+            slideCount: nextSlideCount,
+            lastMessageAt: new Date(),
+          }
+          if (latest.activeVersion === 'strawman') {
+            updates.strawmanPreviewUrl = nextPresentationUrl
+            updates.strawmanPresentationId = targetPresentationId
+          } else {
+            updates.finalPresentationUrl = nextPresentationUrl
+            updates.finalPresentationId = targetPresentationId
+          }
+          persistenceRef.current.updateMetadata(updates)
+        }
+
         toast({
           title: 'Slide built',
-          description: `Inserted slide ${nextSlideIndex + 1}.`,
+          description: `Inserted slide ${resolvedVisualIndex + 1}.`,
         })
-      }
-
-      const job = slideComposeJobsRef.current[payload.job_id]
-      const shouldNavigate = !!job && (
-        currentSlideIndexRef.current === job.target_visual_index ||
-        currentSlideIndexRef.current === nextSlideIndex
-      )
-      void enqueueSlideComposeReconcile(targetPresentationId ?? '__unknown__', async () => {
-        const composeApi = composeViewerApiRef.current
-        if (!composeApi) {
-          triggerCoalescedSlideComposeReload('compose API unavailable on slide_ready')
-          finishReady(Date.now(), shouldNavigate)
-          return
-        }
-
-        try {
-          await composeApi.composeSlideReconcile(
-            payload.job_id,
-            nextSlideIndex,
-            payload.real_slide_id,
-            targetPresentationId,
-          )
-          finishReady(snapshot.refreshToken, shouldNavigate)
-        } catch (error) {
-          console.warn('[Slide Composer] Live slide swap failed; falling back to iframe refresh.', error)
-          triggerCoalescedSlideComposeReload('compose live swap failed')
-          finishReady(Date.now(), shouldNavigate)
-        }
       })
     },
     onSlideComposeFailed: (message: SlideComposeFailed) => {
@@ -1154,11 +1169,13 @@ function BuilderContent() {
     } else {
       pendingComposePlaceholdersRef.current.set(job.job_id, placeholderAdd)
     }
+    // TODO: replace this timer with a backend heartbeat; for now it must exceed
+    // Director's 300s same-target FIFO wait plus a long Slide Builder pass.
     slideComposeWatchdogsRef.current[job.job_id] = setTimeout(() => {
       if (slideComposeJobsRef.current[job.job_id]?.status === 'building') {
         triggerCoalescedSlideComposeReload(`compose job ${job.job_id} exceeded watchdog`)
       }
-    }, 90_000)
+    }, SLIDE_COMPOSE_WATCHDOG_MS)
     toast({
       title: 'Slide queued',
       description: `Building slide ${targetVisualIndex + 1} in the background.`,
@@ -1190,11 +1207,13 @@ function BuilderContent() {
         },
       }
     })
+    // TODO: replace this timer with a backend heartbeat; for now it must exceed
+    // Director's 300s same-target FIFO wait plus a long Slide Builder pass.
     slideComposeWatchdogsRef.current[nextJobId] = setTimeout(() => {
       if (slideComposeJobsRef.current[nextJobId]?.status === 'building') {
         triggerCoalescedSlideComposeReload(`compose retry ${nextJobId} exceeded watchdog`)
       }
-    }, 90_000)
+    }, SLIDE_COMPOSE_WATCHDOG_MS)
 
     try {
       const response = await fetch('/api/slides/compose', {
