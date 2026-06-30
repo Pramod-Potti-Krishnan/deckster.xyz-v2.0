@@ -121,6 +121,7 @@ interface PresentationViewerProps {
   strawmanPreviewUrl?: string | null
   finalPresentationUrl?: string | null
   activeVersion?: 'blank' | 'strawman' | 'final'
+  isBlankPresentation?: boolean
   onVersionSwitch?: (version: 'blank' | 'strawman' | 'final') => void
   // Text box panel callbacks
   onTextBoxSelected?: (elementId: string, formatting: TextBoxFormatting | null) => void
@@ -272,6 +273,7 @@ export function PresentationViewer({
   strawmanPreviewUrl,
   finalPresentationUrl,
   activeVersion = 'final',
+  isBlankPresentation = false,
   onVersionSwitch,
   onTextBoxSelected,
   onTextBoxDeselected,
@@ -338,6 +340,14 @@ export function PresentationViewer({
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPresentationSettings, setShowPresentationSettings] = useState(false)
   const [showThemePanel, setShowThemePanel] = useState(false)
+  const canSaveTemplate = Boolean(
+    templateBuilderEnabled
+    && sessionId
+    && presentationUrl
+    && presentationId
+    && !isBlankPresentation
+    && !templateModeOn
+  )
   // View mode toggles (grid, borders, edit) - only shown in non-fullscreen
   const [isGridActive, setIsGridActive] = useState(false)
   const [isBordersActive, setIsBordersActive] = useState(false)
@@ -1991,7 +2001,6 @@ export function PresentationViewer({
                 >
                   <DropdownMenuTrigger asChild>
                     <button
-                      disabled={!presentationUrl || !sessionId}
                       className={cn(toolbarButtonClass, toolbarBtnBase)}
                       title="Template options"
                     >
@@ -2002,6 +2011,7 @@ export function PresentationViewer({
                   <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
                     <DropdownMenuContent align="center" sideOffset={8} className="w-56 p-1">
                       <DropdownMenuItem
+                        disabled={!canSaveTemplate}
                         className="cursor-pointer gap-2"
                         onClick={() => setShowTemplateSave(true)}
                       >
@@ -2492,6 +2502,7 @@ export function PresentationViewer({
         open={showTemplateSave}
         onOpenChange={setShowTemplateSave}
         sessionId={sessionId ?? null}
+        sourcePresentationId={templateModeOn ? null : presentationId}
       />
 
       {/* Version History Panel */}
