@@ -25,6 +25,7 @@ const GRID_COLUMNS = 32
 const GRID_ROWS = 18
 
 function isVariableElement(element: TemplateModeElement): boolean {
+  if (element.fixedness) return element.fixedness === 'variable'
   const atomType = element.atomType.toUpperCase()
   return atomType.includes('TEXT') || atomType.includes('METRICS')
 }
@@ -60,9 +61,7 @@ function getConstantValue(element: TemplateModeElement): string {
 }
 
 function getVariableLabel(element: TemplateModeElement): string {
-  return element.contentIntent
-    ? `${element.role} - ${element.contentIntent}`
-    : element.role
+  return element.contentIntent ?? element.label ?? element.role
 }
 
 function pct(value: number, total: number): string {
@@ -189,7 +188,7 @@ export function TemplateModeOverlay({
                   {variable ? element.role : getConstantValue(element)}
                 </span>
                 <span className="mt-0.5 line-clamp-2 block opacity-80">
-                  {variable ? getVariableLabel(element) : element.atomType}
+                  {variable ? getVariableLabel(element) : element.label}
                 </span>
                 {!variable && element.renderedImageUrl && (
                   <img

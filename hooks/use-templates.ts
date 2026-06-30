@@ -33,6 +33,64 @@ export interface TemplateSlot {
   [key: string]: unknown;
 }
 
+export type TemplateBlueprintScopeLevel = 'period' | 'sibling' | 'category' | 'structure';
+export type TemplateBlueprintFixedness = 'constant' | 'variable' | 'locked_media';
+export type TemplateBlueprintGenerationMethod = 'llm' | 'deterministic_fallback';
+export type TemplateBlueprintPopulationPolicy = 'flexible' | 'strict';
+
+export interface TemplateBlueprintScope {
+  level: TemplateBlueprintScopeLevel;
+  label?: string | null;
+}
+
+export interface TemplateAtomContract {
+  kind: 'text' | 'metric' | 'chart' | 'diagram' | 'infographic' | 'image' | 'table' | 'kanban' | 'unknown';
+  abstraction_instruction?: string | null;
+  required_data?: string[];
+  reusable_slots?: Record<string, unknown>;
+  fixed_visual_rules?: Record<string, unknown>;
+}
+
+export interface TemplateBlueprintElement {
+  element_key: string;
+  source_element_id?: string | null;
+  spec_id?: string | null;
+  atom_type?: string | null;
+  semantic_role?: string | null;
+  purpose: string;
+  content_intent?: string | null;
+  required_input?: string | null;
+  population_rule?: string | null;
+  fixedness: TemplateBlueprintFixedness;
+  visual_constants?: Record<string, unknown> | null;
+  abstraction_scope?: TemplateBlueprintScope | null;
+  atom_contract?: TemplateAtomContract | null;
+}
+
+export interface TemplateBlueprintSlide {
+  slide_index: number;
+  slide_title?: string | null;
+  title_intent?: string | null;
+  subtitle_intent?: string | null;
+  purpose: string;
+  narrative_role?: string | null;
+  reuse_instruction?: string | null;
+  required_inputs?: string[];
+  population_policy: TemplateBlueprintPopulationPolicy;
+  design_constants?: Record<string, unknown> | null;
+  abstraction_scope?: TemplateBlueprintScope | null;
+  elements: TemplateBlueprintElement[];
+}
+
+export interface TemplateBlueprint {
+  version: 1;
+  generation_method: TemplateBlueprintGenerationMethod;
+  deck_purpose?: string | null;
+  deck_reuse_instruction?: string | null;
+  abstraction_scope?: TemplateBlueprintScope | null;
+  slides: TemplateBlueprintSlide[];
+}
+
 export interface TemplateSnapshot extends SavedTemplate {
   user_id?: string;
   presentation_brief?: string;
@@ -41,6 +99,7 @@ export interface TemplateSnapshot extends SavedTemplate {
   strawman_frozen?: Record<string, unknown>;
   slots?: TemplateSlot[];
   frozen_plan?: Array<Record<string, unknown>>;
+  template_blueprint?: TemplateBlueprint | null;
   [key: string]: unknown;
 }
 
@@ -54,6 +113,7 @@ export interface SaveTemplateResult {
   name: string;
   slide_count: number;
   created_at?: string | null;
+  blueprint_generation_method?: TemplateBlueprintGenerationMethod;
 }
 
 /**
@@ -106,6 +166,7 @@ export function useTemplates() {
   const saveTemplate = useCallback(async (args: {
     name: string;
     sourceSessionId: string;
+    sourcePresentationId?: string | null;
     description?: string;
   }): Promise<SaveTemplateResult | null> => {
     setLoading(true);
@@ -118,6 +179,7 @@ export function useTemplates() {
           name: args.name,
           description: args.description ?? null,
           source_session_id: args.sourceSessionId,
+          source_presentation_id: args.sourcePresentationId ?? null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -147,5 +209,38 @@ export function useTemplates() {
     }
   }, []);
 
-  return { loading, error, listTemplates, getTemplate, saveTemplate, deleteTemplate };
+  const updateTemplateBlueprint = useCallback(async (
+    id: string,
+    blueprint: TemplateBlueprint,
+  ): Promise<TemplateSnapshot | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/templates/${encodeURIComponent(id)}/blueprint`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_blueprint: blueprint }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || `blueprint update failed: HTTP ${res.status}`);
+      }
+      return data as TemplateSnapshot;
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return {
+    loading,
+    error,
+    listTemplates,
+    getTemplate,
+    saveTemplate,
+    deleteTemplate,
+    updateTemplateBlueprint,
+  };
 }

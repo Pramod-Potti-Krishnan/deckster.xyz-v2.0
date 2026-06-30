@@ -20,6 +20,8 @@ interface TemplateSaveDialogProps {
   onOpenChange: (open: boolean) => void
   /** The WS session whose agreed deck Director will snapshot (source_session_id). */
   sessionId: string | null
+  /** The built presentation currently owned by that session. */
+  sourcePresentationId?: string | null
 }
 
 /**
@@ -28,7 +30,12 @@ interface TemplateSaveDialogProps {
  * Director builds the snapshot from the session's strawman + the frozen plans
  * captured during the build. See TEMPLATE_PLAN.md §1/§3.
  */
-export function TemplateSaveDialog({ open, onOpenChange, sessionId }: TemplateSaveDialogProps) {
+export function TemplateSaveDialog({
+  open,
+  onOpenChange,
+  sessionId,
+  sourcePresentationId,
+}: TemplateSaveDialogProps) {
   const { toast } = useToast()
   const { saveTemplate, loading } = useTemplates()
   const [name, setName] = useState('')
@@ -43,7 +50,15 @@ export function TemplateSaveDialog({ open, onOpenChange, sessionId }: TemplateSa
       toast({ title: 'No deck to save', description: 'Build and agree a deck first.', variant: 'destructive' })
       return
     }
-    const result = await saveTemplate({ name: trimmed, sourceSessionId: sessionId })
+    if (!sourcePresentationId) {
+      toast({ title: 'No completed deck to save', description: 'Build a deck before saving a template.', variant: 'destructive' })
+      return
+    }
+    const result = await saveTemplate({
+      name: trimmed,
+      sourceSessionId: sessionId,
+      sourcePresentationId,
+    })
     if (result) {
       toast({
         title: 'Template saved',
@@ -87,7 +102,7 @@ export function TemplateSaveDialog({ open, onOpenChange, sessionId }: TemplateSa
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={() => void handleSave()} disabled={loading || !name.trim()}>
+          <Button onClick={() => void handleSave()} disabled={loading || !name.trim() || !sessionId || !sourcePresentationId}>
             {loading ? 'Saving…' : 'Save Template'}
           </Button>
         </DialogFooter>

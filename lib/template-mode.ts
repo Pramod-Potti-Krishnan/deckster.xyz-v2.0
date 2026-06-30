@@ -1,4 +1,10 @@
-import type { TemplateSnapshot, TemplateSlot } from '@/hooks/use-templates'
+import type {
+  TemplateBlueprint,
+  TemplateBlueprintElement,
+  TemplateBlueprintSlide,
+  TemplateSnapshot,
+  TemplateSlot,
+} from '@/hooks/use-templates'
 
 export type TemplateModeOverride = Record<string, unknown>
 export type TemplateSlideOverrides = Record<string, unknown>
@@ -21,6 +27,8 @@ export interface TemplateModeElement {
   gridRect: TemplateGridRect | null
   styleHints: Record<string, unknown> | null
   renderedImageUrl: string | null
+  fixedness: string | null
+  blueprintElement: TemplateBlueprintElement | null
   element: Record<string, unknown> | null
   renderSpec: Record<string, unknown>
 }
@@ -29,6 +37,13 @@ export function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null
+}
+
+export function getTemplateBlueprint(
+  snapshot: TemplateSnapshot | null | undefined,
+): TemplateBlueprint | null {
+  const blueprint = snapshot?.template_blueprint
+  return blueprint && typeof blueprint === 'object' ? blueprint : null
 }
 
 function asRecordArray(value: unknown): Record<string, unknown>[] {
@@ -41,7 +56,7 @@ function stringValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
-function hasSlideIndex(value: Record<string, unknown> | TemplateSlot): boolean {
+function hasSlideIndex(value: { slide_index?: unknown }): boolean {
   return value.slide_index != null
 }
 
@@ -69,6 +84,18 @@ export function getTemplateSlot(
     ?? null
 }
 
+export function getBlueprintSlide(
+  snapshot: TemplateSnapshot | null | undefined,
+  slideIndex: number,
+): TemplateBlueprintSlide | null {
+  const slides = Array.isArray(snapshot?.template_blueprint?.slides)
+    ? snapshot.template_blueprint.slides
+    : []
+  return slides.find((slide) => Number(slide.slide_index) === slideIndex)
+    ?? (slides.some(hasSlideIndex) ? null : slides[slideIndex])
+    ?? null
+}
+
 export function getLayoutElements(layoutPlan: Record<string, unknown> | null | undefined): Record<string, unknown>[] {
   return asRecordArray(layoutPlan?.elements)
 }
@@ -81,8 +108,8 @@ export function getSpecOverrideKey(
   renderSpec: Record<string, unknown>,
   element?: Record<string, unknown> | null,
 ): string | null {
-  return stringValue(renderSpec.source_element_id)
-    ?? stringValue(renderSpec.spec_id)
+  return stringValue(renderSpec.spec_id)
+    ?? stringValue(renderSpec.source_element_id)
     ?? stringValue(element?.id)
 }
 
@@ -119,6 +146,25 @@ function getRole(renderSpec: Record<string, unknown>, element: Record<string, un
     ?? 'slot'
 }
 
+function getBlueprintElement(
+  slide: TemplateBlueprintSlide | null,
+  overrideKey: string,
+  renderSpec: Record<string, unknown>,
+  element: Record<string, unknown> | null,
+): TemplateBlueprintElement | null {
+  const elements = Array.isArray(slide?.elements) ? slide.elements : []
+  const keys = [
+    overrideKey,
+    stringValue(renderSpec.spec_id),
+    stringValue(renderSpec.source_element_id),
+    stringValue(element?.id),
+  ].filter((value): value is string => Boolean(value))
+  return elements.find((item) => keys.includes(item.element_key))
+    ?? elements.find((item) => item.spec_id && keys.includes(item.spec_id))
+    ?? elements.find((item) => item.source_element_id && keys.includes(item.source_element_id))
+    ?? null
+}
+
 function getGeometry(element: Record<string, unknown> | null): string | null {
   const rect = getGridRect(element)
   if (!rect) return null
@@ -141,6 +187,7 @@ export function getTemplateModeElements(
   const entry = getFrozenPlanEntry(snapshot, slideIndex)
   const layoutPlan = getLayoutPlan(entry)
   const elements = getLayoutElements(layoutPlan)
+  const blueprintSlide = getBlueprintSlide(snapshot, slideIndex)
 
   return getRenderSpecs(layoutPlan).flatMap((renderSpec) => {
     const element = getElementForSpec(renderSpec, elements)
@@ -149,11 +196,18 @@ export function getTemplateModeElements(
 
     const atomType = getAtomType(renderSpec, element)
     const role = getRole(renderSpec, element)
-    const contentIntent = stringValue(element?.content_intent) ?? stringValue(renderSpec.content_intent)
+    const blueprintElement = getBlueprintElement(blueprintSlide, overrideKey, renderSpec, element)
+    const contentIntent = stringValue(blueprintElement?.purpose)
+      ?? stringValue(blueprintElement?.content_intent)
+      ?? stringValue(element?.content_intent)
+      ?? stringValue(renderSpec.content_intent)
+    const label = stringValue(blueprintElement?.semantic_role)
+      ?? stringValue(blueprintElement?.atom_type)
+      ?? role
 
     return [{
       overrideKey,
-      label: `${role}${atomType ? ` (${atomType})` : ''}`,
+      label: `${label}${atomType ? ` (${atomType})` : ''}`,
       atomType,
       role,
       contentIntent,
@@ -161,6 +215,8 @@ export function getTemplateModeElements(
       gridRect: getGridRect(element),
       styleHints: asRecord(element?.style_hints),
       renderedImageUrl: getRenderedImageUrl(renderSpec),
+      fixedness: blueprintElement?.fixedness ?? null,
+      blueprintElement,
       element,
       renderSpec,
     } satisfies TemplateModeElement]

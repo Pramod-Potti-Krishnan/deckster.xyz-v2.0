@@ -41,6 +41,7 @@ export interface PresentationAreaProps {
   strawmanPreviewUrl: string | null
   finalPresentationUrl: string | null
   activeVersion: string | null
+  isBlankPresentation?: boolean
   onVersionSwitch: (version: any) => void
   currentStage: number
   currentSlideIndex: number
@@ -98,6 +99,7 @@ export function PresentationArea({
   strawmanPreviewUrl,
   finalPresentationUrl,
   activeVersion,
+  isBlankPresentation = false,
   onVersionSwitch,
   currentStage,
   currentSlideIndex,
@@ -145,6 +147,7 @@ export function PresentationArea({
             strawmanPreviewUrl={strawmanPreviewUrl}
             finalPresentationUrl={finalPresentationUrl}
             activeVersion={activeVersion as any}
+            isBlankPresentation={isBlankPresentation}
             onVersionSwitch={onVersionSwitch}
             showControls={true}
             downloadControls={
