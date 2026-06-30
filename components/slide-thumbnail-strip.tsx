@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/context-menu'
 import { Copy, Trash2, Layout, ChevronUp, ChevronDown, Check, Loader2, AlertTriangle, RotateCcw } from 'lucide-react'
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
+import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
 
 export interface SlideThumbnail {
   slideNumber: number
@@ -171,21 +172,7 @@ export function SlideThumbnailStrip({
   const isVertical = orientation === 'vertical'
   const hasCrudActions = onDuplicateSlide || onDeleteSlide || onChangeLayout || onReorderSlides
 
-  const orderedItems: Array<
-    | { kind: 'slide'; slide: SlideThumbnail }
-    | { kind: 'compose'; job: SlideComposeThumbnailJob; visualNumber: number }
-  > = []
-  const normalizedComposeJobs = [...composeJobs].sort((a, b) => a.targetIndex - b.targetIndex)
-  for (let index = 0; index <= slides.length; index += 1) {
-    normalizedComposeJobs
-      .filter(job => Math.min(Math.max(job.targetIndex, 0), slides.length) === index)
-      .forEach((job, offset) => {
-        orderedItems.push({ kind: 'compose', job, visualNumber: index + 1 + offset })
-      })
-    if (index < slides.length) {
-      orderedItems.push({ kind: 'slide', slide: slides[index] })
-    }
-  }
+  const orderedItems = buildSlideComposeVisualOrder(slides, composeJobs)
 
   const renderComposeJob = (job: SlideComposeThumbnailJob, visualNumber: number) => {
     const isError = job.status === 'error'
@@ -327,14 +314,18 @@ export function SlideThumbnailStrip({
     }
   }
 
-  const renderThumbnail = (slide: SlideThumbnail) => {
-    const slideIndex = slide.slideNumber - 1  // 0-based index
-    const isActive = slide.slideNumber === currentSlide
+  const renderThumbnail = (slide: SlideThumbnail, visualNumber: number) => {
+    const realSlideNumber = slide.slideNumber
+    const slideIndex = realSlideNumber - 1  // 0-based index
+    const isActive = visualNumber === currentSlide
     const isSelected = selectedSlides.includes(slideIndex)
-    const isDragging = draggedSlide === slide.slideNumber
-    const isDropTarget = dropTarget === slide.slideNumber
-    const isItemProcessing = isProcessing === slide.slideNumber
+    const isDragging = draggedSlide === realSlideNumber
+    const isDropTarget = dropTarget === realSlideNumber
+    const isItemProcessing = isProcessing === realSlideNumber
     const canDelete = onDeleteSlide && slidesTotal > 1 && !isItemProcessing
+    const displayTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
+      ? `Slide ${visualNumber}`
+      : slide.title
 
     const thumbnailContent = (
       <div
@@ -354,7 +345,7 @@ export function SlideThumbnailStrip({
           <button
             onClick={(e) => {
               e.stopPropagation()
-              onDeleteSlide(slide.slideNumber - 1)
+              onDeleteSlide(realSlideNumber - 1)
             }}
             className="absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full bg-red-500 text-white
                        flex items-center justify-center opacity-0 group-hover:opacity-100
@@ -368,10 +359,10 @@ export function SlideThumbnailStrip({
         <button
           onClick={(e) => handleSlideSelect(slideIndex, e)}
           draggable={enableDragDrop && onReorderSlides && !isItemProcessing}
-          onDragStart={(e) => handleDragStart(e, slide.slideNumber)}
-          onDragOver={(e) => handleDragOver(e, slide.slideNumber)}
+          onDragStart={(e) => handleDragStart(e, realSlideNumber)}
+          onDragOver={(e) => handleDragOver(e, realSlideNumber)}
           onDragLeave={handleDragLeave}
-          onDrop={(e) => handleDrop(e, slide.slideNumber)}
+          onDrop={(e) => handleDrop(e, realSlideNumber)}
           onDragEnd={handleDragEnd}
           className={cn(
             "relative flex-shrink-0 w-28 rounded-md border-2 transition-all duration-200 overflow-hidden group",
@@ -422,7 +413,7 @@ export function SlideThumbnailStrip({
                 ? "bg-blue-600 text-white"
                 : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
             )}>
-              {slide.slideNumber}
+              {visualNumber}
             </div>
           </div>
 
@@ -435,7 +426,7 @@ export function SlideThumbnailStrip({
               ? "text-blue-800 bg-blue-50 dark:bg-slate-900 dark:text-blue-300"
               : "text-slate-700 bg-white dark:bg-slate-900 dark:text-slate-300"
           )}>
-            {slide.title || 'Untitled Slide'}
+            {displayTitle}
           </div>
         </button>
       </div>
@@ -444,7 +435,7 @@ export function SlideThumbnailStrip({
     // Wrap with context menu if CRUD actions are available
     if (hasCrudActions) {
       return (
-        <ContextMenu key={slide.slideNumber}>
+        <ContextMenu key={realSlideNumber}>
           <ContextMenuTrigger asChild>
             {thumbnailContent}
           </ContextMenuTrigger>
@@ -452,7 +443,7 @@ export function SlideThumbnailStrip({
             {/* Duplicate */}
             {onDuplicateSlide && (
               <ContextMenuItem
-                onSelect={() => handleDuplicate(slide.slideNumber)}
+                onSelect={() => handleDuplicate(realSlideNumber)}
                 disabled={isItemProcessing}
               >
                 <Copy className="mr-2 h-4 w-4" />
@@ -471,7 +462,7 @@ export function SlideThumbnailStrip({
                   {SLIDE_LAYOUTS.map((layout) => (
                     <ContextMenuItem
                       key={layout.id}
-                      onSelect={() => handleChangeLayout(slide.slideNumber, layout.id)}
+                      onSelect={() => handleChangeLayout(realSlideNumber, layout.id)}
                       disabled={isItemProcessing}
                     >
                       {layout.icon}
@@ -487,15 +478,15 @@ export function SlideThumbnailStrip({
               <>
                 <ContextMenuSeparator />
                 <ContextMenuItem
-                  onSelect={() => handleMoveUp(slide.slideNumber)}
-                  disabled={isItemProcessing || slide.slideNumber <= 1}
+                  onSelect={() => handleMoveUp(realSlideNumber)}
+                  disabled={isItemProcessing || realSlideNumber <= 1}
                 >
                   <ChevronUp className="mr-2 h-4 w-4" />
                   Move Up
                 </ContextMenuItem>
                 <ContextMenuItem
-                  onSelect={() => handleMoveDown(slide.slideNumber)}
-                  disabled={isItemProcessing || slide.slideNumber >= slidesTotal}
+                  onSelect={() => handleMoveDown(realSlideNumber)}
+                  disabled={isItemProcessing || realSlideNumber >= slidesTotal}
                 >
                   <ChevronDown className="mr-2 h-4 w-4" />
                   Move Down
@@ -519,7 +510,7 @@ export function SlideThumbnailStrip({
                   </ContextMenuItem>
                 ) : onDeleteSlide && (
                   <ContextMenuItem
-                    onSelect={() => onDeleteSlide(slide.slideNumber - 1)}
+                    onSelect={() => onDeleteSlide(realSlideNumber - 1)}
                     disabled={isItemProcessing || slidesTotal <= 1}
                     className="text-red-600 focus:text-red-600 focus:bg-red-50"
                   >
@@ -534,7 +525,7 @@ export function SlideThumbnailStrip({
       )
     }
 
-    return <React.Fragment key={slide.slideNumber}>{thumbnailContent}</React.Fragment>
+    return <React.Fragment key={realSlideNumber}>{thumbnailContent}</React.Fragment>
   }
 
   return (
@@ -557,7 +548,7 @@ export function SlideThumbnailStrip({
         {orderedItems.map(item =>
           item.kind === 'compose'
             ? renderComposeJob(item.job, item.visualNumber)
-            : renderThumbnail(item.slide)
+            : renderThumbnail(item.slide, item.visualNumber)
         )}
       </div>
     </div>

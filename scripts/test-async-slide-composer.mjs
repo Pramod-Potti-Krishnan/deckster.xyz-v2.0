@@ -24,6 +24,8 @@ vm.runInNewContext(transpiled.outputText, {
 const {
   withAsyncSlideComposeFields,
   normalizeSlideComposeSocketFrame,
+  buildSlideComposeVisualOrder,
+  canLiveReconcileSlideCompose,
   getComposeVisualIndexForTarget,
   isMatchingSlideComposeCommandResponse,
   resolveSlideComposeCountAfterReady,
@@ -88,6 +90,26 @@ assert.equal(getComposeVisualIndexForTarget(3, {
   'building-at-target': { target_visual_index: 3, status: 'building' },
 }), 4)
 
+const visualOrder = buildSlideComposeVisualOrder(
+  [
+    { slideNumber: 1, title: 'Slide 1' },
+    { slideNumber: 2, title: 'Slide 2' },
+  ],
+  [{ jobId: 'job-1', targetIndex: 1, status: 'building' }],
+)
+assert.equal(
+  JSON.stringify(visualOrder.map(item => ({
+    kind: item.kind,
+    visualNumber: item.visualNumber,
+    label: item.kind === 'compose' ? item.job.jobId : item.slide.title,
+  }))),
+  JSON.stringify([
+    { kind: 'slide', visualNumber: 1, label: 'Slide 1' },
+    { kind: 'compose', visualNumber: 2, label: 'job-1' },
+    { kind: 'slide', visualNumber: 3, label: 'Slide 2' },
+  ]),
+)
+
 assert.equal(isMatchingSlideComposeCommandResponse({
   action: 'composeSlideReconcile',
   requestId: 'request-1',
@@ -109,6 +131,10 @@ assert.equal(isMatchingSlideComposeCommandResponse({
   requestId: 'request-1',
   expectedJobId: 'job-1',
 }), false)
+
+assert.equal(canLiveReconcileSlideCompose('slide_abc123'), true)
+assert.equal(canLiveReconcileSlideCompose(null), false)
+assert.equal(canLiveReconcileSlideCompose(''), false)
 
 assert.equal(isMatchingSlideComposeCommandResponse({
   action: 'composeSlideReconcile',
