@@ -807,6 +807,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   newState.finalPresentationUrl = message.payload.presentation_url;
                   newState.deckOwnerSessionId = sessionIdRef.current;
                   newState.activeVersion = 'final';
+                  newState.isBlankPresentation = false;
                   const _pid = (message.payload as any).presentation_id;
                   if (_pid) { newState.presentationId = _pid; newState.finalPresentationId = _pid; }
                   newState.currentStatus = null;
@@ -831,6 +832,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 newState.finalPresentationUrl = message.payload.url;
                 newState.finalPresentationId = message.payload.presentation_id;
                 newState.deckOwnerSessionId = sessionIdRef.current;
+                newState.isBlankPresentation = false;
 
                 // Automatically switch to final version when it arrives
                 newState.activeVersion = 'final';
@@ -1013,6 +1015,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   newState.strawmanPreviewUrl = previewUrl;
                   newState.strawmanPresentationId = previewPresentationId || null;
                   newState.deckOwnerSessionId = sessionIdRef.current;
+                  newState.isBlankPresentation = false;
 
                   // Set activeVersion to strawman and update presentationUrl to display it
                   newState.activeVersion = 'strawman';
