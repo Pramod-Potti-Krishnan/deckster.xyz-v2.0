@@ -35,6 +35,7 @@ import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { TopUpModal } from '@/components/builder/topup-modal'
 import type { SlideComposeThumbnailJob } from '@/components/slide-thumbnail-strip'
 import {
+  canLiveReconcileSlideCompose,
   getComposeVisualIndexForTarget,
   resolveSlideComposeCountAfterReady,
   shouldNavigateToResolvedComposeSlide,
@@ -917,7 +918,14 @@ function BuilderContent() {
         let resolvedVisualIndex = payloadSlideIndex
         let viewerSlideCount: number | null = null
 
-        if (!composeApi) {
+        if (!canLiveReconcileSlideCompose(payload.real_slide_id)) {
+          console.warn('[Slide Composer] slide_ready missing real_slide_id; falling back to iframe refresh.', {
+            job_id: payload.job_id,
+            slide_index: payload.slide_index,
+          })
+          triggerCoalescedSlideComposeReload('compose slide_ready missing real_slide_id')
+          refreshToken = Date.now()
+        } else if (!composeApi) {
           triggerCoalescedSlideComposeReload('compose API unavailable on slide_ready')
           refreshToken = Date.now()
         } else {
@@ -1288,7 +1296,7 @@ function BuilderContent() {
 
   const slideComposeThumbnailJobs = useMemo<SlideComposeThumbnailJob[]>(
     () => Object.values(slideComposeJobs)
-      .filter(job => job.status === 'error')
+      .filter(job => job.status === 'building' || job.status === 'error')
       .map(job => ({
         jobId: job.job_id,
         targetIndex: job.target_visual_index,

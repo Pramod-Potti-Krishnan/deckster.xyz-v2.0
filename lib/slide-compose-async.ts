@@ -42,6 +42,47 @@ export interface SlideComposeVisualJob {
   status: string
 }
 
+export type SlideComposeVisualOrderItem<TSlide, TJob> =
+  | { kind: 'slide'; slide: TSlide; visualNumber: number }
+  | { kind: 'compose'; job: TJob; visualNumber: number }
+
+export function buildSlideComposeVisualOrder<
+  TSlide,
+  TJob extends { targetIndex: number },
+>(
+  slides: TSlide[],
+  composeJobs: TJob[],
+): Array<SlideComposeVisualOrderItem<TSlide, TJob>> {
+  const orderedItems: Array<SlideComposeVisualOrderItem<TSlide, TJob>> = []
+  const normalizedComposeJobs = [...composeJobs]
+    .map((job, originalIndex) => ({ job, originalIndex }))
+    .sort((a, b) => {
+      const targetDelta = a.job.targetIndex - b.job.targetIndex
+      return targetDelta === 0 ? a.originalIndex - b.originalIndex : targetDelta
+    })
+
+  for (let index = 0; index <= slides.length; index += 1) {
+    normalizedComposeJobs
+      .filter(({ job }) => Math.min(Math.max(job.targetIndex, 0), slides.length) === index)
+      .forEach(({ job }) => {
+        orderedItems.push({
+          kind: 'compose',
+          job,
+          visualNumber: orderedItems.length + 1,
+        })
+      })
+    if (index < slides.length) {
+      orderedItems.push({
+        kind: 'slide',
+        slide: slides[index],
+        visualNumber: orderedItems.length + 1,
+      })
+    }
+  }
+
+  return orderedItems
+}
+
 export function getComposeVisualIndexForTarget(
   layoutTargetIndex: number,
   jobs: Record<string, SlideComposeVisualJob>,
@@ -75,6 +116,10 @@ export function isMatchingSlideComposeCommandResponse(
   if (record.action !== action) return false
   if (expectedJobId && record.job_id !== expectedJobId) return false
   return true
+}
+
+export function canLiveReconcileSlideCompose(realSlideId: unknown): realSlideId is string {
+  return typeof realSlideId === 'string' && realSlideId.trim().length > 0
 }
 
 function normalizeComposePresentationUrlForCompare(value: string | null | undefined): string | null {
