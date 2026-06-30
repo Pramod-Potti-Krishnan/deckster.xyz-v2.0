@@ -174,6 +174,8 @@ export interface SlideComposeViewerApi {
     presentationId?: string | null,
   ) => Promise<any>
   composePlaceholderFail: (jobId: string) => Promise<any>
+  composeGetState: () => Promise<any>
+  composeGoToPlaceholder: (jobId: string) => Promise<any>
 }
 
 interface SlideInfo {
@@ -1582,6 +1584,26 @@ export function PresentationViewer({
     )
   }, [])
 
+  const handleComposeGetState = useCallback(() => {
+    return sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
+  }, [])
+
+  const handleComposeGoToPlaceholder = useCallback(async (jobId: string) => {
+    const state = await sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
+    const placeholder = Array.isArray(state?.placeholders)
+      ? state.placeholders.find((item: any) => item?.job_id === jobId)
+      : null
+    if (!placeholder || !Number.isFinite(Number(placeholder.visual_index))) {
+      throw new Error(`Placeholder not found for job ${jobId}`)
+    }
+    return sendCommand(
+      iframeRef.current,
+      'goToSlide',
+      { index: Math.max(0, Number(placeholder.visual_index)) },
+      { timeoutMs: 5000 },
+    )
+  }, [])
+
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {
     if (iframeReady && onApiReady) {
@@ -1606,6 +1628,8 @@ export function PresentationViewer({
       composePlaceholderAdd: handleComposePlaceholderAdd,
       composeSlideReconcile: handleComposeSlideReconcile,
       composePlaceholderFail: handleComposePlaceholderFail,
+      composeGetState: handleComposeGetState,
+      composeGoToPlaceholder: handleComposeGoToPlaceholder,
     })
 
     return () => onComposeApiReady(null)
@@ -1615,6 +1639,8 @@ export function PresentationViewer({
     handleComposePlaceholderAdd,
     handleComposeSlideReconcile,
     handleComposePlaceholderFail,
+    handleComposeGetState,
+    handleComposeGoToPlaceholder,
   ])
 
   const handleFullscreen = useCallback(async () => {

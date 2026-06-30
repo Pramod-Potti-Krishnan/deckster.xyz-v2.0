@@ -37,6 +37,7 @@ import type { SlideComposeThumbnailJob } from '@/components/slide-thumbnail-stri
 import {
   canLiveReconcileSlideCompose,
   getComposeVisualIndexForTarget,
+  resolveSlideComposeVisualIndex,
   resolveSlideComposeCountAfterReady,
   shouldNavigateToResolvedComposeSlide,
   shouldUseIncomingComposePresentationUrl,
@@ -70,9 +71,12 @@ type SlideComposeJobStatus = 'building' | 'error'
 interface SlideComposeJobState {
   job_id: string
   target_visual_index: number
+  target_layout_index: number
   status: SlideComposeJobStatus
   title: string
   request: Record<string, unknown>
+  real_slide_id?: string | null
+  expected_slide_count?: number | null
   errors?: string[]
 }
 
@@ -411,6 +415,7 @@ function BuilderContent() {
   useEffect(() => {
     currentSlideIndexRef.current = currentSlideIndex
   }, [currentSlideIndex])
+  const [selectedLayoutSlideIndex, setSelectedLayoutSlideIndex] = useState(0)
   const [templateSourceSlideIndex, setTemplateSourceSlideIndex] = useState(0)
   const activeTemplateSlideIndex = templateModeOn ? templateSourceSlideIndex : currentSlideIndex
   const [slideComposerOverride, setSlideComposerOverride] = useState<{
@@ -443,6 +448,7 @@ function BuilderContent() {
     replaceJobId?: string
   }>>(new Map())
   const slideComposeWatchdogsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const slideComposePollersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   const slideComposeReconcileQueuesRef = useRef<Record<string, Promise<void>>>({})
   const slideComposeFallbackReloadInFlightRef = useRef(false)
 
@@ -454,16 +460,29 @@ function BuilderContent() {
     }
   }, [])
 
+  const clearSlideComposePoller = useCallback((jobId: string) => {
+    const timer = slideComposePollersRef.current[jobId]
+    if (timer) {
+      clearInterval(timer)
+      delete slideComposePollersRef.current[jobId]
+    }
+  }, [])
+
   const triggerCoalescedSlideComposeReload = useCallback((reason: string) => {
     if (slideComposeFallbackReloadInFlightRef.current) return
     slideComposeFallbackReloadInFlightRef.current = true
     const snapshot = slideComposerPresentationRef.current
-    setSlideComposerOverride({
+    const nextOverride = {
       presentationUrl: snapshot.presentationUrl,
       presentationId: snapshot.presentationId,
       slideCount: snapshot.slideCount,
       refreshToken: Date.now(),
-    })
+    }
+    slideComposerPresentationRef.current = {
+      ...snapshot,
+      ...nextOverride,
+    }
+    setSlideComposerOverride(nextOverride)
     window.setTimeout(() => {
       slideComposeFallbackReloadInFlightRef.current = false
     }, 8000)
@@ -485,6 +504,97 @@ function BuilderContent() {
     slideComposeReconcileQueuesRef.current[key] = queued
     return queued
   }, [])
+
+  const removeSlideComposeJob = useCallback((jobId: string) => {
+    clearSlideComposeWatchdog(jobId)
+    clearSlideComposePoller(jobId)
+    pendingComposePlaceholdersRef.current.delete(jobId)
+    setSlideComposeJobs(prev => {
+      const { [jobId]: _completed, ...rest } = prev
+      return rest
+    })
+  }, [clearSlideComposePoller, clearSlideComposeWatchdog])
+
+  const fetchSlideComposePresentationSnapshot = useCallback(async (presentationId: string | null | undefined) => {
+    if (!presentationId) return null
+    try {
+      const response = await fetch(`${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(presentationId)}`, {
+        cache: 'no-store',
+      })
+      if (!response.ok) return null
+      const data = await response.json().catch(() => null) as { slides?: Array<{ slide_id?: string; id?: string }> } | null
+      const slides = Array.isArray(data?.slides) ? data.slides : []
+      return {
+        slideCount: slides.length,
+        slideIds: new Set(slides.map(slide => String(slide.slide_id || slide.id || '')).filter(Boolean)),
+      }
+    } catch (error) {
+      console.warn('[Slide Composer] Completion poll failed.', error)
+      return null
+    }
+  }, [])
+
+  const confirmSlideComposeJobAfterRefresh = useCallback(async (jobId: string) => {
+    const job = slideComposeJobsRef.current[jobId]
+    if (!job) return false
+    const snapshot = slideComposerPresentationRef.current
+    const presentation = await fetchSlideComposePresentationSnapshot(snapshot.presentationId)
+    if (!presentation) return false
+
+    const hasExpectedSlide = job.real_slide_id
+      ? presentation.slideIds.has(job.real_slide_id)
+      : presentation.slideCount >= Math.max(job.expected_slide_count ?? 0, job.target_layout_index + 1)
+
+    if (!hasExpectedSlide) return false
+
+    removeSlideComposeJob(jobId)
+    const nextOverride = {
+      presentationUrl: snapshot.presentationUrl,
+      presentationId: snapshot.presentationId,
+      slideCount: Math.max(snapshot.slideCount ?? 0, presentation.slideCount),
+      refreshToken: snapshot.refreshToken,
+    }
+    slideComposerPresentationRef.current = {
+      ...snapshot,
+      ...nextOverride,
+    }
+    setSlideComposerOverride(nextOverride)
+    return true
+  }, [fetchSlideComposePresentationSnapshot, removeSlideComposeJob])
+
+  const startSlideComposePoller = useCallback((jobId: string) => {
+    clearSlideComposePoller(jobId)
+    const poll = async () => {
+      const job = slideComposeJobsRef.current[jobId]
+      if (!job || job.status !== 'building') {
+        clearSlideComposePoller(jobId)
+        return
+      }
+      const snapshot = slideComposerPresentationRef.current
+      const presentation = await fetchSlideComposePresentationSnapshot(snapshot.presentationId)
+      if (!presentation) return
+
+      const foundById = job.real_slide_id ? presentation.slideIds.has(job.real_slide_id) : false
+      const foundByCount = !job.real_slide_id &&
+        presentation.slideCount >= Math.max(job.expected_slide_count ?? 0, job.target_layout_index + 1)
+      if (!foundById && !foundByCount) return
+
+      triggerCoalescedSlideComposeReload(`compose job ${jobId} found by completion poll`)
+      void confirmSlideComposeJobAfterRefresh(jobId)
+    }
+
+    slideComposePollersRef.current[jobId] = setTimeout(() => {
+      void poll()
+      slideComposePollersRef.current[jobId] = setInterval(() => {
+        void poll()
+      }, 10_000)
+    }, 15_000) as unknown as ReturnType<typeof setInterval>
+  }, [
+    clearSlideComposePoller,
+    confirmSlideComposeJobAfterRefresh,
+    fetchSlideComposePresentationSnapshot,
+    triggerCoalescedSlideComposeReload,
+  ])
 
   // Portal target for toolbar in header
   const [toolbarPortalTarget, setToolbarPortalTarget] = useState<HTMLDivElement | null>(null)
@@ -658,9 +768,12 @@ function BuilderContent() {
     setSlideComposeJobs({})
     Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
     slideComposeWatchdogsRef.current = {}
+    Object.values(slideComposePollersRef.current).forEach(clearInterval)
+    slideComposePollersRef.current = {}
     pendingComposePlaceholdersRef.current.clear()
     slideComposeReconcileQueuesRef.current = {}
     slideComposeFallbackReloadInFlightRef.current = false
+    setSelectedLayoutSlideIndex(0)
     setShowFormatPanel(false)
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
@@ -955,6 +1068,7 @@ function BuilderContent() {
         ?? '__unknown__'
 
       void enqueueSlideComposeReconcile(presentationKey, async () => {
+        clearSlideComposePoller(payload.job_id)
         const latest = slideComposerPresentationRef.current
         const targetPresentationUrl = payload.presentation_url ?? latest.presentationUrl
         const targetPresentationId = payload.presentation_id ?? latest.presentationId
@@ -963,7 +1077,9 @@ function BuilderContent() {
         const composeApi = composeViewerApiRef.current
         let refreshToken = latest.refreshToken
         let resolvedVisualIndex = payloadSlideIndex
+        let resolvedLayoutIndex = payloadSlideIndex
         let viewerSlideCount: number | null = null
+        let liveSwapSucceeded = false
 
         if (!canLiveReconcileSlideCompose(payload.real_slide_id)) {
           console.warn('[Slide Composer] slide_ready missing real_slide_id; falling back to iframe refresh.', {
@@ -971,10 +1087,8 @@ function BuilderContent() {
             slide_index: payload.slide_index,
           })
           triggerCoalescedSlideComposeReload('compose slide_ready missing real_slide_id')
-          refreshToken = Date.now()
         } else if (!composeApi) {
           triggerCoalescedSlideComposeReload('compose API unavailable on slide_ready')
-          refreshToken = Date.now()
         } else {
           try {
             const reconcileResult = await composeApi.composeSlideReconcile(
@@ -986,14 +1100,48 @@ function BuilderContent() {
             if (Number.isFinite(Number(reconcileResult?.visual_index))) {
               resolvedVisualIndex = Math.max(0, Number(reconcileResult.visual_index))
             }
+            if (Number.isFinite(Number(reconcileResult?.real_slide_index))) {
+              resolvedLayoutIndex = Math.max(0, Number(reconcileResult.real_slide_index))
+            }
             if (Number.isFinite(Number(reconcileResult?.total_slides))) {
               viewerSlideCount = Number(reconcileResult.total_slides)
             }
+            liveSwapSucceeded = true
           } catch (error) {
             console.warn('[Slide Composer] Live slide swap failed; falling back to iframe refresh.', error)
             triggerCoalescedSlideComposeReload('compose live swap failed')
-            refreshToken = Date.now()
           }
+        }
+
+        if (!liveSwapSucceeded) {
+          setSlideComposeJobs(prev => {
+            const existing = prev[payload.job_id]
+            if (!existing) return prev
+            return {
+              ...prev,
+              [payload.job_id]: {
+                ...existing,
+                real_slide_id: payload.real_slide_id ?? existing.real_slide_id ?? null,
+                expected_slide_count: Math.max(
+                  existing.expected_slide_count ?? 0,
+                  (latest.slideCount ?? 0) + 1,
+                ),
+              },
+            }
+          })
+          window.setTimeout(() => {
+            void (async () => {
+              const confirmed = await confirmSlideComposeJobAfterRefresh(payload.job_id)
+              if (!confirmed && slideComposeJobsRef.current[payload.job_id]?.status === 'building') {
+                startSlideComposePoller(payload.job_id)
+              }
+            })()
+          }, 1500)
+          toast({
+            title: 'Slide ready',
+            description: 'Refreshing the deck to show the completed slide.',
+          })
+          return
         }
 
         const nextSlideCount = resolveSlideComposeCountAfterReady({
@@ -1015,11 +1163,7 @@ function BuilderContent() {
           ? targetPresentationUrl
           : latest.presentationUrl
 
-        clearSlideComposeWatchdog(payload.job_id)
-        setSlideComposeJobs(prev => {
-          const { [payload.job_id]: _completed, ...rest } = prev
-          return rest
-        })
+        removeSlideComposeJob(payload.job_id)
         const nextOverride = {
           presentationUrl: nextPresentationUrl ?? targetPresentationUrl ?? null,
           presentationId: targetPresentationId ?? null,
@@ -1033,6 +1177,7 @@ function BuilderContent() {
         setSlideComposerOverride(nextOverride)
         if (navigate) {
           setCurrentSlideIndex(resolvedVisualIndex)
+          setSelectedLayoutSlideIndex(resolvedLayoutIndex)
         }
 
         if (currentSessionIdRef.current && persistenceRef.current) {
@@ -1060,6 +1205,7 @@ function BuilderContent() {
       const payload = message.payload
       const errors = payload.errors?.filter(Boolean) ?? []
       clearSlideComposeWatchdog(payload.job_id)
+      clearSlideComposePoller(payload.job_id)
       void composeViewerApiRef.current?.composePlaceholderFail(payload.job_id).catch(error => {
         console.warn('[Slide Composer] Failed to mark in-deck placeholder as error.', error)
       })
@@ -1117,7 +1263,7 @@ function BuilderContent() {
   ])
 
   const currentSlideLayout = useMemo<SlideLayoutType | undefined>(() => {
-    const ctx = slideContextByIndex?.[currentSlideIndex]
+    const ctx = slideContextByIndex?.[selectedLayoutSlideIndex]
     if (!ctx) return undefined
 
     const canvas = ctx.canvas_type
@@ -1135,7 +1281,7 @@ function BuilderContent() {
     if (contentType === 'infographic') return 'C4-infographic'
     if (contentType?.startsWith('diagram') || diagramSubtype) return 'C5-diagram'
     return 'C1-text'
-  }, [currentSlideIndex, slideContextByIndex])
+  }, [selectedLayoutSlideIndex, slideContextByIndex])
 
   const handleSlideComposerBuilt = useCallback((result: SlideComposeBuiltResult) => {
     const nextSlideIndex = Math.max(0, result.slide_index)
@@ -1155,6 +1301,7 @@ function BuilderContent() {
       refreshToken: Date.now(),
     })
     setCurrentSlideIndex(nextSlideIndex)
+    setSelectedLayoutSlideIndex(nextSlideIndex)
 
     if (persistence) {
       const updates: any = {
@@ -1203,15 +1350,20 @@ function BuilderContent() {
 
   const handleSlideComposerAccepted = useCallback((job: SlideComposeAcceptedJob) => {
     const targetVisualIndex = getComposeVisualIndexForTarget(job.target_index, slideComposeJobsRef.current)
+    const expectedSlideCount = (slideComposerPresentationRef.current.slideCount ?? 0) +
+      Object.values(slideComposeJobsRef.current).filter(item => item.status === 'building').length +
+      1
     clearSlideComposeWatchdog(job.job_id)
     setSlideComposeJobs(prev => ({
       ...prev,
       [job.job_id]: {
         job_id: job.job_id,
         target_visual_index: targetVisualIndex,
+        target_layout_index: Math.max(0, job.target_index),
         status: 'building',
         title: job.title,
         request: job.request,
+        expected_slide_count: expectedSlideCount,
       },
     }))
     const placeholderAdd = { jobId: job.job_id, visualIndex: targetVisualIndex }
@@ -1229,13 +1381,21 @@ function BuilderContent() {
     slideComposeWatchdogsRef.current[job.job_id] = setTimeout(() => {
       if (slideComposeJobsRef.current[job.job_id]?.status === 'building') {
         triggerCoalescedSlideComposeReload(`compose job ${job.job_id} exceeded watchdog`)
+        void confirmSlideComposeJobAfterRefresh(job.job_id)
       }
     }, SLIDE_COMPOSE_WATCHDOG_MS)
+    startSlideComposePoller(job.job_id)
     toast({
       title: 'Slide queued',
       description: `Building slide ${targetVisualIndex + 1} in the background.`,
     })
-  }, [clearSlideComposeWatchdog, toast, triggerCoalescedSlideComposeReload])
+  }, [
+    clearSlideComposeWatchdog,
+    confirmSlideComposeJobAfterRefresh,
+    startSlideComposePoller,
+    toast,
+    triggerCoalescedSlideComposeReload,
+  ])
 
   const handleRetrySlideCompose = useCallback(async (jobId: string) => {
     const existing = slideComposeJobs[jobId]
@@ -1267,8 +1427,10 @@ function BuilderContent() {
     slideComposeWatchdogsRef.current[nextJobId] = setTimeout(() => {
       if (slideComposeJobsRef.current[nextJobId]?.status === 'building') {
         triggerCoalescedSlideComposeReload(`compose retry ${nextJobId} exceeded watchdog`)
+        void confirmSlideComposeJobAfterRefresh(nextJobId)
       }
     }, SLIDE_COMPOSE_WATCHDOG_MS)
+    startSlideComposePoller(nextJobId)
 
     try {
       const response = await fetch('/api/slides/compose', {
@@ -1298,7 +1460,10 @@ function BuilderContent() {
           ...prev,
           [nextJobId]: {
             ...current,
-            target_visual_index: Math.max(0, data.target_index ?? current.target_visual_index),
+            target_layout_index: Math.max(0, data.target_index ?? current.target_layout_index),
+            target_visual_index: existing.target_visual_index,
+            expected_slide_count: (slideComposerPresentationRef.current.slideCount ?? 0) +
+              Object.values(slideComposeJobsRef.current).filter(item => item.status === 'building').length,
           },
         }
       })
@@ -1320,6 +1485,7 @@ function BuilderContent() {
       }
     } catch (err) {
       clearSlideComposeWatchdog(nextJobId)
+      clearSlideComposePoller(nextJobId)
       const message = err instanceof Error ? err.message : 'Slide Composer retry failed.'
       setSlideComposeJobs(prev => {
         const current = prev[nextJobId]
@@ -1339,20 +1505,35 @@ function BuilderContent() {
         variant: 'destructive',
       })
     }
-  }, [clearSlideComposeWatchdog, slideComposeJobs, toast, triggerCoalescedSlideComposeReload])
+  }, [
+    clearSlideComposeWatchdog,
+    confirmSlideComposeJobAfterRefresh,
+    slideComposeJobs,
+    startSlideComposePoller,
+    toast,
+    triggerCoalescedSlideComposeReload,
+  ])
+
+  const handleSelectPendingSlideCompose = useCallback((jobId: string) => {
+    void composeViewerApiRef.current?.composeGoToPlaceholder(jobId).catch(error => {
+      console.warn('[Slide Composer] Failed to navigate to pending placeholder.', error)
+    })
+  }, [])
 
   const slideComposeThumbnailJobs = useMemo<SlideComposeThumbnailJob[]>(
     () => Object.values(slideComposeJobs)
       .filter(job => job.status === 'building' || job.status === 'error')
       .map(job => ({
         jobId: job.job_id,
-        targetIndex: job.target_visual_index,
+        targetIndex: job.target_layout_index,
+        targetLayoutIndex: job.target_layout_index,
         status: job.status,
         title: job.title,
         errors: job.errors,
         onRetry: handleRetrySlideCompose,
+        onSelect: handleSelectPendingSlideCompose,
       })),
-    [handleRetrySlideCompose, slideComposeJobs],
+    [handleRetrySlideCompose, handleSelectPendingSlideCompose, slideComposeJobs],
   )
 
   // Builder session hook (session init, loading, switching, persistence effects)
@@ -2087,7 +2268,7 @@ function BuilderContent() {
                 <SlideGenerationPanel
                   isOpen={showFormatPanel}
                   onClose={() => setShowFormatPanel(false)}
-                  currentSlide={currentSlideIndex + 1}
+                  currentSlide={selectedLayoutSlideIndex + 1}
                   currentLayout={currentSlideLayout}
                   sessionId={wsSessionId || currentSessionId || ''}
                   presentationId={effectivePresentationId}
@@ -2308,7 +2489,15 @@ function BuilderContent() {
             currentStage={currentStage}
             currentSlideIndex={currentSlideIndex}
             onSlideChange={(slideNum) => {
-              setCurrentSlideIndex(slideNum - 1)
+              const nextVisualIndex = Math.max(0, slideNum - 1)
+              setCurrentSlideIndex(nextVisualIndex)
+              const resolved = resolveSlideComposeVisualIndex(nextVisualIndex, {
+                slideCount: effectiveSlideCount ?? 0,
+                jobs: slideComposeJobsRef.current,
+              })
+              if (resolved?.kind === 'slide') {
+                setSelectedLayoutSlideIndex(resolved.layoutIndex)
+              }
             }}
             currentStatus={currentStatus}
             isGeneratingFinal={isGeneratingFinal}

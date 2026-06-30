@@ -25,10 +25,12 @@ export interface SlideThumbnail {
 export interface SlideComposeThumbnailJob {
   jobId: string
   targetIndex: number
+  targetLayoutIndex?: number
   status: 'building' | 'error'
   title?: string
   errors?: string[]
   onRetry?: (jobId: string) => void
+  onSelect?: (jobId: string) => void
 }
 
 export interface SlideThumbnailStripProps {
@@ -176,7 +178,7 @@ export function SlideThumbnailStrip({
 
   const renderComposeJob = (job: SlideComposeThumbnailJob, visualNumber: number) => {
     const isError = job.status === 'error'
-    const title = job.title || (isError ? 'Slide failed' : 'Building slide')
+    const title = isError ? (job.title || 'Slide failed') : 'Building slide'
     const errorText = job.errors?.filter(Boolean).join('; ')
 
     return (
@@ -189,6 +191,7 @@ export function SlideThumbnailStrip({
           type="button"
           onClick={() => {
             if (isError) job.onRetry?.(job.jobId)
+            else job.onSelect?.(job.jobId)
           }}
           className={cn(
             "relative flex-shrink-0 w-28 rounded-md border-2 transition-all duration-200 overflow-hidden",
@@ -197,7 +200,7 @@ export function SlideThumbnailStrip({
               ? "border-red-300 bg-red-50 text-red-700 hover:border-red-400 hover:bg-red-100"
               : "border-purple-300 bg-purple-50 text-purple-700"
           )}
-          disabled={!isError || !job.onRetry}
+          disabled={isError ? !job.onRetry : !job.onSelect}
         >
           <div className={cn(
             "relative w-full aspect-[16/9] flex flex-col items-center justify-center gap-1.5 p-2",
