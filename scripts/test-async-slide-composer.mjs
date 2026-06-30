@@ -27,6 +27,7 @@ const {
   buildSlideComposeVisualOrder,
   canLiveReconcileSlideCompose,
   getComposeVisualIndexForTarget,
+  resolveSlideComposeVisualIndex,
   isMatchingSlideComposeCommandResponse,
   resolveSlideComposeCountAfterReady,
   shouldNavigateToResolvedComposeSlide,
@@ -90,6 +91,10 @@ assert.equal(getComposeVisualIndexForTarget(3, {
   'building-at-target': { target_visual_index: 3, status: 'building' },
 }), 4)
 
+assert.equal(getComposeVisualIndexForTarget(2, {
+  'job-layout-before': { target_layout_index: 2, target_visual_index: 2, status: 'building' },
+}), 3)
+
 const visualOrder = buildSlideComposeVisualOrder(
   [
     { slideNumber: 1, title: 'Slide 1' },
@@ -108,6 +113,45 @@ assert.equal(
     { kind: 'compose', visualNumber: 2, label: 'job-1' },
     { kind: 'slide', visualNumber: 3, label: 'Slide 2' },
   ]),
+)
+
+const appendVisualOrder = buildSlideComposeVisualOrder(
+  [
+    { slideNumber: 1, title: 'Slide 1' },
+    { slideNumber: 2, title: 'Slide 2' },
+  ],
+  [{ jobId: 'job-append', targetLayoutIndex: 2, status: 'building' }],
+)
+assert.equal(
+  JSON.stringify(appendVisualOrder.map(item => ({
+    kind: item.kind,
+    visualNumber: item.visualNumber,
+    label: item.kind === 'compose' ? item.job.jobId : item.slide.title,
+  }))),
+  JSON.stringify([
+    { kind: 'slide', visualNumber: 1, label: 'Slide 1' },
+    { kind: 'slide', visualNumber: 2, label: 'Slide 2' },
+    { kind: 'compose', visualNumber: 3, label: 'job-append' },
+  ]),
+)
+
+assert.equal(
+  JSON.stringify(resolveSlideComposeVisualIndex(1, {
+    slideCount: 2,
+    jobs: {
+      'job-middle': { target_layout_index: 1, target_visual_index: 1, status: 'building' },
+    },
+  })),
+  JSON.stringify({ kind: 'compose', targetLayoutIndex: 1 }),
+)
+assert.equal(
+  JSON.stringify(resolveSlideComposeVisualIndex(2, {
+    slideCount: 2,
+    jobs: {
+      'job-middle': { target_layout_index: 1, target_visual_index: 1, status: 'building' },
+    },
+  })),
+  JSON.stringify({ kind: 'slide', layoutIndex: 1 }),
 )
 
 assert.equal(isMatchingSlideComposeCommandResponse({

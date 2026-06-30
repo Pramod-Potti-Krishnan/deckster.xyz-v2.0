@@ -38,44 +38,73 @@ export function normalizeSlideComposeSocketFrame<T extends { type?: string; payl
 }
 
 export interface SlideComposeVisualJob {
-  target_visual_index: number
+  target_visual_index?: number
+  target_layout_index?: number
+  targetIndex?: number
+  targetLayoutIndex?: number
   status: string
 }
 
 export type SlideComposeVisualOrderItem<TSlide, TJob> =
-  | { kind: 'slide'; slide: TSlide; visualNumber: number }
-  | { kind: 'compose'; job: TJob; visualNumber: number }
+  | { kind: 'slide'; slide: TSlide; layoutIndex: number; visualIndex: number; visualNumber: number }
+  | { kind: 'compose'; job: TJob; targetLayoutIndex: number; visualIndex: number; visualNumber: number }
+
+function finiteNumber(value: unknown): number | null {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+export function getSlideComposeTargetLayoutIndex(job: SlideComposeVisualJob): number {
+  return Math.max(
+    0,
+    finiteNumber(job.target_layout_index)
+      ?? finiteNumber(job.targetLayoutIndex)
+      ?? finiteNumber(job.targetIndex)
+      ?? finiteNumber(job.target_visual_index)
+      ?? 0,
+  )
+}
 
 export function buildSlideComposeVisualOrder<
   TSlide,
-  TJob extends { targetIndex: number },
+  TJob extends SlideComposeVisualJob,
 >(
   slides: TSlide[],
   composeJobs: TJob[],
 ): Array<SlideComposeVisualOrderItem<TSlide, TJob>> {
   const orderedItems: Array<SlideComposeVisualOrderItem<TSlide, TJob>> = []
   const normalizedComposeJobs = [...composeJobs]
-    .map((job, originalIndex) => ({ job, originalIndex }))
+    .map((job, originalIndex) => ({
+      job,
+      originalIndex,
+      targetLayoutIndex: Math.min(getSlideComposeTargetLayoutIndex(job), slides.length),
+    }))
     .sort((a, b) => {
-      const targetDelta = a.job.targetIndex - b.job.targetIndex
+      const targetDelta = a.targetLayoutIndex - b.targetLayoutIndex
       return targetDelta === 0 ? a.originalIndex - b.originalIndex : targetDelta
     })
 
   for (let index = 0; index <= slides.length; index += 1) {
     normalizedComposeJobs
-      .filter(({ job }) => Math.min(Math.max(job.targetIndex, 0), slides.length) === index)
-      .forEach(({ job }) => {
+      .filter(({ targetLayoutIndex }) => targetLayoutIndex === index)
+      .forEach(({ job, targetLayoutIndex }) => {
+        const visualIndex = orderedItems.length
         orderedItems.push({
           kind: 'compose',
           job,
-          visualNumber: orderedItems.length + 1,
+          targetLayoutIndex,
+          visualIndex,
+          visualNumber: visualIndex + 1,
         })
       })
     if (index < slides.length) {
+      const visualIndex = orderedItems.length
       orderedItems.push({
         kind: 'slide',
         slide: slides[index],
-        visualNumber: orderedItems.length + 1,
+        layoutIndex: index,
+        visualIndex,
+        visualNumber: visualIndex + 1,
       })
     }
   }
@@ -90,15 +119,36 @@ export function getComposeVisualIndexForTarget(
   let visualIndex = Math.max(0, layoutTargetIndex)
   const buildingJobs = Object.values(jobs)
     .filter(job => job.status === 'building')
-    .sort((a, b) => a.target_visual_index - b.target_visual_index)
+    .sort((a, b) => {
+      const targetDelta = getSlideComposeTargetLayoutIndex(a) - getSlideComposeTargetLayoutIndex(b)
+      if (targetDelta !== 0) return targetDelta
+      return (finiteNumber(a.target_visual_index) ?? 0) - (finiteNumber(b.target_visual_index) ?? 0)
+    })
 
   for (const job of buildingJobs) {
-    if (job.target_visual_index <= visualIndex) {
+    if (getSlideComposeTargetLayoutIndex(job) <= layoutTargetIndex) {
       visualIndex += 1
     }
   }
 
   return visualIndex
+}
+
+export function resolveSlideComposeVisualIndex(
+  visualIndex: number,
+  options: {
+    slideCount: number
+    jobs: Record<string, SlideComposeVisualJob>
+  },
+): { kind: 'slide'; layoutIndex: number } | { kind: 'compose'; targetLayoutIndex: number } | null {
+  const slides = Array.from({ length: Math.max(0, options.slideCount) }, (_, index) => index)
+  const jobs = Object.values(options.jobs).filter(job => job.status === 'building' || job.status === 'error')
+  const item = buildSlideComposeVisualOrder(slides, jobs).find(entry => entry.visualIndex === visualIndex)
+  if (!item) return null
+  if (item.kind === 'slide') {
+    return { kind: 'slide', layoutIndex: item.layoutIndex }
+  }
+  return { kind: 'compose', targetLayoutIndex: item.targetLayoutIndex }
 }
 
 export function isMatchingSlideComposeCommandResponse(
