@@ -151,6 +151,22 @@ export function resolveSlideComposeVisualIndex(
   return { kind: 'compose', targetLayoutIndex: item.targetLayoutIndex }
 }
 
+export function resolveSlideComposeViewerState(
+  data: Record<string, unknown>,
+  fallbackTotal = 0,
+): { currentVisualIndex: number; realTotal: number; visualTotal: number } {
+  const currentVisualIndex = Math.max(0, finiteNumber(data.current_visual_index) ?? finiteNumber(data.index) ?? 0)
+  const realTotal = Math.max(0, finiteNumber(data.real_slide_count) ?? finiteNumber(data.total) ?? fallbackTotal)
+  const visualTotal = Math.max(
+    realTotal,
+    finiteNumber(data.visual_section_count) ??
+      finiteNumber(data.total_visual_sections) ??
+      finiteNumber(data.total) ??
+      realTotal,
+  )
+  return { currentVisualIndex, realTotal, visualTotal }
+}
+
 export function isMatchingSlideComposeCommandResponse(
   data: unknown,
   options: {

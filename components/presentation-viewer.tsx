@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { debugLog } from '@/lib/debug-log'
-import { isMatchingSlideComposeCommandResponse } from '@/lib/slide-compose-async'
+import { isMatchingSlideComposeCommandResponse, resolveSlideComposeViewerState } from '@/lib/slide-compose-async'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -319,12 +319,13 @@ export function PresentationViewer({
   const [toolbarTemplatePickerOpen, setToolbarTemplatePickerOpen] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
+  const [visualTotalSlides, setVisualTotalSlides] = useState(slideCount || 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showThumbnails, setShowThumbnails] = useState(true) // Show by default
   const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
   const [iframeReady, setIframeReady] = useState(false)
   const [pollingFailureCount, setPollingFailureCount] = useState(0)
-  const lastSlideInfoRef = useRef<{ slide: number; total: number } | null>(null)
+  const lastSlideInfoRef = useRef<{ slide: number; total: number; visualTotal: number } | null>(null)
   const onSlideChangeRef = useRef(onSlideChange)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   // Delete dialog state
@@ -373,6 +374,7 @@ export function PresentationViewer({
         debugLog(`📊 Updating totalSlides: ${prev} → ${slideCount}`)
         return slideCount
       })
+      setVisualTotalSlides(slideCount)
     }
   }, [slideCount])
 
@@ -437,7 +439,8 @@ export function PresentationViewer({
     try {
       await sendCommand(iframeRef.current, 'nextSlide')
       // Immediately update local state (polling will confirm/sync)
-      if (currentSlide < (totalSlides || 999)) {
+      const navigationTotal = Math.max(visualTotalSlides || 0, totalSlides || 0, currentSlide)
+      if (currentSlide < (navigationTotal || 999)) {
         const newSlide = currentSlide + 1
         setCurrentSlide(newSlide)
         onSlideChange?.(newSlide)
@@ -446,7 +449,7 @@ export function PresentationViewer({
     } catch (error) {
       console.error('Error navigating to next slide:', error)
     }
-  }, [currentSlide, totalSlides, onSlideChange])
+  }, [currentSlide, totalSlides, visualTotalSlides, onSlideChange])
 
   const handlePrevSlide = useCallback(async () => {
     debugLog('🔘 Prev button clicked!')
@@ -559,18 +562,26 @@ export function PresentationViewer({
       if (!iframeRef.current || !iframeReady) return
 
       try {
-        const result = await sendCommand(iframeRef.current, 'getCurrentSlideInfo')
-        if (result.success && result.data) {
-          const slideNum = result.data.index + 1 // Convert 0-based to 1-based
-          const total = result.data.total || 0
+        const hasComposeJobs = composeJobs.length > 0
+        const result = hasComposeJobs
+          ? await sendCommand(iframeRef.current, 'composeGetState')
+          : await sendCommand(iframeRef.current, 'getCurrentSlideInfo')
+        if (result.success && (result.data || hasComposeJobs)) {
+          const data = result.data ?? result
+          const { currentVisualIndex, realTotal: total, visualTotal } = resolveSlideComposeViewerState(data, totalSlides)
+          const slideNum = currentVisualIndex + 1 // Convert 0-based to 1-based
           const previous = lastSlideInfoRef.current
-          const slideInfoChanged = !previous || previous.slide !== slideNum || previous.total !== total
+          const slideInfoChanged = !previous ||
+            previous.slide !== slideNum ||
+            previous.total !== total ||
+            previous.visualTotal !== visualTotal
 
           if (slideInfoChanged) {
-            debugLog(`📊 Slide info: ${slideNum} / ${total}`)
-            lastSlideInfoRef.current = { slide: slideNum, total }
+            debugLog(`📊 Slide info: ${slideNum} / ${visualTotal} visual (${total} real)`)
+            lastSlideInfoRef.current = { slide: slideNum, total, visualTotal }
             setCurrentSlide(prev => prev === slideNum ? prev : slideNum)
             setTotalSlides(prev => prev === total ? prev : total)
+            setVisualTotalSlides(prev => prev === visualTotal ? prev : visualTotal)
             onSlideChangeRef.current?.(slideNum)
           }
 
@@ -585,7 +596,7 @@ export function PresentationViewer({
     }, backoffInterval)
 
     return () => clearInterval(interval)
-  }, [iframeReady, pollingFailureCount])
+  }, [composeJobs.length, iframeReady, pollingFailureCount, totalSlides])
 
   // Force save handler (for Ctrl+S and retry on error)
   // IMPORTANT: Must be declared BEFORE the keyboard shortcuts useEffect that references it

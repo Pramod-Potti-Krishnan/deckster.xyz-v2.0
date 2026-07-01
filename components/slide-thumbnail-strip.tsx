@@ -92,7 +92,7 @@ export function SlideThumbnailStrip({
   const slidesTotal = totalSlides ?? slides.length
 
   // Handle slide click with multi-select support (Ctrl/Cmd + Click, Shift + Click)
-  const handleSlideSelect = useCallback((slideIndex: number, e: React.MouseEvent) => {
+  const handleSlideSelect = useCallback((slideIndex: number, visualNumber: number, e: React.MouseEvent) => {
     const isCtrlOrCmd = e.ctrlKey || e.metaKey
     const isShift = e.shiftKey
 
@@ -115,7 +115,7 @@ export function SlideThumbnailStrip({
       // Normal click - single select and navigate
       onSelectionChange?.([slideIndex])
       setSelectionAnchor(slideIndex)
-      onSlideClick(slideIndex + 1)  // Navigate (1-indexed)
+      onSlideClick(visualNumber)  // Navigate by visual position (1-indexed)
     }
   }, [selectedSlides, selectionAnchor, onSelectionChange, onSlideClick])
 
@@ -360,7 +360,7 @@ export function SlideThumbnailStrip({
         )}
 
         <button
-          onClick={(e) => handleSlideSelect(slideIndex, e)}
+          onClick={(e) => handleSlideSelect(slideIndex, visualNumber, e)}
           draggable={enableDragDrop && onReorderSlides && !isItemProcessing}
           onDragStart={(e) => handleDragStart(e, realSlideNumber)}
           onDragOver={(e) => handleDragOver(e, realSlideNumber)}
