@@ -64,6 +64,12 @@ const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 1
 
+function scTrace(event: string, payload: Record<string, unknown>) {
+  if (typeof window === 'undefined') return
+  if (!features.slideComposerTraceEnabled && window.localStorage?.getItem('deckster.slideComposerTrace') !== 'true') return
+  console.info('[SC_TRACE]', event, payload)
+}
+
 type BuilderTemplateSelection = { id: string; name: string }
 type ActiveBuildThemeProfile = { id: string; name: string }
 
@@ -473,6 +479,19 @@ function BuilderContent() {
     if (slideComposeFallbackReloadInFlightRef.current) return
     slideComposeFallbackReloadInFlightRef.current = true
     const snapshot = slideComposerPresentationRef.current
+    scTrace('builder.reload_fallback.trigger', {
+      reason,
+      presentation_id: snapshot.presentationId,
+      slide_count: snapshot.slideCount,
+      refresh_token_before: snapshot.refreshToken,
+      jobs: Object.values(slideComposeJobsRef.current).map(job => ({
+        job_id: job.job_id,
+        status: job.status,
+        target_visual_index: job.target_visual_index,
+        target_layout_index: job.target_layout_index,
+        real_slide_id: job.real_slide_id ?? null,
+      })),
+    })
     const nextOverride = {
       presentationUrl: snapshot.presentationUrl,
       presentationId: snapshot.presentationId,
@@ -543,6 +562,15 @@ function BuilderContent() {
       ? presentation.slideIds.has(job.real_slide_id)
       : presentation.slideCount >= Math.max(job.expected_slide_count ?? 0, job.target_layout_index + 1)
 
+    scTrace('builder.refresh_confirm', {
+      job_id: jobId,
+      real_slide_id: job.real_slide_id ?? null,
+      target_layout_index: job.target_layout_index,
+      expected_slide_count: job.expected_slide_count ?? null,
+      fetched_slide_count: presentation.slideCount,
+      has_expected_slide: hasExpectedSlide,
+    })
+
     if (!hasExpectedSlide) return false
 
     removeSlideComposeJob(jobId)
@@ -575,6 +603,15 @@ function BuilderContent() {
       const foundById = job.real_slide_id ? presentation.slideIds.has(job.real_slide_id) : false
       const foundByCount = !job.real_slide_id &&
         presentation.slideCount >= Math.max(job.expected_slide_count ?? 0, job.target_layout_index + 1)
+      scTrace('builder.poll.complete_check', {
+        job_id: jobId,
+        real_slide_id: job.real_slide_id ?? null,
+        target_layout_index: job.target_layout_index,
+        expected_slide_count: job.expected_slide_count ?? null,
+        fetched_slide_count: presentation.slideCount,
+        found_by_id: foundById,
+        found_by_count: foundByCount,
+      })
       if (!foundById && !foundByCount) return
 
       triggerCoalescedSlideComposeReload(`compose job ${jobId} found by completion poll`)
@@ -1064,6 +1101,19 @@ function BuilderContent() {
       const presentationKey = payload.presentation_id
         ?? slideComposerPresentationRef.current.presentationId
         ?? '__unknown__'
+      scTrace('builder.ws.slide_ready.received', {
+        payload,
+        presentation_key: presentationKey,
+        current_visual_index: currentSlideIndexRef.current,
+        selected_layout_index: selectedLayoutSlideIndex,
+        jobs: Object.values(slideComposeJobsRef.current).map(job => ({
+          job_id: job.job_id,
+          status: job.status,
+          target_visual_index: job.target_visual_index,
+          target_layout_index: job.target_layout_index,
+          real_slide_id: job.real_slide_id ?? null,
+        })),
+      })
 
       void enqueueSlideComposeReconcile(presentationKey, async () => {
         clearSlideComposePoller(payload.job_id)
@@ -1095,6 +1145,12 @@ function BuilderContent() {
               payload.real_slide_id,
               targetPresentationId,
             )
+            scTrace('builder.reconcile.result', {
+              job_id: payload.job_id,
+              input_slide_index: payloadSlideIndex,
+              input_real_slide_id: payload.real_slide_id,
+              result: reconcileResult,
+            })
             if (Number.isFinite(Number(reconcileResult?.visual_index))) {
               resolvedVisualIndex = Math.max(0, Number(reconcileResult.visual_index))
             }
@@ -1108,6 +1164,11 @@ function BuilderContent() {
             }
             liveSwapSucceeded = true
           } catch (error) {
+            scTrace('builder.reconcile.error', {
+              job_id: payload.job_id,
+              real_slide_id: payload.real_slide_id,
+              message: error instanceof Error ? error.message : String(error),
+            })
             console.warn('[Slide Composer] Live slide swap failed; falling back to iframe refresh.', error)
             triggerCoalescedSlideComposeReload('compose live swap failed')
           }
@@ -1164,6 +1225,16 @@ function BuilderContent() {
           : latest.presentationUrl
 
         removeSlideComposeJob(payload.job_id, resolvedLayoutIndex)
+        scTrace('builder.ws.slide_ready.applied', {
+          job_id: payload.job_id,
+          real_slide_id: payload.real_slide_id,
+          resolved_visual_index: resolvedVisualIndex,
+          resolved_layout_index: resolvedLayoutIndex,
+          viewer_slide_count: viewerSlideCount,
+          next_slide_count: nextSlideCount,
+          navigate,
+          live_swap_succeeded: liveSwapSucceeded,
+        })
         const nextOverride = {
           presentationUrl: nextPresentationUrl ?? targetPresentationUrl ?? null,
           presentationId: targetPresentationId ?? null,
@@ -1336,6 +1407,10 @@ function BuilderContent() {
 
   const handleComposeApiReady = useCallback((apis: SlideComposeViewerApi | null) => {
     composeViewerApiRef.current = apis
+    scTrace('builder.compose_api.ready', {
+      ready: !!apis,
+      queued_placeholders: pendingComposePlaceholdersRef.current.size,
+    })
     if (!apis) return
 
     const queued = Array.from(pendingComposePlaceholdersRef.current.values())
@@ -1353,6 +1428,21 @@ function BuilderContent() {
     const expectedSlideCount = (slideComposerPresentationRef.current.slideCount ?? 0) +
       Object.values(slideComposeJobsRef.current).filter(item => item.status === 'building').length +
       1
+    scTrace('builder.accepted', {
+      job_id: job.job_id,
+      director_target_index: job.target_index,
+      computed_target_visual_index: targetVisualIndex,
+      current_visual_index: currentSlideIndexRef.current,
+      selected_layout_index: selectedLayoutSlideIndex,
+      presentation_id: slideComposerPresentationRef.current.presentationId,
+      slide_count: slideComposerPresentationRef.current.slideCount,
+      existing_jobs: Object.values(slideComposeJobsRef.current).map(item => ({
+        job_id: item.job_id,
+        status: item.status,
+        target_visual_index: item.target_visual_index,
+        target_layout_index: item.target_layout_index,
+      })),
+    })
     clearSlideComposeWatchdog(job.job_id)
     setSlideComposeJobs(prev => ({
       ...prev,
@@ -1370,6 +1460,11 @@ function BuilderContent() {
     const composeApi = composeViewerApiRef.current
     if (composeApi) {
       void composeApi.composePlaceholderAdd(job.job_id, targetVisualIndex).catch(error => {
+        scTrace('builder.placeholder_add.error', {
+          job_id: job.job_id,
+          target_visual_index: targetVisualIndex,
+          message: error instanceof Error ? error.message : String(error),
+        })
         console.warn('[Slide Composer] Failed to add in-deck placeholder.', error)
         pendingComposePlaceholdersRef.current.set(job.job_id, placeholderAdd)
       })

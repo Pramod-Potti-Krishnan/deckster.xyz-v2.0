@@ -43,6 +43,7 @@ export const config = {
     useTextLabsGeneration: process.env.NEXT_PUBLIC_USE_TEXTLABS_GENERATION !== 'false',
     slideComposerEnabled: process.env.NEXT_PUBLIC_SLIDE_COMPOSER_ENABLED === 'true',
     slideComposerAsyncEnabled: process.env.NEXT_PUBLIC_SLIDE_COMPOSER_ASYNC === 'true',
+    slideComposerTraceEnabled: process.env.NEXT_PUBLIC_SLIDE_COMPOSER_TRACE_ENABLED === 'true',
     couponAuthEnabled: process.env.NEXT_PUBLIC_COUPON_AUTH_ENABLED === 'true',
   },
 

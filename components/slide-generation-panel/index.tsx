@@ -67,6 +67,12 @@ import {
 
 export type { SlideComposeAcceptedJob, SlideComposeBuiltResult, SlideComposeNeedsInputResult } from './compose-helpers'
 
+function scTrace(event: string, payload: Record<string, unknown>) {
+  if (typeof window === 'undefined') return
+  if (!features.slideComposerTraceEnabled && window.localStorage?.getItem('deckster.slideComposerTrace') !== 'true') return
+  console.info('[SC_TRACE]', event, payload)
+}
+
 interface SlideComposerResearchState {
   useUploadedDocuments: boolean
   useWebSearch: boolean
@@ -381,6 +387,16 @@ export function SlideGenerationPanel({
     if (features.slideComposerAsyncEnabled) {
       const jobId = crypto.randomUUID()
       const asyncRequest = withAsyncSlideComposeFields(requestBody, jobId)
+      scTrace('panel.submit.async', {
+        job_id: jobId,
+        session_id: sessionId,
+        presentation_id: presentationId,
+        current_slide_prop: currentSlide,
+        insert_after_index: insertAfterIndex,
+        instruction_preview: instruction.slice(0, 160),
+        selections,
+        research: requestBody.research,
+      })
 
       try {
         const response = await fetch('/api/slides/compose', {
@@ -399,6 +415,13 @@ export function SlideGenerationPanel({
           throw new Error(responseErrorMessage(data))
         }
 
+        scTrace('panel.accepted.async', {
+          job_id: data.job_id,
+          target_index: data.target_index,
+          presentation_id: data.presentation_id,
+          session_id: data.session_id,
+          status: data.status,
+        })
         setNeedsInput(null)
         setAnswers({})
         setPrompt('')
@@ -411,6 +434,10 @@ export function SlideGenerationPanel({
         })
         return
       } catch (err) {
+        scTrace('panel.error.async', {
+          job_id: jobId,
+          message: err instanceof Error ? err.message : String(err),
+        })
         setError(err instanceof Error ? err.message : 'Slide Composer failed')
         return
       }

@@ -33,6 +33,7 @@ import {
   Moon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
 import { isMatchingSlideComposeCommandResponse, resolveSlideComposeViewerState } from '@/lib/slide-compose-async'
 import {
@@ -82,6 +83,17 @@ import {
   ElementorPosition
 } from '@/lib/elementor-client'
 import { SlideBuildingLoader } from './slide-building-loader'
+
+function scTrace(event: string, payload: Record<string, unknown>) {
+  if (typeof window === 'undefined') return
+  if (!isSlideComposerTraceEnabled()) return
+  console.info('[SC_TRACE]', event, payload)
+}
+
+function isSlideComposerTraceEnabled(): boolean {
+  if (typeof window === 'undefined') return false
+  return features.slideComposerTraceEnabled || window.localStorage?.getItem('deckster.slideComposerTrace') === 'true'
+}
 
 // Selection info from Layout Service
 export interface SelectionInfo {
@@ -212,9 +224,16 @@ function sendCommand(
     : optionsOrTimeout
   const timeoutMs = options.timeoutMs ?? 5000
   const requestId = createViewerRequestId()
+  const isComposeCommand = action.startsWith('compose')
+  const commandParams = isComposeCommand && isSlideComposerTraceEnabled()
+    ? { ...(params || {}), _sc_trace: true }
+    : params
 
   return new Promise((resolve, reject) => {
     if (!iframe) {
+      if (isComposeCommand) {
+        scTrace('viewer.command.error', { action, requestId, params, error: 'Iframe not ready' })
+      }
       reject(new Error('Iframe not ready'))
       return
     }
@@ -239,6 +258,14 @@ function sendCommand(
         requestId,
         expectedJobId: options.expectedJobId,
       })) {
+        if (isComposeCommand) {
+          scTrace('viewer.command.response', {
+            action,
+            requestId,
+            expected_job_id: options.expectedJobId ?? null,
+            response: event.data,
+          })
+        }
         if (event.data.success) {
           settle(() => {
             resolve(event.data)
@@ -255,10 +282,28 @@ function sendCommand(
 
     // Timeout after the requested command budget.
     timeoutId = setTimeout(() => {
+      if (isComposeCommand) {
+        scTrace('viewer.command.timeout', {
+          action,
+          requestId,
+          expected_job_id: options.expectedJobId ?? null,
+          timeout_ms: timeoutMs,
+          params: commandParams,
+        })
+      }
       settle(() => reject(new Error('Command timeout')))
     }, timeoutMs)
 
-    iframe.contentWindow?.postMessage({ action, params, requestId }, VIEWER_ORIGIN)
+    if (isComposeCommand) {
+      scTrace('viewer.command.send', {
+        action,
+        requestId,
+        expected_job_id: options.expectedJobId ?? null,
+        timeout_ms: timeoutMs,
+        params: commandParams,
+      })
+    }
+    iframe.contentWindow?.postMessage({ action, params: commandParams, requestId }, VIEWER_ORIGIN)
   })
 }
 
