@@ -2668,8 +2668,10 @@ function BuilderContent() {
             composeJobs={slideComposeThumbnailJobs}
             templateCurrentSlideIndex={templateSourceSlideIndex}
             selectedTemplateElementId={selectedTemplateElementId}
+            blueprintEditorV2Enabled={blueprintEditorV2Enabled}
             onTemplateSlideChange={setTemplateSourceSlideIndex}
             onTemplateElementSelect={handleTemplateElementSelect}
+            onTemplateBlueprintChange={handleTemplateBlueprintChange}
           />
           )}
           </div>

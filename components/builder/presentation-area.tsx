@@ -9,7 +9,7 @@ import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-stri
 // slide column so it tracks the slide's right edge, not the container.
 import { ElementType, ElementProperties } from '@/types/elements'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
-import type { TemplateSnapshot } from '@/hooks/use-templates'
+import type { TemplateBlueprint, TemplateSnapshot } from '@/hooks/use-templates'
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -87,8 +87,10 @@ export interface PresentationAreaProps {
   templateCurrentSlideIndex?: number
   composeJobs?: SlideComposeThumbnailJob[]
   selectedTemplateElementId?: string | null
+  blueprintEditorV2Enabled?: boolean
   onTemplateSlideChange?: (slideIndex: number) => void
   onTemplateElementSelect?: (overrideKey: string | null) => void
+  onTemplateBlueprintChange?: (blueprint: TemplateBlueprint) => void
 }
 
 export function PresentationArea({
@@ -132,8 +134,10 @@ export function PresentationArea({
   templateCurrentSlideIndex,
   composeJobs = [],
   selectedTemplateElementId = null,
+  blueprintEditorV2Enabled = false,
   onTemplateSlideChange,
   onTemplateElementSelect,
+  onTemplateBlueprintChange,
 }: PresentationAreaProps) {
   return (
     <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
@@ -210,7 +214,9 @@ export function PresentationArea({
             templateSnapshotLoading={templateSnapshotLoading}
             templateCurrentSlideIndex={templateCurrentSlideIndex}
             selectedTemplateElementId={selectedTemplateElementId}
+            blueprintEditorV2Enabled={blueprintEditorV2Enabled}
             onTemplateElementSelect={onTemplateElementSelect}
+            onTemplateBlueprintChange={onTemplateBlueprintChange}
             toolbarOffset={toolbarOffset}
             isGenerating={isGeneratingFinal || isGeneratingStrawman}
             generatingMode={isGeneratingFinal ? 'default' : 'strawman'}

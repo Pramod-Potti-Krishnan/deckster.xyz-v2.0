@@ -70,7 +70,7 @@ import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
 import { TemplateModeOverlay } from './builder/template-mode-overlay'
 import { TemplatePickerContent } from './builder/template-picker'
-import type { TemplateSnapshot } from '@/hooks/use-templates'
+import type { TemplateBlueprint, TemplateSnapshot } from '@/hooks/use-templates'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
@@ -166,7 +166,9 @@ interface PresentationViewerProps {
   templateSnapshotLoading?: boolean
   templateCurrentSlideIndex?: number
   selectedTemplateElementId?: string | null
+  blueprintEditorV2Enabled?: boolean
   onTemplateElementSelect?: (overrideKey: string | null) => void
+  onTemplateBlueprintChange?: (blueprint: TemplateBlueprint) => void
   // Expose Layout Service API handlers for external use (e.g., Format Panel)
   onApiReady?: (apis: {
     getSelectionInfo: () => Promise<SelectionInfo | null>
@@ -347,7 +349,9 @@ export function PresentationViewer({
   templateSnapshotLoading = false,
   templateCurrentSlideIndex,
   selectedTemplateElementId = null,
+  blueprintEditorV2Enabled = false,
   onTemplateElementSelect,
+  onTemplateBlueprintChange,
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -2465,7 +2469,9 @@ export function PresentationViewer({
                     currentSlideIndex={templateCurrentSlideIndex ?? currentSlide - 1}
                     loading={templateSnapshotLoading}
                     selectedElementId={selectedTemplateElementId}
+                    blueprintEditorV2Enabled={blueprintEditorV2Enabled}
                     onSelectElement={onTemplateElementSelect}
+                    onBlueprintChange={onTemplateBlueprintChange}
                   />
                 )}
                 </div>

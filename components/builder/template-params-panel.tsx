@@ -16,6 +16,8 @@ import type {
   TemplateBlueprint,
   TemplateBlueprintElement,
   TemplateBlueprintFixedness,
+  TemplateBlueprintLockPolicy,
+  TemplateBlueprintMissingDataPolicy,
   TemplateBlueprintScope,
   TemplateBlueprintScopeLevel,
   TemplateBlueprintSlide,
@@ -64,6 +66,17 @@ const FIXEDNESS_OPTIONS: Array<{ value: TemplateBlueprintFixedness; label: strin
   { value: 'variable', label: 'Variable' },
   { value: 'constant', label: 'Constant' },
   { value: 'locked_media', label: 'Locked media' },
+]
+
+const LOCK_POLICY_OPTIONS: Array<{ value: TemplateBlueprintLockPolicy; label: string }> = [
+  { value: 'regenerate', label: 'Regenerate' },
+  { value: 'lock_exact', label: 'Lock exact' },
+]
+
+const MISSING_DATA_POLICY_OPTIONS: Array<{ value: TemplateBlueprintMissingDataPolicy; label: string }> = [
+  { value: 'ask_user', label: 'Ask user' },
+  { value: 'assume_and_continue', label: 'Assume and continue' },
+  { value: 'reuse_prior_as_placeholder', label: 'Reuse prior as placeholder' },
 ]
 
 const ATOM_KIND_OPTIONS: Array<{ value: TemplateAtomContract['kind']; label: string }> = [
@@ -431,7 +444,7 @@ function updateSlide(
   }
 }
 
-function updateElement(
+export function updateElement(
   blueprint: TemplateBlueprint,
   slideIndex: number,
   elementKey: string,
@@ -516,6 +529,12 @@ function BlueprintElementControls({
     blueprintElement.fixedness === 'locked_media' ? 'locked' : 'regenerate'
   ))
   const contract = blueprintElement.atom_contract ?? { kind: 'unknown' as const }
+  const lockPolicy = blueprintElement.lock_policy
+    ?? (blueprintElement.fixedness === 'locked_media' || blueprintElement.fixedness === 'constant'
+      ? 'lock_exact'
+      : 'regenerate')
+  const dataPolicy = contract.missing_data_policy ?? 'ask_user'
+  const dataBearing = ['metric', 'chart', 'table', 'kanban', 'diagram', 'infographic'].includes(contract.kind)
 
   const patchBlueprintElement = (patch: Partial<TemplateBlueprintElement>) => {
     onBlueprintChange(updateElement(blueprint, slideIndex, blueprintElement.element_key, patch))
@@ -558,6 +577,30 @@ function BlueprintElementControls({
           rows={3}
           onChange={(value) => patchBlueprintElement({ purpose: value })}
         />
+        <TextField
+          label="Storyline link"
+          value={textOrEmpty(blueprintElement.storyline_link)}
+          rows={3}
+          onChange={(value) => patchBlueprintElement({ storyline_link: value })}
+        />
+        <SelectField
+          label="Lock policy"
+          value={lockPolicy}
+          placeholder="Lock policy"
+          options={LOCK_POLICY_OPTIONS}
+          onValueChange={(value) => {
+            const next = value as TemplateBlueprintLockPolicy
+            patchBlueprintElement({
+              lock_policy: next,
+              fixedness: next === 'lock_exact'
+                ? (atomType.includes('IMAGE') ? 'locked_media' : 'constant')
+                : 'variable',
+            })
+            if (atomType.includes('IMAGE')) {
+              onPatch({ image_mode: next === 'lock_exact' ? 'locked' : 'regenerate' })
+            }
+          }}
+        />
         <SelectField
           label="Atom kind"
           value={contract.kind}
@@ -592,6 +635,20 @@ function BlueprintElementControls({
             { required_data: linesToList(value) },
           ))}
         />
+        {dataBearing && (
+          <SelectField
+            label="Missing data policy"
+            value={dataPolicy}
+            placeholder="Missing data policy"
+            options={MISSING_DATA_POLICY_OPTIONS}
+            onValueChange={(value) => onBlueprintChange(patchElementContract(
+              blueprint,
+              slideIndex,
+              blueprintElement,
+              { missing_data_policy: value as TemplateBlueprintMissingDataPolicy },
+            ))}
+          />
+        )}
         <TextField
           label="Required input"
           value={textOrEmpty(blueprintElement.required_input)}
@@ -629,7 +686,10 @@ function BlueprintElementControls({
                   key={mode}
                   type="button"
                   onClick={() => {
-                    patchBlueprintElement({ fixedness: mode === 'locked' ? 'locked_media' : 'variable' })
+                    patchBlueprintElement({
+                      fixedness: mode === 'locked' ? 'locked_media' : 'variable',
+                      lock_policy: mode === 'locked' ? 'lock_exact' : 'regenerate',
+                    })
                     onPatch({ image_mode: mode })
                   }}
                   className={cn(
@@ -688,6 +748,11 @@ export function TemplateParamsPanel({
     ? elements.find((element) => element.overrideKey === selectedElementId) ?? null
     : null
   const selectedBlueprintElement = selectedElement?.blueprintElement ?? null
+  const selectedSlideIntent = selectedElementId === `${currentSlideIndex}:title`
+    ? 'title'
+    : selectedElementId === `${currentSlideIndex}:subtitle`
+      ? 'subtitle'
+      : null
 
   const patchBlueprint = (patch: Partial<TemplateBlueprint>) => {
     if (!blueprint || !onBlueprintChange) return
@@ -796,7 +861,11 @@ export function TemplateParamsPanel({
               <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
                 <div className="mb-3">
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Slide details</h4>
-                  <p className="text-xs text-slate-500">{slide.narrative_role ?? slide.slide_title ?? 'Reusable slide role'}</p>
+                  <p className="text-xs text-slate-500">
+                    {selectedSlideIntent
+                      ? `${selectedSlideIntent === 'title' ? 'Title' : 'Subtitle'} intent selected`
+                      : slide.narrative_role ?? slide.slide_title ?? 'Reusable slide role'}
+                  </p>
                 </div>
                 <div className="space-y-3">
                   <SelectField
@@ -811,6 +880,18 @@ export function TemplateParamsPanel({
                     value={textOrEmpty(slide.purpose)}
                     rows={3}
                     onChange={(value) => patchSlide({ purpose: value })}
+                  />
+                  <TextField
+                    label="Storyline"
+                    value={textOrEmpty(slide.storyline)}
+                    rows={3}
+                    onChange={(value) => patchSlide({ storyline: value })}
+                  />
+                  <TextField
+                    label="Proof goal"
+                    value={textOrEmpty(slide.proof_goal)}
+                    rows={2}
+                    onChange={(value) => patchSlide({ proof_goal: value })}
                   />
                   <TextField
                     label="Title intent"
@@ -861,7 +942,9 @@ export function TemplateParamsPanel({
                 />
               ) : (
                 <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-                  Select a hotspot on the slide to edit element details.
+                  {selectedSlideIntent
+                    ? 'Edit the selected title or subtitle intent in Slide details above.'
+                    : 'Select a hotspot on the slide to edit element details.'}
                 </div>
               )}
             </>
