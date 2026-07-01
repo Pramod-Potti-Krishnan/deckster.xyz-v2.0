@@ -34,6 +34,7 @@ const {
   shouldNavigateToResolvedComposeSlide,
   shouldUseIncomingComposePresentationUrl,
   shiftSlideComposeTargetsAfterInsert,
+  canPollCompleteSlideComposeJob,
   SLIDE_COMPOSE_WATCHDOG_MS,
 } = module.exports
 
@@ -254,6 +255,9 @@ assert.equal(isMatchingSlideComposeCommandResponse({
 assert.equal(canLiveReconcileSlideCompose('slide_abc123'), true)
 assert.equal(canLiveReconcileSlideCompose(null), false)
 assert.equal(canLiveReconcileSlideCompose(''), false)
+assert.equal(canPollCompleteSlideComposeJob('slide_abc123'), true)
+assert.equal(canPollCompleteSlideComposeJob(null), false)
+assert.equal(canPollCompleteSlideComposeJob(''), false)
 
 assert.equal(JSON.stringify(resolveSlideComposeViewerState({
   current_visual_index: 8,
