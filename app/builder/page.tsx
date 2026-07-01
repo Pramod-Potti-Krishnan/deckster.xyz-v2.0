@@ -1103,7 +1103,9 @@ function BuilderContent() {
             if (Number.isFinite(Number(reconcileResult?.real_slide_index))) {
               resolvedLayoutIndex = Math.max(0, Number(reconcileResult.real_slide_index))
             }
-            if (Number.isFinite(Number(reconcileResult?.total_slides))) {
+            if (Number.isFinite(Number(reconcileResult?.real_slide_count))) {
+              viewerSlideCount = Number(reconcileResult.real_slide_count)
+            } else if (Number.isFinite(Number(reconcileResult?.total_slides))) {
               viewerSlideCount = Number(reconcileResult.total_slides)
             }
             liveSwapSucceeded = true
