@@ -216,6 +216,13 @@ export function canLiveReconcileSlideCompose(realSlideId: unknown): realSlideId 
   return typeof realSlideId === 'string' && realSlideId.trim().length > 0
 }
 
+export function canPollCompleteSlideComposeJob(realSlideId: unknown): realSlideId is string {
+  // Layout briefly exposes append-before-reorder state while Director is still
+  // inserting. Count-only polling can catch that transient end-of-deck slide and
+  // force a bad live reload. Poll completion is therefore identity-only.
+  return canLiveReconcileSlideCompose(realSlideId)
+}
+
 function normalizeComposePresentationUrlForCompare(value: string | null | undefined): string | null {
   if (!value) return null
   try {

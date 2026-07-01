@@ -35,6 +35,7 @@ import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { TopUpModal } from '@/components/builder/topup-modal'
 import type { SlideComposeThumbnailJob } from '@/components/slide-thumbnail-strip'
 import {
+  canPollCompleteSlideComposeJob,
   canLiveReconcileSlideCompose,
   getComposeVisualIndexForTarget,
   resolveSlideComposeVisualIndex,
@@ -600,9 +601,9 @@ function BuilderContent() {
       const presentation = await fetchSlideComposePresentationSnapshot(snapshot.presentationId)
       if (!presentation) return
 
-      const foundById = job.real_slide_id ? presentation.slideIds.has(job.real_slide_id) : false
-      const foundByCount = !job.real_slide_id &&
-        presentation.slideCount >= Math.max(job.expected_slide_count ?? 0, job.target_layout_index + 1)
+      const foundById = canPollCompleteSlideComposeJob(job.real_slide_id)
+        ? presentation.slideIds.has(job.real_slide_id)
+        : false
       scTrace('builder.poll.complete_check', {
         job_id: jobId,
         real_slide_id: job.real_slide_id ?? null,
@@ -610,9 +611,10 @@ function BuilderContent() {
         expected_slide_count: job.expected_slide_count ?? null,
         fetched_slide_count: presentation.slideCount,
         found_by_id: foundById,
-        found_by_count: foundByCount,
+        found_by_count: false,
+        count_only_poll_disabled: !canPollCompleteSlideComposeJob(job.real_slide_id),
       })
-      if (!foundById && !foundByCount) return
+      if (!foundById) return
 
       triggerCoalescedSlideComposeReload(`compose job ${jobId} found by completion poll`)
       void confirmSlideComposeJobAfterRefresh(jobId)
