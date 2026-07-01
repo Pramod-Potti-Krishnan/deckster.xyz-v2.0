@@ -41,6 +41,7 @@ import {
   resolveSlideComposeCountAfterReady,
   shouldNavigateToResolvedComposeSlide,
   shouldUseIncomingComposePresentationUrl,
+  shiftSlideComposeTargetsAfterInsert,
   SLIDE_COMPOSE_WATCHDOG_MS,
 } from '@/lib/slide-compose-async'
 
@@ -505,14 +506,11 @@ function BuilderContent() {
     return queued
   }, [])
 
-  const removeSlideComposeJob = useCallback((jobId: string) => {
+  const removeSlideComposeJob = useCallback((jobId: string, insertedLayoutIndex?: number | null) => {
     clearSlideComposeWatchdog(jobId)
     clearSlideComposePoller(jobId)
     pendingComposePlaceholdersRef.current.delete(jobId)
-    setSlideComposeJobs(prev => {
-      const { [jobId]: _completed, ...rest } = prev
-      return rest
-    })
+    setSlideComposeJobs(prev => shiftSlideComposeTargetsAfterInsert(prev, jobId, insertedLayoutIndex))
   }, [clearSlideComposePoller, clearSlideComposeWatchdog])
 
   const fetchSlideComposePresentationSnapshot = useCallback(async (presentationId: string | null | undefined) => {
@@ -1165,7 +1163,7 @@ function BuilderContent() {
           ? targetPresentationUrl
           : latest.presentationUrl
 
-        removeSlideComposeJob(payload.job_id)
+        removeSlideComposeJob(payload.job_id, resolvedLayoutIndex)
         const nextOverride = {
           presentationUrl: nextPresentationUrl ?? targetPresentationUrl ?? null,
           presentationId: targetPresentationId ?? null,

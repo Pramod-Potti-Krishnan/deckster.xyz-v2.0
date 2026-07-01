@@ -33,6 +33,7 @@ const {
   resolveSlideComposeCountAfterReady,
   shouldNavigateToResolvedComposeSlide,
   shouldUseIncomingComposePresentationUrl,
+  shiftSlideComposeTargetsAfterInsert,
   SLIDE_COMPOSE_WATCHDOG_MS,
 } = module.exports
 
@@ -155,6 +156,57 @@ assert.equal(
     { kind: 'compose', visualNumber: 9, label: 'job-after-8' },
     { kind: 'slide', visualNumber: 10, label: 'Slide 9' },
     { kind: 'slide', visualNumber: 11, label: 'Slide 10' },
+  ]),
+)
+
+const shiftedAfterFirstSameTargetReady = shiftSlideComposeTargetsAfterInsert({
+  'job-auto-first': {
+    target_layout_index: 1,
+    target_visual_index: 1,
+    status: 'building',
+  },
+  'job-text-second': {
+    target_layout_index: 1,
+    target_visual_index: 2,
+    status: 'building',
+  },
+  'job-later': {
+    target_layout_index: 5,
+    target_visual_index: 6,
+    status: 'building',
+  },
+  'job-before': {
+    target_layout_index: 0,
+    target_visual_index: 0,
+    status: 'building',
+  },
+}, 'job-auto-first', 1)
+
+assert.equal('job-auto-first' in shiftedAfterFirstSameTargetReady, false)
+assert.equal(shiftedAfterFirstSameTargetReady['job-text-second'].target_layout_index, 2)
+assert.equal(shiftedAfterFirstSameTargetReady['job-text-second'].target_visual_index, 2)
+assert.equal(shiftedAfterFirstSameTargetReady['job-later'].target_layout_index, 6)
+assert.equal(shiftedAfterFirstSameTargetReady['job-before'].target_layout_index, 0)
+
+const orderAfterFirstSameTargetReady = buildSlideComposeVisualOrder(
+  [
+    { slideNumber: 1, title: 'Slide 1' },
+    { slideNumber: 2, title: 'Auto result' },
+    { slideNumber: 3, title: 'Original slide 2' },
+  ],
+  [shiftedAfterFirstSameTargetReady['job-text-second']],
+)
+assert.equal(
+  JSON.stringify(orderAfterFirstSameTargetReady.slice(0, 4).map(item => ({
+    kind: item.kind,
+    visualNumber: item.visualNumber,
+    label: item.kind === 'compose' ? 'pending-text' : item.slide.title,
+  }))),
+  JSON.stringify([
+    { kind: 'slide', visualNumber: 1, label: 'Slide 1' },
+    { kind: 'slide', visualNumber: 2, label: 'Auto result' },
+    { kind: 'compose', visualNumber: 3, label: 'pending-text' },
+    { kind: 'slide', visualNumber: 4, label: 'Original slide 2' },
   ]),
 )
 

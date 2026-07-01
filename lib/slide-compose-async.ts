@@ -151,6 +151,34 @@ export function resolveSlideComposeVisualIndex(
   return { kind: 'compose', targetLayoutIndex: item.targetLayoutIndex }
 }
 
+export function shiftSlideComposeTargetsAfterInsert<TJob extends SlideComposeVisualJob>(
+  jobs: Record<string, TJob>,
+  completedJobId: string,
+  insertedLayoutIndex?: number | null,
+): Record<string, TJob> {
+  const { [completedJobId]: _completed, ...remainingJobs } = jobs
+  const insertedIndex = finiteNumber(insertedLayoutIndex)
+  if (insertedIndex === null) {
+    return remainingJobs
+  }
+
+  return Object.fromEntries(
+    Object.entries(remainingJobs).map(([jobId, job]) => {
+      const currentTarget = getSlideComposeTargetLayoutIndex(job)
+      if (currentTarget < insertedIndex) {
+        return [jobId, job]
+      }
+      return [
+        jobId,
+        {
+          ...job,
+          target_layout_index: currentTarget + 1,
+        } as TJob,
+      ]
+    }),
+  )
+}
+
 export function resolveSlideComposeViewerState(
   data: Record<string, unknown>,
   fallbackTotal = 0,
