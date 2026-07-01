@@ -1,28 +1,140 @@
 "use client"
 
-import { Info, Lock, Pencil, Rows3 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  ChevronDown,
+  ChevronUp,
+  Database,
+  Image as ImageIcon,
+  Info,
+  Lock,
+  Minimize2,
+  Pencil,
+  Rows3,
+  Type,
+  Unlock,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { TemplateSnapshot } from '@/hooks/use-templates'
+import type {
+  TemplateAtomContract,
+  TemplateBlueprint,
+  TemplateBlueprintElement,
+  TemplateBlueprintMissingDataPolicy,
+  TemplateBlueprintSlide,
+  TemplateSnapshot,
+} from '@/hooks/use-templates'
 import {
   asRecord,
+  getBlueprintSlide,
   getFrozenPlanEntry,
   getLayoutPlan,
+  getTemplateBlueprint,
   getTemplateModeElements,
   getTemplateSlot,
   summarizeRecord,
+  type TemplateGridRect,
   type TemplateModeElement,
 } from '@/lib/template-mode'
+import { updateElement } from './template-params-panel'
 
 interface TemplateModeOverlayProps {
   snapshot: TemplateSnapshot | null
   currentSlideIndex: number
   loading?: boolean
   selectedElementId?: string | null
+  blueprintEditorV2Enabled?: boolean
   onSelectElement?: (overrideKey: string | null) => void
+  onBlueprintChange?: (blueprint: TemplateBlueprint) => void
 }
 
 const GRID_COLUMNS = 32
 const GRID_ROWS = 18
+
+type AtomGroup = 'TEXT' | 'IMAGE' | 'CHART' | 'DIAGRAM' | 'INFOGRAPHIC' | 'METRIC' | 'TABLE' | 'KANBAN' | 'UNKNOWN'
+
+const ATOM_STYLES: Record<AtomGroup, {
+  label: string
+  border: string
+  bg: string
+  text: string
+  chip: string
+}> = {
+  TEXT: {
+    label: 'Text',
+    border: 'border-sky-400',
+    bg: 'bg-sky-50/90 dark:bg-sky-950/75',
+    text: 'text-sky-950 dark:text-sky-50',
+    chip: 'bg-sky-500',
+  },
+  IMAGE: {
+    label: 'Image',
+    border: 'border-emerald-400',
+    bg: 'bg-emerald-50/90 dark:bg-emerald-950/75',
+    text: 'text-emerald-950 dark:text-emerald-50',
+    chip: 'bg-emerald-500',
+  },
+  CHART: {
+    label: 'Chart',
+    border: 'border-blue-500',
+    bg: 'bg-blue-50/90 dark:bg-blue-950/75',
+    text: 'text-blue-950 dark:text-blue-50',
+    chip: 'bg-blue-500',
+  },
+  DIAGRAM: {
+    label: 'Diagram',
+    border: 'border-amber-500',
+    bg: 'bg-amber-50/90 dark:bg-amber-950/75',
+    text: 'text-amber-950 dark:text-amber-50',
+    chip: 'bg-amber-500',
+  },
+  INFOGRAPHIC: {
+    label: 'Infographic',
+    border: 'border-fuchsia-500',
+    bg: 'bg-fuchsia-50/90 dark:bg-fuchsia-950/75',
+    text: 'text-fuchsia-950 dark:text-fuchsia-50',
+    chip: 'bg-fuchsia-500',
+  },
+  METRIC: {
+    label: 'Metric',
+    border: 'border-violet-500',
+    bg: 'bg-violet-50/90 dark:bg-violet-950/75',
+    text: 'text-violet-950 dark:text-violet-50',
+    chip: 'bg-violet-500',
+  },
+  TABLE: {
+    label: 'Table',
+    border: 'border-cyan-500',
+    bg: 'bg-cyan-50/90 dark:bg-cyan-950/75',
+    text: 'text-cyan-950 dark:text-cyan-50',
+    chip: 'bg-cyan-500',
+  },
+  KANBAN: {
+    label: 'Kanban',
+    border: 'border-rose-500',
+    bg: 'bg-rose-50/90 dark:bg-rose-950/75',
+    text: 'text-rose-950 dark:text-rose-50',
+    chip: 'bg-rose-500',
+  },
+  UNKNOWN: {
+    label: 'Element',
+    border: 'border-slate-400',
+    bg: 'bg-slate-50/90 dark:bg-slate-950/75',
+    text: 'text-slate-900 dark:text-slate-100',
+    chip: 'bg-slate-500',
+  },
+}
+
+const MISSING_DATA_LABELS: Record<TemplateBlueprintMissingDataPolicy, string> = {
+  ask_user: 'Ask user',
+  assume_and_continue: 'Assume and continue',
+  reuse_prior_as_placeholder: 'Reuse prior as placeholder',
+}
+
+const MISSING_DATA_OPTIONS: TemplateBlueprintMissingDataPolicy[] = [
+  'ask_user',
+  'assume_and_continue',
+  'reuse_prior_as_placeholder',
+]
 
 function isVariableElement(element: TemplateModeElement): boolean {
   if (element.fixedness) return element.fixedness === 'variable'
@@ -72,7 +184,123 @@ function gridLinePct(line: number, total: number): string {
   return pct(line - 1, total)
 }
 
-export function TemplateModeOverlay({
+function getAtomGroup(element: TemplateModeElement): AtomGroup {
+  const contractKind = element.blueprintElement?.atom_contract?.kind ?? ''
+  const text = `${element.atomType} ${element.role} ${contractKind}`.toUpperCase()
+  if (text.includes('KANBAN') || text.includes('GANTT')) return 'KANBAN'
+  if (text.includes('METRIC')) return 'METRIC'
+  if (text.includes('CHART')) return 'CHART'
+  if (text.includes('TABLE')) return 'TABLE'
+  if (text.includes('DIAGRAM')) return 'DIAGRAM'
+  if (text.includes('INFOGRAPHIC')) return 'INFOGRAPHIC'
+  if (text.includes('IMAGE')) return 'IMAGE'
+  if (text.includes('TEXT') || text.includes('INTRO') || text.includes('TAKEAWAY')) return 'TEXT'
+  return 'UNKNOWN'
+}
+
+function isDataAtom(element: TemplateModeElement): boolean {
+  return ['METRIC', 'CHART', 'TABLE', 'KANBAN', 'DIAGRAM', 'INFOGRAPHIC'].includes(getAtomGroup(element))
+}
+
+function lockPolicyFor(element: TemplateBlueprintElement | null): 'lock_exact' | 'regenerate' {
+  if (element?.lock_policy === 'lock_exact' || element?.lock_policy === 'regenerate') {
+    return element.lock_policy
+  }
+  return element?.fixedness === 'locked_media' || element?.fixedness === 'constant'
+    ? 'lock_exact'
+    : 'regenerate'
+}
+
+function contractFor(element: TemplateModeElement): TemplateAtomContract | null {
+  return element.blueprintElement?.atom_contract ?? null
+}
+
+function storageKey(slideIndex: number, overrideKey: string): string {
+  return `deckster_template_overlay_box_${slideIndex}_${overrideKey}`
+}
+
+function compactText(value: string | null | undefined, fallback: string): string {
+  return value && value.trim() ? value.trim() : fallback
+}
+
+function fieldBlock(label: string, value: string | null | undefined) {
+  if (!value || !value.trim()) return null
+  return (
+    <div>
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</dt>
+      <dd className="mt-0.5 text-xs leading-relaxed text-slate-700 dark:text-slate-200">{value}</dd>
+    </div>
+  )
+}
+
+function listBlock(label: string, values: string[] | null | undefined) {
+  if (!Array.isArray(values) || values.length === 0) return null
+  return (
+    <div>
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</dt>
+      <dd className="mt-1 flex flex-wrap gap-1">
+        {values.slice(0, 5).map((value) => (
+          <span
+            key={value}
+            className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+          >
+            {value}
+          </span>
+        ))}
+      </dd>
+    </div>
+  )
+}
+
+function dataPolicySummary(elements: TemplateModeElement[]): string | null {
+  const policies = elements
+    .filter(isDataAtom)
+    .map((element) => contractFor(element)?.missing_data_policy ?? 'ask_user')
+  const unique = Array.from(new Set(policies))
+  if (unique.length === 0) return null
+  return unique.map((policy) => MISSING_DATA_LABELS[policy]).join(', ')
+}
+
+function titleSubtitleBoxes(
+  slide: TemplateBlueprintSlide | null,
+  elements: TemplateModeElement[],
+  currentSlideIndex: number,
+) {
+  const realKeys = new Set(elements.map((element) => element.overrideKey))
+  const boxes: Array<{
+    overrideKey: string
+    label: string
+    value: string
+    emptyLabel: string
+    rect: TemplateGridRect
+  }> = []
+
+  const titleKey = `${currentSlideIndex}:title`
+  if (!realKeys.has(titleKey)) {
+    boxes.push({
+      overrideKey: titleKey,
+      label: 'Title intent',
+      value: slide?.title_intent ?? '',
+      emptyLabel: 'Add title intent',
+      rect: { x: 2, y: 1.35, w: 28, h: 1.1 },
+    })
+  }
+
+  const subtitleKey = `${currentSlideIndex}:subtitle`
+  if (!realKeys.has(subtitleKey)) {
+    boxes.push({
+      overrideKey: subtitleKey,
+      label: 'Subtitle intent',
+      value: slide?.subtitle_intent ?? '',
+      emptyLabel: 'Add subtitle intent',
+      rect: { x: 2, y: 2.55, w: 26, h: 0.9 },
+    })
+  }
+
+  return boxes
+}
+
+function LegacyTemplateModeOverlay({
   snapshot,
   currentSlideIndex,
   loading,
@@ -205,4 +433,420 @@ export function TemplateModeOverlay({
       })}
     </div>
   )
+}
+
+export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
+  const {
+    snapshot,
+    currentSlideIndex,
+    loading,
+    selectedElementId,
+    blueprintEditorV2Enabled = false,
+    onSelectElement,
+    onBlueprintChange,
+  } = props
+
+  const [slideDetailsOpen, setSlideDetailsOpen] = useState(true)
+  const [expandedState, setExpandedState] = useState<Record<string, boolean>>({})
+  const slot = getTemplateSlot(snapshot, currentSlideIndex)
+  const frozenEntry = getFrozenPlanEntry(snapshot, currentSlideIndex)
+  const layoutPlan = getLayoutPlan(frozenEntry)
+  const blueprint = getTemplateBlueprint(snapshot)
+  const blueprintSlide = getBlueprintSlide(snapshot, currentSlideIndex)
+  const elements = getTemplateModeElements(snapshot, currentSlideIndex)
+    .filter((element) => element.gridRect)
+  const denseSlide = elements.length > 4
+  const legendGroups = useMemo(
+    () => Array.from(new Set(elements.map(getAtomGroup))).filter((group) => group !== 'UNKNOWN').slice(0, 6),
+    [elements],
+  )
+
+  useEffect(() => {
+    if (!blueprintEditorV2Enabled) return
+    const next: Record<string, boolean> = {}
+    for (const element of elements) {
+      const saved = window.sessionStorage.getItem(storageKey(currentSlideIndex, element.overrideKey))
+      if (saved === 'expanded') next[storageKey(currentSlideIndex, element.overrideKey)] = true
+      if (saved === 'collapsed') next[storageKey(currentSlideIndex, element.overrideKey)] = false
+    }
+    setExpandedState(next)
+  }, [blueprintEditorV2Enabled, currentSlideIndex, elements.map((element) => element.overrideKey).join('|')])
+
+  if (!blueprintEditorV2Enabled) {
+    return <LegacyTemplateModeOverlay {...props} />
+  }
+
+  const selectedPattern = textValue(layoutPlan?.selected_pattern)
+  const accessoryPlan = textValue(layoutPlan?.accessory_plan) ?? summarizeRecord(layoutPlan?.accessory_plan, 3)
+  const themeSummary = summarizeRecord(layoutPlan?.theme_aliases, 3)
+    ?? summarizeRecord(layoutPlan?.theme_css_variables, 3)
+    ?? summarizeRecord(layoutPlan?.theme_color_ramps, 3)
+  const showLockedChip = !loading && snapshot && elements.length === 0
+  const slideDataPolicy = dataPolicySummary(elements)
+  const syntheticBoxes = titleSubtitleBoxes(blueprintSlide, elements, currentSlideIndex)
+
+  const isExpanded = (element: TemplateModeElement) => {
+    const key = storageKey(currentSlideIndex, element.overrideKey)
+    return expandedState[key] ?? !denseSlide
+  }
+
+  const setExpanded = (element: TemplateModeElement, expanded: boolean) => {
+    const key = storageKey(currentSlideIndex, element.overrideKey)
+    setExpandedState((previous) => ({ ...previous, [key]: expanded }))
+    window.sessionStorage.setItem(key, expanded ? 'expanded' : 'collapsed')
+  }
+
+  const patchElement = (element: TemplateModeElement, patch: Partial<TemplateBlueprintElement>) => {
+    if (!blueprint || !element.blueprintElement || !onBlueprintChange) return
+    onBlueprintChange(updateElement(blueprint, currentSlideIndex, element.blueprintElement.element_key, patch))
+  }
+
+  const patchContract = (element: TemplateModeElement, patch: Partial<TemplateAtomContract>) => {
+    const blueprintElement = element.blueprintElement
+    if (!blueprintElement) return
+    const current = blueprintElement.atom_contract ?? { kind: contractKindFor(element) }
+    patchElement(element, {
+      atom_contract: {
+        ...current,
+        ...patch,
+      },
+    })
+  }
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20 overflow-visible rounded-sm">
+      <div className="absolute left-3 top-3 z-30 flex max-w-[70%] flex-wrap items-center gap-2">
+        <div className="rounded-full border border-white/70 bg-slate-950/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow-lg backdrop-blur">
+          Template overlay
+        </div>
+        <div className="rounded-full border border-white/70 bg-white/90 px-2.5 py-1 text-[10px] font-medium text-slate-700 shadow-lg backdrop-blur dark:bg-slate-950/90 dark:text-slate-200">
+          Slide {currentSlideIndex + 1}
+        </div>
+      </div>
+
+      <div className="absolute right-3 top-3 z-30 flex max-w-[56%] flex-wrap items-center gap-1 rounded-full border border-white/70 bg-white/90 px-2.5 py-1 text-[10px] font-medium text-slate-700 shadow-lg backdrop-blur dark:bg-slate-950/90 dark:text-slate-200">
+        {legendGroups.map((group) => (
+          <span key={group} className="inline-flex items-center gap-1">
+            <span className={cn("h-2.5 w-2.5 rounded-full", ATOM_STYLES[group].chip)} />
+            {ATOM_STYLES[group].label}
+          </span>
+        ))}
+        <span className="mx-1 h-3 w-px bg-slate-300 dark:bg-slate-700" />
+        <span className="inline-flex items-center gap-1">
+          <Lock className="h-3 w-3" />
+          Locked
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Unlock className="h-3 w-3" />
+          Regen
+        </span>
+      </div>
+
+      {slideDetailsOpen ? (
+        <div className="pointer-events-auto absolute bottom-3 left-3 z-40 max-h-[48%] w-[min(520px,calc(100%-1.5rem))] overflow-y-auto rounded-lg border border-white/70 bg-white/95 text-xs text-slate-700 shadow-xl backdrop-blur dark:bg-slate-950/95 dark:text-slate-200">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-800">
+            <div className="flex min-w-0 items-center gap-1.5 font-semibold">
+              <Info className="h-4 w-4 shrink-0 text-violet-500" />
+              <span className="truncate">Slide details</span>
+            </div>
+            <button
+              type="button"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+              onClick={(event) => {
+                event.stopPropagation()
+                setSlideDetailsOpen(false)
+              }}
+              aria-label="Minimize slide details"
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <dl className="space-y-2.5 px-3 py-3">
+            {blueprintSlide ? (
+              <>
+                {fieldBlock('Purpose', blueprintSlide.purpose)}
+                {fieldBlock('Storyline', blueprintSlide.storyline ?? blueprintSlide.narrative_role)}
+                {fieldBlock('Proof goal', blueprintSlide.proof_goal)}
+                {fieldBlock('Title intent', blueprintSlide.title_intent)}
+                {fieldBlock('Subtitle intent', blueprintSlide.subtitle_intent)}
+                {listBlock('Needs', blueprintSlide.required_inputs)}
+                {slideDataPolicy && fieldBlock('Data policy', slideDataPolicy)}
+              </>
+            ) : (
+              <>
+                {selectedPattern && <div><dt className="font-semibold">Blueprint</dt><dd>{selectedPattern}</dd></div>}
+                {accessoryPlan && <div><dt className="font-semibold">Accessory</dt><dd>{accessoryPlan}</dd></div>}
+                {themeSummary && <div><dt className="font-semibold">Theme</dt><dd>{themeSummary}</dd></div>}
+              </>
+            )}
+            {selectedPattern && (
+              <div className="border-t border-slate-200 pt-2 text-[10px] text-slate-500 dark:border-slate-800">
+                Layout: {selectedPattern}
+              </div>
+            )}
+          </dl>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="pointer-events-auto absolute bottom-3 left-3 z-40 inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/95 px-3 py-2 text-xs font-semibold text-slate-700 shadow-lg backdrop-blur hover:bg-white dark:bg-slate-950/95 dark:text-slate-200"
+          onClick={(event) => {
+            event.stopPropagation()
+            setSlideDetailsOpen(true)
+          }}
+        >
+          <Info className="h-3.5 w-3.5 text-violet-500" />
+          Slide details
+        </button>
+      )}
+
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="rounded-full border border-white/70 bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-lg backdrop-blur dark:bg-slate-950/95 dark:text-slate-200">
+            Loading template structure...
+          </div>
+        </div>
+      )}
+
+      {showLockedChip && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="rounded-full border border-violet-200 bg-white/95 px-4 py-2 text-sm font-semibold text-violet-700 shadow-xl backdrop-blur dark:border-violet-800 dark:bg-slate-950/95 dark:text-violet-200">
+            <span className="inline-flex items-center gap-2">
+              <Rows3 className="h-4 w-4" />
+              {slot?.canvas_type?.toUpperCase().startsWith('H') ? 'Hero design locked' : 'Design locked'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {syntheticBoxes.map((box) => {
+        const selected = selectedElementId === box.overrideKey
+        return (
+          <button
+            key={box.overrideKey}
+            type="button"
+            className={cn(
+              "pointer-events-auto absolute z-20 overflow-hidden rounded-md border border-dashed border-slate-400 bg-white/65 px-2 py-1 text-left text-[10px] leading-tight text-slate-700 shadow-md backdrop-blur transition hover:bg-white/85 dark:bg-slate-950/55 dark:text-slate-200",
+              selected && "ring-2 ring-violet-500 ring-offset-2"
+            )}
+            style={{
+              left: gridLinePct(box.rect.x, GRID_COLUMNS),
+              top: gridLinePct(box.rect.y, GRID_ROWS),
+              width: pct(box.rect.w, GRID_COLUMNS),
+              minHeight: pct(box.rect.h, GRID_ROWS),
+            }}
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelectElement?.(box.overrideKey)
+            }}
+          >
+            <span className="flex items-start gap-1.5">
+              {box.label.startsWith('Title') ? <Type className="mt-0.5 h-3.5 w-3.5" /> : <Pencil className="mt-0.5 h-3.5 w-3.5" />}
+              <span className="min-w-0">
+                <span className="block font-semibold">{box.label}</span>
+                <span className={cn("mt-0.5 line-clamp-2 block", box.value ? "opacity-85" : "italic opacity-55")}>
+                  {box.value || box.emptyLabel}
+                </span>
+              </span>
+            </span>
+          </button>
+        )
+      })}
+
+      {elements.map((element) => {
+        const rect = element.gridRect
+        if (!rect) return null
+        const group = getAtomGroup(element)
+        const style = ATOM_STYLES[group]
+        const expanded = isExpanded(element)
+        const selected = selectedElementId === element.overrideKey
+        const blueprintElement = element.blueprintElement
+        const locked = lockPolicyFor(blueprintElement) === 'lock_exact'
+        const contract = contractFor(element)
+        const requiredData = contract?.required_data ?? []
+        const missingDataPolicy = contract?.missing_data_policy ?? 'ask_user'
+        const abstractionInstruction = contract?.abstraction_instruction ?? null
+        const secondaryIntent = blueprintElement?.content_intent
+          && blueprintElement.content_intent !== element.contentIntent
+          ? blueprintElement.content_intent
+          : null
+        const canMutate = Boolean(blueprint && blueprintElement && onBlueprintChange)
+
+        return (
+          <div
+            key={element.overrideKey}
+            role="button"
+            tabIndex={0}
+            className={cn(
+              "pointer-events-auto absolute z-30 rounded-md px-2 py-1.5 text-left text-[10px] leading-tight shadow-lg transition",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1",
+              "border-2",
+              locked ? "border-solid" : "border-dashed",
+              style.border,
+              style.bg,
+              style.text,
+              selected && "ring-2 ring-violet-500 ring-offset-2",
+            )}
+            style={{
+              left: gridLinePct(rect.x, GRID_COLUMNS),
+              top: gridLinePct(rect.y, GRID_ROWS),
+              width: pct(rect.w, GRID_COLUMNS),
+              minHeight: expanded ? pct(rect.h, GRID_ROWS) : undefined,
+              height: expanded ? 'auto' : pct(rect.h, GRID_ROWS),
+            }}
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelectElement?.(element.overrideKey)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onSelectElement?.(element.overrideKey)
+              }
+            }}
+          >
+            <div className="flex min-w-0 items-start gap-1.5">
+              {locked ? (
+                <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <Pencil className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate font-semibold">{style.label}</span>
+                  <span className="truncate opacity-80">{element.role}</span>
+                </div>
+                {!expanded && (
+                  <div className="mt-0.5 line-clamp-2 opacity-80">
+                    {compactText(element.contentIntent, blueprintElement?.purpose ?? element.label)}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                className="shrink-0 rounded p-0.5 opacity-75 hover:bg-white/60 hover:opacity-100 dark:hover:bg-slate-900/70"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setExpanded(element, !expanded)
+                }}
+                aria-label={expanded ? 'Collapse element abstraction' : 'Expand element abstraction'}
+              >
+                {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+
+            {expanded && (
+              <div className="mt-2 max-h-[260px] space-y-2 overflow-y-auto pr-1">
+                <p className="text-[11px] leading-snug">
+                  {compactText(element.contentIntent, blueprintElement?.purpose ?? 'Reusable element purpose')}
+                </p>
+                {blueprintElement?.storyline_link && (
+                  <p className="rounded border border-white/60 bg-white/50 px-2 py-1 text-[10px] leading-snug opacity-90 dark:bg-slate-950/40">
+                    {blueprintElement.storyline_link}
+                  </p>
+                )}
+                {secondaryIntent && (
+                  <p className="text-[10px] leading-snug opacity-70">{secondaryIntent}</p>
+                )}
+
+                {element.renderedImageUrl && (
+                  <div className="flex items-start gap-2">
+                    <img
+                      src={element.renderedImageUrl}
+                      alt=""
+                      className="h-12 w-16 shrink-0 rounded-sm object-cover"
+                      loading="lazy"
+                    />
+                    <p className="text-[10px] leading-snug opacity-80">
+                      {abstractionInstruction ?? 'Image abstraction will be captured on newly saved templates.'}
+                    </p>
+                  </div>
+                )}
+
+                {isDataAtom(element) && (
+                  <div className="space-y-1 rounded border border-white/60 bg-white/50 px-2 py-1.5 dark:bg-slate-950/40">
+                    <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide opacity-80">
+                      <Database className="h-3 w-3" />
+                      Needs
+                    </div>
+                    {requiredData.length > 0 ? (
+                      <ul className="list-disc space-y-0.5 pl-4 text-[10px] leading-snug">
+                        {requiredData.slice(0, 5).map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    ) : (
+                      <p className="text-[10px] opacity-70">No specific data requirements saved yet.</p>
+                    )}
+                    <select
+                      value={missingDataPolicy}
+                      disabled={!canMutate}
+                      className="mt-1 h-7 w-full rounded border border-white/70 bg-white/80 px-1 text-[10px] text-slate-700 disabled:opacity-50 dark:bg-slate-950/80 dark:text-slate-100"
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) => {
+                        patchContract(element, {
+                          missing_data_policy: event.target.value as TemplateBlueprintMissingDataPolicy,
+                        })
+                      }}
+                    >
+                      {MISSING_DATA_OPTIONS.map((policy) => (
+                        <option key={policy} value={policy}>{MISSING_DATA_LABELS[policy]}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 overflow-hidden rounded-md border border-white/60 text-[10px]">
+                  {(['lock_exact', 'regenerate'] as const).map((policy) => (
+                    <button
+                      key={policy}
+                      type="button"
+                      disabled={!canMutate}
+                      className={cn(
+                        "inline-flex items-center justify-center gap-1 px-1.5 py-1.5 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+                        (locked && policy === 'lock_exact') || (!locked && policy === 'regenerate')
+                          ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
+                          : "bg-white/65 text-slate-700 hover:bg-white dark:bg-slate-950/50 dark:text-slate-100"
+                      )}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        const nextLocked = policy === 'lock_exact'
+                        patchElement(element, {
+                          lock_policy: policy,
+                          fixedness: nextLocked
+                            ? (group === 'IMAGE' ? 'locked_media' : 'constant')
+                            : 'variable',
+                        })
+                      }}
+                    >
+                      {policy === 'lock_exact' ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+                      {policy === 'lock_exact' ? 'Lock' : 'Regenerate'}
+                    </button>
+                  ))}
+                </div>
+
+                {group === 'IMAGE' && !element.renderedImageUrl && (
+                  <div className="inline-flex items-center gap-1 text-[10px] opacity-70">
+                    <ImageIcon className="h-3 w-3" />
+                    No locked thumbnail saved.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function contractKindFor(element: TemplateModeElement): TemplateAtomContract['kind'] {
+  const group = getAtomGroup(element)
+  if (group === 'METRIC') return 'metric'
+  if (group === 'CHART') return 'chart'
+  if (group === 'TABLE') return 'table'
+  if (group === 'KANBAN') return 'kanban'
+  if (group === 'DIAGRAM') return 'diagram'
+  if (group === 'INFOGRAPHIC') return 'infographic'
+  if (group === 'IMAGE') return 'image'
+  if (group === 'TEXT') return 'text'
+  return 'unknown'
 }

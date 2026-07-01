@@ -37,6 +37,8 @@ export type TemplateBlueprintScopeLevel = 'period' | 'sibling' | 'category' | 's
 export type TemplateBlueprintFixedness = 'constant' | 'variable' | 'locked_media';
 export type TemplateBlueprintGenerationMethod = 'llm' | 'deterministic_fallback';
 export type TemplateBlueprintPopulationPolicy = 'flexible' | 'strict';
+export type TemplateBlueprintLockPolicy = 'lock_exact' | 'regenerate';
+export type TemplateBlueprintMissingDataPolicy = 'ask_user' | 'assume_and_continue' | 'reuse_prior_as_placeholder';
 
 export interface TemplateBlueprintScope {
   level: TemplateBlueprintScopeLevel;
@@ -47,6 +49,7 @@ export interface TemplateAtomContract {
   kind: 'text' | 'metric' | 'chart' | 'diagram' | 'infographic' | 'image' | 'table' | 'kanban' | 'unknown';
   abstraction_instruction?: string | null;
   required_data?: string[];
+  missing_data_policy?: TemplateBlueprintMissingDataPolicy | null;
   reusable_slots?: Record<string, unknown>;
   fixed_visual_rules?: Record<string, unknown>;
 }
@@ -58,9 +61,11 @@ export interface TemplateBlueprintElement {
   atom_type?: string | null;
   semantic_role?: string | null;
   purpose: string;
+  storyline_link?: string | null;
   content_intent?: string | null;
   required_input?: string | null;
   population_rule?: string | null;
+  lock_policy?: TemplateBlueprintLockPolicy | null;
   fixedness: TemplateBlueprintFixedness;
   visual_constants?: Record<string, unknown> | null;
   abstraction_scope?: TemplateBlueprintScope | null;
@@ -73,6 +78,8 @@ export interface TemplateBlueprintSlide {
   title_intent?: string | null;
   subtitle_intent?: string | null;
   purpose: string;
+  storyline?: string | null;
+  proof_goal?: string | null;
   narrative_role?: string | null;
   reuse_instruction?: string | null;
   required_inputs?: string[];
