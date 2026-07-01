@@ -326,6 +326,7 @@ export function PresentationViewer({
   const [iframeReady, setIframeReady] = useState(false)
   const [pollingFailureCount, setPollingFailureCount] = useState(0)
   const lastSlideInfoRef = useRef<{ slide: number; total: number; visualTotal: number } | null>(null)
+  const composeResolvedSlideHoldRef = useRef<{ slideNumber: number; expiresAt: number } | null>(null)
   const onSlideChangeRef = useRef(onSlideChange)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   // Delete dialog state
@@ -531,6 +532,7 @@ export function PresentationViewer({
       return
     }
     try {
+      composeResolvedSlideHoldRef.current = null
       const result = await sendCommand(iframeRef.current, 'goToSlide', { index: slideIndex })
       debugLog(`✅ Navigated to slide ${slideIndex + 1}`)
       setCurrentSlide(slideIndex + 1)
@@ -570,6 +572,15 @@ export function PresentationViewer({
           const data = result.data ?? result
           const { currentVisualIndex, realTotal: total, visualTotal } = resolveSlideComposeViewerState(data, totalSlides)
           const slideNum = currentVisualIndex + 1 // Convert 0-based to 1-based
+          const composeHold = composeResolvedSlideHoldRef.current
+          if (composeHold && Date.now() < composeHold.expiresAt && slideNum !== composeHold.slideNumber) {
+            debugLog(`⏸️ Ignoring transient compose slide info ${slideNum}; holding slide ${composeHold.slideNumber}`)
+            setPollingFailureCount(prev => prev === 0 ? prev : 0)
+            return
+          }
+          if (composeHold && (slideNum === composeHold.slideNumber || Date.now() >= composeHold.expiresAt)) {
+            composeResolvedSlideHoldRef.current = null
+          }
           const previous = lastSlideInfoRef.current
           const slideInfoChanged = !previous ||
             previous.slide !== slideNum ||
@@ -1573,6 +1584,7 @@ export function PresentationViewer({
     realSlideId?: string | null,
     targetPresentationId?: string | null,
   ) => {
+    const activeSlideBeforeReconcile = currentSlide
     return sendCommand(
       iframeRef.current,
       'composeSlideReconcile',
@@ -1583,8 +1595,21 @@ export function PresentationViewer({
         ...(targetPresentationId ? { presentation_id: targetPresentationId } : {}),
       },
       { timeoutMs: 8000, expectedJobId: jobId },
-    )
-  }, [])
+    ).then((result) => {
+      const resolvedSlideNumber = Number.isFinite(Number(result?.visual_index))
+        ? Math.max(1, Number(result.visual_index) + 1)
+        : null
+      if (resolvedSlideNumber !== null && activeSlideBeforeReconcile === resolvedSlideNumber) {
+        composeResolvedSlideHoldRef.current = {
+          slideNumber: resolvedSlideNumber,
+          expiresAt: Date.now() + 2500,
+        }
+        setCurrentSlide(prev => prev === resolvedSlideNumber ? prev : resolvedSlideNumber)
+        onSlideChangeRef.current?.(resolvedSlideNumber)
+      }
+      return result
+    })
+  }, [currentSlide])
 
   const handleComposePlaceholderFail = useCallback((jobId: string) => {
     return sendCommand(
