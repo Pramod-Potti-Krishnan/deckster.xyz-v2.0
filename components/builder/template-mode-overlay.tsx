@@ -11,6 +11,7 @@ import {
   Lock,
   Minimize2,
   Pencil,
+  Plus,
   Rows3,
   Type,
   Unlock,
@@ -225,10 +226,14 @@ function compactText(value: string | null | undefined, fallback: string): string
 }
 
 function elementBoxStyle(rect: TemplateGridRect, expanded: boolean) {
-  const left = (Math.max(0, rect.x - 1) / GRID_COLUMNS) * 100
-  const top = (Math.max(0, rect.y - 1) / GRID_ROWS) * 100
-  const width = (Math.max(0, rect.w) / GRID_COLUMNS) * 100
-  const height = (Math.max(0, rect.h) / GRID_ROWS) * 100
+  const leftGrid = Math.max(0, rect.x - 1)
+  const topGrid = Math.max(0, rect.y - 1)
+  const widthGrid = Math.max(0, rect.w)
+  const heightGrid = Math.max(0, rect.h)
+  const left = (leftGrid / GRID_COLUMNS) * 100
+  const top = (topGrid / GRID_ROWS) * 100
+  const width = (widthGrid / GRID_COLUMNS) * 100
+  const height = (heightGrid / GRID_ROWS) * 100
 
   if (!expanded) {
     return {
@@ -239,18 +244,58 @@ function elementBoxStyle(rect: TemplateGridRect, expanded: boolean) {
     }
   }
 
-  const expandedWidth = Math.min(64, Math.max(width, 28))
-  const expandedHeight = Math.min(62, Math.max(height, 24))
-  const clampedLeft = Math.max(0.75, Math.min(left, 99 - expandedWidth))
-  const clampedTop = Math.max(0.75, Math.min(top, 99 - expandedHeight))
+  const maxRightGrid = GRID_COLUMNS - 1
+  const maxBottomGrid = GRID_ROWS - 1
+  const originalRightGrid = leftGrid + widthGrid
+  const originalBottomGrid = topGrid + heightGrid
+  const targetArea = Math.max(widthGrid * heightGrid, 80)
+  const preferredWidthGrid = Math.max(widthGrid, Math.ceil(Math.sqrt(targetArea * 2.2)))
+
+  const rightCapacity = maxRightGrid - leftGrid
+  const leftCapacity = originalRightGrid
+  const useRightExpansion = rightCapacity >= preferredWidthGrid || rightCapacity >= leftCapacity
+  const expandedWidthGrid = Math.min(
+    maxRightGrid,
+    Math.max(
+      Math.min(widthGrid, maxRightGrid),
+      Math.min(preferredWidthGrid, Math.max(rightCapacity, leftCapacity)),
+    ),
+  )
+  const expandedLeftGrid = useRightExpansion
+    ? Math.min(leftGrid, maxRightGrid - expandedWidthGrid)
+    : Math.max(0, Math.min(originalRightGrid, maxRightGrid) - expandedWidthGrid)
+  const expandedHeightGrid = Math.max(heightGrid, Math.ceil(targetArea / Math.max(expandedWidthGrid, 1)))
+  const downCapacity = maxBottomGrid - topGrid
+  const upCapacity = originalBottomGrid
+  const useDownExpansion = downCapacity >= expandedHeightGrid || downCapacity >= upCapacity
+  const finalHeightGrid = Math.min(
+    maxBottomGrid,
+    Math.max(
+      Math.min(heightGrid, maxBottomGrid),
+      Math.min(expandedHeightGrid, Math.max(downCapacity, upCapacity)),
+    ),
+  )
+  const expandedTopGrid = useDownExpansion
+    ? Math.min(topGrid, maxBottomGrid - finalHeightGrid)
+    : Math.max(0, Math.min(originalBottomGrid, maxBottomGrid) - finalHeightGrid)
 
   return {
-    left: `${clampedLeft}%`,
-    top: `${clampedTop}%`,
-    width: `${expandedWidth}%`,
-    minHeight: `${expandedHeight}%`,
-    maxHeight: '68%',
+    left: `${(expandedLeftGrid / GRID_COLUMNS) * 100}%`,
+    top: `${(expandedTopGrid / GRID_ROWS) * 100}%`,
+    width: `${(expandedWidthGrid / GRID_COLUMNS) * 100}%`,
+    height: `${(finalHeightGrid / GRID_ROWS) * 100}%`,
   }
+}
+
+function intentBoxStyle(rect: TemplateGridRect, expanded: boolean) {
+  if (!expanded) {
+    return {
+      left: gridLinePct(rect.x, GRID_COLUMNS),
+      top: gridLinePct(rect.y, GRID_ROWS),
+    }
+  }
+
+  return elementBoxStyle(rect, true)
 }
 
 function shortElementLabel(element: TemplateModeElement, blueprintElement: TemplateBlueprintElement | null): string {
@@ -503,6 +548,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
   } = props
 
   const [slideDetailsOpen, setSlideDetailsOpen] = useState(true)
+  const [intentOpenState, setIntentOpenState] = useState<Record<string, boolean>>({})
   const [expandedState, setExpandedState] = useState<Record<string, boolean>>({})
   const [activeExpandedKey, setActiveExpandedKey] = useState<string | null>(null)
   const slot = getTemplateSlot(snapshot, currentSlideIndex)
@@ -573,9 +619,6 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
   return (
     <div className="pointer-events-none absolute inset-0 z-20 overflow-visible rounded-sm">
       <div className="absolute left-3 top-3 z-30 flex max-w-[70%] flex-wrap items-center gap-2">
-        <div className="rounded-full border border-white/70 bg-slate-950/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow-lg backdrop-blur">
-          Template overlay
-        </div>
         <div className="rounded-full border border-white/70 bg-white/90 px-2.5 py-1 text-[10px] font-medium text-slate-700 shadow-lg backdrop-blur dark:bg-slate-950/90 dark:text-slate-200">
           Slide {currentSlideIndex + 1}
         </div>
@@ -591,14 +634,14 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
         <span className="mx-1 h-3 w-px bg-slate-300 dark:bg-slate-700" />
         <span className="inline-flex items-center gap-1">
           <Lock className="h-3 w-3" />
-          Locked
+          Exact content
         </span>
         <span className="inline-flex items-center gap-1">
           <Unlock className="h-3 w-3" />
-          Regen
+          Use blueprint
         </span>
-        <span className="hidden max-w-[190px] truncate text-[9px] text-slate-500 lg:inline dark:text-slate-400">
-          Lock keeps exact source; Regen uses the blueprint.
+        <span className="hidden max-w-[210px] truncate text-[9px] text-slate-500 lg:inline dark:text-slate-400">
+          Exact keeps source copy; blueprint regenerates.
         </span>
       </div>
 
@@ -657,6 +700,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
         >
           <Info className="h-3.5 w-3.5 text-violet-500" />
           Slide details
+          <Plus className="h-3.5 w-3.5 text-violet-500" />
         </button>
       )}
 
@@ -681,35 +725,68 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
 
       {syntheticBoxes.map((box) => {
         const selected = selectedElementId === box.overrideKey
+        const open = intentOpenState[box.overrideKey] ?? false
         return (
-          <button
+          <div
             key={box.overrideKey}
-            type="button"
             className={cn(
-              "pointer-events-auto absolute z-20 overflow-hidden rounded-md border border-dashed border-slate-400 bg-white/65 px-2 py-1 text-left text-[10px] leading-tight text-slate-700 shadow-md backdrop-blur transition hover:bg-white/85 dark:bg-slate-950/55 dark:text-slate-200",
+              "pointer-events-auto absolute text-left text-slate-700 shadow-lg backdrop-blur transition dark:text-slate-200",
+              open
+                ? "z-50 overflow-y-auto rounded-lg border border-dashed border-slate-400 bg-white/95 px-3 py-2 text-xs dark:bg-slate-950/95"
+                : "z-[42] rounded-full border border-white/70 bg-white/95 px-2.5 py-1 text-[10px] font-semibold hover:bg-white dark:bg-slate-950/95",
               selected && "ring-2 ring-violet-500 ring-offset-2"
             )}
-            style={{
-              left: gridLinePct(box.rect.x, GRID_COLUMNS),
-              top: gridLinePct(box.rect.y, GRID_ROWS),
-              width: pct(box.rect.w, GRID_COLUMNS),
-              minHeight: pct(box.rect.h, GRID_ROWS),
-            }}
+            style={intentBoxStyle(box.rect, open)}
             onClick={(event) => {
               event.stopPropagation()
               onSelectElement?.(box.overrideKey)
+              if (!open) {
+                setIntentOpenState((previous) => ({ ...previous, [box.overrideKey]: true }))
+              }
             }}
           >
-            <span className="flex items-start gap-1.5">
-              {box.label.startsWith('Title') ? <Type className="mt-0.5 h-3.5 w-3.5" /> : <Pencil className="mt-0.5 h-3.5 w-3.5" />}
-              <span className="min-w-0">
-                <span className="block font-semibold">{box.label}</span>
-                <span className={cn("mt-0.5 line-clamp-2 block", box.value ? "opacity-85" : "italic opacity-55")}>
+            {open ? (
+              <>
+                <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-200 pb-1.5 dark:border-slate-800">
+                  <div className="flex min-w-0 items-center gap-1.5 font-semibold">
+                    {box.label.startsWith('Title') ? <Type className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                    <span className="truncate">{box.label}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setIntentOpenState((previous) => ({ ...previous, [box.overrideKey]: false }))
+                    }}
+                    aria-label={`Collapse ${box.label}`}
+                  >
+                    <Minimize2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <p className={cn("leading-relaxed", box.value ? "text-slate-700 dark:text-slate-200" : "italic text-slate-500")}>
                   {box.value || box.emptyLabel}
-                </span>
+                </p>
+              </>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                {box.label.startsWith('Title') ? <Type className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                <span>{box.label}</span>
+                <button
+                  type="button"
+                  className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-200"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onSelectElement?.(box.overrideKey)
+                    setIntentOpenState((previous) => ({ ...previous, [box.overrideKey]: true }))
+                  }}
+                  aria-label={`Expand ${box.label}`}
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
               </span>
-            </span>
-          </button>
+            )}
+          </div>
         )
       })}
 
@@ -771,7 +848,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
             <div className="flex min-w-0 items-start gap-2">
               <span className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-full", style.chip)} />
               <div className="min-w-0 flex-1 space-y-0.5">
-                <div className="flex min-w-0 items-center gap-1.5 pr-16">
+                <div className="flex min-w-0 items-center gap-1.5 pr-32">
                   <span className="truncate text-[11px] font-bold">{style.label}</span>
                   <span className="truncate text-[10px] font-medium opacity-80">{element.role}</span>
                 </div>
@@ -785,7 +862,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                 type="button"
                 disabled={!canMutate}
                 className={cn(
-                  "absolute right-8 top-1.5 inline-flex h-6 items-center gap-1 rounded-full border px-1.5 text-[9px] font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-55",
+                  "absolute right-8 top-1.5 inline-flex h-6 max-w-[116px] items-center gap-1 rounded-full border px-1.5 text-[9px] font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-55",
                   locked
                     ? "border-slate-300 bg-slate-950 text-white dark:border-slate-700 dark:bg-white dark:text-slate-950"
                     : "border-white/80 bg-white/85 text-slate-700 hover:bg-white dark:bg-slate-950/80 dark:text-slate-100"
@@ -803,8 +880,8 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                 aria-label={locked ? 'Regenerate this element from abstraction' : 'Lock exact source content for this element'}
                 title={locked ? 'Locked: exact source content is reused' : 'Regenerate: content is rebuilt from abstraction'}
               >
-                {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3 rotate-180" />}
-                {locked ? 'Locked' : 'Regen'}
+                {locked ? <Lock className="h-3 w-3 shrink-0" /> : <Unlock className="h-3 w-3 shrink-0" />}
+                <span className="truncate">{locked ? 'Exact content' : 'Use blueprint'}</span>
               </button>
               <button
                 type="button"
@@ -822,10 +899,11 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
             {!expanded && isDataAtom(element) && (
               <div className="mt-1 flex items-center gap-1">
                 <Database className="h-3 w-3 opacity-70" />
+                <span className="whitespace-nowrap text-[9px] font-semibold opacity-80">If data missing</span>
                 <select
                   value={missingDataPolicy}
                   disabled={!canMutate}
-                  className="h-5 max-w-full rounded border border-white/70 bg-white/80 px-1 text-[9px] font-medium text-slate-700 disabled:opacity-50 dark:bg-slate-950/80 dark:text-slate-100"
+                  className="h-5 min-w-0 max-w-full rounded border border-white/70 bg-white/80 px-1 text-[9px] font-medium text-slate-700 disabled:opacity-50 dark:bg-slate-950/80 dark:text-slate-100"
                   onClick={(event) => event.stopPropagation()}
                   onChange={(event) => {
                     patchContract(element, {
