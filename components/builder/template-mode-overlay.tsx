@@ -6,6 +6,7 @@ import {
   Database,
   Image as ImageIcon,
   Info,
+  LayoutTemplate,
   Lock,
   Minimize2,
   Pencil,
@@ -199,7 +200,7 @@ function getAtomGroup(element: TemplateModeElement): AtomGroup {
 }
 
 function isDataAtom(element: TemplateModeElement): boolean {
-  return ['METRIC', 'CHART', 'TABLE', 'KANBAN', 'DIAGRAM', 'INFOGRAPHIC'].includes(getAtomGroup(element))
+  return ['METRIC', 'CHART', 'TABLE', 'KANBAN', 'DIAGRAM'].includes(getAtomGroup(element))
 }
 
 function lockPolicyFor(element: TemplateBlueprintElement | null): 'lock_exact' | 'regenerate' {
@@ -677,25 +678,13 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
         </div>
       </div>
 
-      <div className="absolute right-3 top-3 z-30 flex max-w-[56%] flex-wrap items-center gap-1 rounded-full border border-white/70 bg-white/90 px-2.5 py-1 text-[10px] font-medium text-slate-700 shadow-lg backdrop-blur dark:bg-slate-950/90 dark:text-slate-200">
+      <div className="absolute right-3 top-3 z-30 flex max-w-[56%] flex-wrap items-center justify-end gap-1 rounded-full border border-white/70 bg-white/90 px-2.5 py-1 text-[10px] font-medium text-slate-700 shadow-lg backdrop-blur dark:bg-slate-950/90 dark:text-slate-200">
         {legendGroups.map((group) => (
           <span key={group} className="inline-flex items-center gap-1">
             <span className={cn("h-2.5 w-2.5 rounded-full", ATOM_STYLES[group].chip)} />
             {ATOM_STYLES[group].label}
           </span>
         ))}
-        <span className="mx-1 h-3 w-px bg-slate-300 dark:bg-slate-700" />
-        <span className="inline-flex items-center gap-1">
-          <Lock className="h-3 w-3" />
-          Exact content
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Unlock className="h-3 w-3" />
-          Use blueprint
-        </span>
-        <span className="hidden max-w-[210px] truncate text-[9px] text-slate-500 lg:inline dark:text-slate-400">
-          Exact keeps source copy; blueprint regenerates.
-        </span>
       </div>
 
       {slideDetailsOpen ? (
@@ -910,10 +899,10 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                     <span className="truncate text-[10px] font-medium opacity-80">{roleLabel}</span>
                   )}
                   <div className="ml-auto flex min-w-0 flex-wrap items-center gap-1.5">
-                    {isDataAtom(element) && (
-                      <div className="flex min-w-0 items-center gap-1">
+                    {isDataAtom(element) && !locked && (
+                      <div className="flex min-w-0 items-center gap-1" title="Choose how Director handles missing data">
                         <Database className="h-3 w-3 shrink-0 opacity-70" />
-                        <span className="whitespace-nowrap text-[9px] font-semibold opacity-80">If data missing</span>
+                        <span className="hidden whitespace-nowrap text-[9px] font-semibold opacity-80 xl:inline">If data missing</span>
                         <select
                           value={missingDataPolicy}
                           disabled={!canMutate}
@@ -931,9 +920,9 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                         </select>
                       </div>
                     )}
-                    <div className="flex min-w-0 items-center gap-1">
-                      <Rows3 className="h-3 w-3 shrink-0 opacity-70" />
-                      <span className="whitespace-nowrap text-[9px] font-semibold opacity-80">Template from</span>
+                    <div className="flex min-w-0 items-center gap-1" title="Choose whether this element comes from the blueprint or exact source content">
+                      <LayoutTemplate className="h-3 w-3 shrink-0 opacity-70" />
+                      <span className="hidden whitespace-nowrap text-[9px] font-semibold opacity-80 xl:inline">Template from</span>
                       <button
                         type="button"
                         disabled={!canMutate}
@@ -964,7 +953,6 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                 </div>
                 {!expanded && whyText && !isLargeElement && (
                   <div className="line-clamp-2 text-[10px] leading-snug opacity-85">
-                    <span className="font-semibold uppercase tracking-wide opacity-70">Why it is on this slide: </span>
                     {whyText}
                   </div>
                 )}
@@ -983,10 +971,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
             </div>
 
             {!expanded && isLargeElement && whyText && (
-              <div className="mt-1 max-h-[calc(100%-4.8rem)] overflow-y-auto rounded-md border border-white/45 bg-white/35 px-2 py-1 text-[10px] leading-snug opacity-90 dark:bg-slate-950/25">
-                <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Why it is on this slide
-                </div>
+              <div className="mt-1 max-h-[calc(100%-2.25rem)] overflow-y-auto rounded-md border border-white/45 bg-white/35 px-2 py-1 text-[10px] leading-snug opacity-90 dark:bg-slate-950/25">
                 {whyText}
               </div>
             )}
@@ -1022,7 +1007,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                   </MetadataSection>
                 )}
 
-                {isDataAtom(element) && (
+                {isDataAtom(element) && !locked && (
                   <MetadataSection title="Data needed">
                     {requiredData.length > 0 ? (
                       <ul className="list-disc space-y-0.5 pl-4 text-[10px] leading-snug">

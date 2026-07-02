@@ -16,7 +16,6 @@ import type {
   TemplateAtomContract,
   TemplateBlueprint,
   TemplateBlueprintElement,
-  TemplateBlueprintFixedness,
   TemplateBlueprintLockPolicy,
   TemplateBlueprintMissingDataPolicy,
   TemplateBlueprintScope,
@@ -68,33 +67,15 @@ const OPTIONAL_SCOPE_OPTIONS = [
   ...SCOPE_OPTIONS,
 ]
 
-const FIXEDNESS_OPTIONS: Array<{ value: TemplateBlueprintFixedness; label: string }> = [
-  { value: 'variable', label: 'Variable' },
-  { value: 'constant', label: 'Constant' },
-  { value: 'locked_media', label: 'Locked media' },
-]
-
 const LOCK_POLICY_OPTIONS: Array<{ value: TemplateBlueprintLockPolicy; label: string }> = [
-  { value: 'regenerate', label: 'Regenerate' },
-  { value: 'lock_exact', label: 'Lock exact' },
+  { value: 'regenerate', label: 'Blueprint' },
+  { value: 'lock_exact', label: 'Exact Content' },
 ]
 
 const MISSING_DATA_POLICY_OPTIONS: Array<{ value: TemplateBlueprintMissingDataPolicy; label: string }> = [
   { value: 'ask_user', label: 'Ask user' },
   { value: 'assume_and_continue', label: 'Assume and continue' },
   { value: 'reuse_prior_as_placeholder', label: 'Reuse prior as placeholder' },
-]
-
-const ATOM_KIND_OPTIONS: Array<{ value: TemplateAtomContract['kind']; label: string }> = [
-  { value: 'text', label: 'Text' },
-  { value: 'metric', label: 'Metric' },
-  { value: 'chart', label: 'Chart' },
-  { value: 'diagram', label: 'Diagram' },
-  { value: 'infographic', label: 'Infographic' },
-  { value: 'image', label: 'Image' },
-  { value: 'table', label: 'Table' },
-  { value: 'kanban', label: 'Kanban' },
-  { value: 'unknown', label: 'Unknown' },
 ]
 
 const VISUAL_STRATEGY_OPTIONS = [
@@ -174,11 +155,13 @@ function TextField({
   value,
   onChange,
   rows = 2,
+  disabled = false,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   rows?: number
+  disabled?: boolean
 }) {
   return (
     <label className="block space-y-1.5">
@@ -188,11 +171,13 @@ function TextField({
       <textarea
         value={value}
         rows={rows}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         className={cn(
           "w-full resize-y rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs leading-relaxed text-slate-800 shadow-sm",
           "focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100",
-          "dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-violet-950"
+          "dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-violet-950",
+          disabled && "cursor-not-allowed bg-slate-50 text-slate-500 dark:bg-slate-900 dark:text-slate-500"
         )}
       />
     </label>
@@ -232,19 +217,21 @@ function SelectField({
   placeholder,
   options,
   onValueChange,
+  disabled = false,
 }: {
   label: string
   value?: string
   placeholder: string
   options: Array<{ value: string; label: string }>
   onValueChange: (value: string) => void
+  disabled?: boolean
 }) {
   return (
     <label className="block space-y-1.5">
       <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
         {label}
       </span>
-      <Select value={value} onValueChange={onValueChange}>
+      <Select value={value} onValueChange={onValueChange} disabled={disabled}>
         <SelectTrigger className="h-8 text-xs">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
@@ -485,21 +472,6 @@ function patchElementContract(
   })
 }
 
-function patchElementVisualConstants(
-  blueprint: TemplateBlueprint,
-  slideIndex: number,
-  element: TemplateBlueprintElement,
-  patch: Record<string, unknown>,
-): TemplateBlueprint {
-  const constants = asRecord(element.visual_constants) ?? {}
-  return updateElement(blueprint, slideIndex, element.element_key, {
-    visual_constants: {
-      ...constants,
-      ...patch,
-    },
-  })
-}
-
 function scopeValue(scope: TemplateBlueprintScope | null | undefined, inherited = 'inherit'): string {
   return scope?.level ?? inherited
 }
@@ -526,10 +498,6 @@ function BlueprintElementControls({
   onBlueprintChange: (blueprint: TemplateBlueprint) => void
 }) {
   const atomType = element.atomType.toUpperCase()
-  const constants = asRecord(blueprintElement.visual_constants) ?? {}
-  const styleHints = asRecord(override.style_hints)
-    ?? asRecord(constants.style_hints)
-    ?? element.styleHints
   const imageHints = asRecord(element.renderSpec.image_hints)
   const imageMode = String(override.image_mode ?? imageHints?.image_mode ?? (
     blueprintElement.fixedness === 'locked_media' ? 'locked' : 'regenerate'
@@ -540,19 +508,11 @@ function BlueprintElementControls({
       ? 'lock_exact'
       : 'regenerate')
   const dataPolicy = contract.missing_data_policy ?? 'ask_user'
-  const dataBearing = ['metric', 'chart', 'table', 'kanban', 'diagram', 'infographic'].includes(contract.kind)
+  const dataBearing = ['metric', 'chart', 'table', 'kanban', 'diagram'].includes(contract.kind)
+  const locked = lockPolicy === 'lock_exact'
 
   const patchBlueprintElement = (patch: Partial<TemplateBlueprintElement>) => {
     onBlueprintChange(updateElement(blueprint, slideIndex, blueprintElement.element_key, patch))
-  }
-
-  const patchStyle = (patch: Record<string, unknown>) => {
-    const nextStyleHints = { ...(styleHints ?? {}), ...patch }
-    onBlueprintChange(patchElementVisualConstants(blueprint, slideIndex, blueprintElement, {
-      style_hints: nextStyleHints,
-      ...(patch.color_slot ? { color_slot: patch.color_slot } : {}),
-    }))
-    onPatch({ style_hints: patch })
   }
 
   return (
@@ -571,28 +531,9 @@ function BlueprintElementControls({
 
       <div className="space-y-3">
         <SelectField
-          label="Element scope"
-          value={scopeValue(blueprintElement.abstraction_scope)}
-          placeholder="Element scope"
-          options={OPTIONAL_SCOPE_OPTIONS}
-          onValueChange={(value) => patchBlueprintElement({ abstraction_scope: optionalScopeFromValue(value) })}
-        />
-        <TextField
-          label="Purpose"
-          value={textOrEmpty(blueprintElement.purpose)}
-          rows={3}
-          onChange={(value) => patchBlueprintElement({ purpose: value })}
-        />
-        <TextField
-          label="Storyline link"
-          value={textOrEmpty(blueprintElement.storyline_link)}
-          rows={3}
-          onChange={(value) => patchBlueprintElement({ storyline_link: value })}
-        />
-        <SelectField
-          label="Lock policy"
+          label="Template from"
           value={lockPolicy}
-          placeholder="Lock policy"
+          placeholder="Template from"
           options={LOCK_POLICY_OPTIONS}
           onValueChange={(value) => {
             const next = value as TemplateBlueprintLockPolicy
@@ -607,79 +548,52 @@ function BlueprintElementControls({
             }
           }}
         />
-        <SelectField
-          label="Atom kind"
-          value={contract.kind}
-          placeholder="Atom kind"
-          options={ATOM_KIND_OPTIONS}
-          onValueChange={(value) => onBlueprintChange(patchElementContract(
-            blueprint,
-            slideIndex,
-            blueprintElement,
-            { kind: value as TemplateAtomContract['kind'] },
-          ))}
+        <TextField
+          label="Why it is on this slide"
+          value={textOrEmpty(blueprintElement.storyline_link)}
+          rows={3}
+          onChange={(value) => patchBlueprintElement({ storyline_link: value })}
         />
         <TextField
-          label="Abstraction instruction"
-          value={textOrEmpty(contract.abstraction_instruction)}
+          label="Reusable role"
+          value={textOrEmpty(blueprintElement.purpose)}
           rows={3}
-          onChange={(value) => onBlueprintChange(patchElementContract(
-            blueprint,
-            slideIndex,
-            blueprintElement,
-            { abstraction_instruction: value },
-          ))}
-        />
-        <TextField
-          label="Required data"
-          value={listToLines(contract.required_data)}
-          rows={3}
-          onChange={(value) => onBlueprintChange(patchElementContract(
-            blueprint,
-            slideIndex,
-            blueprintElement,
-            { required_data: linesToList(value) },
-          ))}
+          onChange={(value) => patchBlueprintElement({ purpose: value })}
         />
         {dataBearing && (
-          <SelectField
-            label="Missing data policy"
-            value={dataPolicy}
-            placeholder="Missing data policy"
-            options={MISSING_DATA_POLICY_OPTIONS}
-            onValueChange={(value) => onBlueprintChange(patchElementContract(
-              blueprint,
-              slideIndex,
-              blueprintElement,
-              { missing_data_policy: value as TemplateBlueprintMissingDataPolicy },
-            ))}
-          />
+          <div className={cn("space-y-3", locked && "rounded-md border border-slate-200 bg-slate-50 p-3 opacity-60 dark:border-slate-800 dark:bg-slate-900/60")}>
+            <SelectField
+              label="If data missing"
+              value={dataPolicy}
+              placeholder="If data missing"
+              options={MISSING_DATA_POLICY_OPTIONS}
+              onValueChange={(value) => onBlueprintChange(patchElementContract(
+                blueprint,
+                slideIndex,
+                blueprintElement,
+                { missing_data_policy: value as TemplateBlueprintMissingDataPolicy },
+              ))}
+              disabled={locked}
+            />
+            <TextField
+              label="Data needed"
+              value={listToLines(contract.required_data)}
+              rows={3}
+              onChange={(value) => onBlueprintChange(patchElementContract(
+                blueprint,
+                slideIndex,
+                blueprintElement,
+                { required_data: linesToList(value) },
+              ))}
+              disabled={locked}
+            />
+            {locked && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Exact Content reuses the source element, so missing-data choices do not apply.
+              </p>
+            )}
+          </div>
         )}
-        <TextField
-          label="Required input"
-          value={textOrEmpty(blueprintElement.required_input)}
-          rows={2}
-          onChange={(value) => patchBlueprintElement({ required_input: value })}
-        />
-        <TextField
-          label="Population rule"
-          value={textOrEmpty(blueprintElement.population_rule)}
-          rows={2}
-          onChange={(value) => patchBlueprintElement({ population_rule: value })}
-        />
-        <SelectField
-          label="Fixedness"
-          value={blueprintElement.fixedness}
-          placeholder="Fixedness"
-          options={FIXEDNESS_OPTIONS}
-          onValueChange={(value) => {
-            const fixedness = value as TemplateBlueprintFixedness
-            patchBlueprintElement({ fixedness })
-            if (atomType.includes('IMAGE')) {
-              onPatch({ image_mode: fixedness === 'locked_media' ? 'locked' : 'regenerate' })
-            }
-          }}
-        />
 
         {atomType.includes('IMAGE') && (
           <div>
@@ -712,20 +626,19 @@ function BlueprintElementControls({
           </div>
         )}
 
-        <SelectField
-          label="Role treatment"
-          value={String(nestedValue(styleHints, 'visual_strategy') ?? 'quiet_support')}
-          placeholder="Role treatment"
-          options={VISUAL_STRATEGY_OPTIONS}
-          onValueChange={(value) => patchStyle({ visual_strategy: value })}
-        />
-        <SelectField
-          label="Color slot"
-          value={String(nestedValue(styleHints, 'color_slot') ?? constants.color_slot ?? 'neutral')}
-          placeholder="Color slot"
-          options={COLOR_SLOT_OPTIONS}
-          onValueChange={(value) => patchStyle({ color_slot: value })}
-        />
+        {atomType.includes('IMAGE') && (
+          <TextField
+            label="Image treatment"
+            value={textOrEmpty(contract.abstraction_instruction)}
+            rows={3}
+            onChange={(value) => onBlueprintChange(patchElementContract(
+              blueprint,
+              slideIndex,
+              blueprintElement,
+              { abstraction_instruction: value },
+            ))}
+          />
+        )}
       </div>
     </section>
   )
