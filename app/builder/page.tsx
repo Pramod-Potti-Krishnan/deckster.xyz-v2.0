@@ -1003,6 +1003,9 @@ function BuilderContent() {
 
   const handleTemplateModeChange = useCallback(async (enabled: boolean) => {
     if (!enabled) {
+      if (templateBlueprintDirty && templateSnapshot?.template_blueprint && activeTemplate) {
+        await handleTemplateBlueprintSave()
+      }
       setTemplateModeOn(false)
       setSelectedTemplateElementId(null)
       return
@@ -1023,7 +1026,15 @@ function BuilderContent() {
       const snapshot = await loadTemplateSnapshot(activeTemplate)
       if (!snapshot) setTemplateModeOn(false)
     }
-  }, [activeTemplate, currentSlideIndex, loadTemplateSnapshot, templateSnapshot, toast])
+  }, [
+    activeTemplate,
+    currentSlideIndex,
+    handleTemplateBlueprintSave,
+    loadTemplateSnapshot,
+    templateBlueprintDirty,
+    templateSnapshot,
+    toast,
+  ])
 
   // WebSocket v2 integration
   const {
@@ -2197,7 +2208,7 @@ function BuilderContent() {
               selectedElementId={selectedTemplateElementId}
               onClose={() => {
                 if (blueprintEditorV2Enabled) {
-                  setTemplateModeOn(false)
+                  void handleTemplateModeChange(false)
                 }
                 setSelectedTemplateElementId(null)
               }}
