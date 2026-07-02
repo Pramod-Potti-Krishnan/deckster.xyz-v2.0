@@ -3,8 +3,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ChevronDown,
-  ChevronUp,
   Database,
   Image as ImageIcon,
   Info,
@@ -77,17 +75,17 @@ const ATOM_STYLES: Record<AtomGroup, {
   },
   CHART: {
     label: 'Chart',
-    border: 'border-blue-500',
-    bg: 'bg-blue-50/90 dark:bg-blue-950/75',
-    text: 'text-blue-950 dark:text-blue-50',
-    chip: 'bg-blue-500',
+    border: 'border-orange-500',
+    bg: 'bg-orange-50/90 dark:bg-orange-950/75',
+    text: 'text-orange-950 dark:text-orange-50',
+    chip: 'bg-orange-500',
   },
   DIAGRAM: {
     label: 'Diagram',
-    border: 'border-amber-500',
-    bg: 'bg-amber-50/90 dark:bg-amber-950/75',
-    text: 'text-amber-950 dark:text-amber-50',
-    chip: 'bg-amber-500',
+    border: 'border-indigo-500',
+    bg: 'bg-indigo-50/90 dark:bg-indigo-950/75',
+    text: 'text-indigo-950 dark:text-indigo-50',
+    chip: 'bg-indigo-500',
   },
   INFOGRAPHIC: {
     label: 'Infographic',
@@ -105,10 +103,10 @@ const ATOM_STYLES: Record<AtomGroup, {
   },
   TABLE: {
     label: 'Table',
-    border: 'border-cyan-500',
-    bg: 'bg-cyan-50/90 dark:bg-cyan-950/75',
-    text: 'text-cyan-950 dark:text-cyan-50',
-    chip: 'bg-cyan-500',
+    border: 'border-teal-500',
+    bg: 'bg-teal-50/90 dark:bg-teal-950/75',
+    text: 'text-teal-950 dark:text-teal-50',
+    chip: 'bg-teal-500',
   },
   KANBAN: {
     label: 'Kanban',
@@ -298,11 +296,51 @@ function intentBoxStyle(rect: TemplateGridRect, expanded: boolean) {
   return elementBoxStyle(rect, true)
 }
 
+function normalizeLabel(value: string | null | undefined): string {
+  return (value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function isDuplicateLabel(value: string | null | undefined, existing: Array<string | null | undefined>): boolean {
+  const normalized = normalizeLabel(value)
+  return Boolean(normalized) && existing.some((item) => normalizeLabel(item) === normalized)
+}
+
+function conciseRoleLabel(element: TemplateModeElement, group: AtomGroup): string | null {
+  if (!element.role || isDuplicateLabel(element.role, [ATOM_STYLES[group].label, element.atomType])) {
+    return null
+  }
+  return element.role
+}
+
 function shortElementLabel(element: TemplateModeElement, blueprintElement: TemplateBlueprintElement | null): string {
   return compactText(
     blueprintElement?.semantic_role ?? blueprintElement?.purpose,
     element.label ?? element.role,
   )
+}
+
+function collapsedPreviewText(
+  element: TemplateModeElement,
+  blueprintElement: TemplateBlueprintElement | null,
+  group: AtomGroup,
+  semanticLabel: string,
+): string | null {
+  const candidates = [
+    semanticLabel,
+    blueprintElement?.purpose,
+    blueprintElement?.storyline_link,
+    blueprintElement?.content_intent,
+    element.contentIntent,
+    element.label,
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate || !candidate.trim()) continue
+    if (isDuplicateLabel(candidate, [ATOM_STYLES[group].label, element.role, element.atomType])) continue
+    return candidate.trim()
+  }
+
+  return null
 }
 
 function MetadataSection({
@@ -375,6 +413,21 @@ function titleSubtitleBoxes(
     emptyLabel: string
     rect: TemplateGridRect
   }> = []
+  const textRects = elements
+    .filter((element) => {
+      const rect = element.gridRect
+      if (!rect) return false
+      const group = getAtomGroup(element)
+      return group !== 'IMAGE'
+    })
+    .map((element) => element.gridRect as TemplateGridRect)
+  const contentLeft = textRects.length
+    ? Math.min(Math.max(1.5, Math.min(...textRects.map((rect) => rect.x))), 24)
+    : 2
+  const contentRight = textRects.length
+    ? Math.max(...textRects.map((rect) => rect.x + rect.w))
+    : 30
+  const contentWidth = Math.max(8, Math.min(30 - contentLeft, contentRight - contentLeft))
 
   const titleKey = `${currentSlideIndex}:title`
   if (!realKeys.has(titleKey)) {
@@ -383,7 +436,7 @@ function titleSubtitleBoxes(
       label: 'Title intent',
       value: slide?.title_intent ?? '',
       emptyLabel: 'Add title intent',
-      rect: { x: 2, y: 1.35, w: 28, h: 1.1 },
+      rect: { x: contentLeft, y: 1.35, w: contentWidth, h: 1.1 },
     })
   }
 
@@ -394,7 +447,7 @@ function titleSubtitleBoxes(
       label: 'Subtitle intent',
       value: slide?.subtitle_intent ?? '',
       emptyLabel: 'Add subtitle intent',
-      rect: { x: 2, y: 2.55, w: 26, h: 0.9 },
+      rect: { x: contentLeft, y: 2.55, w: Math.max(8, contentWidth - 1), h: 0.9 },
     })
   }
 
@@ -811,6 +864,9 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
         const expandedKey = storageKey(currentSlideIndex, element.overrideKey)
         const semanticLabel = shortElementLabel(element, blueprintElement ?? null)
         const sectionPurpose = compactText(blueprintElement?.purpose, element.contentIntent ?? semanticLabel)
+        const roleLabel = conciseRoleLabel(element, group)
+        const previewText = collapsedPreviewText(element, blueprintElement ?? null, group, semanticLabel)
+        const isLargeElement = rect.w * rect.h >= 40
 
         return (
           <div
@@ -848,24 +904,46 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
             <div className="flex min-w-0 items-start gap-2">
               <span className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-full", style.chip)} />
               <div className="min-w-0 flex-1 space-y-0.5">
-                <div className="flex min-w-0 items-center gap-1.5 pr-32">
+                <div className="flex min-w-0 items-center gap-1.5 pr-7">
                   <span className="truncate text-[11px] font-bold">{style.label}</span>
-                  <span className="truncate text-[10px] font-medium opacity-80">{element.role}</span>
+                  {roleLabel && (
+                    <span className="truncate text-[10px] font-medium opacity-80">{roleLabel}</span>
+                  )}
                 </div>
-                {!expanded && (
+                {!expanded && previewText && !isLargeElement && (
                   <div className="line-clamp-2 text-[10px] leading-snug opacity-85">
-                    {semanticLabel}
+                    {previewText}
                   </div>
                 )}
               </div>
               <button
                 type="button"
+                className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/70 opacity-80 hover:bg-white hover:opacity-100 dark:bg-slate-950/70 dark:hover:bg-slate-950"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setExpanded(element, !expanded)
+                }}
+                aria-label={expanded ? 'Collapse element abstraction' : 'Expand element abstraction'}
+              >
+                {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+
+            <div className={cn(
+              "mt-1 flex min-w-0 flex-wrap items-center gap-1.5 rounded-md border border-white/55 bg-white/45 px-1.5 py-1 dark:bg-slate-950/35",
+              expanded ? "text-[10px]" : "text-[9px]"
+            )}>
+              <span className="shrink-0 font-semibold uppercase text-slate-500 dark:text-slate-400">
+                Template Generation Mode
+              </span>
+              <button
+                type="button"
                 disabled={!canMutate}
                 className={cn(
-                  "absolute right-8 top-1.5 inline-flex h-6 max-w-[116px] items-center gap-1 rounded-full border px-1.5 text-[9px] font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-55",
+                  "inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border px-1.5 py-0.5 font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-55",
                   locked
                     ? "border-slate-300 bg-slate-950 text-white dark:border-slate-700 dark:bg-white dark:text-slate-950"
-                    : "border-white/80 bg-white/85 text-slate-700 hover:bg-white dark:bg-slate-950/80 dark:text-slate-100"
+                    : "border-white/80 bg-white/90 text-slate-700 hover:bg-white dark:bg-slate-950/80 dark:text-slate-100"
                 )}
                 onClick={(event) => {
                   event.stopPropagation()
@@ -881,18 +959,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                 title={locked ? 'Locked: exact source content is reused' : 'Regenerate: content is rebuilt from abstraction'}
               >
                 {locked ? <Lock className="h-3 w-3 shrink-0" /> : <Unlock className="h-3 w-3 shrink-0" />}
-                <span className="truncate">{locked ? 'Exact content' : 'Use blueprint'}</span>
-              </button>
-              <button
-                type="button"
-                className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/70 opacity-80 hover:bg-white hover:opacity-100 dark:bg-slate-950/70 dark:hover:bg-slate-950"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setExpanded(element, !expanded)
-                }}
-                aria-label={expanded ? 'Collapse element abstraction' : 'Expand element abstraction'}
-              >
-                {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                <span className="truncate">{locked ? 'Lock exact content' : 'Regenerate from blueprint'}</span>
               </button>
             </div>
 
@@ -915,6 +982,12 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                     <option key={policy} value={policy}>{MISSING_DATA_LABELS[policy]}</option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {!expanded && isLargeElement && previewText && (
+              <div className="mt-1 max-h-[calc(100%-4.8rem)] overflow-y-auto rounded-md border border-white/45 bg-white/35 px-2 py-1 text-[10px] leading-snug opacity-90 dark:bg-slate-950/25">
+                {previewText}
               </div>
             )}
 

@@ -2408,8 +2408,22 @@ export function PresentationViewer({
             )}
           >
             {templateModeOn && (
-              <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-full border border-violet-300 bg-white/95 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-violet-700 shadow-lg dark:border-violet-700 dark:bg-slate-950/95 dark:text-violet-200">
-                Template Mode
+              <div className="pointer-events-none absolute left-1/2 top-4 z-30 flex -translate-x-1/2 flex-col items-center gap-1">
+                <div className="rounded-full border border-violet-300 bg-white/95 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-violet-700 shadow-lg dark:border-violet-700 dark:bg-slate-950/95 dark:text-violet-200">
+                  Template Mode
+                </div>
+                <button
+                  type="button"
+                  className="pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-violet-200 bg-white/95 text-violet-700 shadow-lg transition hover:border-violet-300 hover:bg-violet-50 dark:border-violet-800 dark:bg-slate-950/95 dark:text-violet-200 dark:hover:bg-violet-950"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    void onTemplateModeChange?.(false)
+                  }}
+                  aria-label="Exit Template Mode"
+                  title="Exit Template Mode"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             )}
             {presentationUrl ? (
