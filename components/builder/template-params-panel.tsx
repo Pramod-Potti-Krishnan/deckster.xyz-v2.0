@@ -762,6 +762,18 @@ export function TemplateParamsPanel({
     : selectedElementId === `${currentSlideIndex}:subtitle`
       ? 'subtitle'
       : null
+  const focusedPanelTitle = blueprintEditorV2Enabled
+    ? selectedSlideIntent
+      ? selectedSlideIntent === 'title' ? 'Title intent' : 'Subtitle intent'
+      : selectedElement
+        ? 'Element details'
+        : 'Slide details'
+    : 'Template params'
+  const focusedPanelSubtitle = blueprintEditorV2Enabled
+    ? selectedElement
+      ? `${selectedElement.role}${selectedElement.atomType ? ` - ${selectedElement.atomType}` : ''}`
+      : `Slide ${currentSlideIndex + 1}`
+    : `Slide ${currentSlideIndex + 1}`
 
   const patchBlueprint = (patch: Partial<TemplateBlueprint>) => {
     if (!blueprint || !onBlueprintChange) return
@@ -802,10 +814,10 @@ export function TemplateParamsPanel({
             <Palette className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-300" />
             <div className="min-w-0">
               <h3 className="truncate text-sm font-semibold">
-                {blueprintEditorV2Enabled ? 'Template details' : 'Template params'}
+                {focusedPanelTitle}
               </h3>
               <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                Slide {currentSlideIndex + 1}
+                {focusedPanelSubtitle}
               </p>
             </div>
           </div>
@@ -852,115 +864,138 @@ export function TemplateParamsPanel({
             </div>
           ) : blueprintEditorV2Enabled && blueprint && slide ? (
             <>
-              <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-                <div className="mb-3">
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Deck details</h4>
-                  <p className="text-xs text-slate-500">{blueprint.generation_method}</p>
-                </div>
-                <div className="space-y-3">
-                  <SelectField
-                    label="Deck scope"
-                    value={scopeValue(blueprint.abstraction_scope, 'period')}
-                    placeholder="Deck scope"
-                    options={SCOPE_OPTIONS}
-                    onValueChange={(value) => patchBlueprint({ abstraction_scope: { level: value as TemplateBlueprintScopeLevel } })}
-                  />
-                  <TextInputField
-                    label="Scope label"
-                    value={textOrEmpty(blueprint.abstraction_scope?.label)}
-                    onChange={(value) => patchBlueprint({
-                      abstraction_scope: {
-                        level: blueprint.abstraction_scope?.level ?? 'period',
-                        label: value || null,
-                      },
-                    })}
-                  />
-                  <TextField
-                    label="Deck purpose"
-                    value={textOrEmpty(blueprint.deck_purpose)}
-                    rows={2}
-                    onChange={(value) => patchBlueprint({ deck_purpose: value })}
-                  />
-                  <TextField
-                    label="Deck reuse instruction"
-                    value={textOrEmpty(blueprint.deck_reuse_instruction)}
-                    rows={3}
-                    onChange={(value) => patchBlueprint({ deck_reuse_instruction: value })}
-                  />
-                </div>
-              </section>
+              {!selectedElement && !selectedSlideIntent && (
+                <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <div className="mb-3">
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Deck details</h4>
+                    <p className="text-xs text-slate-500">{blueprint.generation_method}</p>
+                  </div>
+                  <div className="space-y-3">
+                    <SelectField
+                      label="Deck scope"
+                      value={scopeValue(blueprint.abstraction_scope, 'period')}
+                      placeholder="Deck scope"
+                      options={SCOPE_OPTIONS}
+                      onValueChange={(value) => patchBlueprint({ abstraction_scope: { level: value as TemplateBlueprintScopeLevel } })}
+                    />
+                    <TextInputField
+                      label="Scope label"
+                      value={textOrEmpty(blueprint.abstraction_scope?.label)}
+                      onChange={(value) => patchBlueprint({
+                        abstraction_scope: {
+                          level: blueprint.abstraction_scope?.level ?? 'period',
+                          label: value || null,
+                        },
+                      })}
+                    />
+                    <TextField
+                      label="Deck purpose"
+                      value={textOrEmpty(blueprint.deck_purpose)}
+                      rows={2}
+                      onChange={(value) => patchBlueprint({ deck_purpose: value })}
+                    />
+                    <TextField
+                      label="Deck reuse instruction"
+                      value={textOrEmpty(blueprint.deck_reuse_instruction)}
+                      rows={3}
+                      onChange={(value) => patchBlueprint({ deck_reuse_instruction: value })}
+                    />
+                  </div>
+                </section>
+              )}
 
-              <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-                <div className="mb-3">
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Slide details</h4>
-                  <p className="text-xs text-slate-500">
-                    {selectedSlideIntent
-                      ? `${selectedSlideIntent === 'title' ? 'Title' : 'Subtitle'} intent selected`
-                      : slide.narrative_role ?? slide.slide_title ?? 'Reusable slide role'}
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  <SelectField
-                    label="Slide scope"
-                    value={scopeValue(slide.abstraction_scope)}
-                    placeholder="Slide scope"
-                    options={OPTIONAL_SCOPE_OPTIONS}
-                    onValueChange={(value) => patchSlide({ abstraction_scope: optionalScopeFromValue(value) })}
-                  />
+              {selectedSlideIntent ? (
+                <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <div className="mb-3">
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {selectedSlideIntent === 'title' ? 'Title intent' : 'Subtitle intent'}
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Edit only the selected slide heading abstraction.
+                    </p>
+                  </div>
                   <TextField
-                    label="Purpose"
-                    value={textOrEmpty(slide.purpose)}
-                    rows={3}
-                    onChange={(value) => patchSlide({ purpose: value })}
+                    label={selectedSlideIntent === 'title' ? 'Title intent' : 'Subtitle intent'}
+                    value={textOrEmpty(selectedSlideIntent === 'title' ? slide.title_intent : slide.subtitle_intent)}
+                    rows={5}
+                    onChange={(value) => patchSlide(
+                      selectedSlideIntent === 'title'
+                        ? { title_intent: value }
+                        : { subtitle_intent: value }
+                    )}
                   />
-                  <TextField
-                    label="Storyline"
-                    value={textOrEmpty(slide.storyline)}
-                    rows={3}
-                    onChange={(value) => patchSlide({ storyline: value })}
-                  />
-                  <TextField
-                    label="Proof goal"
-                    value={textOrEmpty(slide.proof_goal)}
-                    rows={2}
-                    onChange={(value) => patchSlide({ proof_goal: value })}
-                  />
-                  <TextField
-                    label="Title intent"
-                    value={textOrEmpty(slide.title_intent)}
-                    rows={2}
-                    onChange={(value) => patchSlide({ title_intent: value })}
-                  />
-                  <TextField
-                    label="Subtitle intent"
-                    value={textOrEmpty(slide.subtitle_intent)}
-                    rows={2}
-                    onChange={(value) => patchSlide({ subtitle_intent: value })}
-                  />
-                  <TextField
-                    label="Reuse instruction"
-                    value={textOrEmpty(slide.reuse_instruction)}
-                    rows={3}
-                    onChange={(value) => patchSlide({ reuse_instruction: value })}
-                  />
-                  <TextField
-                    label="Required inputs"
-                    value={listToLines(slide.required_inputs)}
-                    rows={3}
-                    onChange={(value) => patchSlide({ required_inputs: linesToList(value) })}
-                  />
-                  <SelectField
-                    label="Population policy"
-                    value={slide.population_policy}
-                    placeholder="Population policy"
-                    options={[
-                      { value: 'flexible', label: 'Flexible' },
-                      { value: 'strict', label: 'Strict' },
-                    ]}
-                    onValueChange={(value) => patchSlide({ population_policy: value as TemplateBlueprintSlide['population_policy'] })}
-                  />
-                </div>
-              </section>
+                </section>
+              ) : !selectedElement ? (
+                <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                  <div className="mb-3">
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Slide details</h4>
+                    <p className="text-xs text-slate-500">
+                      {slide.narrative_role ?? slide.slide_title ?? 'Reusable slide role'}
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    <SelectField
+                      label="Slide scope"
+                      value={scopeValue(slide.abstraction_scope)}
+                      placeholder="Slide scope"
+                      options={OPTIONAL_SCOPE_OPTIONS}
+                      onValueChange={(value) => patchSlide({ abstraction_scope: optionalScopeFromValue(value) })}
+                    />
+                    <TextField
+                      label="Purpose"
+                      value={textOrEmpty(slide.purpose)}
+                      rows={3}
+                      onChange={(value) => patchSlide({ purpose: value })}
+                    />
+                    <TextField
+                      label="Storyline"
+                      value={textOrEmpty(slide.storyline)}
+                      rows={3}
+                      onChange={(value) => patchSlide({ storyline: value })}
+                    />
+                    <TextField
+                      label="Proof goal"
+                      value={textOrEmpty(slide.proof_goal)}
+                      rows={2}
+                      onChange={(value) => patchSlide({ proof_goal: value })}
+                    />
+                    <TextField
+                      label="Title intent"
+                      value={textOrEmpty(slide.title_intent)}
+                      rows={2}
+                      onChange={(value) => patchSlide({ title_intent: value })}
+                    />
+                    <TextField
+                      label="Subtitle intent"
+                      value={textOrEmpty(slide.subtitle_intent)}
+                      rows={2}
+                      onChange={(value) => patchSlide({ subtitle_intent: value })}
+                    />
+                    <TextField
+                      label="Reuse instruction"
+                      value={textOrEmpty(slide.reuse_instruction)}
+                      rows={3}
+                      onChange={(value) => patchSlide({ reuse_instruction: value })}
+                    />
+                    <TextField
+                      label="Required inputs"
+                      value={listToLines(slide.required_inputs)}
+                      rows={3}
+                      onChange={(value) => patchSlide({ required_inputs: linesToList(value) })}
+                    />
+                    <SelectField
+                      label="Population policy"
+                      value={slide.population_policy}
+                      placeholder="Population policy"
+                      options={[
+                        { value: 'flexible', label: 'Flexible' },
+                        { value: 'strict', label: 'Strict' },
+                      ]}
+                      onValueChange={(value) => patchSlide({ population_policy: value as TemplateBlueprintSlide['population_policy'] })}
+                    />
+                  </div>
+                </section>
+              ) : null}
 
               {selectedElement && selectedBlueprintElement ? (
                 <BlueprintElementControls
@@ -972,13 +1007,11 @@ export function TemplateParamsPanel({
                   onPatch={(patch) => onOverrideChange(currentSlideIndex, selectedElement.overrideKey, patch)}
                   onBlueprintChange={(next) => onBlueprintChange?.(next)}
                 />
-              ) : (
+              ) : selectedElement ? (
                 <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-                  {selectedSlideIntent
-                    ? 'Edit the selected title or subtitle intent in Slide details above.'
-                    : 'Select a hotspot on the slide to edit element details.'}
+                  This selected element does not have an editable blueprint entry yet.
                 </div>
-              )}
+              ) : null}
             </>
           ) : selectedElement ? (
             <V1ElementControls

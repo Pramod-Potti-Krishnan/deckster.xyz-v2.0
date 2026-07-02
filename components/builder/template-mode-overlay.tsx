@@ -326,9 +326,9 @@ function collapsedPreviewText(
   semanticLabel: string,
 ): string | null {
   const candidates = [
+    blueprintElement?.storyline_link,
     semanticLabel,
     blueprintElement?.purpose,
-    blueprintElement?.storyline_link,
     blueprintElement?.content_intent,
     element.contentIntent,
     element.label,
@@ -785,7 +785,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
             className={cn(
               "pointer-events-auto absolute text-left text-slate-700 shadow-lg backdrop-blur transition dark:text-slate-200",
               open
-                ? "z-50 overflow-y-auto rounded-lg border border-dashed border-slate-400 bg-white/95 px-3 py-2 text-xs dark:bg-slate-950/95"
+                ? "z-50 overflow-y-auto rounded-lg border border-slate-300 bg-white/95 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950/95"
                 : "z-[42] rounded-full border border-white/70 bg-white/95 px-2.5 py-1 text-[10px] font-semibold hover:bg-white dark:bg-slate-950/95",
               selected && "ring-2 ring-violet-500 ring-offset-2"
             )}
@@ -867,6 +867,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
         const roleLabel = conciseRoleLabel(element, group)
         const previewText = collapsedPreviewText(element, blueprintElement ?? null, group, semanticLabel)
         const isLargeElement = rect.w * rect.h >= 40
+        const whyText = blueprintElement?.storyline_link?.trim() || previewText
 
         return (
           <div
@@ -876,8 +877,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
             className={cn(
               "pointer-events-auto absolute rounded-md text-left text-[10px] leading-tight shadow-lg transition",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1",
-              "border-2",
-              locked ? "border-solid" : "border-dashed",
+              "border-2 border-solid",
               style.border,
               style.bg,
               style.text,
@@ -903,16 +903,69 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
           >
             <div className="flex min-w-0 items-start gap-2">
               <span className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-full", style.chip)} />
-              <div className="min-w-0 flex-1 space-y-0.5">
-                <div className="flex min-w-0 items-center gap-1.5 pr-7">
+              <div className="min-w-0 flex-1 space-y-1 pr-7">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                   <span className="truncate text-[11px] font-bold">{style.label}</span>
                   {roleLabel && (
                     <span className="truncate text-[10px] font-medium opacity-80">{roleLabel}</span>
                   )}
+                  <div className="ml-auto flex min-w-0 flex-wrap items-center gap-1.5">
+                    {isDataAtom(element) && (
+                      <div className="flex min-w-0 items-center gap-1">
+                        <Database className="h-3 w-3 shrink-0 opacity-70" />
+                        <span className="whitespace-nowrap text-[9px] font-semibold opacity-80">If data missing</span>
+                        <select
+                          value={missingDataPolicy}
+                          disabled={!canMutate}
+                          className="h-5 min-w-0 max-w-[146px] rounded border border-white/70 bg-white/80 px-1 text-[9px] font-medium text-slate-700 disabled:opacity-50 dark:bg-slate-950/80 dark:text-slate-100"
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={(event) => {
+                            patchContract(element, {
+                              missing_data_policy: event.target.value as TemplateBlueprintMissingDataPolicy,
+                            })
+                          }}
+                        >
+                          {MISSING_DATA_OPTIONS.map((policy) => (
+                            <option key={policy} value={policy}>{MISSING_DATA_LABELS[policy]}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex min-w-0 items-center gap-1">
+                      <Rows3 className="h-3 w-3 shrink-0 opacity-70" />
+                      <span className="whitespace-nowrap text-[9px] font-semibold opacity-80">Template from</span>
+                      <button
+                        type="button"
+                        disabled={!canMutate}
+                        className={cn(
+                          "inline-flex h-5 min-w-0 max-w-[136px] items-center gap-1 rounded-full border px-1.5 text-[9px] font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-55",
+                          locked
+                            ? "border-slate-300 bg-slate-950 text-white dark:border-slate-700 dark:bg-white dark:text-slate-950"
+                            : "border-white/80 bg-white/90 text-slate-700 hover:bg-white dark:bg-slate-950/80 dark:text-slate-100"
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          const nextLocked = !locked
+                          patchElement(element, {
+                            lock_policy: nextLocked ? 'lock_exact' : 'regenerate',
+                            fixedness: nextLocked
+                              ? (group === 'IMAGE' ? 'locked_media' : 'constant')
+                              : 'variable',
+                          })
+                        }}
+                        aria-label={locked ? 'Regenerate this element from abstraction' : 'Lock exact source content for this element'}
+                        title={locked ? 'Exact Content: source content is reused' : 'Blueprint: content is regenerated from abstraction'}
+                      >
+                        {locked ? <Lock className="h-3 w-3 shrink-0" /> : <Unlock className="h-3 w-3 shrink-0" />}
+                        <span className="truncate">{locked ? 'Exact Content' : 'Blueprint'}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                {!expanded && previewText && !isLargeElement && (
+                {!expanded && whyText && !isLargeElement && (
                   <div className="line-clamp-2 text-[10px] leading-snug opacity-85">
-                    {previewText}
+                    <span className="font-semibold uppercase tracking-wide opacity-70">Why it is on this slide: </span>
+                    {whyText}
                   </div>
                 )}
               </div>
@@ -929,82 +982,29 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
               </button>
             </div>
 
-            <div className={cn(
-              "mt-1 flex min-w-0 flex-wrap items-center gap-1.5 rounded-md border border-white/55 bg-white/45 px-1.5 py-1 dark:bg-slate-950/35",
-              expanded ? "text-[10px]" : "text-[9px]"
-            )}>
-              <span className="shrink-0 font-semibold uppercase text-slate-500 dark:text-slate-400">
-                Template Generation Mode
-              </span>
-              <button
-                type="button"
-                disabled={!canMutate}
-                className={cn(
-                  "inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border px-1.5 py-0.5 font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-55",
-                  locked
-                    ? "border-slate-300 bg-slate-950 text-white dark:border-slate-700 dark:bg-white dark:text-slate-950"
-                    : "border-white/80 bg-white/90 text-slate-700 hover:bg-white dark:bg-slate-950/80 dark:text-slate-100"
-                )}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  const nextLocked = !locked
-                  patchElement(element, {
-                    lock_policy: nextLocked ? 'lock_exact' : 'regenerate',
-                    fixedness: nextLocked
-                      ? (group === 'IMAGE' ? 'locked_media' : 'constant')
-                      : 'variable',
-                  })
-                }}
-                aria-label={locked ? 'Regenerate this element from abstraction' : 'Lock exact source content for this element'}
-                title={locked ? 'Locked: exact source content is reused' : 'Regenerate: content is rebuilt from abstraction'}
-              >
-                {locked ? <Lock className="h-3 w-3 shrink-0" /> : <Unlock className="h-3 w-3 shrink-0" />}
-                <span className="truncate">{locked ? 'Lock exact content' : 'Regenerate from blueprint'}</span>
-              </button>
-            </div>
-
-            {!expanded && isDataAtom(element) && (
-              <div className="mt-1 flex items-center gap-1">
-                <Database className="h-3 w-3 opacity-70" />
-                <span className="whitespace-nowrap text-[9px] font-semibold opacity-80">If data missing</span>
-                <select
-                  value={missingDataPolicy}
-                  disabled={!canMutate}
-                  className="h-5 min-w-0 max-w-full rounded border border-white/70 bg-white/80 px-1 text-[9px] font-medium text-slate-700 disabled:opacity-50 dark:bg-slate-950/80 dark:text-slate-100"
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => {
-                    patchContract(element, {
-                      missing_data_policy: event.target.value as TemplateBlueprintMissingDataPolicy,
-                    })
-                  }}
-                >
-                  {MISSING_DATA_OPTIONS.map((policy) => (
-                    <option key={policy} value={policy}>{MISSING_DATA_LABELS[policy]}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {!expanded && isLargeElement && previewText && (
+            {!expanded && isLargeElement && whyText && (
               <div className="mt-1 max-h-[calc(100%-4.8rem)] overflow-y-auto rounded-md border border-white/45 bg-white/35 px-2 py-1 text-[10px] leading-snug opacity-90 dark:bg-slate-950/25">
-                {previewText}
+                <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Why it is on this slide
+                </div>
+                {whyText}
               </div>
             )}
 
             {expanded && (
               <div className="mt-3 space-y-2 pr-1">
+                {blueprintElement?.storyline_link && (
+                  <MetadataSection title="Why it is on this slide">
+                    <p>{blueprintElement.storyline_link}</p>
+                  </MetadataSection>
+                )}
+
                 <MetadataSection title="Reusable role">
                   <p>{sectionPurpose}</p>
                   {secondaryIntent && (
                     <p className="mt-1 text-[10px] opacity-75">{secondaryIntent}</p>
                   )}
                 </MetadataSection>
-
-                {blueprintElement?.storyline_link && (
-                  <MetadataSection title="Why it is on this slide">
-                    <p>{blueprintElement.storyline_link}</p>
-                  </MetadataSection>
-                )}
 
                 {element.renderedImageUrl && (
                   <MetadataSection title="Image treatment">
