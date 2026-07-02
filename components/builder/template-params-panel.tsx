@@ -1,6 +1,7 @@
 "use client"
 
-import { Image as ImageIcon, LineChart, Palette, Save, Shapes, TextCursorInput, X } from 'lucide-react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
+import { ChevronLeft, ChevronRight, GripVertical, Image as ImageIcon, LineChart, Palette, Save, Shapes, TextCursorInput, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -36,6 +37,7 @@ import {
 interface TemplateParamsPanelProps {
   isOpen: boolean
   width: number
+  collapsed?: boolean
   snapshot: TemplateSnapshot | null
   currentSlideIndex: number
   overrides: TemplateOverrides
@@ -45,10 +47,14 @@ interface TemplateParamsPanelProps {
   blueprintDirty?: boolean
   blueprintSaving?: boolean
   onClose: () => void
+  onCollapsedChange?: (collapsed: boolean) => void
+  onResizeStart?: (event: ReactMouseEvent<HTMLDivElement>) => void
   onOverrideChange: (slideIndex: number, overrideKey: string, patch: TemplateModeOverride) => void
   onBlueprintChange?: (blueprint: TemplateBlueprint) => void
   onSaveBlueprint?: () => void | Promise<void>
 }
+
+export const TEMPLATE_PANEL_COLLAPSED_WIDTH = 28
 
 const SCOPE_OPTIONS: Array<{ value: TemplateBlueprintScopeLevel; label: string }> = [
   { value: 'period', label: 'Same subject, new period' },
@@ -728,6 +734,7 @@ function BlueprintElementControls({
 export function TemplateParamsPanel({
   isOpen,
   width,
+  collapsed = false,
   snapshot,
   currentSlideIndex,
   overrides,
@@ -737,6 +744,8 @@ export function TemplateParamsPanel({
   blueprintDirty,
   blueprintSaving,
   onClose,
+  onCollapsedChange,
+  onResizeStart,
   onOverrideChange,
   onBlueprintChange,
   onSaveBlueprint,
@@ -768,11 +777,25 @@ export function TemplateParamsPanel({
     <div
       className={cn(
         "absolute inset-y-0 left-0 z-[70] ease-out",
-        "transition-transform duration-300",
+        "transition-[transform,width] duration-300",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
-      style={{ width, pointerEvents: isOpen ? 'auto' : 'none' }}
+      style={{ width: collapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : width, pointerEvents: isOpen ? 'auto' : 'none' }}
     >
+      {collapsed ? (
+        <button
+          type="button"
+          className="absolute inset-y-0 left-0 flex w-7 flex-col items-center justify-center gap-2 border-r border-violet-200 bg-violet-50 text-violet-700 shadow-lg hover:bg-violet-100 dark:border-violet-900 dark:bg-violet-950/50 dark:text-violet-200 dark:hover:bg-violet-900/70"
+          onClick={() => onCollapsedChange?.(false)}
+          title="Expand template details"
+          aria-label="Expand template details"
+        >
+          <ChevronRight className="h-4 w-4" />
+          <span className="[writing-mode:vertical-rl] text-[10px] font-semibold uppercase tracking-wider">
+            Template
+          </span>
+        </button>
+      ) : (
       <div className="absolute inset-y-0 left-0 flex max-h-screen flex-col overflow-hidden border-r border-violet-200 bg-white text-slate-900 shadow-xl dark:border-violet-900 dark:bg-slate-950 dark:text-slate-100">
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-violet-50 px-4 py-3 dark:border-slate-800 dark:bg-violet-950/40">
           <div className="flex min-w-0 items-center gap-2">
@@ -799,6 +822,15 @@ export function TemplateParamsPanel({
                 {blueprintSaving ? 'Saving' : 'Save template changes'}
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onCollapsedChange?.(true)}
+              className="h-8 w-8 p-0"
+              title="Collapse template details"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
               <X className="h-4 w-4" />
             </Button>
@@ -960,7 +992,20 @@ export function TemplateParamsPanel({
             </div>
           )}
         </div>
+        {onResizeStart && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize template details panel"
+            title="Drag to resize template details"
+            onMouseDown={onResizeStart}
+            className="absolute inset-y-0 right-[-4px] z-10 flex w-2 cursor-col-resize items-center justify-center text-violet-400 hover:bg-violet-200/60 hover:text-violet-700 dark:hover:bg-violet-900/40"
+          >
+            <GripVertical className="h-4 w-4" />
+          </div>
+        )}
       </div>
+      )}
     </div>
   )
 }
