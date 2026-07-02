@@ -23,6 +23,7 @@ import type {
   TemplateBlueprintMissingDataPolicy,
   TemplateBlueprintSlide,
   TemplateSnapshot,
+  TemplateSlot,
 } from '@/hooks/use-templates'
 import {
   asRecord,
@@ -398,12 +399,27 @@ function dataPolicySummary(elements: TemplateModeElement[]): string | null {
   return unique.map((policy) => MISSING_DATA_LABELS[policy]).join(', ')
 }
 
+function canvasType(slot: TemplateSlot | null): string {
+  return String(slot?.canvas_type ?? '').toUpperCase()
+}
+
+function slotText(slot: TemplateSlot | null, keys: string[]): string {
+  if (!slot) return ''
+  for (const key of keys) {
+    const value = slot[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return ''
+}
+
 function titleSubtitleBoxes(
   slide: TemplateBlueprintSlide | null,
+  slot: TemplateSlot | null,
   elements: TemplateModeElement[],
   currentSlideIndex: number,
 ) {
   const realKeys = new Set(elements.map((element) => element.overrideKey))
+  const canvas = canvasType(slot)
   const boxes: Array<{
     overrideKey: string
     label: string
@@ -425,7 +441,68 @@ function titleSubtitleBoxes(
   const contentRight = textRects.length
     ? Math.max(...textRects.map((rect) => rect.x + rect.w))
     : 30
-  const contentWidth = Math.max(8, Math.min(30 - contentLeft, contentRight - contentLeft))
+  const contentWidth = Math.max(8, Math.min(25, 30 - contentLeft, contentRight - contentLeft))
+
+  if (canvas.startsWith('H')) {
+    const titleLabel = canvas.startsWith('H2')
+      ? 'Section title'
+      : canvas.startsWith('H3')
+        ? 'Closing title'
+        : 'Slide title'
+    const subtitleLabel = canvas.startsWith('H2')
+      ? 'Section marker'
+      : canvas.startsWith('H3')
+        ? 'Closing message'
+        : 'Eyebrow'
+    const detailsLabel = canvas.startsWith('H2')
+      ? 'Section subtitle'
+      : canvas.startsWith('H3')
+        ? 'Contact details'
+        : 'Presenter details'
+
+    const titleRect = canvas.startsWith('H2')
+      ? { x: 4, y: 7.1, w: 24, h: 1.25 }
+      : canvas.startsWith('H3')
+        ? { x: 3, y: 6.4, w: 24, h: 1.25 }
+        : { x: 3, y: 7.4, w: 25, h: 1.55 }
+    const subtitleRect = canvas.startsWith('H2')
+      ? { x: 4, y: 5.2, w: 15, h: 0.85 }
+      : canvas.startsWith('H3')
+        ? { x: 3, y: 8.3, w: 20, h: 0.95 }
+        : { x: 3, y: 4.6, w: 15, h: 0.85 }
+    const detailsRect = canvas.startsWith('H2')
+      ? { x: 4, y: 9.1, w: 22, h: 0.95 }
+      : { x: 3, y: 15.7, w: 20, h: 0.95 }
+    const detailsValue = canvas.startsWith('H2')
+      ? slotText(slot, ['slide_subtitle', 'subtitle', 'key_message'])
+      : canvas.startsWith('H3')
+        ? slotText(slot, ['contact_info', 'footer_text', 'presenter_details'])
+        : slotText(slot, ['presenter_details', 'footer_text', 'author', 'presenter'])
+
+    boxes.push({
+      overrideKey: `${currentSlideIndex}:title`,
+      label: titleLabel,
+      value: slide?.title_intent ?? '',
+      emptyLabel: `Add ${titleLabel.toLowerCase()} intent`,
+      rect: titleRect,
+    })
+    boxes.push({
+      overrideKey: `${currentSlideIndex}:subtitle`,
+      label: subtitleLabel,
+      value: slide?.subtitle_intent ?? '',
+      emptyLabel: `Add ${subtitleLabel.toLowerCase()} intent`,
+      rect: subtitleRect,
+    })
+    boxes.push({
+      overrideKey: `${currentSlideIndex}:presenter`,
+      label: detailsLabel,
+      value: detailsValue,
+      emptyLabel: `Add ${detailsLabel.toLowerCase()} guidance`,
+      rect: detailsRect,
+    })
+
+    return boxes
+  }
 
   const titleKey = `${currentSlideIndex}:title`
   if (!realKeys.has(titleKey)) {
@@ -434,7 +511,7 @@ function titleSubtitleBoxes(
       label: 'Title intent',
       value: slide?.title_intent ?? '',
       emptyLabel: 'Add title intent',
-      rect: { x: contentLeft, y: 1.35, w: contentWidth, h: 1.1 },
+      rect: { x: contentLeft, y: 2.25, w: contentWidth, h: 1.0 },
     })
   }
 
@@ -445,7 +522,7 @@ function titleSubtitleBoxes(
       label: 'Subtitle intent',
       value: slide?.subtitle_intent ?? '',
       emptyLabel: 'Add subtitle intent',
-      rect: { x: contentLeft, y: 2.55, w: Math.max(8, contentWidth - 1), h: 0.9 },
+      rect: { x: contentLeft, y: 3.35, w: Math.max(8, Math.min(24, contentWidth - 1)), h: 0.85 },
     })
   }
 
@@ -636,7 +713,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
     ?? summarizeRecord(layoutPlan?.theme_color_ramps, 3)
   const showLockedChip = !loading && snapshot && elements.length === 0
   const slideDataPolicy = dataPolicySummary(elements)
-  const syntheticBoxes = titleSubtitleBoxes(blueprintSlide, elements, currentSlideIndex)
+  const syntheticBoxes = titleSubtitleBoxes(blueprintSlide, slot, elements, currentSlideIndex)
 
   const isExpanded = (element: TemplateModeElement) => {
     const key = storageKey(currentSlideIndex, element.overrideKey)
@@ -765,7 +842,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
       {syntheticBoxes.map((box) => {
         const selected = selectedElementId === box.overrideKey
         const open = intentOpenState[box.overrideKey] ?? false
-        const isTitle = box.label.startsWith('Title')
+        const isTitle = box.overrideKey.endsWith(':title')
         return (
           <div
             key={box.overrideKey}
