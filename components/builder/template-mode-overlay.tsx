@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ChevronDown,
@@ -221,6 +222,61 @@ function storageKey(slideIndex: number, overrideKey: string): string {
 
 function compactText(value: string | null | undefined, fallback: string): string {
   return value && value.trim() ? value.trim() : fallback
+}
+
+function elementBoxStyle(rect: TemplateGridRect, expanded: boolean) {
+  const left = (Math.max(0, rect.x - 1) / GRID_COLUMNS) * 100
+  const top = (Math.max(0, rect.y - 1) / GRID_ROWS) * 100
+  const width = (Math.max(0, rect.w) / GRID_COLUMNS) * 100
+  const height = (Math.max(0, rect.h) / GRID_ROWS) * 100
+
+  if (!expanded) {
+    return {
+      left: `${left}%`,
+      top: `${top}%`,
+      width: `${width}%`,
+      height: `${height}%`,
+    }
+  }
+
+  const expandedWidth = Math.min(64, Math.max(width, 28))
+  const expandedHeight = Math.min(62, Math.max(height, 24))
+  const clampedLeft = Math.max(0.75, Math.min(left, 99 - expandedWidth))
+  const clampedTop = Math.max(0.75, Math.min(top, 99 - expandedHeight))
+
+  return {
+    left: `${clampedLeft}%`,
+    top: `${clampedTop}%`,
+    width: `${expandedWidth}%`,
+    minHeight: `${expandedHeight}%`,
+    maxHeight: '68%',
+  }
+}
+
+function shortElementLabel(element: TemplateModeElement, blueprintElement: TemplateBlueprintElement | null): string {
+  return compactText(
+    blueprintElement?.semantic_role ?? blueprintElement?.purpose,
+    element.label ?? element.role,
+  )
+}
+
+function MetadataSection({
+  title,
+  children,
+}: {
+  title: string
+  children: ReactNode
+}) {
+  return (
+    <section className="rounded-md border border-white/70 bg-white/55 px-2 py-1.5 dark:bg-slate-950/40">
+      <h4 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        {title}
+      </h4>
+      <div className="text-[11px] leading-relaxed">
+        {children}
+      </div>
+    </section>
+  )
 }
 
 function fieldBlock(label: string, value: string | null | undefined) {
@@ -448,6 +504,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
 
   const [slideDetailsOpen, setSlideDetailsOpen] = useState(true)
   const [expandedState, setExpandedState] = useState<Record<string, boolean>>({})
+  const [activeExpandedKey, setActiveExpandedKey] = useState<string | null>(null)
   const slot = getTemplateSlot(snapshot, currentSlideIndex)
   const frozenEntry = getFrozenPlanEntry(snapshot, currentSlideIndex)
   const layoutPlan = getLayoutPlan(frozenEntry)
@@ -455,7 +512,6 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
   const blueprintSlide = getBlueprintSlide(snapshot, currentSlideIndex)
   const elements = getTemplateModeElements(snapshot, currentSlideIndex)
     .filter((element) => element.gridRect)
-  const denseSlide = elements.length > 4
   const legendGroups = useMemo(
     () => Array.from(new Set(elements.map(getAtomGroup))).filter((group) => group !== 'UNKNOWN').slice(0, 6),
     [elements],
@@ -487,12 +543,13 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
 
   const isExpanded = (element: TemplateModeElement) => {
     const key = storageKey(currentSlideIndex, element.overrideKey)
-    return expandedState[key] ?? !denseSlide
+    return expandedState[key] ?? false
   }
 
   const setExpanded = (element: TemplateModeElement, expanded: boolean) => {
     const key = storageKey(currentSlideIndex, element.overrideKey)
     setExpandedState((previous) => ({ ...previous, [key]: expanded }))
+    if (expanded) setActiveExpandedKey(key)
     window.sessionStorage.setItem(key, expanded ? 'expanded' : 'collapsed')
   }
 
@@ -539,6 +596,9 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
         <span className="inline-flex items-center gap-1">
           <Unlock className="h-3 w-3" />
           Regen
+        </span>
+        <span className="hidden max-w-[190px] truncate text-[9px] text-slate-500 lg:inline dark:text-slate-400">
+          Lock keeps exact source; Regen uses the blueprint.
         </span>
       </div>
 
@@ -671,6 +731,9 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
           ? blueprintElement.content_intent
           : null
         const canMutate = Boolean(blueprint && blueprintElement && onBlueprintChange)
+        const expandedKey = storageKey(currentSlideIndex, element.overrideKey)
+        const semanticLabel = shortElementLabel(element, blueprintElement ?? null)
+        const sectionPurpose = compactText(blueprintElement?.purpose, element.contentIntent ?? semanticLabel)
 
         return (
           <div
@@ -678,7 +741,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
             role="button"
             tabIndex={0}
             className={cn(
-              "pointer-events-auto absolute z-30 rounded-md px-2 py-1.5 text-left text-[10px] leading-tight shadow-lg transition",
+              "pointer-events-auto absolute rounded-md text-left text-[10px] leading-tight shadow-lg transition",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1",
               "border-2",
               locked ? "border-solid" : "border-dashed",
@@ -686,13 +749,13 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
               style.bg,
               style.text,
               selected && "ring-2 ring-violet-500 ring-offset-2",
+              expanded ? "overflow-y-auto p-3" : "overflow-hidden px-2 py-1.5",
             )}
             style={{
-              left: gridLinePct(rect.x, GRID_COLUMNS),
-              top: gridLinePct(rect.y, GRID_ROWS),
-              width: pct(rect.w, GRID_COLUMNS),
-              minHeight: expanded ? pct(rect.h, GRID_ROWS) : undefined,
-              height: expanded ? 'auto' : pct(rect.h, GRID_ROWS),
+              ...elementBoxStyle(rect, expanded),
+              zIndex: expanded
+                ? activeExpandedKey === expandedKey ? 78 : 68
+                : selected ? 58 : 34,
             }}
             onClick={(event) => {
               event.stopPropagation()
@@ -705,26 +768,47 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
               }
             }}
           >
-            <div className="flex min-w-0 items-start gap-1.5">
-              {locked ? (
-                <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <Pencil className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate font-semibold">{style.label}</span>
-                  <span className="truncate opacity-80">{element.role}</span>
+            <div className="flex min-w-0 items-start gap-2">
+              <span className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-full", style.chip)} />
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <div className="flex min-w-0 items-center gap-1.5 pr-16">
+                  <span className="truncate text-[11px] font-bold">{style.label}</span>
+                  <span className="truncate text-[10px] font-medium opacity-80">{element.role}</span>
                 </div>
                 {!expanded && (
-                  <div className="mt-0.5 line-clamp-2 opacity-80">
-                    {compactText(element.contentIntent, blueprintElement?.purpose ?? element.label)}
+                  <div className="line-clamp-2 text-[10px] leading-snug opacity-85">
+                    {semanticLabel}
                   </div>
                 )}
               </div>
               <button
                 type="button"
-                className="shrink-0 rounded p-0.5 opacity-75 hover:bg-white/60 hover:opacity-100 dark:hover:bg-slate-900/70"
+                disabled={!canMutate}
+                className={cn(
+                  "absolute right-8 top-1.5 inline-flex h-6 items-center gap-1 rounded-full border px-1.5 text-[9px] font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-55",
+                  locked
+                    ? "border-slate-300 bg-slate-950 text-white dark:border-slate-700 dark:bg-white dark:text-slate-950"
+                    : "border-white/80 bg-white/85 text-slate-700 hover:bg-white dark:bg-slate-950/80 dark:text-slate-100"
+                )}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  const nextLocked = !locked
+                  patchElement(element, {
+                    lock_policy: nextLocked ? 'lock_exact' : 'regenerate',
+                    fixedness: nextLocked
+                      ? (group === 'IMAGE' ? 'locked_media' : 'constant')
+                      : 'variable',
+                  })
+                }}
+                aria-label={locked ? 'Regenerate this element from abstraction' : 'Lock exact source content for this element'}
+                title={locked ? 'Locked: exact source content is reused' : 'Regenerate: content is rebuilt from abstraction'}
+              >
+                {locked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3 rotate-180" />}
+                {locked ? 'Locked' : 'Regen'}
+              </button>
+              <button
+                type="button"
+                className="absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/70 opacity-80 hover:bg-white hover:opacity-100 dark:bg-slate-950/70 dark:hover:bg-slate-950"
                 onClick={(event) => {
                   event.stopPropagation()
                   setExpanded(element, !expanded)
@@ -735,40 +819,60 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
               </button>
             </div>
 
+            {!expanded && isDataAtom(element) && (
+              <div className="mt-1 flex items-center gap-1">
+                <Database className="h-3 w-3 opacity-70" />
+                <select
+                  value={missingDataPolicy}
+                  disabled={!canMutate}
+                  className="h-5 max-w-full rounded border border-white/70 bg-white/80 px-1 text-[9px] font-medium text-slate-700 disabled:opacity-50 dark:bg-slate-950/80 dark:text-slate-100"
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => {
+                    patchContract(element, {
+                      missing_data_policy: event.target.value as TemplateBlueprintMissingDataPolicy,
+                    })
+                  }}
+                >
+                  {MISSING_DATA_OPTIONS.map((policy) => (
+                    <option key={policy} value={policy}>{MISSING_DATA_LABELS[policy]}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {expanded && (
-              <div className="mt-2 max-h-[260px] space-y-2 overflow-y-auto pr-1">
-                <p className="text-[11px] leading-snug">
-                  {compactText(element.contentIntent, blueprintElement?.purpose ?? 'Reusable element purpose')}
-                </p>
+              <div className="mt-3 space-y-2 pr-1">
+                <MetadataSection title="Reusable role">
+                  <p>{sectionPurpose}</p>
+                  {secondaryIntent && (
+                    <p className="mt-1 text-[10px] opacity-75">{secondaryIntent}</p>
+                  )}
+                </MetadataSection>
+
                 {blueprintElement?.storyline_link && (
-                  <p className="rounded border border-white/60 bg-white/50 px-2 py-1 text-[10px] leading-snug opacity-90 dark:bg-slate-950/40">
-                    {blueprintElement.storyline_link}
-                  </p>
-                )}
-                {secondaryIntent && (
-                  <p className="text-[10px] leading-snug opacity-70">{secondaryIntent}</p>
+                  <MetadataSection title="Why it is on this slide">
+                    <p>{blueprintElement.storyline_link}</p>
+                  </MetadataSection>
                 )}
 
                 {element.renderedImageUrl && (
-                  <div className="flex items-start gap-2">
-                    <img
-                      src={element.renderedImageUrl}
-                      alt=""
-                      className="h-12 w-16 shrink-0 rounded-sm object-cover"
-                      loading="lazy"
-                    />
-                    <p className="text-[10px] leading-snug opacity-80">
-                      {abstractionInstruction ?? 'Image abstraction will be captured on newly saved templates.'}
-                    </p>
-                  </div>
+                  <MetadataSection title="Image treatment">
+                    <div className="flex items-start gap-2">
+                      <img
+                        src={element.renderedImageUrl}
+                        alt=""
+                        className="h-14 w-20 shrink-0 rounded-sm object-cover"
+                        loading="lazy"
+                      />
+                      <p className="text-[10px] leading-snug opacity-85">
+                        {abstractionInstruction ?? 'Image abstraction will be captured on newly saved templates.'}
+                      </p>
+                    </div>
+                  </MetadataSection>
                 )}
 
                 {isDataAtom(element) && (
-                  <div className="space-y-1 rounded border border-white/60 bg-white/50 px-2 py-1.5 dark:bg-slate-950/40">
-                    <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide opacity-80">
-                      <Database className="h-3 w-3" />
-                      Needs
-                    </div>
+                  <MetadataSection title="Data needed">
                     {requiredData.length > 0 ? (
                       <ul className="list-disc space-y-0.5 pl-4 text-[10px] leading-snug">
                         {requiredData.slice(0, 5).map((item) => <li key={item}>{item}</li>)}
@@ -776,6 +880,10 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                     ) : (
                       <p className="text-[10px] opacity-70">No specific data requirements saved yet.</p>
                     )}
+                    <div className="mt-2 flex items-center gap-1">
+                      <Database className="h-3 w-3 opacity-75" />
+                      <span className="text-[10px] font-semibold opacity-80">If data is missing</span>
+                    </div>
                     <select
                       value={missingDataPolicy}
                       disabled={!canMutate}
@@ -791,40 +899,11 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                         <option key={policy} value={policy}>{MISSING_DATA_LABELS[policy]}</option>
                       ))}
                     </select>
-                  </div>
+                  </MetadataSection>
                 )}
 
-                <div className="grid grid-cols-2 overflow-hidden rounded-md border border-white/60 text-[10px]">
-                  {(['lock_exact', 'regenerate'] as const).map((policy) => (
-                    <button
-                      key={policy}
-                      type="button"
-                      disabled={!canMutate}
-                      className={cn(
-                        "inline-flex items-center justify-center gap-1 px-1.5 py-1.5 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
-                        (locked && policy === 'lock_exact') || (!locked && policy === 'regenerate')
-                          ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
-                          : "bg-white/65 text-slate-700 hover:bg-white dark:bg-slate-950/50 dark:text-slate-100"
-                      )}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        const nextLocked = policy === 'lock_exact'
-                        patchElement(element, {
-                          lock_policy: policy,
-                          fixedness: nextLocked
-                            ? (group === 'IMAGE' ? 'locked_media' : 'constant')
-                            : 'variable',
-                        })
-                      }}
-                    >
-                      {policy === 'lock_exact' ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-                      {policy === 'lock_exact' ? 'Lock' : 'Regenerate'}
-                    </button>
-                  ))}
-                </div>
-
                 {group === 'IMAGE' && !element.renderedImageUrl && (
-                  <div className="inline-flex items-center gap-1 text-[10px] opacity-70">
+                  <div className="inline-flex items-center gap-1 rounded-md bg-white/55 px-2 py-1 text-[10px] opacity-80 dark:bg-slate-950/40">
                     <ImageIcon className="h-3 w-3" />
                     No locked thumbnail saved.
                   </div>

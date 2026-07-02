@@ -77,6 +77,8 @@ export interface PresentationAreaProps {
   toolbarOffset?: number
   // Template Builder: WS session id (source for "Save as Template") + gate
   sessionId?: string | null
+  deckOwnerSessionId?: string | null
+  templateSavePresentationId?: string | null
   templateBuilderEnabled?: boolean
   onSelectTemplate?: (template: { id: string; name: string }) => void
   templateModeOn?: boolean
@@ -124,6 +126,8 @@ export function PresentationArea({
   toolbarPortalTarget,
   toolbarOffset,
   sessionId,
+  deckOwnerSessionId,
+  templateSavePresentationId,
   templateBuilderEnabled,
   onSelectTemplate,
   templateModeOn = false,
@@ -204,6 +208,8 @@ export function PresentationArea({
             }}
             toolbarPortalTarget={toolbarPortalTarget}
             sessionId={sessionId}
+            deckOwnerSessionId={deckOwnerSessionId}
+            templateSavePresentationId={templateSavePresentationId}
             templateBuilderEnabled={templateBuilderEnabled}
             onSelectTemplate={onSelectTemplate}
             templateModeOn={templateModeOn}

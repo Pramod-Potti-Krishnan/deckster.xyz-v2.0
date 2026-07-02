@@ -30,7 +30,7 @@ import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
 import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
-import { TemplateParamsPanel } from '@/components/builder/template-params-panel'
+import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { TopUpModal } from '@/components/builder/topup-modal'
 import type { SlideComposeThumbnailJob } from '@/components/slide-thumbnail-strip'
@@ -298,6 +298,7 @@ function BuilderContent() {
   const [templateSnapshotLoading, setTemplateSnapshotLoading] = useState(false)
   const [templateBlueprintDirty, setTemplateBlueprintDirty] = useState(false)
   const [templateBlueprintSaving, setTemplateBlueprintSaving] = useState(false)
+  const [templateParamsCollapsed, setTemplateParamsCollapsed] = useState(false)
   const [templateOverrides, setTemplateOverrides] = useState<TemplateOverrides>({})
   const [selectedTemplateElementId, setSelectedTemplateElementId] = useState<string | null>(null)
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
@@ -718,7 +719,15 @@ function BuilderContent() {
   const isTemplateParamsDrawerOpen = templateBuilderEnabled
     && templateModeOn
     && (blueprintEditorV2Enabled || Boolean(selectedTemplateElementId))
-  const anyDrawerOpen = isElementDrawerOpen || isSlideDrawerOpen || isDeckDrawerOpen || isTemplateParamsDrawerOpen
+  const anyNonTemplateDrawerOpen = isElementDrawerOpen || isSlideDrawerOpen || isDeckDrawerOpen
+  const drawerOffset = anyNonTemplateDrawerOpen
+    ? drawerWidth
+    : isTemplateParamsDrawerOpen && templateParamsCollapsed
+      ? TEMPLATE_PANEL_COLLAPSED_WIDTH
+      : isTemplateParamsDrawerOpen
+        ? drawerWidth
+        : 0
+  const showDrawerResizeHandle = anyNonTemplateDrawerOpen || (isTemplateParamsDrawerOpen && !templateParamsCollapsed)
 
   // FIXED: Track when generating final/strawman presentations
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
@@ -905,6 +914,7 @@ function BuilderContent() {
     setTemplateSourceSlideIndex(currentSlideIndex)
     if (!templateBuilderEnabled) return
 
+    setTemplateParamsCollapsed(false)
     setTemplateModeOn(true)
     const snapshot = await loadTemplateSnapshot(template)
     if (!snapshot) {
@@ -919,6 +929,7 @@ function BuilderContent() {
     setTemplateSnapshotLoading(false)
     setTemplateBlueprintDirty(false)
     setTemplateBlueprintSaving(false)
+    setTemplateParamsCollapsed(false)
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
     setTemplateSourceSlideIndex(0)
@@ -982,6 +993,7 @@ function BuilderContent() {
     setSelectedTemplateElementId(overrideKey)
     if (!overrideKey) return
 
+    setTemplateParamsCollapsed(false)
     setShowChat(false)
     setShowTextBoxPanel(false)
     setShowElementPanel(false)
@@ -1005,6 +1017,7 @@ function BuilderContent() {
     }
 
     setTemplateModeOn(true)
+    setTemplateParamsCollapsed(false)
     setTemplateSourceSlideIndex(currentSlideIndex)
     if (!templateSnapshot || templateSnapshot.id !== activeTemplate.id) {
       const snapshot = await loadTemplateSnapshot(activeTemplate)
@@ -1028,6 +1041,7 @@ function BuilderContent() {
     finalPresentationUrl,
     strawmanPresentationId,
     finalPresentationId,
+    deckOwnerSessionId,
     blankPresentationUrl,
     blankPresentationId,
     isBlankPresentation,
@@ -2172,6 +2186,7 @@ function BuilderContent() {
             <TemplateParamsPanel
               isOpen={isTemplateParamsDrawerOpen}
               width={drawerWidth}
+              collapsed={templateParamsCollapsed}
               snapshot={templateSnapshot}
               currentSlideIndex={activeTemplateSlideIndex}
               overrides={templateOverrides}
@@ -2186,6 +2201,8 @@ function BuilderContent() {
                 }
                 setSelectedTemplateElementId(null)
               }}
+              onCollapsedChange={setTemplateParamsCollapsed}
+              onResizeStart={handleDrawerResizeStart}
               onOverrideChange={handleTemplateOverrideChange}
               onBlueprintChange={handleTemplateBlueprintChange}
               onSaveBlueprint={handleTemplateBlueprintSave}
@@ -2533,7 +2550,7 @@ function BuilderContent() {
             </button>
           </div>
 
-          {anyDrawerOpen && (
+          {showDrawerResizeHandle && (
             <div
               role="separator"
               aria-orientation="vertical"
@@ -2563,7 +2580,7 @@ function BuilderContent() {
               "flex-1 min-w-0 min-h-0 flex flex-col",
               isResizingDrawer ? "" : "transition-[margin] duration-300 ease-out"
             )}
-            style={{ marginLeft: anyDrawerOpen ? drawerWidth : 0 }}
+            style={{ marginLeft: drawerOffset }}
           >
           {session.isLoadingSession ? (
             <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-slate-800 h-full">
@@ -2656,8 +2673,10 @@ function BuilderContent() {
             connected={connected}
             connecting={connecting}
             toolbarPortalTarget={toolbarPortalTarget}
-            toolbarOffset={anyDrawerOpen ? Math.max(drawerWidth - 112, 0) : 0}
+            toolbarOffset={drawerOffset > TEMPLATE_PANEL_COLLAPSED_WIDTH ? Math.max(drawerOffset - 112, 0) : 0}
             sessionId={wsSessionId}
+            deckOwnerSessionId={deckOwnerSessionId}
+            templateSavePresentationId={templateModeOn ? null : finalPresentationId}
             templateBuilderEnabled={templateBuilderEnabled}
             onSelectTemplate={handleSelectTemplate}
             templateModeOn={templateModeOn}
