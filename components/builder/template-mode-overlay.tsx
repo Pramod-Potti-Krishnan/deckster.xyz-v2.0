@@ -288,10 +288,7 @@ function elementBoxStyle(rect: TemplateGridRect, expanded: boolean) {
 
 function intentBoxStyle(rect: TemplateGridRect, expanded: boolean) {
   if (!expanded) {
-    return {
-      left: gridLinePct(rect.x, GRID_COLUMNS),
-      top: gridLinePct(rect.y, GRID_ROWS),
-    }
+    return elementBoxStyle(rect, false)
   }
 
   return elementBoxStyle(rect, true)
@@ -768,14 +765,15 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
       {syntheticBoxes.map((box) => {
         const selected = selectedElementId === box.overrideKey
         const open = intentOpenState[box.overrideKey] ?? false
+        const isTitle = box.label.startsWith('Title')
         return (
           <div
             key={box.overrideKey}
             className={cn(
-              "pointer-events-auto absolute text-left text-slate-700 shadow-lg backdrop-blur transition dark:text-slate-200",
+              "pointer-events-auto absolute text-left shadow-lg backdrop-blur transition",
               open
-                ? "z-50 overflow-y-auto rounded-lg border border-slate-300 bg-white/95 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950/95"
-                : "z-[42] rounded-full border border-white/70 bg-white/95 px-2.5 py-1 text-[10px] font-semibold hover:bg-white dark:bg-slate-950/95",
+                ? "z-50 overflow-y-auto rounded-lg border-2 border-slate-400 bg-white/95 px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950/95 dark:text-slate-200"
+                : "z-[42] overflow-hidden rounded-md border-2 border-solid border-slate-300 bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-800 hover:bg-white/95 dark:border-slate-700 dark:bg-slate-950/80 dark:text-slate-200",
               selected && "ring-2 ring-violet-500 ring-offset-2"
             )}
             style={intentBoxStyle(box.rect, open)}
@@ -791,7 +789,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
               <>
                 <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-200 pb-1.5 dark:border-slate-800">
                   <div className="flex min-w-0 items-center gap-1.5 font-semibold">
-                    {box.label.startsWith('Title') ? <Type className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                    {isTitle ? <Type className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
                     <span className="truncate">{box.label}</span>
                   </div>
                   <button
@@ -811,12 +809,13 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                 </p>
               </>
             ) : (
-              <span className="flex items-center gap-1.5">
-                {box.label.startsWith('Title') ? <Type className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-                <span>{box.label}</span>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-slate-500" />
+                {isTitle ? <Type className="h-3.5 w-3.5 shrink-0" /> : <Pencil className="h-3.5 w-3.5 shrink-0" />}
+                <span className="truncate">{box.label}</span>
                 <button
                   type="button"
-                  className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-200"
+                  className="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-200"
                   onClick={(event) => {
                     event.stopPropagation()
                     onSelectElement?.(box.overrideKey)
@@ -856,6 +855,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
         const roleLabel = conciseRoleLabel(element, group)
         const previewText = collapsedPreviewText(element, blueprintElement ?? null, group, semanticLabel)
         const isLargeElement = rect.w * rect.h >= 40
+        const compactControls = rect.w <= 7
         const whyText = blueprintElement?.storyline_link?.trim() || previewText
 
         return (
@@ -902,11 +902,16 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                     {isDataAtom(element) && !locked && (
                       <div className="flex min-w-0 items-center gap-1" title="Choose how Director handles missing data">
                         <Database className="h-3 w-3 shrink-0 opacity-70" />
-                        <span className="hidden whitespace-nowrap text-[9px] font-semibold opacity-80 xl:inline">If data missing</span>
+                        {!compactControls && (
+                          <span className="hidden whitespace-nowrap text-[9px] font-semibold opacity-80 xl:inline">If data missing</span>
+                        )}
                         <select
                           value={missingDataPolicy}
                           disabled={!canMutate}
-                          className="h-5 min-w-0 max-w-[146px] rounded border border-white/70 bg-white/80 px-1 text-[9px] font-medium text-slate-700 disabled:opacity-50 dark:bg-slate-950/80 dark:text-slate-100"
+                          className={cn(
+                            "h-5 min-w-0 rounded border border-white/70 bg-white/80 px-1 text-[9px] font-medium text-slate-700 disabled:opacity-50 dark:bg-slate-950/80 dark:text-slate-100",
+                            compactControls ? "max-w-[72px]" : "max-w-[146px]"
+                          )}
                           onClick={(event) => event.stopPropagation()}
                           onChange={(event) => {
                             patchContract(element, {
@@ -922,12 +927,15 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                     )}
                     <div className="flex min-w-0 items-center gap-1" title="Choose whether this element comes from the blueprint or exact source content">
                       <LayoutTemplate className="h-3 w-3 shrink-0 opacity-70" />
-                      <span className="hidden whitespace-nowrap text-[9px] font-semibold opacity-80 xl:inline">Template from</span>
+                      {!compactControls && (
+                        <span className="hidden whitespace-nowrap text-[9px] font-semibold opacity-80 xl:inline">Template from</span>
+                      )}
                       <button
                         type="button"
                         disabled={!canMutate}
                         className={cn(
-                          "inline-flex h-5 min-w-0 max-w-[136px] items-center gap-1 rounded-full border px-1.5 text-[9px] font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-55",
+                          "inline-flex h-5 min-w-0 items-center gap-1 rounded-full border text-[9px] font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-55",
+                          compactControls ? "max-w-[76px] px-1" : "max-w-[136px] px-1.5",
                           locked
                             ? "border-slate-300 bg-slate-950 text-white dark:border-slate-700 dark:bg-white dark:text-slate-950"
                             : "border-white/80 bg-white/90 text-slate-700 hover:bg-white dark:bg-slate-950/80 dark:text-slate-100"
