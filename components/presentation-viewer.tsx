@@ -156,6 +156,8 @@ interface PresentationViewerProps {
   generatingMode?: 'default' | 'strawman'
   // Template Builder: the WS session id (source for "Save as Template") + gate
   sessionId?: string | null
+  deckOwnerSessionId?: string | null
+  templateSavePresentationId?: string | null
   templateBuilderEnabled?: boolean
   onSelectTemplate?: (template: { id: string; name: string }) => void
   templateModeOn?: boolean
@@ -339,6 +341,8 @@ export function PresentationViewer({
   isGenerating,
   generatingMode,
   sessionId,
+  deckOwnerSessionId,
+  templateSavePresentationId,
   templateBuilderEnabled,
   onSelectTemplate,
   templateModeOn = false,
@@ -395,8 +399,9 @@ export function PresentationViewer({
   const canSaveTemplate = Boolean(
     templateBuilderEnabled
     && sessionId
+    && deckOwnerSessionId === sessionId
     && presentationUrl
-    && presentationId
+    && templateSavePresentationId
     && !isBlankPresentation
     && !templateModeOn
   )
@@ -2590,7 +2595,8 @@ export function PresentationViewer({
         open={showTemplateSave}
         onOpenChange={setShowTemplateSave}
         sessionId={sessionId ?? null}
-        sourcePresentationId={templateModeOn ? null : presentationId}
+        deckOwnerSessionId={deckOwnerSessionId ?? null}
+        sourcePresentationId={templateModeOn ? null : templateSavePresentationId}
       />
 
       {/* Version History Panel */}

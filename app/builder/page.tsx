@@ -1028,6 +1028,7 @@ function BuilderContent() {
     finalPresentationUrl,
     strawmanPresentationId,
     finalPresentationId,
+    deckOwnerSessionId,
     blankPresentationUrl,
     blankPresentationId,
     isBlankPresentation,
@@ -2658,6 +2659,8 @@ function BuilderContent() {
             toolbarPortalTarget={toolbarPortalTarget}
             toolbarOffset={anyDrawerOpen ? Math.max(drawerWidth - 112, 0) : 0}
             sessionId={wsSessionId}
+            deckOwnerSessionId={deckOwnerSessionId}
+            templateSavePresentationId={templateModeOn ? null : finalPresentationId}
             templateBuilderEnabled={templateBuilderEnabled}
             onSelectTemplate={handleSelectTemplate}
             templateModeOn={templateModeOn}

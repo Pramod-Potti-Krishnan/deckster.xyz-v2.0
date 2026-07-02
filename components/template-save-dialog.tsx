@@ -20,6 +20,8 @@ interface TemplateSaveDialogProps {
   onOpenChange: (open: boolean) => void
   /** The WS session whose agreed deck Director will snapshot (source_session_id). */
   sessionId: string | null
+  /** The session that produced the currently displayed deck URLs. */
+  deckOwnerSessionId?: string | null
   /** The built presentation currently owned by that session. */
   sourcePresentationId?: string | null
 }
@@ -34,6 +36,7 @@ export function TemplateSaveDialog({
   open,
   onOpenChange,
   sessionId,
+  deckOwnerSessionId,
   sourcePresentationId,
 }: TemplateSaveDialogProps) {
   const { toast } = useToast()
@@ -52,6 +55,14 @@ export function TemplateSaveDialog({
     }
     if (!sourcePresentationId) {
       toast({ title: 'No completed deck to save', description: 'Build a deck before saving a template.', variant: 'destructive' })
+      return
+    }
+    if (!deckOwnerSessionId || deckOwnerSessionId !== sessionId) {
+      toast({
+        title: 'Deck/session mismatch',
+        description: 'Refresh this session before saving the deck as a template.',
+        variant: 'destructive',
+      })
       return
     }
     const result = await saveTemplate({
@@ -102,7 +113,10 @@ export function TemplateSaveDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={() => void handleSave()} disabled={loading || !name.trim() || !sessionId || !sourcePresentationId}>
+          <Button
+            onClick={() => void handleSave()}
+            disabled={loading || !name.trim() || !sessionId || !sourcePresentationId || deckOwnerSessionId !== sessionId}
+          >
             {loading ? 'Saving…' : 'Save Template'}
           </Button>
         </DialogFooter>
