@@ -511,7 +511,7 @@ function titleSubtitleBoxes(
       label: 'Title intent',
       value: slide?.title_intent ?? '',
       emptyLabel: 'Add title intent',
-      rect: { x: contentLeft, y: 2.25, w: contentWidth, h: 1.0 },
+      rect: { x: contentLeft, y: 1.95, w: contentWidth, h: 1.0 },
     })
   }
 
