@@ -4,6 +4,11 @@ export interface BuildThemeSelection {
   mode: BuildThemeMode
   preset_id?: string
   primary_hex?: string
+  secondary_hex?: string
+  tertiary_hex?: string
+  neutral_hex?: string
+  harmony_preference?: 'auto' | 'monochrome' | 'analogous' | 'complementary' | 'triadic'
+  palette_mode?: 'light' | 'dark' | 'both'
   color_overrides?: Record<string, string>
 }
 
@@ -72,4 +77,3 @@ export function normalizeThemePresetId(id: string | null | undefined): string | 
 export function isValidThemeHex(value: string | null | undefined): value is string {
   return /^#[0-9a-fA-F]{6}$/.test(value || '')
 }
-

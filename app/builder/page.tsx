@@ -112,10 +112,25 @@ function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection
   if (raw.mode === 'custom') {
     const next: BuildThemeSelection = { mode: 'custom' }
     if (typeof raw.primary_hex === 'string') next.primary_hex = raw.primary_hex
+    if (typeof raw.secondary_hex === 'string') next.secondary_hex = raw.secondary_hex
+    if (typeof raw.tertiary_hex === 'string') next.tertiary_hex = raw.tertiary_hex
+    if (typeof raw.neutral_hex === 'string') next.neutral_hex = raw.neutral_hex
+    if (
+      raw.harmony_preference === 'auto' ||
+      raw.harmony_preference === 'monochrome' ||
+      raw.harmony_preference === 'analogous' ||
+      raw.harmony_preference === 'complementary' ||
+      raw.harmony_preference === 'triadic'
+    ) {
+      next.harmony_preference = raw.harmony_preference
+    }
+    if (raw.palette_mode === 'light' || raw.palette_mode === 'dark' || raw.palette_mode === 'both') {
+      next.palette_mode = raw.palette_mode
+    }
     if (raw.color_overrides && typeof raw.color_overrides === 'object') {
       next.color_overrides = raw.color_overrides
     }
-    return next.primary_hex || next.color_overrides ? next : { mode: 'auto' }
+    return next.primary_hex || next.secondary_hex || next.tertiary_hex || next.color_overrides ? next : { mode: 'auto' }
   }
 
   return { mode: 'auto' }
@@ -158,6 +173,11 @@ function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelectio
 
   return (
     (a.primary_hex || '').toLowerCase() === (b.primary_hex || '').toLowerCase() &&
+    (a.secondary_hex || '').toLowerCase() === (b.secondary_hex || '').toLowerCase() &&
+    (a.tertiary_hex || '').toLowerCase() === (b.tertiary_hex || '').toLowerCase() &&
+    (a.neutral_hex || '').toLowerCase() === (b.neutral_hex || '').toLowerCase() &&
+    (a.harmony_preference || 'auto') === (b.harmony_preference || 'auto') &&
+    (a.palette_mode || 'light') === (b.palette_mode || 'light') &&
     stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides)
   )
 }
