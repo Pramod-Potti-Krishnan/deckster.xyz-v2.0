@@ -160,6 +160,7 @@ interface PresentationViewerProps {
   templateSavePresentationId?: string | null
   templateBuilderEnabled?: boolean
   onSelectTemplate?: (template: { id: string; name: string }) => void
+  templateSelectionLocked?: boolean
   templateModeOn?: boolean
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
@@ -345,6 +346,7 @@ export function PresentationViewer({
   templateSavePresentationId,
   templateBuilderEnabled,
   onSelectTemplate,
+  templateSelectionLocked = false,
   templateModeOn = false,
   onTemplateModeChange,
   templateModeAvailable = false,
@@ -2130,9 +2132,15 @@ export function PresentationViewer({
                         open={toolbarTemplatePickerOpen}
                         onOpenChange={setToolbarTemplatePickerOpen}
                       >
-                        <DropdownMenuSubTrigger className="cursor-pointer gap-2">
+                        <DropdownMenuSubTrigger
+                          disabled={templateSelectionLocked}
+                          className={cn(
+                            "gap-2",
+                            templateSelectionLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                          )}
+                        >
                           <LayoutTemplate className="h-4 w-4 text-gray-600" />
-                          <span>Available Templates</span>
+                          <span>{templateSelectionLocked ? 'Template locked' : 'Available Templates'}</span>
                         </DropdownMenuSubTrigger>
                         <DropdownMenuSubContent alignOffset={-4} className="w-64">
                           <TemplatePickerContent
@@ -2611,6 +2619,7 @@ export function PresentationViewer({
         sessionId={sessionId ?? null}
         deckOwnerSessionId={deckOwnerSessionId ?? null}
         sourcePresentationId={templateModeOn ? null : templateSavePresentationId}
+        onSavedTemplate={onSelectTemplate}
       />
 
       {/* Version History Panel */}

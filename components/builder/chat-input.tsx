@@ -75,6 +75,7 @@ export interface ChatInputProps {
   activeTemplate?: { id: string; name: string } | null
   onSelectTemplate?: (template: { id: string; name: string }) => void
   onClearTemplate?: () => void
+  templateSelectionLocked?: boolean
   buildTheme: BuildThemeSelection
   onBuildThemeChange: (theme: BuildThemeSelection) => void
   activeBuildThemeProfile?: ActiveBuildThemeProfile | null
@@ -109,6 +110,7 @@ export function ChatInput({
   activeTemplate,
   onSelectTemplate,
   onClearTemplate,
+  templateSelectionLocked = false,
   buildTheme,
   onBuildThemeChange,
   activeBuildThemeProfile,
@@ -370,15 +372,17 @@ export function ChatInput({
             <LayoutTemplate className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">Template locked: {activeTemplate.name}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => onClearTemplate?.()}
-            className="ml-2 shrink-0 text-purple-500 hover:text-purple-700 dark:hover:text-purple-200"
-            title="Clear template"
-            aria-label="Clear template"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+          {!templateSelectionLocked && (
+            <button
+              type="button"
+              onClick={() => onClearTemplate?.()}
+              className="ml-2 shrink-0 text-purple-500 hover:text-purple-700 dark:hover:text-purple-200"
+              title="Clear template"
+              aria-label="Clear template"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       )}
       {buildTheme.mode !== 'auto' && (
@@ -492,7 +496,7 @@ export function ChatInput({
 
               {/* Template Builder: reuse a saved template (sibling of attach) */}
               {templateBuilderEnabled && onSelectTemplate && (
-                <TemplatePicker onSelect={onSelectTemplate} disabled={!user || isLoadingSession} />
+                <TemplatePicker onSelect={onSelectTemplate} disabled={!user || isLoadingSession || templateSelectionLocked} />
               )}
 
               {/* Build-time Theme Builder selection */}

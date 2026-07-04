@@ -332,6 +332,7 @@ function BuilderContent() {
   const blueprintEditorV2Enabled = templateBuilderEnabled && process.env.NEXT_PUBLIC_BLUEPRINT_EDITOR_V2 === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
+  const templateSelectionLockedRef = useRef(false)
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
   const [templateSnapshotLoading, setTemplateSnapshotLoading] = useState(false)
@@ -945,6 +946,14 @@ function BuilderContent() {
   }, [getTemplate, toast])
 
   const handleSelectTemplate = useCallback((template: BuilderTemplateSelection) => {
+    if (templateSelectionLockedRef.current) {
+      toast({
+        title: 'Template locked',
+        description: 'This completed deck is already bound to its template. Start a new chat to use a different template.',
+      })
+      return
+    }
+
     setActiveTemplate(template)
     setTemplateOverrides({})
     setTemplateBlueprintDirty(false)
@@ -955,7 +964,7 @@ function BuilderContent() {
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
     setTemplateSnapshotLoading(false)
-  }, [currentSlideIndex])
+  }, [currentSlideIndex, toast])
 
   const handleClearTemplate = useCallback(() => {
     setActiveTemplate(null)
@@ -1031,7 +1040,12 @@ function BuilderContent() {
     setTemplateParamsCollapsed(false)
     setShowChat(false)
     setShowTextBoxPanel(false)
+    setSelectedTextBoxId(null)
+    setSelectedTextBoxFormatting(null)
     setShowElementPanel(false)
+    setSelectedElementId(null)
+    setSelectedElementType(null)
+    setSelectedElementProperties(null)
     setShowFormatPanel(false)
     generationPanel.closePanel()
   }, [generationPanel])
@@ -1057,6 +1071,16 @@ function BuilderContent() {
 
     setTemplateModeOn(true)
     setTemplateParamsCollapsed(false)
+    setShowChat(false)
+    setShowTextBoxPanel(false)
+    setSelectedTextBoxId(null)
+    setSelectedTextBoxFormatting(null)
+    setShowElementPanel(false)
+    setSelectedElementId(null)
+    setSelectedElementType(null)
+    setSelectedElementProperties(null)
+    setShowFormatPanel(false)
+    generationPanel.closePanel()
     setTemplateSourceSlideIndex(currentSlideIndex)
     if (!templateSnapshot || templateSnapshot.id !== activeTemplate.id) {
       const snapshot = await loadTemplateSnapshot(activeTemplate)
@@ -1066,6 +1090,7 @@ function BuilderContent() {
     activeTemplate,
     currentSlideIndex,
     handleTemplateBlueprintSave,
+    generationPanel,
     loadTemplateSnapshot,
     templateBlueprintDirty,
     templateSnapshot,
@@ -1800,6 +1825,11 @@ function BuilderContent() {
     if (slideStructure && (slideStructure as any).length > 0) return 4;
     return 3;
   }, [effectivePresentationUrl, effectiveSlideCount, slideStructure])
+  const templateSelectionLocked = Boolean(activeTemplate && currentStage >= 6)
+
+  useEffect(() => {
+    templateSelectionLockedRef.current = templateSelectionLocked
+  }, [templateSelectionLocked])
 
   // Set strawman generation flag
   useEffect(() => {
@@ -2256,9 +2286,6 @@ function BuilderContent() {
               blueprintDirty={templateBlueprintDirty}
               blueprintSaving={templateBlueprintSaving}
               selectedElementId={selectedTemplateElementId}
-              onClose={() => {
-                void handleTemplateModeChange(false)
-              }}
               onCollapsedChange={setTemplateParamsCollapsed}
               onResizeStart={handleDrawerResizeStart}
               onOverrideChange={handleTemplateOverrideChange}
@@ -2568,6 +2595,7 @@ function BuilderContent() {
                     activeTemplate={activeTemplate}
                     onSelectTemplate={handleSelectTemplate}
                     onClearTemplate={handleClearTemplate}
+                    templateSelectionLocked={templateSelectionLocked}
                     buildTheme={buildThemeSelection}
                     onBuildThemeChange={setBuildThemeSelection}
                     activeBuildThemeProfile={activeBuildThemeProfile}
@@ -2737,6 +2765,7 @@ function BuilderContent() {
             templateSavePresentationId={templateSavePresentationId}
             templateBuilderEnabled={templateBuilderEnabled}
             onSelectTemplate={handleSelectTemplate}
+            templateSelectionLocked={templateSelectionLocked}
             templateModeOn={templateModeOn}
             onTemplateModeChange={handleTemplateModeChange}
             templateModeAvailable={Boolean(activeTemplate)}

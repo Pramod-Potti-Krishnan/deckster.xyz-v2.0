@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
-import { useTemplates } from '@/hooks/use-templates'
+import { useTemplates, type SaveTemplateResult } from '@/hooks/use-templates'
 
 interface TemplateSaveDialogProps {
   open: boolean
@@ -24,6 +24,8 @@ interface TemplateSaveDialogProps {
   deckOwnerSessionId?: string | null
   /** The built presentation currently owned by that session. */
   sourcePresentationId?: string | null
+  /** Promote the saved template into the active builder template. */
+  onSavedTemplate?: (template: Pick<SaveTemplateResult, 'id' | 'name'>) => void
 }
 
 /**
@@ -38,6 +40,7 @@ export function TemplateSaveDialog({
   sessionId,
   deckOwnerSessionId,
   sourcePresentationId,
+  onSavedTemplate,
 }: TemplateSaveDialogProps) {
   const { toast } = useToast()
   const { saveTemplate, loading } = useTemplates()
@@ -71,6 +74,7 @@ export function TemplateSaveDialog({
       sourcePresentationId,
     })
     if (result) {
+      onSavedTemplate?.({ id: result.id, name: result.name })
       const enrichmentQueued = result.blueprint_enrichment_status === 'queued'
       toast({
         title: 'Template saved',
