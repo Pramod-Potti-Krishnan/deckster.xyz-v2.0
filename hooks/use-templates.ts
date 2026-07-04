@@ -121,6 +121,7 @@ export interface SaveTemplateResult {
   slide_count: number;
   created_at?: string | null;
   blueprint_generation_method?: TemplateBlueprintGenerationMethod;
+  blueprint_enrichment_status?: 'queued' | 'skipped' | string | null;
 }
 
 /**

@@ -211,14 +211,19 @@ export function useBuilderSession({
         const urlSessionId = searchParams?.get('session_id') ||
                            (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('session_id') : null)
 
+        const alreadyLoadedUrlSession = Boolean(
+          urlSessionId && urlSessionId === currentSessionId && lastLoadedSessionRef.current === urlSessionId
+        )
+
         debugLog('✅ [SESSION-GUARD] Session already initialized', {
           currentSessionId,
           urlSessionId,
           matches: urlSessionId === currentSessionId,
-          action: urlSessionId === currentSessionId ? 'SKIP' : 'PROCEED'
+          alreadyLoaded: alreadyLoadedUrlSession,
+          action: alreadyLoadedUrlSession || !urlSessionId ? 'SKIP' : 'PROCEED'
         })
 
-        if (urlSessionId === currentSessionId || !urlSessionId) {
+        if (!urlSessionId || alreadyLoadedUrlSession) {
           return
         }
 
@@ -253,7 +258,12 @@ export function useBuilderSession({
           })
         }
 
-        if (sessionParam && sessionParam !== 'new' && sessionParam === currentSessionId) {
+        if (
+          sessionParam
+          && sessionParam !== 'new'
+          && sessionParam === currentSessionId
+          && lastLoadedSessionRef.current === sessionParam
+        ) {
           debugLog('✅ [SESSION-MATCH] URL session matches current, skipping reload', {
             sessionId: sessionParam,
             reason: 'already loaded'
@@ -312,6 +322,19 @@ export function useBuilderSession({
               hasTitleFromPresentationRef.current = true
             }
 
+            const sessionState = {
+              presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl,
+              presentationId: session.finalPresentationId || session.strawmanPresentationId,
+              strawmanPreviewUrl: session.strawmanPreviewUrl,
+              strawmanPresentationId: session.strawmanPresentationId,
+              finalPresentationUrl: session.finalPresentationUrl,
+              finalPresentationId: session.finalPresentationId,
+              slideCount: session.slideCount,
+              slideStructure: (session as any).stateCache?.slideStructure || null,
+              currentStage: session.currentStage,
+              activeVersion: (session as any).stateCache?.activeVersion || null
+            }
+
             if (session.messages && session.messages.length > 0) {
               debugLog(`📥 Restoring ${session.messages.length} messages from database`)
 
@@ -360,6 +383,7 @@ export function useBuilderSession({
 
               setUserMessages(userMsgs)
 
+              userMessageIdsRef.current.clear()
               userMsgs.forEach(msg => {
                 userMessageIdsRef.current.add(msg.id)
                 debugLog('✅ Added to userMessageIdsRef:', msg.id, msg.text.substring(0, 30));
@@ -374,19 +398,6 @@ export function useBuilderSession({
                 debugLog('🗺️ Mapped user message content:', normalizedContent.substring(0, 30), '→', msg.id);
               })
               debugLog('🗺️ Created content map with', userMessageContentMapRef.current.size, 'user messages')
-
-              const sessionState = {
-                presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl,
-                presentationId: session.finalPresentationId || session.strawmanPresentationId,
-                strawmanPreviewUrl: session.strawmanPreviewUrl,
-                strawmanPresentationId: session.strawmanPresentationId,
-                finalPresentationUrl: session.finalPresentationUrl,
-                finalPresentationId: session.finalPresentationId,
-                slideCount: session.slideCount,
-                slideStructure: (session as any).stateCache?.slideStructure || null,
-                currentStage: session.currentStage,
-                activeVersion: (session as any).stateCache?.activeVersion || null
-              }
 
               restoreMessages(botMsgs, sessionState)
               botMsgs.forEach(msg => persistedMessageIdsRef.current.add(msg.message_id))
@@ -406,12 +417,37 @@ export function useBuilderSession({
               hasSeenWelcomeRef.current = true
               debugLog(`✅ Restored ${userMsgs.length} user messages and ${botMsgs.length} bot messages (resumed session - will auto-connect)`)
             } else {
+              setUserMessages([])
+              userMessageIdsRef.current.clear()
+              userMessageContentMapRef.current.clear()
+              const hasPresentationState = Boolean(sessionState.finalPresentationUrl || sessionState.strawmanPreviewUrl)
+              if (hasPresentationState) {
+                restoreMessages([], sessionState)
+                debugLog('📊 Restored presentation state without DB messages:', {
+                  presentationUrl: sessionState.presentationUrl || '(none)',
+                  presentationId: sessionState.presentationId || '(none)',
+                  currentStage: sessionState.currentStage || '(none)',
+                  activeVersion: sessionState.activeVersion || '(none)'
+                })
+              }
               setIsResumedSession(false)
               debugLog('📝 Existing session but no messages - will auto-connect')
             }
           } else {
-            console.warn('⚠️ Session not found, creating new')
-            await createNewSession()
+            console.warn('⚠️ Session not found in frontend DB, adopting URL session:', sessionParam)
+            const adopted = await createSession(sessionParam)
+            if (adopted) {
+              setCurrentSessionId(adopted.id)
+              setSessionStoreName(adopted.geminiStoreName || null)
+              debugLog('✅ Adopted URL session in frontend DB:', adopted.id)
+            } else {
+              setCurrentSessionId(sessionParam)
+              setSessionStoreName(null)
+              debugLog('⚠️ Continuing with URL session without frontend DB row:', sessionParam)
+            }
+            setIsUnsavedSession(false)
+            setIsResumedSession(false)
+            try { sessionStorage.removeItem(`deckster_unsaved_${sessionParam}`) } catch {}
           }
         } else {
           debugLog('🆕 [SESSION-BRANCH] No session in URL', {
