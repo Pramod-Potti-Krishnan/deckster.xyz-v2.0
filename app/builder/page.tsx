@@ -925,22 +925,18 @@ function BuilderContent() {
     }
   }, [getTemplate, toast])
 
-  const handleSelectTemplate = useCallback(async (template: BuilderTemplateSelection) => {
+  const handleSelectTemplate = useCallback((template: BuilderTemplateSelection) => {
     setActiveTemplate(template)
     setTemplateOverrides({})
     setTemplateBlueprintDirty(false)
     setTemplateBlueprintSaving(false)
     setSelectedTemplateElementId(null)
     setTemplateSourceSlideIndex(currentSlideIndex)
-    if (!templateBuilderEnabled) return
-
     setTemplateParamsCollapsed(false)
-    setTemplateModeOn(true)
-    const snapshot = await loadTemplateSnapshot(template)
-    if (!snapshot) {
-      setTemplateModeOn(false)
-    }
-  }, [currentSlideIndex, loadTemplateSnapshot, templateBuilderEnabled])
+    setTemplateModeOn(false)
+    setTemplateSnapshot(null)
+    setTemplateSnapshotLoading(false)
+  }, [currentSlideIndex])
 
   const handleClearTemplate = useCallback(() => {
     setActiveTemplate(null)
@@ -1027,6 +1023,7 @@ function BuilderContent() {
         await handleTemplateBlueprintSave()
       }
       setTemplateModeOn(false)
+      setTemplateParamsCollapsed(false)
       setSelectedTemplateElementId(null)
       return
     }
@@ -2213,7 +2210,7 @@ function BuilderContent() {
 
         {/* Main Content Area */}
         <div className="flex-1 flex relative overflow-hidden">
-          {templateBuilderEnabled && (
+          {isTemplateParamsDrawerOpen && (
             <TemplateParamsPanel
               isOpen={isTemplateParamsDrawerOpen}
               width={drawerWidth}
@@ -2227,10 +2224,7 @@ function BuilderContent() {
               blueprintSaving={templateBlueprintSaving}
               selectedElementId={selectedTemplateElementId}
               onClose={() => {
-                if (blueprintEditorV2Enabled) {
-                  void handleTemplateModeChange(false)
-                }
-                setSelectedTemplateElementId(null)
+                void handleTemplateModeChange(false)
               }}
               onCollapsedChange={setTemplateParamsCollapsed}
               onResizeStart={handleDrawerResizeStart}
