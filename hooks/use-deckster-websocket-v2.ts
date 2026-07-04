@@ -29,6 +29,7 @@ export interface SyncResponse {
     current_state: string;
     has_strawman: boolean;
     presentation_url?: string;
+    presentation_id?: string;
   };
 }
 
@@ -796,7 +797,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   message_count: message.payload.message_count,
                   current_state: message.payload.current_state,
                   has_strawman: message.payload.has_strawman,
-                  presentation_url: message.payload.presentation_url
+                  presentation_url: message.payload.presentation_url,
+                  presentation_id: message.payload.presentation_id
                 });
                 // Resilience: a deck can finish while the socket is down (WS churn during
                 // a long reuse/build). The backend re-delivers its URL here on reconnect.
@@ -808,7 +810,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   newState.deckOwnerSessionId = sessionIdRef.current;
                   newState.activeVersion = 'final';
                   newState.isBlankPresentation = false;
-                  const _pid = (message.payload as any).presentation_id;
+                  const _pid = message.payload.presentation_id;
                   if (_pid) { newState.presentationId = _pid; newState.finalPresentationId = _pid; }
                   newState.currentStatus = null;
                   debugLog('🔁 Restored finished presentation from sync_response (reconnect repaint)');

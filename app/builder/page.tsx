@@ -298,6 +298,25 @@ function withSlideComposerRefreshToken(url: string | null, token: number): strin
   return hash ? `${refreshed}#${hash}` : refreshed
 }
 
+function extractPresentationIdFromViewerUrl(url: string | null): string | null {
+  if (!url) return null
+  const decodeId = (value: string) => {
+    try {
+      return decodeURIComponent(value)
+    } catch {
+      return value
+    }
+  }
+  try {
+    const parsed = new URL(url, 'https://deckster.local')
+    const match = parsed.pathname.match(/\/p\/([^/]+)/)
+    return match ? decodeId(match[1]) : null
+  } catch {
+    const match = url.match(/\/p\/([^/?#]+)/)
+    return match ? decodeId(match[1]) : null
+  }
+}
+
 function BuilderContent() {
   const { user, isLoading: isAuthLoading } = useAuth()
   const router = useRouter()
@@ -1359,6 +1378,20 @@ function BuilderContent() {
     ),
     [presentationUrl, slideComposerOverride, templateModeSourcePresentationUrl],
   )
+  const templateSavePresentationId = useMemo(() => {
+    if (templateModeOn || activeVersion !== 'final') return null
+    return finalPresentationId
+      ?? effectivePresentationId
+      ?? extractPresentationIdFromViewerUrl(finalPresentationUrl)
+      ?? extractPresentationIdFromViewerUrl(effectivePresentationUrl)
+  }, [
+    activeVersion,
+    effectivePresentationId,
+    effectivePresentationUrl,
+    finalPresentationId,
+    finalPresentationUrl,
+    templateModeOn,
+  ])
 
   useEffect(() => {
     slideComposerPresentationRef.current = {
@@ -2701,7 +2734,7 @@ function BuilderContent() {
             toolbarOffset={drawerOffset > TEMPLATE_PANEL_COLLAPSED_WIDTH ? Math.max(drawerOffset - 112, 0) : 0}
             sessionId={wsSessionId}
             deckOwnerSessionId={deckOwnerSessionId}
-            templateSavePresentationId={templateModeOn ? null : finalPresentationId}
+            templateSavePresentationId={templateSavePresentationId}
             templateBuilderEnabled={templateBuilderEnabled}
             onSelectTemplate={handleSelectTemplate}
             templateModeOn={templateModeOn}
