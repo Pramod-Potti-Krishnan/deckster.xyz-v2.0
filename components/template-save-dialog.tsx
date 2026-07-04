@@ -71,9 +71,12 @@ export function TemplateSaveDialog({
       sourcePresentationId,
     })
     if (result) {
+      const enrichmentQueued = result.blueprint_enrichment_status === 'queued'
       toast({
         title: 'Template saved',
-        description: `"${result.name}" (${result.slide_count} slides) is ready to reuse.`,
+        description: enrichmentQueued
+          ? `"${result.name}" (${result.slide_count} slides) is ready to reuse. Blueprint enrichment is queued.`
+          : `"${result.name}" (${result.slide_count} slides) is ready to reuse.`,
       })
       setName('')
       onOpenChange(false)
