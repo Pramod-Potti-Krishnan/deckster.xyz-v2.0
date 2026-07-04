@@ -81,6 +81,7 @@ export interface PresentationAreaProps {
   templateSavePresentationId?: string | null
   templateBuilderEnabled?: boolean
   onSelectTemplate?: (template: { id: string; name: string }) => void
+  templateSelectionLocked?: boolean
   templateModeOn?: boolean
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
@@ -130,6 +131,7 @@ export function PresentationArea({
   templateSavePresentationId,
   templateBuilderEnabled,
   onSelectTemplate,
+  templateSelectionLocked = false,
   templateModeOn = false,
   onTemplateModeChange,
   templateModeAvailable = false,
@@ -212,6 +214,7 @@ export function PresentationArea({
             templateSavePresentationId={templateSavePresentationId}
             templateBuilderEnabled={templateBuilderEnabled}
             onSelectTemplate={onSelectTemplate}
+            templateSelectionLocked={templateSelectionLocked}
             templateModeOn={templateModeOn}
             onTemplateModeChange={onTemplateModeChange}
             templateModeAvailable={templateModeAvailable}

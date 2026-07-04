@@ -1,7 +1,7 @@
 "use client"
 
 import type { MouseEvent as ReactMouseEvent } from 'react'
-import { ChevronLeft, ChevronRight, GripVertical, Image as ImageIcon, LineChart, Palette, Save, Shapes, TextCursorInput, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, GripVertical, Image as ImageIcon, LineChart, Palette, Save, Shapes, TextCursorInput } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -45,7 +45,6 @@ interface TemplateParamsPanelProps {
   blueprintEditorV2Enabled?: boolean
   blueprintDirty?: boolean
   blueprintSaving?: boolean
-  onClose: () => void
   onCollapsedChange?: (collapsed: boolean) => void
   onResizeStart?: (event: ReactMouseEvent<HTMLDivElement>) => void
   onOverrideChange: (slideIndex: number, overrideKey: string, patch: TemplateModeOverride) => void
@@ -656,7 +655,6 @@ export function TemplateParamsPanel({
   blueprintEditorV2Enabled = false,
   blueprintDirty,
   blueprintSaving,
-  onClose,
   onCollapsedChange,
   onResizeStart,
   onOverrideChange,
@@ -755,9 +753,6 @@ export function TemplateParamsPanel({
               title="Collapse template details"
             >
               <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
