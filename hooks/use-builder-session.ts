@@ -439,15 +439,17 @@ export function useBuilderSession({
             if (adopted) {
               setCurrentSessionId(adopted.id)
               setSessionStoreName(adopted.geminiStoreName || null)
+              setIsUnsavedSession(false)
+              try { sessionStorage.removeItem(`deckster_unsaved_${adopted.id}`) } catch {}
               debugLog('✅ Adopted URL session in frontend DB:', adopted.id)
             } else {
               setCurrentSessionId(sessionParam)
               setSessionStoreName(null)
-              debugLog('⚠️ Continuing with URL session without frontend DB row:', sessionParam)
+              setIsUnsavedSession(true)
+              try { sessionStorage.setItem(`deckster_unsaved_${sessionParam}`, 'true') } catch {}
+              debugLog('⚠️ URL session adoption failed; keeping unsaved guard active:', sessionParam)
             }
-            setIsUnsavedSession(false)
             setIsResumedSession(false)
-            try { sessionStorage.removeItem(`deckster_unsaved_${sessionParam}`) } catch {}
           }
         } else {
           debugLog('🆕 [SESSION-BRANCH] No session in URL', {

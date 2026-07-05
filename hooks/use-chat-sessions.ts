@@ -45,6 +45,35 @@ export interface SessionsResponse {
   };
 }
 
+async function ensureSessionRow(sessionId: string): Promise<boolean> {
+  try {
+    const response = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ sessionId }),
+    });
+
+    if (response.ok || response.status === 409) {
+      console.warn('[useChatSessions] Recovered missing session row:', sessionId);
+      return true;
+    }
+
+    const errorText = await response.text().catch(() => '');
+    console.error(
+      '[useChatSessions] Failed to recover missing session row:',
+      response.status,
+      response.statusText,
+      errorText
+    );
+    return false;
+  } catch (error) {
+    console.error('[useChatSessions] Error recovering missing session row:', error);
+    return false;
+  }
+}
+
 export function useChatSessions() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -209,9 +238,27 @@ export function useChatSessions() {
           return data.session;
         }
 
-        if (response.status === 404 && attempt < maxAttempts) {
-          await new Promise((r) => setTimeout(r, 400 * attempt));
-          continue;
+        if (response.status === 404) {
+          if (attempt < maxAttempts) {
+            await new Promise((r) => setTimeout(r, 400 * attempt));
+            continue;
+          }
+
+          const recovered = await ensureSessionRow(sessionId);
+          if (recovered) {
+            const retryResponse = await fetch(`/api/sessions/${sessionId}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(updates),
+            });
+
+            if (retryResponse.ok) {
+              const data = await retryResponse.json();
+              return data.session;
+            }
+          }
         }
 
         throw new Error(`Failed to update session: ${response.status} ${response.statusText}`);
@@ -268,13 +315,26 @@ export function useChatSessions() {
     }>
   ): Promise<{ saved: number; failed: number; total: number } | null> => {
     try {
-      const response = await fetch(`/api/sessions/${sessionId}/messages`, {
+      let response = await fetch(`/api/sessions/${sessionId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ messages }),
       });
+
+      if (response.status === 404) {
+        const recovered = await ensureSessionRow(sessionId);
+        if (recovered) {
+          response = await fetch(`/api/sessions/${sessionId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ messages }),
+          });
+        }
+      }
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
