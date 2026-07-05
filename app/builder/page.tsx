@@ -344,6 +344,7 @@ function BuilderContent() {
   const blueprintEditorV2Enabled = templateBuilderEnabled && process.env.NEXT_PUBLIC_BLUEPRINT_EDITOR_V2 === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
+  const activeTemplateRef = useRef<BuilderTemplateSelection | null>(null)
   const templateSelectionLockedRef = useRef(false)
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
@@ -400,6 +401,10 @@ function BuilderContent() {
   useEffect(() => {
     buildThemeSelectionRef.current = buildThemeSelection
   }, [buildThemeSelection])
+
+  useEffect(() => {
+    activeTemplateRef.current = activeTemplate
+  }, [activeTemplate])
 
   useEffect(() => {
     if (
@@ -784,6 +789,7 @@ function BuilderContent() {
   // FIXED: Track when generating final/strawman presentations
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
   const [isGeneratingStrawman, setIsGeneratingStrawman] = useState(false)
+  const isGeneratingFinalRef = useRef(false)
   // Persist isUnsavedSession in sessionStorage so it survives page refresh.
   // Without this, refreshing after immediateConnection generates a UUID loses
   // the "unsaved" flag, causing persistence and uploads to hit 404.
@@ -969,8 +975,8 @@ function BuilderContent() {
   const handleSelectTemplate = useCallback((template: BuilderTemplateSelection) => {
     if (templateSelectionLockedRef.current) {
       toast({
-        title: 'Template locked',
-        description: 'This completed deck is already bound to its template. Start a new chat to use a different template.',
+        title: 'Build selections locked',
+        description: 'This deck is already generated. Start a new chat to choose a different template or theme.',
       })
       return
     }
@@ -1163,6 +1169,7 @@ function BuilderContent() {
     tokenUsage,
     tokenUsageMessageId,
     sendMessage,
+    sendControlMessage,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,
@@ -1221,6 +1228,28 @@ function BuilderContent() {
           currentSessionId: currentSessionIdRef.current,
           hasPersistenceRef: !!persistenceRef.current
         });
+      }
+    },
+    onMessage: (message) => {
+      const isTemplateActionRequest = message.type === 'action_request'
+        && message.payload.actions.some((action) => action.value.startsWith('template_'))
+      if (isTemplateActionRequest) {
+        setIsGeneratingFinal(false)
+        return
+      }
+
+      if (!activeTemplateRef.current || !isGeneratingFinalRef.current) return
+
+      if (message.type === 'presentation_url') {
+        setIsGeneratingFinal(false)
+        return
+      }
+
+      if (message.type === 'status_update') {
+        const status = message.payload.status
+        if (status === 'idle' || status === 'complete' || status === 'error') {
+          setIsGeneratingFinal(false)
+        }
       }
     },
     onSlideComposeReady: (message: SlideComposeReady) => {
@@ -1837,6 +1866,10 @@ function BuilderContent() {
   // FIXED: Clear loading state when final presentation URL arrives
   const lastFinalPresentationUrlRef = useRef<string | null>(null)
   useEffect(() => {
+    isGeneratingFinalRef.current = isGeneratingFinal
+  }, [isGeneratingFinal])
+
+  useEffect(() => {
     if (finalPresentationUrl && isGeneratingFinal) {
       setIsGeneratingFinal(false)
       console.log('Final presentation ready - hiding loader')
@@ -1864,11 +1897,16 @@ function BuilderContent() {
     if (slideStructure && (slideStructure as any).length > 0) return 4;
     return 3;
   }, [effectivePresentationUrl, effectiveSlideCount, slideStructure])
-  const templateSelectionLocked = Boolean(activeTemplate && currentStage >= 6)
+  const buildSelectionsLocked = Boolean(
+    finalPresentationUrl
+    && !isBlankPresentation
+    && (effectiveSlideCount ?? 0) > 1,
+  )
+  const templateSelectionLocked = Boolean(activeTemplate && buildSelectionsLocked)
 
   useEffect(() => {
-    templateSelectionLockedRef.current = templateSelectionLocked
-  }, [templateSelectionLocked])
+    templateSelectionLockedRef.current = buildSelectionsLocked
+  }, [buildSelectionsLocked])
 
   // Set strawman generation flag
   useEffect(() => {
@@ -1909,6 +1947,10 @@ function BuilderContent() {
 
     if (!user) {
       console.warn('Cannot send message: user not authenticated')
+      return
+    }
+
+    if (activeTemplate && isGeneratingFinal) {
       return
     }
 
@@ -1969,7 +2011,7 @@ function BuilderContent() {
 
         session.setUserMessages(prev => [...prev, {
           id: messageId,
-          text: action.label,
+          text: messageText,
           timestamp: timestamp
         }])
 
@@ -1979,8 +2021,8 @@ function BuilderContent() {
             session_id: currentSessionId,
             timestamp: new Date(timestamp).toISOString(),
             type: 'chat_message',
-            payload: { text: action.label, action_value: action.value }
-          } as unknown as DirectorMessage, action.label)
+            payload: { text: messageText, action_value: action.value, action_label: action.label }
+          } as unknown as DirectorMessage, messageText)
         }
 
         const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
@@ -2218,7 +2260,7 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, quota.status, toast, buildSendOptions, activeTemplate])
+  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, quota.status, toast, buildSendOptions, activeTemplate, isGeneratingFinal, pendingActionInput])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -2256,6 +2298,9 @@ function BuilderContent() {
         setIsGeneratingFinal(true)
         console.log('Starting final deck generation - showing loader')
       }
+      if (activeTemplate && action.value.startsWith('template_')) {
+        setIsGeneratingFinal(true)
+      }
 
       sendMessage(action.value, undefined, undefined, {
         deepResearch: researchEnabled,
@@ -2267,7 +2312,20 @@ function BuilderContent() {
         ...buildSendOptions,
       })
     }
-  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, buildSendOptions])
+  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, buildSendOptions, activeTemplate])
+
+  const handleCancelTemplateReuse = useCallback(() => {
+    const sent = sendControlMessage('cancel_template_reuse')
+    setIsGeneratingFinal(false)
+    setPendingActionInput(null)
+    if (!sent) {
+      toast({
+        title: 'Could not stop template reuse',
+        description: 'Director is not connected. Reconnect the session and try again.',
+        variant: 'destructive',
+      })
+    }
+  }, [sendControlMessage, toast])
 
   // Wrapped session select handler (clears local UI state too)
   const handleSessionSelectWrapped = useCallback((sessionId: string) => {
@@ -2642,7 +2700,9 @@ function BuilderContent() {
                     activeTemplate={activeTemplate}
                     onSelectTemplate={handleSelectTemplate}
                     onClearTemplate={handleClearTemplate}
-                    templateSelectionLocked={templateSelectionLocked}
+                    templateSelectionLocked={buildSelectionsLocked}
+                    isTemplateReuseRunning={Boolean(activeTemplate && isGeneratingFinal)}
+                    onCancelTemplateReuse={handleCancelTemplateReuse}
                     buildTheme={buildThemeSelection}
                     onBuildThemeChange={setBuildThemeSelection}
                     activeBuildThemeProfile={activeBuildThemeProfile}

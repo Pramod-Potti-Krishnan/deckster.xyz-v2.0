@@ -14,6 +14,8 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import {
   isTemplateGenerationReady,
+  templateGenerationStatus,
+  templateGenerationStatusLabel,
   templateGenerationUnavailableReason,
   useTemplates,
   type SavedTemplate,
@@ -65,10 +67,15 @@ export function TemplatePickerContent({
   const handleTemplateClick = (template: SavedTemplate) => {
     const ready = isTemplateGenerationReady(template)
     if (mode === 'generation' && !ready) {
+      const status = templateGenerationStatus(template)
       toast({
-        title: template.blueprint_enrichment_status === 'failed' ? 'Template not ready' : 'Template optimizing',
+        title: status === 'failed'
+          ? 'Template not ready'
+          : status === 'optimizing'
+            ? 'Template optimizing'
+            : 'Template needs optimization',
         description: templateGenerationUnavailableReason(template),
-        variant: template.blueprint_enrichment_status === 'failed' ? 'destructive' : undefined,
+        variant: status === 'failed' ? 'destructive' : undefined,
       })
       return
     }
@@ -107,8 +114,11 @@ export function TemplatePickerContent({
       ) : (
         templates.map((t) => {
           const ready = isTemplateGenerationReady(t)
-          const failed = t.blueprint_enrichment_status === 'failed'
-          const statusLabel = ready ? 'Ready' : failed ? 'Failed' : 'Optimizing'
+          const status = templateGenerationStatus(t)
+          const failed = status === 'failed'
+          const optimizing = status === 'optimizing'
+          const needsOptimization = status === 'needs_optimization'
+          const statusLabel = templateGenerationStatusLabel(t)
           return (
             <DropdownMenuItem
               key={t.id}
@@ -128,10 +138,15 @@ export function TemplatePickerContent({
                     "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
                     ready && "bg-emerald-50 text-emerald-700",
                     failed && "bg-rose-50 text-rose-700",
-                    !ready && !failed && "bg-amber-50 text-amber-700",
+                    optimizing && "bg-amber-50 text-amber-700",
+                    needsOptimization && "bg-slate-100 text-slate-600",
                   )}
                 >
-                  {ready ? <CheckCircle2 className="h-3 w-3" /> : failed ? <AlertTriangle className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
+                  {ready
+                    ? <CheckCircle2 className="h-3 w-3" />
+                    : optimizing
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : <AlertTriangle className="h-3 w-3" />}
                   {statusLabel}
                 </span>
               </span>
@@ -141,7 +156,11 @@ export function TemplatePickerContent({
               </span>
               {!ready && (
                 <span className="flex w-full items-center justify-between gap-2 pt-0.5 text-[11px] text-gray-500">
-                  <span>{mode === 'generation' ? 'Review only until ready' : 'Review available'}</span>
+                  <span>
+                    {mode === 'generation'
+                      ? optimizing ? 'Review only until ready' : 'Needs optimization before generation'
+                      : 'Review available'}
+                  </span>
                   {failed && (
                     <button
                       type="button"
