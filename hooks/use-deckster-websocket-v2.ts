@@ -284,6 +284,11 @@ export interface UserMessage {
   };
 }
 
+export interface ControlMessage {
+  type: 'cancel_template_reuse';
+  data?: Record<string, never>;
+}
+
 // Hook state
 export interface UseDecksterWebSocketV2State {
   connected: boolean;
@@ -1322,6 +1327,23 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, []);
 
+  const sendControlMessage = useCallback((type: ControlMessage['type']): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot send control message: WebSocket not connected');
+      return false;
+    }
+
+    try {
+      const message: ControlMessage = { type };
+      debugLog('📤 Sending control message:', type);
+      wsRef.current.send(JSON.stringify(message));
+      return true;
+    } catch (error) {
+      console.error('Failed to send control message:', error);
+      return false;
+    }
+  }, []);
+
   // Switch between blank, strawman and final versions (Builder V2)
   const switchVersion = useCallback((version: 'blank' | 'strawman' | 'final') => {
     setStateWithCache(prev => {
@@ -1548,6 +1570,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     connect,
     disconnect,
     sendMessage,
+    sendControlMessage,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,

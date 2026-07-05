@@ -15,6 +15,7 @@ import {
   SlidersHorizontal,
   Paperclip,
   ArrowUp,
+  Square,
   Loader2,
   Search,
   Brain,
@@ -81,6 +82,8 @@ export interface ChatInputProps {
   onSelectTemplate?: (template: TemplateSelection) => void
   onClearTemplate?: () => void
   templateSelectionLocked?: boolean
+  isTemplateReuseRunning?: boolean
+  onCancelTemplateReuse?: () => void
   buildTheme: BuildThemeSelection
   onBuildThemeChange: (theme: BuildThemeSelection) => void
   activeBuildThemeProfile?: ActiveBuildThemeProfile | null
@@ -116,6 +119,8 @@ export function ChatInput({
   onSelectTemplate,
   onClearTemplate,
   templateSelectionLocked = false,
+  isTemplateReuseRunning = false,
+  onCancelTemplateReuse,
   buildTheme,
   onBuildThemeChange,
   activeBuildThemeProfile,
@@ -140,6 +145,12 @@ export function ChatInput({
     deleteTheme,
   } = useThemeProfiles()
   const activeTemplateReady = isTemplateGenerationReady(activeTemplate)
+  const templateChipLabel = templateSelectionLocked
+    ? 'Template locked'
+    : activeTemplateReady
+      ? 'Template selected'
+      : 'Template review only'
+  const themeChipLabel = templateSelectionLocked ? 'Theme locked' : 'Theme selected'
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -385,7 +396,7 @@ export function ChatInput({
           }`}>
             <LayoutTemplate className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">
-              {activeTemplateReady ? 'Template locked' : 'Template review only'}: {activeTemplate.name}
+              {templateChipLabel}: {activeTemplate.name}
             </span>
             {!activeTemplateReady && (
               <span className="hidden sm:inline text-[11px] font-normal opacity-80">
@@ -410,20 +421,31 @@ export function ChatInput({
         <div className="mb-2 px-2 py-1.5 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 text-xs font-medium min-w-0">
             <Palette className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">Theme locked: {activeThemeLabel}</span>
+            <span className="truncate">{themeChipLabel}: {activeThemeLabel}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              onActiveBuildThemeProfileChange?.(null)
-              onBuildThemeChange({ mode: 'auto' })
-            }}
-            className="ml-2 shrink-0 text-sky-500 hover:text-sky-700 dark:hover:text-sky-200"
-            title="Clear theme"
-            aria-label="Clear theme"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+          {!templateSelectionLocked && (
+            <button
+              type="button"
+              onClick={() => {
+                onActiveBuildThemeProfileChange?.(null)
+                onBuildThemeChange({ mode: 'auto' })
+              }}
+              className="ml-2 shrink-0 text-sky-500 hover:text-sky-700 dark:hover:text-sky-200"
+              title="Clear theme"
+              aria-label="Clear theme"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+      {isTemplateReuseRunning && (
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-[11px] font-medium text-purple-700 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-300">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-600" />
+          </span>
+          Director is working from your template
         </div>
       )}
 
@@ -481,11 +503,13 @@ export function ChatInput({
                   ? "Disconnected - send to reconnect"
                   : connecting
                     ? "Connecting..."
+                    : isTemplateReuseRunning
+                      ? "Director is working..."
                     : pendingActionInput
                       ? "Type your changes... (ESC to cancel)"
                       : "Message Director..."
             }
-            disabled={!user || isLoadingSession}
+            disabled={!user || isLoadingSession || isTemplateReuseRunning}
             className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[96px] max-h-[220px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto dark:text-slate-100 dark:placeholder:text-slate-500"
             rows={1}
           />
@@ -737,17 +761,29 @@ export function ChatInput({
             </div>
 
             {/* Right: Send button - rounded square with up arrow */}
-            <button
-              type="submit"
-              disabled={!isReady || !inputMessage.trim()}
-              className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
-                inputMessage.trim()
-                  ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                  : 'bg-purple-100 text-purple-300 dark:bg-slate-700 dark:text-slate-500 cursor-not-allowed'
-              }`}
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
+            {isTemplateReuseRunning ? (
+              <button
+                type="button"
+                onClick={onCancelTemplateReuse}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-600 text-white transition-all hover:bg-rose-700"
+                title="Stop template reuse"
+                aria-label="Stop template reuse"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!isReady || !inputMessage.trim()}
+                className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
+                  inputMessage.trim()
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                    : 'bg-purple-100 text-purple-300 dark:bg-slate-700 dark:text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           {/* Only show loading overlay when actually loading session */}

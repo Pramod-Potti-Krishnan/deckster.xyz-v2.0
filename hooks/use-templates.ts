@@ -152,12 +152,37 @@ export function isTemplateGenerationReady(template: TemplateSelection | Template
   return method === 'llm';
 }
 
+export function templateGenerationStatus(
+  template: TemplateSelection | TemplateSnapshot | null | undefined,
+): 'ready' | 'optimizing' | 'failed' | 'needs_optimization' {
+  if (isTemplateGenerationReady(template)) return 'ready';
+  if (!template) return 'needs_optimization';
+  const status = template.blueprint_enrichment_status ?? null;
+  if (status === 'failed') return 'failed';
+  if (status === 'queued' || status === 'running') return 'optimizing';
+  return 'needs_optimization';
+}
+
+export function templateGenerationStatusLabel(
+  template: TemplateSelection | TemplateSnapshot | null | undefined,
+): 'Ready' | 'Optimizing' | 'Failed' | 'Needs optimization' {
+  const status = templateGenerationStatus(template);
+  if (status === 'ready') return 'Ready';
+  if (status === 'optimizing') return 'Optimizing';
+  if (status === 'failed') return 'Failed';
+  return 'Needs optimization';
+}
+
 export function templateGenerationUnavailableReason(
   template: TemplateSelection | TemplateSnapshot | null | undefined,
 ): string {
   if (!template) return 'Select a template first.';
-  if (template.blueprint_enrichment_status === 'failed') {
+  const status = templateGenerationStatus(template);
+  if (status === 'failed') {
     return 'Template optimization failed; review is available, generation unlocks after re-saving or re-optimizing.';
+  }
+  if (status === 'needs_optimization') {
+    return 'Template needs optimization before generation; review is available now.';
   }
   return 'Template is still being optimized; review is available, generation unlocks when enrichment completes.';
 }
