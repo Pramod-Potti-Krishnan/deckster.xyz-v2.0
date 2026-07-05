@@ -5,6 +5,7 @@ import { debugLog } from '@/lib/debug-log';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
 import { normalizeSlideComposeSocketFrame } from '@/lib/slide-compose-async';
+import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -30,6 +31,7 @@ export interface SyncResponse {
     has_strawman: boolean;
     presentation_url?: string;
     presentation_id?: string;
+    slide_count?: number | null;
   };
 }
 
@@ -808,19 +810,33 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   presentation_id: message.payload.presentation_id
                 });
                 // Resilience: a deck can finish while the socket is down (WS churn during
-                // a long reuse/build). The backend re-delivers its URL here on reconnect.
-                // Restore it so the deck REPAINTS instead of showing the empty placeholder.
-                // Only when we don't already hold one (don't clobber a fresher in-memory URL).
-                if (message.payload.presentation_url && !prev.presentationUrl) {
-                  newState.presentationUrl = message.payload.presentation_url;
-                  newState.finalPresentationUrl = message.payload.presentation_url;
-                  newState.deckOwnerSessionId = sessionIdRef.current;
-                  newState.activeVersion = 'final';
-                  newState.isBlankPresentation = false;
-                  const _pid = message.payload.presentation_id;
-                  if (_pid) { newState.presentationId = _pid; newState.finalPresentationId = _pid; }
-                  newState.currentStatus = null;
-                  debugLog('🔁 Restored finished presentation from sync_response (reconnect repaint)');
+                // a long reuse/build). Promote sync_response URLs to final only when
+                // Director says the durable session state is content-generated/complete;
+                // blank/strawman reconnect URLs must remain previews.
+                {
+                  const recovery = applyFinalSyncRecovery(
+                    newState,
+                    message.payload,
+                    sessionIdRef.current,
+                  );
+                  if (recovery.didRecover) {
+                    Object.assign(newState, recovery.state);
+                    debugLog('🔁 Restored finished presentation from sync_response (reconnect repaint)');
+
+                    if (recovery.didChangeDisplayedDeck && options.onPresentationReady && newState.finalPresentationUrl) {
+                      options.onPresentationReady(newState.finalPresentationUrl);
+                    }
+
+                    if (recovery.didChangeDisplayedDeck && options.onSessionStateChange && newState.finalPresentationUrl) {
+                      options.onSessionStateChange({
+                        presentationUrl: newState.finalPresentationUrl,
+                        presentationId: newState.finalPresentationId ?? undefined,
+                        slideCount: newState.slideCount ?? undefined,
+                        currentStage: 6,
+                        activeVersion: 'final',
+                      });
+                    }
+                  }
                 }
                 break;
 
