@@ -675,10 +675,10 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
     onBlueprintChange,
   } = props
 
-  const [slideDetailsOpen, setSlideDetailsOpen] = useState(true)
+  const [slideDetailsOpenState, setSlideDetailsOpenState] = useState<Record<number, boolean>>({})
   const [intentOpenState, setIntentOpenState] = useState<Record<string, boolean>>({})
   const [expandedState, setExpandedState] = useState<Record<string, boolean>>({})
-  const [activeExpandedKey, setActiveExpandedKey] = useState<string | null>(null)
+  const [activeOverlayKey, setActiveOverlayKey] = useState<string | null>(null)
   const slot = getTemplateSlot(snapshot, currentSlideIndex)
   const frozenEntry = getFrozenPlanEntry(snapshot, currentSlideIndex)
   const layoutPlan = getLayoutPlan(frozenEntry)
@@ -714,6 +714,13 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
   const showLockedChip = !loading && snapshot && elements.length === 0
   const slideDataPolicy = dataPolicySummary(elements)
   const syntheticBoxes = titleSubtitleBoxes(blueprintSlide, slot, elements, currentSlideIndex)
+  const slideDetailsOverlayKey = storageKey(currentSlideIndex, '__slide_details__')
+  const slideDetailsOpen = slideDetailsOpenState[currentSlideIndex] ?? false
+
+  const setSlideDetailsOpen = (open: boolean) => {
+    setSlideDetailsOpenState((previous) => ({ ...previous, [currentSlideIndex]: open }))
+    if (open) setActiveOverlayKey(slideDetailsOverlayKey)
+  }
 
   const isExpanded = (element: TemplateModeElement) => {
     const key = storageKey(currentSlideIndex, element.overrideKey)
@@ -723,7 +730,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
   const setExpanded = (element: TemplateModeElement, expanded: boolean) => {
     const key = storageKey(currentSlideIndex, element.overrideKey)
     setExpandedState((previous) => ({ ...previous, [key]: expanded }))
-    if (expanded) setActiveExpandedKey(key)
+    if (expanded) setActiveOverlayKey(key)
     window.sessionStorage.setItem(key, expanded ? 'expanded' : 'collapsed')
   }
 
@@ -762,7 +769,14 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
       </div>
 
       {slideDetailsOpen ? (
-        <div className="pointer-events-auto absolute bottom-3 left-3 z-40 max-h-[48%] w-[min(520px,calc(100%-1.5rem))] overflow-y-auto rounded-lg border border-white/70 bg-white/95 text-xs text-slate-700 shadow-xl backdrop-blur dark:bg-slate-950/95 dark:text-slate-200">
+        <div
+          className="pointer-events-auto absolute bottom-3 left-3 max-h-[48%] w-[min(520px,calc(100%-1.5rem))] overflow-y-auto rounded-lg border border-white/70 bg-white/95 text-xs text-slate-700 shadow-xl backdrop-blur dark:bg-slate-950/95 dark:text-slate-200"
+          style={{ zIndex: activeOverlayKey === slideDetailsOverlayKey ? 84 : 74 }}
+          onClick={(event) => {
+            event.stopPropagation()
+            setActiveOverlayKey(slideDetailsOverlayKey)
+          }}
+        >
           <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-800">
             <div className="flex min-w-0 items-center gap-1.5 font-semibold">
               <Info className="h-4 w-4 shrink-0 text-violet-500" />
@@ -849,16 +863,21 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
             className={cn(
               "pointer-events-auto absolute text-left shadow-lg backdrop-blur transition",
               open
-                ? "z-50 overflow-y-auto rounded-lg border-2 border-slate-400 bg-white/95 px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950/95 dark:text-slate-200"
-                : "z-[42] overflow-hidden rounded-md border-2 border-solid border-slate-300 bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-800 hover:bg-white/95 dark:border-slate-700 dark:bg-slate-950/80 dark:text-slate-200",
+                ? "overflow-y-auto rounded-lg border-2 border-slate-400 bg-white/95 px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-950/95 dark:text-slate-200"
+                : "overflow-hidden rounded-md border-2 border-solid border-slate-300 bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-800 hover:bg-white/95 dark:border-slate-700 dark:bg-slate-950/80 dark:text-slate-200",
               selected && "ring-2 ring-violet-500 ring-offset-2"
             )}
-            style={intentBoxStyle(box.rect, open)}
+            style={{
+              ...intentBoxStyle(box.rect, open),
+              zIndex: open ? activeOverlayKey === box.overrideKey ? 84 : 74 : selected ? 58 : 42,
+            }}
             onClick={(event) => {
               event.stopPropagation()
               onSelectElement?.(box.overrideKey)
+              if (open) setActiveOverlayKey(box.overrideKey)
               if (!open) {
                 setIntentOpenState((previous) => ({ ...previous, [box.overrideKey]: true }))
+                setActiveOverlayKey(box.overrideKey)
               }
             }}
           >
@@ -897,6 +916,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                     event.stopPropagation()
                     onSelectElement?.(box.overrideKey)
                     setIntentOpenState((previous) => ({ ...previous, [box.overrideKey]: true }))
+                    setActiveOverlayKey(box.overrideKey)
                   }}
                   aria-label={`Expand ${box.label}`}
                 >
@@ -953,12 +973,13 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
             style={{
               ...elementBoxStyle(rect, expanded),
               zIndex: expanded
-                ? activeExpandedKey === expandedKey ? 78 : 68
+                ? activeOverlayKey === expandedKey ? 84 : 74
                 : selected ? 58 : 34,
             }}
             onClick={(event) => {
               event.stopPropagation()
               onSelectElement?.(element.overrideKey)
+              if (expanded) setActiveOverlayKey(expandedKey)
             }}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {

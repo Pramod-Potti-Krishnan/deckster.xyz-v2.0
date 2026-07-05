@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from 'react'
-import { LayoutTemplate, Loader2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, LayoutTemplate, Loader2, RotateCw } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,30 +10,39 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/use-toast'
 import {
   isTemplateGenerationReady,
+  templateGenerationUnavailableReason,
   useTemplates,
   type SavedTemplate,
   type TemplateSelection,
 } from '@/hooks/use-templates'
 
+type TemplatePickerMode = 'generation' | 'review'
+
 interface TemplatePickerProps {
   onSelect: (template: TemplateSelection) => void
   disabled?: boolean
+  mode?: TemplatePickerMode
 }
 
 interface TemplatePickerContentProps {
   onSelect: (template: TemplateSelection) => void
   isOpen?: boolean
   label?: string
+  mode?: TemplatePickerMode
 }
 
 export function TemplatePickerContent({
   onSelect,
   isOpen = true,
   label = 'Reuse a template',
+  mode = 'generation',
 }: TemplatePickerContentProps) {
-  const { listTemplates, loading } = useTemplates()
+  const { toast } = useToast()
+  const { listTemplates, loading, reoptimizeTemplate } = useTemplates()
   const [templates, setTemplates] = useState<SavedTemplate[] | null>(null)
 
   const refresh = useCallback(async () => {
@@ -44,6 +53,44 @@ export function TemplatePickerContent({
   useEffect(() => {
     if (isOpen) void refresh()
   }, [isOpen, refresh])
+
+  const toSelection = (template: SavedTemplate): TemplateSelection => ({
+    id: template.id,
+    name: template.name,
+    blueprint_generation_method: template.blueprint_generation_method,
+    blueprint_enrichment_status: template.blueprint_enrichment_status,
+    blueprint_enrichment_error: template.blueprint_enrichment_error,
+  })
+
+  const handleTemplateClick = (template: SavedTemplate) => {
+    const ready = isTemplateGenerationReady(template)
+    if (mode === 'generation' && !ready) {
+      toast({
+        title: template.blueprint_enrichment_status === 'failed' ? 'Template not ready' : 'Template optimizing',
+        description: templateGenerationUnavailableReason(template),
+        variant: template.blueprint_enrichment_status === 'failed' ? 'destructive' : undefined,
+      })
+      return
+    }
+    onSelect(toSelection(template))
+  }
+
+  const handleRetryOptimization = async (template: SavedTemplate) => {
+    const result = await reoptimizeTemplate(template.id)
+    if (!result) {
+      toast({
+        title: 'Could not retry optimization',
+        description: 'Director could not start template optimization. Please try again.',
+        variant: 'destructive',
+      })
+      return
+    }
+    toast({
+      title: 'Optimizing template',
+      description: `"${template.name}" will unlock for generation when optimization completes.`,
+    })
+    await refresh()
+  }
 
   return (
     <>
@@ -58,32 +105,62 @@ export function TemplatePickerContent({
           No saved templates yet. Build a deck and use “Save as Template”.
         </div>
       ) : (
-        templates.map((t) => (
-          <DropdownMenuItem
-            key={t.id}
-            className="cursor-pointer flex-col items-start gap-0.5"
-            onClick={() => onSelect({
-              id: t.id,
-              name: t.name,
-              blueprint_generation_method: t.blueprint_generation_method,
-              blueprint_enrichment_status: t.blueprint_enrichment_status,
-              blueprint_enrichment_error: t.blueprint_enrichment_error,
-            })}
-          >
-            <span className="flex w-full items-center justify-between gap-2">
-              <span className="min-w-0 truncate font-medium">{t.name}</span>
-              {!isTemplateGenerationReady(t) && (
-                <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                  Optimizing
+        templates.map((t) => {
+          const ready = isTemplateGenerationReady(t)
+          const failed = t.blueprint_enrichment_status === 'failed'
+          const statusLabel = ready ? 'Ready' : failed ? 'Failed' : 'Optimizing'
+          return (
+            <DropdownMenuItem
+              key={t.id}
+              className={cn(
+                "flex-col items-start gap-0.5",
+                mode === 'generation' && !ready ? "cursor-not-allowed opacity-90" : "cursor-pointer",
+              )}
+              onSelect={(event) => {
+                if (mode === 'generation' && !ready) event.preventDefault()
+              }}
+              onClick={() => handleTemplateClick(t)}
+            >
+              <span className="flex w-full items-center justify-between gap-2">
+                <span className="min-w-0 truncate font-medium">{t.name}</span>
+                <span
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                    ready && "bg-emerald-50 text-emerald-700",
+                    failed && "bg-rose-50 text-rose-700",
+                    !ready && !failed && "bg-amber-50 text-amber-700",
+                  )}
+                >
+                  {ready ? <CheckCircle2 className="h-3 w-3" /> : failed ? <AlertTriangle className="h-3 w-3" /> : <Loader2 className="h-3 w-3 animate-spin" />}
+                  {statusLabel}
+                </span>
+              </span>
+              <span className="text-xs text-gray-500">
+                {t.slide_count != null ? `${t.slide_count} slides` : 'template'}
+                {t.description ? ` · ${t.description}` : ''}
+              </span>
+              {!ready && (
+                <span className="flex w-full items-center justify-between gap-2 pt-0.5 text-[11px] text-gray-500">
+                  <span>{mode === 'generation' ? 'Review only until ready' : 'Review available'}</span>
+                  {failed && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-rose-700 hover:bg-rose-50"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        void handleRetryOptimization(t)
+                      }}
+                    >
+                      <RotateCw className="h-3 w-3" />
+                      Retry
+                    </button>
+                  )}
                 </span>
               )}
-            </span>
-            <span className="text-xs text-gray-500">
-              {t.slide_count != null ? `${t.slide_count} slides` : 'template'}
-              {t.description ? ` · ${t.description}` : ''}
-            </span>
-          </DropdownMenuItem>
-        ))
+            </DropdownMenuItem>
+          )
+        })
       )}
     </>
   )
@@ -95,7 +172,7 @@ export function TemplatePickerContent({
  * which then carries template_mode/template_id on the next send). See
  * TEMPLATE_PLAN.md §6 (retrieval = in-chat control beside attach).
  */
-export function TemplatePicker({ onSelect, disabled }: TemplatePickerProps) {
+export function TemplatePicker({ onSelect, disabled, mode = 'generation' }: TemplatePickerProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -112,7 +189,7 @@ export function TemplatePicker({ onSelect, disabled }: TemplatePickerProps) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        <TemplatePickerContent onSelect={onSelect} isOpen={open} />
+        <TemplatePickerContent onSelect={onSelect} isOpen={open} mode={mode} />
       </DropdownMenuContent>
     </DropdownMenu>
   )

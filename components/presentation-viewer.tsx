@@ -160,6 +160,7 @@ interface PresentationViewerProps {
   templateSavePresentationId?: string | null
   templateBuilderEnabled?: boolean
   onSelectTemplate?: (template: TemplateSelection) => void
+  onTemplateOptimizationFailed?: (templateId: string) => void
   templateSelectionLocked?: boolean
   templateModeOn?: boolean
   onTemplateModeChange?: (enabled: boolean) => void
@@ -346,6 +347,7 @@ export function PresentationViewer({
   templateSavePresentationId,
   templateBuilderEnabled,
   onSelectTemplate,
+  onTemplateOptimizationFailed,
   templateSelectionLocked = false,
   templateModeOn = false,
   onTemplateModeChange,
@@ -2146,6 +2148,7 @@ export function PresentationViewer({
                           <TemplatePickerContent
                             label="Available templates"
                             isOpen={toolbarTemplatePickerOpen}
+                            mode="review"
                             onSelect={(template) => {
                               onSelectTemplate?.(template)
                               setToolbarTemplatePickerOpen(false)
@@ -2620,6 +2623,7 @@ export function PresentationViewer({
         deckOwnerSessionId={deckOwnerSessionId ?? null}
         sourcePresentationId={templateModeOn ? null : templateSavePresentationId}
         onSavedTemplate={onSelectTemplate}
+        onTemplateOptimizationFailed={onTemplateOptimizationFailed}
       />
 
       {/* Version History Panel */}
