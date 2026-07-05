@@ -17,6 +17,7 @@ import {
   type SlideUpdate,
   type PresentationURL,
   type SlideContextItem,
+  type StatusUpdate,
 } from "@/hooks/use-deckster-websocket-v2"
 import { debugLog } from "@/lib/debug-log"
 
@@ -38,6 +39,7 @@ export interface MessageListProps {
   ephemeralMessageIds?: string[]
   // Thinking-stream: called after the fade animation finishes so the WS hook can drain its tracked IDs.
   onEphemeralFadeComplete?: () => void
+  currentStatus?: StatusUpdate['payload'] | null
 }
 
 export function MessageList({
@@ -54,6 +56,7 @@ export function MessageList({
   ephemeralFadeToken,
   ephemeralMessageIds,
   onEphemeralFadeComplete,
+  currentStatus,
 }: MessageListProps) {
   // Thinking-stream fade-out: when slide_update lands, fade tracked ephemeral
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
@@ -347,6 +350,18 @@ export function MessageList({
 
     return processedMessages;
   }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef]);
+
+  const hasVisibleThinkingStream = processedMessages.some((item) => {
+    if (item.messageType !== 'bot') return false
+    const msg = item as any
+    if (msg.type !== 'thinking_stream') return false
+    return (msg.messages || []).some((m: V2ChatMessage) => !removedIds.has(m.message_id))
+  })
+  const showWorkingPulse = Boolean(
+    currentStatus
+    && (currentStatus.status === 'thinking' || currentStatus.status === 'generating')
+    && !hasVisibleThinkingStream
+  )
 
   return (
     <>
@@ -661,6 +676,28 @@ export function MessageList({
           </React.Fragment>
         )
       })}
+      {showWorkingPulse && currentStatus && (
+        <div className="flex gap-3 animate-in fade-in duration-200">
+          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+            <Sparkles className="h-3 w-3 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+            <div className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center gap-2">
+                <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center gap-0.5">
+                  <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse" />
+                  <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse [animation-delay:120ms]" />
+                  <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse [animation-delay:240ms]" />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-slate-200">
+                  {currentStatus.text || 'Working...'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div ref={messagesEndRef} />
     </>
   )

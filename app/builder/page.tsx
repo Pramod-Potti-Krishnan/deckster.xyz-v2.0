@@ -2092,6 +2092,8 @@ function BuilderContent() {
           useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
           fileUpload: !!sessionStoreName,
           storeName: sessionStoreName,
+          actionValue: action.value,
+          actionLabel: action.label,
           ...buildSendOptions,
         })
         if (success) {
@@ -2347,7 +2349,7 @@ function BuilderContent() {
           session_id: currentSessionId,
           timestamp: new Date(timestamp).toISOString(),
           type: 'chat_message',
-          payload: { text: action.label, action_value: action.value }
+          payload: { text: action.label, action_value: action.value, action_label: action.label }
         } as unknown as DirectorMessage, action.label)
       }
 
@@ -2360,13 +2362,15 @@ function BuilderContent() {
         setIsGeneratingFinal(true)
       }
 
-      sendMessage(action.value, undefined, undefined, {
+      sendMessage(action.label, undefined, undefined, {
         deepResearch: researchEnabled,
         webSearch: webSearchEnabled,
         extendedGeneration: extendedGenerationEnabled,
         useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
+        actionValue: action.value,
+        actionLabel: action.label,
         ...buildSendOptions,
       })
     }
@@ -2726,6 +2730,7 @@ function BuilderContent() {
                         ephemeralFadeToken={ephemeralFadeToken}
                         ephemeralMessageIds={ephemeralMessageIds}
                         onEphemeralFadeComplete={clearEphemeralIds}
+                        currentStatus={currentStatus}
                       />
                     </div>
                   </ScrollArea>

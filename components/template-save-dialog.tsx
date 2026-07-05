@@ -189,7 +189,7 @@ export function TemplateSaveDialog({
       })
       startStatusPolling(result)
       setName('')
-      if (generationReady) onOpenChange(false)
+      onOpenChange(false)
     } else {
       toast({
         title: 'Could not save template',
