@@ -70,7 +70,7 @@ import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
 import { TemplateModeOverlay } from './builder/template-mode-overlay'
 import { TemplatePickerContent } from './builder/template-picker'
-import type { TemplateBlueprint, TemplateSnapshot } from '@/hooks/use-templates'
+import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/hooks/use-templates'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
@@ -159,7 +159,7 @@ interface PresentationViewerProps {
   deckOwnerSessionId?: string | null
   templateSavePresentationId?: string | null
   templateBuilderEnabled?: boolean
-  onSelectTemplate?: (template: { id: string; name: string }) => void
+  onSelectTemplate?: (template: TemplateSelection) => void
   templateSelectionLocked?: boolean
   templateModeOn?: boolean
   onTemplateModeChange?: (enabled: boolean) => void

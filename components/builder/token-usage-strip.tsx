@@ -45,6 +45,12 @@ export function TokenUsageStrip({ tokenUsage, quota, onTopUp }: TokenUsageStripP
   const flags = status?.flags
   const showWarning = Boolean(flags && (flags.dailyNear || flags.dailyAt || flags.weeklyNear || flags.weeklyAt))
   const isAtLimit = Boolean(flags && (flags.dailyAt || flags.weeklyAt))
+  const reserveBalanceCents = status?.walletBalanceCents ?? 0
+  const isRunningOnReserve = isAtLimit && reserveBalanceCents > 0
+  const isHardLimit = isAtLimit && reserveBalanceCents <= 0
+  const limitLabel = flags?.dailyAt ? "Daily" : "Weekly"
+  const allowanceLabel = flags?.dailyAt ? "daily" : "weekly"
+  const resetIso = flags?.dailyAt ? status?.resetAt.daily : status?.resetAt.weekly
 
   // Animated session counter
   const [displayTotal, setDisplayTotal] = useState(sessionTotal)
@@ -155,7 +161,7 @@ export function TokenUsageStrip({ tokenUsage, quota, onTopUp }: TokenUsageStripP
         <div
           className={cn(
             "flex items-center justify-between gap-2 px-3 py-1.5 text-[11px] font-medium",
-            isAtLimit
+            isHardLimit
               ? "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"
               : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
           )}
@@ -163,12 +169,14 @@ export function TokenUsageStrip({ tokenUsage, quota, onTopUp }: TokenUsageStripP
           <div className="flex items-center gap-1.5 min-w-0">
             <AlertTriangle className="h-3 w-3 shrink-0" />
             <span className="truncate">
-              {isAtLimit
-                ? `${flags?.dailyAt ? "Daily" : "Weekly"} limit reached — resets ${formatResetIn(flags?.dailyAt ? status?.resetAt.daily : status?.resetAt.weekly)}`
+              {isRunningOnReserve
+                ? `Running on reserve credits — ${allowanceLabel} allowance resets in ${formatResetIn(resetIso)}`
+                : isAtLimit
+                ? `${limitLabel} limit reached — resets ${formatResetIn(resetIso)}`
                 : `Approaching ${flags?.dailyNear ? "daily" : "weekly"} limit`}
             </span>
           </div>
-          {onTopUp && (
+          {onTopUp && !isRunningOnReserve && (
             <button
               type="button"
               onClick={onTopUp}

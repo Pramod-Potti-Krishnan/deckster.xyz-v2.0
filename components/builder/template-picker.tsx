@@ -10,15 +10,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useTemplates, type SavedTemplate } from '@/hooks/use-templates'
+import {
+  isTemplateGenerationReady,
+  useTemplates,
+  type SavedTemplate,
+  type TemplateSelection,
+} from '@/hooks/use-templates'
 
 interface TemplatePickerProps {
-  onSelect: (template: { id: string; name: string }) => void
+  onSelect: (template: TemplateSelection) => void
   disabled?: boolean
 }
 
 interface TemplatePickerContentProps {
-  onSelect: (template: { id: string; name: string }) => void
+  onSelect: (template: TemplateSelection) => void
   isOpen?: boolean
   label?: string
 }
@@ -57,9 +62,22 @@ export function TemplatePickerContent({
           <DropdownMenuItem
             key={t.id}
             className="cursor-pointer flex-col items-start gap-0.5"
-            onClick={() => onSelect({ id: t.id, name: t.name })}
+            onClick={() => onSelect({
+              id: t.id,
+              name: t.name,
+              blueprint_generation_method: t.blueprint_generation_method,
+              blueprint_enrichment_status: t.blueprint_enrichment_status,
+              blueprint_enrichment_error: t.blueprint_enrichment_error,
+            })}
           >
-            <span className="font-medium">{t.name}</span>
+            <span className="flex w-full items-center justify-between gap-2">
+              <span className="min-w-0 truncate font-medium">{t.name}</span>
+              {!isTemplateGenerationReady(t) && (
+                <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                  Optimizing
+                </span>
+              )}
+            </span>
             <span className="text-xs text-gray-500">
               {t.slide_count != null ? `${t.slide_count} slides` : 'template'}
               {t.description ? ` · ${t.description}` : ''}

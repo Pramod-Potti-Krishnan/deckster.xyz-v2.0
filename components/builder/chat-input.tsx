@@ -35,6 +35,11 @@ import {
 } from '@/lib/theme-builder'
 import type { ActionRequest } from "@/hooks/use-deckster-websocket-v2"
 import { useThemeProfiles, type SavedThemeProfile } from '@/hooks/use-theme-profiles'
+import {
+  isTemplateGenerationReady,
+  templateGenerationUnavailableReason,
+  type TemplateSelection,
+} from '@/hooks/use-templates'
 import { TemplatePicker } from './template-picker'
 
 const TEXTAREA_MIN_HEIGHT = 96
@@ -72,8 +77,8 @@ export interface ChatInputProps {
   onRequestSession: () => Promise<void>
   // Template Builder (reuse): in-chat picker beside the attach button
   templateBuilderEnabled?: boolean
-  activeTemplate?: { id: string; name: string } | null
-  onSelectTemplate?: (template: { id: string; name: string }) => void
+  activeTemplate?: TemplateSelection | null
+  onSelectTemplate?: (template: TemplateSelection) => void
   onClearTemplate?: () => void
   templateSelectionLocked?: boolean
   buildTheme: BuildThemeSelection
@@ -134,6 +139,7 @@ export function ChatInput({
     clearStandardTheme,
     deleteTheme,
   } = useThemeProfiles()
+  const activeTemplateReady = isTemplateGenerationReady(activeTemplate)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -367,10 +373,25 @@ export function ChatInput({
       )}
       {/* Template Builder: locked-in template indicator */}
       {activeTemplate && (
-        <div className="mb-2 px-2 py-1.5 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-300 text-xs font-medium min-w-0">
+        <div className={`mb-2 px-2 py-1.5 border rounded-lg flex items-center justify-between ${
+          activeTemplateReady
+            ? 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800'
+            : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+        }`}>
+          <div className={`flex items-center gap-1.5 text-xs font-medium min-w-0 ${
+            activeTemplateReady
+              ? 'text-purple-700 dark:text-purple-300'
+              : 'text-amber-800 dark:text-amber-300'
+          }`}>
             <LayoutTemplate className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">Template locked: {activeTemplate.name}</span>
+            <span className="truncate">
+              {activeTemplateReady ? 'Template locked' : 'Template review only'}: {activeTemplate.name}
+            </span>
+            {!activeTemplateReady && (
+              <span className="hidden sm:inline text-[11px] font-normal opacity-80">
+                {templateGenerationUnavailableReason(activeTemplate)}
+              </span>
+            )}
           </div>
           {!templateSelectionLocked && (
             <button

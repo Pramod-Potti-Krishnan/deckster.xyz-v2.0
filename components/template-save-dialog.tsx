@@ -13,7 +13,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
-import { useTemplates, type SaveTemplateResult } from '@/hooks/use-templates'
+import {
+  isTemplateGenerationReady,
+  useTemplates,
+  type SaveTemplateResult,
+} from '@/hooks/use-templates'
 
 interface TemplateSaveDialogProps {
   open: boolean
@@ -25,7 +29,7 @@ interface TemplateSaveDialogProps {
   /** The built presentation currently owned by that session. */
   sourcePresentationId?: string | null
   /** Promote the saved template into the active builder template. */
-  onSavedTemplate?: (template: Pick<SaveTemplateResult, 'id' | 'name'>) => void
+  onSavedTemplate?: (template: SaveTemplateResult) => void
 }
 
 /**
@@ -74,12 +78,12 @@ export function TemplateSaveDialog({
       sourcePresentationId,
     })
     if (result) {
-      onSavedTemplate?.({ id: result.id, name: result.name })
-      const enrichmentQueued = result.blueprint_enrichment_status === 'queued'
+      onSavedTemplate?.(result)
+      const generationReady = isTemplateGenerationReady(result)
       toast({
         title: 'Template saved',
-        description: enrichmentQueued
-          ? `"${result.name}" (${result.slide_count} slides) is ready to reuse. Blueprint enrichment is queued.`
+        description: !generationReady
+          ? `"${result.name}" (${result.slide_count} slides) is saved. Review is available now; generation unlocks when optimization completes.`
           : `"${result.name}" (${result.slide_count} slides) is ready to reuse.`,
       })
       setName('')
