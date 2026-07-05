@@ -159,6 +159,20 @@ export interface TemplateEnrichmentResult {
   template_purified_at?: string | null;
 }
 
+export type TemplateGenerationStatus = ReturnType<typeof templateGenerationStatus>;
+
+export interface TemplateStatusWatchOptions {
+  intervalMs?: number;
+  maxAttempts?: number;
+  onUpdate?: (snapshot: TemplateSnapshot, status: TemplateGenerationStatus) => void;
+  onReady?: (snapshot: TemplateSnapshot) => void;
+  onFailed?: (snapshot: TemplateSnapshot, status: TemplateGenerationStatus) => void;
+  onTimeout?: (snapshot: TemplateSnapshot | null) => void;
+}
+
+const TEMPLATE_STATUS_POLL_INTERVAL_MS = 5000;
+const TEMPLATE_STATUS_MAX_POLL_ATTEMPTS = 24;
+
 export function isTemplateGenerationReady(template: TemplateSelection | TemplateSnapshot | null | undefined): boolean {
   if (!template) return false;
   const snapshot = template as TemplateSnapshot;
@@ -238,8 +252,12 @@ export function useTemplates() {
     }
   }, []);
 
-  const getTemplate = useCallback(async (id: string): Promise<TemplateSnapshot | null> => {
-    setLoading(true);
+  const fetchTemplate = useCallback(async (
+    id: string,
+    options: { trackLoading?: boolean } = {},
+  ): Promise<TemplateSnapshot | null> => {
+    const trackLoading = options.trackLoading !== false;
+    if (trackLoading) setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/templates/${encodeURIComponent(id)}`, { cache: 'no-store' });
@@ -252,9 +270,66 @@ export function useTemplates() {
       setError(e instanceof Error ? e : new Error(String(e)));
       return null;
     } finally {
-      setLoading(false);
+      if (trackLoading) setLoading(false);
     }
   }, []);
+
+  const getTemplate = useCallback(async (id: string): Promise<TemplateSnapshot | null> => (
+    fetchTemplate(id, { trackLoading: true })
+  ), [fetchTemplate]);
+
+  const watchTemplateStatus = useCallback((
+    id: string,
+    options: TemplateStatusWatchOptions = {},
+  ): (() => void) => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastSnapshot: TemplateSnapshot | null = null;
+    const intervalMs = options.intervalMs ?? TEMPLATE_STATUS_POLL_INTERVAL_MS;
+    const maxAttempts = options.maxAttempts ?? TEMPLATE_STATUS_MAX_POLL_ATTEMPTS;
+
+    const stop = () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+
+    const poll = async (attempt: number) => {
+      const snapshot = await fetchTemplate(id, { trackLoading: false });
+      if (cancelled) return;
+
+      if (snapshot) {
+        lastSnapshot = snapshot;
+        const status = templateGenerationStatus(snapshot);
+        options.onUpdate?.(snapshot, status);
+
+        if (isTemplateGenerationReady(snapshot)) {
+          options.onReady?.(snapshot);
+          stop();
+          return;
+        }
+
+        if (status === 'failed' || status === 'needs_cleanup') {
+          options.onFailed?.(snapshot, status);
+          stop();
+          return;
+        }
+      }
+
+      if (attempt >= maxAttempts) {
+        options.onTimeout?.(lastSnapshot);
+        stop();
+        return;
+      }
+
+      timer = setTimeout(() => void poll(attempt + 1), intervalMs);
+    };
+
+    timer = setTimeout(() => void poll(1), intervalMs);
+    return stop;
+  }, [fetchTemplate]);
 
   /**
    * Save the agreed deck of the given session as a template. Director builds the
@@ -356,6 +431,7 @@ export function useTemplates() {
     error,
     listTemplates,
     getTemplate,
+    watchTemplateStatus,
     saveTemplate,
     deleteTemplate,
     updateTemplateBlueprint,

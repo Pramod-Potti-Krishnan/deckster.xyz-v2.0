@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Loader2, RotateCw } from 'lucide-react'
 import {
   Dialog,
@@ -37,9 +37,6 @@ interface TemplateSaveDialogProps {
   onTemplateOptimizationFailed?: (templateId: string) => void
 }
 
-const MAX_POLL_ATTEMPTS = 24
-const POLL_INTERVAL_MS = 5000
-
 function templateResultFromSnapshot(snapshot: TemplateSnapshot): SaveTemplateResult {
   return {
     id: snapshot.id,
@@ -72,81 +69,60 @@ export function TemplateSaveDialog({
   onTemplateOptimizationFailed,
 }: TemplateSaveDialogProps) {
   const { toast } = useToast()
-  const { getTemplate, reoptimizeTemplate, saveTemplate, loading } = useTemplates()
+  const { reoptimizeTemplate, saveTemplate, loading, watchTemplateStatus } = useTemplates()
   const [name, setName] = useState('')
   const [trackedTemplate, setTrackedTemplate] = useState<SaveTemplateResult | null>(null)
-  const [polling, setPolling] = useState(false)
-  const [pollToken, setPollToken] = useState(0)
+  const stopStatusPollingRef = useRef<(() => void) | null>(null)
 
   const startStatusPolling = useCallback((template: SaveTemplateResult) => {
     setTrackedTemplate(template)
+    stopStatusPollingRef.current?.()
+    stopStatusPollingRef.current = null
     const status = templateGenerationStatus(template)
     if (status === 'ready' || status === 'failed' || status === 'needs_cleanup') {
-      setPolling(false)
       return
     }
-    setPolling(true)
-    setPollToken((value) => value + 1)
-  }, [])
-
-  useEffect(() => {
-    const templateId = trackedTemplate?.id
-    if (!templateId || !polling) return
-
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout> | null = null
-
-    const poll = async (attempt: number) => {
-      const snapshot = await getTemplate(templateId)
-      if (cancelled) return
-
-      if (snapshot) {
+    stopStatusPollingRef.current = watchTemplateStatus(template.id, {
+      onUpdate: (snapshot) => {
         const next = templateResultFromSnapshot(snapshot)
         setTrackedTemplate(next)
-
-        if (isTemplateGenerationReady(next)) {
-          setPolling(false)
-          onSavedTemplate?.(next)
-          toast({
-            title: 'Template ready',
-            description: `"${next.name}" is ready to reuse.`,
-          })
-          return
-        }
-
-        const nextStatus = templateGenerationStatus(next)
-        if (nextStatus === 'failed' || nextStatus === 'needs_cleanup') {
-          setPolling(false)
-          onTemplateOptimizationFailed?.(next.id)
-          toast({
-            title: nextStatus === 'needs_cleanup' ? 'Template needs cleanup' : 'Template optimization failed',
-            description: next.template_purity_error
-              || next.blueprint_enrichment_error
-              || 'Review is available; retry optimization from this dialog or the template picker.',
-            variant: 'destructive',
-          })
-          return
-        }
-      }
-
-      if (attempt >= MAX_POLL_ATTEMPTS) {
-        setPolling(false)
+      },
+      onReady: (snapshot) => {
+        const next = templateResultFromSnapshot(snapshot)
+        setTrackedTemplate(next)
+        onSavedTemplate?.(next)
+        toast({
+          title: 'Template ready',
+          description: `"${next.name}" is ready to reuse.`,
+        })
+      },
+      onFailed: (snapshot, nextStatus) => {
+        const next = templateResultFromSnapshot(snapshot)
+        setTrackedTemplate(next)
+        onTemplateOptimizationFailed?.(next.id)
+        toast({
+          title: nextStatus === 'needs_cleanup' ? 'Template needs cleanup' : 'Template optimization failed',
+          description: next.template_purity_error
+            || next.blueprint_enrichment_error
+            || 'Review is available; retry optimization from this dialog or the template picker.',
+          variant: 'destructive',
+        })
+      },
+      onTimeout: () => {
         toast({
           title: 'Template still optimizing',
-          description: 'Review is available now. Reopen Available Templates to refresh readiness before reuse.',
+          description: 'Review is available now. Available Templates will keep refreshing readiness while open.',
         })
-        return
-      }
+      },
+    })
+  }, [onSavedTemplate, onTemplateOptimizationFailed, toast, watchTemplateStatus])
 
-      timer = setTimeout(() => void poll(attempt + 1), POLL_INTERVAL_MS)
-    }
-
-    timer = setTimeout(() => void poll(1), POLL_INTERVAL_MS)
+  useEffect(() => {
     return () => {
-      cancelled = true
-      if (timer) clearTimeout(timer)
+      stopStatusPollingRef.current?.()
+      stopStatusPollingRef.current = null
     }
-  }, [getTemplate, onSavedTemplate, onTemplateOptimizationFailed, polling, pollToken, toast, trackedTemplate?.id])
+  }, [])
 
   const handleRetryOptimization = async () => {
     if (!trackedTemplate) return

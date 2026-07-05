@@ -790,6 +790,7 @@ function BuilderContent() {
 
   // FIXED: Track when generating final/strawman presentations
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
+  const [templateReuseAwaitingInput, setTemplateReuseAwaitingInput] = useState(false)
   const [isGeneratingStrawman, setIsGeneratingStrawman] = useState(false)
   const isGeneratingFinalRef = useRef(false)
   // Persist isUnsavedSession in sessionStorage so it survives page refresh.
@@ -1003,7 +1004,36 @@ function BuilderContent() {
     }
   }, [currentSlideIndex, toast])
 
+  const handleBuildThemeChange = useCallback((next: BuildThemeSelection) => {
+    if (templateSelectionLockedRef.current) {
+      toast({
+        title: 'Build selections locked',
+        description: 'Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.',
+      })
+      return
+    }
+    setBuildThemeSelection(next)
+  }, [toast])
+
+  const handleActiveBuildThemeProfileChange = useCallback((profile: ActiveBuildThemeProfile | null) => {
+    if (templateSelectionLockedRef.current) {
+      toast({
+        title: 'Build selections locked',
+        description: 'Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.',
+      })
+      return
+    }
+    setActiveBuildThemeProfile(profile)
+  }, [toast])
+
   const handleClearTemplate = useCallback(() => {
+    if (templateSelectionLockedRef.current) {
+      toast({
+        title: 'Build selections locked',
+        description: 'Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.',
+      })
+      return
+    }
     setActiveTemplate(null)
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
@@ -1014,7 +1044,7 @@ function BuilderContent() {
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
     setTemplateSourceSlideIndex(0)
-  }, [])
+  }, [toast])
 
   const handleTemplateOptimizationFailed = useCallback((templateId: string) => {
     setActiveTemplate((previous) => previous?.id === templateId ? null : previous)
@@ -1253,6 +1283,7 @@ function BuilderContent() {
         && message.payload.actions.some((action) => action.value.startsWith('template_'))
       if (isTemplateActionRequest) {
         setIsGeneratingFinal(false)
+        setTemplateReuseAwaitingInput(true)
         return
       }
 
@@ -1260,6 +1291,7 @@ function BuilderContent() {
 
       if (message.type === 'presentation_url') {
         setIsGeneratingFinal(false)
+        setTemplateReuseAwaitingInput(false)
         return
       }
 
@@ -1267,6 +1299,7 @@ function BuilderContent() {
         const status = message.payload.status
         if (status === 'idle' || status === 'complete' || status === 'error') {
           setIsGeneratingFinal(false)
+          setTemplateReuseAwaitingInput(false)
         }
       }
     },
@@ -1890,10 +1923,12 @@ function BuilderContent() {
   useEffect(() => {
     if (finalPresentationUrl && isGeneratingFinal) {
       setIsGeneratingFinal(false)
+      setTemplateReuseAwaitingInput(false)
       console.log('Final presentation ready - hiding loader')
     }
 
     if (finalPresentationUrl && finalPresentationUrl !== lastFinalPresentationUrlRef.current) {
+      setTemplateReuseAwaitingInput(false)
       setTemplateModeOn(false)
       setSelectedTemplateElementId(null)
     }
@@ -1921,9 +1956,9 @@ function BuilderContent() {
     && (effectiveSlideCount ?? 0) > 1,
   )
   const generationSelectionsLocked = Boolean(
-    buildSelectionsLocked || isGeneratingFinal || isGeneratingStrawman
+    buildSelectionsLocked || isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput
   )
-  const templateSelectionLocked = Boolean(activeTemplate && buildSelectionsLocked)
+  const templateSelectionLocked = generationSelectionsLocked
 
   useEffect(() => {
     templateSelectionLockedRef.current = generationSelectionsLocked
@@ -2021,6 +2056,7 @@ function BuilderContent() {
       // viewer's isGenerating overlay when a deck is shown, or the full loader
       // otherwise). It auto-hides when the final URL arrives (finalPresentationUrl effect).
       if (activeTemplate) {
+        setTemplateReuseAwaitingInput(false)
         setIsGeneratingFinal(true)
       }
 
@@ -2320,6 +2356,7 @@ function BuilderContent() {
         console.log('Starting final deck generation - showing loader')
       }
       if (activeTemplate && action.value.startsWith('template_')) {
+        setTemplateReuseAwaitingInput(false)
         setIsGeneratingFinal(true)
       }
 
@@ -2338,6 +2375,7 @@ function BuilderContent() {
   const handleCancelTemplateReuse = useCallback(() => {
     const sent = sendControlMessage('cancel_template_reuse')
     setIsGeneratingFinal(false)
+    setTemplateReuseAwaitingInput(false)
     setPendingActionInput(null)
     if (!sent) {
       toast({
@@ -2351,6 +2389,7 @@ function BuilderContent() {
   // Wrapped session select handler (clears local UI state too)
   const handleSessionSelectWrapped = useCallback((sessionId: string) => {
     setIsGeneratingFinal(false)
+    setTemplateReuseAwaitingInput(false)
     setIsGeneratingStrawman(false)
     setShowChatHistory(false)
     setSessionStoreName(null)
@@ -2378,6 +2417,7 @@ function BuilderContent() {
     setExtendedGenerationEnabled(true)
     setKnowledgeGraphEnabled(kgSubscribed)
     setIsGeneratingFinal(false)
+    setTemplateReuseAwaitingInput(false)
     setIsGeneratingStrawman(false)
     setShowChatHistory(false)
     setSessionStoreName(null)
@@ -2725,9 +2765,9 @@ function BuilderContent() {
                     isTemplateReuseRunning={Boolean(activeTemplate && isGeneratingFinal)}
                     onCancelTemplateReuse={handleCancelTemplateReuse}
                     buildTheme={buildThemeSelection}
-                    onBuildThemeChange={setBuildThemeSelection}
+                    onBuildThemeChange={handleBuildThemeChange}
                     activeBuildThemeProfile={activeBuildThemeProfile}
-                    onActiveBuildThemeProfileChange={setActiveBuildThemeProfile}
+                    onActiveBuildThemeProfileChange={handleActiveBuildThemeProfileChange}
                   />
                 </>
               )}
