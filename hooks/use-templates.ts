@@ -11,6 +11,10 @@ export interface SavedTemplate {
   slide_count?: number;
   source_session_id?: string | null;
   source_presentation_id?: string | null;
+  blueprint_generation_method?: TemplateBlueprintGenerationMethod | null;
+  blueprint_enrichment_status?: 'queued' | 'running' | 'complete' | 'failed' | 'skipped' | string | null;
+  blueprint_enrichment_error?: string | null;
+  blueprint_enriched_at?: string | null;
 }
 
 export interface TemplateSlot {
@@ -110,6 +114,11 @@ export interface TemplateSnapshot extends SavedTemplate {
   [key: string]: unknown;
 }
 
+export type TemplateSelection = Pick<
+  SavedTemplate,
+  'id' | 'name' | 'blueprint_generation_method' | 'blueprint_enrichment_status' | 'blueprint_enrichment_error'
+>;
+
 export interface TemplatesResponse {
   templates: SavedTemplate[];
   count: number;
@@ -121,7 +130,29 @@ export interface SaveTemplateResult {
   slide_count: number;
   created_at?: string | null;
   blueprint_generation_method?: TemplateBlueprintGenerationMethod;
-  blueprint_enrichment_status?: 'queued' | 'skipped' | string | null;
+  blueprint_enrichment_status?: 'queued' | 'running' | 'complete' | 'failed' | 'skipped' | string | null;
+  blueprint_enrichment_error?: string | null;
+  blueprint_enriched_at?: string | null;
+}
+
+export function isTemplateGenerationReady(template: TemplateSelection | TemplateSnapshot | null | undefined): boolean {
+  if (!template) return false;
+  const snapshot = template as TemplateSnapshot;
+  const method = template.blueprint_generation_method ?? snapshot.template_blueprint?.generation_method ?? null;
+  const status = template.blueprint_enrichment_status ?? null;
+  if (method === 'deterministic_fallback') return false;
+  if (status && status !== 'complete') return false;
+  return method === 'llm';
+}
+
+export function templateGenerationUnavailableReason(
+  template: TemplateSelection | TemplateSnapshot | null | undefined,
+): string {
+  if (!template) return 'Select a template first.';
+  if (template.blueprint_enrichment_status === 'failed') {
+    return 'Template optimization failed; review is available, generation unlocks after re-saving or re-optimizing.';
+  }
+  return 'Template is still being optimized; review is available, generation unlocks when enrichment completes.';
 }
 
 /**

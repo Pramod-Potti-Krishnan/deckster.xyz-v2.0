@@ -52,7 +52,14 @@ import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
 import { useQuota } from '@/hooks/use-quota'
 import { useThemeProfiles } from '@/hooks/use-theme-profiles'
-import { useTemplates, type TemplateBlueprint, type TemplateSnapshot } from '@/hooks/use-templates'
+import {
+  isTemplateGenerationReady,
+  templateGenerationUnavailableReason,
+  useTemplates,
+  type TemplateBlueprint,
+  type TemplateSelection,
+  type TemplateSnapshot,
+} from '@/hooks/use-templates'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
@@ -71,7 +78,7 @@ function scTrace(event: string, payload: Record<string, unknown>) {
   console.info('[SC_TRACE]', event, payload)
 }
 
-type BuilderTemplateSelection = { id: string; name: string }
+type BuilderTemplateSelection = TemplateSelection
 type ActiveBuildThemeProfile = { id: string; name: string }
 
 type SlideComposeJobStatus = 'building' | 'error'
@@ -140,9 +147,14 @@ function normalizeStoredTemplate(value: unknown): BuilderTemplateSelection | nul
   if (!value || typeof value !== 'object') return null
 
   const raw = value as Partial<BuilderTemplateSelection>
-  return typeof raw.id === 'string' && typeof raw.name === 'string'
-    ? { id: raw.id, name: raw.name }
-    : null
+  if (typeof raw.id !== 'string' || typeof raw.name !== 'string') return null
+  return {
+    id: raw.id,
+    name: raw.name,
+    blueprint_generation_method: raw.blueprint_generation_method,
+    blueprint_enrichment_status: raw.blueprint_enrichment_status,
+    blueprint_enrichment_error: raw.blueprint_enrichment_error,
+  }
 }
 
 function normalizeStoredBuildThemeProfile(value: unknown): ActiveBuildThemeProfile | null {
@@ -930,6 +942,15 @@ function BuilderContent() {
       const snapshot = await getTemplate(template.id)
       if (snapshot) {
         setTemplateSnapshot(snapshot)
+        setActiveTemplate((previous) => previous?.id === snapshot.id
+          ? {
+              ...previous,
+              blueprint_generation_method: snapshot.blueprint_generation_method ?? snapshot.template_blueprint?.generation_method,
+              blueprint_enrichment_status: snapshot.blueprint_enrichment_status,
+              blueprint_enrichment_error: snapshot.blueprint_enrichment_error,
+            }
+          : previous
+        )
         setTemplateBlueprintDirty(false)
         setTemplateBlueprintSaving(false)
         return snapshot
@@ -964,6 +985,12 @@ function BuilderContent() {
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
     setTemplateSnapshotLoading(false)
+    if (!isTemplateGenerationReady(template)) {
+      toast({
+        title: 'Template selected for review',
+        description: templateGenerationUnavailableReason(template),
+      })
+    }
   }, [currentSlideIndex, toast])
 
   const handleClearTemplate = useCallback(() => {
@@ -1891,6 +1918,14 @@ function BuilderContent() {
         title: `${isDaily ? 'Daily' : 'Weekly'} limit reached`,
         description: `Your ${which} budget resets ${resetLabel}. Top up reserve credits to keep generating now.`,
         variant: 'destructive',
+      })
+      return
+    }
+
+    if (activeTemplate && !isTemplateGenerationReady(activeTemplate)) {
+      toast({
+        title: 'Template generation locked',
+        description: templateGenerationUnavailableReason(activeTemplate),
       })
       return
     }

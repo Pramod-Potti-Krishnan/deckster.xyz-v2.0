@@ -9,7 +9,7 @@ import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-stri
 // slide column so it tracks the slide's right edge, not the container.
 import { ElementType, ElementProperties } from '@/types/elements'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
-import type { TemplateBlueprint, TemplateSnapshot } from '@/hooks/use-templates'
+import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/hooks/use-templates'
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -80,7 +80,7 @@ export interface PresentationAreaProps {
   deckOwnerSessionId?: string | null
   templateSavePresentationId?: string | null
   templateBuilderEnabled?: boolean
-  onSelectTemplate?: (template: { id: string; name: string }) => void
+  onSelectTemplate?: (template: TemplateSelection) => void
   templateSelectionLocked?: boolean
   templateModeOn?: boolean
   onTemplateModeChange?: (enabled: boolean) => void
