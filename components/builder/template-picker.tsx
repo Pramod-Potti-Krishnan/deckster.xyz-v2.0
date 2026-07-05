@@ -62,6 +62,8 @@ export function TemplatePickerContent({
     blueprint_generation_method: template.blueprint_generation_method,
     blueprint_enrichment_status: template.blueprint_enrichment_status,
     blueprint_enrichment_error: template.blueprint_enrichment_error,
+    template_purity_status: template.template_purity_status,
+    template_purity_error: template.template_purity_error,
   })
 
   const handleTemplateClick = (template: SavedTemplate) => {
@@ -73,9 +75,11 @@ export function TemplatePickerContent({
           ? 'Template not ready'
           : status === 'optimizing'
             ? 'Template optimizing'
-            : 'Template needs optimization',
+            : status === 'needs_cleanup'
+              ? 'Template needs cleanup'
+              : 'Template needs optimization',
         description: templateGenerationUnavailableReason(template),
-        variant: status === 'failed' ? 'destructive' : undefined,
+        variant: status === 'failed' || status === 'needs_cleanup' ? 'destructive' : undefined,
       })
       return
     }
@@ -96,7 +100,16 @@ export function TemplatePickerContent({
       title: 'Optimizing template',
       description: `"${template.name}" will unlock for generation when optimization completes.`,
     })
-    await refresh()
+    setTemplates((previous) => previous?.map((item) => item.id === template.id
+      ? {
+          ...item,
+          blueprint_enrichment_status: result.blueprint_enrichment_status ?? 'queued',
+          blueprint_enrichment_error: null,
+          template_purity_status: result.template_purity_status === 'clean' ? 'clean' : 'pending',
+          template_purity_error: null,
+        }
+      : item
+    ) ?? previous)
   }
 
   return (
@@ -117,6 +130,7 @@ export function TemplatePickerContent({
           const status = templateGenerationStatus(t)
           const failed = status === 'failed'
           const optimizing = status === 'optimizing'
+          const needsCleanup = status === 'needs_cleanup'
           const needsOptimization = status === 'needs_optimization'
           const statusLabel = templateGenerationStatusLabel(t)
           return (
@@ -138,6 +152,7 @@ export function TemplatePickerContent({
                     "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
                     ready && "bg-emerald-50 text-emerald-700",
                     failed && "bg-rose-50 text-rose-700",
+                    needsCleanup && "bg-rose-50 text-rose-700",
                     optimizing && "bg-amber-50 text-amber-700",
                     needsOptimization && "bg-slate-100 text-slate-600",
                   )}
@@ -158,10 +173,14 @@ export function TemplatePickerContent({
                 <span className="flex w-full items-center justify-between gap-2 pt-0.5 text-[11px] text-gray-500">
                   <span>
                     {mode === 'generation'
-                      ? optimizing ? 'Review only until ready' : 'Needs optimization before generation'
+                      ? optimizing
+                        ? 'Review only until ready'
+                        : needsCleanup
+                          ? 'Needs cleanup before generation'
+                          : 'Needs optimization before generation'
                       : 'Review available'}
                   </span>
-                  {failed && (
+                  {(failed || needsCleanup) && (
                     <button
                       type="button"
                       className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-rose-700 hover:bg-rose-50"

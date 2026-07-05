@@ -154,6 +154,8 @@ function normalizeStoredTemplate(value: unknown): BuilderTemplateSelection | nul
     blueprint_generation_method: raw.blueprint_generation_method,
     blueprint_enrichment_status: raw.blueprint_enrichment_status,
     blueprint_enrichment_error: raw.blueprint_enrichment_error,
+    template_purity_status: raw.template_purity_status,
+    template_purity_error: raw.template_purity_error,
   }
 }
 
@@ -954,6 +956,8 @@ function BuilderContent() {
               blueprint_generation_method: snapshot.blueprint_generation_method ?? snapshot.template_blueprint?.generation_method,
               blueprint_enrichment_status: snapshot.blueprint_enrichment_status,
               blueprint_enrichment_error: snapshot.blueprint_enrichment_error,
+              template_purity_status: snapshot.template_purity_status,
+              template_purity_error: snapshot.template_purity_error,
             }
           : previous
         )
@@ -1068,10 +1072,24 @@ function BuilderContent() {
       }
 
       setTemplateSnapshot(snapshot)
+      setActiveTemplate((previous) => previous?.id === snapshot.id
+        ? {
+            ...previous,
+            blueprint_generation_method: snapshot.blueprint_generation_method ?? snapshot.template_blueprint?.generation_method,
+            blueprint_enrichment_status: snapshot.blueprint_enrichment_status,
+            blueprint_enrichment_error: snapshot.blueprint_enrichment_error,
+            template_purity_status: snapshot.template_purity_status,
+            template_purity_error: snapshot.template_purity_error,
+          }
+        : previous
+      )
       setTemplateBlueprintDirty(false)
       toast({
         title: 'Template changes saved',
-        description: 'Reusable slide and element details are now persisted.',
+        description: isTemplateGenerationReady(snapshot)
+          ? 'Reusable slide and element details are now persisted.'
+          : templateGenerationUnavailableReason(snapshot),
+        variant: isTemplateGenerationReady(snapshot) ? undefined : 'destructive',
       })
     } finally {
       setTemplateBlueprintSaving(false)

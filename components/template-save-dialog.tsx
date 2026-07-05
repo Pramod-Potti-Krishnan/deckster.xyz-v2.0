@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import {
   isTemplateGenerationReady,
+  templateGenerationStatus,
   useTemplates,
   type SaveTemplateResult,
   type TemplateSnapshot,
@@ -49,6 +50,9 @@ function templateResultFromSnapshot(snapshot: TemplateSnapshot): SaveTemplateRes
     blueprint_enrichment_status: snapshot.blueprint_enrichment_status,
     blueprint_enrichment_error: snapshot.blueprint_enrichment_error,
     blueprint_enriched_at: snapshot.blueprint_enriched_at,
+    template_purity_status: snapshot.template_purity_status,
+    template_purity_error: snapshot.template_purity_error,
+    template_purified_at: snapshot.template_purified_at,
   }
 }
 
@@ -76,7 +80,8 @@ export function TemplateSaveDialog({
 
   const startStatusPolling = useCallback((template: SaveTemplateResult) => {
     setTrackedTemplate(template)
-    if (isTemplateGenerationReady(template) || template.blueprint_enrichment_status === 'failed') {
+    const status = templateGenerationStatus(template)
+    if (status === 'ready' || status === 'failed' || status === 'needs_cleanup') {
       setPolling(false)
       return
     }
@@ -109,12 +114,15 @@ export function TemplateSaveDialog({
           return
         }
 
-        if (next.blueprint_enrichment_status === 'failed') {
+        const nextStatus = templateGenerationStatus(next)
+        if (nextStatus === 'failed' || nextStatus === 'needs_cleanup') {
           setPolling(false)
           onTemplateOptimizationFailed?.(next.id)
           toast({
-            title: 'Template optimization failed',
-            description: next.blueprint_enrichment_error || 'Review is available; retry optimization from this dialog or the template picker.',
+            title: nextStatus === 'needs_cleanup' ? 'Template needs cleanup' : 'Template optimization failed',
+            description: next.template_purity_error
+              || next.blueprint_enrichment_error
+              || 'Review is available; retry optimization from this dialog or the template picker.',
             variant: 'destructive',
           })
           return
@@ -156,6 +164,9 @@ export function TemplateSaveDialog({
       blueprint_enrichment_status: result.blueprint_enrichment_status ?? 'queued',
       blueprint_enrichment_error: result.blueprint_enrichment_error ?? null,
       blueprint_enriched_at: result.blueprint_enriched_at,
+      template_purity_status: result.template_purity_status === 'clean' ? 'clean' : 'pending',
+      template_purity_error: null,
+      template_purified_at: result.template_purified_at ?? trackedTemplate.template_purified_at,
     }
     toast({
       title: 'Optimizing template',
@@ -192,8 +203,8 @@ export function TemplateSaveDialog({
       sourcePresentationId,
     })
     if (result) {
-      onSavedTemplate?.(result)
       const generationReady = isTemplateGenerationReady(result)
+      if (generationReady) onSavedTemplate?.(result)
       toast({
         title: 'Template saved',
         description: !generationReady
@@ -242,15 +253,19 @@ export function TemplateSaveDialog({
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 <span className="font-medium">Ready to reuse</span>
               </div>
-            ) : trackedTemplate.blueprint_enrichment_status === 'failed' ? (
+            ) : ['failed', 'needs_cleanup'].includes(templateGenerationStatus(trackedTemplate)) ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-rose-600" />
-                  <span className="font-medium">Optimization failed</span>
+                  <span className="font-medium">
+                    {templateGenerationStatus(trackedTemplate) === 'needs_cleanup'
+                      ? 'Needs cleanup'
+                      : 'Optimization failed'}
+                  </span>
                 </div>
-                {trackedTemplate.blueprint_enrichment_error && (
+                {(trackedTemplate.template_purity_error || trackedTemplate.blueprint_enrichment_error) && (
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {trackedTemplate.blueprint_enrichment_error}
+                    {trackedTemplate.template_purity_error || trackedTemplate.blueprint_enrichment_error}
                   </p>
                 )}
                 <Button

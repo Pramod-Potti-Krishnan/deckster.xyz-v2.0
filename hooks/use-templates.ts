@@ -15,6 +15,10 @@ export interface SavedTemplate {
   blueprint_enrichment_status?: 'queued' | 'running' | 'complete' | 'failed' | 'skipped' | string | null;
   blueprint_enrichment_error?: string | null;
   blueprint_enriched_at?: string | null;
+  source_fact_manifest?: Record<string, unknown> | null;
+  template_purity_status?: 'pending' | 'clean' | 'failed' | 'skipped' | string | null;
+  template_purity_error?: string | null;
+  template_purified_at?: string | null;
 }
 
 export interface TemplateSlot {
@@ -116,7 +120,13 @@ export interface TemplateSnapshot extends SavedTemplate {
 
 export type TemplateSelection = Pick<
   SavedTemplate,
-  'id' | 'name' | 'blueprint_generation_method' | 'blueprint_enrichment_status' | 'blueprint_enrichment_error'
+  | 'id'
+  | 'name'
+  | 'blueprint_generation_method'
+  | 'blueprint_enrichment_status'
+  | 'blueprint_enrichment_error'
+  | 'template_purity_status'
+  | 'template_purity_error'
 >;
 
 export interface TemplatesResponse {
@@ -133,6 +143,10 @@ export interface SaveTemplateResult {
   blueprint_enrichment_status?: 'queued' | 'running' | 'complete' | 'failed' | 'skipped' | string | null;
   blueprint_enrichment_error?: string | null;
   blueprint_enriched_at?: string | null;
+  source_fact_manifest?: Record<string, unknown> | null;
+  template_purity_status?: 'pending' | 'clean' | 'failed' | 'skipped' | string | null;
+  template_purity_error?: string | null;
+  template_purified_at?: string | null;
 }
 
 export interface TemplateEnrichmentResult {
@@ -140,6 +154,9 @@ export interface TemplateEnrichmentResult {
   blueprint_enrichment_status?: 'queued' | 'running' | 'complete' | 'failed' | 'skipped' | string | null;
   blueprint_enrichment_error?: string | null;
   blueprint_enriched_at?: string | null;
+  template_purity_status?: 'pending' | 'clean' | 'failed' | 'skipped' | string | null;
+  template_purity_error?: string | null;
+  template_purified_at?: string | null;
 }
 
 export function isTemplateGenerationReady(template: TemplateSelection | TemplateSnapshot | null | undefined): boolean {
@@ -147,29 +164,35 @@ export function isTemplateGenerationReady(template: TemplateSelection | Template
   const snapshot = template as TemplateSnapshot;
   const method = template.blueprint_generation_method ?? snapshot.template_blueprint?.generation_method ?? null;
   const status = template.blueprint_enrichment_status ?? null;
+  const purity = template.template_purity_status ?? null;
   if (method === 'deterministic_fallback') return false;
-  if (status && status !== 'complete') return false;
-  return method === 'llm';
+  return method === 'llm' && status === 'complete' && purity === 'clean';
 }
 
 export function templateGenerationStatus(
   template: TemplateSelection | TemplateSnapshot | null | undefined,
-): 'ready' | 'optimizing' | 'failed' | 'needs_optimization' {
+): 'ready' | 'optimizing' | 'failed' | 'needs_cleanup' | 'needs_optimization' {
   if (isTemplateGenerationReady(template)) return 'ready';
   if (!template) return 'needs_optimization';
+  const snapshot = template as TemplateSnapshot;
+  const method = template.blueprint_generation_method ?? snapshot.template_blueprint?.generation_method ?? null;
   const status = template.blueprint_enrichment_status ?? null;
+  const purity = template.template_purity_status ?? null;
+  if (purity === 'failed') return 'needs_cleanup';
   if (status === 'failed') return 'failed';
   if (status === 'queued' || status === 'running') return 'optimizing';
+  if (method === 'llm' && status === 'complete' && purity !== 'clean') return 'needs_cleanup';
   return 'needs_optimization';
 }
 
 export function templateGenerationStatusLabel(
   template: TemplateSelection | TemplateSnapshot | null | undefined,
-): 'Ready' | 'Optimizing' | 'Failed' | 'Needs optimization' {
+): 'Ready' | 'Optimizing' | 'Failed' | 'Needs cleanup' | 'Needs optimization' {
   const status = templateGenerationStatus(template);
   if (status === 'ready') return 'Ready';
   if (status === 'optimizing') return 'Optimizing';
   if (status === 'failed') return 'Failed';
+  if (status === 'needs_cleanup') return 'Needs cleanup';
   return 'Needs optimization';
 }
 
@@ -180,6 +203,9 @@ export function templateGenerationUnavailableReason(
   const status = templateGenerationStatus(template);
   if (status === 'failed') {
     return 'Template optimization failed; review is available, generation unlocks after re-saving or re-optimizing.';
+  }
+  if (status === 'needs_cleanup') {
+    return 'Template needs cleanup before generation; review is available, generation unlocks after re-optimizing or editing the template.';
   }
   if (status === 'needs_optimization') {
     return 'Template needs optimization before generation; review is available now.';
