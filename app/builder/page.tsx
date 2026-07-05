@@ -1006,6 +1006,18 @@ function BuilderContent() {
     setTemplateSourceSlideIndex(0)
   }, [])
 
+  const handleTemplateOptimizationFailed = useCallback((templateId: string) => {
+    setActiveTemplate((previous) => previous?.id === templateId ? null : previous)
+    setTemplateModeOn(false)
+    setTemplateSnapshot((previous) => previous?.id === templateId ? null : previous)
+    setTemplateSnapshotLoading(false)
+    setTemplateBlueprintDirty(false)
+    setTemplateBlueprintSaving(false)
+    setTemplateParamsCollapsed(false)
+    setTemplateOverrides({})
+    setSelectedTemplateElementId(null)
+  }, [])
+
   const handleTemplateOverrideChange = useCallback((
     slideIndex: number,
     overrideKey: string,
@@ -2800,6 +2812,7 @@ function BuilderContent() {
             templateSavePresentationId={templateSavePresentationId}
             templateBuilderEnabled={templateBuilderEnabled}
             onSelectTemplate={handleSelectTemplate}
+            onTemplateOptimizationFailed={handleTemplateOptimizationFailed}
             templateSelectionLocked={templateSelectionLocked}
             templateModeOn={templateModeOn}
             onTemplateModeChange={handleTemplateModeChange}

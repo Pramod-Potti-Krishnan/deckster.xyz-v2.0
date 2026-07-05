@@ -135,6 +135,13 @@ export interface SaveTemplateResult {
   blueprint_enriched_at?: string | null;
 }
 
+export interface TemplateEnrichmentResult {
+  id: string;
+  blueprint_enrichment_status?: 'queued' | 'running' | 'complete' | 'failed' | 'skipped' | string | null;
+  blueprint_enrichment_error?: string | null;
+  blueprint_enriched_at?: string | null;
+}
+
 export function isTemplateGenerationReady(template: TemplateSelection | TemplateSnapshot | null | undefined): boolean {
   if (!template) return false;
   const snapshot = template as TemplateSnapshot;
@@ -273,6 +280,26 @@ export function useTemplates() {
     }
   }, []);
 
+  const reoptimizeTemplate = useCallback(async (id: string): Promise<TemplateEnrichmentResult | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/templates/${encodeURIComponent(id)}/enrich`, {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || `template optimization failed: HTTP ${res.status}`);
+      }
+      return data as TemplateEnrichmentResult;
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -281,5 +308,6 @@ export function useTemplates() {
     saveTemplate,
     deleteTemplate,
     updateTemplateBlueprint,
+    reoptimizeTemplate,
   };
 }
