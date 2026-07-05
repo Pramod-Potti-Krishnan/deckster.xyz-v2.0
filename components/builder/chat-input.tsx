@@ -556,7 +556,7 @@ export function ChatInput({
                     }`}
                     title={activeThemeLabel}
                     aria-label="Build theme"
-                    disabled={!user || isLoadingSession}
+                    disabled={!user || isLoadingSession || templateSelectionLocked}
                   >
                     <Palette className="h-4 w-4" />
                   </button>
@@ -571,7 +571,7 @@ export function ChatInput({
                         value={buildTheme.mode === 'preset' ? buildTheme.preset_id || 'auto' : 'auto'}
                         onChange={(event) => handlePresetChange(event.target.value)}
                         className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                        disabled={themePresetsLoading}
+                        disabled={themePresetsLoading || templateSelectionLocked}
                       >
                         <option value="auto">Auto / default</option>
                         {themePresets.map((preset) => (
@@ -592,6 +592,7 @@ export function ChatInput({
                           onChange={(event) => handleBrandHexChange(event.target.value)}
                           className="h-8 w-9 rounded border border-gray-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900"
                           aria-label="Brand color"
+                          disabled={templateSelectionLocked}
                         />
                         <input
                           value={brandHexDraft}
@@ -599,6 +600,7 @@ export function ChatInput({
                           className="h-8 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 font-mono text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           placeholder="#1e40af"
                           aria-label="Brand hex color"
+                          disabled={templateSelectionLocked}
                         />
                       </div>
                     </div>
@@ -618,6 +620,7 @@ export function ChatInput({
                         value={selectedSavedThemeId || ''}
                         onChange={(event) => handleSavedThemeChange(event.target.value)}
                         className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        disabled={templateSelectionLocked}
                       >
                         <option value="">Select saved theme</option>
                         {savedThemes.map((theme) => (
@@ -634,6 +637,7 @@ export function ChatInput({
                             className="flex h-7 items-center gap-1 rounded-md border border-gray-200 px-2 text-[11px] text-gray-700 hover:bg-gray-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                             title="Set as standard"
                             aria-label="Set as standard"
+                            disabled={templateSelectionLocked}
                           >
                             <Star className="h-3.5 w-3.5" />
                             {activeSavedTheme.is_standard ? 'Standard' : 'Set standard'}
@@ -644,6 +648,7 @@ export function ChatInput({
                             className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-red-600 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                             title="Delete saved theme"
                             aria-label="Delete saved theme"
+                            disabled={templateSelectionLocked}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -656,6 +661,7 @@ export function ChatInput({
                             type="button"
                             onClick={handleClearStandardTheme}
                             className="shrink-0 text-sky-600 hover:text-sky-700 dark:text-sky-300"
+                            disabled={templateSelectionLocked}
                           >
                             Clear
                           </button>
@@ -679,11 +685,12 @@ export function ChatInput({
                           className="h-8 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           placeholder="Theme name"
                           aria-label="Theme name"
+                          disabled={templateSelectionLocked}
                         />
                         <button
                           type="button"
                           onClick={handleSaveCurrentTheme}
-                          disabled={buildTheme.mode === 'auto' || !saveThemeName.trim() || themeProfilesLoading}
+                          disabled={templateSelectionLocked || buildTheme.mode === 'auto' || !saveThemeName.trim() || themeProfilesLoading}
                           className="flex h-8 w-8 items-center justify-center rounded-md bg-sky-600 text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700"
                           title="Save current theme"
                           aria-label="Save current theme"
@@ -697,6 +704,7 @@ export function ChatInput({
                           checked={saveAsStandard}
                           onChange={(event) => setSaveAsStandard(event.target.checked)}
                           className="h-3 w-3"
+                          disabled={templateSelectionLocked}
                         />
                         Set as standard
                       </label>

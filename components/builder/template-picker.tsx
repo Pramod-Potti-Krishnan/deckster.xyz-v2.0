@@ -20,6 +20,7 @@ import {
   useTemplates,
   type SavedTemplate,
   type TemplateSelection,
+  type TemplateSnapshot,
 } from '@/hooks/use-templates'
 
 type TemplatePickerMode = 'generation' | 'review'
@@ -44,8 +45,13 @@ export function TemplatePickerContent({
   mode = 'generation',
 }: TemplatePickerContentProps) {
   const { toast } = useToast()
-  const { listTemplates, loading, reoptimizeTemplate } = useTemplates()
+  const { listTemplates, loading, reoptimizeTemplate, watchTemplateStatus } = useTemplates()
   const [templates, setTemplates] = useState<SavedTemplate[] | null>(null)
+
+  const savedFromSnapshot = useCallback((snapshot: TemplateSnapshot): SavedTemplate => ({
+    ...snapshot,
+    slide_count: snapshot.slide_count ?? snapshot.template_blueprint?.slides?.length ?? 0,
+  }), [])
 
   const refresh = useCallback(async () => {
     const res = await listTemplates()
@@ -55,6 +61,41 @@ export function TemplatePickerContent({
   useEffect(() => {
     if (isOpen) void refresh()
   }, [isOpen, refresh])
+
+  useEffect(() => {
+    if (!isOpen || !templates?.length) return
+    const optimizing = templates.filter((template) => templateGenerationStatus(template) === 'optimizing')
+    if (optimizing.length === 0) return
+
+    const stops = optimizing.map((template) => watchTemplateStatus(template.id, {
+      onUpdate: (snapshot) => {
+        const next = savedFromSnapshot(snapshot)
+        setTemplates((previous) => previous?.map((item) => (
+          item.id === next.id ? { ...item, ...next } : item
+        )) ?? previous)
+      },
+      onReady: (snapshot) => {
+        const next = savedFromSnapshot(snapshot)
+        setTemplates((previous) => previous?.map((item) => (
+          item.id === next.id ? { ...item, ...next } : item
+        )) ?? previous)
+        toast({
+          title: 'Template ready',
+          description: `"${next.name}" is ready to reuse.`,
+        })
+      },
+      onFailed: (snapshot) => {
+        const next = savedFromSnapshot(snapshot)
+        setTemplates((previous) => previous?.map((item) => (
+          item.id === next.id ? { ...item, ...next } : item
+        )) ?? previous)
+      },
+    }))
+
+    return () => {
+      stops.forEach((stop) => stop())
+    }
+  }, [isOpen, savedFromSnapshot, templates, toast, watchTemplateStatus])
 
   const toSelection = (template: SavedTemplate): TemplateSelection => ({
     id: template.id,
