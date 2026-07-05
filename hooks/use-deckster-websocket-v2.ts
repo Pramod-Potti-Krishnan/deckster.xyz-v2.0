@@ -281,6 +281,8 @@ export interface UserMessage {
     template_mode?: boolean;
     template_id?: string;
     element_overrides?: TemplateOverrides;
+    action_value?: string;
+    action_label?: string;
   };
 }
 
@@ -1283,6 +1285,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       templateMode?: boolean;
       templateId?: string | null;
       elementOverrides?: TemplateOverrides;
+      actionValue?: string;
+      actionLabel?: string;
     },
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -1309,6 +1313,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.templateMode && { template_mode: true }),
           ...(options?.templateId && { template_id: options.templateId }),
           ...(options?.elementOverrides && { element_overrides: options.elementOverrides }),
+          ...(options?.actionValue && { action_value: options.actionValue }),
+          ...(options?.actionLabel && { action_label: options.actionLabel }),
         },
       };
 
@@ -1316,7 +1322,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         '📤 Sending message:',
         text,
         effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
-        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}]`
+        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}]`
       );
       wsRef.current.send(JSON.stringify(message));
 
