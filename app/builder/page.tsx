@@ -980,7 +980,7 @@ function BuilderContent() {
     if (templateSelectionLockedRef.current) {
       toast({
         title: 'Build selections locked',
-        description: 'This deck is already generated. Start a new chat to choose a different template or theme.',
+        description: 'Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.',
       })
       return
     }
@@ -1920,11 +1920,14 @@ function BuilderContent() {
     && !isBlankPresentation
     && (effectiveSlideCount ?? 0) > 1,
   )
+  const generationSelectionsLocked = Boolean(
+    buildSelectionsLocked || isGeneratingFinal || isGeneratingStrawman
+  )
   const templateSelectionLocked = Boolean(activeTemplate && buildSelectionsLocked)
 
   useEffect(() => {
-    templateSelectionLockedRef.current = buildSelectionsLocked
-  }, [buildSelectionsLocked])
+    templateSelectionLockedRef.current = generationSelectionsLocked
+  }, [generationSelectionsLocked])
 
   // Set strawman generation flag
   useEffect(() => {
@@ -2718,7 +2721,7 @@ function BuilderContent() {
                     activeTemplate={activeTemplate}
                     onSelectTemplate={handleSelectTemplate}
                     onClearTemplate={handleClearTemplate}
-                    templateSelectionLocked={buildSelectionsLocked}
+                    templateSelectionLocked={generationSelectionsLocked}
                     isTemplateReuseRunning={Boolean(activeTemplate && isGeneratingFinal)}
                     onCancelTemplateReuse={handleCancelTemplateReuse}
                     buildTheme={buildThemeSelection}
