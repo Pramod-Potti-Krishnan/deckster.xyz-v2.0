@@ -12,6 +12,7 @@
     "dev": "next dev",
     "lint": "next lint",
     "test:director-sync-recovery": "node scripts/test-director-sync-recovery.mjs",
+    "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "start": "next start",
     "postinstall": "prisma generate"
   },

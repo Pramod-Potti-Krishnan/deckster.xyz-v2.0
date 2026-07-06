@@ -63,7 +63,6 @@ export function TemplateSaveDialog({
   open,
   onOpenChange,
   sessionId,
-  deckOwnerSessionId,
   sourcePresentationId,
   onSavedTemplate,
   onTemplateOptimizationFailed,
@@ -165,14 +164,6 @@ export function TemplateSaveDialog({
       toast({ title: 'No completed deck to save', description: 'Build a deck before saving a template.', variant: 'destructive' })
       return
     }
-    if (!deckOwnerSessionId || deckOwnerSessionId !== sessionId) {
-      toast({
-        title: 'Deck/session mismatch',
-        description: 'Refresh this session before saving the deck as a template.',
-        variant: 'destructive',
-      })
-      return
-    }
     const result = await saveTemplate({
       name: trimmed,
       sourceSessionId: sessionId,
@@ -269,7 +260,7 @@ export function TemplateSaveDialog({
           </Button>
           <Button
             onClick={() => void handleSave()}
-            disabled={loading || !name.trim() || !sessionId || !sourcePresentationId || deckOwnerSessionId !== sessionId}
+            disabled={loading || !name.trim() || !sessionId || !sourcePresentationId}
           >
             {loading ? 'Saving…' : 'Save Template'}
           </Button>

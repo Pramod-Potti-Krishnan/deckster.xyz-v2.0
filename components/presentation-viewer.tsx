@@ -71,6 +71,7 @@ import { ThemePanel } from './theme-panel'
 import { TemplateModeOverlay } from './builder/template-mode-overlay'
 import { TemplatePickerContent } from './builder/template-picker'
 import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/hooks/use-templates'
+import { getTemplateSaveGate } from '@/lib/template-save-gate'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
@@ -400,15 +401,20 @@ export function PresentationViewer({
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPresentationSettings, setShowPresentationSettings] = useState(false)
   const [showThemePanel, setShowThemePanel] = useState(false)
-  const canSaveTemplate = Boolean(
-    templateBuilderEnabled
-    && sessionId
-    && deckOwnerSessionId === sessionId
-    && presentationUrl
-    && templateSavePresentationId
-    && !isBlankPresentation
-    && !templateModeOn
-  )
+  const templateSaveGate = getTemplateSaveGate({
+    templateBuilderEnabled,
+    sessionId,
+    deckOwnerSessionId,
+    presentationUrl,
+    presentationId,
+    finalPresentationUrl,
+    templateSavePresentationId,
+    activeVersion,
+    isBlankPresentation,
+    templateModeOn,
+  })
+  const canSaveTemplate = templateSaveGate.canSave
+  const resolvedTemplateSavePresentationId = templateSaveGate.sourcePresentationId
   // View mode toggles (grid, borders, edit) - only shown in non-fullscreen
   const [isGridActive, setIsGridActive] = useState(false)
   const [isBordersActive, setIsBordersActive] = useState(false)
@@ -2107,6 +2113,7 @@ export function PresentationViewer({
                     <DropdownMenuContent align="center" sideOffset={8} className="w-56 p-1">
                       <DropdownMenuItem
                         disabled={!canSaveTemplate}
+                        title={!canSaveTemplate && templateSaveGate.disabledReason ? templateSaveGate.disabledReason.replace(/_/g, ' ') : undefined}
                         className="cursor-pointer gap-2"
                         onClick={() => setShowTemplateSave(true)}
                       >
@@ -2621,7 +2628,7 @@ export function PresentationViewer({
         onOpenChange={setShowTemplateSave}
         sessionId={sessionId ?? null}
         deckOwnerSessionId={deckOwnerSessionId ?? null}
-        sourcePresentationId={templateModeOn ? null : templateSavePresentationId}
+        sourcePresentationId={templateModeOn ? null : resolvedTemplateSavePresentationId}
         onSavedTemplate={onSelectTemplate}
         onTemplateOptimizationFailed={onTemplateOptimizationFailed}
       />
