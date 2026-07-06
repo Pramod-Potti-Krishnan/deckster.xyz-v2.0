@@ -799,6 +799,23 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 }
                 break;
 
+              case 'chat_message':
+                // Non-ephemeral assistant messages are terminal responses for the
+                // current turn (for example, the plan proposal after
+                // "Analyzing presentation strategy..."). Clear the working pulse so
+                // it cannot remain pinned below the actual response/action card.
+                if ((message.payload as any).ephemeral !== true) {
+                  newState.currentStatus = null;
+                }
+                break;
+
+              case 'action_request':
+                // Action cards mean Director is waiting on the user, not still
+                // thinking. Without this, a prior status_update can leave the chat
+                // stuck visually on the old "Analyzing..." pulse.
+                newState.currentStatus = null;
+                break;
+
               case 'sync_response':
                 // Sync protocol response - Director confirms whether to skip history
                 debugLog('🔄 Sync response received:', {
