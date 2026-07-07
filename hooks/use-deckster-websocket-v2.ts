@@ -17,6 +17,25 @@ export interface BaseMessage {
   payload: any;
 }
 
+const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
+  'chat_message',
+  'action_request',
+  'slide_update',
+  'presentation_init',
+  'presentation_url',
+  'status_update',
+  'sync_response',
+  'slide_context',
+  'token_usage',
+  'slide_progress',
+  'slide_ready',
+  'slide_failed',
+]);
+
+function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
+  return typeof type === 'string' && KNOWN_DIRECTOR_MESSAGE_TYPES.has(type as BaseMessage['type']);
+}
+
 // Sync response from Director when connecting with skip_history=true
 export interface SyncResponse {
   message_id: string;
@@ -761,7 +780,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             return;
           }
 
-          const message = normalizeDirectorMessageFrame(JSON.parse(event.data));
+          const parsedMessage = normalizeDirectorMessageFrame(JSON.parse(event.data)) as DirectorMessage & { type?: unknown };
+          if (!isKnownDirectorMessageType(parsedMessage.type)) {
+            return;
+          }
+
+          const message = parsedMessage as DirectorMessage;
 
           // Add client-side timestamp for message ordering
           const messageWithTimestamp = {
@@ -1172,6 +1196,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   stage: message.payload.stage,
                   errors: message.payload.errors,
                 });
+                break;
+
+              default:
                 break;
             }
 
