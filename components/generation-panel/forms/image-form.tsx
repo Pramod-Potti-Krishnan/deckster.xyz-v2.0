@@ -7,6 +7,8 @@ import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
+import { ThemeSourceSelector } from '../shared/theme-source-selector'
+import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.IMAGE
 
@@ -79,10 +81,10 @@ interface ImageFormProps {
   registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ImageFormProps) {
+export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ImageFormProps) {
   // Image config
   const [style, setStyle] = useState<TextLabsImageStyle>('realistic')
-  const [quality, setQuality] = useState<'standard' | 'hd'>('standard')
+  const [quality, setQuality] = useState<ImageConfig['quality']>('standard')
   const [corners, setCorners] = useState<'square' | 'rounded'>('square')
   const [border, setBorder] = useState(false)
   const [autoPosition, setAutoPosition] = useState(false)
@@ -94,6 +96,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
   const [selectedPositionPreset, setSelectedPositionPreset] = useState<string | null>(null)
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
   // Section visibility
   const [showStyle, setShowStyle] = useState(false)
@@ -186,11 +189,14 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
       layout: 'horizontal',
       advancedModified,
       z_index: zIndex,
+      presentationId,
+      useDeckTheme,
+      themeOverrides,
       imageConfig,
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, style, quality, corners, border, autoPosition, startCol, startRow, width, height, advancedModified, zIndex, paddingConfig, onSubmit])
+  }, [prompt, style, quality, corners, border, autoPosition, startCol, startRow, width, height, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -208,19 +214,27 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, elementConte
       {/* Style Options */}
       <CollapsibleSection title="Style" isOpen={showStyle} onToggle={() => setShowStyle(!showStyle)}>
         <div className="space-y-2">
+          <ThemeSourceSelector
+            presentationId={presentationId}
+            value={themeSource}
+            onChange={updateThemeSource}
+          />
+
           {/* Quality */}
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Quality</label>
             <select
               value={quality}
               onChange={(e) => {
-                setQuality(e.target.value as 'standard' | 'hd')
+                setQuality(e.target.value as ImageConfig['quality'])
                 setAdvancedModified(true)
               }}
               className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
+              <option value="draft">Draft</option>
               <option value="standard">Standard</option>
-              <option value="hd">HD</option>
+              <option value="high">High</option>
+              <option value="ultra">Ultra</option>
             </select>
           </div>
 

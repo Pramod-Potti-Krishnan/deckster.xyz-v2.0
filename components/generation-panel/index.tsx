@@ -200,7 +200,7 @@ function FormRouter({
     case 'IMAGE':
       return <ImageForm {...commonProps} />
     case 'ICON_LABEL':
-      return <IconLabelForm onSubmit={onSubmit} registerSubmit={registerSubmit} isGenerating={isGenerating} prompt={prompt} showAdvanced={showAdvanced} registerMandatoryConfig={registerMandatoryConfig} />
+      return <IconLabelForm onSubmit={onSubmit} registerSubmit={registerSubmit} isGenerating={isGenerating} presentationId={presentationId} prompt={prompt} showAdvanced={showAdvanced} registerMandatoryConfig={registerMandatoryConfig} />
     case 'SHAPE':
       return <ShapeForm {...commonProps} />
     case 'INFOGRAPHIC':

@@ -9,6 +9,8 @@ import { FontOverrideSection } from '../shared/font-override-section'
 import { PositionPresets } from '../shared/position-presets'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
+import { ThemeSourceSelector } from '../shared/theme-source-selector'
+import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.METRICS
 
@@ -51,6 +53,7 @@ const DEFAULT_METRICS_CONFIG: MetricsConfig = {
   alignment: 'center',
   color_scheme: 'gradient',
   color_variant: null,
+  trend: null,
   placeholder_mode: false,
   value_min_chars: 2,
   value_max_chars: 6,
@@ -89,13 +92,14 @@ interface MetricsFormProps {
   registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: MetricsFormProps) {
+export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: MetricsFormProps) {
   const [count, setCount] = useState(1)
   const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [config, setConfig] = useState<MetricsConfig>({ ...DEFAULT_METRICS_CONFIG })
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
   // Section visibility
   const [showInstances, setShowInstances] = useState(false)
@@ -154,10 +158,10 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.color_scheme])
 
-  const fontColorPresets = config.color_scheme === 'accent' ? DARK_FONT_COLORS : LIGHT_FONT_COLORS
+  const fontColorPresets = ['accent', 'transparent', 'bordered'].includes(config.color_scheme) ? DARK_FONT_COLORS : LIGHT_FONT_COLORS
 
   // Register mandatory config — Color Scheme
-  const colorSchemeLabel = { gradient: 'Gradient', solid: 'Solid', accent: 'Pastel' }[config.color_scheme] || 'Gradient'
+  const colorSchemeLabel = { gradient: 'Gradient', solid: 'Solid', accent: 'Pastel', transparent: 'Transparent', bordered: 'Bordered' }[config.color_scheme] || 'Gradient'
 
   useEffect(() => {
     registerMandatoryConfig({
@@ -167,6 +171,8 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
         { value: 'gradient', label: 'Gradient' },
         { value: 'solid', label: 'Solid' },
         { value: 'accent', label: 'Pastel' },
+        { value: 'transparent', label: 'Transparent' },
+        { value: 'bordered', label: 'Bordered' },
       ],
       onChange: (v) => updateConfig('color_scheme', v),
       promptPlaceholder: 'e.g., Key financial metrics for Q4 2024 including revenue, growth, and profit margin',
@@ -181,15 +187,19 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
       layout,
       advancedModified,
       z_index: zIndex,
+      presentationId,
+      useDeckTheme,
+      themeOverrides,
       metricsConfig: {
         ...config,
+        layout,
         placeholder_mode: contentSource === 'placeholder',
       },
       positionConfig: positionConfig.auto_position ? undefined : positionConfig,
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, contentSource, config, advancedModified, zIndex, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, layout, contentSource, config, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -242,6 +252,12 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
       {/* Section 2: Card Design */}
       <CollapsibleSection title="Card Design" isOpen={showCardDesign} onToggle={() => setShowCardDesign(!showCardDesign)}>
         <div className="space-y-2">
+          <ThemeSourceSelector
+            presentationId={presentationId}
+            value={themeSource}
+            onChange={updateThemeSource}
+          />
+
           <ToggleRow
             label="Corners"
             field="corners"
@@ -272,6 +288,17 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
               { value: 'right', label: 'R' },
             ]}
             onChange={(f, v) => updateConfig(f, v)}
+          />
+          <ToggleRow
+            label="Trend"
+            field="trend"
+            value={config.trend || 'none'}
+            options={[
+              { value: 'none', label: 'None' },
+              { value: 'arrow', label: 'Arrow' },
+              { value: 'pill', label: 'Pill' },
+            ]}
+            onChange={(_, v) => updateConfig('trend', v === 'none' ? null : v)}
           />
           {/* Card Color */}
           <div className="space-y-1">

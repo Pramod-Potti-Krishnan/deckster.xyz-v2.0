@@ -166,12 +166,20 @@ export async function generateInfographic(
   sessionId: string,
   message: string,
   referenceImage: File,
-  config?: Record<string, unknown>
+  config?: Record<string, unknown>,
+  options?: {
+    presentationId?: string | null
+    useDeckTheme?: boolean
+    themeOverrides?: Record<string, unknown> | null
+  }
 ): Promise<TextLabsResponse> {
   const formData = new FormData()
   formData.append('session_id', sessionId)
   formData.append('message', message)
   formData.append('reference_image', referenceImage)
+  if (options?.presentationId) formData.append('presentation_id', options.presentationId)
+  if (options?.useDeckTheme !== undefined) formData.append('use_deck_theme', String(options.useDeckTheme))
+  if (options?.themeOverrides) formData.append('theme_overrides', JSON.stringify(options.themeOverrides))
 
   if (config) {
     formData.append('infographic_config', JSON.stringify(config))

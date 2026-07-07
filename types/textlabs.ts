@@ -148,8 +148,10 @@ export interface MetricsConfig {
   corners: 'rounded' | 'square'
   border: boolean
   alignment: 'left' | 'center' | 'right'
-  color_scheme: 'gradient' | 'solid' | 'accent'
+  color_scheme: 'gradient' | 'solid' | 'accent' | 'transparent' | 'bordered'
+  layout?: 'horizontal' | 'vertical' | 'grid'
   color_variant: string | null
+  trend?: 'arrow' | 'pill' | null
   placeholder_mode: boolean
   value_min_chars: number
   value_max_chars: number
@@ -189,7 +191,7 @@ export interface TableConfig {
   rows: number          // 2-10
   stripe_rows: boolean
   corners: 'rounded' | 'square'
-  header_style: 'solid' | 'minimal' | 'accent'
+  header_style: 'solid' | 'minimal' | 'accent' | 'pastel'
   alignment: 'left' | 'center' | 'right'
   border_style: 'light' | 'medium' | 'heavy' | 'none'
   header_color: string | null
@@ -198,6 +200,7 @@ export interface TableConfig {
   show_total_row: boolean
   col_balance: 'descriptive' | 'data'
   column_widths: number[]   // per-column width percentages
+  dark_overrides?: Record<string, string> | null
   placeholder_mode: boolean
   header_min_chars: number
   header_max_chars: number
@@ -227,6 +230,7 @@ export type TextLabsChartType =
   | 'line' | 'bar_vertical' | 'bar_horizontal' | 'pie' | 'doughnut'
   | 'scatter' | 'bubble' | 'radar' | 'polar_area' | 'area'
   | 'area_stacked' | 'bar_grouped' | 'bar_stacked' | 'waterfall'
+  | 'd3_treemap' | 'd3_sunburst' | 'd3_choropleth_usa' | 'd3_sankey'
 
 export interface ChartConfig {
   chart_type: TextLabsChartType
@@ -234,6 +238,9 @@ export interface ChartConfig {
   series_names: string[]          // parsed from comma-separated input
   placeholder_mode: boolean
   data: unknown[] | null          // null = AI generates, array = custom JSON data
+  colors?: string[] | null
+  color_mode?: 'multi' | 'same' | 'transparency' | null
+  chart_font?: string | null
 }
 
 // ============================================================================
@@ -246,7 +253,7 @@ export type TextLabsImageStyle =
 
 export interface ImageConfig {
   style: TextLabsImageStyle
-  quality: 'standard' | 'hd'
+  quality: 'draft' | 'standard' | 'high' | 'ultra'
   corners: 'square' | 'rounded'
   border: boolean
   placeholder_mode: boolean
@@ -267,10 +274,12 @@ export interface ImageConfig {
 
 export interface IconLabelConfig {
   mode: 'icon' | 'label'
-  size: 'small' | 'medium' | 'large'
+  size: 'xs' | 'small' | 'medium' | 'large'
   style: 'flat' | 'pastel' | 'circle' | 'square' | 'circle-outline' | 'square-outline'
   font: 'poppins' | 'inter' | 'playfair' | 'roboto_mono'
   color: string | null
+  target_background?: string | null
+  exclude_icons?: string[]
 }
 
 // ============================================================================
@@ -278,8 +287,12 @@ export interface IconLabelConfig {
 // ============================================================================
 
 export type TextLabsShapeType =
-  | 'circle' | 'rectangle' | 'triangle' | 'star'
-  | 'diamond' | 'arrow' | 'polygon' | 'custom'
+  | 'circle' | 'ellipse' | 'square' | 'rectangle' | 'triangle'
+  | 'pentagon' | 'hexagon' | 'heptagon' | 'octagon'
+  | 'rhombus' | 'parallelogram' | 'trapezoid' | 'kite'
+  | 'line-horizontal' | 'line-vertical' | 'line-diagonal'
+  | 'star' | 'cross' | 'arrow' | 'doughnut' | 'cloud' | 'heart' | 'crescent'
+  | 'polygon' | 'custom'
 
 export interface ShapeConfig {
   shape_type: TextLabsShapeType | null   // null when custom
@@ -287,10 +300,11 @@ export interface ShapeConfig {
   sides: number | null                   // 3-12, only for polygon
   fill_color: string
   stroke_color: string
-  stroke_width: number                   // 0-20
+  stroke_width: number                   // 0-10
   opacity: number                        // 0-1
   rotation: number                       // 0-359 degrees
   size: 'small' | 'medium' | 'large'
+  target_background?: string | null
   // Pixel-based positioning (primary)
   x: number               // 0-1919
   y: number               // 0-1079
@@ -308,6 +322,7 @@ export interface ShapeConfig {
 // ============================================================================
 
 export interface InfographicConfig {
+  mode: 'v1' | 'v2'
   aspect_ratio: 'auto' | '16:9' | '4:3' | '1:1' | '3:2' | '9:16'
   segments: 'auto' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8'
   crop_mode: 'shape' | 'rectangle'
@@ -321,6 +336,18 @@ export interface InfographicConfig {
   start_row: number
   width: number
   height: number
+  layout_family?: 'horizontal_top' | 'horizontal_center' | 'vertical_left' | 'vertical_center' | null
+  template_id?: string | null
+  segment_items?: Array<{
+    label: string
+    sublabel?: string
+    description?: string
+    icon_hint?: string
+    color?: string
+  }>
+  segment_colors?: string[]
+  text_mode?: 'none' | 'heading' | 'heading_sublabel'
+  show_icons?: boolean
 }
 
 // ============================================================================

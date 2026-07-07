@@ -5,6 +5,8 @@ import { IconLabelFormData, IconLabelConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '
 import { MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { ZIndexInput } from '../shared/z-index-input'
+import { ThemeSourceSelector } from '../shared/theme-source-selector'
+import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.ICON_LABEL
 
@@ -41,15 +43,18 @@ interface IconLabelFormProps {
   registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, showAdvanced, registerMandatoryConfig }: IconLabelFormProps) {
+export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presentationId, prompt, showAdvanced, registerMandatoryConfig }: IconLabelFormProps) {
   const [count, setCount] = useState(1)
   const [mode, setMode] = useState<'icon' | 'label'>('icon')
   const [size, setSize] = useState<IconLabelConfig['size']>('medium')
   const [style, setStyle] = useState<IconLabelConfig['style']>('circle')
   const [font, setFont] = useState<IconLabelConfig['font']>('poppins')
   const [color, setColor] = useState<string | null>(null)
+  const [targetBackground, setTargetBackground] = useState('light')
+  const [excludeIconsInput, setExcludeIconsInput] = useState('')
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
   // Register mandatory config — Mode
   useEffect(() => {
@@ -75,16 +80,21 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, 
       layout: 'horizontal',
       advancedModified,
       z_index: zIndex,
+      presentationId,
+      useDeckTheme,
+      themeOverrides,
       iconLabelConfig: {
         mode,
         size,
         style,
         font,
         color,
+        target_background: targetBackground,
+        exclude_icons: excludeIconsInput.split(',').map(item => item.trim()).filter(Boolean),
       },
     }
     onSubmit(formData)
-  }, [prompt, count, mode, size, style, font, color, advancedModified, zIndex, onSubmit])
+  }, [prompt, count, mode, size, style, font, color, targetBackground, excludeIconsInput, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -93,6 +103,12 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, 
   return (
     <div className="space-y-2.5">
       {showAdvanced && (<>
+      <ThemeSourceSelector
+        presentationId={presentationId}
+        value={themeSource}
+        onChange={updateThemeSource}
+      />
+
       {/* Count */}
       <div className="space-y-1">
         <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
@@ -113,6 +129,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, 
         field="size"
         value={size}
         options={[
+          { value: 'xs', label: 'XS' },
           { value: 'small', label: 'S' },
           { value: 'medium', label: 'M' },
           { value: 'large', label: 'L' },
@@ -184,6 +201,34 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, prompt, 
             </button>
           )}
         </div>
+      </div>
+
+      <ToggleRow
+        label="Background"
+        field="target_background"
+        value={targetBackground}
+        options={[
+          { value: 'light', label: 'Light' },
+          { value: 'dark', label: 'Dark' },
+        ]}
+        onChange={(_, v) => {
+          setTargetBackground(v)
+          setAdvancedModified(true)
+        }}
+      />
+
+      <div className="space-y-1">
+        <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Exclude Icons</label>
+        <input
+          type="text"
+          value={excludeIconsInput}
+          onChange={(e) => {
+            setExcludeIconsInput(e.target.value)
+            setAdvancedModified(true)
+          }}
+          placeholder="e.g., star, circle-dot"
+          className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
+        />
       </div>
 
       {/* Z-Index */}

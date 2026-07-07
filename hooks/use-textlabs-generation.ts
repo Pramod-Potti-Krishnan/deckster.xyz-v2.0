@@ -150,7 +150,12 @@ export function useTextLabsGeneration({
           sessionId,
           formData.prompt,
           formData.referenceImage,
-          formData.infographicConfig as Record<string, unknown>
+          formData.infographicConfig as Record<string, unknown>,
+          {
+            presentationId: formData.presentationId,
+            useDeckTheme: formData.useDeckTheme,
+            themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
+          }
         )
       } else {
         const { message, options } = buildApiPayload(sessionId, formData)

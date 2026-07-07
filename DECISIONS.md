@@ -10,3 +10,9 @@
 - `TEXT_BOX_HORIZONTAL` remains hidden. The Text Labs producer normalizes `horizontal` to `None` pending PK design approval, so the frontend exposes the approved `classic`, `vertical`, `mixed`, `simple`, and seven structured atom routes only.
 - The Add Element theme selector defaults to `Deck theme` when a presentation id is available and to `No theme` otherwise. Saved-profile `Another theme` is hidden behind `NEXT_PUBLIC_ENABLE_ELEMENT_ANOTHER_THEME=true` because frontend source provides concrete hex fields for custom profiles but not for built-in preset ids.
 - The frontend sends `presentation_id` on `/api/canvas/session` and every `/api/chat/message`. The current Text Labs session route ignores bodies, so `/api/chat/message` remains the authoritative per-request presentation/theme linkage until Text Labs persists session presentation ids from the session body.
+
+## P4 Remaining Forms
+
+- Shape picker follows current Illustrator source (`BasicShapeType` plus renderer dispatch): 24 direct shape values plus `custom`, not the plan snapshot's 29. Current code wins; the mismatch is surfaced for PK/UAT.
+- Metrics count remains clamped to 4 in the frontend instead of routing >4 through COMPOSE. This is the safer option because COMPOSE is already exposed in the TEXT_BOX path and metrics COMPOSE UAT should happen against deployed Text Labs.
+- Theme source is rendered for every remaining form, but saved-profile `Another theme` remains behind the same off-by-default flag from P3.

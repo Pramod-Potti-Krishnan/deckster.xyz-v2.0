@@ -17,6 +17,8 @@ import {
 } from '@/types/textlabs'
 import { ToggleRow } from '../shared/toggle-row'
 import { ZIndexInput } from '../shared/z-index-input'
+import { ThemeSourceSelector } from '../shared/theme-source-selector'
+import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.DIAGRAM
 
@@ -76,10 +78,11 @@ interface DiagramFormProps {
   registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: DiagramFormProps) {
+export function DiagramForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: DiagramFormProps) {
   const [subtype, setSubtype] = useState<TextLabsDiagramSubtype>('CODE_DISPLAY')
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
   // Code Display state
   const [language, setLanguage] = useState('python')
@@ -187,10 +190,13 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
       layout: 'horizontal',
       advancedModified,
       z_index: zIndex,
+      presentationId,
+      useDeckTheme,
+      themeOverrides,
       diagramConfig: buildDiagramConfig(),
     }
     onSubmit(formData)
-  }, [prompt, subtype, advancedModified, zIndex, buildDiagramConfig, onSubmit])
+  }, [prompt, subtype, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, buildDiagramConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -201,6 +207,12 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, elementCon
       {showAdvanced && (<>
       {/* Subtype-specific options */}
       <div className="space-y-2">
+          <ThemeSourceSelector
+            presentationId={presentationId}
+            value={themeSource}
+            onChange={updateThemeSource}
+          />
+
           {subtype === 'CODE_DISPLAY' && (
             <>
               <div className="space-y-1">
