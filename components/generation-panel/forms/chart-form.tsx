@@ -58,15 +58,6 @@ const CHART_TYPE_GROUPS: { group: string; types: { value: TextLabsChartType; lab
       { value: 'waterfall', label: 'Waterfall Chart' },
     ],
   },
-  {
-    group: 'D3',
-    types: [
-      { value: 'd3_treemap', label: 'Treemap' },
-      { value: 'd3_sunburst', label: 'Sunburst' },
-      { value: 'd3_choropleth_usa', label: 'US Choropleth' },
-      { value: 'd3_sankey', label: 'Sankey' },
-    ],
-  },
 ]
 
 // Chart types that support series names

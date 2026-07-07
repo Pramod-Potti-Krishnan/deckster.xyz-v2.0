@@ -12,14 +12,15 @@ function asHex(value: unknown): string | undefined {
 
 function derivePalette(vars: Record<string, unknown>): ThemePalette | null {
   const primary = asHex(vars['--theme-primary'] ?? vars['--theme-color-primary'] ?? vars.primary)
-  const secondary = asHex(vars['--theme-secondary'] ?? vars['--theme-color-secondary'] ?? vars.secondary)
-  const text = asHex(vars['--theme-text'] ?? vars['--theme-text-primary'] ?? vars.text)
-  const background = asHex(vars['--theme-background'] ?? vars['--theme-surface'] ?? vars.background)
+  const secondary = asHex(vars['--theme-primary-dark'] ?? vars['--theme-secondary'] ?? vars['--theme-accent'] ?? vars.secondary)
+  const text = asHex(vars['--theme-text-primary'] ?? vars['--theme-text-body'] ?? vars['--theme-text'] ?? vars.text)
+  const background = asHex(vars['--theme-bg'] ?? vars['--theme-background'] ?? vars['--theme-bg-alt'] ?? vars.background)
   const accentCandidates = [
     vars['--theme-accent'],
     vars['--theme-accent-1'],
     vars['--theme-accent-2'],
     vars['--theme-accent-3'],
+    vars['--theme-primary-light'],
     vars['--theme-tertiary'],
     vars.accent,
     vars.tertiary,

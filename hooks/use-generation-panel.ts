@@ -73,7 +73,7 @@ export function useGenerationPanel() {
     setEditElementId(context.elementId)
     setRefineContext(context)
     setRefineWebResearch(false)
-    setRefineUploadedDocs(Boolean(context.research.store_name))
+    setRefineUploadedDocs(false)
     setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)

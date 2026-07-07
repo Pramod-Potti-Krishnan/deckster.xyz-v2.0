@@ -266,6 +266,12 @@ export function buildApiPayload(
     options.elements = formData.elements
   }
 
+  if (formData.componentType === 'METRICS' && (advancedModified || formData.compose)) {
+    options.metricsConfig = formData.metricsConfig as Record<string, unknown>
+    options.compose = formData.compose
+    options.elements = formData.elements
+  }
+
   // Attach element-specific config when user modified advanced settings
   if (advancedModified) {
     switch (formData.componentType) {
@@ -357,7 +363,12 @@ function extractBodyContent(html: string): string {
  */
 export function buildInsertionParams(
   componentType: TextLabsAllComponentType,
-  element: { html?: string; image_url?: string; image_data_url?: string },
+  element: {
+    html?: string
+    image_url?: string
+    image_data_url?: string
+    grid_position?: Partial<TextLabsPositionConfig> & { width?: number; height?: number }
+  },
   positionConfig?: TextLabsPositionConfig,
   paddingConfig?: TextLabsPaddingConfig,
   zIndex?: number,
@@ -370,10 +381,11 @@ export function buildInsertionParams(
   const baseType = isDiagramSubtype(componentType) ? 'DIAGRAM' : componentType as TextLabsComponentType
   const defaults = getDefaultSize(baseType)
 
-  const startCol = positionConfig?.start_col ?? 2
-  const startRow = positionConfig?.start_row ?? 4
-  const width = positionConfig?.position_width ?? defaults.width
-  const height = positionConfig?.position_height ?? defaults.height
+  const gridPosition = element.grid_position
+  const startCol = gridPosition?.start_col ?? positionConfig?.start_col ?? 2
+  const startRow = gridPosition?.start_row ?? positionConfig?.start_row ?? 4
+  const width = gridPosition?.position_width ?? gridPosition?.width ?? positionConfig?.position_width ?? defaults.width
+  const height = gridPosition?.position_height ?? gridPosition?.height ?? positionConfig?.position_height ?? defaults.height
   const elementZIndex = zIndex ?? defaults.zIndex
 
   const elementId = `${baseType.toLowerCase()}_${Date.now()}`

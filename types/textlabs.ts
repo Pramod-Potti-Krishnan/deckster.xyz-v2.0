@@ -230,7 +230,6 @@ export type TextLabsChartType =
   | 'line' | 'bar_vertical' | 'bar_horizontal' | 'pie' | 'doughnut'
   | 'scatter' | 'bubble' | 'radar' | 'polar_area' | 'area'
   | 'area_stacked' | 'bar_grouped' | 'bar_stacked' | 'waterfall'
-  | 'd3_treemap' | 'd3_sunburst' | 'd3_choropleth_usa' | 'd3_sankey'
 
 export interface ChartConfig {
   chart_type: TextLabsChartType
@@ -321,10 +320,21 @@ export interface ShapeConfig {
 // INFOGRAPHIC CONFIG
 // ============================================================================
 
+export interface InfographicV2Segment {
+  label: string
+  sublabel?: string
+  description?: string
+  icon_hint?: string
+  color?: string
+  connector_side?: 'left' | 'right' | 'top' | 'bottom' | null
+}
+
+export type InfographicSegmentCount = 'auto' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8'
+
 export interface InfographicConfig {
   mode: 'v1' | 'v2'
   aspect_ratio: 'auto' | '16:9' | '4:3' | '1:1' | '3:2' | '9:16'
-  segments: 'auto' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8'
+  segments: InfographicSegmentCount | InfographicV2Segment[]
   crop_mode: 'shape' | 'rectangle'
   target_background: 'light' | 'dark'
   fill_internal: boolean
@@ -338,13 +348,6 @@ export interface InfographicConfig {
   height: number
   layout_family?: 'horizontal_top' | 'horizontal_center' | 'vertical_left' | 'vertical_center' | null
   template_id?: string | null
-  segment_items?: Array<{
-    label: string
-    sublabel?: string
-    description?: string
-    icon_hint?: string
-    color?: string
-  }>
   segment_colors?: string[]
   text_mode?: 'none' | 'heading' | 'heading_sublabel'
   show_icons?: boolean
@@ -452,6 +455,8 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
 export interface MetricsFormData extends TextLabsBaseFormData {
   componentType: 'METRICS'
   metricsConfig: Partial<MetricsConfig>
+  compose?: boolean
+  elements?: TextBoxFormData['elements']
 }
 
 export interface TableFormData extends TextLabsBaseFormData {

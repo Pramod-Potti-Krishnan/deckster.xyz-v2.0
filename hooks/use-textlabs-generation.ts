@@ -223,10 +223,15 @@ export function useTextLabsGeneration({
 
       // Insert each element into the canvas
       const effectiveSlideIndex = currentBlankInfo?.slideIndex ?? refineContext?.slideIndex ?? currentSlideIndex
-      for (const element of elements) {
+      const formElements = 'elements' in formData ? formData.elements : undefined
+      for (const [index, element] of elements.entries()) {
+        const fallbackGridPosition = formElements?.[index]?.grid_position
+        const elementWithPosition = fallbackGridPosition && !(element as any).grid_position
+          ? { ...element, grid_position: fallbackGridPosition }
+          : element
         const { method, params } = buildInsertionParams(
           element.component_type,
-          element,
+          elementWithPosition,
           formData.positionConfig,
           formData.paddingConfig,
           formData.z_index,
