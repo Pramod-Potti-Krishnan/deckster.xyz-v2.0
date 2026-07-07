@@ -63,7 +63,10 @@ export function useDeckThemePalette(presentationId?: string | null) {
       })
       .then(data => {
         if (cancelled) return
-        setPalette(derivePalette(data || {}))
+        const vars = data?.css_variables && typeof data.css_variables === 'object'
+          ? data.css_variables
+          : data
+        setPalette(derivePalette(vars || {}))
       })
       .catch(err => {
         if (cancelled) return
