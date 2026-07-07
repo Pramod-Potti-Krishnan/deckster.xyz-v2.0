@@ -414,21 +414,34 @@ export function SlideGenerationPanel({
     const instruction = buildInstruction(prompt, keyMessage, questions, answers)
     const hasSelections = Object.keys(selections).length > 0
     const insertAfterIndex = presentationId ? Math.max(0, currentSlide - 1) : null
-    const requestBody: Record<string, unknown> = {
-      session_id: sessionId,
-      presentation_id: presentationId,
-      insert_after_index: insertAfterIndex,
-      instruction,
-      theme: buildThemeSelection,
-      selections: hasSelections ? selections : undefined,
-      research: {
-        use_uploaded_documents: !isDiagram && hasUploadedFiles && useUploadedDocuments,
-        use_web_search: !isDiagram && useWebSearch,
-        use_deep_research: !isDiagram && useDeepResearch,
-        use_knowledge_graph: !isDiagram && KG_CARD_ENABLED && useKnowledgeGraph,
-        web_search_max_queries: webSearchMaxQueries,
-      },
+    const researchPayload = {
+      use_uploaded_documents: !isDiagram && hasUploadedFiles && useUploadedDocuments,
+      use_web_search: !isDiagram && useWebSearch,
+      use_deep_research: !isDiagram && useDeepResearch,
+      use_knowledge_graph: !isDiagram && KG_CARD_ENABLED && useKnowledgeGraph,
+      web_search_max_queries: webSearchMaxQueries,
     }
+    const endpoint = isRefineMode ? '/api/slides/refine' : '/api/slides/compose'
+    const requestBody: Record<string, unknown> = isRefineMode
+      ? {
+          session_id: sessionId,
+          presentation_id: presentationId,
+          slide_id: refineTarget?.slide_id ?? null,
+          slide_index: Math.max(0, refineTarget?.slide_index ?? currentSlide - 1),
+          instruction,
+          theme: buildThemeSelection,
+          selections: hasSelections ? selections : undefined,
+          research: researchPayload,
+        }
+      : {
+          session_id: sessionId,
+          presentation_id: presentationId,
+          insert_after_index: insertAfterIndex,
+          instruction,
+          theme: buildThemeSelection,
+          selections: hasSelections ? selections : undefined,
+          research: researchPayload,
+        }
 
     setError(null)
     setSuccessMessage(null)
@@ -443,7 +456,22 @@ export function SlideGenerationPanel({
       return
     }
 
-    if (!instruction && !hasSelections) {
+    if (isRefineMode && !presentationId) {
+      setError('No active presentation is available to refine.')
+      return
+    }
+
+    if (isRefineMode && !refineTarget) {
+      setError('Choose a slide to refine.')
+      return
+    }
+
+    if (isRefineMode && !instruction) {
+      setError('Describe what should change.')
+      return
+    }
+
+    if (!isRefineMode && !instruction && !hasSelections) {
       setError('Describe the slide or choose an optional slide setting.')
       return
     }
@@ -455,15 +483,17 @@ export function SlideGenerationPanel({
         job_id: jobId,
         session_id: sessionId,
         presentation_id: presentationId,
+        mode: isRefineMode ? 'refine' : 'compose',
         current_slide_prop: currentSlide,
         insert_after_index: insertAfterIndex,
+        refine_target: isRefineMode ? refineTarget : null,
         instruction_preview: instruction.slice(0, 160),
         selections,
         research: requestBody.research,
       })
 
       try {
-        const response = await fetch('/api/slides/compose', {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(asyncRequest),
@@ -490,10 +520,13 @@ export function SlideGenerationPanel({
         setAnswers({})
         setPrompt('')
         setKeyMessage('')
-        setSuccessMessage(`Building slide ${data.target_index + 1} in the background.`)
+        setSuccessMessage(isRefineMode
+          ? `Refining slide ${refineSlideNumber} in the background.`
+          : `Building slide ${data.target_index + 1} in the background.`
+        )
         onAccepted?.({
           ...data,
-          title: instruction.slice(0, 72) || 'Composing slide',
+          title: instruction.slice(0, 72) || (isRefineMode ? 'Refining slide' : 'Composing slide'),
           request: asyncRequest,
         })
         return
@@ -509,7 +542,7 @@ export function SlideGenerationPanel({
 
     setIsGenerating(true)
     try {
-      const response = await fetch('/api/slides/compose', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -535,7 +568,7 @@ export function SlideGenerationPanel({
         setAnswers({})
         setPrompt('')
         setKeyMessage('')
-        setSuccessMessage(`Built slide ${data.slide_index + 1}.`)
+        setSuccessMessage(isRefineMode ? `Updated slide ${data.slide_index + 1}.` : `Built slide ${data.slide_index + 1}.`)
         onBuilt(data)
         return
       }
@@ -552,6 +585,7 @@ export function SlideGenerationPanel({
     currentSlide,
     enabled,
     hasUploadedFiles,
+    isRefineMode,
     isDiagram,
     keyMessage,
     onAccepted,
@@ -559,6 +593,8 @@ export function SlideGenerationPanel({
     presentationId,
     prompt,
     questions,
+    refineSlideNumber,
+    refineTarget,
     selections,
     sessionId,
     useDeepResearch,
