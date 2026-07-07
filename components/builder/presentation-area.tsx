@@ -108,6 +108,7 @@ export interface PresentationAreaProps {
   templateCurrentSlideIndex?: number
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
+  thumbnailUrlsBySlide?: Record<number, string>
   selectedTemplateElementId?: string | null
   blueprintEditorV2Enabled?: boolean
   onTemplateSlideChange?: (slideIndex: number) => void
@@ -169,6 +170,7 @@ export function PresentationArea({
   templateCurrentSlideIndex,
   composeJobs = [],
   onRefineSlide,
+  thumbnailUrlsBySlide = {},
   selectedTemplateElementId = null,
   blueprintEditorV2Enabled = false,
   onTemplateSlideChange,
@@ -264,6 +266,7 @@ export function PresentationArea({
             templateModeAvailable={templateModeAvailable}
             composeJobs={composeJobs}
             onRefineSlide={onRefineSlide}
+            thumbnailUrlsBySlide={thumbnailUrlsBySlide}
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
             templateCurrentSlideIndex={templateCurrentSlideIndex}

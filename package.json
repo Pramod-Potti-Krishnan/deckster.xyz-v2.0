@@ -47,6 +47,7 @@
     "test:diagram-reliability": "node scripts/test-diagram-reliability.mjs",
     "test:diagram-structured-retry": "node scripts/test-diagram-reliability.mjs && node scripts/test-textlabs-abort-signal.mjs",
     "test:layout-command-result": "node scripts/test-layout-command-result.mjs",
+    "test:stage-f-thumbnails": "node scripts/test-stage-f-thumbnails.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "test:upload-status-contract": "node scripts/test-upload-status-contract.mjs",
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",

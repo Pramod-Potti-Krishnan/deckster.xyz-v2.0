@@ -22,6 +22,7 @@ export interface SlideThumbnail {
   slideId?: string | null
   title?: string
   content?: string
+  thumbnailUrl?: string
 }
 
 export interface SlideComposeThumbnailJob {
@@ -33,6 +34,7 @@ export interface SlideComposeThumbnailJob {
   status: 'building' | 'error'
   title?: string
   lastProgressText?: string
+  thumbnailUrl?: string
   errors?: string[]
   onRetry?: (jobId: string) => void
   onSelect?: (jobId: string) => void
@@ -358,6 +360,7 @@ export function SlideThumbnailStrip({
       ? `Slide ${visualNumber}`
       : slide.title
     const titleText = isRefining ? (refineJob.lastProgressText || 'Refining slide') : displayTitle
+    const thumbnailUrl = slide.thumbnailUrl?.trim()
 
     const thumbnailContent = (
       <div
@@ -441,31 +444,40 @@ export function SlideThumbnailStrip({
           )}
           disabled={isItemProcessing}
         >
-          {/* Mini-slide preview — 16:9 schematic showing a slide silhouette.
-              Not a real render (that needs Layout Service support); this is
-              the strongest interim visual cue that beats text-only thumbs. */}
           <div className={cn(
-            "relative w-full aspect-[16/9] flex flex-col justify-end p-2 gap-1",
-            isActive
-              ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-slate-700 dark:to-slate-800"
+            "relative w-full aspect-[16/9] overflow-hidden",
+            thumbnailUrl
+              ? "bg-slate-950"
+              : isActive
+              ? "flex flex-col justify-end p-2 gap-1 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-slate-700 dark:to-slate-800"
               : isSelected
-              ? "bg-blue-50 dark:bg-slate-800"
-              : "bg-slate-100 dark:bg-slate-800"
+              ? "flex flex-col justify-end p-2 gap-1 bg-blue-50 dark:bg-slate-800"
+              : "flex flex-col justify-end p-2 gap-1 bg-slate-100 dark:bg-slate-800"
           )}>
-            {/* Schematic title bar */}
-            <div className={cn(
-              "h-1 w-3/4 rounded-sm",
-              isActive ? "bg-blue-400 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
-            )} />
-            {/* Schematic body lines */}
-            <div className={cn(
-              "h-0.5 w-2/3 rounded-sm",
-              isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
-            )} />
-            <div className={cn(
-              "h-0.5 w-1/2 rounded-sm",
-              isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
-            )} />
+            {thumbnailUrl ? (
+              <img
+                src={thumbnailUrl}
+                alt={`${displayTitle} thumbnail`}
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <>
+                <div className={cn(
+                  "h-1 w-3/4 rounded-sm",
+                  isActive ? "bg-blue-400 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
+                )} />
+                <div className={cn(
+                  "h-0.5 w-2/3 rounded-sm",
+                  isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
+                )} />
+                <div className={cn(
+                  "h-0.5 w-1/2 rounded-sm",
+                  isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
+                )} />
+              </>
+            )}
 
             {isRefining && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-indigo-950/10 text-indigo-700 backdrop-blur-[1px]">
@@ -475,8 +487,10 @@ export function SlideThumbnailStrip({
 
             {/* Slide number badge in corner */}
             <div className={cn(
-              "absolute top-1.5 left-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded px-1 text-[9px] font-semibold leading-none",
-              isActive
+              "absolute top-1.5 left-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded px-1 text-[9px] font-semibold leading-none shadow-sm",
+              thumbnailUrl
+                ? "bg-slate-900/80 text-white"
+                : isActive
                 ? "bg-blue-600 text-white"
                 : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
             )}>

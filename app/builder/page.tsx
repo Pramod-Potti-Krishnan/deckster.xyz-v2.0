@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeProgress, type SlideComposeReady, type SlideComposeFailed } from "@/hooks/use-deckster-websocket-v2"
+import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeProgress, type SlideBuilt, type SlideComposeReady, type SlideComposeFailed } from "@/hooks/use-deckster-websocket-v2"
 import { useChatSessions } from "@/hooks/use-chat-sessions"
 import { useSessionPersistence } from "@/hooks/use-session-persistence"
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
@@ -61,6 +61,7 @@ import {
   normalizeSlideComposeJobRecoveryResult,
   resolveSlideComposeSessionId,
 } from '@/lib/slide-compose-job-recovery'
+import { mergeStageFThumbnailUrl } from '@/lib/stage-f-thumbnails'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
@@ -715,6 +716,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     slideCount: number | null
     refreshToken: number
   } | null>(null)
+  const [slideThumbnailUrls, setSlideThumbnailUrls] = useState<Record<number, string>>({})
   const [slideComposeJobs, setSlideComposeJobs] = useState<Record<string, SlideComposeJobState>>({})
   const [slideComposePanelEvent, setSlideComposePanelEvent] = useState<SlideComposePanelEvent | null>(null)
   const slideComposerPresentationRef = useRef<{
@@ -1245,6 +1247,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setManualDeckHandoffBusy(false)
     setSlideComposerOverride(null)
     clearSlideComposerWork()
+    setSlideThumbnailUrls({})
+    setSlideComposeJobs({})
+    Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
+    slideComposeWatchdogsRef.current = {}
+    Object.values(slideComposePollersRef.current).forEach(clearInterval)
+    slideComposePollersRef.current = {}
+    pendingComposePlaceholdersRef.current.clear()
+    slideComposeReconcileQueuesRef.current = {}
+    slideComposeFallbackReloadInFlightRef.current = false
     setSelectedLayoutSlideIndex(0)
     setShowFormatPanel(false)
     setTemplateModeOn(false)
@@ -1771,6 +1782,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           console.warn('[Slide Composer] Failed to update in-deck placeholder progress.', error)
         })
     },
+    onSlideBuilt: (message: SlideBuilt) => {
+      const { slide_index, thumbnail_url } = message.payload
+      setSlideThumbnailUrls(prev =>
+        mergeStageFThumbnailUrl(prev, slide_index, thumbnail_url),
+      )
+    },
     onSlideComposeReady: (message: SlideComposeReady) => {
       const payload = message.payload
       const readyJob = slideComposeJobsRef.current[payload.job_id]
@@ -1792,6 +1809,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         })
         return
       }
+      setSlideThumbnailUrls(prev =>
+        mergeStageFThumbnailUrl(prev, payload.slide_index, payload.thumbnail_url),
+      )
       const presentationKey = payload.presentation_id
         ?? slideComposerPresentationRef.current.presentationId
         ?? '__unknown__'
@@ -3986,6 +4006,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setIsGeneratingFinal(false)
     setTemplateReuseAwaitingInput(false)
     setIsGeneratingStrawman(false)
+    setSlideThumbnailUrls({})
     setShowChatHistory(false)
     setSessionStoreName(null)
     // The KG switch is a per-deck privacy choice, never a global sticky bit.
@@ -4632,6 +4653,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
             composeJobs={slideComposeThumbnailJobs}
+            thumbnailUrlsBySlide={slideThumbnailUrls}
             templateCurrentSlideIndex={templateSourceSlideIndex}
             selectedTemplateElementId={selectedTemplateElementId}
             blueprintEditorV2Enabled={blueprintEditorV2Enabled}

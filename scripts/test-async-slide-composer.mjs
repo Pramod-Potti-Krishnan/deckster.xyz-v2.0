@@ -169,6 +169,24 @@ assert.equal(JSON.stringify(topLevelReady.payload), JSON.stringify({
   presentation_id: 'deck-1',
 }))
 
+const topLevelBuilt = normalizeSlideComposeSocketFrame({
+  type: 'slide_built',
+  message_id: 'msg-built-1',
+  session_id: 'session-1',
+  timestamp: '2026-07-07T00:00:00Z',
+  presentation_id: 'deck-1',
+  slide_index: 3,
+  thumbnail_url: 'https://cdn.test/3.png?v=1',
+  qa_verdict: 'green',
+})
+
+assert.equal(JSON.stringify(topLevelBuilt.payload), JSON.stringify({
+  presentation_id: 'deck-1',
+  slide_index: 3,
+  thumbnail_url: 'https://cdn.test/3.png?v=1',
+  qa_verdict: 'green',
+}))
+
 const payloadFailed = {
   type: 'slide_failed',
   message_id: 'msg-2',

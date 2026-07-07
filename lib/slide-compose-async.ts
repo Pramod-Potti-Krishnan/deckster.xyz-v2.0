@@ -52,7 +52,7 @@ export function withAsyncSlideComposeFields<T extends Record<string, unknown>>(
 export function normalizeSlideComposeSocketFrame<T extends { type?: string; payload?: unknown } & Record<string, unknown>>(
   raw: T,
 ): T {
-  if ((raw.type === 'slide_ready' || raw.type === 'slide_failed') && !raw.payload) {
+  if ((raw.type === 'slide_ready' || raw.type === 'slide_failed' || raw.type === 'slide_built') && !raw.payload) {
     const { type, message_id, session_id, timestamp, ...payload } = raw
     return {
       message_id,
