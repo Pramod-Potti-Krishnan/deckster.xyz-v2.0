@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { PresentationViewer, TextBoxFormatting, type SlideComposeViewerApi } from "@/components/presentation-viewer"
+import { PresentationViewer, TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi } from "@/components/presentation-viewer"
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
 import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-strip"
@@ -70,6 +70,7 @@ export interface PresentationAreaProps {
   }
   // Generation panel handler (for toolbar)
   onOpenGenerationPanel?: (type: string) => void
+  onRefineElementRequested?: (payload: RefineElementRequest) => void
   onEditModeChange?: (isEditing: boolean) => void
   // Bottom toolbar items (moved from header)
   connected: boolean
@@ -124,6 +125,7 @@ export function PresentationArea({
   blankElements,
   generationPanel,
   onOpenGenerationPanel,
+  onRefineElementRequested,
   onEditModeChange,
   connected,
   connecting,
@@ -196,6 +198,7 @@ export function PresentationArea({
             onApiReady={onApiReady}
             onComposeApiReady={onComposeApiReady}
             onOpenGenerationPanel={onOpenGenerationPanel}
+            onRefineElementRequested={onRefineElementRequested}
             connected={connected}
             connecting={connecting}
             onElementMoved={(elementId, gridRow, gridColumn) => {

@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult } from '@/components/slide-generation-panel'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
-import { TextBoxFormatting, type SlideComposeViewerApi } from '@/components/presentation-viewer'
+import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties, SlideLayoutType } from '@/types/elements'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -25,6 +25,7 @@ import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { iframeTypeToTextLabs, isTextLabsMappable } from '@/lib/element-type-mapping'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
+import type { TextLabsComponentType } from '@/types/textlabs'
 // Extracted components
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
@@ -78,6 +79,50 @@ const DEFAULT_DRAWER_WIDTH = 420
 const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 1
+const TEXTLABS_COMPONENT_TYPES = new Set<TextLabsComponentType>([
+  'TEXT_BOX',
+  'METRICS',
+  'TABLE',
+  'CHART',
+  'IMAGE',
+  'ICON_LABEL',
+  'SHAPE',
+  'INFOGRAPHIC',
+  'DIAGRAM',
+])
+
+function normalizeTextLabsElementType(value: unknown): TextLabsComponentType | null {
+  if (typeof value !== 'string') return null
+  const upper = value.toUpperCase().replace(/[-\s]/g, '_') as TextLabsComponentType
+  if (TEXTLABS_COMPONENT_TYPES.has(upper)) return upper
+
+  switch (value.toLowerCase()) {
+    case 'text':
+    case 'textbox':
+    case 'text_box':
+      return 'TEXT_BOX'
+    case 'image':
+      return 'IMAGE'
+    case 'table':
+      return 'TABLE'
+    case 'chart':
+      return 'CHART'
+    case 'infographic':
+      return 'INFOGRAPHIC'
+    case 'diagram':
+      return 'DIAGRAM'
+    case 'shape':
+      return 'SHAPE'
+    case 'icon':
+    case 'icon_label':
+    case 'icon-label':
+      return 'ICON_LABEL'
+    case 'metrics':
+      return 'METRICS'
+    default:
+      return null
+  }
+}
 
 function scTrace(event: string, payload: Record<string, unknown>) {
   if (typeof window === 'undefined') return
@@ -2414,6 +2459,31 @@ function BuilderContent() {
     toast,
   })
 
+  const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
+    if (!features.useTextLabsGeneration) return
+
+    const componentType = normalizeTextLabsElementType(payload.elementType)
+    if (!componentType) {
+      console.warn('[ElementRefine] Unsupported element type from viewer:', payload.elementType)
+      return
+    }
+
+    const blankInfo = blankElements.getElement(payload.elementId)
+    if (payload.isBlank || blankInfo) {
+      generationPanel.openPanelForElement(componentType, payload.elementId)
+      bringToFront('element')
+      setShowElementPanel(false)
+      setShowTextBoxPanel(false)
+      setShowFormatPanel(false)
+      return
+    }
+
+    console.info('[ElementRefine] Built-element refine is wired in R0; ignoring guarded stub.', {
+      elementId: payload.elementId,
+      elementType: payload.elementType,
+    })
+  }, [blankElements, generationPanel, bringToFront])
+
   // File upload state
   const {
     files: uploadedFiles,
@@ -3460,6 +3530,7 @@ function BuilderContent() {
             blankElements={blankElements}
             generationPanel={generationPanel}
             onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
+            onRefineElementRequested={features.useTextLabsGeneration ? handleRefineElementRequested : undefined}
             connected={connected}
             connecting={connecting}
             toolbarPortalTarget={toolbarPortalTarget}

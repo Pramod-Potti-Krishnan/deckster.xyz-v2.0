@@ -67,6 +67,21 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   'setTextBoxTextTransform',
 ])
 
+// Messages the embedded Layout Service viewer is allowed to send back to Builder.
+export const LAYOUT_VIEWER_EVENTS = new Set([
+  // Existing selection/status events
+  'textBoxSelected',
+  'textBoxDeselected',
+  'elementSelected',
+  'elementDeselected',
+  'elementMoved',
+  'save_status',
+
+  // Add Element edit/refine lifecycle events
+  'refineElementRequested',
+  'saveStatusChanged',
+])
+
 // AI generation commands that go to Elementor
 // Elementor auto-injects content into Layout Service, so no resultCommand needed
 export const ELEMENTOR_COMMANDS = new Set([
@@ -96,4 +111,8 @@ export function getCommandType(action: string): 'layout-service' | 'elementor' |
  */
 export function isElementorCommand(action: string): boolean {
   return ELEMENTOR_COMMANDS.has(action)
+}
+
+export function isLayoutViewerEvent(type: string): boolean {
+  return LAYOUT_VIEWER_EVENTS.has(type)
 }

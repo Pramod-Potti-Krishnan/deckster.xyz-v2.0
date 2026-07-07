@@ -82,7 +82,8 @@ import { getTemplateSaveGate } from '@/lib/template-save-gate'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
-  isElementorCommand
+  isElementorCommand,
+  isLayoutViewerEvent,
 } from '@/lib/element-command-router'
 import {
   ELEMENTOR_BASE_URL,
@@ -127,6 +128,24 @@ export interface TextBoxFormatting {
   borderRadius?: string
 }
 
+export interface RefineElementRequest {
+  elementId: string
+  elementType: string
+  slideIndex?: number
+  gridPosition?: {
+    gridRow?: string
+    gridColumn?: string
+    startCol?: number
+    startRow?: number
+    width?: number
+    height?: number
+  }
+  isBlank?: boolean
+  formatting?: Record<string, unknown>
+  properties?: Record<string, unknown>
+  content?: unknown
+}
+
 interface PresentationViewerProps {
   presentationUrl: string
   presentationId: string | null
@@ -151,6 +170,7 @@ interface PresentationViewerProps {
   onElementDeselected?: () => void
   // Text Labs Generation Panel - opens generation panel for the given element type
   onOpenGenerationPanel?: (type: string) => void  // Uses string to avoid coupling to TextLabsComponentType
+  onRefineElementRequested?: (payload: RefineElementRequest) => void
   // Element moved/resized on canvas (for position sync with GenerationPanel)
   onElementMoved?: (elementId: string, gridRow: string, gridColumn: string) => void
   // Bottom toolbar items (moved from header)
@@ -385,6 +405,7 @@ export function PresentationViewer({
   onApiReady,
   onComposeApiReady,
   onOpenGenerationPanel,
+  onRefineElementRequested,
   onElementMoved,
   toolbarPortalTarget,
   toolbarOffset = 0,
@@ -2055,22 +2076,37 @@ export function PresentationViewer({
     }
   }, [isFullscreen])
 
-  // Listen for save status events from iframe
+  // Listen for save status/refine events from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== VIEWER_ORIGIN) return
+      const type = event.data?.type
+      if (typeof type !== 'string' || !isLayoutViewerEvent(type)) return
 
       // Handle save status updates from auto-save system
-      if (event.data.type === 'save_status') {
+      if (type === 'save_status' || type === 'saveStatusChanged') {
         const status = event.data.status as SaveStatus
         setSaveStatus(status)
         debugLog(`💾 Save status: ${status}`)
+      }
+
+      if (type === 'refineElementRequested' && event.data.elementId && event.data.elementType) {
+        onRefineElementRequested?.({
+          elementId: String(event.data.elementId),
+          elementType: String(event.data.elementType),
+          slideIndex: typeof event.data.slideIndex === 'number' ? event.data.slideIndex : undefined,
+          gridPosition: event.data.gridPosition,
+          isBlank: Boolean(event.data.isBlank),
+          formatting: event.data.formatting,
+          properties: event.data.properties,
+          content: event.data.content,
+        })
       }
     }
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [])
+  }, [onRefineElementRequested])
 
   // Listen for text box selection events from iframe
   useEffect(() => {
