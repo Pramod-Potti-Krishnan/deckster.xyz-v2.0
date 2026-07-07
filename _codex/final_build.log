@@ -1,0 +1,48 @@
+
+> deckster@0.1.0 build /Users/pk1980/Software/Deckster/.worktrees/frontend-uplift-refine
+> prisma generate && next build
+
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v6.19.0) to ./node_modules/.pnpm/@prisma+client@6.19.0_prisma@6.19.0_typescript@5.9.3__typescript@5.9.3/node_modules/@prisma/client in 98ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Want to turn off tips and other hints? https://pris.ly/tip-4-nohints
+
+   ▲ Next.js 15.5.9
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 6.1s
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+[Prisma] Initializing Prisma Client...
+[Prisma] Environment: production
+[Prisma] DATABASE_URL configured: false
+[Prisma] DATABASE_URL prefix: undefined...
+[Prisma] DIRECT_URL configured: false
+[Prisma] Creating new PrismaClient instance
+Error [PrismaClientConstructorValidationError]: Invalid value undefined for datasource "db" provided to PrismaClient constructor.
+It should have this form: { url: "CONNECTION_STRING" }
+Read more at https://pris.ly/d/client-constructor
+    at 24529 (.next/server/app/api/account/usage/route.js:1:1066)
+    at c (.next/server/webpack-runtime.js:1:128)
+    at 52828 (.next/server/app/api/account/usage/route.js:1:7724)
+    at c (.next/server/webpack-runtime.js:1:128)
+    at 36509 (.next/server/app/api/account/usage/route.js:1:1766)
+    at c (.next/server/webpack-runtime.js:1:128)
+    at <unknown> (.next/server/app/api/account/usage/route.js:1:12808)
+[Prisma] Initializing Prisma Client...
+[Prisma] Environment: production
+[Prisma] DATABASE_URL configured: false
+[Prisma] DATABASE_URL prefix: undefined...
+[Prisma] DIRECT_URL configured: false
+[Prisma] Creating new PrismaClient instance
+
+> Build error occurred
+[Error: Failed to collect page data for /api/account/usage] {
+  type: 'Error'
+}
+ ELIFECYCLE  Command failed with exit code 1.
+build exit: 1
