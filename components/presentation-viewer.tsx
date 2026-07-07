@@ -55,6 +55,7 @@ import {
 import { useTheme } from 'next-themes'
 import Link from 'next/link'
 import { SlideThumbnailStrip, SlideThumbnail, type SlideComposeThumbnailJob } from './slide-thumbnail-strip'
+import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
@@ -168,6 +169,7 @@ interface PresentationViewerProps {
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
   composeJobs?: SlideComposeThumbnailJob[]
+  onRefineSlide?: (target: SlideRefineTarget) => void
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
   templateCurrentSlideIndex?: number
@@ -361,6 +363,7 @@ export function PresentationViewer({
   onTemplateModeChange,
   templateModeAvailable = false,
   composeJobs = [],
+  onRefineSlide,
   templateSnapshot = null,
   templateSnapshotLoading = false,
   templateCurrentSlideIndex,
@@ -495,6 +498,7 @@ export function PresentationViewer({
     // slideStructure is fresh and matches totalSlides - use rich data
     return slideStructure.slides.map((slide: any, index: number) => ({
       slideNumber: index + 1,
+      slideId: slide.slide_id || slide.id || null,
       title: slide.title || slide.slide_type || `Slide ${index + 1}`,
       content: slide.narrative || slide.key_points?.join(', ')
     }))
@@ -2635,6 +2639,7 @@ export function PresentationViewer({
                 enableDragDrop={true}
                 totalSlides={totalSlides}
                 composeJobs={composeJobs}
+                onRefineSlide={onRefineSlide}
               />
             )}
           </div>

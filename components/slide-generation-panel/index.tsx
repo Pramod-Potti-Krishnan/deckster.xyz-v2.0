@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState, useEffect, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
 import {
   AlertCircle,
   BarChart3,
@@ -25,6 +25,7 @@ import { FALLBACK_THEME_PRESETS, type BuildThemeSelection } from '@/lib/theme-bu
 import { withAsyncSlideComposeFields } from '@/lib/slide-compose-async'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
+import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import {
@@ -85,6 +86,8 @@ interface SlideComposerResearchState {
 interface SlideGenerationPanelProps {
   isOpen: boolean
   onClose: () => void
+  mode?: 'compose' | 'refine'
+  refineTarget?: SlideRefineTarget | null
   currentSlide: number
   currentLayout?: SlideLayoutType
   sessionId: string
@@ -198,6 +201,8 @@ const SHAPE_GLYPHS: Partial<Record<ShapeSubtype, ShapeGlyph>> = {
 export function SlideGenerationPanel({
   isOpen,
   onClose,
+  mode = 'compose',
+  refineTarget = null,
   currentSlide,
   sessionId,
   presentationId,
@@ -236,7 +241,14 @@ export function SlideGenerationPanel({
   const [attribution, setAttribution] = useState('')
   const [heroBackground, setHeroBackground] = useState<HeroBackgroundChoice>('solid_dark')
   const [openSections, setOpenSections] = useState<OpenSections>(INITIAL_OPEN_SECTIONS)
+  const lastPanelContextKeyRef = useRef<string | null>(null)
 
+  const isRefineMode = mode === 'refine'
+  const refineSlideNumber = refineTarget ? refineTarget.slide_index + 1 : currentSlide
+  const panelTitle = isRefineMode
+    ? `Refine slide ${refineSlideNumber}${refineTarget?.title ? ` — ${refineTarget.title}` : ''}`
+    : 'Slide'
+  const panelSubtitle = isRefineMode ? 'Update the selected slide' : 'Generate or edit slide content'
   const questions = useMemo(() => normalizeQuestions(needsInput), [needsInput])
   const shapeBucket = getShapeBucket(contentType)
   const shapeOptions = shapeBucket ? SHAPE_OPTIONS[shapeBucket] : []
@@ -245,7 +257,7 @@ export function SlideGenerationPanel({
   const showImagePlacement = canUseImagePlacement(contentType, shapeSubtype)
   const imageOptions = imageOptionsFor(contentType, shapeSubtype)
   const heroStyleOptions = selectedLayout !== AUTO_VALUE ? HERO_STYLE_OPTIONS[selectedLayout] ?? [] : []
-  const themeLabel = getBuildThemeLabel(buildThemeSelection, activeBuildThemeProfileName)
+  const themeLabel = isRefineMode ? 'Deck theme' : getBuildThemeLabel(buildThemeSelection, activeBuildThemeProfileName)
   const shapeDropdownOptions = useMemo<Array<{ value: OptionalChoice<ShapeSubtype>; label: string; glyph: ShapeGlyph }>>(
     () => [
       { value: AUTO_VALUE, label: 'Auto', glyph: 'auto' as ShapeGlyph },
@@ -265,6 +277,50 @@ export function SlideGenerationPanel({
     })),
     [heroStyleOptions],
   )
+
+  useEffect(() => {
+    if (!isOpen) {
+      lastPanelContextKeyRef.current = null
+      return
+    }
+
+    const panelContextKey = isRefineMode
+      ? `refine:${refineTarget?.slide_id ?? 'index'}:${refineTarget?.slide_index ?? currentSlide - 1}`
+      : 'compose'
+
+    if (lastPanelContextKeyRef.current === panelContextKey) return
+    lastPanelContextKeyRef.current = panelContextKey
+
+    setPrompt('')
+    setKeyMessage('')
+    setError(null)
+    setSuccessMessage(null)
+    setNeedsInput(null)
+    setAnswers({})
+
+    if (isRefineMode) {
+      setUseWebSearch(false)
+      setUseDeepResearch(false)
+      setUseUploadedDocuments(false)
+      setUseKnowledgeGraph(false)
+      return
+    }
+
+    setUseWebSearch(research.useWebSearch)
+    setUseDeepResearch(research.useDeepResearch)
+    setUseUploadedDocuments(research.useUploadedDocuments)
+    setUseKnowledgeGraph(research.useKnowledgeGraph)
+  }, [
+    currentSlide,
+    isOpen,
+    isRefineMode,
+    refineTarget?.slide_id,
+    refineTarget?.slide_index,
+    research.useDeepResearch,
+    research.useKnowledgeGraph,
+    research.useUploadedDocuments,
+    research.useWebSearch,
+  ])
   const hasUploadedFiles = Boolean(research.useUploadedDocuments)
   const heroVariant: HeroVariant = heroBackground
   const allowHeroImage = isHero && heroBackground !== 'solid_dark'
@@ -550,8 +606,8 @@ export function SlideGenerationPanel({
               <Layout className="h-3.5 w-3.5 text-primary" />
             </div>
             <div>
-              <h3 className="text-xs font-semibold text-gray-900 dark:text-slate-100">Slide</h3>
-              <p className="text-[10px] text-gray-500 dark:text-slate-400">Generate or edit slide content</p>
+              <h3 className="max-w-[300px] truncate text-xs font-semibold text-gray-900 dark:text-slate-100" title={panelTitle}>{panelTitle}</h3>
+              <p className="text-[10px] text-gray-500 dark:text-slate-400">{panelSubtitle}</p>
             </div>
           </div>
           <button
@@ -566,7 +622,11 @@ export function SlideGenerationPanel({
         {/* Slide context bar */}
         <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100">
           <p className="text-xs text-blue-800">
-            {presentationId ? (
+            {isRefineMode ? (
+              <>
+                Refining <span className="font-semibold">Slide {refineSlideNumber}</span>
+              </>
+            ) : presentationId ? (
               <>
                 Inserts after <span className="font-semibold">Slide {currentSlide}</span>
               </>
@@ -593,6 +653,7 @@ export function SlideGenerationPanel({
           onSubmit={() => void handleGenerate()}
           isGenerating={isGenerating}
           error={error}
+          placeholder={isRefineMode ? 'What should change?' : undefined}
         />
 
         <div className="mx-3 mb-2 flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
@@ -649,7 +710,7 @@ export function SlideGenerationPanel({
           >
             <div className="space-y-2">
               <IconDropdown
-                label="Slide type"
+                label={isRefineMode ? 'Change structure (optional)' : 'Slide type'}
                 value={selectedLayout}
                 options={SLIDE_TYPE_OPTIONS}
                 onChange={handleLayoutChange}

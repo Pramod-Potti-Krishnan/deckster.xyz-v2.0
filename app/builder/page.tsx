@@ -63,6 +63,7 @@ import {
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
+import type { SlideRefineTarget } from '@/lib/slide-refinement'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -82,11 +83,14 @@ type BuilderTemplateSelection = TemplateSelection
 type ActiveBuildThemeProfile = { id: string; name: string }
 
 type SlideComposeJobStatus = 'building' | 'error'
+type SlideComposeJobKind = 'compose' | 'refine'
 
 interface SlideComposeJobState {
   job_id: string
+  kind?: SlideComposeJobKind
   target_visual_index: number
   target_layout_index: number
+  target_slide_id?: string | null
   status: SlideComposeJobStatus
   title: string
   request: Record<string, unknown>
@@ -449,6 +453,8 @@ function BuilderContent() {
   const [showVersions, setShowVersions] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showFormatPanel, setShowFormatPanel] = useState(false)
+  const [slideGenerationMode, setSlideGenerationMode] = useState<'compose' | 'refine'>('compose')
+  const [slideRefineTarget, setSlideRefineTarget] = useState<SlideRefineTarget | null>(null)
   const [showChat, setShowChat] = useState(true)
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_DRAWER_WIDTH)
   const [isResizingDrawer, setIsResizingDrawer] = useState(false)
@@ -1694,6 +1700,7 @@ function BuilderContent() {
       ...prev,
       [job.job_id]: {
         job_id: job.job_id,
+        kind: 'compose',
         target_visual_index: targetVisualIndex,
         target_layout_index: Math.max(0, job.target_index),
         status: 'building',
@@ -1861,6 +1868,14 @@ function BuilderContent() {
     })
   }, [])
 
+  const handleOpenSlideRefine = useCallback((target: SlideRefineTarget) => {
+    setSlideGenerationMode('refine')
+    setSlideRefineTarget(target)
+    setSelectedLayoutSlideIndex(Math.max(0, target.slide_index))
+    setShowFormatPanel(true)
+    bringToFront('slide')
+  }, [bringToFront])
+
   const slideComposeThumbnailJobs = useMemo<SlideComposeThumbnailJob[]>(
     () => Object.values(slideComposeJobs)
       .filter(job => job.status === 'building' || job.status === 'error')
@@ -1868,6 +1883,8 @@ function BuilderContent() {
         jobId: job.job_id,
         targetIndex: job.target_layout_index,
         targetLayoutIndex: job.target_layout_index,
+        kind: job.kind ?? 'compose',
+        targetSlideId: job.target_slide_id ?? null,
         status: job.status,
         title: job.title,
         lastProgressText: job.lastProgressText,
@@ -2663,6 +2680,8 @@ function BuilderContent() {
                 <SlideGenerationPanel
                   isOpen={showFormatPanel}
                   onClose={() => setShowFormatPanel(false)}
+                  mode={slideGenerationMode}
+                  refineTarget={slideRefineTarget}
                   currentSlide={selectedLayoutSlideIndex + 1}
                   currentLayout={currentSlideLayout}
                   sessionId={wsSessionId || currentSessionId || ''}
@@ -2687,7 +2706,11 @@ function BuilderContent() {
                 onClick={() => {
                   const next = !showFormatPanel
                   setShowFormatPanel(next)
-                  if (next) bringToFront('slide')
+                  if (next) {
+                    setSlideGenerationMode('compose')
+                    setSlideRefineTarget(null)
+                    bringToFront('slide')
+                  }
                 }}
                 className={cn(
                   "absolute top-[45%] -translate-y-1/2",
@@ -2905,6 +2928,7 @@ function BuilderContent() {
             isGeneratingStrawman={isGeneratingStrawman}
             onApiReady={setLayoutServiceApis}
             onComposeApiReady={handleComposeApiReady}
+            onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
             onTextBoxSelected={(elementId, formatting) => {
               if (features.useTextLabsGeneration) {
                 generationPanel.openPanelForEdit('TEXT_BOX', elementId)

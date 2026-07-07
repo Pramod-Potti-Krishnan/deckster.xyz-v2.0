@@ -12,12 +12,14 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { Copy, Trash2, Layout, ChevronUp, ChevronDown, Check, Loader2, AlertTriangle, RotateCcw } from 'lucide-react'
+import { Copy, Trash2, Layout, ChevronUp, ChevronDown, Check, Loader2, AlertTriangle, RotateCcw, Wand2 } from 'lucide-react'
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
+import type { SlideRefineTarget } from '@/lib/slide-refinement'
 
 export interface SlideThumbnail {
   slideNumber: number
+  slideId?: string | null
   title?: string
   content?: string
 }
@@ -26,6 +28,8 @@ export interface SlideComposeThumbnailJob {
   jobId: string
   targetIndex: number
   targetLayoutIndex?: number
+  kind?: 'compose' | 'refine'
+  targetSlideId?: string | null
   status: 'building' | 'error'
   title?: string
   lastProgressText?: string
@@ -52,6 +56,7 @@ export interface SlideThumbnailStripProps {
   enableDragDrop?: boolean
   totalSlides?: number
   composeJobs?: SlideComposeThumbnailJob[]
+  onRefineSlide?: (target: SlideRefineTarget) => void
 }
 
 /**
@@ -82,7 +87,8 @@ export function SlideThumbnailStrip({
   onReorderSlides,
   enableDragDrop = false,
   totalSlides,
-  composeJobs = []
+  composeJobs = [],
+  onRefineSlide,
 }: SlideThumbnailStripProps) {
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -176,6 +182,14 @@ export function SlideThumbnailStrip({
   const hasCrudActions = onDuplicateSlide || onDeleteSlide || onChangeLayout || onReorderSlides
 
   const orderedItems = buildSlideComposeVisualOrder(slides, composeJobs)
+
+  const isRefineTargetBusy = (slide: SlideThumbnail, slideIndex: number) => {
+    return composeJobs.some(job => {
+      if (job.kind !== 'refine' || job.status !== 'building') return false
+      if (slide.slideId && job.targetSlideId) return slide.slideId === job.targetSlideId
+      return job.targetLayoutIndex === slideIndex || job.targetIndex === slideIndex
+    })
+  }
 
   const renderComposeJob = (job: SlideComposeThumbnailJob, visualNumber: number) => {
     const isError = job.status === 'error'
@@ -327,6 +341,8 @@ export function SlideThumbnailStrip({
     const isDropTarget = dropTarget === realSlideNumber
     const isItemProcessing = isProcessing === realSlideNumber
     const canDelete = onDeleteSlide && slidesTotal > 1 && !isItemProcessing
+    const canRefine = Boolean(onRefineSlide)
+    const isRefineDisabled = isItemProcessing || isRefineTargetBusy(slide, slideIndex)
     const displayTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
       ? `Slide ${visualNumber}`
       : slide.title
@@ -357,6 +373,35 @@ export function SlideThumbnailStrip({
             title="Delete slide"
           >
             <Trash2 className="h-3 w-3" />
+          </button>
+        )}
+
+        {canRefine && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (isRefineDisabled) return
+              onRefineSlide?.({
+                slide_id: slide.slideId ?? null,
+                slide_index: slideIndex,
+                title: displayTitle,
+              })
+            }}
+            disabled={isRefineDisabled}
+            className={cn(
+              "absolute bottom-8 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md border shadow-sm",
+              "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100",
+              isActive && "opacity-100",
+              isSelected && "opacity-100",
+              isRefineDisabled
+                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                : "border-indigo-200 bg-white text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50",
+            )}
+            title={isRefineDisabled ? 'Refinement already queued for this slide' : 'Refine slide'}
+            aria-label="Refine slide"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
           </button>
         )}
 
