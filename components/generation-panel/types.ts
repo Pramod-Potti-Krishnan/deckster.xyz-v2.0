@@ -18,6 +18,7 @@ export interface GenerationPanelProps {
   isGenerating: boolean
   error: string | null
   slideIndex: number
+  presentationId?: string | null
   elementContext?: ElementContext | null
   mode: 'generate' | 'edit'
   regenerateEnabled: boolean

@@ -82,6 +82,7 @@ interface MetricsFormProps {
   onSubmit: (formData: MetricsFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  presentationId?: string | null
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean

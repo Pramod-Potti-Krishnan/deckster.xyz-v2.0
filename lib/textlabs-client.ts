@@ -51,16 +51,20 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   componentType: 'component_type',
   zIndex: 'z_index',
   textOnlyMode: 'text_only_mode',
+  presentationId: 'presentation_id',
+  useDeckTheme: 'use_deck_theme',
+  themeOverrides: 'theme_overrides',
 }
 
 // ============================================================================
 // SESSION MANAGEMENT
 // ============================================================================
 
-export async function createSession(): Promise<TextLabsSessionResponse> {
+export async function createSession(presentationId?: string | null): Promise<TextLabsSessionResponse> {
   const response = await fetch(`${TEXT_LABS_BASE_URL}/api/canvas/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(presentationId ? { presentation_id: presentationId } : {}),
   })
 
   if (!response.ok) {
@@ -89,6 +93,9 @@ export async function healthCheck(): Promise<boolean> {
 
 interface SendMessageOptions {
   componentType: TextLabsAllComponentType
+  presentationId?: string | null
+  useDeckTheme?: boolean
+  themeOverrides?: Record<string, unknown> | null
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
   zIndex?: number
@@ -96,6 +103,9 @@ interface SendMessageOptions {
   count?: number
   layout?: 'horizontal' | 'vertical' | 'grid'
   itemsPerInstance?: number
+  structure?: string
+  compose?: boolean
+  elements?: Array<Record<string, unknown>>
   // Element-specific configs (only one should be set)
   textboxConfig?: Record<string, unknown>
   metricsConfig?: Record<string, unknown>
@@ -192,6 +202,9 @@ export function buildApiPayload(
 
   const options: SendMessageOptions = {
     componentType,
+    presentationId: formData.presentationId,
+    useDeckTheme: formData.useDeckTheme,
+    themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
     textOnlyMode: !advancedModified,
     count,
     layout,
@@ -211,12 +224,18 @@ export function buildApiPayload(
     options.imageConfig = formData.imageConfig as Record<string, unknown>
   }
 
+  if (formData.componentType === 'TEXT_BOX' && (advancedModified || formData.structure || formData.compose)) {
+    options.textboxConfig = formData.textboxConfig as Record<string, unknown>
+    options.itemsPerInstance = formData.itemsPerInstance
+    options.structure = formData.structure
+    options.compose = formData.compose
+    options.elements = formData.elements
+  }
+
   // Attach element-specific config when user modified advanced settings
   if (advancedModified) {
     switch (formData.componentType) {
       case 'TEXT_BOX':
-        options.textboxConfig = formData.textboxConfig as Record<string, unknown>
-        options.itemsPerInstance = formData.itemsPerInstance
         break
       case 'METRICS':
         options.metricsConfig = formData.metricsConfig as Record<string, unknown>

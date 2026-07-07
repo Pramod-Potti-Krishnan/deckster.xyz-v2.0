@@ -2455,6 +2455,7 @@ function BuilderContent() {
     blankElements,
     textLabsSession,
     layoutServiceApis,
+    presentationId: effectivePresentationId,
     currentSlideIndex,
     toast,
   })
@@ -3083,6 +3084,7 @@ function BuilderContent() {
                   isGenerating={generationPanel.isGenerating}
                   error={generationPanel.error}
                   slideIndex={currentSlideIndex}
+                  presentationId={effectivePresentationId}
                   elementContext={blankElements.activePosition}
                   mode={generationPanel.mode}
                   regenerateEnabled={generationPanel.regenerateEnabled}

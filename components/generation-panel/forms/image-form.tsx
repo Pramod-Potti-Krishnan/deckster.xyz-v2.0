@@ -72,6 +72,7 @@ interface ImageFormProps {
   onSubmit: (formData: ImageFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  presentationId?: string | null
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean

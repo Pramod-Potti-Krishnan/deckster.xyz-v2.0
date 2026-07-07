@@ -35,6 +35,7 @@ interface IconLabelFormProps {
   onSubmit: (formData: IconLabelFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  presentationId?: string | null
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void

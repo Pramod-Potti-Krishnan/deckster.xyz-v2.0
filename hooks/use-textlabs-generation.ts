@@ -30,6 +30,7 @@ interface UseTextLabsGenerationParams {
   layoutServiceApis: {
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
   } | null
+  presentationId?: string | null
   currentSlideIndex: number
   toast: (opts: { title: string; description: string }) => void
 }
@@ -57,12 +58,14 @@ export function useTextLabsGeneration({
   blankElements,
   textLabsSession,
   layoutServiceApis,
+  presentationId,
   currentSlideIndex,
   toast,
 }: UseTextLabsGenerationParams) {
   const handleGenerate = useCallback(async (formData: TextLabsFormData) => {
     generationPanel.setIsGenerating(true)
     generationPanel.setError(null)
+    formData.presentationId = formData.presentationId ?? presentationId ?? null
 
     // Check if we're generating for a blank element on canvas
     const blankId = generationPanel.blankElementId
@@ -243,7 +246,7 @@ export function useTextLabsGeneration({
       clearTimeout(timeoutId)
       generationPanel.setIsGenerating(false)
     }
-  }, [generationPanel, textLabsSession, layoutServiceApis, toast, currentSlideIndex, blankElements])
+  }, [generationPanel, textLabsSession, layoutServiceApis, presentationId, toast, currentSlideIndex, blankElements])
 
   const handleOpenPanel = useCallback(async (type: string) => {
     const componentType = type as TextLabsComponentType

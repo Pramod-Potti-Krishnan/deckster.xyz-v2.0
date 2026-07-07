@@ -53,9 +53,48 @@ export interface TextLabsPaddingConfig {
   left: number
 }
 
+export interface ThemePalette {
+  primary?: string
+  secondary?: string
+  accents?: string[]
+  text?: string
+  background?: string
+  mode?: 'light' | 'dark'
+}
+
+export type ThemeSourceMode = 'deck' | 'none' | 'another'
+
+export interface ThemeSourceSelection {
+  mode: ThemeSourceMode
+  overrides?: ThemePalette | null
+}
+
+export type TextBoxStructure =
+  | 'classic'
+  | 'vertical'
+  | 'mixed'
+  | 'simple'
+  | 'SEQUENTIAL'
+  | 'COMPARISON'
+  | 'SECTIONS'
+  | 'CALLOUT'
+  | 'TEXT_BULLETS'
+  | 'BULLET_BOX'
+  | 'NUMBERED_LIST'
+
 // ============================================================================
 // TEXT BOX CONFIG
 // ============================================================================
+
+export type TextBoxTitleStyle =
+  | 'plain'
+  | 'highlighted'
+  | 'colored-bg'
+  | 'neutral'
+  | 'light-bg'
+  | 'light-bg-dark'
+  | 'underline'
+  | 'colored_underline'
 
 export interface TextBoxConfig {
   background: 'colored' | 'transparent'
@@ -63,7 +102,8 @@ export interface TextBoxConfig {
   corners: 'rounded' | 'square'
   border: boolean
   show_title: boolean
-  title_style: 'plain' | 'highlighted' | 'colored-bg' | 'neutral'
+  title_style: TextBoxTitleStyle
+  title_underline: boolean
   list_style: 'bullets' | 'numbered' | 'plain'
   color_scheme: 'accent'
   layout: 'horizontal' | 'vertical' | 'grid'
@@ -95,6 +135,9 @@ export interface TextBoxConfig {
   content_underline: boolean | null
   content_indent: number
   content_line_height: string | null
+  simple_subtype?: 'char' | 'word' | 'phrase' | null
+  target_char_count?: number | null
+  text?: string | null
 }
 
 // ============================================================================
@@ -345,6 +388,9 @@ export interface TextLabsBaseFormData {
   layout: 'horizontal' | 'vertical' | 'grid'
   advancedModified: boolean
   z_index: number
+  presentationId?: string | null
+  useDeckTheme?: boolean
+  themeOverrides?: ThemePalette | null
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
 }
@@ -353,6 +399,16 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
   componentType: 'TEXT_BOX'
   itemsPerInstance: number
   textboxConfig: Partial<TextBoxConfig>
+  structure?: TextBoxStructure
+  compose?: boolean
+  elements?: Array<{
+    grid_position: {
+      start_col: number
+      start_row: number
+      position_width: number
+      position_height: number
+    }
+  }>
 }
 
 export interface MetricsFormData extends TextLabsBaseFormData {

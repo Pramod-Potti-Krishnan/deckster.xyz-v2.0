@@ -26,6 +26,7 @@ export function GenerationPanel({
   isGenerating,
   error,
   slideIndex,
+  presentationId,
   elementContext,
   mode,
   regenerateEnabled,
@@ -139,6 +140,7 @@ export function GenerationPanel({
             registerSubmit={registerSubmit}
             isGenerating={isGenerating}
             slideIndex={slideIndex}
+            presentationId={presentationId}
             elementContext={elementContext}
             prompt={prompt}
             showAdvanced={showAdvanced}
@@ -158,6 +160,7 @@ function FormRouter({
   registerSubmit,
   isGenerating,
   slideIndex,
+  presentationId,
   elementContext,
   prompt,
   showAdvanced,
@@ -168,6 +171,7 @@ function FormRouter({
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   slideIndex: number
+  presentationId?: string | null
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
@@ -177,6 +181,7 @@ function FormRouter({
     onSubmit,
     registerSubmit,
     isGenerating,
+    presentationId,
     elementContext,
     prompt,
     showAdvanced,
