@@ -22,6 +22,7 @@ import { ElementType, ElementProperties, SlideLayoutType } from '@/types/element
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
+import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { iframeTypeToTextLabs, isTextLabsMappable } from '@/lib/element-type-mapping'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
@@ -1421,6 +1422,7 @@ function BuilderContent() {
     isBlankPresentation,
     activeVersion,
     slideContextByIndex,
+    deckContext,
     ephemeralMessageIds,
     ephemeralFadeToken,
     tokenUsage,
@@ -2441,6 +2443,13 @@ function BuilderContent() {
 
   // Text Labs session (depends on the currently displayed presentation)
   const textLabsSession = useTextLabsSession(effectivePresentationId)
+  const buildRefineContext = useElementRefinement({
+    slideContextByIndex,
+    deckContext: deckContext as Record<string, unknown> | null | undefined,
+    sessionStoreName,
+    sessionId: currentSessionId || wsSessionId || null,
+    currentSlideIndex,
+  })
 
   // Track active blank element for real-time canvas<->modal position sync
   const trackElementRef = useRef(blankElements.trackElement)
@@ -2479,11 +2488,13 @@ function BuilderContent() {
       return
     }
 
-    console.info('[ElementRefine] Built-element refine is wired in R0; ignoring guarded stub.', {
-      elementId: payload.elementId,
-      elementType: payload.elementType,
-    })
-  }, [blankElements, generationPanel, bringToFront])
+    const refineContext = buildRefineContext(payload, componentType)
+    generationPanel.openPanelForRefine(componentType, refineContext)
+    bringToFront('element')
+    setShowElementPanel(false)
+    setShowTextBoxPanel(false)
+    setShowFormatPanel(false)
+  }, [blankElements, buildRefineContext, generationPanel, bringToFront])
 
   // File upload state
   const {
@@ -3089,6 +3100,10 @@ function BuilderContent() {
                   mode={generationPanel.mode}
                   regenerateEnabled={generationPanel.regenerateEnabled}
                   onRegenerateToggle={generationPanel.setRegenerateEnabled}
+                  refineWebResearch={generationPanel.refineWebResearch}
+                  refineUploadedDocs={generationPanel.refineUploadedDocs}
+                  onRefineWebResearchChange={generationPanel.setRefineWebResearch}
+                  onRefineUploadedDocsChange={generationPanel.setRefineUploadedDocs}
                 />
               )}
 
@@ -3499,7 +3514,7 @@ function BuilderContent() {
             onTextBoxDeselected={() => {
               setSelectedTextBoxId(null)
               setSelectedTextBoxFormatting(null)
-              if (generationPanel.mode === 'edit') {
+              if (generationPanel.mode === 'edit' || generationPanel.mode === 'refine') {
                 generationPanel.closePanel()
               }
             }}
@@ -3525,7 +3540,7 @@ function BuilderContent() {
               setSelectedElementId(null)
               setSelectedElementType(null)
               setSelectedElementProperties(null)
-              if (generationPanel.mode === 'edit') {
+              if (generationPanel.mode === 'edit' || generationPanel.mode === 'refine') {
                 generationPanel.closePanel()
               }
             }}

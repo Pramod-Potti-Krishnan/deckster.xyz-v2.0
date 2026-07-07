@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { TextLabsComponentType } from '@/types/textlabs'
+import type { RefineContext } from '@/hooks/use-element-refinement'
 
 /**
  * Manages the GenerationPanel open/close state and selected element type.
@@ -18,9 +19,12 @@ export function useGenerationPanel() {
   const [blankElementId, setBlankElementId] = useState<string | null>(null)
 
   // Edit mode state
-  const [mode, setMode] = useState<'generate' | 'edit'>('generate')
+  const [mode, setMode] = useState<'generate' | 'edit' | 'refine'>('generate')
   const [regenerateEnabled, setRegenerateEnabled] = useState(false)
   const [editElementId, setEditElementId] = useState<string | null>(null)
+  const [refineContext, setRefineContext] = useState<RefineContext | null>(null)
+  const [refineWebResearch, setRefineWebResearch] = useState(false)
+  const [refineUploadedDocs, setRefineUploadedDocs] = useState(false)
 
   const openPanel = useCallback((type: TextLabsComponentType) => {
     setElementType(type)
@@ -28,6 +32,7 @@ export function useGenerationPanel() {
     setBlankElementId(null)
     setMode('generate')
     setEditElementId(null)
+    setRefineContext(null)
     setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)
@@ -40,6 +45,7 @@ export function useGenerationPanel() {
     setBlankElementId(elementId)
     setMode('generate')
     setEditElementId(null)
+    setRefineContext(null)
     setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)
@@ -52,6 +58,22 @@ export function useGenerationPanel() {
     setBlankElementId(null)
     setMode('edit')
     setEditElementId(elementId)
+    setRefineContext(null)
+    setRegenerateEnabled(false)
+    setIsOpen(true)
+    setError(null)
+  }, [])
+
+  /** Open panel in refine mode for an existing element. */
+  const openPanelForRefine = useCallback((type: TextLabsComponentType, context: RefineContext) => {
+    setElementType(type)
+    lastTypeRef.current = type
+    setBlankElementId(null)
+    setMode('refine')
+    setEditElementId(context.elementId)
+    setRefineContext(context)
+    setRefineWebResearch(false)
+    setRefineUploadedDocs(Boolean(context.research.store_name))
     setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)
@@ -63,6 +85,7 @@ export function useGenerationPanel() {
       setBlankElementId(null)
       setMode('generate')
       setEditElementId(null)
+      setRefineContext(null)
       setRegenerateEnabled(false)
       setError(null)
     }
@@ -80,6 +103,7 @@ export function useGenerationPanel() {
     setBlankElementId(null)
     setMode('generate')
     setEditElementId(null)
+    setRefineContext(null)
     setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)
@@ -94,14 +118,20 @@ export function useGenerationPanel() {
     mode,
     regenerateEnabled,
     editElementId,
+    refineContext,
+    refineWebResearch,
+    refineUploadedDocs,
     openPanel,
     openPanelForElement,
     openPanelForEdit,
+    openPanelForRefine,
     closePanel,
     changeElementType,
     reopenPanel,
     setIsGenerating,
     setError,
     setRegenerateEnabled,
+    setRefineWebResearch,
+    setRefineUploadedDocs,
   }
 }

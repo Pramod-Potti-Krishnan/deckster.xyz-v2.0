@@ -420,6 +420,17 @@ export interface TextLabsBaseFormData {
   themeOverrides?: ThemePalette | null
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
+  refine?: boolean
+  existingElement?: Record<string, unknown> | null
+  slideContext?: Record<string, unknown> | null
+  deckContext?: Record<string, unknown> | null
+  research?: {
+    web?: boolean
+    uploaded_docs?: boolean
+    store_name?: string | null
+    session_id?: string | null
+  } | null
+  replaceElementId?: string | null
 }
 
 export interface TextBoxFormData extends TextLabsBaseFormData {

@@ -3,6 +3,7 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
+import { Switch } from '@/components/ui/switch'
 import { GenerationPanelHeader } from './header'
 import { GenerationInput } from './shared/generation-input'
 import { TextBoxForm } from './forms/text-box-form'
@@ -31,6 +32,10 @@ export function GenerationPanel({
   mode,
   regenerateEnabled,
   onRegenerateToggle,
+  refineWebResearch = false,
+  refineUploadedDocs = false,
+  onRefineWebResearchChange,
+  onRefineUploadedDocsChange,
 }: GenerationPanelProps) {
   // Form registers its submit function here
   const submitFnRef = useRef<(() => void) | null>(null)
@@ -61,16 +66,16 @@ export function GenerationPanel({
     setPrompt('')
   }, [elementType])
 
-  // Force showAdvanced=true when entering edit mode
+  // Force showAdvanced=true when entering edit/refine mode
   useEffect(() => {
-    if (mode === 'edit') {
+    if (mode === 'edit' || mode === 'refine') {
       setShowAdvanced(true)
     }
   }, [mode])
 
   // Visibility logic
-  const showGenerationInput = mode === 'generate' || regenerateEnabled
-  const showFormBody = mode === 'edit' || showAdvanced
+  const showGenerationInput = mode === 'generate' || mode === 'refine' || regenerateEnabled
+  const showFormBody = mode === 'edit' || mode === 'refine' || showAdvanced
 
   // Keyboard shortcuts: Escape to close, Cmd/Ctrl+Enter to generate
   useEffect(() => {
@@ -104,7 +109,7 @@ export function GenerationPanel({
         <GenerationPanelHeader
           elementType={elementType}
           onClose={onClose}
-          onElementTypeChange={mode === 'edit' ? undefined : onElementTypeChange}
+          onElementTypeChange={mode === 'edit' || mode === 'refine' ? undefined : onElementTypeChange}
           mode={mode}
           regenerateEnabled={regenerateEnabled}
           onRegenerateToggle={onRegenerateToggle}
@@ -120,16 +125,40 @@ export function GenerationPanel({
 
         {/* Chat-style generation input — hidden in edit mode when regenerate is OFF */}
         {showGenerationInput && (
-          <GenerationInput
-            prompt={prompt}
-            onPromptChange={setPrompt}
-            mandatoryConfig={mandatoryConfigRef.current}
-            showAdvanced={showAdvanced}
-            onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
-            onSubmit={handleFooterGenerate}
-            isGenerating={isGenerating}
-            error={error}
-          />
+          <>
+            <GenerationInput
+              prompt={prompt}
+              onPromptChange={setPrompt}
+              mandatoryConfig={mandatoryConfigRef.current}
+              showAdvanced={showAdvanced}
+              onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
+              onSubmit={handleFooterGenerate}
+              isGenerating={isGenerating}
+              error={error}
+            />
+            {mode === 'refine' && (
+              <div className="mx-3 mb-2 flex items-center gap-4 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-[11px] text-gray-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <label className="flex items-center gap-2">
+                  <Switch
+                    checked={refineWebResearch}
+                    onCheckedChange={onRefineWebResearchChange}
+                    disabled={isGenerating}
+                    className="scale-75"
+                  />
+                  <span>Web</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <Switch
+                    checked={refineUploadedDocs}
+                    onCheckedChange={onRefineUploadedDocsChange}
+                    disabled={isGenerating}
+                    className="scale-75"
+                  />
+                  <span>Docs</span>
+                </label>
+              </div>
+            )}
+          </>
         )}
 
         {/* Scrollable form area — always visible in edit mode, toggled by advanced in generate mode */}

@@ -54,6 +54,10 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   presentationId: 'presentation_id',
   useDeckTheme: 'use_deck_theme',
   themeOverrides: 'theme_overrides',
+  existingElement: 'existing_element',
+  slideContext: 'slide_context',
+  deckContext: 'deck_context',
+  replaceElementId: 'replace_element_id',
 }
 
 // ============================================================================
@@ -96,6 +100,12 @@ interface SendMessageOptions {
   presentationId?: string | null
   useDeckTheme?: boolean
   themeOverrides?: Record<string, unknown> | null
+  refine?: boolean
+  existingElement?: Record<string, unknown> | null
+  slideContext?: Record<string, unknown> | null
+  deckContext?: Record<string, unknown> | null
+  research?: Record<string, unknown> | null
+  replaceElementId?: string | null
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
   zIndex?: number
@@ -171,6 +181,11 @@ export async function generateInfographic(
     presentationId?: string | null
     useDeckTheme?: boolean
     themeOverrides?: Record<string, unknown> | null
+    refine?: boolean
+    existingElement?: Record<string, unknown> | null
+    slideContext?: Record<string, unknown> | null
+    deckContext?: Record<string, unknown> | null
+    research?: Record<string, unknown> | null
   }
 ): Promise<TextLabsResponse> {
   const formData = new FormData()
@@ -180,6 +195,11 @@ export async function generateInfographic(
   if (options?.presentationId) formData.append('presentation_id', options.presentationId)
   if (options?.useDeckTheme !== undefined) formData.append('use_deck_theme', String(options.useDeckTheme))
   if (options?.themeOverrides) formData.append('theme_overrides', JSON.stringify(options.themeOverrides))
+  if (options?.refine !== undefined) formData.append('refine', String(options.refine))
+  if (options?.existingElement) formData.append('existing_element', JSON.stringify(options.existingElement))
+  if (options?.slideContext) formData.append('slide_context', JSON.stringify(options.slideContext))
+  if (options?.deckContext) formData.append('deck_context', JSON.stringify(options.deckContext))
+  if (options?.research) formData.append('research', JSON.stringify(options.research))
 
   if (config) {
     formData.append('infographic_config', JSON.stringify(config))
@@ -213,6 +233,12 @@ export function buildApiPayload(
     presentationId: formData.presentationId,
     useDeckTheme: formData.useDeckTheme,
     themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
+    refine: formData.refine,
+    existingElement: formData.existingElement,
+    slideContext: formData.slideContext,
+    deckContext: formData.deckContext,
+    research: formData.research as Record<string, unknown> | null | undefined,
+    replaceElementId: formData.replaceElementId,
     textOnlyMode: !advancedModified,
     count,
     layout,
