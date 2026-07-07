@@ -181,11 +181,20 @@ export function SlideThumbnailStrip({
   const isVertical = orientation === 'vertical'
   const hasCrudActions = onDuplicateSlide || onDeleteSlide || onChangeLayout || onReorderSlides
 
-  const orderedItems = buildSlideComposeVisualOrder(slides, composeJobs)
+  const composeInsertJobs = composeJobs.filter(job => job.kind !== 'refine')
+  const orderedItems = buildSlideComposeVisualOrder(slides, composeInsertJobs)
 
   const isRefineTargetBusy = (slide: SlideThumbnail, slideIndex: number) => {
     return composeJobs.some(job => {
       if (job.kind !== 'refine' || job.status !== 'building') return false
+      if (slide.slideId && job.targetSlideId) return slide.slideId === job.targetSlideId
+      return job.targetLayoutIndex === slideIndex || job.targetIndex === slideIndex
+    })
+  }
+
+  const findRefineJob = (slide: SlideThumbnail, slideIndex: number) => {
+    return composeJobs.find(job => {
+      if (job.kind !== 'refine') return false
       if (slide.slideId && job.targetSlideId) return slide.slideId === job.targetSlideId
       return job.targetLayoutIndex === slideIndex || job.targetIndex === slideIndex
     })
@@ -341,11 +350,14 @@ export function SlideThumbnailStrip({
     const isDropTarget = dropTarget === realSlideNumber
     const isItemProcessing = isProcessing === realSlideNumber
     const canDelete = onDeleteSlide && slidesTotal > 1 && !isItemProcessing
+    const refineJob = findRefineJob(slide, slideIndex)
+    const isRefining = refineJob?.status === 'building'
     const canRefine = Boolean(onRefineSlide)
     const isRefineDisabled = isItemProcessing || isRefineTargetBusy(slide, slideIndex)
     const displayTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
       ? `Slide ${visualNumber}`
       : slide.title
+    const titleText = isRefining ? (refineJob.lastProgressText || 'Refining slide') : displayTitle
 
     const thumbnailContent = (
       <div
@@ -455,6 +467,12 @@ export function SlideThumbnailStrip({
               isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
             )} />
 
+            {isRefining && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-indigo-950/10 text-indigo-700 backdrop-blur-[1px]">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+            )}
+
             {/* Slide number badge in corner */}
             <div className={cn(
               "absolute top-1.5 left-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded px-1 text-[9px] font-semibold leading-none",
@@ -475,7 +493,7 @@ export function SlideThumbnailStrip({
               ? "text-blue-800 bg-blue-50 dark:bg-slate-900 dark:text-blue-300"
               : "text-slate-700 bg-white dark:bg-slate-900 dark:text-slate-300"
           )}>
-            {displayTitle}
+            {titleText}
           </div>
         </button>
       </div>

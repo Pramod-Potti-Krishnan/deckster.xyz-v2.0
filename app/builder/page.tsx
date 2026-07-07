@@ -519,7 +519,9 @@ function BuilderContent() {
   }, [slideComposeJobs])
   const pendingComposePlaceholdersRef = useRef<Map<string, {
     jobId: string
-    visualIndex: number
+    kind?: SlideComposeJobKind
+    visualIndex?: number
+    slideId?: string | null
     replaceJobId?: string
   }>>(new Map())
   const slideComposeWatchdogsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
@@ -626,7 +628,9 @@ function BuilderContent() {
     const presentation = await fetchSlideComposePresentationSnapshot(snapshot.presentationId)
     if (!presentation) return false
 
-    const hasExpectedSlide = job.real_slide_id
+    const hasExpectedSlide = job.kind === 'refine' && !job.real_slide_id
+      ? false
+      : job.real_slide_id
       ? presentation.slideIds.has(job.real_slide_id)
       : presentation.slideCount >= Math.max(job.expected_slide_count ?? 0, job.target_layout_index + 1)
 
@@ -1366,6 +1370,157 @@ function BuilderContent() {
         let resolvedLayoutIndex = payloadSlideIndex
         let viewerSlideCount: number | null = null
         let liveSwapSucceeded = false
+        const job = slideComposeJobsRef.current[payload.job_id]
+        const readyKind: SlideComposeJobKind = payload.kind ?? job?.kind ?? 'compose'
+
+        if (readyKind === 'refine') {
+          const requestedSlideId = typeof job?.request.slide_id === 'string' ? job.request.slide_id : null
+          const replacedSlideId = payload.replaced_slide_id ?? job?.target_slide_id ?? requestedSlideId
+
+          if (!canLiveReconcileSlideCompose(payload.real_slide_id)) {
+            console.warn('[Slide Composer] refine slide_ready missing real_slide_id; falling back to iframe refresh.', {
+              job_id: payload.job_id,
+              slide_index: payload.slide_index,
+            })
+            triggerCoalescedSlideComposeReload('refine slide_ready missing real_slide_id')
+          } else if (!replacedSlideId) {
+            console.warn('[Slide Composer] refine slide_ready missing replaced slide id; falling back to iframe refresh.', {
+              job_id: payload.job_id,
+              slide_index: payload.slide_index,
+            })
+            triggerCoalescedSlideComposeReload('refine slide_ready missing replaced_slide_id')
+          } else if (!composeApi) {
+            triggerCoalescedSlideComposeReload('compose API unavailable on refine slide_ready')
+          } else {
+            try {
+              const reconcileResult = await composeApi.refineSlideReconcile(
+                payload.job_id,
+                replacedSlideId,
+                payload.real_slide_id,
+                targetPresentationId,
+              )
+              scTrace('builder.refine_reconcile.result', {
+                job_id: payload.job_id,
+                old_slide_id: replacedSlideId,
+                input_real_slide_id: payload.real_slide_id,
+                result: reconcileResult,
+              })
+              if (Number.isFinite(Number(reconcileResult?.visual_index))) {
+                resolvedVisualIndex = Math.max(0, Number(reconcileResult.visual_index))
+              } else if (job) {
+                resolvedVisualIndex = job.target_visual_index
+              }
+              if (Number.isFinite(Number(reconcileResult?.real_slide_index))) {
+                resolvedLayoutIndex = Math.max(0, Number(reconcileResult.real_slide_index))
+              } else if (job) {
+                resolvedLayoutIndex = job.target_layout_index
+              }
+              if (Number.isFinite(Number(reconcileResult?.real_slide_count))) {
+                viewerSlideCount = Number(reconcileResult.real_slide_count)
+              } else if (Number.isFinite(Number(reconcileResult?.total_slides))) {
+                viewerSlideCount = Number(reconcileResult.total_slides)
+              }
+              liveSwapSucceeded = true
+            } catch (error) {
+              scTrace('builder.refine_reconcile.error', {
+                job_id: payload.job_id,
+                real_slide_id: payload.real_slide_id,
+                replaced_slide_id: replacedSlideId,
+                message: error instanceof Error ? error.message : String(error),
+              })
+              console.warn('[Slide Composer] Live refine swap failed; falling back to iframe refresh.', error)
+              triggerCoalescedSlideComposeReload('refine live swap failed')
+            }
+          }
+
+          if (!liveSwapSucceeded) {
+            setSlideComposeJobs(prev => {
+              const existing = prev[payload.job_id]
+              if (!existing) return prev
+              return {
+                ...prev,
+                [payload.job_id]: {
+                  ...existing,
+                  real_slide_id: payload.real_slide_id ?? existing.real_slide_id ?? null,
+                  expected_slide_count: latest.slideCount ?? existing.expected_slide_count ?? null,
+                },
+              }
+            })
+            window.setTimeout(() => {
+              void (async () => {
+                const confirmed = await confirmSlideComposeJobAfterRefresh(payload.job_id)
+                if (!confirmed && slideComposeJobsRef.current[payload.job_id]?.status === 'building') {
+                  startSlideComposePoller(payload.job_id)
+                }
+              })()
+            }, 1500)
+            toast({
+              title: 'Slide refined',
+              description: 'Refreshing the deck to show the refined slide.',
+            })
+            return
+          }
+
+          const nextSlideCount = Number.isFinite(Number(viewerSlideCount))
+            ? Number(viewerSlideCount)
+            : latest.slideCount ?? payloadSlideIndex + 1
+          const navigate = !!job && currentSlideIndexRef.current === job.target_visual_index
+          const nextPresentationUrl = shouldUseIncomingComposePresentationUrl(
+            latest.presentationUrl,
+            targetPresentationUrl,
+          )
+            ? targetPresentationUrl
+            : latest.presentationUrl
+
+          removeSlideComposeJob(payload.job_id)
+          scTrace('builder.ws.refine_ready.applied', {
+            job_id: payload.job_id,
+            real_slide_id: payload.real_slide_id,
+            replaced_slide_id: replacedSlideId,
+            resolved_visual_index: resolvedVisualIndex,
+            resolved_layout_index: resolvedLayoutIndex,
+            viewer_slide_count: viewerSlideCount,
+            next_slide_count: nextSlideCount,
+            navigate,
+            live_swap_succeeded: liveSwapSucceeded,
+          })
+          const nextOverride = {
+            presentationUrl: nextPresentationUrl ?? targetPresentationUrl ?? null,
+            presentationId: targetPresentationId ?? null,
+            slideCount: nextSlideCount,
+            refreshToken,
+          }
+          slideComposerPresentationRef.current = {
+            ...latest,
+            ...nextOverride,
+          }
+          setSlideComposerOverride(nextOverride)
+          if (navigate) {
+            setCurrentSlideIndex(resolvedVisualIndex)
+            setSelectedLayoutSlideIndex(resolvedLayoutIndex)
+          }
+
+          if (currentSessionIdRef.current && persistenceRef.current) {
+            const updates: any = {
+              slideCount: nextSlideCount,
+              lastMessageAt: new Date(),
+            }
+            if (latest.activeVersion === 'strawman') {
+              updates.strawmanPreviewUrl = nextPresentationUrl
+              updates.strawmanPresentationId = targetPresentationId
+            } else {
+              updates.finalPresentationUrl = nextPresentationUrl
+              updates.finalPresentationId = targetPresentationId
+            }
+            persistenceRef.current.updateMetadata(updates)
+          }
+
+          toast({
+            title: 'Slide refined',
+            description: `Updated slide ${resolvedVisualIndex + 1}.`,
+          })
+          return
+        }
 
         if (!canLiveReconcileSlideCompose(payload.real_slide_id)) {
           console.warn('[Slide Composer] slide_ready missing real_slide_id; falling back to iframe refresh.', {
@@ -1449,10 +1604,10 @@ function BuilderContent() {
           resolvedVisualIndex,
           viewerSlideCount,
         })
-        const job = slideComposeJobsRef.current[payload.job_id]
-        const navigate = !!job && shouldNavigateToResolvedComposeSlide({
+        const composeJob = slideComposeJobsRef.current[payload.job_id]
+        const navigate = !!composeJob && shouldNavigateToResolvedComposeSlide({
           currentSlideIndex: currentSlideIndexRef.current,
-          jobTargetVisualIndex: job.target_visual_index,
+          jobTargetVisualIndex: composeJob.target_visual_index,
           resolvedVisualIndex,
         })
         const nextPresentationUrl = shouldUseIncomingComposePresentationUrl(
@@ -1513,8 +1668,25 @@ function BuilderContent() {
     onSlideComposeFailed: (message: SlideComposeFailed) => {
       const payload = message.payload
       const errors = payload.errors?.filter(Boolean) ?? []
+      const failedJob = slideComposeJobsRef.current[payload.job_id]
+      const failedKind: SlideComposeJobKind = payload.kind ?? failedJob?.kind ?? 'compose'
       clearSlideComposeWatchdog(payload.job_id)
       clearSlideComposePoller(payload.job_id)
+      if (failedKind === 'refine') {
+        void composeViewerApiRef.current?.refineOverlayClear(payload.job_id).catch(error => {
+          console.warn('[Slide Composer] Failed to clear refine overlay after error.', error)
+        })
+        setSlideComposeJobs(prev => {
+          const { [payload.job_id]: _failed, ...rest } = prev
+          return rest
+        })
+        toast({
+          title: 'Refine failed',
+          description: errors[0] ?? (payload.stage ? `Failed during ${payload.stage}.` : 'Slide refinement failed.'),
+          variant: 'destructive',
+        })
+        return
+      }
       void composeViewerApiRef.current?.composePlaceholderFail(payload.job_id).catch(error => {
         console.warn('[Slide Composer] Failed to mark in-deck placeholder as error.', error)
       })
@@ -1668,6 +1840,19 @@ function BuilderContent() {
     const queued = Array.from(pendingComposePlaceholdersRef.current.values())
     pendingComposePlaceholdersRef.current.clear()
     queued.forEach(item => {
+      if (item.kind === 'refine') {
+        if (!item.slideId) {
+          console.warn('[Slide Composer] Cannot flush refine overlay without a slide id.', item)
+          return
+        }
+        void apis.refineOverlayMark(item.jobId, item.slideId).catch(error => {
+          console.warn('[Slide Composer] Failed to flush queued refine overlay.', error)
+          pendingComposePlaceholdersRef.current.set(item.jobId, item)
+        })
+        return
+      }
+
+      if (typeof item.visualIndex !== 'number') return
       void apis.composePlaceholderAdd(item.jobId, item.visualIndex, item.replaceJobId).catch(error => {
         console.warn('[Slide Composer] Failed to flush queued in-deck placeholder.', error)
         pendingComposePlaceholdersRef.current.set(item.jobId, item)
@@ -1676,13 +1861,24 @@ function BuilderContent() {
   }, [])
 
   const handleSlideComposerAccepted = useCallback((job: SlideComposeAcceptedJob) => {
-    const targetVisualIndex = getComposeVisualIndexForTarget(job.target_index, slideComposeJobsRef.current)
+    const jobKind: SlideComposeJobKind = job.kind ?? 'compose'
+    const targetLayoutIndex = Math.max(0, job.target_index)
+    const targetVisualIndex = jobKind === 'refine'
+      ? targetLayoutIndex
+      : getComposeVisualIndexForTarget(job.target_index, slideComposeJobsRef.current)
+    const activeComposeJobs = Object.values(slideComposeJobsRef.current)
+      .filter(item => item.status === 'building' && (item.kind ?? 'compose') === 'compose').length
     const expectedSlideCount = (slideComposerPresentationRef.current.slideCount ?? 0) +
-      Object.values(slideComposeJobsRef.current).filter(item => item.status === 'building').length +
-      1
+      (jobKind === 'compose' ? activeComposeJobs + 1 : 0)
+    const requestedSlideId = typeof job.request.slide_id === 'string' ? job.request.slide_id : null
+    const targetSlideId = jobKind === 'refine'
+      ? (job.target_slide_id ?? requestedSlideId ?? null)
+      : null
     scTrace('builder.accepted', {
       job_id: job.job_id,
+      kind: jobKind,
       director_target_index: job.target_index,
+      target_slide_id: targetSlideId,
       computed_target_visual_index: targetVisualIndex,
       current_visual_index: currentSlideIndexRef.current,
       selected_layout_index: selectedLayoutSlideIndex,
@@ -1700,42 +1896,68 @@ function BuilderContent() {
       ...prev,
       [job.job_id]: {
         job_id: job.job_id,
-        kind: 'compose',
+        kind: jobKind,
         target_visual_index: targetVisualIndex,
-        target_layout_index: Math.max(0, job.target_index),
+        target_layout_index: targetLayoutIndex,
+        target_slide_id: targetSlideId,
         status: 'building',
         title: job.title,
         request: job.request,
         expected_slide_count: expectedSlideCount,
       },
     }))
-    const placeholderAdd = { jobId: job.job_id, visualIndex: targetVisualIndex }
     const composeApi = composeViewerApiRef.current
-    if (composeApi) {
-      void composeApi.composePlaceholderAdd(job.job_id, targetVisualIndex).catch(error => {
-        scTrace('builder.placeholder_add.error', {
-          job_id: job.job_id,
-          target_visual_index: targetVisualIndex,
-          message: error instanceof Error ? error.message : String(error),
+
+    if (jobKind === 'refine') {
+      const overlayMark = { jobId: job.job_id, kind: 'refine' as const, slideId: targetSlideId }
+      if (composeApi && targetSlideId) {
+        void composeApi.refineOverlayMark(job.job_id, targetSlideId).catch(error => {
+          scTrace('builder.refine_overlay_mark.error', {
+            job_id: job.job_id,
+            target_slide_id: targetSlideId,
+            message: error instanceof Error ? error.message : String(error),
+          })
+          console.warn('[Slide Composer] Failed to mark refine overlay.', error)
+          pendingComposePlaceholdersRef.current.set(job.job_id, overlayMark)
         })
-        console.warn('[Slide Composer] Failed to add in-deck placeholder.', error)
-        pendingComposePlaceholdersRef.current.set(job.job_id, placeholderAdd)
-      })
+      } else if (targetSlideId) {
+        pendingComposePlaceholdersRef.current.set(job.job_id, overlayMark)
+      } else {
+        console.warn('[Slide Composer] Refine job accepted without a slide id; overlay mark skipped.', {
+          job_id: job.job_id,
+          target_index: job.target_index,
+        })
+      }
     } else {
-      pendingComposePlaceholdersRef.current.set(job.job_id, placeholderAdd)
+      const placeholderAdd = { jobId: job.job_id, visualIndex: targetVisualIndex }
+      if (composeApi) {
+        void composeApi.composePlaceholderAdd(job.job_id, targetVisualIndex).catch(error => {
+          scTrace('builder.placeholder_add.error', {
+            job_id: job.job_id,
+            target_visual_index: targetVisualIndex,
+            message: error instanceof Error ? error.message : String(error),
+          })
+          console.warn('[Slide Composer] Failed to add in-deck placeholder.', error)
+          pendingComposePlaceholdersRef.current.set(job.job_id, placeholderAdd)
+        })
+      } else {
+        pendingComposePlaceholdersRef.current.set(job.job_id, placeholderAdd)
+      }
     }
     // TODO: replace this timer with a backend heartbeat; for now it must exceed
     // Director's 300s same-target FIFO wait plus a long Slide Builder pass.
     slideComposeWatchdogsRef.current[job.job_id] = setTimeout(() => {
       if (slideComposeJobsRef.current[job.job_id]?.status === 'building') {
-        triggerCoalescedSlideComposeReload(`compose job ${job.job_id} exceeded watchdog`)
+        triggerCoalescedSlideComposeReload(`${jobKind} job ${job.job_id} exceeded watchdog`)
         void confirmSlideComposeJobAfterRefresh(job.job_id)
       }
     }, SLIDE_COMPOSE_WATCHDOG_MS)
     startSlideComposePoller(job.job_id)
     toast({
-      title: 'Slide queued',
-      description: `Building slide ${targetVisualIndex + 1} in the background.`,
+      title: jobKind === 'refine' ? 'Slide refinement queued' : 'Slide queued',
+      description: jobKind === 'refine'
+        ? `Refining slide ${targetLayoutIndex + 1} in the background.`
+        : `Building slide ${targetVisualIndex + 1} in the background.`,
     })
   }, [
     clearSlideComposeWatchdog,

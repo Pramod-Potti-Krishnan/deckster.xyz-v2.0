@@ -204,6 +204,14 @@ export interface SlideComposeViewerApi {
   composePlaceholderFail: (jobId: string) => Promise<any>
   composeGetState: () => Promise<any>
   composeGoToPlaceholder: (jobId: string) => Promise<any>
+  refineOverlayMark: (jobId: string, slideId: string) => Promise<any>
+  refineSlideReconcile: (
+    jobId: string,
+    oldSlideId: string,
+    realSlideId: string,
+    presentationId?: string | null,
+  ) => Promise<any>
+  refineOverlayClear: (jobId: string) => Promise<any>
 }
 
 interface SlideInfo {
@@ -1689,6 +1697,46 @@ export function PresentationViewer({
     )
   }, [])
 
+  const handleRefineOverlayMark = useCallback((jobId: string, slideId: string) => {
+    return sendCommand(
+      iframeRef.current,
+      'refineOverlayMark',
+      {
+        job_id: jobId,
+        slide_id: slideId,
+      },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
+  const handleRefineSlideReconcile = useCallback((
+    jobId: string,
+    oldSlideId: string,
+    realSlideId: string,
+    targetPresentationId?: string | null,
+  ) => {
+    return sendCommand(
+      iframeRef.current,
+      'refineSlideReconcile',
+      {
+        job_id: jobId,
+        old_slide_id: oldSlideId,
+        real_slide_id: realSlideId,
+        ...(targetPresentationId ? { presentation_id: targetPresentationId } : {}),
+      },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
+  const handleRefineOverlayClear = useCallback((jobId: string) => {
+    return sendCommand(
+      iframeRef.current,
+      'refineOverlayClear',
+      { job_id: jobId },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
   const handleComposeGetState = useCallback(() => {
     return sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
   }, [])
@@ -1736,6 +1784,9 @@ export function PresentationViewer({
       composePlaceholderFail: handleComposePlaceholderFail,
       composeGetState: handleComposeGetState,
       composeGoToPlaceholder: handleComposeGoToPlaceholder,
+      refineOverlayMark: handleRefineOverlayMark,
+      refineSlideReconcile: handleRefineSlideReconcile,
+      refineOverlayClear: handleRefineOverlayClear,
     })
 
     return () => onComposeApiReady(null)
@@ -1748,6 +1799,9 @@ export function PresentationViewer({
     handleComposePlaceholderFail,
     handleComposeGetState,
     handleComposeGoToPlaceholder,
+    handleRefineOverlayMark,
+    handleRefineSlideReconcile,
+    handleRefineOverlayClear,
   ])
 
   const handleFullscreen = useCallback(async () => {

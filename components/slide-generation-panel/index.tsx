@@ -526,6 +526,8 @@ export function SlideGenerationPanel({
         )
         onAccepted?.({
           ...data,
+          kind: isRefineMode ? 'refine' : (data.kind ?? 'compose'),
+          target_slide_id: isRefineMode ? (data.target_slide_id ?? refineTarget?.slide_id ?? null) : data.target_slide_id,
           title: instruction.slice(0, 72) || (isRefineMode ? 'Refining slide' : 'Composing slide'),
           request: asyncRequest,
         })

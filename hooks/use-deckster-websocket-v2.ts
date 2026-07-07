@@ -257,9 +257,11 @@ export interface SlideComposeReady {
   payload: {
     session_id?: string;
     job_id: string;
+    kind?: 'compose' | 'refine';
     status: 'built';
     slide_index: number;
     real_slide_id?: string | null;
+    replaced_slide_id?: string | null;
     presentation_id: string;
     presentation_url?: string | null;
   };
@@ -287,6 +289,7 @@ export interface SlideComposeFailed {
   payload: {
     session_id?: string;
     job_id: string;
+    kind?: 'compose' | 'refine';
     stage?: string | null;
     errors?: string[];
   };

@@ -38,6 +38,7 @@ export function normalizeSlideComposeSocketFrame<T extends { type?: string; payl
 }
 
 export interface SlideComposeVisualJob {
+  kind?: 'compose' | 'refine'
   target_visual_index?: number
   target_layout_index?: number
   targetIndex?: number
@@ -118,7 +119,7 @@ export function getComposeVisualIndexForTarget(
 ): number {
   let visualIndex = Math.max(0, layoutTargetIndex)
   const buildingJobs = Object.values(jobs)
-    .filter(job => job.status === 'building')
+    .filter(job => job.status === 'building' && job.kind !== 'refine')
     .sort((a, b) => {
       const targetDelta = getSlideComposeTargetLayoutIndex(a) - getSlideComposeTargetLayoutIndex(b)
       if (targetDelta !== 0) return targetDelta
@@ -142,7 +143,8 @@ export function resolveSlideComposeVisualIndex(
   },
 ): { kind: 'slide'; layoutIndex: number } | { kind: 'compose'; targetLayoutIndex: number } | null {
   const slides = Array.from({ length: Math.max(0, options.slideCount) }, (_, index) => index)
-  const jobs = Object.values(options.jobs).filter(job => job.status === 'building' || job.status === 'error')
+  const jobs = Object.values(options.jobs)
+    .filter(job => job.kind !== 'refine' && (job.status === 'building' || job.status === 'error'))
   const item = buildSlideComposeVisualOrder(slides, jobs).find(entry => entry.visualIndex === visualIndex)
   if (!item) return null
   if (item.kind === 'slide') {
