@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSubscription } from './use-subscription'
+import { isKgEntitled } from '@/lib/kg-entitlement'
 
 interface KgSettings {
   user_id: string
@@ -10,6 +11,8 @@ interface KgSettings {
   consent_at: string | null
   created_at: string | null
   updated_at: string | null
+  /** Set by the proxy when the KG backend is unreachable / not activated. */
+  service_unavailable?: boolean
 }
 
 export interface KgCapability {
@@ -45,13 +48,12 @@ export function useKnowledgeGraph() {
   const [capability, setCapability] = useState<KgCapability>(UNKNOWN_CAPABILITY)
 
   const userId = session?.user?.id
-  // Premium can be granted by a coupon (session user tier) or a Stripe
-  // subscription. Coupon users have no subscription, so check both sources.
-  const isPremium =
-    session?.user?.tier === 'premium' || subscription?.tier === 'premium'
+  // Central entitlement check (lib/kg-entitlement.ts): coupon `premium`
+  // user tier OR an active paid subscription (premium/pro/enterprise).
+  const isEntitled = isKgEntitled(session?.user?.tier, subscription)
 
   const fetchSettings = useCallback(async () => {
-    if (!userId || !isPremium) {
+    if (!userId || !isEntitled) {
       setSettings(null)
       setCapability(UNKNOWN_CAPABILITY)
       setIsLoading(false)
@@ -91,7 +93,7 @@ export function useKnowledgeGraph() {
     } finally {
       setIsLoading(false)
     }
-  }, [userId, isPremium])
+  }, [userId, isEntitled])
 
   useEffect(() => {
     fetchSettings()
@@ -118,11 +120,27 @@ export function useKnowledgeGraph() {
     }
   }, [userId])
 
-  const unsubscribe = useCallback(() => {
-    if (settings) {
-      setSettings({ ...settings, subscribed: false, cross_session_enabled: false })
+  const unsubscribe = useCallback(async (): Promise<boolean> => {
+    if (!userId) return false
+    try {
+      // Durable pause on the backend — keeps graph data, stops KG engagement.
+      const resp = await fetch('/api/knowledge-graph/unsubscribe', {
+        method: 'POST',
+      })
+      if (resp.ok) {
+        setSettings(await resp.json())
+        setError(null)
+        return true
+      }
+      const body = await resp.json().catch(() => ({}))
+      setError(body.error || 'Failed to pause knowledge graph')
+      return false
+    } catch (e) {
+      console.error('KG unsubscribe error:', e)
+      setError('Network error. Please try again.')
+      return false
     }
-  }, [settings])
+  }, [userId])
 
   const purge = useCallback(async (): Promise<PurgeResult | null> => {
     if (!userId) return null
@@ -147,10 +165,14 @@ export function useKnowledgeGraph() {
   }, [userId])
 
   const isSubscribed = !!(settings?.subscribed && settings?.cross_session_enabled)
+  const serviceAvailable = !settings?.service_unavailable
 
   return {
-    isPremium,
+    /** @deprecated alias of isEntitled, kept for existing call sites */
+    isPremium: isEntitled,
+    isEntitled,
     isSubscribed,
+    serviceAvailable,
     isLoading,
     error,
     capability,

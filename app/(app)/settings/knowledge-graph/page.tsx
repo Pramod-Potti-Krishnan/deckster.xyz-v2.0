@@ -20,8 +20,8 @@ export default function KnowledgeGraphSettingsPage() {
   const [purgeResult, setPurgeResult] = useState<string | null>(null)
   const [toggleLoading, setToggleLoading] = useState(false)
 
-  // Non-premium users see a locked/upsell state
-  if (!kg.isPremium) {
+  // Non-entitled users see a locked/upsell state
+  if (!kg.isEntitled) {
     return (
       <Card>
         <CardHeader>
@@ -39,9 +39,9 @@ export default function KnowledgeGraphSettingsPage() {
               <Lock className="h-8 w-8 text-muted-foreground" />
             </div>
             <div className="space-y-1">
-              <p className="font-medium">Max Feature</p>
+              <p className="font-medium">Premium Feature</p>
               <p className="text-sm text-muted-foreground">
-                Knowledge Graph is available on Max plans. Upgrade to build
+                Knowledge Graph is available on Pro plans and above. Upgrade to build
                 a persistent knowledge graph that enriches every new deck you create.
               </p>
             </div>
@@ -66,6 +66,15 @@ export default function KnowledgeGraphSettingsPage() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!kg.isLoading && !kg.serviceAvailable && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              The Knowledge Graph backend is not reachable right now. Your
+              settings can&apos;t be read or changed until it&apos;s back.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label>Build a knowledge graph across my decks</Label>
@@ -75,13 +84,13 @@ export default function KnowledgeGraphSettingsPage() {
           </div>
           <Switch
             checked={kg.isSubscribed}
-            disabled={kg.isLoading || toggleLoading}
+            disabled={kg.isLoading || toggleLoading || !kg.serviceAvailable}
             onCheckedChange={async (checked) => {
               setToggleLoading(true)
               if (checked) {
                 await kg.subscribe()
               } else {
-                kg.unsubscribe()
+                await kg.unsubscribe()
               }
               setToggleLoading(false)
             }}
