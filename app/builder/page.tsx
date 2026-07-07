@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeReady, type SlideComposeFailed } from "@/hooks/use-deckster-websocket-v2"
+import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeProgress, type SlideComposeReady, type SlideComposeFailed } from "@/hooks/use-deckster-websocket-v2"
 import { useChatSessions } from "@/hooks/use-chat-sessions"
 import { useSessionPersistence } from "@/hooks/use-session-persistence"
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
@@ -92,6 +92,7 @@ interface SlideComposeJobState {
   request: Record<string, unknown>
   real_slide_id?: string | null
   expected_slide_count?: number | null
+  lastProgressText?: string
   errors?: string[]
 }
 
@@ -1303,6 +1304,30 @@ function BuilderContent() {
         }
       }
     },
+    onSlideComposeProgress: (message: SlideComposeProgress) => {
+      const payload = message.payload
+      setSlideComposeJobs(prev => {
+        const existing = prev[payload.job_id]
+        if (!existing || existing.status === 'error') return prev
+        return {
+          ...prev,
+          [payload.job_id]: {
+            ...existing,
+            lastProgressText: payload.text,
+          },
+        }
+      })
+      void composeViewerApiRef.current
+        ?.composePlaceholderUpdate(
+          payload.job_id,
+          payload.text,
+          payload.stage,
+          payload.detail,
+        )
+        .catch(error => {
+          console.warn('[Slide Composer] Failed to update in-deck placeholder progress.', error)
+        })
+    },
     onSlideComposeReady: (message: SlideComposeReady) => {
       const payload = message.payload
       const presentationKey = payload.presentation_id
@@ -1845,6 +1870,7 @@ function BuilderContent() {
         targetLayoutIndex: job.target_layout_index,
         status: job.status,
         title: job.title,
+        lastProgressText: job.lastProgressText,
         errors: job.errors,
         onRetry: handleRetrySlideCompose,
         onSelect: handleSelectPendingSlideCompose,

@@ -193,6 +193,12 @@ export interface SlideComposeViewerApi {
     realSlideId?: string | null,
     presentationId?: string | null,
   ) => Promise<any>
+  composePlaceholderUpdate: (
+    jobId: string,
+    text: string,
+    stage?: string | null,
+    detail?: string | null,
+  ) => Promise<any>
   composePlaceholderFail: (jobId: string) => Promise<any>
   composeGetState: () => Promise<any>
   composeGoToPlaceholder: (jobId: string) => Promise<any>
@@ -1660,6 +1666,25 @@ export function PresentationViewer({
     )
   }, [])
 
+  const handleComposePlaceholderUpdate = useCallback((
+    jobId: string,
+    text: string,
+    stage?: string | null,
+    detail?: string | null,
+  ) => {
+    return sendCommand(
+      iframeRef.current,
+      'composePlaceholderUpdate',
+      {
+        job_id: jobId,
+        text,
+        ...(stage ? { stage } : {}),
+        ...(detail ? { detail } : {}),
+      },
+      { timeoutMs: 5000, expectedJobId: jobId },
+    )
+  }, [])
+
   const handleComposeGetState = useCallback(() => {
     return sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
   }, [])
@@ -1703,6 +1728,7 @@ export function PresentationViewer({
     onComposeApiReady({
       composePlaceholderAdd: handleComposePlaceholderAdd,
       composeSlideReconcile: handleComposeSlideReconcile,
+      composePlaceholderUpdate: handleComposePlaceholderUpdate,
       composePlaceholderFail: handleComposePlaceholderFail,
       composeGetState: handleComposeGetState,
       composeGoToPlaceholder: handleComposeGoToPlaceholder,
@@ -1714,6 +1740,7 @@ export function PresentationViewer({
     onComposeApiReady,
     handleComposePlaceholderAdd,
     handleComposeSlideReconcile,
+    handleComposePlaceholderUpdate,
     handleComposePlaceholderFail,
     handleComposeGetState,
     handleComposeGoToPlaceholder,

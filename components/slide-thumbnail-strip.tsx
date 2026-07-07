@@ -28,6 +28,7 @@ export interface SlideComposeThumbnailJob {
   targetLayoutIndex?: number
   status: 'building' | 'error'
   title?: string
+  lastProgressText?: string
   errors?: string[]
   onRetry?: (jobId: string) => void
   onSelect?: (jobId: string) => void
@@ -178,7 +179,7 @@ export function SlideThumbnailStrip({
 
   const renderComposeJob = (job: SlideComposeThumbnailJob, visualNumber: number) => {
     const isError = job.status === 'error'
-    const title = isError ? (job.title || 'Slide failed') : 'Building slide'
+    const title = isError ? (job.title || 'Slide failed') : (job.lastProgressText || 'Building slide')
     const errorText = job.errors?.filter(Boolean).join('; ')
 
     return (
