@@ -20,6 +20,8 @@ import type { SlideRefineTarget } from '@/lib/slide-refinement'
 export interface SlideThumbnail {
   slideNumber: number
   slideId?: string | null
+  slideIndex?: number
+  actualSlideIndex?: number
   title?: string
   content?: string
   thumbnailUrl?: string

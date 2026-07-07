@@ -47,4 +47,30 @@ assert.equal(JSON.stringify(slides), JSON.stringify([
   { slideNumber: 2, title: 'Two', thumbnailUrl: 'https://cdn.test/1.png?v=1' },
 ]))
 
+const stableSlides = applyStageFThumbnailUrls(
+  [
+    { slideNumber: 1, slideIndex: 4, title: 'Inserted' },
+    { slideNumber: 2, slideIndex: 1, title: 'Original' },
+  ],
+  {
+    1: 'https://cdn.test/1.png?v=1',
+    4: 'https://cdn.test/4.png?v=1',
+  },
+)
+
+assert.equal(JSON.stringify(stableSlides), JSON.stringify([
+  {
+    slideNumber: 1,
+    slideIndex: 4,
+    title: 'Inserted',
+    thumbnailUrl: 'https://cdn.test/4.png?v=1',
+  },
+  {
+    slideNumber: 2,
+    slideIndex: 1,
+    title: 'Original',
+    thumbnailUrl: 'https://cdn.test/1.png?v=1',
+  },
+]))
+
 console.log('stage-f thumbnail helpers ok')

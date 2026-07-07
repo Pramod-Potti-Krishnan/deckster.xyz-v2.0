@@ -713,12 +713,18 @@ export function PresentationViewer({
     }
 
     // slideStructure is fresh and matches totalSlides - use rich data
-    const structureSlides: SlideThumbnail[] = slideStructure.slides.map((slide: any, index: number) => ({
-      slideNumber: index + 1,
-      slideId: slide.slide_id || slide.id || null,
-      title: slide.title || slide.slide_type || `Slide ${index + 1}`,
-      content: slide.narrative || slide.key_points?.join(', '),
-    }))
+    const structureSlides: SlideThumbnail[] = slideStructure.slides.map((slide: any, index: number) => {
+      const slideIndex = Number(slide.slide_index)
+      const actualSlideIndex = Number(slide.actual_slide_index ?? slide.real_slide_index)
+      return {
+        slideNumber: index + 1,
+        slideId: slide.slide_id || slide.id || null,
+        slideIndex: Number.isInteger(slideIndex) && slideIndex >= 0 ? slideIndex : index,
+        actualSlideIndex: Number.isInteger(actualSlideIndex) && actualSlideIndex >= 0 ? actualSlideIndex : undefined,
+        title: slide.title || slide.slide_type || `Slide ${index + 1}`,
+        content: slide.narrative || slide.key_points?.join(', '),
+      }
+    })
     return applyStageFThumbnailUrls(structureSlides, thumbnailUrlsBySlide)
   }, [slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide])
 
