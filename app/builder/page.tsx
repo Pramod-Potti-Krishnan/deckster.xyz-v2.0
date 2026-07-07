@@ -2647,6 +2647,8 @@ function BuilderContent() {
                     useDeepResearch: researchEnabled && webSearchEnabled,
                     useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
                   }}
+                  buildThemeSelection={buildThemeSelection}
+                  activeBuildThemeProfileName={activeBuildThemeProfile?.name ?? null}
                   enabled={features.slideComposerEnabled}
                   onBuilt={handleSlideComposerBuilt}
                   onAccepted={handleSlideComposerAccepted}

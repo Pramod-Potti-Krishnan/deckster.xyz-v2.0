@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   List,
   Minus,
+  Palette,
   Plus,
   Sparkles,
   Type,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
+import { FALLBACK_THEME_PRESETS, type BuildThemeSelection } from '@/lib/theme-builder'
 import { withAsyncSlideComposeFields } from '@/lib/slide-compose-async'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
@@ -88,6 +90,8 @@ interface SlideGenerationPanelProps {
   sessionId: string
   presentationId: string | null
   research: SlideComposerResearchState
+  buildThemeSelection: BuildThemeSelection
+  activeBuildThemeProfileName?: string | null
   enabled: boolean
   onBuilt: (result: SlideComposeBuiltResult) => void
   onAccepted?: (job: SlideComposeAcceptedJob) => void
@@ -198,6 +202,8 @@ export function SlideGenerationPanel({
   sessionId,
   presentationId,
   research,
+  buildThemeSelection,
+  activeBuildThemeProfileName,
   enabled,
   onBuilt,
   onAccepted,
@@ -239,6 +245,7 @@ export function SlideGenerationPanel({
   const showImagePlacement = canUseImagePlacement(contentType, shapeSubtype)
   const imageOptions = imageOptionsFor(contentType, shapeSubtype)
   const heroStyleOptions = selectedLayout !== AUTO_VALUE ? HERO_STYLE_OPTIONS[selectedLayout] ?? [] : []
+  const themeLabel = getBuildThemeLabel(buildThemeSelection, activeBuildThemeProfileName)
   const shapeDropdownOptions = useMemo<Array<{ value: OptionalChoice<ShapeSubtype>; label: string; glyph: ShapeGlyph }>>(
     () => [
       { value: AUTO_VALUE, label: 'Auto', glyph: 'auto' as ShapeGlyph },
@@ -356,6 +363,7 @@ export function SlideGenerationPanel({
       presentation_id: presentationId,
       insert_after_index: insertAfterIndex,
       instruction,
+      theme: buildThemeSelection,
       selections: hasSelections ? selections : undefined,
       research: {
         use_uploaded_documents: !isDiagram && hasUploadedFiles && useUploadedDocuments,
@@ -484,6 +492,7 @@ export function SlideGenerationPanel({
     }
   }, [
     answers,
+    buildThemeSelection,
     currentSlide,
     enabled,
     hasUploadedFiles,
@@ -585,6 +594,13 @@ export function SlideGenerationPanel({
           isGenerating={isGenerating}
           error={error}
         />
+
+        <div className="mx-3 mb-2 flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+          <Palette className="h-3.5 w-3.5 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+          <span className="min-w-0 truncate">
+            Theme: <span className="font-medium text-slate-800 dark:text-slate-100">{themeLabel}</span>
+          </span>
+        </div>
 
         {successMessage && (
           <div className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-700">
@@ -808,6 +824,22 @@ function defaultHeroStyle(layout: LayoutChoice): OptionalChoice<HeroStyle> {
   if (layout === 'hero_section') return 'number_left'
   if (layout === 'hero_closing') return 'thankyou'
   return AUTO_VALUE
+}
+
+function getBuildThemeLabel(
+  selection: BuildThemeSelection,
+  profileName?: string | null,
+): string {
+  if (selection.mode === 'auto') return 'Auto — matches deck'
+  if (profileName) return profileName
+  if (selection.mode === 'preset') {
+    const preset = FALLBACK_THEME_PRESETS.find(item => item.preset_id === selection.preset_id)
+    return preset?.name || selection.preset_id || 'Deck default'
+  }
+  if (selection.mode === 'custom') {
+    return selection.primary_hex ? `Brand ${selection.primary_hex}` : 'Custom theme'
+  }
+  return 'Deck default'
 }
 
 function IconDropdown<T extends string>({
