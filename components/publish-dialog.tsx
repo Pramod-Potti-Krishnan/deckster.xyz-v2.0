@@ -163,8 +163,10 @@ export function PublishDialog({
     }
   }, [open, sessionId, syncFormFromRecord])
 
+  // A revoked record keeps its passcode hash, so republishing a restricted
+  // deck doesn't require re-entering one
   const needsPasscode =
-    visibility === 'restricted' && !passcode && !(isLive && record?.hasPasscode)
+    visibility === 'restricted' && !passcode && !record?.hasPasscode
 
   const handlePublish = useCallback(async (republish: boolean) => {
     setIsPublishing(true)
