@@ -102,12 +102,17 @@ export function SlideNotesPanel({
   }, [])
 
   // --- Per-slide content -------------------------------------------------
-  // drafts: what the textareas show, keyed by 0-based slide index
-  const [drafts, setDrafts] = useState<Record<number, SlideNarrationDraft>>({})
+  // Drafts are keyed by the slide's STABLE slide_id (not numeric index) so a
+  // draft follows its slide across add / delete / reorder / async-compose,
+  // which all shift indices. The PUT still targets the numeric index (the
+  // Layout Service is index-based); we map slide_id → current index at save time.
+  const [drafts, setDrafts] = useState<Record<string, SlideNarrationDraft>>({})
+  // index → slide_id, from the authoritative deck fetch
+  const [slideIds, setSlideIds] = useState<string[]>([])
   // Fields the user has touched — the authoritative fetch must not clobber these
   const editedFieldsRef = useRef<Set<string>>(new Set())
-  // Dirty fields awaiting a save, per slide index
-  const pendingRef = useRef<Map<number, Set<DirtyField>>>(new Map())
+  // Dirty fields awaiting a save, keyed by slide_id
+  const pendingRef = useRef<Map<string, Set<DirtyField>>>(new Map())
   const draftsRef = useRef(drafts)
   draftsRef.current = drafts
 
@@ -115,7 +120,8 @@ export function SlideNotesPanel({
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedIndicatorRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // WS fallback: speaker_notes already travel on slideStructure
+  // WS fallback: speaker_notes already travel on slideStructure (index-keyed —
+  // this only ever backs the slide currently on screen)
   const wsNotesByIndex = useMemo(() => {
     const map: Record<number, string> = {}
     const slides = slideStructure?.slides
@@ -129,40 +135,79 @@ export function SlideNotesPanel({
     return map
   }, [slideStructure])
 
-  // Authoritative read: GET the deck JSON from the Layout Service on
-  // mount / presentation change. Fills any field the user hasn't edited.
+  // index → slide_id from the WS SlideUpdate payload — the fallback id map
+  // until the authoritative deck fetch resolves.
+  const wsSlideIds = useMemo(() => {
+    const slides = slideStructure?.slides
+    if (!Array.isArray(slides)) return [] as string[]
+    return slides.map((slide: any, index: number) =>
+      typeof slide?.slide_id === 'string' && slide.slide_id ? slide.slide_id : `idx:${index}`
+    )
+  }, [slideStructure])
+
+  // Number of slides in the current deck — a change (add/delete) re-triggers the
+  // authoritative read so drafts pick up new slides. (A reorder keeps the count
+  // the same, so it won't refetch — that's fine: the live WS order below already
+  // reflects it and drafts are keyed by slide_id, so content follows regardless.)
+  const slideListLength = wsSlideIds.length
+
+  // Effective index→id map. Prefer the live WS order: it matches what the viewer
+  // shows and reflects reorders immediately (which don't refetch). Fall back to
+  // the authoritative fetch order, then a synthetic idx: key. Held in a ref so the
+  // edit handler and debounced flush resolve id↔index against the freshest order.
+  const effectiveSlideIds = useMemo(() => {
+    const len = Math.max(wsSlideIds.length, slideIds.length)
+    const out: string[] = []
+    for (let i = 0; i < len; i++) out.push(wsSlideIds[i] ?? slideIds[i] ?? `idx:${i}`)
+    return out
+  }, [wsSlideIds, slideIds])
+  const slideIdsRef = useRef(effectiveSlideIds)
+  slideIdsRef.current = effectiveSlideIds
+
+  // Full reset when the presentation itself changes
   useEffect(() => {
-    // Reset per-presentation state
     editedFieldsRef.current = new Set()
     pendingRef.current = new Map()
     setDrafts({})
+    setSlideIds([])
     setSaveState('idle')
+  }, [presentationId])
 
+  // Authoritative read: GET the deck JSON from the Layout Service on mount,
+  // presentation change, or whenever the slide list length changes (slides
+  // added / removed). Refreshes the id↔index map and fills any field the user
+  // hasn't edited — all keyed by stable slide_id.
+  useEffect(() => {
     if (!presentationId) return
 
     let cancelled = false
     getPresentation(presentationId).then((presentation) => {
       if (cancelled || !presentation) return
       const slides = Array.isArray(presentation.slides) ? presentation.slides : []
+      const ids = slides.map((slide: any, index: number) =>
+        typeof slide?.slide_id === 'string' && slide.slide_id ? slide.slide_id : `idx:${index}`
+      )
+      setSlideIds(ids)
       setDrafts((prev) => {
-        const next: Record<number, SlideNarrationDraft> = { ...prev }
+        const next: Record<string, SlideNarrationDraft> = { ...prev }
         slides.forEach((slide: any, index: number) => {
-          const draft = { ...(next[index] ?? emptyDraft()) }
+          const id = ids[index]
+          const draft = { ...(next[id] ?? emptyDraft()) }
           const edited = editedFieldsRef.current
-          if (!edited.has(`${index}:script`)) {
+          if (!edited.has(`${id}:script`)) {
             draft.script = typeof slide?.script === 'string' ? slide.script : ''
           }
-          if (!edited.has(`${index}:notes`)) {
+          if (!edited.has(`${id}:notes`)) {
             // Lazy migration: lift content.speaker_notes when top-level is empty
             draft.notes =
               (typeof slide?.speaker_notes === 'string' && slide.speaker_notes) ||
               (typeof slide?.content?.speaker_notes === 'string' && slide.content.speaker_notes) ||
               ''
           }
-          if (!edited.has(`${index}:references`)) {
+          if (!edited.has(`${id}:references`)) {
             draft.references = referencesToText(slide?.references)
           }
-          next[index] = draft
+          next[id] = draft
         })
         return next
       })
@@ -171,23 +216,40 @@ export function SlideNotesPanel({
     return () => {
       cancelled = true
     }
-  }, [presentationId])
+  }, [presentationId, slideListLength])
 
   // --- Saving --------------------------------------------------------------
-  const flushPending = useCallback((targetPresentationId: string) => {
+  // `ids` is the index→slide_id map for `targetPresentationId` — passed in so a
+  // flush-on-presentation-change resolves against the deck it's actually writing
+  // to, not whatever deck is on screen now.
+  const flushPending = useCallback((targetPresentationId: string, ids: string[]) => {
     const pending = pendingRef.current
     if (pending.size === 0) return
     pendingRef.current = new Map()
 
-    const jobs: Array<{ slideIndex: number; fields: SlideNarrationFields }> = []
-    pending.forEach((fields, slideIndex) => {
-      const draft = draftsRef.current[slideIndex]
-      if (!draft) return
+    // Resolve each dirty slide_id to its CURRENT numeric index — the PUT target
+    // (the Layout Service is index-based). Mapping at flush time is what makes a
+    // reorder/delete land on the right slide.
+    const indexById = new Map<string, number>()
+    ids.forEach((id, index) => {
+      if (!indexById.has(id)) indexById.set(id, index)
+    })
+
+    const jobs: Array<{ slideId: string; slideIndex: number; fields: SlideNarrationFields }> = []
+    pending.forEach((fields, slideId) => {
+      const slideIndex = indexById.get(slideId)
+      const draft = draftsRef.current[slideId]
+      if (slideIndex === undefined || !draft) {
+        // Can't resolve id→index yet (deck fetch still pending) — re-queue so a
+        // later flush retries rather than dropping the edit.
+        pendingRef.current.set(slideId, fields)
+        return
+      }
       const payload: SlideNarrationFields = {}
       if (fields.has('script')) payload.script = draft.script
       if (fields.has('notes')) payload.speaker_notes = draft.notes
       if (fields.has('references')) payload.references = textToReferences(draft.references)
-      if (Object.keys(payload).length > 0) jobs.push({ slideIndex, fields: payload })
+      if (Object.keys(payload).length > 0) jobs.push({ slideId, slideIndex, fields: payload })
     })
     if (jobs.length === 0) return
 
@@ -205,13 +267,13 @@ export function SlideNotesPanel({
           description: failed.error?.message || 'Your latest edits could not be saved. They will retry on your next change.',
           variant: 'destructive',
         })
-        // Re-queue the failed fields so the next edit retries them
-        jobs.forEach(({ slideIndex, fields }) => {
-          const set = pendingRef.current.get(slideIndex) ?? new Set<DirtyField>()
+        // Re-queue the failed fields (by slide_id) so the next edit retries them
+        jobs.forEach(({ slideId, fields }) => {
+          const set = pendingRef.current.get(slideId) ?? new Set<DirtyField>()
           if (fields.script !== undefined) set.add('script')
           if (fields.speaker_notes !== undefined) set.add('notes')
           if (fields.references !== undefined) set.add('references')
-          pendingRef.current.set(slideIndex, set)
+          pendingRef.current.set(slideId, set)
         })
         return
       }
@@ -227,15 +289,19 @@ export function SlideNotesPanel({
     if (!presentationId) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      flushPending(presentationId)
+      // Live map — the debounced save always targets the on-screen presentation
+      flushPending(presentationId, slideIdsRef.current)
     }, SAVE_DEBOUNCE_MS)
   }, [presentationId, flushPending])
 
-  // Flush straight away when the presentation changes / panel unmounts
+  // Flush straight away when the presentation changes / panel unmounts. Capture
+  // the id map for THIS presentation at setup so the cleanup (which runs after
+  // the new presentation's props have landed) still resolves against this deck.
   useEffect(() => {
+    const idsForThisDeck = slideIdsRef.current
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      if (presentationId) flushPending(presentationId)
+      if (presentationId) flushPending(presentationId, idsForThisDeck)
     }
   }, [presentationId, flushPending])
 
@@ -247,22 +313,24 @@ export function SlideNotesPanel({
 
   const handleFieldChange = useCallback((field: DirtyField, value: string) => {
     const slideIndex = currentSlideIndex
-    editedFieldsRef.current.add(`${slideIndex}:${field}`)
-    const set = pendingRef.current.get(slideIndex) ?? new Set<DirtyField>()
+    const slideId = slideIdsRef.current[slideIndex] ?? `idx:${slideIndex}`
+    editedFieldsRef.current.add(`${slideId}:${field}`)
+    const set = pendingRef.current.get(slideId) ?? new Set<DirtyField>()
     set.add(field)
-    pendingRef.current.set(slideIndex, set)
+    pendingRef.current.set(slideId, set)
     setDrafts((prev) => ({
       ...prev,
-      [slideIndex]: { ...(prev[slideIndex] ?? emptyDraft()), [field]: value },
+      [slideId]: { ...(prev[slideId] ?? emptyDraft()), [field]: value },
     }))
     scheduleSave()
   }, [currentSlideIndex, scheduleSave])
 
   // --- Render ---------------------------------------------------------------
-  const draft = drafts[currentSlideIndex] ?? emptyDraft()
+  const currentSlideId = effectiveSlideIds[currentSlideIndex] ?? `idx:${currentSlideIndex}`
+  const draft = drafts[currentSlideId] ?? emptyDraft()
   // WS fallback only applies while the user hasn't touched the field and the
   // deck JSON gave us nothing (otherwise clearing the textarea would resurrect it)
-  const notesValue = editedFieldsRef.current.has(`${currentSlideIndex}:notes`)
+  const notesValue = editedFieldsRef.current.has(`${currentSlideId}:notes`)
     ? draft.notes
     : draft.notes || wsNotesByIndex[currentSlideIndex] || ''
   const disabled = !presentationId
