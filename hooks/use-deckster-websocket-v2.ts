@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log'
-import { CHAT_DIRECTIVES } from '@/lib/mdc-flags';
+import { CHAT_DIRECTIVES, CHAT_MENTIONS } from '@/lib/mdc-flags'
+import { parseSlideMentions } from '@/lib/mdc-mentions';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
@@ -754,6 +755,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const reconnectStabilityTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   // MDC P4: frames queued while the socket wasn't OPEN; flushed on onopen.
   const pendingSendsRef = useRef<Array<{ json: string; queuedAt: number }>>([]);
+  // MDC P6: latest slideStructure for @mention parsing inside sendMessage
+  // (stable [] deps) — effect-synced; a same-tick slide_update race only
+  // affects mention resolution, never message delivery.
+  const slideStructureRef = useRef<SlideUpdate['payload'] | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const pendingReconnectAttemptRef = useRef<number | null>(null);
   const pendingSessionReconnectRef = useRef<string | null>(null);
@@ -2158,6 +2163,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   ]);
 
   // Send message to server (v4.14: includes feature flags and session-sticky file state)
+  useEffect(() => {
+    slideStructureRef.current = state.slideStructure;
+  }, [state.slideStructure]);
+
   const sendMessage = useCallback((
     text: string,
     storeName?: string,
@@ -2195,6 +2204,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           // MDC K6 (P4): advertise client capabilities on every message so the
           // Director only sends the new frame types to capable clients.
           ...(CHAT_DIRECTIVES && { client_caps: ['mdc1'] }),
+          // MDC K1 (P6): typed slide references parsed from @[Slide N: …]
+          // mention tokens (v1: slides only, §12-Q5).
+          ...(CHAT_MENTIONS && (() => {
+            const slides = (slideStructureRef.current?.slides || []).map((sl: any, i: number) => ({
+              index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null,
+            }));
+            const refs = parseSlideMentions(text, slides);
+            return refs.length > 0 ? { references: refs } : {};
+          })()),
         },
       };
       return message;

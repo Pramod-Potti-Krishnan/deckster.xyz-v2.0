@@ -4451,6 +4451,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   <ChatInput
                     inputMessage={inputMessage}
                     onInputChange={setInputMessage}
+                    mentionSlides={
+                      // MDC P6: @slide picker source (flag-gated inside ChatInput)
+                      (slideStructure?.slides || []).map((sl: { title?: string; slide_id?: string }, i: number) => ({
+                        index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null,
+                      }))
+                    }
                     onSubmit={handleSendMessage}
                     uploadedFiles={uploadedFiles}
                     onFilesSelected={handleFilesSelected}

@@ -1,6 +1,10 @@
 "use client"
 
 import React, { useState, useEffect, useRef, useCallback } from "react"
+// MDC P6 (K1): @slide mention support — inert unless NEXT_PUBLIC_CHAT_MENTIONS.
+import { SlideMentionPopover } from "@/components/builder/chat/mention-popover"
+import { mentionToken, type MentionSlide } from "@/lib/mdc-mentions"
+import { CHAT_MENTIONS } from "@/lib/mdc-flags"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { FileChip, UploadedFile } from '@/components/file-chip'
@@ -57,6 +61,8 @@ type ActiveBuildThemeProfile = {
 export interface ChatInputProps {
   inputMessage: string
   onInputChange: (value: string) => void
+  /** MDC P6: deck slides for the @mention picker (absent => no mentions). */
+  mentionSlides?: MentionSlide[]
   onSubmit: (e?: React.FormEvent) => void
   uploadedFiles: UploadedFile[]
   onFilesSelected: (files: File[]) => void
@@ -106,6 +112,7 @@ export interface ChatInputProps {
 export function ChatInput({
   inputMessage,
   onInputChange,
+  mentionSlides,
   onSubmit,
   uploadedFiles,
   onFilesSelected,
@@ -562,6 +569,23 @@ export function ChatInput({
               </div>
             </div>
           )}
+
+          {/* MDC P6: @slide mention picker (flag-gated, absolute above input) */}
+          {(() => {
+            if (!CHAT_MENTIONS || !mentionSlides || mentionSlides.length === 0) return null
+            const match = /@([\w ]{0,30})$/.exec(inputMessage)
+            if (!match) return null
+            return (
+              <SlideMentionPopover
+                slides={mentionSlides}
+                query={match[1] || ''}
+                onSelect={(slide) => {
+                  const before = inputMessage.slice(0, match.index)
+                  onInputChange(`${before}${mentionToken(slide)} `)
+                }}
+              />
+            )
+          })()}
 
           {/* Textarea */}
           <Textarea
