@@ -50,7 +50,7 @@ export default async function PublishedDeckPage({ params }: PublishedDeckPagePro
   if (deck.visibility === 'restricted') {
     const cookieStore = await cookies()
     const unlockCookie = cookieStore.get(unlockCookieName(slug))?.value
-    if (!verifyUnlockCookie(slug, unlockCookie)) {
+    if (!verifyUnlockCookie(slug, deck.passcodeHash ?? '', unlockCookie)) {
       return <PublishPasscodeGate slug={slug} title={deck.title} />
     }
   }

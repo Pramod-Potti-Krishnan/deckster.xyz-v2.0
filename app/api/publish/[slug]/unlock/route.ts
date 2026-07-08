@@ -7,7 +7,12 @@ import {
   verifyPasscode,
 } from '@/lib/publish/passcode';
 
-// Small fixed delay on failed attempts — cheap brute-force damper
+// Small fixed delay on failed attempts — cheap brute-force damper.
+// NOTE: this delay is per-request only (an attacker can parallelize it) and
+// scryptSync per attempt is a CPU vector. The real fix is a per-slug/per-IP
+// rate limiter backed by shared state (edge KV / DB) — deferred. Vercel lambdas
+// don't share memory, so in-process counters would be ineffective here. For now
+// we lean on the enforced minimum passcode length to raise the keyspace.
 const FAILURE_DELAY_MS = 500;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -55,7 +60,7 @@ export async function POST(
     }
 
     const response = NextResponse.json({ success: true });
-    response.cookies.set(unlockCookieName(slug), unlockCookieValue(slug), {
+    response.cookies.set(unlockCookieName(slug), unlockCookieValue(slug, deck.passcodeHash), {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',
