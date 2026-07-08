@@ -31,6 +31,7 @@ import {
   Eye,
   Sun,
   Moon,
+  Upload,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
@@ -59,6 +60,7 @@ import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
 import { TemplateSaveDialog } from './template-save-dialog'
+import { TemplateIngestDialog } from './template-ingest-dialog'
 import { useToast } from '@/hooks/use-toast'
 // TextFormatPopover is now replaced by simple text box insertion button
 // Keeping FormatTextParams for backward compatibility if needed
@@ -374,6 +376,9 @@ export function PresentationViewer({
   const [normalSlideSize, setNormalSlideSize] = useState<{ width: number; height: number } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [showTemplateSave, setShowTemplateSave] = useState(false) // Template Builder: Save dialog
+  const [showTemplateIngest, setShowTemplateIngest] = useState(false) // Template Ingest: Upload dialog (C-7)
+  // Template Ingest (C-7): flag-gated 4th Template-menu item.
+  const templateIngestEnabled = process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true'
   const [toolbarTemplateMenuOpen, setToolbarTemplateMenuOpen] = useState(false)
   const [toolbarTemplatePickerOpen, setToolbarTemplatePickerOpen] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
@@ -2165,6 +2170,22 @@ export function PresentationViewer({
                           />
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
+                      {templateIngestEnabled && (
+                        <>
+                          <DropdownMenuSeparator />
+                          {/* Template Ingest (C-7): convert an uploaded deck into a template */}
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2"
+                            onClick={() => {
+                              setShowTemplateIngest(true)
+                              setToolbarTemplateMenuOpen(false)
+                            }}
+                          >
+                            <Upload className="h-4 w-4 text-gray-600" />
+                            <span>Upload presentation…</span>
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenuPortal>
                 </DropdownMenu>
@@ -2633,6 +2654,14 @@ export function PresentationViewer({
         onSavedTemplate={onSelectTemplate}
         onTemplateOptimizationFailed={onTemplateOptimizationFailed}
       />
+
+      {/* Upload presentation → template (Template Ingest, C-7) */}
+      {templateIngestEnabled && (
+        <TemplateIngestDialog
+          open={showTemplateIngest}
+          onOpenChange={setShowTemplateIngest}
+        />
+      )}
 
       {/* Version History Panel */}
       <VersionHistoryPanel
