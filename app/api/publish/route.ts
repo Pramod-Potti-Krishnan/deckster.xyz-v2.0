@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { generateSlug } from '@/lib/publish/slug';
-import { hashPasscode } from '@/lib/publish/passcode';
+import { hashPasscode, MIN_PASSCODE_LENGTH } from '@/lib/publish/passcode';
 import {
   deletePresentationSnapshot,
   getPresentationSlideCount,
@@ -64,6 +64,13 @@ export async function POST(req: NextRequest) {
     const visibility: string | undefined = body.visibility;
     const passcode: string | undefined =
       typeof body.passcode === 'string' ? body.passcode : undefined;
+    // Enforce a minimum passcode length at set time (empty string clears it)
+    if (passcode !== undefined && passcode.length > 0 && passcode.length < MIN_PASSCODE_LENGTH) {
+      return NextResponse.json(
+        { error: `Passcode must be at least ${MIN_PASSCODE_LENGTH} characters` },
+        { status: 400 }
+      );
+    }
     const allowPdf: boolean | undefined =
       typeof body.allowPdf === 'boolean' ? body.allowPdf : undefined;
     const allowPptx: boolean | undefined =
@@ -120,10 +127,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Slide count: session metadata, fallback to the deck JSON
+    // Slide count: session metadata, fallback to the snapshot deck JSON
     let slideCount = chatSession.slideCount ?? null;
     if (!slideCount || slideCount <= 0) {
       slideCount = await getPresentationSlideCount(snapshot.snapshotId);
+    }
+    // One more authoritative attempt off the source deck before giving up
+    if (!slideCount || slideCount <= 0) {
+      slideCount = await getPresentationSlideCount(chatSession.finalPresentationId);
+    }
+    // Never publish with an unknown slide count — the viewer's PPTX export
+    // falls back to 1 slide, silently producing a 1-slide deck of an N-slide deck.
+    if (!slideCount || slideCount <= 0) {
+      // Drop the just-created snapshot so it doesn't orphan, then ask to retry
+      await deletePresentationSnapshot(snapshot.snapshotId);
+      return NextResponse.json(
+        { error: 'Could not determine slide count; please retry' },
+        { status: 502 }
+      );
     }
 
     const title = chatSession.title || 'Untitled presentation';
@@ -132,17 +153,17 @@ export async function POST(req: NextRequest) {
 
     let record;
     if (existing) {
-      // Republish: swap the snapshot pointer, reap the old snapshot (best effort)
-      if (existing.snapshotPresentationId && existing.snapshotPresentationId !== snapshot.snapshotId) {
-        await deletePresentationSnapshot(existing.snapshotPresentationId);
-      }
+      // Republish: swap the DB pointer FIRST, then reap the old snapshot.
+      // Deleting before the update would, if the update throws, leave the live
+      // slug pointing at a destroyed snapshot (iframe → 404) and orphan the new one.
+      const oldSnapshotId = existing.snapshotPresentationId;
       record = await prisma.publishedDeck.update({
         where: { id: existing.id },
         data: {
           sourcePresentationId: chatSession.finalPresentationId,
           snapshotPresentationId: snapshot.snapshotId,
           title,
-          slideCount: slideCount ?? existing.slideCount,
+          slideCount,
           republishedAt: new Date(),
           revokedAt: null,
           ...(visibility !== undefined ? { visibility } : {}),
@@ -151,6 +172,10 @@ export async function POST(req: NextRequest) {
           ...(allowPptx !== undefined ? { allowPptx } : {}),
         },
       });
+      // Best-effort cleanup of the now-replaced snapshot — never fail the request
+      if (oldSnapshotId && oldSnapshotId !== snapshot.snapshotId) {
+        await deletePresentationSnapshot(oldSnapshotId);
+      }
     } else {
       record = await prisma.publishedDeck.create({
         data: {
@@ -160,7 +185,7 @@ export async function POST(req: NextRequest) {
           sourcePresentationId: chatSession.finalPresentationId,
           snapshotPresentationId: snapshot.snapshotId,
           title,
-          slideCount: slideCount ?? 0,
+          slideCount,
           visibility: visibility ?? 'unlisted',
           passcodeHash: passcodeHash ?? null,
           ...(allowPdf !== undefined ? { allowPdf } : {}),

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import { hashPasscode } from '@/lib/publish/passcode';
+import { hashPasscode, MIN_PASSCODE_LENGTH } from '@/lib/publish/passcode';
 import { deletePresentationSnapshot } from '@/lib/publish/layout';
 import { isPublishVisibility, serializePublishedDeck } from '@/lib/publish/serialize';
 
@@ -89,6 +89,13 @@ export async function PATCH(
 
     if (body.visibility !== undefined) data.visibility = body.visibility;
     if (typeof body.passcode === 'string') {
+      // Enforce a minimum passcode length at set time (empty string clears it)
+      if (body.passcode.length > 0 && body.passcode.length < MIN_PASSCODE_LENGTH) {
+        return NextResponse.json(
+          { error: `Passcode must be at least ${MIN_PASSCODE_LENGTH} characters` },
+          { status: 400 }
+        );
+      }
       data.passcodeHash = body.passcode.length > 0 ? hashPasscode(body.passcode) : null;
     }
     if (typeof body.allowPdf === 'boolean') data.allowPdf = body.allowPdf;
@@ -181,15 +188,18 @@ export async function DELETE(
       );
     }
 
-    // Best-effort snapshot cleanup on the Layout Service
-    if (existing.snapshotPresentationId) {
-      await deletePresentationSnapshot(existing.snapshotPresentationId);
-    }
-
+    // Set revokedAt FIRST, then reap the snapshot (best effort). Deleting before
+    // the update would, on an update failure, leave the deck "published" while its
+    // snapshot is already destroyed (iframe → 404).
     const revoked = await prisma.publishedDeck.update({
       where: { id: existing.id },
       data: { revokedAt: new Date() },
     });
+
+    // Best-effort snapshot cleanup on the Layout Service — never fail the request
+    if (existing.snapshotPresentationId) {
+      await deletePresentationSnapshot(existing.snapshotPresentationId);
+    }
 
     return NextResponse.json({ deck: serializePublishedDeck(revoked) });
 
