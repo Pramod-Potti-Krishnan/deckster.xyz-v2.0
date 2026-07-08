@@ -43,12 +43,20 @@ export async function snapshotPresentation(presentationId: string): Promise<Snap
 /**
  * Best-effort delete of a presentation (used to reap replaced/revoked
  * snapshots). Failures are logged, never thrown.
+ *
+ * The Layout Service gates bare-DELETE of a publish snapshot behind the
+ * X-Publish-Key header. The SAME secret lives in Vercel env LAYOUT_PUBLISH_KEY
+ * and Railway layout env PUBLISH_DELETE_KEY. Server-side only — never exposed
+ * to the client bundle.
  */
 export async function deletePresentationSnapshot(presentationId: string): Promise<void> {
   try {
     const response = await fetch(
       `${getLayoutServiceBaseUrl()}/api/presentations/${presentationId}`,
-      { method: 'DELETE' }
+      {
+        method: 'DELETE',
+        headers: { 'X-Publish-Key': process.env.LAYOUT_PUBLISH_KEY || '' },
+      }
     )
     if (!response.ok) {
       console.error('[Publish] Snapshot delete failed:', presentationId, response.status)
