@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeProgress, type SlideBuilt, type SlideComposeReady, type SlideComposeFailed } from "@/hooks/use-deckster-websocket-v2"
+import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeProgress, type SlideBuilt, type SlideComposeReady, type SlideComposeFailed, type TemplateIngestFailed, type IngestUploadRef } from "@/hooks/use-deckster-websocket-v2"
 import { useChatSessions } from "@/hooks/use-chat-sessions"
 import { useSessionPersistence } from "@/hooks/use-session-persistence"
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
@@ -44,6 +44,8 @@ import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
+import { TemplateIngestReviewCards } from '@/components/template-ingest-review-cards'
+import { INGEST_INTENT_KEY_PREFIX, type IngestIntentPayload } from '@/components/template-ingest-dialog'
 import { TopUpModal } from '@/components/builder/topup-modal'
 import { ManualDeckConflictDialog } from '@/components/builder/manual-deck-conflict-dialog'
 import { useDeckIdentity } from '@/hooks/use-deck-identity'
@@ -1665,6 +1667,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     tokenUsage,
     tokenUsageMessageId,
     hasStrawman,
+    templateIngestResult,
     sendMessage,
     sendMessageWhenConnected,
     sendElementDirectiveResult,
@@ -2291,6 +2294,25 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       toast({
         title: 'Slide failed',
         description: errors[0] ?? (payload.stage ? `Failed during ${payload.stage}.` : 'Slide Composer failed.'),
+        variant: 'destructive',
+      })
+    },
+    // Template Ingest (C-7): deck rebuilt from an uploaded presentation. The
+    // hook already promoted viewer_url to the session presentation; surface
+    // the save/optimize handoff here (existing template polling UI takes over).
+    onTemplateIngestReady: () => {
+      toast({
+        title: 'Template saved — optimizing…',
+        description: 'Your uploaded presentation was converted into a template.',
+      })
+    },
+    onTemplateIngestFailed: (message: TemplateIngestFailed) => {
+      const description = message.payload.error
+        || message.payload.errors?.[0]
+        || (message.payload.stage ? `Failed during ${message.payload.stage}.` : 'Template ingest failed.')
+      toast({
+        title: 'Template ingest failed',
+        description,
         variant: 'destructive',
       })
     },
@@ -3343,6 +3365,85 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }
     }
   })
+
+  // Template Ingest (C-7): one-shot handoff. The upload dialog minted this
+  // session, staged `deckster_ingest_intent_<id>` in sessionStorage, and routed
+  // here. On the first ready connection: read + DELETE the key, then auto-send
+  // the ingest user_message so Director starts the ingest orchestration.
+  const ingestAutoSendSessionRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED !== 'true') return // flag-off: byte-identical behavior
+    if (!currentSessionId || currentSessionId === 'new') return
+    if (!isReady) return
+    if (ingestAutoSendSessionRef.current === currentSessionId) return
+
+    const key = `${INGEST_INTENT_KEY_PREFIX}${currentSessionId}`
+    let raw: string | null = null
+    try {
+      raw = sessionStorage.getItem(key)
+      if (raw) sessionStorage.removeItem(key) // one-shot: consume before acting
+    } catch {
+      return
+    }
+    if (!raw) return
+
+    ingestAutoSendSessionRef.current = currentSessionId
+
+    let intent: IngestIntentPayload | null = null
+    try {
+      intent = JSON.parse(raw) as IngestIntentPayload
+    } catch {
+      intent = null
+    }
+    if (!intent?.storage_path || !intent?.file_name || !intent?.kind) {
+      console.warn('[TemplateIngest] Ignoring malformed ingest intent payload')
+      return
+    }
+
+    const ingestUploadRef: IngestUploadRef = {
+      storage_path: intent.storage_path,
+      file_name: intent.file_name,
+      kind: intent.kind,
+    }
+    const messageText = 'Convert my uploaded presentation into a template'
+    const success = sendMessage(messageText, undefined, undefined, {
+      templateIngest: true,
+      ingestUploadRef,
+    })
+
+    if (!success) {
+      toast({
+        title: 'Could not start template ingest',
+        description: 'Director is not connected. Re-upload the presentation to try again.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Mirror the normal send path: show the message in chat and persist it.
+    const messageId = crypto.randomUUID()
+    const timestamp = Date.now()
+    session.userMessageIdsRef.current.add(messageId)
+    session.setUserMessages(prev => [...prev, {
+      id: messageId,
+      text: messageText,
+      timestamp,
+    }])
+    if (persistence) {
+      persistence.queueMessage({
+        message_id: messageId,
+        session_id: currentSessionId,
+        timestamp: new Date(timestamp).toISOString(),
+        type: 'chat_message',
+        payload: { text: messageText },
+      } as DirectorMessage, messageText)
+      if (!session.hasTitleFromUserMessageRef.current && !session.hasTitleFromPresentationRef.current) {
+        persistence.updateMetadata({ title: `Template: ${intent.file_name}` })
+        session.hasTitleFromUserMessageRef.current = true
+      }
+    }
+  }, [currentSessionId, isReady, sendMessage, session, persistence, toast])
 
   // FIXED: Clear loading state when final presentation URL arrives
   const lastFinalPresentationUrlRef = useRef<string | null>(null)
@@ -4619,6 +4720,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         isGeneratingFinal={isGeneratingFinal}
                         suppressEphemeral={effectiveBuildNarrationEnabled}
                       />
+                      {/* Template Ingest (C-7) review cards: original slide PNGs + fidelity */}
+                      {templateIngestResult?.per_slide_fidelity && templateIngestResult.per_slide_fidelity.length > 0 && (
+                        <TemplateIngestReviewCards slides={templateIngestResult.per_slide_fidelity} />
+                      )}
                     </div>
                   </ScrollArea>
 
