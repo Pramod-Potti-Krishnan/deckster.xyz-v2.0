@@ -3,13 +3,16 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { generateSlug } from '@/lib/publish/slug';
+import { deletePresentationSnapshot, snapshotPresentation } from '@/lib/publish/layout';
 import { serializePublishedDeck } from '@/lib/publish/serialize';
 
 /**
  * POST /api/publish/[slug]/rotate
- * Mint a new slug for a published deck. Revokes a leaked unlisted URL
- * (and any passcode-unlock cookies, which are scoped to the slug)
- * without unpublishing.
+ * Genuinely revoke access to a leaked link without unpublishing:
+ *  - mint a NEW slug (invalidates the old URL and its slug-scoped unlock cookie), and
+ *  - create a NEW snapshot and point the record at it, then reap the old snapshot.
+ * Rotating only the slug would leave the old, unauthenticated
+ * {layout}/p/{snapshotId} URL live — anyone who saved it would keep access.
  */
 export async function POST(
   req: NextRequest,
@@ -59,13 +62,36 @@ export async function POST(
       );
     }
 
-    // Mint a fresh slug; retry on the (astronomically unlikely) collision
+    // Re-snapshot the SOURCE deck so the old snapshot id stops resolving.
+    // Re-read finalPresentationId to snapshot the freshest source state.
+    const chatSession = await prisma.chatSession.findUnique({
+      where: { id: existing.sessionId },
+    });
+    const sourcePresentationId =
+      chatSession?.finalPresentationId || existing.sourcePresentationId;
+
+    const snapshot = await snapshotPresentation(sourcePresentationId);
+    if (!snapshot) {
+      return NextResponse.json(
+        { error: 'Failed to re-snapshot the presentation. Please try again.' },
+        { status: 502 }
+      );
+    }
+
+    const oldSnapshotId = existing.snapshotPresentationId;
+
+    // Mint a fresh slug + point at the new snapshot; retry on the
+    // (astronomically unlikely) slug collision.
     let updated = null;
     for (let attempt = 0; attempt < 5 && !updated; attempt++) {
       try {
         updated = await prisma.publishedDeck.update({
           where: { id: existing.id },
-          data: { slug: generateSlug() },
+          data: {
+            slug: generateSlug(),
+            snapshotPresentationId: snapshot.snapshotId,
+            sourcePresentationId,
+          },
         });
       } catch (error: any) {
         // P2002 = unique constraint violation — roll again
@@ -74,10 +100,17 @@ export async function POST(
     }
 
     if (!updated) {
+      // Couldn't persist — drop the just-created snapshot so it doesn't orphan
+      await deletePresentationSnapshot(snapshot.snapshotId);
       return NextResponse.json(
         { error: 'Failed to rotate link. Please try again.' },
         { status: 500 }
       );
+    }
+
+    // Best-effort reap of the old snapshot — after the pointer swap (Fix A ordering)
+    if (oldSnapshotId && oldSnapshotId !== snapshot.snapshotId) {
+      await deletePresentationSnapshot(oldSnapshotId);
     }
 
     return NextResponse.json({ deck: serializePublishedDeck(updated) });
