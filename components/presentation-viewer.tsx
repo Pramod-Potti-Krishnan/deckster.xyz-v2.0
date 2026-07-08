@@ -35,6 +35,7 @@ import {
 import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
+import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 import { isMatchingSlideComposeCommandResponse, resolveSlideComposeViewerState } from '@/lib/slide-compose-async'
 import {
   DropdownMenu,
@@ -203,7 +204,7 @@ interface SlideInfo {
 }
 
 // Viewer origin for postMessage communication
-const VIEWER_ORIGIN = 'https://web-production-f0d13.up.railway.app'
+const VIEWER_ORIGIN = new URL(LAYOUT_SERVICE_URL).origin
 
 /**
  * Send command to iframe via postMessage (cross-origin safe)

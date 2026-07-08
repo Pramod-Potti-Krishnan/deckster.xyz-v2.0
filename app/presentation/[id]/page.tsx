@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { PresentationViewer } from '@/components/presentation-viewer'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
+import { getPresentationViewerUrl } from '@/lib/layout-service-client'
 
 interface PresentationPageProps {
   params: Promise<{ id: string }>
@@ -25,8 +26,8 @@ export default function PresentationPage({ params }: PresentationPageProps) {
         setIsLoading(true)
         setError(null)
 
-        // Use the v7.5-main presentation viewer URL (correct format: /p/{id})
-        const viewerUrl = `https://web-production-f0d13.up.railway.app/p/${id}`
+        // Use the configured Layout Service viewer URL (correct format: /p/{id})
+        const viewerUrl = getPresentationViewerUrl(id)
 
         setPresentationUrl(viewerUrl)
 
