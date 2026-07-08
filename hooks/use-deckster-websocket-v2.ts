@@ -285,11 +285,20 @@ export interface TemplateIngestUpdate {
     job_id?: string;
     state?: string;
     text?: string;
+    // M-4: Director may emit `message` / `total_slides` instead of
+    // `text` / `slide_count`; accept both (additive).
+    message?: string;
     progress?: number;
     slide_index?: number;
     slide_count?: number;
+    total_slides?: number;
   };
 }
+
+// Template Ingest (C-5): sessionStorage key prefix for the active ingest job,
+// keyed by session id. Persisted while a job is in flight so the builder can
+// resume polling after a reload/reconnect; cleared on ready/failed.
+export const INGEST_JOB_KEY_PREFIX = 'deckster_ingest_job_';
 
 export interface TemplateIngestReady {
   message_id: string;
@@ -354,10 +363,16 @@ export interface UserMessage {
   };
 }
 
-export interface ControlMessage {
-  type: 'cancel_template_reuse';
-  data?: Record<string, never>;
-}
+export type ControlMessage =
+  | {
+      type: 'cancel_template_reuse';
+      data?: Record<string, never>;
+    }
+  // Template Ingest (C-5): cancel an in-flight ingest job.
+  | {
+      type: 'template_ingest_cancel';
+      data: { job_id: string };
+    };
 
 // Hook state
 export interface UseDecksterWebSocketV2State {
@@ -401,6 +416,9 @@ export interface UseDecksterWebSocketV2State {
   // (drives the review cards), and the last failure message if any.
   templateIngestResult: TemplateIngestReady['payload'] | null;
   templateIngestError: string | null;
+  // Template Ingest (C-5): job id of the in-flight ingest job (from update
+  // frames); drives the cancel affordance. Cleared on ready/failed.
+  templateIngestJobId: string | null;
 }
 
 // Hook options
@@ -566,6 +584,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         tokenUsageMessageId: (cached as any).tokenUsageMessageId || null,
         templateIngestResult: (cached as any).templateIngestResult || null,
         templateIngestError: null,
+        templateIngestJobId: null,
       };
     }
 
@@ -601,6 +620,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       tokenUsageMessageId: null,
       templateIngestResult: null,
       templateIngestError: null,
+      templateIngestJobId: null,
     };
   };
 
@@ -1230,20 +1250,28 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 });
                 break;
 
-              case 'template_ingest_update':
+              case 'template_ingest_update': {
                 // Template Ingest progress pulse: reuse the existing status
                 // affordance (working pulse under the chat) — Director also
                 // sends ephemeral chat narration separately.
                 debugLog('🧩 template_ingest_update:', message.payload);
+                // M-4: Director may emit `message`/`total_slides` instead of
+                // `text`/`slide_count` — accept both spellings.
+                const ingestText = message.payload.text || message.payload.message;
+                const ingestSlideCount = message.payload.slide_count ?? message.payload.total_slides;
                 newState.currentStatus = {
                   status: 'generating',
-                  text: message.payload.text
-                    || (typeof message.payload.slide_index === 'number' && message.payload.slide_count
-                      ? `Rebuilding slide ${message.payload.slide_index + 1}/${message.payload.slide_count}…`
+                  text: ingestText
+                    || (typeof message.payload.slide_index === 'number' && ingestSlideCount
+                      ? `Rebuilding slide ${message.payload.slide_index + 1}/${ingestSlideCount}…`
                       : 'Converting your presentation…'),
                   ...(typeof message.payload.progress === 'number' ? { progress: message.payload.progress } : {}),
                 } as StatusUpdate['payload'];
+                if (message.payload.job_id) {
+                  newState.templateIngestJobId = message.payload.job_id;
+                }
                 break;
+              }
 
               case 'template_ingest_ready': {
                 // Mirror presentation_url handling: the rebuilt deck becomes the
@@ -1261,6 +1289,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
                 newState.templateIngestResult = message.payload;
                 newState.templateIngestError = null;
+                newState.templateIngestJobId = null;
 
                 if (message.payload.viewer_url) {
                   newState.finalPresentationUrl = message.payload.viewer_url;
@@ -1302,6 +1331,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 newState.templateIngestError = message.payload.error
                   || message.payload.errors?.join('; ')
                   || 'Template ingest failed';
+                newState.templateIngestJobId = null;
                 newState.currentStatus = null;
                 break;
             }
@@ -1317,6 +1347,30 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             options.onTemplateIngestReady?.(message);
           } else if (message.type === 'template_ingest_failed') {
             options.onTemplateIngestFailed?.(message);
+          }
+
+          // Template Ingest (C-5): persist the in-flight job so the builder can
+          // resume polling after a reload/reconnect; clear on terminal frames.
+          if (
+            process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true' &&
+            typeof window !== 'undefined'
+          ) {
+            try {
+              const ingestJobKey = `${INGEST_JOB_KEY_PREFIX}${sessionIdRef.current}`;
+              if (message.type === 'template_ingest_update' && message.payload.job_id) {
+                sessionStorage.setItem(ingestJobKey, JSON.stringify({
+                  job_id: message.payload.job_id,
+                  status: message.payload.state || 'processing',
+                }));
+              } else if (
+                message.type === 'template_ingest_ready' ||
+                message.type === 'template_ingest_failed'
+              ) {
+                sessionStorage.removeItem(ingestJobKey);
+              }
+            } catch {
+              // sessionStorage unavailable — reconnect polling degrades gracefully
+            }
           }
 
           // Trigger message callback
@@ -1531,14 +1585,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, []);
 
-  const sendControlMessage = useCallback((type: ControlMessage['type']): boolean => {
+  const sendControlMessage = useCallback((type: ControlMessage['type'], data?: { job_id: string }): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send control message: WebSocket not connected');
       return false;
     }
 
     try {
-      const message: ControlMessage = { type };
+      const message = (data ? { type, data } : { type }) as ControlMessage;
       debugLog('📤 Sending control message:', type);
       wsRef.current.send(JSON.stringify(message));
       return true;
@@ -1547,6 +1601,67 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return false;
     }
   }, []);
+
+  // Template Ingest (C-5): apply a completed ingest job fetched via the REST
+  // reconnect-polling path exactly as if the template_ingest_ready WS frame had
+  // arrived (same state setters as the reducer case above).
+  const applyTemplateIngestReady = useCallback((payload: TemplateIngestReady['payload']) => {
+    debugLog('🧩 applyTemplateIngestReady (poll path):', {
+      template_id: payload.template_id,
+      presentation_id: payload.presentation_id,
+      viewer_url: payload.viewer_url,
+    });
+
+    setStateWithCache(prev => {
+      const newState = { ...prev };
+      newState.templateIngestResult = payload;
+      newState.templateIngestError = null;
+      newState.templateIngestJobId = null;
+
+      if (payload.viewer_url) {
+        newState.finalPresentationUrl = payload.viewer_url;
+        newState.finalPresentationId = payload.presentation_id;
+        newState.deckOwnerSessionId = sessionIdRef.current;
+        newState.isBlankPresentation = false;
+        newState.activeVersion = 'final';
+        newState.presentationUrl = payload.viewer_url;
+        newState.presentationId = payload.presentation_id;
+        if (typeof payload.slide_count === 'number') {
+          newState.slideCount = payload.slide_count;
+        } else if (payload.per_slide_fidelity?.length) {
+          newState.slideCount = payload.per_slide_fidelity.length;
+        }
+
+        if (options.onPresentationReady) {
+          options.onPresentationReady(payload.viewer_url);
+        }
+        if (options.onSessionStateChange) {
+          try {
+            options.onSessionStateChange({
+              presentationUrl: payload.viewer_url,
+              presentationId: payload.presentation_id,
+              slideCount: newState.slideCount ?? undefined,
+              currentStage: 6,
+            });
+          } catch (error) {
+            console.error('❌ onSessionStateChange threw error (applyTemplateIngestReady):', error);
+          }
+        }
+      }
+
+      newState.currentStatus = null;
+      return newState;
+    });
+
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem(`${INGEST_JOB_KEY_PREFIX}${sessionIdRef.current}`);
+      } catch {
+        // ignore storage errors
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setStateWithCache]);
 
   // Switch between blank, strawman and final versions (Builder V2)
   const switchVersion = useCallback((version: 'blank' | 'strawman' | 'final') => {
@@ -1617,6 +1732,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       tokenUsageMessageId: null,
       templateIngestResult: null,
       templateIngestError: null,
+      templateIngestJobId: null,
     }));
   }, [sessionCache, setStateWithCache]);
 
@@ -1777,6 +1893,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     disconnect,
     sendMessage,
     sendControlMessage,
+    applyTemplateIngestReady,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,
