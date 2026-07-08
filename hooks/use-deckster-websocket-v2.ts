@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
-import { debugLog } from '@/lib/debug-log';
+import { debugLog } from '@/lib/debug-log'
+import { CHAT_DIRECTIVES } from '@/lib/mdc-flags';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
@@ -30,7 +31,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive';
   payload: any;
 }
 
@@ -48,6 +49,8 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'slide_ready',
   'slide_failed',
   'theme_sync',
+  // MDC (K3/K5): directive frames — handled out-of-band, never rendered in chat.
+  'session_directive',
 ]);
 
 function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
@@ -477,6 +480,8 @@ export interface UseDecksterWebSocketV2Options {
   onPresentationReady?: (url: string) => void;
   onSlideComposeProgress?: (message: SlideComposeProgress) => void;
   onSlideBuilt?: (message: SlideBuilt) => void;
+  // MDC P4 (K3): Director instructs a capable client to start a new session.
+  onSessionDirective?: (payload: import('@/types/mdc').SessionDirectivePayload) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onSessionStateChange?: (state: {
@@ -747,6 +752,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectStabilityTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  // MDC P4: frames queued while the socket wasn't OPEN; flushed on onopen.
+  const pendingSendsRef = useRef<Array<{ json: string; queuedAt: number }>>([]);
   const reconnectAttemptsRef = useRef(0);
   const pendingReconnectAttemptRef = useRef<number | null>(null);
   const pendingSessionReconnectRef = useRef<string | null>(null);
@@ -1193,6 +1200,22 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           isConnectingRef.current = false;
           hasConnectedRef.current = true;
 
+        // MDC P4: flush queued sends (drop anything older than 15s — a stale
+        // frame from a dead attempt must not fire into a fresh session).
+        if (pendingSendsRef.current.length > 0) {
+          const now = Date.now();
+          const toSend = pendingSendsRef.current.filter(f => now - f.queuedAt < 15_000);
+          pendingSendsRef.current = [];
+          for (const frame of toSend) {
+            try {
+              ws.send(frame.json);
+              debugLog('📦 Flushed queued message');
+            } catch (e) {
+              console.error('Failed to flush queued message:', e);
+            }
+          }
+        }
+
           // Start heartbeat to keep connection alive
           startHeartbeat(ws);
 
@@ -1278,6 +1301,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 message.type !== 'slide_ready' &&
                 message.type !== 'slide_failed' &&
                 message.type !== 'theme_sync' &&
+                (message.type as string) !== 'session_directive' &&
                 !isDuplicate;
 
               const newState = {
@@ -1733,6 +1757,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               return newState;
             });
 
+            if ((message.type as string) === 'session_directive') {
+              // MDC P4 (K3): never rendered in chat; only capable clients receive
+              // it (K6), but double-gate on the flag for safety.
+              if (CHAT_DIRECTIVES) {
+                const payload = (message as unknown as { payload: import('@/types/mdc').SessionDirectivePayload }).payload;
+                debugLog('🧭 session_directive received:', payload);
+                options.onSessionDirective?.(payload);
+              }
+              return;
+            }
+
             if (message.type === 'slide_built') {
               options.onSlideBuilt?.(message);
             } else if (message.type === 'slide_progress') {
@@ -2129,12 +2164,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     fileCount?: number,
     options?: SendUserMessageOptions,
   ): boolean => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.error('❌ Cannot send message: WebSocket not connected');
-      return false;
-    }
 
-    try {
+    const buildUserMessage = (): UserMessage => {
       // Session-sticky store_name: prefer options.storeName (from session state) over positional param
       const effectiveStoreName = options?.storeName !== undefined ? options.storeName : (storeName || null);
       const deepResearch = options?.deepResearch ?? false;
@@ -2161,8 +2192,34 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.handoffIdempotencyKey && {
             handoff_idempotency_key: options.handoffIdempotencyKey,
           }),
+          // MDC K6 (P4): advertise client capabilities on every message so the
+          // Director only sends the new frame types to capable clients.
+          ...(CHAT_DIRECTIVES && { client_caps: ['mdc1'] }),
         },
       };
+      return message;
+    };
+
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      // MDC P4 (per GOLDEN_PATH_NEWCHAT_CLEAN_SESSION_PROMPT.md): buffer the
+      // frame instead of silently dropping it — New Chat churns the socket and
+      // the first message (incl. the K3 auto-send) raced it. Flushed in onopen;
+      // capped and age-limited so a dead connection can't grow a stale queue.
+      try {
+        const buffered = buildUserMessage();
+        pendingSendsRef.current.push({ json: JSON.stringify(buffered), queuedAt: Date.now() });
+        if (pendingSendsRef.current.length > 5) pendingSendsRef.current.shift();
+        debugLog('📦 Queued message while socket not OPEN (will flush on open)');
+        return true;
+      } catch {
+        console.error('❌ Cannot send message: WebSocket not connected');
+        return false;
+      }
+    }
+
+    try {
+      const message = buildUserMessage();
+      const effectiveStoreName = message.data.store_name;
 
       debugLog(
         '📤 Sending message:',

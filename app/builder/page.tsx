@@ -472,6 +472,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const blueprintEditorV2Enabled = templateBuilderEnabled && process.env.NEXT_PUBLIC_BLUEPRINT_EDITOR_V2 === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
+  // MDC P4: late-bound handle so the WS hook options (declared earlier) can
+  // trigger the New Chat flow defined further down.
+  const handleNewChatWrappedRef = useRef<(() => void) | null>(null)
   const templateSelectionLockedRef = useRef(false)
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
@@ -1796,6 +1799,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           thumbnail_url,
         ),
       )
+    },
+    // MDC P4 (K3): Director-confirmed new-deck handoff. Start a fresh session
+    // and auto-send the captured brief (section 12-Q2 LOCKED). The send rides
+    // the pending-send queue, which flushes when the new session's socket opens.
+    onSessionDirective: (payload) => {
+      if (payload.directive !== 'new_session') return
+      const prefill = (payload.prefill_prompt || '').trim()
+      handleNewChatWrappedRef.current?.()
+      if (prefill && payload.auto_send) {
+        const ts = Date.now()
+        session.setUserMessages(prev => [...prev, { id: `user-nd-${ts}`, text: prefill, timestamp: ts }])
+        sendMessage(prefill, undefined, undefined, {})
+      } else if (prefill) {
+        setInputMessage(prefill)
+      }
     },
     onSlideComposeReady: (message: SlideComposeReady) => {
       const payload = message.payload
@@ -4056,6 +4074,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearAllFiles()
     session.handleNewChat()
   }, [builderOptionsScope, clearAllFiles, session.handleNewChat])
+  handleNewChatWrappedRef.current = handleNewChatWrapped
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
