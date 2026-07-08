@@ -50,6 +50,14 @@ export interface ChangeLayoutOptions {
   content_mapping?: Record<string, string>
 }
 
+// Slide-level narration fields (Script | Notes | References panel).
+// All live at the slide top level on the Layout Service Slide model.
+export interface SlideNarrationFields {
+  script?: string
+  speaker_notes?: string
+  references?: string[]
+}
+
 // ============================================================================
 // SLIDE OPERATIONS
 // ============================================================================
@@ -308,9 +316,87 @@ export async function changeSlideLayout(
   }
 }
 
+/**
+ * Update top-level fields of an existing slide (script, speaker notes, references)
+ *
+ * @param presentationId - The presentation UUID
+ * @param slideIndex - The 0-based index of the slide
+ * @param fields - Slide-level fields to update (script, speaker_notes, references)
+ * @returns Promise with the operation result
+ *
+ * @note The Layout Service lifts these fields to the slide top level;
+ *       anything else in the body would be treated as slide content.
+ */
+export async function updateSlideFields(
+  presentationId: string,
+  slideIndex: number,
+  fields: SlideNarrationFields
+): Promise<LayoutServiceResponse> {
+  try {
+    const response = await fetch(
+      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/slides/${slideIndex}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: {
+          code: `HTTP_${response.status}`,
+          message: errorData.detail || `Request failed with status ${response.status}`,
+        },
+      }
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('[LayoutService] updateSlideFields failed:', error)
+    return {
+      success: false,
+      error: {
+        code: 'NETWORK_ERROR',
+        message: error instanceof Error ? error.message : 'Network request failed',
+      },
+    }
+  }
+}
+
 // ============================================================================
 // PRESENTATION OPERATIONS
 // ============================================================================
+
+/**
+ * Get the full presentation JSON (title, slides[], theme, …)
+ *
+ * @param presentationId - The presentation UUID
+ * @returns Promise with the presentation JSON, or null on failure
+ */
+export async function getPresentation(
+  presentationId: string
+): Promise<Record<string, any> | null> {
+  try {
+    const response = await fetch(
+      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}`,
+      {
+        method: 'GET',
+      }
+    )
+
+    if (!response.ok) {
+      return null
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('[LayoutService] getPresentation failed:', error)
+    return null
+  }
+}
 
 /**
  * Get the presentation viewer URL
@@ -462,6 +548,14 @@ export class SlideManager {
     options: ChangeLayoutOptions = {}
   ): Promise<LayoutServiceResponse> {
     return changeSlideLayout(presentationId, slideIndex, newLayout, options)
+  }
+
+  async updateSlideFields(
+    presentationId: string,
+    slideIndex: number,
+    fields: SlideNarrationFields
+  ): Promise<LayoutServiceResponse> {
+    return updateSlideFields(presentationId, slideIndex, fields)
   }
 
   getViewerUrl(presentationId: string): string {
