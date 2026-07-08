@@ -32,7 +32,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive';
   payload: any;
 }
 
@@ -52,6 +52,7 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'theme_sync',
   // MDC (K3/K5): directive frames — handled out-of-band, never rendered in chat.
   'session_directive',
+  'element_directive',
 ]);
 
 function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
@@ -483,6 +484,8 @@ export interface UseDecksterWebSocketV2Options {
   onSlideBuilt?: (message: SlideBuilt) => void;
   // MDC P4 (K3): Director instructs a capable client to start a new session.
   onSessionDirective?: (payload: import('@/types/mdc').SessionDirectivePayload) => void;
+  // MDC P8 (K5): run an element generation through the FE panel pipeline.
+  onElementDirective?: (payload: import('@/types/mdc').ElementDirectivePayload) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onSessionStateChange?: (state: {
@@ -1307,6 +1310,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 message.type !== 'slide_failed' &&
                 message.type !== 'theme_sync' &&
                 (message.type as string) !== 'session_directive' &&
+              (message.type as string) !== 'element_directive' &&
                 !isDuplicate;
 
               const newState = {
@@ -1769,6 +1773,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 const payload = (message as unknown as { payload: import('@/types/mdc').SessionDirectivePayload }).payload;
                 debugLog('🧭 session_directive received:', payload);
                 options.onSessionDirective?.(payload);
+              }
+              return;
+            }
+
+            if ((message.type as string) === 'element_directive') {
+              if (CHAT_DIRECTIVES) {
+                const payload = (message as unknown as { payload: import('@/types/mdc').ElementDirectivePayload }).payload;
+                debugLog('🧩 element_directive received:', payload);
+                options.onElementDirective?.(payload);
               }
               return;
             }
@@ -2297,6 +2310,21 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     return false;
   }, [sendMessage, ensureConnected]);
 
+  // MDC P8 (K5): report a directive outcome back to the Director.
+  const sendElementDirectiveResult = useCallback((data: import('@/types/mdc').ElementDirectiveResult['data']): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot send element_directive_result: WebSocket not connected');
+      return false;
+    }
+    try {
+      wsRef.current.send(JSON.stringify({ type: 'element_directive_result', data }));
+      return true;
+    } catch (error) {
+      console.error('Failed to send element_directive_result:', error);
+      return false;
+    }
+  }, []);
+
   const sendControlMessage = useCallback((type: ControlMessage['type']): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send control message: WebSocket not connected');
@@ -2605,6 +2633,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     disconnect,
     sendMessage,
     sendMessageWhenConnected,
+    sendElementDirectiveResult,
     sendControlMessage,
     sendThemeSelection,
     clearMessages,

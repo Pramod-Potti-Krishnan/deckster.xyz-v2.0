@@ -475,6 +475,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // MDC P4: late-bound handle so the WS hook options (declared earlier) can
   // trigger the New Chat flow defined further down.
   const handleNewChatWrappedRef = useRef<(() => void) | null>(null)
+  // MDC P8: late-bound element-directive runner (defined after the Text Labs
+  // hook below; the WS options are declared earlier).
+  const elementDirectiveRunnerRef = useRef<((payload: import('@/types/mdc').ElementDirectivePayload) => void) | null>(null)
   const templateSelectionLockedRef = useRef(false)
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
@@ -700,6 +703,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
+    goToSlide: (slideIndex: number) => Promise<void>
   } | null>(null)
   const composeViewerApiRef = useRef<SlideComposeViewerApi | null>(null)
 
@@ -1636,6 +1640,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     hasStrawman,
     sendMessage,
     sendMessageWhenConnected,
+    sendElementDirectiveResult,
     sendControlMessage,
     sendThemeSelection,
     clearMessages,
@@ -1803,6 +1808,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // MDC P4 (K3): Director-confirmed new-deck handoff. Start a fresh session
     // and auto-send the captured brief (section 12-Q2 LOCKED). The send rides
     // the pending-send queue, which flushes when the new session's socket opens.
+    onElementDirective: (payload) => {
+      elementDirectiveRunnerRef.current?.(payload)
+    },
     onSessionDirective: (payload) => {
       if (payload.directive !== 'new_session') return
       const prefill = (payload.prefill_prompt || '').trim()
@@ -3160,6 +3168,44 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
     return layoutServiceApis.sendElementCommand('getTemplateSlotCatalog', { slideIndex })
   }, [layoutServiceApis])
+  // MDC P8 (K5): execute a chat-invoked element add through the SAME pipeline
+  // as the element panel, then report the outcome to the Director.
+  elementDirectiveRunnerRef.current = (payload) => {
+    void (async () => {
+      const report = (status: 'inserted' | 'failed' | 'dismissed', error?: string) =>
+        sendElementDirectiveResult({
+          directive_id: payload.directive_id, status,
+          element_id: null, error: error ?? null,
+        })
+      try {
+        const { buildFormDataForDirective } = await import('@/lib/mdc-element-directive')
+        const formData = buildFormDataForDirective(payload.element_type, payload.prompt)
+        if (!formData) {
+          report('failed', `unsupported element type ${payload.element_type}`)
+          return
+        }
+        const slideCount = slideStructure?.slides?.length ?? 0
+        const target = payload.slide_index
+        if (target < 0 || (slideCount > 0 && target >= slideCount)) {
+          report('failed', 'target slide out of range')
+          return
+        }
+        if (currentSlideIndexRef.current !== target) {
+          if (!layoutServiceApis?.goToSlide) {
+            report('failed', 'viewer navigation unavailable')
+            return
+          }
+          await layoutServiceApis.goToSlide(target)
+          await new Promise(resolve => setTimeout(resolve, 400))
+        }
+        await handleTextLabsGenerate(formData)
+        report('inserted')
+        toast({ title: 'Element added', description: `Added to slide ${target + 1} from chat.` })
+      } catch (error) {
+        report('failed', error instanceof Error ? error.message : 'generation failed')
+      }
+    })()
+  }
 
   // File upload state
   const {
