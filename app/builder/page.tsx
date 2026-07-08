@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeProgress, type SlideBuilt, type SlideComposeReady, type SlideComposeFailed, type TemplateIngestFailed, type IngestUploadRef } from "@/hooks/use-deckster-websocket-v2"
+import { useDecksterWebSocketV2, INGEST_JOB_KEY_PREFIX, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeProgress, type SlideBuilt, type SlideComposeReady, type SlideComposeFailed, type TemplateIngestReady, type TemplateIngestFailed, type IngestUploadRef } from "@/hooks/use-deckster-websocket-v2"
 import { useChatSessions } from "@/hooks/use-chat-sessions"
 import { useSessionPersistence } from "@/hooks/use-session-persistence"
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
@@ -1668,12 +1668,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     tokenUsageMessageId,
     hasStrawman,
     templateIngestResult,
+    templateIngestJobId,
     sendMessage,
     sendMessageWhenConnected,
     sendElementDirectiveResult,
     sendControlMessage,
     sendThemeSelection,
     sendBuildControl,
+    applyTemplateIngestReady,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,
@@ -3445,6 +3447,98 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
   }, [currentSessionId, isReady, sendMessage, session, persistence, toast])
 
+  // Template Ingest (C-5, M-6): reconnect polling. If a non-terminal ingest job
+  // was persisted for this session (the tab reloaded / the WS dropped mid-job),
+  // poll Director's job endpoint via the Next proxy every 5s (max 60 attempts)
+  // and surface a completed job exactly like a template_ingest_ready frame.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED !== 'true') return // flag-off: inert
+    if (!currentSessionId || currentSessionId === 'new') return
+
+    const key = `${INGEST_JOB_KEY_PREFIX}${currentSessionId}`
+    let stored: { job_id?: string; status?: string } | null = null
+    try {
+      stored = JSON.parse(sessionStorage.getItem(key) || 'null')
+    } catch {
+      stored = null
+    }
+    const terminalStatuses = ['complete', 'completed', 'failed', 'cancelled']
+    if (!stored?.job_id || terminalStatuses.includes((stored.status || '').toLowerCase())) return
+
+    const jobId = stored.job_id
+    let attempts = 0
+    let cancelled = false
+    const timer = setInterval(async () => {
+      if (cancelled) return
+      attempts += 1
+      if (attempts > 60) {
+        clearInterval(timer)
+        return
+      }
+      // If the live WS already resolved the job (key cleared), stop polling.
+      try {
+        if (!sessionStorage.getItem(key)) {
+          clearInterval(timer)
+          return
+        }
+      } catch { /* keep polling */ }
+
+      try {
+        const res = await fetch(`/api/ingest-jobs/${encodeURIComponent(jobId)}`)
+        if (!res.ok) return // transient — keep polling until attempts cap
+        const body = await res.json()
+        const status = String(body?.status || body?.state || '').toLowerCase()
+        if (status === 'complete' || status === 'completed') {
+          clearInterval(timer)
+          try { sessionStorage.removeItem(key) } catch { /* ignore */ }
+          const result = (body?.result || body) as TemplateIngestReady['payload']
+          if (result?.template_id || result?.viewer_url) {
+            applyTemplateIngestReady(result)
+            toast({
+              title: 'Template saved',
+              description: 'Your uploaded presentation finished converting while you were away.',
+            })
+          }
+        } else if (status === 'failed' || status === 'cancelled') {
+          clearInterval(timer)
+          try { sessionStorage.removeItem(key) } catch { /* ignore */ }
+          if (status === 'failed') {
+            toast({
+              title: 'Template ingest failed',
+              description: String(body?.error || 'The uploaded presentation could not be converted.'),
+              variant: 'destructive',
+            })
+          }
+        } else if (status) {
+          try { sessionStorage.setItem(key, JSON.stringify({ job_id: jobId, status })) } catch { /* ignore */ }
+        }
+      } catch {
+        // network hiccup — keep polling until attempts cap
+      }
+    }, 5000)
+
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSessionId])
+
+  // Template Ingest (C-5, M-6): cancel an in-flight ingest job over the WS
+  // (mirrors handleCancelTemplateReuse below).
+  const handleCancelTemplateIngest = useCallback(() => {
+    if (!templateIngestJobId) return
+    const sent = sendControlMessage('template_ingest_cancel', { job_id: templateIngestJobId })
+    if (!sent) {
+      toast({
+        title: 'Could not cancel template import',
+        description: 'Director is not connected. Reconnect the session and try again.',
+        variant: 'destructive',
+      })
+    }
+  }, [templateIngestJobId, sendControlMessage, toast])
+
   // FIXED: Clear loading state when final presentation URL arrives
   const lastFinalPresentationUrlRef = useRef<string | null>(null)
   useEffect(() => {
@@ -4720,6 +4814,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         isGeneratingFinal={isGeneratingFinal}
                         suppressEphemeral={effectiveBuildNarrationEnabled}
                       />
+                      {/* Template Ingest (C-5, M-6): cancel the in-flight ingest job */}
+                      {process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true' && templateIngestJobId && (
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={handleCancelTemplateIngest}
+                            className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline underline-offset-2 transition-colors"
+                          >
+                            Cancel import
+                          </button>
+                        </div>
+                      )}
                       {/* Template Ingest (C-7) review cards: original slide PNGs + fidelity */}
                       {templateIngestResult?.per_slide_fidelity && templateIngestResult.per_slide_fidelity.length > 0 && (
                         <TemplateIngestReviewCards slides={templateIngestResult.per_slide_fidelity} />
