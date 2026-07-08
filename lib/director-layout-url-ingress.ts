@@ -92,6 +92,12 @@ export function guardDirectorLayoutUrlMessage<
         || payload.strawman?.preview_presentation_id
         || payload.presentation_id
       break
+    case 'template_ingest_ready':
+      kind = 'final'
+      field = 'payload.viewer_url'
+      url = payload.viewer_url
+      presentationId = payload.presentation_id
+      break
     case 'slide_ready':
       if (!payload.presentation_url) return { message, ingress: null }
       kind = 'slide_ready'
@@ -112,7 +118,9 @@ export function guardDirectorLayoutUrlMessage<
   return {
     message: {
       ...message,
-      payload: clearPresentationFields(payload),
+      payload: message.type === 'template_ingest_ready'
+        ? { ...clearPresentationFields(payload), viewer_url: null }
+        : clearPresentationFields(payload),
     },
     ingress,
   }

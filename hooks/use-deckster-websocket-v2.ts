@@ -45,7 +45,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive' | 'build_phase' | 'build_event' | 'build_control_capability';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive' | 'build_phase' | 'build_event' | 'build_control_capability' | 'template_ingest_update' | 'template_ingest_ready' | 'template_ingest_failed';
   payload: any;
 }
 
@@ -82,6 +82,9 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'build_phase',
   'build_event',
   'build_control_capability',
+  'template_ingest_update',
+  'template_ingest_ready',
+  'template_ingest_failed',
 ]);
 
 function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
@@ -399,7 +402,69 @@ export interface BuildControlCapability {
 
 // D1: `SlideBuilt` (above) is the one slide_built message type — narration's
 // reducer taps its dispatch rather than adding a parallel case.
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage | BuildPhaseSocketMessage | BuildEventSocketMessage | BuildControlCapability;
+// Template Ingest (C-5/C-7): reference to the raw upload Researcher retained
+// for Director's ingest orchestrator.
+export interface IngestUploadRef {
+  storage_path: string;
+  file_name: string;
+  kind: string; // 'pptx' | 'ppt' | 'pdf'
+}
+
+// Template Ingest per-slide fidelity entry from the ready frame.
+export interface TemplateIngestSlideFidelity {
+  slide_index: number;
+  png_url?: string | null;
+  fidelity?: number | null;
+  reusability?: number | null;
+}
+
+export interface TemplateIngestUpdate {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'template_ingest_update';
+  payload: {
+    session_id?: string;
+    job_id?: string;
+    state?: string;
+    text?: string;
+    progress?: number;
+    slide_index?: number;
+    slide_count?: number;
+  };
+}
+
+export interface TemplateIngestReady {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'template_ingest_ready';
+  payload: {
+    session_id?: string;
+    job_id?: string;
+    template_id: string;
+    presentation_id: string;
+    viewer_url: string;
+    slide_count?: number;
+    per_slide_fidelity?: TemplateIngestSlideFidelity[];
+  };
+}
+
+export interface TemplateIngestFailed {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'template_ingest_failed';
+  payload: {
+    session_id?: string;
+    job_id?: string;
+    stage?: string | null;
+    error?: string | null;
+    errors?: string[];
+  };
+}
+
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage | BuildPhaseSocketMessage | BuildEventSocketMessage | BuildControlCapability | TemplateIngestUpdate | TemplateIngestReady | TemplateIngestFailed;
 
 export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
   return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
@@ -425,6 +490,8 @@ export interface UserMessage {
     element_overrides?: TemplateOverrides;
     action_value?: string;
     action_label?: string;
+    template_ingest?: boolean;
+    ingest_upload_ref?: IngestUploadRef;
     // Customized-slide workflow. Director latches this source before the
     // generated strawman/final presentation replaces the live blank deck.
     manual_deck?: ManualDeckContext;
@@ -454,6 +521,8 @@ export interface SendUserMessageOptions {
   elementOverrides?: TemplateOverrides;
   actionValue?: string;
   actionLabel?: string;
+  templateIngest?: boolean;
+  ingestUploadRef?: IngestUploadRef;
   manualDeck?: ManualDeckContext;
   /** Contract G3 — omitted entirely when the flag is off or nothing is known. */
   deckIdentity?: DeckIdentity;
@@ -521,6 +590,8 @@ export interface UseDecksterWebSocketV2State {
   // Director token-usage ledger, emitted once per completed turn.
   tokenUsage: TokenUsagePayload | null;
   tokenUsageMessageId: string | null;
+  templateIngestResult: TemplateIngestReady['payload'] | null;
+  templateIngestError: string | null;
 }
 
 // Hook options
@@ -541,6 +612,8 @@ export interface UseDecksterWebSocketV2Options {
   onElementDirective?: (payload: import('@/types/mdc').ElementDirectivePayload) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
+  onTemplateIngestReady?: (message: TemplateIngestReady) => void;
+  onTemplateIngestFailed?: (message: TemplateIngestFailed) => void;
   // Build Narration typed frames (Director BUILD_EVENTS_ENABLED). Payloads
   // only — the frames never enter messages[]/state. slide_built reuses uat's
   // onSlideBuilt (above) — one frame, one dispatch (D1).
@@ -718,6 +791,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         ephemeralFadeToken: 0,
         tokenUsage: (cached as any).tokenUsage || null,
         tokenUsageMessageId: (cached as any).tokenUsageMessageId || null,
+        templateIngestResult: (cached as any).templateIngestResult || null,
+        templateIngestError: null,
       };
     }
 
@@ -755,6 +830,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralFadeToken: 0,
       tokenUsage: null,
       tokenUsageMessageId: null,
+      templateIngestResult: null,
+      templateIngestError: null,
     };
   };
 
@@ -1399,6 +1476,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 message.type !== 'slide_built' &&
                 message.type !== 'slide_ready' &&
                 message.type !== 'slide_failed' &&
+                message.type !== 'template_ingest_update' &&
+                message.type !== 'template_ingest_ready' &&
+                message.type !== 'template_ingest_failed' &&
                 message.type !== 'theme_sync' &&
                 (message.type as string) !== 'session_directive' &&
               (message.type as string) !== 'element_directive' &&
@@ -1868,6 +1948,81 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   newState.currentStatus = null;
                   break;
 
+                case 'template_ingest_update':
+                  // Template Ingest progress pulse: reuse the existing status
+                  // affordance (working pulse under the chat) — Director also
+                  // sends ephemeral chat narration separately.
+                  debugLog('🧩 template_ingest_update:', message.payload);
+                  newState.currentStatus = {
+                    status: 'generating',
+                    text: message.payload.text
+                      || (typeof message.payload.slide_index === 'number' && message.payload.slide_count
+                        ? `Rebuilding slide ${message.payload.slide_index + 1}/${message.payload.slide_count}…`
+                        : 'Converting your presentation…'),
+                    ...(typeof message.payload.progress === 'number' ? { progress: message.payload.progress } : {}),
+                  } as StatusUpdate['payload'];
+                  break;
+
+                case 'template_ingest_ready': {
+                  // Mirror presentation_url handling: the rebuilt deck becomes the
+                  // session's final presentation.
+                  debugLog('🧩 template_ingest_ready:', {
+                    template_id: message.payload.template_id,
+                    presentation_id: message.payload.presentation_id,
+                    viewer_url: message.payload.viewer_url,
+                    slides: message.payload.per_slide_fidelity?.length ?? 0,
+                  });
+
+                  if (prev.ephemeralMessageIds.length > 0) {
+                    newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  }
+
+                  newState.templateIngestResult = message.payload;
+                  newState.templateIngestError = null;
+
+                  if (message.payload.viewer_url) {
+                    newState.finalPresentationUrl = message.payload.viewer_url;
+                    newState.finalPresentationId = message.payload.presentation_id;
+                    newState.deckOwnerSessionId = sessionIdRef.current;
+                    newState.isBlankPresentation = false;
+                    newState.activeVersion = 'final';
+                    newState.presentationUrl = message.payload.viewer_url;
+                    newState.presentationId = message.payload.presentation_id;
+                    if (typeof message.payload.slide_count === 'number') {
+                      newState.slideCount = message.payload.slide_count;
+                    } else if (message.payload.per_slide_fidelity?.length) {
+                      newState.slideCount = message.payload.per_slide_fidelity.length;
+                    }
+
+                    if (options.onPresentationReady) {
+                      options.onPresentationReady(message.payload.viewer_url);
+                    }
+                    if (options.onSessionStateChange) {
+                      try {
+                        options.onSessionStateChange({
+                          presentationUrl: message.payload.viewer_url,
+                          presentationId: message.payload.presentation_id,
+                          slideCount: newState.slideCount ?? undefined,
+                          currentStage: 6,
+                        });
+                      } catch (error) {
+                        console.error('❌ onSessionStateChange threw error (template_ingest_ready):', error);
+                      }
+                    }
+                  }
+
+                  newState.currentStatus = null;
+                  break;
+                }
+
+                case 'template_ingest_failed':
+                  debugLog('🧩 template_ingest_failed:', message.payload);
+                  newState.templateIngestError = message.payload.error
+                    || message.payload.errors?.join('; ')
+                    || 'Template ingest failed';
+                  newState.currentStatus = null;
+                  break;
+
                 // Build Narration frames: no hook-state mutation — surfaced via
                 // the post-setState callbacks (slide_built taps the case above).
                 case 'build_phase':
@@ -1924,6 +2079,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               options.onSlideComposeReady?.(message);
             } else if (message.type === 'slide_failed') {
               options.onSlideComposeFailed?.(message);
+            } else if (message.type === 'template_ingest_ready' && !blockedIngress) {
+              options.onTemplateIngestReady?.(message);
+            } else if (message.type === 'template_ingest_failed') {
+              options.onTemplateIngestFailed?.(message);
             } else if (message.type === 'build_phase') {
               options.onBuildPhase?.((message as any).payload);
             } else if (message.type === 'build_event') {
@@ -2350,6 +2509,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.elementOverrides && { element_overrides: options.elementOverrides }),
           ...(options?.actionValue && { action_value: options.actionValue }),
           ...(options?.actionLabel && { action_label: options.actionLabel }),
+          ...(options?.templateIngest && { template_ingest: true }),
+          ...(options?.ingestUploadRef && { ingest_upload_ref: options.ingestUploadRef }),
           ...(options?.manualDeck && { manual_deck: options.manualDeck }),
           ...(options?.deckIdentity && { deck_identity: options.deckIdentity }),
           ...(options?.handoffIdempotencyKey && {
@@ -2691,6 +2852,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralFadeToken: 0,
       tokenUsage: null,
       tokenUsageMessageId: null,
+      templateIngestResult: null,
+      templateIngestError: null,
     }));
   }, [sessionCache, setStateWithCache]);
 
@@ -2833,6 +2996,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralFadeToken: 0,
       tokenUsage: (sessionState as any).tokenUsage || null,
       tokenUsageMessageId: (sessionState as any).tokenUsageMessageId || null,
+      templateIngestResult: (sessionState as any).templateIngestResult || null,
+      templateIngestError: null,
     }));
   }, [setStateWithCache]);
 
