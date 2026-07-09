@@ -300,6 +300,12 @@ export interface TemplateIngestUpdate {
 // resume polling after a reload/reconnect; cleared on ready/failed.
 export const INGEST_JOB_KEY_PREFIX = 'deckster_ingest_job_';
 
+// Template Ingest (C-7): sessionStorage key prefix for the one-shot upload
+// intent staged by the upload dialog before routing to the builder. Canonical
+// definition lives here so the WS hook can clear it on terminal ingest frames
+// (belt and braces vs the builder's consume-on-successful-send path).
+export const INGEST_INTENT_KEY_PREFIX = 'deckster_ingest_intent_';
+
 export interface TemplateIngestReady {
   message_id: string;
   session_id: string;
@@ -1367,6 +1373,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 message.type === 'template_ingest_failed'
               ) {
                 sessionStorage.removeItem(ingestJobKey);
+                // Belt and braces (review fix): the job reached a terminal
+                // frame, so any still-staged one-shot upload intent for this
+                // session is definitively stale — clear it too.
+                sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${sessionIdRef.current}`);
               }
             } catch {
               // sessionStorage unavailable — reconnect polling degrades gracefully
