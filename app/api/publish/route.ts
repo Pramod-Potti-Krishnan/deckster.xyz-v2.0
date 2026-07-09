@@ -127,12 +127,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Slide count: session metadata, fallback to the snapshot deck JSON
-    let slideCount = chatSession.slideCount ?? null;
+    // Slide count: read it from the frozen SNAPSHOT deck — that's exactly what
+    // viewers (and the PPTX export) see. Manual in-builder slide add/delete only
+    // mutates viewer-local state, never ChatSession.slideCount, so trusting the
+    // session first would publish a stale count. Session metadata is a fallback,
+    // then one last authoritative attempt off the source deck.
+    let slideCount = await getPresentationSlideCount(snapshot.snapshotId);
     if (!slideCount || slideCount <= 0) {
-      slideCount = await getPresentationSlideCount(snapshot.snapshotId);
+      slideCount = chatSession.slideCount ?? null;
     }
-    // One more authoritative attempt off the source deck before giving up
     if (!slideCount || slideCount <= 0) {
       slideCount = await getPresentationSlideCount(chatSession.finalPresentationId);
     }

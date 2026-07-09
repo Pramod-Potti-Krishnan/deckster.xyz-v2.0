@@ -3,7 +3,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { generateSlug } from '@/lib/publish/slug';
-import { deletePresentationSnapshot, snapshotPresentation } from '@/lib/publish/layout';
+import {
+  deletePresentationSnapshot,
+  getPresentationSlideCount,
+  snapshotPresentation,
+} from '@/lib/publish/layout';
 import { serializePublishedDeck } from '@/lib/publish/serialize';
 
 /**
@@ -80,6 +84,25 @@ export async function POST(
 
     const oldSnapshotId = existing.snapshotPresentationId;
 
+    // Recompute the slide count off the freshly-created snapshot — a re-snapshot
+    // can pick up in-builder slide add/delete since the last publish, and rotate
+    // must persist that authoritative count (the previous rotate left it stale).
+    let slideCount = await getPresentationSlideCount(snapshot.snapshotId);
+    if (!slideCount || slideCount <= 0) {
+      slideCount = existing.slideCount ?? null;
+    }
+    if (!slideCount || slideCount <= 0) {
+      slideCount = await getPresentationSlideCount(sourcePresentationId);
+    }
+    if (!slideCount || slideCount <= 0) {
+      // Never persist an unknown count — drop the orphan snapshot and ask to retry
+      await deletePresentationSnapshot(snapshot.snapshotId);
+      return NextResponse.json(
+        { error: 'Could not determine slide count; please retry' },
+        { status: 502 }
+      );
+    }
+
     // Mint a fresh slug + point at the new snapshot; retry on the
     // (astronomically unlikely) slug collision.
     let updated = null;
@@ -91,6 +114,7 @@ export async function POST(
             slug: generateSlug(),
             snapshotPresentationId: snapshot.snapshotId,
             sourcePresentationId,
+            slideCount,
           },
         });
       } catch (error: any) {
