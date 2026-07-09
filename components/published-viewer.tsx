@@ -9,11 +9,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useToast } from '@/hooks/use-toast'
-import { downloadPDF, downloadPPTX } from '@/lib/api/download-service'
 
 interface PublishedViewerProps {
   title: string
+  /** Published-deck slug — download links route through the server gate */
+  slug: string
   /** Public Layout Service origin the browser can reach */
   layoutBaseUrl: string
   /** The frozen snapshot presentation viewers see */
@@ -32,21 +32,22 @@ interface PublishedViewerProps {
  */
 export function PublishedViewer({
   title,
+  slug,
   layoutBaseUrl,
   snapshotPresentationId,
   slideCount,
   allowPdf,
   allowPptx,
 }: PublishedViewerProps) {
-  const { toast } = useToast()
   const stageRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [downloading, setDownloading] = useState<'pdf' | 'pptx' | null>(null)
 
-  // The read-only viewer for the iframe; the plain snapshot URL for the
-  // Downloads service (same URL shape the builder hands it today).
+  // The read-only viewer for the iframe. Downloads no longer go straight to the
+  // public Downloads service from here — they route through the server gate at
+  // /api/publish/{slug}/download/{format}, which enforces the passcode + the
+  // per-format flags before proxying + streaming the file back.
   const viewerUrl = `${layoutBaseUrl}/p/${snapshotPresentationId}?viewOnly=true`
-  const snapshotUrl = `${layoutBaseUrl}/p/${snapshotPresentationId}`
+  const downloadHref = (format: 'pdf' | 'pptx') => `/api/publish/${slug}/download/${format}`
 
   const canDownload = allowPdf || allowPptx
 
@@ -64,35 +65,6 @@ export function PublishedViewer({
     }
   }, [])
 
-  const handleDownload = useCallback(async (format: 'pdf' | 'pptx') => {
-    setDownloading(format)
-    try {
-      const result = format === 'pdf'
-        ? await downloadPDF(snapshotUrl)
-        : await downloadPPTX(snapshotUrl, slideCount > 0 ? slideCount : 1)
-      if (result.success) {
-        toast({
-          title: `${format.toUpperCase()} Download Started`,
-          description: `Your ${format === 'pdf' ? 'PDF' : 'PowerPoint'} is being downloaded`,
-        })
-      } else {
-        toast({
-          title: 'Download Failed',
-          description: result.error || `Failed to download ${format.toUpperCase()}`,
-          variant: 'destructive',
-        })
-      }
-    } catch (error) {
-      toast({
-        title: 'Download Error',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      })
-    } finally {
-      setDownloading(null)
-    }
-  }, [snapshotUrl, slideCount, toast])
-
   return (
     <div className="h-dvh flex flex-col bg-gray-100 dark:bg-slate-900">
       {/* Top bar — title + actions */}
@@ -105,33 +77,30 @@ export function PublishedViewer({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  disabled={downloading !== null}
                   className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
                   title="Download this presentation"
                 >
-                  <Download className={`h-4 w-4 ${downloading ? 'animate-pulse' : ''}`} />
-                  <span>{downloading ? 'Converting…' : 'Download'}</span>
+                  <Download className="h-4 w-4" />
+                  <span>Download</span>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 {allowPdf && (
-                  <DropdownMenuItem
-                    onClick={() => handleDownload('pdf')}
-                    disabled={downloading !== null}
-                    className="cursor-pointer"
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    <span>Download as PDF</span>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    {/* Plain anchor: hits the server gate, which streams the file
+                        back with Content-Disposition (no client-side conversion) */}
+                    <a href={downloadHref('pdf')}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      <span>Download as PDF</span>
+                    </a>
                   </DropdownMenuItem>
                 )}
                 {allowPptx && (
-                  <DropdownMenuItem
-                    onClick={() => handleDownload('pptx')}
-                    disabled={downloading !== null}
-                    className="cursor-pointer"
-                  >
-                    <Presentation className="mr-2 h-4 w-4" />
-                    <span>Download as PPTX</span>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <a href={downloadHref('pptx')}>
+                      <Presentation className="mr-2 h-4 w-4" />
+                      <span>Download as PPTX</span>
+                    </a>
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>

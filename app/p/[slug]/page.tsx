@@ -63,6 +63,7 @@ export default async function PublishedDeckPage({ params }: PublishedDeckPagePro
   return (
     <PublishedViewer
       title={deck.title}
+      slug={deck.slug}
       layoutBaseUrl={PUBLIC_LAYOUT_BASE_URL}
       snapshotPresentationId={deck.snapshotPresentationId}
       slideCount={deck.slideCount}
