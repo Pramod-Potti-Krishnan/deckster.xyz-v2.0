@@ -3368,10 +3368,19 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
   })
 
-  // Template Ingest (C-7): one-shot handoff. The upload dialog minted this
-  // session, staged `deckster_ingest_intent_<id>` in sessionStorage, and routed
-  // here. On the first ready connection: read + DELETE the key, then auto-send
-  // the ingest user_message so Director starts the ingest orchestration.
+  // Template Ingest (C-7, review fix): one-shot handoff. The upload dialog
+  // minted this session, staged `deckster_ingest_intent_<id>` in
+  // sessionStorage, and routed here. State machine:
+  //   STAGED  — key present, not yet sent. Effect reads WITHOUT deleting.
+  //   SENT    — sendMessage returned true on an OPEN socket: set the
+  //             per-session ref guard (prevents double-send) and only THEN
+  //             delete the key.
+  //   RETRY   — sendMessage returned false (socket not actually OPEN despite
+  //             isReady, e.g. a transient WS drop): keep the key, leave the
+  //             ref guard unset; the effect re-runs when `isReady`/`connected`
+  //             flips true again and retries the send.
+  //   DONE    — belt and braces: the WS hook also deletes the key when the
+  //             job's template_ingest_ready/_failed frame arrives.
   const ingestAutoSendSessionRef = useRef<string | null>(null)
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -3383,14 +3392,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     const key = `${INGEST_INTENT_KEY_PREFIX}${currentSessionId}`
     let raw: string | null = null
     try {
-      raw = sessionStorage.getItem(key)
-      if (raw) sessionStorage.removeItem(key) // one-shot: consume before acting
+      raw = sessionStorage.getItem(key) // read only; consumed after successful dispatch
     } catch {
       return
     }
     if (!raw) return
-
-    ingestAutoSendSessionRef.current = currentSessionId
 
     let intent: IngestIntentPayload | null = null
     try {
@@ -3400,6 +3406,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
     if (!intent?.storage_path || !intent?.file_name || !intent?.kind) {
       console.warn('[TemplateIngest] Ignoring malformed ingest intent payload')
+      ingestAutoSendSessionRef.current = currentSessionId
+      try { sessionStorage.removeItem(key) } catch { /* ignore */ }
       return
     }
 
@@ -3415,13 +3423,17 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     })
 
     if (!success) {
-      toast({
-        title: 'Could not start template ingest',
-        description: 'Director is not connected. Re-upload the presentation to try again.',
-        variant: 'destructive',
-      })
+      // Transient WS miss: the socket was not OPEN when we tried to send.
+      // Keep the staged key and the ref guard unset so the effect retries
+      // automatically when connectivity flips true again — no re-upload needed.
+      console.warn('[TemplateIngest] WebSocket not open yet; ingest handoff will retry on reconnect')
       return
     }
+
+    // Dispatched on an OPEN connection: guard against double-send for this
+    // session, then consume the one-shot key.
+    ingestAutoSendSessionRef.current = currentSessionId
+    try { sessionStorage.removeItem(key) } catch { /* ignore */ }
 
     // Mirror the normal send path: show the message in chat and persist it.
     const messageId = crypto.randomUUID()

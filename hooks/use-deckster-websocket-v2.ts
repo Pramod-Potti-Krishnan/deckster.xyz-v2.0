@@ -442,6 +442,7 @@ export interface TemplateIngestUpdate {
 // keyed by session id. Persisted while a job is in flight so the builder can
 // resume polling after a reload/reconnect; cleared on ready/failed.
 export const INGEST_JOB_KEY_PREFIX = 'deckster_ingest_job_';
+export const INGEST_INTENT_KEY_PREFIX = 'deckster_ingest_intent_';
 
 export interface TemplateIngestReady {
   message_id: string;
@@ -2128,6 +2129,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   message.type === 'template_ingest_failed'
                 ) {
                   sessionStorage.removeItem(ingestJobKey);
+                  sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${sessionIdRef.current}`);
                 }
               } catch {
                 // sessionStorage unavailable — reconnect polling degrades gracefully

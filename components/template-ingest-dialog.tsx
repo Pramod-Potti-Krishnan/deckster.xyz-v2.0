@@ -27,11 +27,15 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
 import { useChatSessions } from '@/hooks/use-chat-sessions'
 import { uploadFileToResearcher } from '@/lib/researcher-upload'
+import { INGEST_INTENT_KEY_PREFIX } from '@/hooks/use-deckster-websocket-v2'
 
 const MAX_INGEST_FILE_BYTES = 100 * 1024 * 1024 // 100MB (contract C-7)
 const ACCEPTED_EXTENSIONS = ['.pptx', '.ppt', '.pdf'] as const
 
-export const INGEST_INTENT_KEY_PREFIX = 'deckster_ingest_intent_'
+// Canonical INGEST_INTENT_KEY_PREFIX now lives in the WS hook (review fix:
+// the hook clears stale intents on terminal ingest frames); re-export keeps
+// existing `import { INGEST_INTENT_KEY_PREFIX } from this file` working.
+export { INGEST_INTENT_KEY_PREFIX }
 
 export interface IngestIntentPayload {
   storage_path: string
