@@ -87,9 +87,12 @@ export async function deletePresentationSnapshot(presentationId: string): Promis
  */
 export async function retryDeleteStaleSnapshots(ids: readonly string[]): Promise<string[]> {
   if (!ids || ids.length === 0) return []
+  // De-dup: the stored backlog can contain repeats, and there is no point
+  // issuing the same DELETE twice in one sweep.
+  const unique = Array.from(new Set(ids))
   const stillStale: string[] = []
   await Promise.all(
-    ids.map(async (id) => {
+    unique.map(async (id) => {
       const { ok } = await deletePresentationSnapshot(id)
       if (!ok) stillStale.push(id)
     })

@@ -209,7 +209,12 @@ export async function DELETE(
       if (!ok) {
         revoked = await prisma.publishedDeck.update({
           where: { id: existing.id },
-          data: { staleSnapshotIds: { push: existing.snapshotPresentationId } },
+          // De-dup against the carried backlog (the id may already be in it).
+          data: {
+            staleSnapshotIds: Array.from(
+              new Set([...carriedStale, existing.snapshotPresentationId])
+            ),
+          },
         });
       }
     }

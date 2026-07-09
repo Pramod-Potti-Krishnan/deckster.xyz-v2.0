@@ -190,7 +190,11 @@ export async function POST(req: NextRequest) {
         if (!ok) {
           record = await prisma.publishedDeck.update({
             where: { id: existing.id },
-            data: { staleSnapshotIds: { push: oldSnapshotId } },
+            // De-dup against the carried backlog: oldSnapshotId may already be
+            // in carriedStale (e.g. a prior unpublish left it unreaped).
+            data: {
+              staleSnapshotIds: Array.from(new Set([...carriedStale, oldSnapshotId])),
+            },
           });
         }
       }

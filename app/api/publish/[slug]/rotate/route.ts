@@ -148,7 +148,10 @@ export async function POST(
       if (!ok) {
         updated = await prisma.publishedDeck.update({
           where: { id: existing.id },
-          data: { staleSnapshotIds: { push: oldSnapshotId } },
+          // De-dup against the carried backlog (oldSnapshotId may already be in it).
+          data: {
+            staleSnapshotIds: Array.from(new Set([...carriedStale, oldSnapshotId])),
+          },
         });
       }
     }
