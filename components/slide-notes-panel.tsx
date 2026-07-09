@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
-import { getPresentation, updateSlideFields, SlideNarrationFields } from '@/lib/layout-service-client'
+import { getPresentation, updateSlideNarration, SlideNarrationFields } from '@/lib/layout-service-client'
 
 // localStorage keys for panel UI state (shared across sessions)
 const COLLAPSED_STORAGE_KEY = 'deckster.notesPanel.collapsed'
@@ -18,7 +18,7 @@ const SAVE_DEBOUNCE_MS = 800
 const SAVED_INDICATOR_MS = 2000
 
 type NotesTab = 'script' | 'notes' | 'references'
-type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'syncing'
 
 const NOTES_TABS: NotesTab[] = ['script', 'notes', 'references']
 
@@ -62,8 +62,9 @@ function textToReferences(value: string): string[] {
 /**
  * SlideNotesPanel — collapsible Script | Notes | References panel below the
  * slide canvas. Collapsed = a slim handle bar (Thumbnails-handle style);
- * expanded = Radix tabs with per-slide textareas and debounced autosave to
- * the Layout Service (PUT /api/presentations/{id}/slides/{idx}).
+ * expanded = Radix tabs with per-slide textareas and debounced autosave to the
+ * Layout Service via the concurrency-guarded narration PATCH
+ * (PATCH /api/presentations/{id}/slides/{slide_id}/narration).
  */
 export function SlideNotesPanel({
   presentationId,
@@ -115,6 +116,13 @@ export function SlideNotesPanel({
   const pendingRef = useRef<Map<string, Set<DirtyField>>>(new Map())
   const draftsRef = useRef(drafts)
   draftsRef.current = drafts
+  // Latest presentation id — so an in-flight save for a since-swapped deck never
+  // writes its updated_at / drafts back onto the deck now on screen.
+  const presentationIdRef = useRef(presentationId)
+  presentationIdRef.current = presentationId
+  // The deck's updated_at from the last authoritative read/save — the optimistic
+  // concurrency token threaded into every narration PATCH.
+  const updatedAtRef = useRef<string | null>(null)
 
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -168,21 +176,18 @@ export function SlideNotesPanel({
   useEffect(() => {
     editedFieldsRef.current = new Set()
     pendingRef.current = new Map()
+    updatedAtRef.current = null
     setDrafts({})
     setSlideIds([])
     setSaveState('idle')
   }, [presentationId])
 
-  // Authoritative read: GET the deck JSON from the Layout Service on mount,
-  // presentation change, or whenever the slide list length changes (slides
-  // added / removed). Refreshes the id↔index map and fills any field the user
-  // hasn't edited — all keyed by stable slide_id.
-  useEffect(() => {
-    if (!presentationId) return
-
-    let cancelled = false
-    getPresentation(presentationId).then((presentation) => {
-      if (cancelled || !presentation) return
+  // Merge a freshly-fetched deck into local state: refresh the id map and fill
+  // any field the user hasn't edited (keyed by stable slide_id). Returns the
+  // deck's updated_at so callers can advance the concurrency token — the caller
+  // decides whether to store it (it must NOT for a deck no longer on screen).
+  const mergeDeck = useCallback(
+    (presentation: Record<string, any>): { ids: string[]; updatedAt: string | null } => {
       const slides = Array.isArray(presentation.slides) ? presentation.slides : []
       const ids = slides.map((slide: any, index: number) =>
         typeof slide?.slide_id === 'string' && slide.slide_id ? slide.slide_id : `idx:${index}`
@@ -211,97 +216,193 @@ export function SlideNotesPanel({
         })
         return next
       })
+      return {
+        ids,
+        updatedAt: typeof presentation.updated_at === 'string' ? presentation.updated_at : null,
+      }
+    },
+    []
+  )
+
+  // Authoritative read: GET the deck JSON from the Layout Service on mount,
+  // presentation change, or whenever the slide list length changes (slides
+  // added / removed). Fills unedited fields and captures the deck's updated_at
+  // as the optimistic-concurrency token for narration saves.
+  useEffect(() => {
+    if (!presentationId) return
+
+    let cancelled = false
+    getPresentation(presentationId).then((presentation) => {
+      if (cancelled || !presentation) return
+      const { updatedAt } = mergeDeck(presentation)
+      if (updatedAt && presentationIdRef.current === presentationId) {
+        updatedAtRef.current = updatedAt
+      }
     })
 
     return () => {
       cancelled = true
     }
-  }, [presentationId, slideListLength])
+  }, [presentationId, slideListLength, mergeDeck])
 
   // --- Saving --------------------------------------------------------------
-  // `ids` is the index→slide_id map for `targetPresentationId` — passed in so a
-  // flush-on-presentation-change resolves against the deck it's actually writing
-  // to, not whatever deck is on screen now.
-  const flushPending = useCallback((targetPresentationId: string, ids: string[]) => {
-    const pending = pendingRef.current
-    if (pending.size === 0) return
-    pendingRef.current = new Map()
+  // Re-queue a slide's dirty fields so the next debounce retries them.
+  const requeue = useCallback((slideId: string, fields: SlideNarrationFields) => {
+    const set = pendingRef.current.get(slideId) ?? new Set<DirtyField>()
+    if (fields.script !== undefined) set.add('script')
+    if (fields.speaker_notes !== undefined) set.add('notes')
+    if (fields.references !== undefined) set.add('references')
+    pendingRef.current.set(slideId, set)
+  }, [])
 
-    // Resolve each dirty slide_id to its CURRENT numeric index — the PUT target
-    // (the Layout Service is index-based). Mapping at flush time is what makes a
-    // reorder/delete land on the right slide.
-    const indexById = new Map<string, number>()
-    ids.forEach((id, index) => {
-      if (!indexById.has(id)) indexById.set(id, index)
-    })
+  // Persist queued narration edits via the concurrency-guarded PATCH (addressed
+  // by stable slide_id). Runs SEQUENTIALLY so each save's fresh updated_at threads
+  // into the next — parallel writes would race the deck's updated_at and 409 each
+  // other. `targetPresentationId` is passed so a flush-on-presentation-change
+  // writes to the deck it queued for, not whatever deck is on screen now.
+  const runNarrationSaves = useCallback(
+    async (
+      targetPresentationId: string,
+      jobs: Array<{ slideId: string; fields: SlideNarrationFields }>,
+    ) => {
+      const isCurrent = () => targetPresentationId === presentationIdRef.current
+      let hadError = false
+      let hadConflict = false
 
-    const jobs: Array<{ slideId: string; slideIndex: number; fields: SlideNarrationFields }> = []
-    pending.forEach((fields, slideId) => {
-      const slideIndex = indexById.get(slideId)
-      const draft = draftsRef.current[slideId]
-      if (slideIndex === undefined || !draft) {
-        // Can't resolve id→index yet (deck fetch still pending) — re-queue so a
-        // later flush retries rather than dropping the edit.
-        pendingRef.current.set(slideId, fields)
-        return
+      for (const job of jobs) {
+        // Establish the expected updated_at (refetch to seed it if we lack one).
+        let expected = updatedAtRef.current
+        if (!expected) {
+          const fresh = await getPresentation(targetPresentationId)
+          if (fresh) {
+            const updatedAt = typeof fresh.updated_at === 'string' ? fresh.updated_at : null
+            if (isCurrent()) mergeDeck(fresh)
+            expected = updatedAt
+            if (updatedAt && isCurrent()) updatedAtRef.current = updatedAt
+          }
+        }
+        if (!expected) {
+          // No baseline — the required guard can't be satisfied; retry next debounce.
+          requeue(job.slideId, job.fields)
+          hadConflict = true
+          continue
+        }
+
+        let result = await updateSlideNarration(
+          targetPresentationId,
+          job.slideId,
+          job.fields,
+          expected,
+        )
+
+        // 409 → the deck moved under us. Refetch, re-apply this slide's draft onto
+        // the fresh state, and retry ONCE with the fresh updated_at (bounded).
+        if (result.status === 409) {
+          const fresh = await getPresentation(targetPresentationId)
+          let freshUpdatedAt = result.currentUpdatedAt ?? null
+          if (fresh) {
+            if (!freshUpdatedAt) {
+              freshUpdatedAt = typeof fresh.updated_at === 'string' ? fresh.updated_at : null
+            }
+            // Only fold fresh state into the on-screen drafts for the live deck.
+            // The user's edited fields survive (editedFieldsRef gates them), so
+            // the retry still carries their pending draft (job.fields).
+            if (isCurrent()) mergeDeck(fresh)
+          }
+          if (freshUpdatedAt) {
+            if (isCurrent()) updatedAtRef.current = freshUpdatedAt
+            result = await updateSlideNarration(
+              targetPresentationId,
+              job.slideId,
+              job.fields,
+              freshUpdatedAt,
+            )
+          }
+        }
+
+        if (result.success) {
+          if (result.updatedAt && isCurrent()) updatedAtRef.current = result.updatedAt
+        } else if (result.status === 409) {
+          // Still conflicting after one retry — back off softly; next debounce tries.
+          hadConflict = true
+          requeue(job.slideId, job.fields)
+        } else {
+          hadError = true
+          requeue(job.slideId, job.fields)
+          toast({
+            title: 'Failed to save notes',
+            description:
+              result.error?.message ||
+              'Your latest edits could not be saved. They will retry on your next change.',
+            variant: 'destructive',
+          })
+        }
       }
-      const payload: SlideNarrationFields = {}
-      if (fields.has('script')) payload.script = draft.script
-      if (fields.has('notes')) payload.speaker_notes = draft.notes
-      if (fields.has('references')) payload.references = textToReferences(draft.references)
-      if (Object.keys(payload).length > 0) jobs.push({ slideId, slideIndex, fields: payload })
-    })
-    if (jobs.length === 0) return
 
-    setSaveState('saving')
-    Promise.all(
-      jobs.map(({ slideIndex, fields }) =>
-        updateSlideFields(targetPresentationId, slideIndex, fields)
-      )
-    ).then((results) => {
-      const failed = results.find((result) => result?.success === false)
-      if (failed) {
+      if (hadError) {
         setSaveState('error')
-        toast({
-          title: 'Failed to save notes',
-          description: failed.error?.message || 'Your latest edits could not be saved. They will retry on your next change.',
-          variant: 'destructive',
-        })
-        // Re-queue the failed fields (by slide_id) so the next edit retries them
-        jobs.forEach(({ slideId, fields }) => {
-          const set = pendingRef.current.get(slideId) ?? new Set<DirtyField>()
-          if (fields.script !== undefined) set.add('script')
-          if (fields.speaker_notes !== undefined) set.add('notes')
-          if (fields.references !== undefined) set.add('references')
-          pendingRef.current.set(slideId, set)
-        })
-        return
+      } else if (hadConflict) {
+        setSaveState('syncing')
+      } else {
+        setSaveState('saved')
+        if (savedIndicatorRef.current) clearTimeout(savedIndicatorRef.current)
+        savedIndicatorRef.current = setTimeout(() => {
+          setSaveState((prev) => (prev === 'saved' ? 'idle' : prev))
+        }, SAVED_INDICATOR_MS)
       }
-      setSaveState('saved')
-      if (savedIndicatorRef.current) clearTimeout(savedIndicatorRef.current)
-      savedIndicatorRef.current = setTimeout(() => {
-        setSaveState((prev) => (prev === 'saved' ? 'idle' : prev))
-      }, SAVED_INDICATOR_MS)
-    })
-  }, [toast])
+    },
+    [mergeDeck, requeue, toast],
+  )
+
+  // Build PATCH jobs from the pending queue (payloads addressed by stable
+  // slide_id) and hand them to the sequential saver.
+  const flushPending = useCallback(
+    (targetPresentationId: string) => {
+      const pending = pendingRef.current
+      if (pending.size === 0) return
+      pendingRef.current = new Map()
+
+      const jobs: Array<{ slideId: string; fields: SlideNarrationFields }> = []
+      pending.forEach((dirty, slideId) => {
+        const draft = draftsRef.current[slideId]
+        // The PATCH is addressed by real slide_id. A synthetic idx: key means we
+        // don't have a stable id yet (deck fetch / WS still pending) — re-queue so
+        // a later flush retries rather than dropping the edit.
+        if (!draft || slideId.startsWith('idx:')) {
+          pendingRef.current.set(slideId, dirty)
+          return
+        }
+        const payload: SlideNarrationFields = {}
+        if (dirty.has('script')) payload.script = draft.script
+        if (dirty.has('notes')) payload.speaker_notes = draft.notes
+        if (dirty.has('references')) payload.references = textToReferences(draft.references)
+        if (Object.keys(payload).length > 0) jobs.push({ slideId, fields: payload })
+      })
+      if (jobs.length === 0) return
+
+      setSaveState('saving')
+      void runNarrationSaves(targetPresentationId, jobs)
+    },
+    [runNarrationSaves],
+  )
 
   const scheduleSave = useCallback(() => {
     if (!presentationId) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      // Live map — the debounced save always targets the on-screen presentation
-      flushPending(presentationId, slideIdsRef.current)
+      // The debounced save always targets the on-screen presentation
+      flushPending(presentationId)
     }, SAVE_DEBOUNCE_MS)
   }, [presentationId, flushPending])
 
-  // Flush straight away when the presentation changes / panel unmounts. Capture
-  // the id map for THIS presentation at setup so the cleanup (which runs after
-  // the new presentation's props have landed) still resolves against this deck.
+  // Flush straight away when the presentation changes / panel unmounts. The
+  // narration PATCH is addressed by stable slide_id, so the flush resolves
+  // against the right deck (targetPresentationId) without an index map — and
+  // updatedAtRef still holds this deck's token at cleanup time (reset runs after).
   useEffect(() => {
-    const idsForThisDeck = slideIdsRef.current
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      if (presentationId) flushPending(presentationId, idsForThisDeck)
+      if (presentationId) flushPending(presentationId)
     }
   }, [presentationId, flushPending])
 
@@ -388,6 +489,12 @@ export function SlideNotesPanel({
                   <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                     <Check className="h-3 w-3" />
                     Saved
+                  </span>
+                )}
+                {saveState === 'syncing' && (
+                  <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                    <span className="h-3 w-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                    Syncing…
                   </span>
                 )}
                 {saveState === 'error' && (
