@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS "fe_published_decks" (
   "passcode_hash" TEXT,
   "allow_pdf" BOOLEAN NOT NULL DEFAULT true,
   "allow_pptx" BOOLEAN NOT NULL DEFAULT true,
+  -- Snapshot ids whose Layout-side delete failed; retried on the next
+  -- publish/rotate/unpublish so revocation isn't silently lost.
+  "stale_snapshot_ids" TEXT[] NOT NULL DEFAULT '{}',
   "view_count" INTEGER NOT NULL DEFAULT 0,
   "published_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "republished_at" TIMESTAMP(3),

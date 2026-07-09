@@ -7,6 +7,7 @@ import { hashPasscode, MIN_PASSCODE_LENGTH } from '@/lib/publish/passcode';
 import {
   deletePresentationSnapshot,
   getPresentationSlideCount,
+  retryDeleteStaleSnapshots,
   snapshotPresentation,
 } from '@/lib/publish/layout';
 import { isPublishVisibility, serializePublishedDeck } from '@/lib/publish/serialize';
@@ -155,11 +156,15 @@ export async function POST(req: NextRequest) {
       passcode === undefined ? undefined : passcode.length > 0 ? hashPasscode(passcode) : null;
 
     let record;
+    // true only when the previously-live snapshot is confirmed gone
+    let snapshotDeleted = true;
     if (existing) {
       // Republish: swap the DB pointer FIRST, then reap the old snapshot.
       // Deleting before the update would, if the update throws, leave the live
       // slug pointing at a destroyed snapshot (iframe → 404) and orphan the new one.
       const oldSnapshotId = existing.snapshotPresentationId;
+      // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
+      const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds);
       record = await prisma.publishedDeck.update({
         where: { id: existing.id },
         data: {
@@ -167,6 +172,7 @@ export async function POST(req: NextRequest) {
           snapshotPresentationId: snapshot.snapshotId,
           title,
           slideCount,
+          staleSnapshotIds: carriedStale,
           republishedAt: new Date(),
           revokedAt: null,
           ...(visibility !== undefined ? { visibility } : {}),
@@ -175,9 +181,18 @@ export async function POST(req: NextRequest) {
           ...(allowPptx !== undefined ? { allowPptx } : {}),
         },
       });
-      // Best-effort cleanup of the now-replaced snapshot — never fail the request
+      // Reap the now-replaced snapshot AFTER the pointer swap (never fail the
+      // request). If the delete didn't stick, carry the id forward so a later
+      // publish op retries it, and don't claim the old copy is gone.
       if (oldSnapshotId && oldSnapshotId !== snapshot.snapshotId) {
-        await deletePresentationSnapshot(oldSnapshotId);
+        const { ok } = await deletePresentationSnapshot(oldSnapshotId);
+        snapshotDeleted = ok;
+        if (!ok) {
+          record = await prisma.publishedDeck.update({
+            where: { id: existing.id },
+            data: { staleSnapshotIds: { push: oldSnapshotId } },
+          });
+        }
       }
     } else {
       record = await prisma.publishedDeck.create({
@@ -197,7 +212,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ deck: serializePublishedDeck(record) });
+    return NextResponse.json({ deck: serializePublishedDeck(record), snapshotDeleted });
 
   } catch (error) {
     console.error('Error publishing deck:', error);

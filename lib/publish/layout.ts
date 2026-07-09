@@ -40,16 +40,28 @@ export async function snapshotPresentation(presentationId: string): Promise<Snap
   }
 }
 
+export interface DeleteResult {
+  /** true only when the snapshot is confirmed gone from the Layout Service */
+  ok: boolean
+}
+
 /**
  * Best-effort delete of a presentation (used to reap replaced/revoked
- * snapshots). Failures are logged, never thrown.
+ * snapshots). Never throws — returns { ok } so callers can tell the owner the
+ * truth about whether the old copy is actually gone.
+ *
+ * `ok` is true on a 2xx delete, and also on 404 — an already-absent snapshot IS
+ * revoked (and lets a re-deleted, previously-reaped snapshot drop off the stale
+ * list instead of retrying forever). A key mismatch (403) or a Layout 5xx means
+ * the snapshot may still be live, so `ok` is false and the caller must not claim
+ * revocation.
  *
  * The Layout Service gates bare-DELETE of a publish snapshot behind the
  * X-Publish-Key header. The SAME secret lives in Vercel env LAYOUT_PUBLISH_KEY
  * and Railway layout env PUBLISH_DELETE_KEY. Server-side only — never exposed
  * to the client bundle.
  */
-export async function deletePresentationSnapshot(presentationId: string): Promise<void> {
+export async function deletePresentationSnapshot(presentationId: string): Promise<DeleteResult> {
   try {
     const response = await fetch(
       `${getLayoutServiceBaseUrl()}/api/presentations/${presentationId}`,
@@ -58,12 +70,31 @@ export async function deletePresentationSnapshot(presentationId: string): Promis
         headers: { 'X-Publish-Key': process.env.LAYOUT_PUBLISH_KEY || '' },
       }
     )
-    if (!response.ok) {
-      console.error('[Publish] Snapshot delete failed:', presentationId, response.status)
-    }
+    if (response.ok || response.status === 404) return { ok: true }
+    console.error('[Publish] Snapshot delete failed:', presentationId, response.status)
+    return { ok: false }
   } catch (error) {
     console.error('[Publish] Snapshot delete error:', presentationId, error)
+    return { ok: false }
   }
+}
+
+/**
+ * Opportunistic self-heal: retry-delete snapshot ids a previous
+ * publish/rotate/unpublish couldn't reap, and return the ids that STILL can't be
+ * deleted (to persist back onto the record). No cron needed — every publish
+ * lifecycle op sweeps the backlog.
+ */
+export async function retryDeleteStaleSnapshots(ids: readonly string[]): Promise<string[]> {
+  if (!ids || ids.length === 0) return []
+  const stillStale: string[] = []
+  await Promise.all(
+    ids.map(async (id) => {
+      const { ok } = await deletePresentationSnapshot(id)
+      if (!ok) stillStale.push(id)
+    })
+  )
+  return stillStale
 }
 
 /**

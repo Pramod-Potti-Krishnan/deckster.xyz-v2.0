@@ -252,7 +252,9 @@ export function PublishDialog({
       setRecord(data.deck)
       toast({
         title: 'Link rotated',
-        description: 'The old link no longer works. Share the new one.',
+        description: data.snapshotDeleted
+          ? 'The old link no longer works and the previous copy has been removed. Share the new one.'
+          : 'The old link is disabled and the new one is live. The previous copy is still being cleaned up.',
       })
     } catch (error) {
       toast({
@@ -278,7 +280,9 @@ export function PublishDialog({
       setConfirmUnpublish(false)
       toast({
         title: 'Deck unpublished',
-        description: 'The link no longer works. You can publish again anytime.',
+        description: data.snapshotDeleted
+          ? 'The link no longer works and the copy has been removed. You can publish again anytime.'
+          : 'The share link is disabled. The published copy is still being cleaned up — you can publish again anytime.',
       })
     } catch (error) {
       toast({

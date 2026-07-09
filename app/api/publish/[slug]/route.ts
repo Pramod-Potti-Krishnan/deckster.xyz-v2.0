@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { hashPasscode, MIN_PASSCODE_LENGTH } from '@/lib/publish/passcode';
-import { deletePresentationSnapshot } from '@/lib/publish/layout';
+import { deletePresentationSnapshot, retryDeleteStaleSnapshots } from '@/lib/publish/layout';
 import { isPublishVisibility, serializePublishedDeck } from '@/lib/publish/serialize';
 
 /**
@@ -188,20 +188,33 @@ export async function DELETE(
       );
     }
 
+    // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
+    const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds);
+
     // Set revokedAt FIRST, then reap the snapshot (best effort). Deleting before
     // the update would, on an update failure, leave the deck "published" while its
     // snapshot is already destroyed (iframe → 404).
-    const revoked = await prisma.publishedDeck.update({
+    let revoked = await prisma.publishedDeck.update({
       where: { id: existing.id },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: new Date(), staleSnapshotIds: carriedStale },
     });
 
-    // Best-effort snapshot cleanup on the Layout Service — never fail the request
+    // Snapshot cleanup on the Layout Service — never fail the request. If the
+    // delete didn't stick, the {layout}/p/{snapshotId} URL is still live, so
+    // carry the id forward and don't claim the copy is gone.
+    let snapshotDeleted = true;
     if (existing.snapshotPresentationId) {
-      await deletePresentationSnapshot(existing.snapshotPresentationId);
+      const { ok } = await deletePresentationSnapshot(existing.snapshotPresentationId);
+      snapshotDeleted = ok;
+      if (!ok) {
+        revoked = await prisma.publishedDeck.update({
+          where: { id: existing.id },
+          data: { staleSnapshotIds: { push: existing.snapshotPresentationId } },
+        });
+      }
     }
 
-    return NextResponse.json({ deck: serializePublishedDeck(revoked) });
+    return NextResponse.json({ deck: serializePublishedDeck(revoked), snapshotDeleted });
 
   } catch (error) {
     console.error('Error unpublishing deck:', error);

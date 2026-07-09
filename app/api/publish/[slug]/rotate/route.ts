@@ -6,6 +6,7 @@ import { generateSlug } from '@/lib/publish/slug';
 import {
   deletePresentationSnapshot,
   getPresentationSlideCount,
+  retryDeleteStaleSnapshots,
   snapshotPresentation,
 } from '@/lib/publish/layout';
 import { serializePublishedDeck } from '@/lib/publish/serialize';
@@ -103,6 +104,9 @@ export async function POST(
       );
     }
 
+    // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
+    const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds);
+
     // Mint a fresh slug + point at the new snapshot; retry on the
     // (astronomically unlikely) slug collision.
     let updated = null;
@@ -115,6 +119,7 @@ export async function POST(
             snapshotPresentationId: snapshot.snapshotId,
             sourcePresentationId,
             slideCount,
+            staleSnapshotIds: carriedStale,
           },
         });
       } catch (error: any) {
@@ -132,12 +137,23 @@ export async function POST(
       );
     }
 
-    // Best-effort reap of the old snapshot — after the pointer swap (Fix A ordering)
+    // Reap the old snapshot AFTER the pointer swap (Fix A ordering). Rotating the
+    // slug alone doesn't revoke the {layout}/p/{snapshotId} URL — only deleting
+    // the snapshot does. If the delete didn't stick, carry the id forward and
+    // tell the owner the truth (the old copy is still being cleaned up).
+    let snapshotDeleted = true;
     if (oldSnapshotId && oldSnapshotId !== snapshot.snapshotId) {
-      await deletePresentationSnapshot(oldSnapshotId);
+      const { ok } = await deletePresentationSnapshot(oldSnapshotId);
+      snapshotDeleted = ok;
+      if (!ok) {
+        updated = await prisma.publishedDeck.update({
+          where: { id: existing.id },
+          data: { staleSnapshotIds: { push: oldSnapshotId } },
+        });
+      }
     }
 
-    return NextResponse.json({ deck: serializePublishedDeck(updated) });
+    return NextResponse.json({ deck: serializePublishedDeck(updated), snapshotDeleted });
 
   } catch (error) {
     console.error('Error rotating published deck slug:', error);

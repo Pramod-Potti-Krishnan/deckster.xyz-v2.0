@@ -377,6 +377,10 @@ model PublishedDeck {
   passcodeHash           String?   @map("passcode_hash")         // scrypt hash; set when visibility = 'restricted'
   allowPdf               Boolean   @default(true) @map("allow_pdf")
   allowPptx              Boolean   @default(true) @map("allow_pptx")
+  // Snapshot ids whose Layout-side delete failed (key mismatch / 5xx). Carried
+  // here so revocation isn't silently lost; retried opportunistically on the
+  // next publish/rotate/unpublish (self-healing — no cron).
+  staleSnapshotIds       String[]  @default([]) @map("stale_snapshot_ids")
   viewCount              Int       @default(0) @map("view_count")
   publishedAt            DateTime  @default(now()) @map("published_at")
   republishedAt          DateTime? @map("republished_at")
