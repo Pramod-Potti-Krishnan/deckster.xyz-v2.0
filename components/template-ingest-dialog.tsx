@@ -12,7 +12,6 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { AlertTriangle, FileUp, Loader2, Upload } from 'lucide-react'
 import {
   Dialog,
@@ -72,7 +71,6 @@ interface TemplateIngestDialogProps {
 }
 
 export function TemplateIngestDialog({ open, onOpenChange }: TemplateIngestDialogProps) {
-  const router = useRouter()
   const { user } = useAuth()
   const { createSession } = useChatSessions()
 
@@ -163,7 +161,14 @@ export function TemplateIngestDialog({ open, onOpenChange }: TemplateIngestDialo
       setPhase('redirecting')
       setProgress(100)
       onOpenChange(false)
-      router.push(`/builder?session_id=${newSessionId}`)
+      // Round-3 fix (review N1/F8): HARD navigation, not an SPA route. The
+      // shared WS hook keeps session A's socket OPEN across an SPA session-id
+      // change, so B's one-shot intent could be sent over A's socket (and A's
+      // frames could clear B's keys). A full page load destroys A's socket and
+      // all in-memory state; the fresh mount connects under B only.
+      // (Precedent: marketing cards navigate to /builder with
+      // window.location.href.)
+      window.location.assign(`/builder?session_id=${newSessionId}`)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed'
       console.error('[TemplateIngest] Upload failed:', err)
@@ -171,7 +176,7 @@ export function TemplateIngestDialog({ open, onOpenChange }: TemplateIngestDialo
       setProgress(0)
       setError(message)
     }
-  }, [file, busy, user, createSession, onOpenChange, router])
+  }, [file, busy, user, createSession, onOpenChange])
 
   const phaseLabel = phase === 'uploading'
     ? 'Uploading presentation…'

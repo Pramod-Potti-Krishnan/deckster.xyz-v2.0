@@ -1230,6 +1230,7 @@ function BuilderContent() {
     connect,
     disconnect,
     isReady,
+    socketSessionId,
     sessionId: wsSessionId,
     updateCacheUserMessages
   } = useDecksterWebSocketV2({
@@ -1957,6 +1958,17 @@ function BuilderContent() {
     if (process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED !== 'true') return // flag-off: byte-identical behavior
     if (!currentSessionId || currentSessionId === 'new') return
     if (!isReady) return
+    // Round-3 fix (review N1/F8): only send over a socket that was OPENED
+    // under this session. With the dialog's hard navigation this is belt and
+    // braces, but it also protects any future SPA path where a previous
+    // session's socket could still be the open one when this effect fires.
+    if (socketSessionId !== currentSessionId) {
+      console.warn('[TemplateIngest] Open socket belongs to a different session; deferring ingest handoff', {
+        socketSessionId,
+        currentSessionId,
+      })
+      return
+    }
     if (ingestAutoSendSessionRef.current === currentSessionId) return
 
     const key = `${INGEST_INTENT_KEY_PREFIX}${currentSessionId}`
@@ -2027,7 +2039,7 @@ function BuilderContent() {
         session.hasTitleFromUserMessageRef.current = true
       }
     }
-  }, [currentSessionId, isReady, sendMessage, session, persistence, toast])
+  }, [currentSessionId, isReady, socketSessionId, sendMessage, session, persistence, toast])
 
   // Template Ingest (C-5, M-6): reconnect polling. If a non-terminal ingest job
   // was persisted for this session (the tab reloaded / the WS dropped mid-job),
