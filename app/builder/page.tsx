@@ -61,7 +61,11 @@ import {
   normalizeSlideComposeJobRecoveryResult,
   resolveSlideComposeSessionId,
 } from '@/lib/slide-compose-job-recovery'
-import { mergeStageFThumbnailUrl } from '@/lib/stage-f-thumbnails'
+import {
+  mergeStageFInsertedThumbnailUrl,
+  mergeStageFPresentationThumbnailUrl,
+  type SlideThumbnailUrlsByPresentation,
+} from '@/lib/stage-f-thumbnails'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
@@ -716,7 +720,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     slideCount: number | null
     refreshToken: number
   } | null>(null)
-  const [slideThumbnailUrls, setSlideThumbnailUrls] = useState<Record<number, string>>({})
+  const [slideThumbnailUrlsByPresentation, setSlideThumbnailUrlsByPresentation] = useState<SlideThumbnailUrlsByPresentation>({})
   const [slideComposeJobs, setSlideComposeJobs] = useState<Record<string, SlideComposeJobState>>({})
   const [slideComposePanelEvent, setSlideComposePanelEvent] = useState<SlideComposePanelEvent | null>(null)
   const slideComposerPresentationRef = useRef<{
@@ -1247,7 +1251,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setManualDeckHandoffBusy(false)
     setSlideComposerOverride(null)
     clearSlideComposerWork()
-    setSlideThumbnailUrls({})
+    setSlideThumbnailUrlsByPresentation({})
     setSlideComposeJobs({})
     Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
     slideComposeWatchdogsRef.current = {}
@@ -1783,9 +1787,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         })
     },
     onSlideBuilt: (message: SlideBuilt) => {
-      const { slide_index, thumbnail_url } = message.payload
-      setSlideThumbnailUrls(prev =>
-        mergeStageFThumbnailUrl(prev, slide_index, thumbnail_url),
+      const { presentation_id, slide_index, thumbnail_url } = message.payload
+      setSlideThumbnailUrlsByPresentation(prev =>
+        mergeStageFPresentationThumbnailUrl(
+          prev,
+          presentation_id,
+          slide_index,
+          thumbnail_url,
+        ),
       )
     },
     onSlideComposeReady: (message: SlideComposeReady) => {
@@ -1809,8 +1818,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         })
         return
       }
-      setSlideThumbnailUrls(prev =>
-        mergeStageFThumbnailUrl(prev, payload.slide_index, payload.thumbnail_url),
+      setSlideThumbnailUrlsByPresentation(prev =>
+        mergeStageFInsertedThumbnailUrl(
+          prev,
+          payload.presentation_id,
+          payload.slide_index,
+          payload.thumbnail_url,
+        ),
       )
       const presentationKey = payload.presentation_id
         ?? slideComposerPresentationRef.current.presentationId
@@ -4006,7 +4020,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setIsGeneratingFinal(false)
     setTemplateReuseAwaitingInput(false)
     setIsGeneratingStrawman(false)
-    setSlideThumbnailUrls({})
+    setSlideThumbnailUrlsByPresentation({})
     setShowChatHistory(false)
     setSessionStoreName(null)
     // The KG switch is a per-deck privacy choice, never a global sticky bit.
@@ -4653,7 +4667,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
             composeJobs={slideComposeThumbnailJobs}
-            thumbnailUrlsBySlide={slideThumbnailUrls}
+            thumbnailUrlsBySlide={
+              effectivePresentationId
+                ? slideThumbnailUrlsByPresentation[effectivePresentationId] ?? {}
+                : {}
+            }
             templateCurrentSlideIndex={templateSourceSlideIndex}
             selectedTemplateElementId={selectedTemplateElementId}
             blueprintEditorV2Enabled={blueprintEditorV2Enabled}

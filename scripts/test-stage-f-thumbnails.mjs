@@ -23,6 +23,8 @@ vm.runInNewContext(transpiled.outputText, {
 
 const {
   mergeStageFThumbnailUrl,
+  mergeStageFPresentationThumbnailUrl,
+  mergeStageFInsertedThumbnailUrl,
   applyStageFThumbnailUrls,
 } = module.exports
 
@@ -72,5 +74,48 @@ assert.equal(JSON.stringify(stableSlides), JSON.stringify([
     thumbnailUrl: 'https://cdn.test/1.png?v=1',
   },
 ]))
+
+const byPresentation = mergeStageFPresentationThumbnailUrl(
+  {},
+  'deck-1',
+  0,
+  'https://cdn.test/deck-1/0.png?v=1',
+)
+const isolated = mergeStageFPresentationThumbnailUrl(
+  byPresentation,
+  'deck-2',
+  0,
+  'https://cdn.test/deck-2/0.png?v=1',
+)
+assert.equal(isolated['deck-1'][0], 'https://cdn.test/deck-1/0.png?v=1')
+assert.equal(isolated['deck-2'][0], 'https://cdn.test/deck-2/0.png?v=1')
+
+const inserted = mergeStageFInsertedThumbnailUrl(
+  {
+    'deck-1': {
+      0: 'https://cdn.test/a.png?v=1',
+      1: 'https://cdn.test/b.png?v=1',
+      2: 'https://cdn.test/c.png?v=1',
+    },
+  },
+  'deck-1',
+  1,
+  'https://cdn.test/d.png?v=1',
+)
+assert.equal(JSON.stringify(inserted['deck-1']), JSON.stringify({
+  0: 'https://cdn.test/a.png?v=1',
+  1: 'https://cdn.test/d.png?v=1',
+  2: 'https://cdn.test/b.png?v=1',
+  3: 'https://cdn.test/c.png?v=1',
+}))
+assert.equal(
+  mergeStageFInsertedThumbnailUrl(
+    inserted,
+    'deck-1',
+    1,
+    'https://cdn.test/d.png?v=1',
+  ),
+  inserted,
+)
 
 console.log('stage-f thumbnail helpers ok')

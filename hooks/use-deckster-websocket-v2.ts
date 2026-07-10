@@ -302,6 +302,7 @@ export interface SlideBuilt {
     slide_count?: number | null;
     thumbnail_url?: string | null;
     qa_verdict?: string | null;
+    qa_skipped_reason?: string | null;
   };
 }
 
@@ -1690,6 +1691,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     presentation_id: message.payload.presentation_id,
                     has_thumbnail: !!message.payload.thumbnail_url,
                     qa_verdict: message.payload.qa_verdict,
+                    qa_skipped_reason: message.payload.qa_skipped_reason,
                   });
                   newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
                   newState.currentStatus = null;
