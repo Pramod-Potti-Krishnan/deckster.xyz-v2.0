@@ -905,6 +905,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   }, [sessionCache]);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const socketSessionRef = useRef<string | null>(null);
   // Ephemeral per-connection capability. It is intentionally never copied to
   // React state or sessionStorage, and is cleared before every reconnect.
   const buildControlTokenRef = useRef<string | null>(null);
@@ -1246,7 +1247,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // Explicit capability opt-in prevents a newly deployed Director from
       // sending a secret frame to older frontend bundles that would treat it
       // as ordinary chat/cache data during a rolling deploy.
-      const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}&build_control_capability=1`;
+      const socketSessionId = sessionIdRef.current;
+      const wsUrl = `${DEFAULT_WS_URL}?session_id=${socketSessionId}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}&build_control_capability=1`;
 
       // DEBUG: Comprehensive logging of connection parameters
       debugLog('🔌 [WEBSOCKET] Initiating connection to Director', {
@@ -1368,6 +1370,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           }
 
           debugLog('✅ Connected to Director v3.4');
+          socketSessionRef.current = socketSessionId;
           clearReconnectTimer();
           reconnectPausedForOfflineRef.current = false;
           setReconnectStatus('idle', reconnectAttemptsRef.current);
@@ -2118,9 +2121,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               typeof window !== 'undefined'
             ) {
               try {
-                const ingestJobKey = `${INGEST_JOB_KEY_PREFIX}${sessionIdRef.current}`;
+                // Round-3 fix (review N1/F8): key these side effects off the
+                // FRAME's session — payload/base session_id when Director sent
+                // one, else the immutable session this socket was opened under
+                // (closure const `socketSessionId`) — never off mutable
+                // `sessionIdRef.current`. A late frame arriving on session A's
+                // socket can therefore never write or delete session B's keys.
                 if (message.type === 'template_ingest_update' && message.payload.job_id) {
-                  sessionStorage.setItem(ingestJobKey, JSON.stringify({
+                  const frameSessionId = message.payload.session_id || message.session_id || socketSessionId;
+                  sessionStorage.setItem(`${INGEST_JOB_KEY_PREFIX}${frameSessionId}`, JSON.stringify({
                     job_id: message.payload.job_id,
                     status: message.payload.state || 'processing',
                   }));
@@ -2128,8 +2137,29 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   message.type === 'template_ingest_ready' ||
                   message.type === 'template_ingest_failed'
                 ) {
-                  sessionStorage.removeItem(ingestJobKey);
-                  sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${sessionIdRef.current}`);
+                  const frameSessionId = message.payload.session_id || message.session_id || socketSessionId;
+                  const ingestJobKey = `${INGEST_JOB_KEY_PREFIX}${frameSessionId}`;
+                  // When both the frame and the stored job row carry a job_id,
+                  // require them to match before deleting — a terminal frame
+                  // for job X must not clear the record of a different job Y.
+                  let jobMatches = true;
+                  if (message.payload.job_id) {
+                    try {
+                      const storedJob = JSON.parse(sessionStorage.getItem(ingestJobKey) || 'null');
+                      if (storedJob?.job_id && storedJob.job_id !== message.payload.job_id) {
+                        jobMatches = false;
+                      }
+                    } catch {
+                      // Unparsable stored value — treat as stale and clear it.
+                    }
+                  }
+                  if (jobMatches) {
+                    sessionStorage.removeItem(ingestJobKey);
+                    // Belt and braces (review fix): the job reached a terminal
+                    // frame, so any still-staged one-shot upload intent for this
+                    // session is definitively stale — clear it too.
+                    sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${frameSessionId}`);
+                  }
                 }
               } catch {
                 // sessionStorage unavailable — reconnect polling degrades gracefully
@@ -2218,6 +2248,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             currentStatus: null,
           }));
 
+          socketSessionRef.current = null;
           wsRef.current = null;
           buildControlTokenRef.current = null;
           clearAuthRefreshTimer();
@@ -3178,5 +3209,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     // Utility
     isReady: state.connected,
+    socketSessionId: socketSessionRef.current,
   };
 }
