@@ -416,6 +416,7 @@ export interface TemplateIngestSlideFidelity {
   png_url?: string | null;
   fidelity?: number | null;
   reusability?: number | null;
+  warnings?: string[];
 }
 
 export interface TemplateIngestUpdate {
@@ -1474,6 +1475,35 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               debugLog('📨 Received message:', message.type, message);
             }
 
+            // Round-4 fix (R3-2): resolve an ingest frame's ORIGIN session up
+            // front — payload/base session_id when Director sent one, else the
+            // immutable session this socket was opened under (closure const
+            // `socketSessionId`). EVERY ingest UI side effect below (reducer
+            // state, presentation-url adoption, page callbacks) is gated on the
+            // origin session matching the currently DISPLAYED session
+            // (`sessionIdRef.current` at dispatch time — the builder rebinds it
+            // on SPA session switches, e.g. B→C via the history sidebar).
+            // Mismatched frames must only update the origin session's persisted
+            // job record in sessionStorage; they must never mutate the visible
+            // session's state or clear another session's keys.
+            let ingestFrameSessionId: string | null = null;
+            if (
+              message.type === 'template_ingest_update' ||
+              message.type === 'template_ingest_ready' ||
+              message.type === 'template_ingest_failed'
+            ) {
+              ingestFrameSessionId = message.payload.session_id || message.session_id || socketSessionId;
+            }
+            const ingestFrameIsForDisplayedSession =
+              ingestFrameSessionId === null || ingestFrameSessionId === sessionIdRef.current;
+            if (ingestFrameSessionId !== null && !ingestFrameIsForDisplayedSession) {
+              debugLog('⏭️ Ingest frame belongs to a non-displayed session — UI side effects suppressed', {
+                type: message.type,
+                frameSession: ingestFrameSessionId,
+                displayedSession: sessionIdRef.current,
+              });
+            }
+
             setStateWithCache(prev => {
               // Prevent duplicate messages by checking message_id
               const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
@@ -1966,6 +1996,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   // affordance (working pulse under the chat) — Director also
                   // sends ephemeral chat narration separately.
                   debugLog('🧩 template_ingest_update:', message.payload);
+                  // Round-4 fix (R3-2): a late frame from another session's job
+                  // (e.g. origin B while the sidebar switched the page to C)
+                  // must not touch the displayed session's UI state.
+                  if (!ingestFrameIsForDisplayedSession) break;
                   // M-4: Director may emit `message`/`total_slides` instead of
                   // `text`/`slide_count` — accept both spellings.
                   const ingestText = message.payload.text || message.payload.message;
@@ -1993,6 +2027,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     viewer_url: message.payload.viewer_url,
                     slides: message.payload.per_slide_fidelity?.length ?? 0,
                   });
+
+                  // Round-4 fix (R3-2): NEVER adopt another session's rebuilt
+                  // deck as the displayed session's presentation. A late ready
+                  // frame from origin session B while C is displayed is handled
+                  // outside the reducer (origin job record only).
+                  if (!ingestFrameIsForDisplayedSession) break;
 
                   if (prev.ephemeralMessageIds.length > 0) {
                     newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
@@ -2039,6 +2079,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
                 case 'template_ingest_failed':
                   debugLog('🧩 template_ingest_failed:', message.payload);
+                  // Round-4 fix (R3-2): same session gate as update/ready.
+                  if (!ingestFrameIsForDisplayedSession) break;
                   newState.templateIngestError = message.payload.error
                     || message.payload.errors?.join('; ')
                     || 'Template ingest failed';
@@ -2102,9 +2144,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               options.onSlideComposeReady?.(message);
             } else if (message.type === 'slide_failed') {
               options.onSlideComposeFailed?.(message);
-            } else if (message.type === 'template_ingest_ready' && !blockedIngress) {
+            } else if (message.type === 'template_ingest_ready' && !blockedIngress && ingestFrameIsForDisplayedSession) {
               options.onTemplateIngestReady?.(message);
-            } else if (message.type === 'template_ingest_failed') {
+            } else if (message.type === 'template_ingest_failed' && ingestFrameIsForDisplayedSession) {
               options.onTemplateIngestFailed?.(message);
             } else if (message.type === 'build_phase') {
               options.onBuildPhase?.((message as any).payload);
@@ -2122,43 +2164,77 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             ) {
               try {
                 // Round-3 fix (review N1/F8): key these side effects off the
-                // FRAME's session — payload/base session_id when Director sent
-                // one, else the immutable session this socket was opened under
-                // (closure const `socketSessionId`) — never off mutable
-                // `sessionIdRef.current`. A late frame arriving on session A's
-                // socket can therefore never write or delete session B's keys.
-                if (message.type === 'template_ingest_update' && message.payload.job_id) {
-                  const frameSessionId = message.payload.session_id || message.session_id || socketSessionId;
-                  sessionStorage.setItem(`${INGEST_JOB_KEY_PREFIX}${frameSessionId}`, JSON.stringify({
-                    job_id: message.payload.job_id,
-                    status: message.payload.state || 'processing',
-                  }));
-                } else if (
-                  message.type === 'template_ingest_ready' ||
-                  message.type === 'template_ingest_failed'
-                ) {
-                  const frameSessionId = message.payload.session_id || message.session_id || socketSessionId;
-                  const ingestJobKey = `${INGEST_JOB_KEY_PREFIX}${frameSessionId}`;
-                  // When both the frame and the stored job row carry a job_id,
-                  // require them to match before deleting — a terminal frame
-                  // for job X must not clear the record of a different job Y.
-                  let jobMatches = true;
-                  if (message.payload.job_id) {
-                    try {
-                      const storedJob = JSON.parse(sessionStorage.getItem(ingestJobKey) || 'null');
-                      if (storedJob?.job_id && storedJob.job_id !== message.payload.job_id) {
-                        jobMatches = false;
-                      }
-                    } catch {
-                      // Unparsable stored value — treat as stale and clear it.
-                    }
+                // FRAME's session (`ingestFrameSessionId`, resolved above) —
+                // never off mutable `sessionIdRef.current`. A late frame
+                // arriving on session A's socket can therefore never write or
+                // delete session B's keys.
+                if (message.type === 'template_ingest_update') {
+                  if (message.payload.job_id && ingestFrameSessionId) {
+                    sessionStorage.setItem(`${INGEST_JOB_KEY_PREFIX}${ingestFrameSessionId}`, JSON.stringify({
+                      job_id: message.payload.job_id,
+                      status: message.payload.state || 'processing',
+                    }));
                   }
+                  // Round-4 fix (durable ack): ANY update frame — Director now
+                  // emits a synchronous `state:"accepted"` pulse — proves
+                  // Director received the origin session's ingest message, so
+                  // the one-shot upload intent is consumed HERE (not on
+                  // `sendMessage` success, which only proves browser queuing).
+                  // Until this runs, the builder keeps the key and re-sends on
+                  // remount; Director's idempotent duplicate-job guard makes
+                  // re-sends safe.
+                  if (ingestFrameSessionId) {
+                    sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${ingestFrameSessionId}`);
+                  }
+                } else if (
+                  (message.type === 'template_ingest_ready' ||
+                    message.type === 'template_ingest_failed') &&
+                  ingestFrameSessionId
+                ) {
+                  const ingestJobKey = `${INGEST_JOB_KEY_PREFIX}${ingestFrameSessionId}`;
+                  // Terminal frame for the origin session: its one-shot upload
+                  // intent is definitively consumed (durable ack).
+                  sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${ingestFrameSessionId}`);
+                  // When both the frame and the stored job row carry a job_id,
+                  // require them to match before touching the record — a
+                  // terminal frame for job X must not clear/overwrite the
+                  // record of a different job Y.
+                  let storedJob: { job_id?: string; status?: string } | null = null;
+                  let storedUnparsable = false;
+                  try {
+                    storedJob = JSON.parse(sessionStorage.getItem(ingestJobKey) || 'null');
+                  } catch {
+                    // Unparsable stored value — treat as stale.
+                    storedUnparsable = true;
+                  }
+                  const jobMatches = !(
+                    message.payload.job_id &&
+                    storedJob?.job_id &&
+                    storedJob.job_id !== message.payload.job_id
+                  );
                   if (jobMatches) {
-                    sessionStorage.removeItem(ingestJobKey);
-                    // Belt and braces (review fix): the job reached a terminal
-                    // frame, so any still-staged one-shot upload intent for this
-                    // session is definitively stale — clear it too.
-                    sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${frameSessionId}`);
+                    if (ingestFrameIsForDisplayedSession) {
+                      // Displayed session: the UI just rendered the result —
+                      // the persisted job record is done.
+                      sessionStorage.removeItem(ingestJobKey);
+                    } else {
+                      // Round-4 fix (R3-2): the ORIGIN session is not the one
+                      // on screen. Do NOT render, and do NOT clear its keys —
+                      // persist the terminal status instead so returning to
+                      // the origin session triggers the existing mount poller,
+                      // which fetches and renders the result via the
+                      // /api/ingest-jobs REST route.
+                      const recordJobId = message.payload.job_id || storedJob?.job_id;
+                      if (recordJobId) {
+                        sessionStorage.setItem(ingestJobKey, JSON.stringify({
+                          job_id: recordJobId,
+                          status: message.type === 'template_ingest_ready' ? 'complete' : 'failed',
+                        }));
+                      } else if (storedUnparsable) {
+                        // Garbage record with no recoverable job id — clear it.
+                        sessionStorage.removeItem(ingestJobKey);
+                      }
+                    }
                   }
                 }
               } catch {
