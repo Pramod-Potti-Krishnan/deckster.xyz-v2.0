@@ -61,6 +61,14 @@ export function TemplateIngestReviewCards({ slides, className }: TemplateIngestR
                 {formatFidelity(slide.fidelity)}
               </span>
             </div>
+            {/* R3-6: surface per-slide escalation/degradation warnings so the
+                user can make an informed accept/drop decision. Tolerates
+                absent or malformed values (renders nothing). */}
+            {Array.isArray(slide.warnings) && slide.warnings.length > 0 && (
+              <div className="border-t border-amber-300/60 bg-amber-50 px-2 py-1 text-[11px] leading-snug text-amber-700 dark:border-amber-400/20 dark:bg-amber-950/40 dark:text-amber-400">
+                {slide.warnings.filter((w) => typeof w === 'string' && w).join(' · ')}
+              </div>
+            )}
           </div>
         ))}
       </div>
