@@ -7,6 +7,7 @@ import type { TemplateOverrides } from '@/lib/template-mode';
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import {
   buildSlideComposeProgressStatus,
+  markSlideStateFrameProcessed,
   normalizeSlideComposeSocketFrame,
 } from '@/lib/slide-compose-async';
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
@@ -504,6 +505,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Generate stable session and user IDs
   const sessionIdRef = useRef<string>('');
   const userIdRef = useRef<string>('');
+  const processedStateFrameKeysRef = useRef<Set<string>>(new Set());
 
   // CRITICAL FIX: Initialize session ID with priority order:
   // 1. Use existing session ID from database/URL (if provided)
@@ -1242,6 +1244,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 origin: blockedIngress.origin,
                 reason: blockedIngress.reason,
               });
+            }
+
+            if (!markSlideStateFrameProcessed(
+              processedStateFrameKeysRef.current,
+              message,
+            )) {
+              debugLog('Ignoring duplicate state frame:', message.type, message.message_id);
+              return;
             }
 
             // Add client-side timestamp for message ordering

@@ -40,6 +40,7 @@ const {
   shouldUseIncomingComposePresentationUrl,
   shiftSlideComposeTargetsAfterInsert,
   canPollCompleteSlideComposeJob,
+  markSlideStateFrameProcessed,
   SLIDE_COMPOSE_WATCHDOG_MS,
 } = module.exports
 
@@ -186,6 +187,30 @@ assert.equal(JSON.stringify(topLevelBuilt.payload), JSON.stringify({
   thumbnail_url: 'https://cdn.test/3.png?v=1',
   qa_verdict: 'green',
 }))
+
+const processedStateFrames = new Set()
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, topLevelReady), true)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, topLevelReady), false)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, {
+  ...topLevelReady,
+  type: 'slide_built',
+}), true)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, {
+  ...topLevelReady,
+  session_id: 'another-session',
+}), true)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, {
+  type: 'slide_ready',
+  message_id: 'msg-no-thumbnail',
+}), true)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, {
+  type: 'slide_ready',
+  message_id: 'msg-no-thumbnail',
+}), false)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, {
+  type: 'chat_message',
+  message_id: 'msg-chat',
+}), true)
 
 const payloadFailed = {
   type: 'slide_failed',
