@@ -276,6 +276,10 @@ export interface TemplateIngestSlideFidelity {
   // R3-6: per-slide escalation/degradation warnings from Slide Builder
   // (e.g. "background rasterized"). Optional — absent frames render unchanged.
   warnings?: string[];
+  // R4-10: Slide Builder baked original artwork/text into a raster for this
+  // slide (squash/escalation). Locked slides are same-subject reuse only —
+  // the review card surfaces a lock badge + note. Optional/additive.
+  raster_locked?: boolean;
 }
 
 export interface TemplateIngestUpdate {
@@ -697,6 +701,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // `onopen`, cleared in `onclose`, and exposed as `socketSessionId` so
   // callers can gate sends on socket-session === current-session.
   const socketSessionRef = useRef<string | null>(null);
+  // Round-5 fix (R4-6): monotonically increasing socket-generation counter,
+  // incremented on every successful `onopen`. Consumers (the builder's
+  // one-shot ingest handoff + mount poller) depend on it so a NEW connection
+  // for the SAME session can re-arm sent-but-unacknowledged work — the
+  // per-mount sent guard alone made a lost first send unrecoverable.
+  const [connectionGeneration, setConnectionGeneration] = useState(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectAttemptsRef = useRef(0);
   const isConnectingRef = useRef(false);
@@ -838,6 +848,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         // was opened under BEFORE flipping `connected`, so consumers reading
         // `socketSessionId` on the connected re-render always see it.
         socketSessionRef.current = socketSessionId;
+        // Round-5 fix (R4-6): new socket generation — lets the builder's
+        // ingest effects re-arm sent-unacked intent / polling on reconnect.
+        setConnectionGeneration(g => g + 1);
         reconnectAttemptsRef.current = 0;
         isConnectingRef.current = false;
         hasConnectedRef.current = true;
@@ -1741,7 +1754,23 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Template Ingest (C-5): apply a completed ingest job fetched via the REST
   // reconnect-polling path exactly as if the template_ingest_ready WS frame had
   // arrived (same state setters as the reducer case above).
-  const applyTemplateIngestReady = useCallback((payload: TemplateIngestReady['payload']) => {
+  // Round-5 fix (R4-5): the caller MUST pass the origin session the poll was
+  // started for. A late REST response for session B resolving after the user
+  // switched the SPA to session C would otherwise adopt B's deck into C via
+  // mutable `sessionIdRef.current`. If the expected (origin) session is not
+  // the displayed session AT CALL TIME, this is a logged no-op returning
+  // false — belt and braces beneath the poller's own post-await guards.
+  const applyTemplateIngestReady = useCallback((
+    payload: TemplateIngestReady['payload'],
+    expectedSessionId: string,
+  ): boolean => {
+    if (expectedSessionId !== sessionIdRef.current) {
+      console.warn('[TemplateIngest] applyTemplateIngestReady refused: origin session is not the displayed session', {
+        expectedSessionId,
+        displayedSessionId: sessionIdRef.current,
+      });
+      return false;
+    }
     debugLog('🧩 applyTemplateIngestReady (poll path):', {
       template_id: payload.template_id,
       presentation_id: payload.presentation_id,
@@ -1791,11 +1820,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     if (typeof window !== 'undefined') {
       try {
+        // Equal to expectedSessionId — the guard above already proved it.
         sessionStorage.removeItem(`${INGEST_JOB_KEY_PREFIX}${sessionIdRef.current}`);
       } catch {
         // ignore storage errors
       }
     }
+    return true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setStateWithCache]);
 
@@ -2043,5 +2074,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     // session-scoped auto-sends on `socketSessionId === currentSessionId` so
     // a message can never be dispatched over another session's socket.
     socketSessionId: socketSessionRef.current,
+    // Round-5 fix (R4-6): bumps on every socket `onopen`. Effects that must
+    // re-arm per-connection (ingest resend, job-record polling) depend on it.
+    connectionGeneration,
   };
 }

@@ -1231,6 +1231,7 @@ function BuilderContent() {
     disconnect,
     isReady,
     socketSessionId,
+    connectionGeneration,
     sessionId: wsSessionId,
     updateCacheUserMessages
   } = useDecksterWebSocketV2({
@@ -1960,7 +1961,24 @@ function BuilderContent() {
   //                  acked, e.g. the tab reloaded before Director got it)
   //                  re-sends; Director's idempotent duplicate-job guard makes
   //                  re-sends safe.
+  //   RECONNECT    — round-5 (R4-6): a NEW socket generation for the SAME
+  //                  session while the intent key still exists and no job
+  //                  record has appeared clears the sent guard — the previous
+  //                  send is presumed lost with the old socket, and the effect
+  //                  (which depends on `connectionGeneration`) re-sends.
+  //   ACK-TIMEOUT  — round-5 (R4-6): 20s after a successful send with no
+  //                  accepted/update frame having produced a job record (and
+  //                  the intent key still staged), the guard is cleared and a
+  //                  resend nonce re-runs the effect. Re-sends are idempotent
+  //                  (Director re-acks duplicates).
   const ingestAutoSendSessionRef = useRef<string | null>(null)
+  // Round-5 (R4-6): socket generation the last send was dispatched on, the
+  // pending ack-timeout timer, one-per-mount chat-echo guard, and the nonce
+  // that re-runs the effect after an ack timeout.
+  const ingestAutoSendGenerationRef = useRef<number>(-1)
+  const ingestAckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ingestChatEchoSessionRef = useRef<string | null>(null)
+  const [ingestResendNonce, setIngestResendNonce] = useState(0)
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED !== 'true') return // flag-off: byte-identical behavior
@@ -1977,16 +1995,44 @@ function BuilderContent() {
       })
       return
     }
-    if (ingestAutoSendSessionRef.current === currentSessionId) return
 
     const key = `${INGEST_INTENT_KEY_PREFIX}${currentSessionId}`
     let raw: string | null = null
     try {
-      raw = sessionStorage.getItem(key) // read only; consumed after successful dispatch
+      raw = sessionStorage.getItem(key) // read only; consumed on Director's ack frame
     } catch {
       return
     }
     if (!raw) return
+
+    // Round-5 (R4-6): has ANY accepted/update frame produced a job record?
+    // (The hook consumes the intent key on the same frame, so a lingering
+    // intent key + no job record means Director never acknowledged.)
+    let hasJobRecord = false
+    try {
+      hasJobRecord = !!sessionStorage.getItem(`${INGEST_JOB_KEY_PREFIX}${currentSessionId}`)
+    } catch { /* treat as no record */ }
+
+    if (ingestAutoSendSessionRef.current === currentSessionId) {
+      if (
+        connectionGeneration !== ingestAutoSendGenerationRef.current &&
+        !hasJobRecord
+      ) {
+        // R4-6(1): new socket generation, intent still staged, no job record —
+        // the earlier send died with the old socket. Re-arm and fall through.
+        console.warn('[TemplateIngest] New connection with un-acked ingest intent — re-sending', {
+          sentGeneration: ingestAutoSendGenerationRef.current,
+          connectionGeneration,
+        })
+        ingestAutoSendSessionRef.current = null
+      } else {
+        return
+      }
+    }
+    if (hasJobRecord) {
+      // Director already acknowledged a job for this session; never double-send.
+      return
+    }
 
     let intent: IngestIntentPayload | null = null
     try {
@@ -2021,36 +2067,62 @@ function BuilderContent() {
     }
 
     // Dispatched on an OPEN connection: guard against double-send within
-    // this mount. The one-shot key is deliberately NOT deleted here —
-    // round-4 durable ack: only an ingest frame for this session (the
-    // synchronous "accepted" update, or ready/failed) consumes it, in the
-    // WS hook's session-gated frame handler. If Director never received the
-    // message (frame never arrives), a remount finds the key and re-sends.
+    // this connection generation. The one-shot key is deliberately NOT
+    // deleted here — round-4 durable ack: only an ingest frame for this
+    // session (the synchronous "accepted" update, or ready/failed) consumes
+    // it, in the WS hook's session-gated frame handler. If Director never
+    // received the message, the RECONNECT/ACK-TIMEOUT/REMOUNT paths re-send.
     ingestAutoSendSessionRef.current = currentSessionId
+    ingestAutoSendGenerationRef.current = connectionGeneration
 
-    // Mirror the normal send path: show the message in chat and persist it.
-    const messageId = crypto.randomUUID()
-    const timestamp = Date.now()
-    session.userMessageIdsRef.current.add(messageId)
-    session.setUserMessages(prev => [...prev, {
-      id: messageId,
-      text: messageText,
-      timestamp,
-    }])
-    if (persistence) {
-      persistence.queueMessage({
-        message_id: messageId,
-        session_id: currentSessionId,
-        timestamp: new Date(timestamp).toISOString(),
-        type: 'chat_message',
-        payload: { text: messageText },
-      } as DirectorMessage, messageText)
-      if (!session.hasTitleFromUserMessageRef.current && !session.hasTitleFromPresentationRef.current) {
-        persistence.updateMetadata({ title: `Template: ${intent.file_name}` })
-        session.hasTitleFromUserMessageRef.current = true
+    // Round-5 (R4-6): ack timeout. If 20s pass with the intent key still
+    // staged and no accepted/update frame having produced a job record,
+    // clear the sent guard and bump the nonce so the effect re-sends
+    // (idempotent — Director re-acks duplicates).
+    const sessionAtSend = currentSessionId
+    if (ingestAckTimerRef.current) clearTimeout(ingestAckTimerRef.current)
+    ingestAckTimerRef.current = setTimeout(() => {
+      ingestAckTimerRef.current = null
+      try {
+        const stillStaged = sessionStorage.getItem(key)
+        const jobRecord = sessionStorage.getItem(`${INGEST_JOB_KEY_PREFIX}${sessionAtSend}`)
+        if (stillStaged && !jobRecord) {
+          console.warn('[TemplateIngest] No Director acknowledgement within 20s — re-arming ingest resend')
+          if (ingestAutoSendSessionRef.current === sessionAtSend) {
+            ingestAutoSendSessionRef.current = null
+          }
+          setIngestResendNonce(n => n + 1)
+        }
+      } catch { /* sessionStorage unavailable — nothing to re-send from */ }
+    }, 20000)
+
+    // Mirror the normal send path: show the message in chat and persist it —
+    // once per mount+session (round-5: re-sends must not duplicate the echo).
+    if (ingestChatEchoSessionRef.current !== currentSessionId) {
+      ingestChatEchoSessionRef.current = currentSessionId
+      const messageId = crypto.randomUUID()
+      const timestamp = Date.now()
+      session.userMessageIdsRef.current.add(messageId)
+      session.setUserMessages(prev => [...prev, {
+        id: messageId,
+        text: messageText,
+        timestamp,
+      }])
+      if (persistence) {
+        persistence.queueMessage({
+          message_id: messageId,
+          session_id: currentSessionId,
+          timestamp: new Date(timestamp).toISOString(),
+          type: 'chat_message',
+          payload: { text: messageText },
+        } as DirectorMessage, messageText)
+        if (!session.hasTitleFromUserMessageRef.current && !session.hasTitleFromPresentationRef.current) {
+          persistence.updateMetadata({ title: `Template: ${intent.file_name}` })
+          session.hasTitleFromUserMessageRef.current = true
+        }
       }
     }
-  }, [currentSessionId, isReady, socketSessionId, sendMessage, session, persistence, toast])
+  }, [currentSessionId, isReady, socketSessionId, connectionGeneration, ingestResendNonce, sendMessage, session, persistence, toast])
 
   // Round-4 (BFCache liveness follow-up from the round-3 review): a page
   // restored from the back/forward cache does not re-run mount effects, so a
@@ -2097,6 +2169,21 @@ function BuilderContent() {
     }
 
     const jobId = stored.job_id
+    // Round-5 fix (R4-5): the ORIGIN session this poll was started for,
+    // captured BEFORE any await. After EVERY await we re-check BOTH the
+    // cleanup `cancelled` flag AND origin === currently displayed session
+    // (`currentSessionIdRef` — live, updated on SPA session switches). On a
+    // mismatch the resolved terminal result is recorded into the ORIGIN
+    // session's job record only (so returning to the origin renders it via
+    // this same poller) and is NEVER applied to the displayed session.
+    const originSessionId = currentSessionId
+    const originIsDisplayed = () =>
+      !cancelled && originSessionId === currentSessionIdRef.current
+    const persistOriginTerminal = (status: 'complete' | 'failed' | 'cancelled') => {
+      try {
+        sessionStorage.setItem(key, JSON.stringify({ job_id: jobId, status }))
+      } catch { /* ignore */ }
+    }
     let attempts = 0
     let cancelled = false
     let timer: ReturnType<typeof setInterval> | null = null
@@ -2118,27 +2205,56 @@ function BuilderContent() {
 
       try {
         const res = await fetch(`/api/ingest-jobs/${encodeURIComponent(jobId)}`)
+        // R4-5 guard #1 (post-fetch): the page may have switched sessions
+        // (B→C) while this response was in flight.
+        if (cancelled) { stop(); return }
         if (!res.ok) return // transient — keep polling until attempts cap
         const body = await res.json()
+        // R4-5 guard #2 (post-json).
+        if (cancelled) { stop(); return }
         const status = String(body?.status || body?.state || '').toLowerCase()
         if (status === 'complete' || status === 'completed') {
           stop()
-          try { sessionStorage.removeItem(key) } catch { /* ignore */ }
           const result = (body?.result || body) as TemplateIngestReady['payload']
+          if (!originIsDisplayed()) {
+            // Late B result with C displayed: record B's terminal status only.
+            persistOriginTerminal('complete')
+            return
+          }
           if (result?.template_id || result?.viewer_url) {
-            applyTemplateIngestReady(result)
+            // Round-5 (R4-5): the apply helper re-validates the origin
+            // session against the hook's displayed session at call time
+            // (belt and braces); a refusal keeps the origin job record.
+            const applied = applyTemplateIngestReady(result, originSessionId)
+            if (!applied) {
+              persistOriginTerminal('complete')
+              return
+            }
+            try { sessionStorage.removeItem(key) } catch { /* ignore */ }
             toast({
               title: 'Template saved',
               description: 'Your uploaded presentation finished converting while you were away.',
             })
+          } else {
+            // Terminal but unrenderable payload — clear the stale record.
+            try { sessionStorage.removeItem(key) } catch { /* ignore */ }
           }
         } else if (status === 'failed' || status === 'cancelled') {
           stop()
+          if (!originIsDisplayed()) {
+            persistOriginTerminal(status as 'failed' | 'cancelled')
+            return
+          }
           try { sessionStorage.removeItem(key) } catch { /* ignore */ }
           if (status === 'failed') {
             toast({
               title: 'Template ingest failed',
-              description: String(body?.error || 'The uploaded presentation could not be converted.'),
+              // R4-11: Director's job body may carry `errors[]` (SB 413 /
+              // budget details) or FastAPI `detail` instead of `error`.
+              description: String(
+                body?.error || body?.errors?.[0] || body?.detail
+                || 'The uploaded presentation could not be converted.'
+              ),
               variant: 'destructive',
             })
           }
@@ -2159,8 +2275,12 @@ function BuilderContent() {
       cancelled = true
       stop()
     }
+    // Round-5 (R4-6): `templateIngestJobId` re-arms the poller when the job
+    // record/state appears AFTER mount (the accepted/update frame landed
+    // later than the mount check); `connectionGeneration` re-arms it on each
+    // new socket so a reconnect re-checks the stored record.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSessionId, ingestPageShowNonce])
+  }, [currentSessionId, ingestPageShowNonce, templateIngestJobId, connectionGeneration])
 
   // Template Ingest (C-5, M-6): cancel an in-flight ingest job over the WS
   // (mirrors handleCancelTemplateReuse below).
