@@ -6,6 +6,7 @@
  * reported by Director's `template_ingest_ready` frame.
  */
 
+import { Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TemplateIngestSlideFidelity } from '@/hooks/use-deckster-websocket-v2'
 
@@ -56,11 +57,22 @@ export function TemplateIngestReviewCards({ slides, className }: TemplateIngestR
               </div>
             )}
             <div className="flex items-center justify-between px-2 py-1 text-xs">
-              <span className="text-slate-500 dark:text-slate-400">Slide {slide.slide_index + 1}</span>
+              <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                Slide {slide.slide_index + 1}
+                {slide.raster_locked === true && (
+                  // R4-10: Slide Builder baked original artwork into a raster.
+                  <Lock aria-label="Raster locked" className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+                )}
+              </span>
               <span className={cn('font-semibold', fidelityTone(slide.fidelity))}>
                 {formatFidelity(slide.fidelity)}
               </span>
             </div>
+            {slide.raster_locked === true && (
+              <div className="border-t border-slate-200 bg-slate-100 px-2 py-1 text-[11px] leading-snug text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-400">
+                original artwork kept as image — same-subject reuse only
+              </div>
+            )}
             {/* R3-6: surface per-slide escalation/degradation warnings so the
                 user can make an informed accept/drop decision. Tolerates
                 absent or malformed values (renders nothing). */}
