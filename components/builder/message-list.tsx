@@ -20,6 +20,7 @@ import {
   type StatusUpdate,
 } from "@/hooks/use-deckster-websocket-v2"
 import { debugLog } from "@/lib/debug-log"
+import { hasLiveTrackedEphemeralMessage } from "@/lib/slide-compose-async"
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -108,7 +109,6 @@ export function MessageList({
   // Combine, classify, deduplicate, sort, filter, and group messages
   const processedMessages = useMemo(() => {
     const trackedEphemeralIds = new Set(ephemeralMessageIds || [])
-    const isProgressActive = currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'
     const combined = [
       ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
       ...messages.map(m => {
@@ -295,16 +295,12 @@ export function MessageList({
           }
 
           if (thinkingMessages.length > 0) {
-            const hasLaterStrawman = filtered.slice(i).some((item) => {
-              if (item.messageType !== 'bot') return false
-              const maybeSlideUpdate = item as DirectorMessage
-              return maybeSlideUpdate.type === 'slide_update' &&
-                (maybeSlideUpdate as SlideUpdate).payload.operation === 'full_update' &&
-                !(maybeSlideUpdate as SlideUpdate).payload.is_blank
-            })
-            const isLiveTrackedGroup = thinkingMessages.some(m => trackedEphemeralIds.has(m.message_id))
+            const isLiveTrackedGroup = hasLiveTrackedEphemeralMessage(
+              thinkingMessages.map(message => message.message_id),
+              trackedEphemeralIds,
+            )
 
-            if (isLiveTrackedGroup || (!hasLaterStrawman && isProgressActive)) {
+            if (isLiveTrackedGroup) {
               processedMessages.push({
                 messageType: 'bot',
                 type: 'thinking_stream',
@@ -358,7 +354,7 @@ export function MessageList({
     }
 
     return processedMessages;
-  }, [userMessages, messages, ephemeralMessageIds, currentStatus?.status, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef]);
+  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef]);
 
   const hasVisibleThinkingStream = processedMessages.some((item) => {
     if (item.messageType !== 'bot') return false
