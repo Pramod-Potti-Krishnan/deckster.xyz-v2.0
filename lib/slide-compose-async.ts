@@ -307,3 +307,13 @@ export function shouldNavigateToResolvedComposeSlide(options: {
     options.currentSlideIndex === options.resolvedVisualIndex
   )
 }
+
+export function resolveSlideComposeSelectionAfterReady(options: {
+  currentSlideIndex: number
+  jobTargetVisualIndex?: number | null
+  resolvedVisualIndex: number
+}): number {
+  return shouldNavigateToResolvedComposeSlide(options)
+    ? Math.max(0, options.resolvedVisualIndex)
+    : Math.max(0, options.currentSlideIndex)
+}
