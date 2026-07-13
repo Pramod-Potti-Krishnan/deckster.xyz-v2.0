@@ -36,7 +36,12 @@ import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
 import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
-import { isMatchingSlideComposeCommandResponse, resolveSlideComposeViewerState } from '@/lib/slide-compose-async'
+import {
+  isMatchingSlideComposeCommandResponse,
+  restoreSlideViewerSelection,
+  resolveSlideComposeViewerState,
+  resolveSlideViewerNavigationInfo,
+} from '@/lib/slide-compose-async'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -352,6 +357,10 @@ function postCommand(
   params?: Record<string, any>,
 ) {
   iframe?.contentWindow?.postMessage({ action, params, requestId: createViewerRequestId() }, getIframeOrigin(iframe))
+}
+
+function waitForViewerSettle(delayMs: number): Promise<void> {
+  return new Promise(resolve => window.setTimeout(resolve, delayMs))
 }
 
 export function PresentationViewer({
@@ -1771,21 +1780,52 @@ export function PresentationViewer({
 
   const handleComposeGoToVisualIndex = useCallback(async (visualIndex: number) => {
     const safeVisualIndex = Math.max(0, visualIndex)
+    const iframe = iframeRef.current
+    if (!iframe) throw new Error('Iframe not ready')
+
+    const result = await restoreSlideViewerSelection({
+      targetVisualIndex: safeVisualIndex,
+      readNavigationInfo: async () => resolveSlideViewerNavigationInfo(await sendCommand(
+        iframe,
+        'getCurrentSlideInfo',
+        {},
+        { timeoutMs: 1000 },
+      )),
+      navigate: async targetVisualIndex => {
+        await sendCommand(
+          iframe,
+          'goToSlide',
+          { index: targetVisualIndex },
+          { timeoutMs: 1500 },
+        )
+      },
+      wait: waitForViewerSettle,
+      isActive: () => iframeRef.current === iframe,
+      onRetry: retry => {
+        scTrace(
+          retry.phase === 'waiting'
+            ? 'viewer.selection_restore.waiting'
+            : 'viewer.selection_restore.retry',
+          {
+            visual_index: safeVisualIndex,
+            attempt: retry.attempt,
+            phase: retry.phase,
+            viewer_state: retry.viewerState,
+            error: retry.error instanceof Error ? retry.error.message : retry.error,
+          },
+        )
+      },
+    })
+
     const nextSlide = safeVisualIndex + 1
     setCurrentSlide(nextSlide)
     onSlideChangeRef.current?.(nextSlide)
-
-    try {
-      return await sendCommand(
-        iframeRef.current,
-        'goToSlide',
-        { index: safeVisualIndex },
-        { timeoutMs: 1500 },
-      )
-    } catch (error) {
-      console.warn('Slide navigation response timed out; keeping optimistic slide state.', error)
-      postCommand(iframeRef.current, 'goToSlide', { index: safeVisualIndex })
-      return { success: true, action: 'goToSlide', optimistic: true, index: safeVisualIndex }
+    return {
+      success: true,
+      action: 'goToSlide',
+      index: safeVisualIndex,
+      attempts: result.attempts,
+      verified: true,
     }
   }, [])
 

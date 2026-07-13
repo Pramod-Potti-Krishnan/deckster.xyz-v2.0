@@ -317,3 +317,104 @@ export function resolveSlideComposeSelectionAfterReady(options: {
     ? Math.max(0, options.resolvedVisualIndex)
     : Math.max(0, options.currentSlideIndex)
 }
+
+export function resolveSlideViewerNavigationInfo(response: unknown): {
+  currentVisualIndex: number
+  totalSlides: number
+} | null {
+  if (!response || typeof response !== 'object') return null
+  const record = response as Record<string, unknown>
+  if (record.success === false) return null
+  const data = record.data && typeof record.data === 'object'
+    ? record.data as Record<string, unknown>
+    : record
+  const currentVisualIndex = finiteNumber(data.index ?? data.current_visual_index)
+  const totalSlides = finiteNumber(
+    data.total ?? data.total_visual_sections ?? data.visual_section_count,
+  )
+
+  if (
+    currentVisualIndex === null ||
+    totalSlides === null ||
+    !Number.isInteger(currentVisualIndex) ||
+    !Number.isInteger(totalSlides) ||
+    currentVisualIndex < 0 ||
+    totalSlides <= 0 ||
+    currentVisualIndex >= totalSlides
+  ) {
+    return null
+  }
+
+  return { currentVisualIndex, totalSlides }
+}
+
+export interface SlideViewerSelectionRestoreRetry {
+  attempt: number
+  phase: 'waiting' | 'first_check' | 'stability_check' | 'command_error'
+  viewerState?: {
+    currentVisualIndex: number
+    totalSlides: number
+  } | null
+  error?: unknown
+}
+
+export async function restoreSlideViewerSelection(options: {
+  targetVisualIndex: number
+  readNavigationInfo: () => Promise<{
+    currentVisualIndex: number
+    totalSlides: number
+  } | null>
+  navigate: (visualIndex: number) => Promise<void>
+  wait: (delayMs: number) => Promise<void>
+  isActive?: () => boolean
+  onRetry?: (retry: SlideViewerSelectionRestoreRetry) => void
+  maxAttempts?: number
+}): Promise<{ attempts: number }> {
+  const targetVisualIndex = Math.max(0, options.targetVisualIndex)
+  const maxAttempts = Math.max(1, options.maxAttempts ?? 20)
+  let lastError: unknown = null
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    if (options.isActive && !options.isActive()) {
+      throw new Error('Presentation iframe changed during slide selection restore')
+    }
+
+    try {
+      const before = await options.readNavigationInfo()
+      if (!before || targetVisualIndex >= before.totalSlides) {
+        options.onRetry?.({ attempt, phase: 'waiting', viewerState: before })
+        await options.wait(200)
+        continue
+      }
+
+      await options.navigate(targetVisualIndex)
+      await options.wait(100)
+      const firstCheck = await options.readNavigationInfo()
+      if (firstCheck?.currentVisualIndex !== targetVisualIndex) {
+        options.onRetry?.({ attempt, phase: 'first_check', viewerState: firstCheck })
+        await options.wait(200)
+        continue
+      }
+
+      // Reveal can acknowledge navigation before initialization finishes.
+      // Verify again after its ready event has had time to reset the initial index.
+      await options.wait(450)
+      const stableCheck = await options.readNavigationInfo()
+      if (stableCheck?.currentVisualIndex !== targetVisualIndex) {
+        options.onRetry?.({ attempt, phase: 'stability_check', viewerState: stableCheck })
+        await options.wait(200)
+        continue
+      }
+
+      return { attempts: attempt }
+    } catch (error) {
+      lastError = error
+      options.onRetry?.({ attempt, phase: 'command_error', error })
+      await options.wait(200)
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Could not restore slide ${targetVisualIndex + 1} after the presentation refreshed`)
+}
