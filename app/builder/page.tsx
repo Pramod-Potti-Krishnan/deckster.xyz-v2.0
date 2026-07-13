@@ -563,6 +563,7 @@ function BuilderContent() {
   const slideComposeReconcileQueuesRef = useRef<Record<string, Promise<void>>>({})
   const slideComposeFallbackReloadInFlightRef = useRef(false)
   const pendingComposeSelectionRestoreRef = useRef<number | null>(null)
+  const slideComposerLayoutCountReconcileRef = useRef<string | null>(null)
 
   const clearSlideComposeWatchdog = useCallback((jobId: string) => {
     const timer = slideComposeWatchdogsRef.current[jobId]
@@ -1917,6 +1918,69 @@ function BuilderContent() {
     presentationUrl,
     slideComposerOverride?.refreshToken,
     slideComposerOverride?.presentationUrl,
+  ])
+
+  useEffect(() => {
+    if (templateModeOn || !effectivePresentationId || !presentationUrl) return
+
+    const localSlideCount = Math.max(0, effectiveSlideCount ?? 0)
+    const reconcileKey = `${effectivePresentationId}:${localSlideCount}`
+    if (slideComposerLayoutCountReconcileRef.current === reconcileKey) return
+    slideComposerLayoutCountReconcileRef.current = reconcileKey
+
+    let cancelled = false
+
+    void (async () => {
+      const presentation = await fetchSlideComposePresentationSnapshot(effectivePresentationId)
+      if (cancelled || !presentation || presentation.slideCount <= localSlideCount) return
+
+      const latest = slideComposerPresentationRef.current
+      const nextPresentationUrl = latest.presentationUrl ?? presentationUrl
+      const nextOverride = {
+        presentationUrl: nextPresentationUrl,
+        presentationId: effectivePresentationId,
+        slideCount: presentation.slideCount,
+        refreshToken: Date.now(),
+      }
+
+      scTrace('builder.layout_count_reconcile', {
+        presentation_id: effectivePresentationId,
+        local_slide_count: localSlideCount,
+        layout_slide_count: presentation.slideCount,
+      })
+
+      slideComposerPresentationRef.current = {
+        ...latest,
+        ...nextOverride,
+      }
+      setSlideComposerOverride(nextOverride)
+
+      if (currentSessionIdRef.current && persistenceRef.current) {
+        const updates: any = {
+          slideCount: presentation.slideCount,
+          lastMessageAt: new Date(),
+        }
+        if (activeVersion === 'strawman') {
+          updates.strawmanPreviewUrl = nextPresentationUrl
+          updates.strawmanPresentationId = effectivePresentationId
+        } else {
+          updates.finalPresentationUrl = nextPresentationUrl
+          updates.finalPresentationId = effectivePresentationId
+        }
+        persistenceRef.current.updateMetadata(updates)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    activeVersion,
+    effectivePresentationId,
+    effectiveSlideCount,
+    fetchSlideComposePresentationSnapshot,
+    presentationUrl,
+    templateModeOn,
   ])
 
   const currentSlideLayout = useMemo<SlideLayoutType | undefined>(() => {
