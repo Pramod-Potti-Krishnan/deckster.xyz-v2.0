@@ -43,6 +43,80 @@ const {
   SLIDE_COMPOSE_WATCHDOG_MS,
 } = module.exports
 
+const recoverySourcePath = path.join(__dirname, '..', 'lib', 'slide-compose-job-recovery.ts')
+const recoverySource = readFileSync(recoverySourcePath, 'utf8')
+const recoveryTranspiled = ts.transpileModule(recoverySource, {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2020,
+  },
+})
+const recoveryModule = { exports: {} }
+vm.runInNewContext(recoveryTranspiled.outputText, {
+  module: recoveryModule,
+  exports: recoveryModule.exports,
+  URLSearchParams,
+})
+const {
+  buildSlideComposeJobStatusPath,
+  normalizeSlideComposeJobRecoveryResult,
+  resolveSlideComposeSessionId,
+} = recoveryModule.exports
+
+assert.equal(resolveSlideComposeSessionId({
+  deckOwnerSessionId: 'deck-owner',
+  currentSessionId: 'current-session',
+  wsSessionId: 'stale-socket',
+}), 'deck-owner')
+assert.equal(resolveSlideComposeSessionId({
+  currentSessionId: 'current-session',
+  wsSessionId: 'socket-session',
+}), 'current-session')
+assert.equal(
+  buildSlideComposeJobStatusPath({
+    jobId: 'job/1',
+    sessionId: 'session 1',
+    presentationId: 'deck/1',
+  }),
+  '/api/slides/jobs/job%2F1?session_id=session+1&presentation_id=deck%2F1',
+)
+assert.equal(JSON.stringify(normalizeSlideComposeJobRecoveryResult({
+  job_id: 'job-1',
+  kind: 'compose',
+  session_id: 'session-1',
+  presentation_id: 'deck-1',
+  target_index: 3,
+  status: 'built',
+  slide_index: 3,
+  real_slide_id: 'slide-3',
+  presentation_url: 'https://layout.test/p/deck-1',
+  stage: null,
+  errors: [],
+})), JSON.stringify({
+  job_id: 'job-1',
+  kind: 'compose',
+  session_id: 'session-1',
+  presentation_id: 'deck-1',
+  target_index: 3,
+  status: 'built',
+  slide_index: 3,
+  real_slide_id: 'slide-3',
+  presentation_url: 'https://layout.test/p/deck-1',
+  stage: null,
+  errors: [],
+}))
+assert.equal(normalizeSlideComposeJobRecoveryResult({
+  job_id: 'job-1',
+  kind: 'compose',
+  session_id: 'session-1',
+  status: 'unknown',
+}), null)
+assert.equal(normalizeSlideComposeJobRecoveryResult({
+  job_id: 'job-1',
+  session_id: 'session-1',
+  status: 'built',
+}), null)
+
 assert.equal(JSON.stringify(buildSlideComposeProgressStatus({
   text: '  Researching slide content…  ',
 })), JSON.stringify({

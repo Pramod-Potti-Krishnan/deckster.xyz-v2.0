@@ -63,3 +63,13 @@ Final logs:
 
 - No pushes, PRs, deploys, live Director calls, migrations, or flag flips were performed.
 - The frontend's baseline lint/build/typecheck issues were recorded but not fixed because they are outside this scope.
+
+## UAT Follow-Up: Durable Compose Completion Recovery
+
+- Branch: `fix/uat-compose-job-recovery`, based on `origin/uat` at `f2fcf6a`.
+- Compose/refine requests now prefer the displayed deck's owner session over the hook's potentially stale exposed WebSocket session ID.
+- Added an authenticated same-origin job-status proxy and a normalized recovery contract for Director's durable compose rows.
+- The Builder polls Director while a job is tracked, handles durable failure/refine cleanup, and uses the exact persisted `real_slide_id` to confirm completion in Layout before refreshing and restoring selection.
+- Existing Layout polling remains as a staggered-deployment fallback when the new Director status endpoint is unavailable.
+- Verification: async composer unit checks pass; production bundle compilation passes before the known no-database page-data failure; repo-wide TypeScript still has the same 34 unrelated baseline errors and none reference touched files.
+- No migration or new environment variable is required.
