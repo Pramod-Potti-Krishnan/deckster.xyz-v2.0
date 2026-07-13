@@ -1616,6 +1616,7 @@ function BuilderContent() {
         )
           ? targetPresentationUrl
           : latest.presentationUrl
+        refreshToken = Date.now()
 
         removeSlideComposeJob(payload.job_id, resolvedLayoutIndex)
         scTrace('builder.ws.slide_ready.applied', {

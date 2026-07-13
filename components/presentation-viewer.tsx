@@ -331,6 +331,14 @@ function sendCommand(
   })
 }
 
+function postCommand(
+  iframe: HTMLIFrameElement | null,
+  action: string,
+  params?: Record<string, any>,
+) {
+  iframe?.contentWindow?.postMessage({ action, params, requestId: createViewerRequestId() }, VIEWER_ORIGIN)
+}
+
 export function PresentationViewer({
   presentationUrl,
   presentationId,
@@ -609,18 +617,23 @@ export function PresentationViewer({
 
   const handleGoToSlide = useCallback(async (slideIndex: number) => {
     debugLog(`🎯 Navigating to slide ${slideIndex + 1}`)
+    const nextSlide = slideIndex + 1
+    setCurrentSlide(nextSlide)
+    onSlideChange?.(nextSlide)
+
     if (!iframeRef.current) {
       debugLog('❌ Iframe not ready')
       return
     }
+
     try {
-      const result = await sendCommand(iframeRef.current, 'goToSlide', { index: slideIndex })
+      await sendCommand(iframeRef.current, 'goToSlide', { index: slideIndex }, { timeoutMs: 1500 })
       debugLog(`✅ Navigated to slide ${slideIndex + 1}`)
-      setCurrentSlide(slideIndex + 1)
     } catch (error) {
-      console.error('Error navigating to slide:', error)
+      console.warn('goToSlide response timed out; keeping optimistic slide state and sending fallback navigation.', error)
+      postCommand(iframeRef.current, 'goToSlide', { index: slideIndex })
     }
-  }, [])
+  }, [onSlideChange])
 
   // Poll for slide info updates via postMessage (with exponential backoff)
   useEffect(() => {
@@ -1749,13 +1762,24 @@ export function PresentationViewer({
     if (!placeholder || !Number.isFinite(Number(placeholder.visual_index))) {
       throw new Error(`Placeholder not found for job ${jobId}`)
     }
-    return sendCommand(
-      iframeRef.current,
-      'goToSlide',
-      { index: Math.max(0, Number(placeholder.visual_index)) },
-      { timeoutMs: 5000 },
-    )
-  }, [])
+    const visualIndex = Math.max(0, Number(placeholder.visual_index))
+    const nextSlide = visualIndex + 1
+    setCurrentSlide(nextSlide)
+    onSlideChange?.(nextSlide)
+
+    try {
+      return await sendCommand(
+        iframeRef.current,
+        'goToSlide',
+        { index: visualIndex },
+        { timeoutMs: 1500 },
+      )
+    } catch (error) {
+      console.warn('Pending slide navigation response timed out; keeping optimistic slide state.', error)
+      postCommand(iframeRef.current, 'goToSlide', { index: visualIndex })
+      return { success: true, action: 'goToSlide', optimistic: true, index: visualIndex }
+    }
+  }, [onSlideChange])
 
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {
