@@ -77,10 +77,18 @@ export function MessageList({
       lastFadeTokenRef.current = 0
       return
     }
-    if (ephemeralFadeToken === lastFadeTokenRef.current || !ephemeralMessageIds?.length) return
+    if (ephemeralFadeToken === lastFadeTokenRef.current) return
     lastFadeTokenRef.current = ephemeralFadeToken
 
-    const idsToFade = ephemeralMessageIds
+    const idsToFade = ephemeralMessageIds?.length
+      ? ephemeralMessageIds
+      : messages
+        .filter((m): m is V2ChatMessage =>
+          m.type === 'chat_message' && (m as V2ChatMessage).payload.ephemeral === true
+        )
+        .map(m => m.message_id)
+    if (idsToFade.length === 0) return
+
     setFadingIds(prev => {
       const next = new Set(prev)
       for (const id of idsToFade) next.add(id)
@@ -96,7 +104,7 @@ export function MessageList({
       onEphemeralFadeComplete?.()
     }, 350) // 300ms transition + 50ms buffer
     return () => clearTimeout(t)
-  }, [ephemeralFadeToken, ephemeralMessageIds, messagesEndRef, onEphemeralFadeComplete])
+  }, [ephemeralFadeToken, ephemeralMessageIds, messages, messagesEndRef, onEphemeralFadeComplete])
   // Combine, classify, deduplicate, sort, filter, and group messages
   const processedMessages = useMemo(() => {
     const trackedEphemeralIds = new Set(ephemeralMessageIds || [])
