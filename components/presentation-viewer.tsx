@@ -222,6 +222,15 @@ interface SlideInfo {
 // Viewer origin for postMessage communication
 const VIEWER_ORIGIN = new URL(LAYOUT_SERVICE_URL).origin
 
+function getIframeOrigin(iframe: HTMLIFrameElement | null): string {
+  if (!iframe?.src) return VIEWER_ORIGIN
+  try {
+    return new URL(iframe.src).origin
+  } catch {
+    return VIEWER_ORIGIN
+  }
+}
+
 /**
  * Send command to iframe via postMessage (cross-origin safe)
  */
@@ -248,20 +257,21 @@ function sendCommand(
     : optionsOrTimeout
   const timeoutMs = options.timeoutMs ?? 5000
   const requestId = createViewerRequestId()
-  const isComposeCommand = action.startsWith('compose')
-  const commandParams = isComposeCommand && isSlideComposerTraceEnabled()
+  const requiresStrictResponse = action.startsWith('compose') || action.startsWith('refine')
+  const commandParams = requiresStrictResponse && isSlideComposerTraceEnabled()
     ? { ...(params || {}), _sc_trace: true }
     : params
 
   return new Promise((resolve, reject) => {
     if (!iframe) {
-      if (isComposeCommand) {
+      if (requiresStrictResponse) {
         scTrace('viewer.command.error', { action, requestId, params, error: 'Iframe not ready' })
       }
       reject(new Error('Iframe not ready'))
       return
     }
 
+    const targetOrigin = getIframeOrigin(iframe)
     let settled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
@@ -275,14 +285,18 @@ function sendCommand(
 
     const handler = (event: MessageEvent) => {
       // Only accept messages from viewer origin
-      if (event.origin !== VIEWER_ORIGIN) return
+      if (event.origin !== targetOrigin) return
 
-      if (isMatchingSlideComposeCommandResponse(event.data, {
-        action,
-        requestId,
-        expectedJobId: options.expectedJobId,
-      })) {
-        if (isComposeCommand) {
+      const matches = requiresStrictResponse
+        ? isMatchingSlideComposeCommandResponse(event.data, {
+            action,
+            requestId,
+            expectedJobId: options.expectedJobId,
+          })
+        : event.data?.action === action && (!event.data?.requestId || event.data.requestId === requestId)
+
+      if (matches) {
+        if (requiresStrictResponse) {
           scTrace('viewer.command.response', {
             action,
             requestId,
@@ -306,7 +320,7 @@ function sendCommand(
 
     // Timeout after the requested command budget.
     timeoutId = setTimeout(() => {
-      if (isComposeCommand) {
+      if (requiresStrictResponse) {
         scTrace('viewer.command.timeout', {
           action,
           requestId,
@@ -318,7 +332,7 @@ function sendCommand(
       settle(() => reject(new Error('Command timeout')))
     }, timeoutMs)
 
-    if (isComposeCommand) {
+    if (requiresStrictResponse) {
       scTrace('viewer.command.send', {
         action,
         requestId,
@@ -327,7 +341,7 @@ function sendCommand(
         params: commandParams,
       })
     }
-    iframe.contentWindow?.postMessage({ action, params: commandParams, requestId }, VIEWER_ORIGIN)
+    iframe.contentWindow?.postMessage({ action, params: commandParams, requestId }, targetOrigin)
   })
 }
 
@@ -336,7 +350,7 @@ function postCommand(
   action: string,
   params?: Record<string, any>,
 ) {
-  iframe?.contentWindow?.postMessage({ action, params, requestId: createViewerRequestId() }, VIEWER_ORIGIN)
+  iframe?.contentWindow?.postMessage({ action, params, requestId: createViewerRequestId() }, getIframeOrigin(iframe))
 }
 
 export function PresentationViewer({
