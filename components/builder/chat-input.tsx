@@ -46,7 +46,11 @@ import { TemplatePicker } from './template-picker'
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
 
-type ActiveBuildThemeProfile = { id: string; name: string }
+type ActiveBuildThemeProfile = {
+  id: string
+  name: string
+  theme_payload: BuildThemeSelection
+}
 
 export interface ChatInputProps {
   inputMessage: string
@@ -264,7 +268,11 @@ export function ChatInput({
     const profile = savedThemes.find((theme) => theme.id === themeId)
     if (!profile?.theme_payload) return
     setSelectedSavedThemeId(profile.id)
-    onActiveBuildThemeProfileChange?.({ id: profile.id, name: profile.name })
+    onActiveBuildThemeProfileChange?.({
+      id: profile.id,
+      name: profile.name,
+      theme_payload: profile.theme_payload,
+    })
     onBuildThemeChange(profile.theme_payload)
   }
 
@@ -280,7 +288,11 @@ export function ChatInput({
       setSaveThemeName('')
       setSaveAsStandard(false)
       onBuildThemeChange(saved.theme_payload)
-      onActiveBuildThemeProfileChange?.({ id: saved.id, name: saved.name })
+      onActiveBuildThemeProfileChange?.({
+        id: saved.id,
+        name: saved.name,
+        theme_payload: saved.theme_payload,
+      })
       await refreshSavedThemes()
       setSelectedSavedThemeId(saved.id)
     }
