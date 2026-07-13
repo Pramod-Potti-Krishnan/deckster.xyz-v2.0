@@ -40,6 +40,7 @@ import {
   getComposeVisualIndexForTarget,
   resolveSlideComposeVisualIndex,
   resolveSlideComposeCountAfterReady,
+  resolveSlideComposeSelectionAfterReady,
   shouldNavigateToResolvedComposeSlide,
   shouldUseIncomingComposePresentationUrl,
   shiftSlideComposeTargetsAfterInsert,
@@ -556,6 +557,7 @@ function BuilderContent() {
   const slideComposePollersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   const slideComposeReconcileQueuesRef = useRef<Record<string, Promise<void>>>({})
   const slideComposeFallbackReloadInFlightRef = useRef(false)
+  const pendingComposeSelectionRestoreRef = useRef<number | null>(null)
 
   const clearSlideComposeWatchdog = useCallback((jobId: string) => {
     const timer = slideComposeWatchdogsRef.current[jobId]
@@ -1645,6 +1647,13 @@ function BuilderContent() {
           viewerSlideCount,
         })
         const composeJob = slideComposeJobsRef.current[payload.job_id]
+        const selectionRestoreVisualIndex = composeJob
+          ? resolveSlideComposeSelectionAfterReady({
+              currentSlideIndex: currentSlideIndexRef.current,
+              jobTargetVisualIndex: composeJob.target_visual_index,
+              resolvedVisualIndex,
+            })
+          : currentSlideIndexRef.current
         const navigate = !!composeJob && shouldNavigateToResolvedComposeSlide({
           currentSlideIndex: currentSlideIndexRef.current,
           jobTargetVisualIndex: composeJob.target_visual_index,
@@ -1667,8 +1676,10 @@ function BuilderContent() {
           viewer_slide_count: viewerSlideCount,
           next_slide_count: nextSlideCount,
           navigate,
+          selection_restore_visual_index: selectionRestoreVisualIndex,
           live_swap_succeeded: liveSwapSucceeded,
         })
+        pendingComposeSelectionRestoreRef.current = selectionRestoreVisualIndex
         const nextOverride = {
           presentationUrl: nextPresentationUrl ?? targetPresentationUrl ?? null,
           presentationId: targetPresentationId ?? null,
@@ -1877,6 +1888,25 @@ function BuilderContent() {
       queued_placeholders: pendingComposePlaceholdersRef.current.size,
     })
     if (!apis) return
+
+    const selectionRestoreVisualIndex = pendingComposeSelectionRestoreRef.current
+    if (selectionRestoreVisualIndex !== null) {
+      pendingComposeSelectionRestoreRef.current = null
+      scTrace('builder.selection_restore.requested', {
+        visual_index: selectionRestoreVisualIndex,
+      })
+      void apis.composeGoToVisualIndex(selectionRestoreVisualIndex)
+        .then(result => {
+          scTrace('builder.selection_restore.applied', {
+            visual_index: selectionRestoreVisualIndex,
+            result,
+          })
+        })
+        .catch(error => {
+          pendingComposeSelectionRestoreRef.current = selectionRestoreVisualIndex
+          console.warn('[Slide Composer] Failed to restore the selected slide after refresh.', error)
+        })
+    }
 
     const queued = Array.from(pendingComposePlaceholdersRef.current.values())
     pendingComposePlaceholdersRef.current.clear()

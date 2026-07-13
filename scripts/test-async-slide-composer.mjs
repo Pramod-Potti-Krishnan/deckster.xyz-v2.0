@@ -33,6 +33,7 @@ const {
   resolveSlideComposeViewerState,
   isMatchingSlideComposeCommandResponse,
   resolveSlideComposeCountAfterReady,
+  resolveSlideComposeSelectionAfterReady,
   shouldNavigateToResolvedComposeSlide,
   shouldUseIncomingComposePresentationUrl,
   shiftSlideComposeTargetsAfterInsert,
@@ -349,5 +350,21 @@ assert.equal(shouldNavigateToResolvedComposeSlide({
   jobTargetVisualIndex: 2,
   resolvedVisualIndex: 4,
 }), true)
+
+assert.equal(resolveSlideComposeSelectionAfterReady({
+  currentSlideIndex: 2,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 2,
+}), 2)
+assert.equal(resolveSlideComposeSelectionAfterReady({
+  currentSlideIndex: 2,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 4,
+}), 4)
+assert.equal(resolveSlideComposeSelectionAfterReady({
+  currentSlideIndex: 7,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 2,
+}), 7)
 
 console.log('async slide composer unit checks passed')

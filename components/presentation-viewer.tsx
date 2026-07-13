@@ -204,6 +204,7 @@ export interface SlideComposeViewerApi {
   composePlaceholderFail: (jobId: string) => Promise<any>
   composeGetState: () => Promise<any>
   composeGoToPlaceholder: (jobId: string) => Promise<any>
+  composeGoToVisualIndex: (visualIndex: number) => Promise<any>
   refineOverlayMark: (jobId: string, slideId: string) => Promise<any>
   refineSlideReconcile: (
     jobId: string,
@@ -1768,6 +1769,26 @@ export function PresentationViewer({
     return sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
   }, [])
 
+  const handleComposeGoToVisualIndex = useCallback(async (visualIndex: number) => {
+    const safeVisualIndex = Math.max(0, visualIndex)
+    const nextSlide = safeVisualIndex + 1
+    setCurrentSlide(nextSlide)
+    onSlideChangeRef.current?.(nextSlide)
+
+    try {
+      return await sendCommand(
+        iframeRef.current,
+        'goToSlide',
+        { index: safeVisualIndex },
+        { timeoutMs: 1500 },
+      )
+    } catch (error) {
+      console.warn('Slide navigation response timed out; keeping optimistic slide state.', error)
+      postCommand(iframeRef.current, 'goToSlide', { index: safeVisualIndex })
+      return { success: true, action: 'goToSlide', optimistic: true, index: safeVisualIndex }
+    }
+  }, [])
+
   const handleComposeGoToPlaceholder = useCallback(async (jobId: string) => {
     const state = await sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
     const placeholder = Array.isArray(state?.placeholders)
@@ -1776,24 +1797,8 @@ export function PresentationViewer({
     if (!placeholder || !Number.isFinite(Number(placeholder.visual_index))) {
       throw new Error(`Placeholder not found for job ${jobId}`)
     }
-    const visualIndex = Math.max(0, Number(placeholder.visual_index))
-    const nextSlide = visualIndex + 1
-    setCurrentSlide(nextSlide)
-    onSlideChange?.(nextSlide)
-
-    try {
-      return await sendCommand(
-        iframeRef.current,
-        'goToSlide',
-        { index: visualIndex },
-        { timeoutMs: 1500 },
-      )
-    } catch (error) {
-      console.warn('Pending slide navigation response timed out; keeping optimistic slide state.', error)
-      postCommand(iframeRef.current, 'goToSlide', { index: visualIndex })
-      return { success: true, action: 'goToSlide', optimistic: true, index: visualIndex }
-    }
-  }, [onSlideChange])
+    return handleComposeGoToVisualIndex(Number(placeholder.visual_index))
+  }, [handleComposeGoToVisualIndex])
 
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {
@@ -1822,6 +1827,7 @@ export function PresentationViewer({
       composePlaceholderFail: handleComposePlaceholderFail,
       composeGetState: handleComposeGetState,
       composeGoToPlaceholder: handleComposeGoToPlaceholder,
+      composeGoToVisualIndex: handleComposeGoToVisualIndex,
       refineOverlayMark: handleRefineOverlayMark,
       refineSlideReconcile: handleRefineSlideReconcile,
       refineOverlayClear: handleRefineOverlayClear,
@@ -1837,6 +1843,7 @@ export function PresentationViewer({
     handleComposePlaceholderFail,
     handleComposeGetState,
     handleComposeGoToPlaceholder,
+    handleComposeGoToVisualIndex,
     handleRefineOverlayMark,
     handleRefineSlideReconcile,
     handleRefineOverlayClear,
