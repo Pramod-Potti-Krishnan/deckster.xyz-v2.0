@@ -34,6 +34,8 @@ const {
   isMatchingSlideComposeCommandResponse,
   resolveSlideComposeCountAfterReady,
   resolveSlideComposeSelectionAfterReady,
+  restoreSlideViewerSelection,
+  resolveSlideViewerNavigationInfo,
   shouldNavigateToResolvedComposeSlide,
   shouldUseIncomingComposePresentationUrl,
   shiftSlideComposeTargetsAfterInsert,
@@ -366,5 +368,71 @@ assert.equal(resolveSlideComposeSelectionAfterReady({
   jobTargetVisualIndex: 2,
   resolvedVisualIndex: 2,
 }), 7)
+
+assert.equal(JSON.stringify(resolveSlideViewerNavigationInfo({
+  success: true,
+  data: { index: 3, total: 9 },
+})), JSON.stringify({
+  currentVisualIndex: 3,
+  totalSlides: 9,
+}))
+assert.equal(JSON.stringify(resolveSlideViewerNavigationInfo({
+  current_visual_index: 4,
+  total_visual_sections: 10,
+})), JSON.stringify({
+  currentVisualIndex: 4,
+  totalSlides: 10,
+}))
+assert.equal(resolveSlideViewerNavigationInfo({
+  success: true,
+  data: { index: 0, total: 0 },
+}), null)
+assert.equal(resolveSlideViewerNavigationInfo({
+  success: true,
+  data: { index: 9, total: 9 },
+}), null)
+assert.equal(resolveSlideViewerNavigationInfo({
+  success: false,
+  data: { index: 3, total: 9 },
+}), null)
+
+const navigationStates = [
+  null,
+  { currentVisualIndex: 0, totalSlides: 9 },
+  { currentVisualIndex: 3, totalSlides: 9 },
+  { currentVisualIndex: 0, totalSlides: 9 },
+  { currentVisualIndex: 0, totalSlides: 9 },
+  { currentVisualIndex: 3, totalSlides: 9 },
+  { currentVisualIndex: 3, totalSlides: 9 },
+]
+const restoreRetries = []
+let navigationCalls = 0
+const restoredSelection = await restoreSlideViewerSelection({
+  targetVisualIndex: 3,
+  readNavigationInfo: async () => navigationStates.shift() ?? null,
+  navigate: async visualIndex => {
+    assert.equal(visualIndex, 3)
+    navigationCalls += 1
+  },
+  wait: async () => {},
+  onRetry: retry => restoreRetries.push(retry.phase),
+})
+assert.equal(restoredSelection.attempts, 3)
+assert.equal(navigationCalls, 2)
+assert.equal(JSON.stringify(restoreRetries), JSON.stringify([
+  'waiting',
+  'stability_check',
+]))
+
+await assert.rejects(
+  restoreSlideViewerSelection({
+    targetVisualIndex: 3,
+    readNavigationInfo: async () => ({ currentVisualIndex: 0, totalSlides: 2 }),
+    navigate: async () => assert.fail('must not navigate before the target slide exists'),
+    wait: async () => {},
+    maxAttempts: 2,
+  }),
+  /Could not restore slide 4/,
+)
 
 console.log('async slide composer unit checks passed')
