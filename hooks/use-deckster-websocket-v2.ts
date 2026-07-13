@@ -1183,6 +1183,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   slide_index: message.payload.slide_index,
                   presentation_id: message.payload.presentation_id,
                 });
+                if (prev.ephemeralMessageIds.length > 0) {
+                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                }
+                newState.currentStatus = null;
                 break;
 
               case 'slide_progress':
@@ -1199,6 +1203,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   stage: message.payload.stage,
                   errors: message.payload.errors,
                 });
+                if (prev.ephemeralMessageIds.length > 0) {
+                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                }
+                newState.currentStatus = null;
                 break;
 
               default:
