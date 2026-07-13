@@ -10,6 +10,7 @@ import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-stri
 import { ElementType, ElementProperties } from '@/types/elements'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/hooks/use-templates'
+import type { SlideRefineTarget } from '@/lib/slide-refinement'
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -90,6 +91,7 @@ export interface PresentationAreaProps {
   templateSnapshotLoading?: boolean
   templateCurrentSlideIndex?: number
   composeJobs?: SlideComposeThumbnailJob[]
+  onRefineSlide?: (target: SlideRefineTarget) => void
   selectedTemplateElementId?: string | null
   blueprintEditorV2Enabled?: boolean
   onTemplateSlideChange?: (slideIndex: number) => void
@@ -141,6 +143,7 @@ export function PresentationArea({
   templateSnapshotLoading = false,
   templateCurrentSlideIndex,
   composeJobs = [],
+  onRefineSlide,
   selectedTemplateElementId = null,
   blueprintEditorV2Enabled = false,
   onTemplateSlideChange,
@@ -222,6 +225,7 @@ export function PresentationArea({
             onTemplateModeChange={onTemplateModeChange}
             templateModeAvailable={templateModeAvailable}
             composeJobs={composeJobs}
+            onRefineSlide={onRefineSlide}
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
             templateCurrentSlideIndex={templateCurrentSlideIndex}

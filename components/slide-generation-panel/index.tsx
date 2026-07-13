@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState, useEffect, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
 import {
   AlertCircle,
   BarChart3,
@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   List,
   Minus,
+  Palette,
   Plus,
   Sparkles,
   Type,
@@ -20,9 +21,11 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
+import { FALLBACK_THEME_PRESETS, type BuildThemeSelection } from '@/lib/theme-builder'
 import { withAsyncSlideComposeFields } from '@/lib/slide-compose-async'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
+import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import {
@@ -83,11 +86,15 @@ interface SlideComposerResearchState {
 interface SlideGenerationPanelProps {
   isOpen: boolean
   onClose: () => void
+  mode?: 'compose' | 'refine'
+  refineTarget?: SlideRefineTarget | null
   currentSlide: number
   currentLayout?: SlideLayoutType
   sessionId: string
   presentationId: string | null
   research: SlideComposerResearchState
+  buildThemeSelection: BuildThemeSelection
+  activeBuildThemeProfileName?: string | null
   enabled: boolean
   onBuilt: (result: SlideComposeBuiltResult) => void
   onAccepted?: (job: SlideComposeAcceptedJob) => void
@@ -194,10 +201,14 @@ const SHAPE_GLYPHS: Partial<Record<ShapeSubtype, ShapeGlyph>> = {
 export function SlideGenerationPanel({
   isOpen,
   onClose,
+  mode = 'compose',
+  refineTarget = null,
   currentSlide,
   sessionId,
   presentationId,
   research,
+  buildThemeSelection,
+  activeBuildThemeProfileName,
   enabled,
   onBuilt,
   onAccepted,
@@ -230,7 +241,14 @@ export function SlideGenerationPanel({
   const [attribution, setAttribution] = useState('')
   const [heroBackground, setHeroBackground] = useState<HeroBackgroundChoice>('solid_dark')
   const [openSections, setOpenSections] = useState<OpenSections>(INITIAL_OPEN_SECTIONS)
+  const lastPanelContextKeyRef = useRef<string | null>(null)
 
+  const isRefineMode = mode === 'refine'
+  const refineSlideNumber = refineTarget ? refineTarget.slide_index + 1 : currentSlide
+  const panelTitle = isRefineMode
+    ? `Refine slide ${refineSlideNumber}${refineTarget?.title ? ` — ${refineTarget.title}` : ''}`
+    : 'Slide'
+  const panelSubtitle = isRefineMode ? 'Update the selected slide' : 'Generate or edit slide content'
   const questions = useMemo(() => normalizeQuestions(needsInput), [needsInput])
   const shapeBucket = getShapeBucket(contentType)
   const shapeOptions = shapeBucket ? SHAPE_OPTIONS[shapeBucket] : []
@@ -239,6 +257,7 @@ export function SlideGenerationPanel({
   const showImagePlacement = canUseImagePlacement(contentType, shapeSubtype)
   const imageOptions = imageOptionsFor(contentType, shapeSubtype)
   const heroStyleOptions = selectedLayout !== AUTO_VALUE ? HERO_STYLE_OPTIONS[selectedLayout] ?? [] : []
+  const themeLabel = isRefineMode ? 'Deck theme' : getBuildThemeLabel(buildThemeSelection, activeBuildThemeProfileName)
   const shapeDropdownOptions = useMemo<Array<{ value: OptionalChoice<ShapeSubtype>; label: string; glyph: ShapeGlyph }>>(
     () => [
       { value: AUTO_VALUE, label: 'Auto', glyph: 'auto' as ShapeGlyph },
@@ -258,6 +277,50 @@ export function SlideGenerationPanel({
     })),
     [heroStyleOptions],
   )
+
+  useEffect(() => {
+    if (!isOpen) {
+      lastPanelContextKeyRef.current = null
+      return
+    }
+
+    const panelContextKey = isRefineMode
+      ? `refine:${refineTarget?.slide_id ?? 'index'}:${refineTarget?.slide_index ?? currentSlide - 1}`
+      : 'compose'
+
+    if (lastPanelContextKeyRef.current === panelContextKey) return
+    lastPanelContextKeyRef.current = panelContextKey
+
+    setPrompt('')
+    setKeyMessage('')
+    setError(null)
+    setSuccessMessage(null)
+    setNeedsInput(null)
+    setAnswers({})
+
+    if (isRefineMode) {
+      setUseWebSearch(false)
+      setUseDeepResearch(false)
+      setUseUploadedDocuments(false)
+      setUseKnowledgeGraph(false)
+      return
+    }
+
+    setUseWebSearch(research.useWebSearch)
+    setUseDeepResearch(research.useDeepResearch)
+    setUseUploadedDocuments(research.useUploadedDocuments)
+    setUseKnowledgeGraph(research.useKnowledgeGraph)
+  }, [
+    currentSlide,
+    isOpen,
+    isRefineMode,
+    refineTarget?.slide_id,
+    refineTarget?.slide_index,
+    research.useDeepResearch,
+    research.useKnowledgeGraph,
+    research.useUploadedDocuments,
+    research.useWebSearch,
+  ])
   const hasUploadedFiles = Boolean(research.useUploadedDocuments)
   const heroVariant: HeroVariant = heroBackground
   const allowHeroImage = isHero && heroBackground !== 'solid_dark'
@@ -351,20 +414,34 @@ export function SlideGenerationPanel({
     const instruction = buildInstruction(prompt, keyMessage, questions, answers)
     const hasSelections = Object.keys(selections).length > 0
     const insertAfterIndex = presentationId ? Math.max(0, currentSlide - 1) : null
-    const requestBody: Record<string, unknown> = {
-      session_id: sessionId,
-      presentation_id: presentationId,
-      insert_after_index: insertAfterIndex,
-      instruction,
-      selections: hasSelections ? selections : undefined,
-      research: {
-        use_uploaded_documents: !isDiagram && hasUploadedFiles && useUploadedDocuments,
-        use_web_search: !isDiagram && useWebSearch,
-        use_deep_research: !isDiagram && useDeepResearch,
-        use_knowledge_graph: !isDiagram && KG_CARD_ENABLED && useKnowledgeGraph,
-        web_search_max_queries: webSearchMaxQueries,
-      },
+    const researchPayload = {
+      use_uploaded_documents: !isDiagram && hasUploadedFiles && useUploadedDocuments,
+      use_web_search: !isDiagram && useWebSearch,
+      use_deep_research: !isDiagram && useDeepResearch,
+      use_knowledge_graph: !isDiagram && KG_CARD_ENABLED && useKnowledgeGraph,
+      web_search_max_queries: webSearchMaxQueries,
     }
+    const endpoint = isRefineMode ? '/api/slides/refine' : '/api/slides/compose'
+    const requestBody: Record<string, unknown> = isRefineMode
+      ? {
+          session_id: sessionId,
+          presentation_id: presentationId,
+          slide_id: refineTarget?.slide_id ?? null,
+          slide_index: Math.max(0, refineTarget?.slide_index ?? currentSlide - 1),
+          instruction,
+          theme: buildThemeSelection,
+          selections: hasSelections ? selections : undefined,
+          research: researchPayload,
+        }
+      : {
+          session_id: sessionId,
+          presentation_id: presentationId,
+          insert_after_index: insertAfterIndex,
+          instruction,
+          theme: buildThemeSelection,
+          selections: hasSelections ? selections : undefined,
+          research: researchPayload,
+        }
 
     setError(null)
     setSuccessMessage(null)
@@ -379,7 +456,22 @@ export function SlideGenerationPanel({
       return
     }
 
-    if (!instruction && !hasSelections) {
+    if (isRefineMode && !presentationId) {
+      setError('No active presentation is available to refine.')
+      return
+    }
+
+    if (isRefineMode && !refineTarget) {
+      setError('Choose a slide to refine.')
+      return
+    }
+
+    if (isRefineMode && !instruction) {
+      setError('Describe what should change.')
+      return
+    }
+
+    if (!isRefineMode && !instruction && !hasSelections) {
       setError('Describe the slide or choose an optional slide setting.')
       return
     }
@@ -391,15 +483,17 @@ export function SlideGenerationPanel({
         job_id: jobId,
         session_id: sessionId,
         presentation_id: presentationId,
+        mode: isRefineMode ? 'refine' : 'compose',
         current_slide_prop: currentSlide,
         insert_after_index: insertAfterIndex,
+        refine_target: isRefineMode ? refineTarget : null,
         instruction_preview: instruction.slice(0, 160),
         selections,
         research: requestBody.research,
       })
 
       try {
-        const response = await fetch('/api/slides/compose', {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(asyncRequest),
@@ -426,10 +520,15 @@ export function SlideGenerationPanel({
         setAnswers({})
         setPrompt('')
         setKeyMessage('')
-        setSuccessMessage(`Building slide ${data.target_index + 1} in the background.`)
+        setSuccessMessage(isRefineMode
+          ? `Refining slide ${refineSlideNumber} in the background.`
+          : `Building slide ${data.target_index + 1} in the background.`
+        )
         onAccepted?.({
           ...data,
-          title: instruction.slice(0, 72) || 'Composing slide',
+          kind: isRefineMode ? 'refine' : (data.kind ?? 'compose'),
+          target_slide_id: isRefineMode ? (data.target_slide_id ?? refineTarget?.slide_id ?? null) : data.target_slide_id,
+          title: instruction.slice(0, 72) || (isRefineMode ? 'Refining slide' : 'Composing slide'),
           request: asyncRequest,
         })
         return
@@ -445,7 +544,7 @@ export function SlideGenerationPanel({
 
     setIsGenerating(true)
     try {
-      const response = await fetch('/api/slides/compose', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -471,7 +570,7 @@ export function SlideGenerationPanel({
         setAnswers({})
         setPrompt('')
         setKeyMessage('')
-        setSuccessMessage(`Built slide ${data.slide_index + 1}.`)
+        setSuccessMessage(isRefineMode ? `Updated slide ${data.slide_index + 1}.` : `Built slide ${data.slide_index + 1}.`)
         onBuilt(data)
         return
       }
@@ -484,9 +583,11 @@ export function SlideGenerationPanel({
     }
   }, [
     answers,
+    buildThemeSelection,
     currentSlide,
     enabled,
     hasUploadedFiles,
+    isRefineMode,
     isDiagram,
     keyMessage,
     onAccepted,
@@ -494,6 +595,8 @@ export function SlideGenerationPanel({
     presentationId,
     prompt,
     questions,
+    refineSlideNumber,
+    refineTarget,
     selections,
     sessionId,
     useDeepResearch,
@@ -541,8 +644,8 @@ export function SlideGenerationPanel({
               <Layout className="h-3.5 w-3.5 text-primary" />
             </div>
             <div>
-              <h3 className="text-xs font-semibold text-gray-900 dark:text-slate-100">Slide</h3>
-              <p className="text-[10px] text-gray-500 dark:text-slate-400">Generate or edit slide content</p>
+              <h3 className="max-w-[300px] truncate text-xs font-semibold text-gray-900 dark:text-slate-100" title={panelTitle}>{panelTitle}</h3>
+              <p className="text-[10px] text-gray-500 dark:text-slate-400">{panelSubtitle}</p>
             </div>
           </div>
           <button
@@ -557,7 +660,11 @@ export function SlideGenerationPanel({
         {/* Slide context bar */}
         <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100">
           <p className="text-xs text-blue-800">
-            {presentationId ? (
+            {isRefineMode ? (
+              <>
+                Refining <span className="font-semibold">Slide {refineSlideNumber}</span>
+              </>
+            ) : presentationId ? (
               <>
                 Inserts after <span className="font-semibold">Slide {currentSlide}</span>
               </>
@@ -584,7 +691,15 @@ export function SlideGenerationPanel({
           onSubmit={() => void handleGenerate()}
           isGenerating={isGenerating}
           error={error}
+          placeholder={isRefineMode ? 'What should change?' : undefined}
         />
+
+        <div className="mx-3 mb-2 flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+          <Palette className="h-3.5 w-3.5 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+          <span className="min-w-0 truncate">
+            Theme: <span className="font-medium text-slate-800 dark:text-slate-100">{themeLabel}</span>
+          </span>
+        </div>
 
         {successMessage && (
           <div className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-700">
@@ -633,7 +748,7 @@ export function SlideGenerationPanel({
           >
             <div className="space-y-2">
               <IconDropdown
-                label="Slide type"
+                label={isRefineMode ? 'Change structure (optional)' : 'Slide type'}
                 value={selectedLayout}
                 options={SLIDE_TYPE_OPTIONS}
                 onChange={handleLayoutChange}
@@ -808,6 +923,22 @@ function defaultHeroStyle(layout: LayoutChoice): OptionalChoice<HeroStyle> {
   if (layout === 'hero_section') return 'number_left'
   if (layout === 'hero_closing') return 'thankyou'
   return AUTO_VALUE
+}
+
+function getBuildThemeLabel(
+  selection: BuildThemeSelection,
+  profileName?: string | null,
+): string {
+  if (selection.mode === 'auto') return 'Auto — matches deck'
+  if (profileName) return profileName
+  if (selection.mode === 'preset') {
+    const preset = FALLBACK_THEME_PRESETS.find(item => item.preset_id === selection.preset_id)
+    return preset?.name || selection.preset_id || 'Deck default'
+  }
+  if (selection.mode === 'custom') {
+    return selection.primary_hex ? `Brand ${selection.primary_hex}` : 'Custom theme'
+  }
+  return 'Deck default'
 }
 
 function IconDropdown<T extends string>({

@@ -1,0 +1,71 @@
+.next/types/app/api/sessions/[id]/activate/route.ts(166,7): error TS2344: Type '{ __tag__: "POST"; __param_position__: "second"; __param_type__: { params: { id: string; }; }; }' does not satisfy the constraint 'ParamCheck<RouteContext>'.
+  The types of '__param_type__.params' are incompatible between these types.
+    Type '{ id: string; }' is missing the following properties from type 'Promise<any>': then, catch, finally, [Symbol.toStringTag]
+.next/types/app/api/templates/[id]/blueprint/route.ts(283,7): error TS2344: Type '{ __tag__: "PATCH"; __param_position__: "second"; __param_type__: { params: { id: string; }; }; }' does not satisfy the constraint 'ParamCheck<RouteContext>'.
+  The types of '__param_type__.params' are incompatible between these types.
+    Type '{ id: string; }' is missing the following properties from type 'Promise<any>': then, catch, finally, [Symbol.toStringTag]
+.next/types/app/api/templates/[id]/route.ts(49,7): error TS2344: Type '{ __tag__: "GET"; __param_position__: "second"; __param_type__: { params: { id: string; }; }; }' does not satisfy the constraint 'ParamCheck<RouteContext>'.
+  The types of '__param_type__.params' are incompatible between these types.
+    Type '{ id: string; }' is missing the following properties from type 'Promise<any>': then, catch, finally, [Symbol.toStringTag]
+.next/types/app/api/templates/[id]/route.ts(244,7): error TS2344: Type '{ __tag__: "DELETE"; __param_position__: "second"; __param_type__: { params: { id: string; }; }; }' does not satisfy the constraint 'ParamCheck<RouteContext>'.
+  The types of '__param_type__.params' are incompatible between these types.
+    Type '{ id: string; }' is missing the following properties from type 'Promise<any>': then, catch, finally, [Symbol.toStringTag]
+.next/types/validator.ts(612,31): error TS2344: Type 'typeof import("/Users/pk1980/Software/Deckster/.worktrees/frontend-uplift-refine/app/api/sessions/[id]/activate/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/sessions/[id]/activate">'.
+  Types of property 'POST' are incompatible.
+    Type '(req: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ message: string; session: { id: string; status: string; firstMessageAt: Date | null; lastMessageAt: Date | null; }; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(711,31): error TS2344: Type 'typeof import("/Users/pk1980/Software/Deckster/.worktrees/frontend-uplift-refine/app/api/templates/[id]/blueprint/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/templates/[id]/blueprint">'.
+  Types of property 'PATCH' are incompatible.
+    Type '(req: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<any>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(729,31): error TS2344: Type 'typeof import("/Users/pk1980/Software/Deckster/.worktrees/frontend-uplift-refine/app/api/templates/[id]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/templates/[id]">'.
+  Types of property 'GET' are incompatible.
+    Type '(_req: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<any>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+app/api/dev/mock-token/route.ts(2,25): error TS2307: Cannot find module 'jose' or its corresponding type declarations.
+app/api/webhooks/stripe/route.ts(159,49): error TS2339: Property 'current_period_start' does not exist on type 'Subscription'.
+app/api/webhooks/stripe/route.ts(160,47): error TS2339: Property 'current_period_end' does not exist on type 'Subscription'.
+app/api/webhooks/stripe/route.ts(175,49): error TS2339: Property 'current_period_start' does not exist on type 'Subscription'.
+app/api/webhooks/stripe/route.ts(176,47): error TS2339: Property 'current_period_end' does not exist on type 'Subscription'.
+app/api/webhooks/stripe/route.ts(193,53): error TS2339: Property 'current_period_end' does not exist on type 'Subscription'.
+app/api/webhooks/stripe/route.ts(244,38): error TS2339: Property 'payment_intent' does not exist on type 'Invoice'.
+app/api/webhooks/stripe/route.ts(245,37): error TS2339: Property 'subscription' does not exist on type 'Invoice'.
+app/api/webhooks/stripe/route.ts(275,38): error TS2339: Property 'payment_intent' does not exist on type 'Invoice'.
+app/api/webhooks/stripe/route.ts(276,37): error TS2339: Property 'subscription' does not exist on type 'Invoice'.
+app/onboarding/page.tsx(278,18): error TS2448: Block-scoped variable 'getPromptSuggestions' used before its declaration.
+app/onboarding/page.tsx(278,18): error TS2454: Variable 'getPromptSuggestions' is used before being assigned.
+components/generation-panel/forms/metrics-form.tsx(343,13): error TS2322: Type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#FFFFFF"; readonly label: "White"; readonly hex: "#FFFFFF"; }, { readonly value: "#E5E7EB"; readonly label: "Light Gray"; readonly hex: "#E5E7EB"; }, { ...; }, { ...; }, { ...; }, { ...; }] | readonly [...]' is not assignable to type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#805AA0"; readonly label: "Purple"; readonly hex: "#805AA0"; }, { readonly value: "#2980B9"; readonly label: "Blue"; readonly hex: "#2980B9"; }, ... 8 more ..., { ...; }] | undefined'.
+  Type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#FFFFFF"; readonly label: "White"; readonly hex: "#FFFFFF"; }, { readonly value: "#E5E7EB"; readonly label: "Light Gray"; readonly hex: "#E5E7EB"; }, { ...; }, { ...; }, { ...; }, { ...; }]' is not assignable to type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#805AA0"; readonly label: "Purple"; readonly hex: "#805AA0"; }, { readonly value: "#2980B9"; readonly label: "Blue"; readonly hex: "#2980B9"; }, ... 8 more ..., { ...; }]'.
+    Source has 7 element(s) but target requires 12.
+components/generation-panel/forms/metrics-form.tsx(384,13): error TS2322: Type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#FFFFFF"; readonly label: "White"; readonly hex: "#FFFFFF"; }, { readonly value: "#E5E7EB"; readonly label: "Light Gray"; readonly hex: "#E5E7EB"; }, { ...; }, { ...; }, { ...; }, { ...; }] | readonly [...]' is not assignable to type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#805AA0"; readonly label: "Purple"; readonly hex: "#805AA0"; }, { readonly value: "#2980B9"; readonly label: "Blue"; readonly hex: "#2980B9"; }, ... 8 more ..., { ...; }] | undefined'.
+  Type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#FFFFFF"; readonly label: "White"; readonly hex: "#FFFFFF"; }, { readonly value: "#E5E7EB"; readonly label: "Light Gray"; readonly hex: "#E5E7EB"; }, { ...; }, { ...; }, { ...; }, { ...; }]' is not assignable to type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#805AA0"; readonly label: "Purple"; readonly hex: "#805AA0"; }, { readonly value: "#2980B9"; readonly label: "Blue"; readonly hex: "#2980B9"; }, ... 8 more ..., { ...; }]'.
+    Source has 7 element(s) but target requires 12.
+components/generation-panel/forms/metrics-form.tsx(425,13): error TS2322: Type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#FFFFFF"; readonly label: "White"; readonly hex: "#FFFFFF"; }, { readonly value: "#E5E7EB"; readonly label: "Light Gray"; readonly hex: "#E5E7EB"; }, { ...; }, { ...; }, { ...; }, { ...; }] | readonly [...]' is not assignable to type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#805AA0"; readonly label: "Purple"; readonly hex: "#805AA0"; }, { readonly value: "#2980B9"; readonly label: "Blue"; readonly hex: "#2980B9"; }, ... 8 more ..., { ...; }] | undefined'.
+  Type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#FFFFFF"; readonly label: "White"; readonly hex: "#FFFFFF"; }, { readonly value: "#E5E7EB"; readonly label: "Light Gray"; readonly hex: "#E5E7EB"; }, { ...; }, { ...; }, { ...; }, { ...; }]' is not assignable to type 'readonly [{ readonly value: null; readonly label: "Auto"; readonly hex: null; }, { readonly value: "#805AA0"; readonly label: "Purple"; readonly hex: "#805AA0"; }, { readonly value: "#2980B9"; readonly label: "Blue"; readonly hex: "#2980B9"; }, ... 8 more ..., { ...; }]'.
+    Source has 7 element(s) but target requires 12.
+components/session-list-item.tsx(157,9): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+components/textbox-format-panel/index.tsx(128,15): error TS2322: Type '{ onSendCommand: (action: string, params: Record<string, any>) => Promise<any>; isApplying: boolean; elementId: string; presentationId: string | null | undefined; slideIndex: number; sessionId: string | ... 1 more ... | undefined; onGetElementHtml: (() => Promise<...>) | undefined; }' is not assignable to type 'IntrinsicAttributes & AITabProps'.
+  Property 'sessionId' does not exist on type 'IntrinsicAttributes & AITabProps'.
+contexts/presentation-context.tsx(10,8): error TS2307: Cannot find module '@/lib/types/websocket-types' or its corresponding type declarations.
+contexts/presentation-context.tsx(15,8): error TS2307: Cannot find module '@/lib/types/director-messages' or its corresponding type declarations.
+lib/auth-options.ts(131,11): error TS2322: Type '({ token, user, account, trigger, session }: { token: JWT; user: User | AdapterUser; account: Account | null; profile?: Profile | undefined; trigger?: "signIn" | "update" | "signUp" | undefined; isNewUser?: boolean | undefined; session?: any; }) => Promise<...>' is not assignable to type '(params: { token: JWT; user: User | AdapterUser; account: Account | null; profile?: Profile | undefined; trigger?: "signIn" | "update" | "signUp" | undefined; isNewUser?: boolean | undefined; session?: any; }) => Awaitable<...>'.
+  Type 'Promise<JWT | { id: string; tier: string; approved: boolean; walletBalanceCents: number; subscription: { status: string; tier: string; currentPeriodEnd: string; } | null; exp: number; name?: string | null | undefined; email?: string | ... 1 more ... | undefined; picture?: string | ... 1 more ... | undefined; sub?: s...' is not assignable to type 'Awaitable<JWT>'.
+    Type 'Promise<JWT | { id: string; tier: string; approved: boolean; walletBalanceCents: number; subscription: { status: string; tier: string; currentPeriodEnd: string; } | null; exp: number; name?: string | null | undefined; email?: string | ... 1 more ... | undefined; picture?: string | ... 1 more ... | undefined; sub?: s...' is missing the following properties from type 'JWT': id, tier, subscription, approved, walletBalanceCents
+lib/error-handler.ts(266,29): error TS2304: Cannot find name 'useState'.
+lib/error-handler.ts(267,43): error TS2304: Cannot find name 'useState'.
+lib/error-handler.ts(269,3): error TS2304: Cannot find name 'useEffect'.
+lib/error-handler.ts(285,37): error TS2345: Argument of type 'null' is not assignable to parameter of type '(error: ErrorDetails) => void'.
+lib/error-handler.ts(289,22): error TS2304: Cannot find name 'useCallback'.
+lib/error-handler.ts(294,23): error TS2304: Cannot find name 'useCallback'.
+lib/stripe/stripe.ts(15,7): error TS2322: Type '"2024-11-20.acacia"' is not assignable to type '"2025-11-17.clover"'.
+tsc exit: 2

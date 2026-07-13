@@ -14,6 +14,7 @@ interface GenerationInputProps {
   onSubmit: () => void
   isGenerating: boolean
   error: string | null
+  placeholder?: string
 }
 
 export function GenerationInput({
@@ -25,6 +26,7 @@ export function GenerationInput({
   onSubmit,
   isGenerating,
   error,
+  placeholder: placeholderOverride,
 }: GenerationInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -36,7 +38,7 @@ export function GenerationInput({
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`
   }, [prompt])
 
-  const placeholder = mandatoryConfig?.promptPlaceholder || 'Describe what you want to generate...'
+  const placeholder = placeholderOverride || mandatoryConfig?.promptPlaceholder || 'Describe what you want to generate...'
 
   return (
     <div className="px-3 pt-3 pb-2 space-y-2">

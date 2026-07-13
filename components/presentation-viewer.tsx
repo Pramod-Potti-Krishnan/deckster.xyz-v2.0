@@ -55,6 +55,7 @@ import {
 import { useTheme } from 'next-themes'
 import Link from 'next/link'
 import { SlideThumbnailStrip, SlideThumbnail, type SlideComposeThumbnailJob } from './slide-thumbnail-strip'
+import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
@@ -168,6 +169,7 @@ interface PresentationViewerProps {
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
   composeJobs?: SlideComposeThumbnailJob[]
+  onRefineSlide?: (target: SlideRefineTarget) => void
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
   templateCurrentSlideIndex?: number
@@ -193,9 +195,23 @@ export interface SlideComposeViewerApi {
     realSlideId?: string | null,
     presentationId?: string | null,
   ) => Promise<any>
+  composePlaceholderUpdate: (
+    jobId: string,
+    text: string,
+    stage?: string | null,
+    detail?: string | null,
+  ) => Promise<any>
   composePlaceholderFail: (jobId: string) => Promise<any>
   composeGetState: () => Promise<any>
   composeGoToPlaceholder: (jobId: string) => Promise<any>
+  refineOverlayMark: (jobId: string, slideId: string) => Promise<any>
+  refineSlideReconcile: (
+    jobId: string,
+    oldSlideId: string,
+    realSlideId: string,
+    presentationId?: string | null,
+  ) => Promise<any>
+  refineOverlayClear: (jobId: string) => Promise<any>
 }
 
 interface SlideInfo {
@@ -355,6 +371,7 @@ export function PresentationViewer({
   onTemplateModeChange,
   templateModeAvailable = false,
   composeJobs = [],
+  onRefineSlide,
   templateSnapshot = null,
   templateSnapshotLoading = false,
   templateCurrentSlideIndex,
@@ -489,6 +506,7 @@ export function PresentationViewer({
     // slideStructure is fresh and matches totalSlides - use rich data
     return slideStructure.slides.map((slide: any, index: number) => ({
       slideNumber: index + 1,
+      slideId: slide.slide_id || slide.id || null,
       title: slide.title || slide.slide_type || `Slide ${index + 1}`,
       content: slide.narrative || slide.key_points?.join(', ')
     }))
@@ -1660,6 +1678,65 @@ export function PresentationViewer({
     )
   }, [])
 
+  const handleComposePlaceholderUpdate = useCallback((
+    jobId: string,
+    text: string,
+    stage?: string | null,
+    detail?: string | null,
+  ) => {
+    return sendCommand(
+      iframeRef.current,
+      'composePlaceholderUpdate',
+      {
+        job_id: jobId,
+        text,
+        ...(stage ? { stage } : {}),
+        ...(detail ? { detail } : {}),
+      },
+      { timeoutMs: 5000, expectedJobId: jobId },
+    )
+  }, [])
+
+  const handleRefineOverlayMark = useCallback((jobId: string, slideId: string) => {
+    return sendCommand(
+      iframeRef.current,
+      'refineOverlayMark',
+      {
+        job_id: jobId,
+        slide_id: slideId,
+      },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
+  const handleRefineSlideReconcile = useCallback((
+    jobId: string,
+    oldSlideId: string,
+    realSlideId: string,
+    targetPresentationId?: string | null,
+  ) => {
+    return sendCommand(
+      iframeRef.current,
+      'refineSlideReconcile',
+      {
+        job_id: jobId,
+        old_slide_id: oldSlideId,
+        real_slide_id: realSlideId,
+        ...(targetPresentationId ? { presentation_id: targetPresentationId } : {}),
+      },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
+  const handleRefineOverlayClear = useCallback((jobId: string) => {
+    return sendCommand(
+      iframeRef.current,
+      'refineOverlayClear',
+      { job_id: jobId },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
   const handleComposeGetState = useCallback(() => {
     return sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
   }, [])
@@ -1703,9 +1780,13 @@ export function PresentationViewer({
     onComposeApiReady({
       composePlaceholderAdd: handleComposePlaceholderAdd,
       composeSlideReconcile: handleComposeSlideReconcile,
+      composePlaceholderUpdate: handleComposePlaceholderUpdate,
       composePlaceholderFail: handleComposePlaceholderFail,
       composeGetState: handleComposeGetState,
       composeGoToPlaceholder: handleComposeGoToPlaceholder,
+      refineOverlayMark: handleRefineOverlayMark,
+      refineSlideReconcile: handleRefineSlideReconcile,
+      refineOverlayClear: handleRefineOverlayClear,
     })
 
     return () => onComposeApiReady(null)
@@ -1714,9 +1795,13 @@ export function PresentationViewer({
     onComposeApiReady,
     handleComposePlaceholderAdd,
     handleComposeSlideReconcile,
+    handleComposePlaceholderUpdate,
     handleComposePlaceholderFail,
     handleComposeGetState,
     handleComposeGoToPlaceholder,
+    handleRefineOverlayMark,
+    handleRefineSlideReconcile,
+    handleRefineOverlayClear,
   ])
 
   const handleFullscreen = useCallback(async () => {
@@ -2608,6 +2693,7 @@ export function PresentationViewer({
                 enableDragDrop={true}
                 totalSlides={totalSlides}
                 composeJobs={composeJobs}
+                onRefineSlide={onRefineSlide}
               />
             )}
           </div>

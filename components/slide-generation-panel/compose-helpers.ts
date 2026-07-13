@@ -98,7 +98,9 @@ export interface SlideComposeBuiltResult {
 export interface SlideComposeAcceptedResult {
   status: 'accepted'
   job_id: string
+  kind?: 'compose' | 'refine'
   target_index: number
+  target_slide_id?: string | null
   session_id: string
   presentation_id?: string | null
 }
