@@ -46,6 +46,11 @@ import {
   shiftSlideComposeTargetsAfterInsert,
   SLIDE_COMPOSE_WATCHDOG_MS,
 } from '@/lib/slide-compose-async'
+import {
+  buildSlideComposeJobStatusPath,
+  normalizeSlideComposeJobRecoveryResult,
+  resolveSlideComposeSessionId,
+} from '@/lib/slide-compose-job-recovery'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
@@ -699,21 +704,124 @@ function BuilderContent() {
         return
       }
       const snapshot = slideComposerPresentationRef.current
+      const requestSessionId = typeof job.request.session_id === 'string'
+        ? job.request.session_id
+        : ''
+      let recoveredRealSlideId = job.real_slide_id ?? null
+
+      if (requestSessionId) {
+        try {
+          const response = await fetch(buildSlideComposeJobStatusPath({
+            jobId,
+            sessionId: requestSessionId,
+            presentationId: snapshot.presentationId,
+          }), { cache: 'no-store' })
+          if (response.ok) {
+            const recovered = normalizeSlideComposeJobRecoveryResult(
+              await response.json().catch(() => null),
+            )
+            if (recovered?.job_id === jobId) {
+              if (recovered.status === 'building') return
+
+              if (recovered.status === 'error' || recovered.status === 'cancelled') {
+                clearSlideComposePoller(jobId)
+                clearSlideComposeWatchdog(jobId)
+                const errors = recovered.errors.length > 0
+                  ? recovered.errors
+                  : [`Slide Composer ${recovered.status}.`]
+                const recoveredKind: SlideComposeJobKind = recovered.kind
+                if (recoveredKind === 'refine') {
+                  void composeViewerApiRef.current?.refineOverlayClear(jobId).catch(error => {
+                    console.warn('[Slide Composer] Failed to clear recovered refine overlay.', error)
+                  })
+                  setSlideComposeJobs(prev => {
+                    const { [jobId]: _failed, ...rest } = prev
+                    return rest
+                  })
+                  toast({
+                    title: 'Refine failed',
+                    description: errors[0],
+                    variant: 'destructive',
+                  })
+                  return
+                }
+                void composeViewerApiRef.current?.composePlaceholderFail(jobId).catch(error => {
+                  console.warn('[Slide Composer] Failed to mark recovered job as failed.', error)
+                })
+                setSlideComposeJobs(prev => {
+                  const existing = prev[jobId]
+                  if (!existing) return prev
+                  return {
+                    ...prev,
+                    [jobId]: { ...existing, status: 'error', errors },
+                  }
+                })
+                toast({
+                  title: 'Slide failed',
+                  description: errors[0],
+                  variant: 'destructive',
+                })
+                return
+              }
+
+              if (recovered.status === 'built') {
+                if (!recovered.real_slide_id) {
+                  console.warn('[Slide Composer] Durable built job is missing real_slide_id.', {
+                    job_id: jobId,
+                  })
+                  return
+                }
+                recoveredRealSlideId = recovered.real_slide_id
+                const recoveredLayoutIndex = recovered.slide_index ?? job.target_layout_index
+                const recoveredJob = {
+                  ...job,
+                  target_layout_index: recoveredLayoutIndex,
+                  real_slide_id: recovered.real_slide_id,
+                  expected_slide_count: Math.max(
+                    job.expected_slide_count ?? 0,
+                    recoveredLayoutIndex + 1,
+                  ),
+                }
+                slideComposeJobsRef.current = {
+                  ...slideComposeJobsRef.current,
+                  [jobId]: recoveredJob,
+                }
+                setSlideComposeJobs(prev => ({ ...prev, [jobId]: recoveredJob }))
+                pendingComposeSelectionRestoreRef.current = resolveSlideComposeSelectionAfterReady({
+                  currentSlideIndex: currentSlideIndexRef.current,
+                  jobTargetVisualIndex: job.target_visual_index,
+                  resolvedVisualIndex: recoveredLayoutIndex,
+                })
+                scTrace('builder.poll.job_status_built', {
+                  job_id: jobId,
+                  session_id: recovered.session_id,
+                  presentation_id: recovered.presentation_id,
+                  slide_index: recovered.slide_index,
+                  real_slide_id: recovered.real_slide_id,
+                })
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[Slide Composer] Durable job status poll failed.', error)
+        }
+      }
+
       const presentation = await fetchSlideComposePresentationSnapshot(snapshot.presentationId)
       if (!presentation) return
 
-      const foundById = canPollCompleteSlideComposeJob(job.real_slide_id)
-        ? presentation.slideIds.has(job.real_slide_id)
+      const foundById = canPollCompleteSlideComposeJob(recoveredRealSlideId)
+        ? presentation.slideIds.has(recoveredRealSlideId)
         : false
       scTrace('builder.poll.complete_check', {
         job_id: jobId,
-        real_slide_id: job.real_slide_id ?? null,
+        real_slide_id: recoveredRealSlideId,
         target_layout_index: job.target_layout_index,
         expected_slide_count: job.expected_slide_count ?? null,
         fetched_slide_count: presentation.slideCount,
         found_by_id: foundById,
         found_by_count: false,
-        count_only_poll_disabled: !canPollCompleteSlideComposeJob(job.real_slide_id),
+        count_only_poll_disabled: !canPollCompleteSlideComposeJob(recoveredRealSlideId),
       })
       if (!foundById) return
 
@@ -725,12 +833,14 @@ function BuilderContent() {
       void poll()
       slideComposePollersRef.current[jobId] = setInterval(() => {
         void poll()
-      }, 10_000)
-    }, 15_000) as unknown as ReturnType<typeof setInterval>
+      }, 3_000)
+    }, 2_000) as unknown as ReturnType<typeof setInterval>
   }, [
+    clearSlideComposeWatchdog,
     clearSlideComposePoller,
     confirmSlideComposeJobAfterRefresh,
     fetchSlideComposePresentationSnapshot,
+    toast,
     triggerCoalescedSlideComposeReload,
   ])
 
@@ -2977,7 +3087,11 @@ function BuilderContent() {
                   refineTarget={slideRefineTarget}
                   currentSlide={selectedLayoutSlideIndex + 1}
                   currentLayout={currentSlideLayout}
-                  sessionId={wsSessionId || currentSessionId || ''}
+                  sessionId={resolveSlideComposeSessionId({
+                    deckOwnerSessionId,
+                    currentSessionId,
+                    wsSessionId,
+                  })}
                   presentationId={effectivePresentationId}
                   research={{
                     useUploadedDocuments: uploadedFiles.some(file => file.status === 'success') || Boolean(sessionStoreName),
