@@ -23,6 +23,7 @@ vm.runInNewContext(transpiled.outputText, {
 
 const {
   withAsyncSlideComposeFields,
+  buildSlideComposeProgressStatus,
   normalizeSlideComposeSocketFrame,
   buildSlideComposeVisualOrder,
   canLiveReconcileSlideCompose,
@@ -37,6 +38,17 @@ const {
   canPollCompleteSlideComposeJob,
   SLIDE_COMPOSE_WATCHDOG_MS,
 } = module.exports
+
+assert.equal(JSON.stringify(buildSlideComposeProgressStatus({
+  text: '  Researching slide content…  ',
+})), JSON.stringify({
+  status: 'generating',
+  text: 'Researching slide content…',
+  progress: null,
+  estimated_time: null,
+}))
+
+assert.equal(buildSlideComposeProgressStatus({ text: '   ' }).text, 'Building slide…')
 
 const request = withAsyncSlideComposeFields(
   {

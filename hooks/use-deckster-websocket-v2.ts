@@ -4,7 +4,10 @@ import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
-import { normalizeSlideComposeSocketFrame } from '@/lib/slide-compose-async';
+import {
+  buildSlideComposeProgressStatus,
+  normalizeSlideComposeSocketFrame,
+} from '@/lib/slide-compose-async';
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
@@ -1193,6 +1196,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   stage: message.payload.stage,
                   text: message.payload.text,
                 });
+                newState.currentStatus = buildSlideComposeProgressStatus(message.payload);
                 break;
 
               case 'slide_failed':

@@ -9,6 +9,27 @@ export type AsyncSlideComposeRequest<T extends Record<string, unknown>> = T & {
 // client watchdog above that budget until a backend heartbeat replaces it.
 export const SLIDE_COMPOSE_WATCHDOG_MS = 480_000
 
+export interface SlideComposeProgressStatusInput {
+  text?: unknown
+}
+
+export function buildSlideComposeProgressStatus(
+  progress: SlideComposeProgressStatusInput,
+): {
+  status: 'generating'
+  text: string
+  progress: null
+  estimated_time: null
+} {
+  const text = typeof progress.text === 'string' ? progress.text.trim() : ''
+  return {
+    status: 'generating',
+    text: text || 'Building slide…',
+    progress: null,
+    estimated_time: null,
+  }
+}
+
 export function withAsyncSlideComposeFields<T extends Record<string, unknown>>(
   request: T,
   jobId: string,
