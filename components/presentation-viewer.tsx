@@ -36,7 +36,12 @@ import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
 import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
-import { isMatchingSlideComposeCommandResponse, resolveSlideComposeViewerState } from '@/lib/slide-compose-async'
+import {
+  isMatchingSlideComposeCommandResponse,
+  restoreSlideViewerSelection,
+  resolveSlideComposeViewerState,
+  resolveSlideViewerNavigationInfo,
+} from '@/lib/slide-compose-async'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -55,6 +60,7 @@ import {
 import { useTheme } from 'next-themes'
 import Link from 'next/link'
 import { SlideThumbnailStrip, SlideThumbnail, type SlideComposeThumbnailJob } from './slide-thumbnail-strip'
+import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
@@ -168,6 +174,7 @@ interface PresentationViewerProps {
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
   composeJobs?: SlideComposeThumbnailJob[]
+  onRefineSlide?: (target: SlideRefineTarget) => void
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
   templateCurrentSlideIndex?: number
@@ -193,9 +200,24 @@ export interface SlideComposeViewerApi {
     realSlideId?: string | null,
     presentationId?: string | null,
   ) => Promise<any>
+  composePlaceholderUpdate: (
+    jobId: string,
+    text: string,
+    stage?: string | null,
+    detail?: string | null,
+  ) => Promise<any>
   composePlaceholderFail: (jobId: string) => Promise<any>
   composeGetState: () => Promise<any>
   composeGoToPlaceholder: (jobId: string) => Promise<any>
+  composeGoToVisualIndex: (visualIndex: number) => Promise<any>
+  refineOverlayMark: (jobId: string, slideId: string) => Promise<any>
+  refineSlideReconcile: (
+    jobId: string,
+    oldSlideId: string,
+    realSlideId: string,
+    presentationId?: string | null,
+  ) => Promise<any>
+  refineOverlayClear: (jobId: string) => Promise<any>
 }
 
 interface SlideInfo {
@@ -205,6 +227,15 @@ interface SlideInfo {
 
 // Viewer origin for postMessage communication
 const VIEWER_ORIGIN = new URL(LAYOUT_SERVICE_URL).origin
+
+function getIframeOrigin(iframe: HTMLIFrameElement | null): string {
+  if (!iframe?.src) return VIEWER_ORIGIN
+  try {
+    return new URL(iframe.src).origin
+  } catch {
+    return VIEWER_ORIGIN
+  }
+}
 
 /**
  * Send command to iframe via postMessage (cross-origin safe)
@@ -232,20 +263,21 @@ function sendCommand(
     : optionsOrTimeout
   const timeoutMs = options.timeoutMs ?? 5000
   const requestId = createViewerRequestId()
-  const isComposeCommand = action.startsWith('compose')
-  const commandParams = isComposeCommand && isSlideComposerTraceEnabled()
+  const requiresStrictResponse = action.startsWith('compose') || action.startsWith('refine')
+  const commandParams = requiresStrictResponse && isSlideComposerTraceEnabled()
     ? { ...(params || {}), _sc_trace: true }
     : params
 
   return new Promise((resolve, reject) => {
     if (!iframe) {
-      if (isComposeCommand) {
+      if (requiresStrictResponse) {
         scTrace('viewer.command.error', { action, requestId, params, error: 'Iframe not ready' })
       }
       reject(new Error('Iframe not ready'))
       return
     }
 
+    const targetOrigin = getIframeOrigin(iframe)
     let settled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
@@ -259,14 +291,18 @@ function sendCommand(
 
     const handler = (event: MessageEvent) => {
       // Only accept messages from viewer origin
-      if (event.origin !== VIEWER_ORIGIN) return
+      if (event.origin !== targetOrigin) return
 
-      if (isMatchingSlideComposeCommandResponse(event.data, {
-        action,
-        requestId,
-        expectedJobId: options.expectedJobId,
-      })) {
-        if (isComposeCommand) {
+      const matches = requiresStrictResponse
+        ? isMatchingSlideComposeCommandResponse(event.data, {
+            action,
+            requestId,
+            expectedJobId: options.expectedJobId,
+          })
+        : event.data?.action === action && (!event.data?.requestId || event.data.requestId === requestId)
+
+      if (matches) {
+        if (requiresStrictResponse) {
           scTrace('viewer.command.response', {
             action,
             requestId,
@@ -290,7 +326,7 @@ function sendCommand(
 
     // Timeout after the requested command budget.
     timeoutId = setTimeout(() => {
-      if (isComposeCommand) {
+      if (requiresStrictResponse) {
         scTrace('viewer.command.timeout', {
           action,
           requestId,
@@ -302,7 +338,7 @@ function sendCommand(
       settle(() => reject(new Error('Command timeout')))
     }, timeoutMs)
 
-    if (isComposeCommand) {
+    if (requiresStrictResponse) {
       scTrace('viewer.command.send', {
         action,
         requestId,
@@ -311,8 +347,20 @@ function sendCommand(
         params: commandParams,
       })
     }
-    iframe.contentWindow?.postMessage({ action, params: commandParams, requestId }, VIEWER_ORIGIN)
+    iframe.contentWindow?.postMessage({ action, params: commandParams, requestId }, targetOrigin)
   })
+}
+
+function postCommand(
+  iframe: HTMLIFrameElement | null,
+  action: string,
+  params?: Record<string, any>,
+) {
+  iframe?.contentWindow?.postMessage({ action, params, requestId: createViewerRequestId() }, getIframeOrigin(iframe))
+}
+
+function waitForViewerSettle(delayMs: number): Promise<void> {
+  return new Promise(resolve => window.setTimeout(resolve, delayMs))
 }
 
 export function PresentationViewer({
@@ -355,6 +403,7 @@ export function PresentationViewer({
   onTemplateModeChange,
   templateModeAvailable = false,
   composeJobs = [],
+  onRefineSlide,
   templateSnapshot = null,
   templateSnapshotLoading = false,
   templateCurrentSlideIndex,
@@ -489,6 +538,7 @@ export function PresentationViewer({
     // slideStructure is fresh and matches totalSlides - use rich data
     return slideStructure.slides.map((slide: any, index: number) => ({
       slideNumber: index + 1,
+      slideId: slide.slide_id || slide.id || null,
       title: slide.title || slide.slide_type || `Slide ${index + 1}`,
       content: slide.narrative || slide.key_points?.join(', ')
     }))
@@ -591,18 +641,23 @@ export function PresentationViewer({
 
   const handleGoToSlide = useCallback(async (slideIndex: number) => {
     debugLog(`🎯 Navigating to slide ${slideIndex + 1}`)
+    const nextSlide = slideIndex + 1
+    setCurrentSlide(nextSlide)
+    onSlideChange?.(nextSlide)
+
     if (!iframeRef.current) {
       debugLog('❌ Iframe not ready')
       return
     }
+
     try {
-      const result = await sendCommand(iframeRef.current, 'goToSlide', { index: slideIndex })
+      await sendCommand(iframeRef.current, 'goToSlide', { index: slideIndex }, { timeoutMs: 1500 })
       debugLog(`✅ Navigated to slide ${slideIndex + 1}`)
-      setCurrentSlide(slideIndex + 1)
     } catch (error) {
-      console.error('Error navigating to slide:', error)
+      console.warn('goToSlide response timed out; keeping optimistic slide state and sending fallback navigation.', error)
+      postCommand(iframeRef.current, 'goToSlide', { index: slideIndex })
     }
-  }, [])
+  }, [onSlideChange])
 
   // Poll for slide info updates via postMessage (with exponential backoff)
   useEffect(() => {
@@ -1660,8 +1715,118 @@ export function PresentationViewer({
     )
   }, [])
 
+  const handleComposePlaceholderUpdate = useCallback((
+    jobId: string,
+    text: string,
+    stage?: string | null,
+    detail?: string | null,
+  ) => {
+    return sendCommand(
+      iframeRef.current,
+      'composePlaceholderUpdate',
+      {
+        job_id: jobId,
+        text,
+        ...(stage ? { stage } : {}),
+        ...(detail ? { detail } : {}),
+      },
+      { timeoutMs: 5000, expectedJobId: jobId },
+    )
+  }, [])
+
+  const handleRefineOverlayMark = useCallback((jobId: string, slideId: string) => {
+    return sendCommand(
+      iframeRef.current,
+      'refineOverlayMark',
+      {
+        job_id: jobId,
+        slide_id: slideId,
+      },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
+  const handleRefineSlideReconcile = useCallback((
+    jobId: string,
+    oldSlideId: string,
+    realSlideId: string,
+    targetPresentationId?: string | null,
+  ) => {
+    return sendCommand(
+      iframeRef.current,
+      'refineSlideReconcile',
+      {
+        job_id: jobId,
+        old_slide_id: oldSlideId,
+        real_slide_id: realSlideId,
+        ...(targetPresentationId ? { presentation_id: targetPresentationId } : {}),
+      },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
+  const handleRefineOverlayClear = useCallback((jobId: string) => {
+    return sendCommand(
+      iframeRef.current,
+      'refineOverlayClear',
+      { job_id: jobId },
+      { timeoutMs: 8000, expectedJobId: jobId },
+    )
+  }, [])
+
   const handleComposeGetState = useCallback(() => {
     return sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
+  }, [])
+
+  const handleComposeGoToVisualIndex = useCallback(async (visualIndex: number) => {
+    const safeVisualIndex = Math.max(0, visualIndex)
+    const iframe = iframeRef.current
+    if (!iframe) throw new Error('Iframe not ready')
+
+    const result = await restoreSlideViewerSelection({
+      targetVisualIndex: safeVisualIndex,
+      readNavigationInfo: async () => resolveSlideViewerNavigationInfo(await sendCommand(
+        iframe,
+        'getCurrentSlideInfo',
+        {},
+        { timeoutMs: 1000 },
+      )),
+      navigate: async targetVisualIndex => {
+        await sendCommand(
+          iframe,
+          'goToSlide',
+          { index: targetVisualIndex },
+          { timeoutMs: 1500 },
+        )
+      },
+      wait: waitForViewerSettle,
+      isActive: () => iframeRef.current === iframe,
+      onRetry: retry => {
+        scTrace(
+          retry.phase === 'waiting'
+            ? 'viewer.selection_restore.waiting'
+            : 'viewer.selection_restore.retry',
+          {
+            visual_index: safeVisualIndex,
+            attempt: retry.attempt,
+            phase: retry.phase,
+            viewer_state: retry.viewerState,
+            error: retry.error instanceof Error ? retry.error.message : retry.error,
+          },
+        )
+      },
+    })
+
+    const nextSlide = safeVisualIndex + 1
+    setCurrentSlide(nextSlide)
+    onSlideChangeRef.current?.(nextSlide)
+    return {
+      success: true,
+      action: 'goToSlide',
+      index: safeVisualIndex,
+      attempts: result.attempts,
+      verified: true,
+    }
   }, [])
 
   const handleComposeGoToPlaceholder = useCallback(async (jobId: string) => {
@@ -1672,13 +1837,8 @@ export function PresentationViewer({
     if (!placeholder || !Number.isFinite(Number(placeholder.visual_index))) {
       throw new Error(`Placeholder not found for job ${jobId}`)
     }
-    return sendCommand(
-      iframeRef.current,
-      'goToSlide',
-      { index: Math.max(0, Number(placeholder.visual_index)) },
-      { timeoutMs: 5000 },
-    )
-  }, [])
+    return handleComposeGoToVisualIndex(Number(placeholder.visual_index))
+  }, [handleComposeGoToVisualIndex])
 
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {
@@ -1703,9 +1863,14 @@ export function PresentationViewer({
     onComposeApiReady({
       composePlaceholderAdd: handleComposePlaceholderAdd,
       composeSlideReconcile: handleComposeSlideReconcile,
+      composePlaceholderUpdate: handleComposePlaceholderUpdate,
       composePlaceholderFail: handleComposePlaceholderFail,
       composeGetState: handleComposeGetState,
       composeGoToPlaceholder: handleComposeGoToPlaceholder,
+      composeGoToVisualIndex: handleComposeGoToVisualIndex,
+      refineOverlayMark: handleRefineOverlayMark,
+      refineSlideReconcile: handleRefineSlideReconcile,
+      refineOverlayClear: handleRefineOverlayClear,
     })
 
     return () => onComposeApiReady(null)
@@ -1714,9 +1879,14 @@ export function PresentationViewer({
     onComposeApiReady,
     handleComposePlaceholderAdd,
     handleComposeSlideReconcile,
+    handleComposePlaceholderUpdate,
     handleComposePlaceholderFail,
     handleComposeGetState,
     handleComposeGoToPlaceholder,
+    handleComposeGoToVisualIndex,
+    handleRefineOverlayMark,
+    handleRefineSlideReconcile,
+    handleRefineOverlayClear,
   ])
 
   const handleFullscreen = useCallback(async () => {
@@ -2608,6 +2778,7 @@ export function PresentationViewer({
                 enableDragDrop={true}
                 totalSlides={totalSlides}
                 composeJobs={composeJobs}
+                onRefineSlide={onRefineSlide}
               />
             )}
           </div>

@@ -23,6 +23,8 @@ vm.runInNewContext(transpiled.outputText, {
 
 const {
   withAsyncSlideComposeFields,
+  buildSlideComposeProgressStatus,
+  hasLiveTrackedEphemeralMessage,
   normalizeSlideComposeSocketFrame,
   buildSlideComposeVisualOrder,
   canLiveReconcileSlideCompose,
@@ -31,12 +33,35 @@ const {
   resolveSlideComposeViewerState,
   isMatchingSlideComposeCommandResponse,
   resolveSlideComposeCountAfterReady,
+  resolveSlideComposeSelectionAfterReady,
+  restoreSlideViewerSelection,
+  resolveSlideViewerNavigationInfo,
   shouldNavigateToResolvedComposeSlide,
   shouldUseIncomingComposePresentationUrl,
   shiftSlideComposeTargetsAfterInsert,
   canPollCompleteSlideComposeJob,
   SLIDE_COMPOSE_WATCHDOG_MS,
 } = module.exports
+
+assert.equal(JSON.stringify(buildSlideComposeProgressStatus({
+  text: '  Researching slide content…  ',
+})), JSON.stringify({
+  status: 'generating',
+  text: 'Researching slide content…',
+  progress: null,
+  estimated_time: null,
+}))
+
+assert.equal(buildSlideComposeProgressStatus({ text: '   ' }).text, 'Building slide…')
+
+assert.equal(hasLiveTrackedEphemeralMessage(
+  ['old-progress-1', 'old-progress-2'],
+  new Set(['current-progress-1']),
+), false)
+assert.equal(hasLiveTrackedEphemeralMessage(
+  ['old-progress-1', 'current-progress-1'],
+  new Set(['current-progress-1']),
+), true)
 
 const request = withAsyncSlideComposeFields(
   {
@@ -327,5 +352,87 @@ assert.equal(shouldNavigateToResolvedComposeSlide({
   jobTargetVisualIndex: 2,
   resolvedVisualIndex: 4,
 }), true)
+
+assert.equal(resolveSlideComposeSelectionAfterReady({
+  currentSlideIndex: 2,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 2,
+}), 2)
+assert.equal(resolveSlideComposeSelectionAfterReady({
+  currentSlideIndex: 2,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 4,
+}), 4)
+assert.equal(resolveSlideComposeSelectionAfterReady({
+  currentSlideIndex: 7,
+  jobTargetVisualIndex: 2,
+  resolvedVisualIndex: 2,
+}), 7)
+
+assert.equal(JSON.stringify(resolveSlideViewerNavigationInfo({
+  success: true,
+  data: { index: 3, total: 9 },
+})), JSON.stringify({
+  currentVisualIndex: 3,
+  totalSlides: 9,
+}))
+assert.equal(JSON.stringify(resolveSlideViewerNavigationInfo({
+  current_visual_index: 4,
+  total_visual_sections: 10,
+})), JSON.stringify({
+  currentVisualIndex: 4,
+  totalSlides: 10,
+}))
+assert.equal(resolveSlideViewerNavigationInfo({
+  success: true,
+  data: { index: 0, total: 0 },
+}), null)
+assert.equal(resolveSlideViewerNavigationInfo({
+  success: true,
+  data: { index: 9, total: 9 },
+}), null)
+assert.equal(resolveSlideViewerNavigationInfo({
+  success: false,
+  data: { index: 3, total: 9 },
+}), null)
+
+const navigationStates = [
+  null,
+  { currentVisualIndex: 0, totalSlides: 9 },
+  { currentVisualIndex: 3, totalSlides: 9 },
+  { currentVisualIndex: 0, totalSlides: 9 },
+  { currentVisualIndex: 0, totalSlides: 9 },
+  { currentVisualIndex: 3, totalSlides: 9 },
+  { currentVisualIndex: 3, totalSlides: 9 },
+]
+const restoreRetries = []
+let navigationCalls = 0
+const restoredSelection = await restoreSlideViewerSelection({
+  targetVisualIndex: 3,
+  readNavigationInfo: async () => navigationStates.shift() ?? null,
+  navigate: async visualIndex => {
+    assert.equal(visualIndex, 3)
+    navigationCalls += 1
+  },
+  wait: async () => {},
+  onRetry: retry => restoreRetries.push(retry.phase),
+})
+assert.equal(restoredSelection.attempts, 3)
+assert.equal(navigationCalls, 2)
+assert.equal(JSON.stringify(restoreRetries), JSON.stringify([
+  'waiting',
+  'stability_check',
+]))
+
+await assert.rejects(
+  restoreSlideViewerSelection({
+    targetVisualIndex: 3,
+    readNavigationInfo: async () => ({ currentVisualIndex: 0, totalSlides: 2 }),
+    navigate: async () => assert.fail('must not navigate before the target slide exists'),
+    wait: async () => {},
+    maxAttempts: 2,
+  }),
+  /Could not restore slide 4/,
+)
 
 console.log('async slide composer unit checks passed')

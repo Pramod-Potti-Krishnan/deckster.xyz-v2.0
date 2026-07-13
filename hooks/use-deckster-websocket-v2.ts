@@ -4,7 +4,10 @@ import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
-import { normalizeSlideComposeSocketFrame } from '@/lib/slide-compose-async';
+import {
+  buildSlideComposeProgressStatus,
+  normalizeSlideComposeSocketFrame,
+} from '@/lib/slide-compose-async';
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
@@ -13,8 +16,27 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_ready' | 'slide_failed';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_ready' | 'slide_failed';
   payload: any;
+}
+
+const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
+  'chat_message',
+  'action_request',
+  'slide_update',
+  'presentation_init',
+  'presentation_url',
+  'status_update',
+  'sync_response',
+  'slide_context',
+  'token_usage',
+  'slide_progress',
+  'slide_ready',
+  'slide_failed',
+]);
+
+function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
+  return typeof type === 'string' && KNOWN_DIRECTOR_MESSAGE_TYPES.has(type as BaseMessage['type']);
 }
 
 // Sync response from Director when connecting with skip_history=true
@@ -238,11 +260,27 @@ export interface SlideComposeReady {
   payload: {
     session_id?: string;
     job_id: string;
+    kind?: 'compose' | 'refine';
     status: 'built';
     slide_index: number;
     real_slide_id?: string | null;
+    replaced_slide_id?: string | null;
     presentation_id: string;
     presentation_url?: string | null;
+  };
+}
+
+export interface SlideComposeProgress {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'slide_progress';
+  payload: {
+    job_id: string;
+    stage: string;
+    text: string;
+    detail?: string | null;
+    slide_index?: number | null;
   };
 }
 
@@ -254,12 +292,13 @@ export interface SlideComposeFailed {
   payload: {
     session_id?: string;
     job_id: string;
+    kind?: 'compose' | 'refine';
     stage?: string | null;
     errors?: string[];
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeReady | SlideComposeFailed;
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideComposeReady | SlideComposeFailed;
 
 export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
   return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
@@ -343,6 +382,7 @@ export interface UseDecksterWebSocketV2Options {
   onError?: (error: Error) => void;
   onMessage?: (message: DirectorMessage) => void;
   onPresentationReady?: (url: string) => void;
+  onSlideComposeProgress?: (message: SlideComposeProgress) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onSessionStateChange?: (state: {
@@ -746,7 +786,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             return;
           }
 
-          const message = normalizeDirectorMessageFrame(JSON.parse(event.data));
+          const parsedMessage = normalizeDirectorMessageFrame(JSON.parse(event.data)) as DirectorMessage & { type?: unknown };
+          if (!isKnownDirectorMessageType(parsedMessage.type)) {
+            return;
+          }
+
+          const message = parsedMessage as DirectorMessage;
 
           // Add client-side timestamp for message ordering
           const messageWithTimestamp = {
@@ -767,6 +812,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               message.type !== 'presentation_init' &&
               message.type !== 'slide_context' &&
               message.type !== 'token_usage' &&
+              message.type !== 'slide_progress' &&
               message.type !== 'slide_ready' &&
               message.type !== 'slide_failed' &&
               !isDuplicate;
@@ -1140,6 +1186,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   slide_index: message.payload.slide_index,
                   presentation_id: message.payload.presentation_id,
                 });
+                newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                newState.currentStatus = null;
+                break;
+
+              case 'slide_progress':
+                debugLog('🧵 slide_progress received:', {
+                  job_id: message.payload.job_id,
+                  stage: message.payload.stage,
+                  text: message.payload.text,
+                });
+                newState.currentStatus = buildSlideComposeProgressStatus(message.payload);
                 break;
 
               case 'slide_failed':
@@ -1148,13 +1205,20 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   stage: message.payload.stage,
                   errors: message.payload.errors,
                 });
+                newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                newState.currentStatus = null;
+                break;
+
+              default:
                 break;
             }
 
             return newState;
           });
 
-          if (message.type === 'slide_ready') {
+          if (message.type === 'slide_progress') {
+            options.onSlideComposeProgress?.(message);
+          } else if (message.type === 'slide_ready') {
             options.onSlideComposeReady?.(message);
           } else if (message.type === 'slide_failed') {
             options.onSlideComposeFailed?.(message);

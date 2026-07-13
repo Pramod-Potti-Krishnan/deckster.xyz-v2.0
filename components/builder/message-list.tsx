@@ -20,6 +20,7 @@ import {
   type StatusUpdate,
 } from "@/hooks/use-deckster-websocket-v2"
 import { debugLog } from "@/lib/debug-log"
+import { hasLiveTrackedEphemeralMessage } from "@/lib/slide-compose-async"
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -77,10 +78,18 @@ export function MessageList({
       lastFadeTokenRef.current = 0
       return
     }
-    if (ephemeralFadeToken === lastFadeTokenRef.current || !ephemeralMessageIds?.length) return
+    if (ephemeralFadeToken === lastFadeTokenRef.current) return
     lastFadeTokenRef.current = ephemeralFadeToken
 
-    const idsToFade = ephemeralMessageIds
+    const idsToFade = ephemeralMessageIds?.length
+      ? ephemeralMessageIds
+      : messages
+        .filter((m): m is V2ChatMessage =>
+          m.type === 'chat_message' && (m as V2ChatMessage).payload.ephemeral === true
+        )
+        .map(m => m.message_id)
+    if (idsToFade.length === 0) return
+
     setFadingIds(prev => {
       const next = new Set(prev)
       for (const id of idsToFade) next.add(id)
@@ -96,7 +105,7 @@ export function MessageList({
       onEphemeralFadeComplete?.()
     }, 350) // 300ms transition + 50ms buffer
     return () => clearTimeout(t)
-  }, [ephemeralFadeToken, ephemeralMessageIds, messagesEndRef, onEphemeralFadeComplete])
+  }, [ephemeralFadeToken, ephemeralMessageIds, messages, messagesEndRef, onEphemeralFadeComplete])
   // Combine, classify, deduplicate, sort, filter, and group messages
   const processedMessages = useMemo(() => {
     const trackedEphemeralIds = new Set(ephemeralMessageIds || [])
@@ -286,16 +295,12 @@ export function MessageList({
           }
 
           if (thinkingMessages.length > 0) {
-            const hasLaterStrawman = filtered.slice(i).some((item) => {
-              if (item.messageType !== 'bot') return false
-              const maybeSlideUpdate = item as DirectorMessage
-              return maybeSlideUpdate.type === 'slide_update' &&
-                (maybeSlideUpdate as SlideUpdate).payload.operation === 'full_update' &&
-                !(maybeSlideUpdate as SlideUpdate).payload.is_blank
-            })
-            const isLiveTrackedGroup = thinkingMessages.some(m => trackedEphemeralIds.has(m.message_id))
+            const isLiveTrackedGroup = hasLiveTrackedEphemeralMessage(
+              thinkingMessages.map(message => message.message_id),
+              trackedEphemeralIds,
+            )
 
-            if (!hasLaterStrawman || isLiveTrackedGroup) {
+            if (isLiveTrackedGroup) {
               processedMessages.push({
                 messageType: 'bot',
                 type: 'thinking_stream',
