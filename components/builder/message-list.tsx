@@ -108,6 +108,7 @@ export function MessageList({
   // Combine, classify, deduplicate, sort, filter, and group messages
   const processedMessages = useMemo(() => {
     const trackedEphemeralIds = new Set(ephemeralMessageIds || [])
+    const isProgressActive = currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'
     const combined = [
       ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
       ...messages.map(m => {
@@ -303,7 +304,7 @@ export function MessageList({
             })
             const isLiveTrackedGroup = thinkingMessages.some(m => trackedEphemeralIds.has(m.message_id))
 
-            if (!hasLaterStrawman || isLiveTrackedGroup) {
+            if (isLiveTrackedGroup || (!hasLaterStrawman && isProgressActive)) {
               processedMessages.push({
                 messageType: 'bot',
                 type: 'thinking_stream',
@@ -357,7 +358,7 @@ export function MessageList({
     }
 
     return processedMessages;
-  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef]);
+  }, [userMessages, messages, ephemeralMessageIds, currentStatus?.status, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef]);
 
   const hasVisibleThinkingStream = processedMessages.some((item) => {
     if (item.messageType !== 'bot') return false
