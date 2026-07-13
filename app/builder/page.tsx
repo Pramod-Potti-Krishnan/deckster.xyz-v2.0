@@ -80,7 +80,11 @@ function scTrace(event: string, payload: Record<string, unknown>) {
 }
 
 type BuilderTemplateSelection = TemplateSelection
-type ActiveBuildThemeProfile = { id: string; name: string }
+type ActiveBuildThemeProfile = {
+  id: string
+  name: string
+  theme_payload: BuildThemeSelection
+}
 
 type SlideComposeJobStatus = 'building' | 'error'
 type SlideComposeJobKind = 'compose' | 'refine'
@@ -168,8 +172,11 @@ function normalizeStoredBuildThemeProfile(value: unknown): ActiveBuildThemeProfi
   if (!value || typeof value !== 'object') return null
 
   const raw = value as Partial<ActiveBuildThemeProfile>
-  return typeof raw.id === 'string' && typeof raw.name === 'string'
-    ? { id: raw.id, name: raw.name }
+  const themePayload = normalizeStoredBuildThemeSelection(raw.theme_payload)
+  return typeof raw.id === 'string' &&
+    typeof raw.name === 'string' &&
+    themePayload.mode !== 'auto'
+    ? { id: raw.id, name: raw.name, theme_payload: themePayload }
     : null
 }
 
@@ -199,6 +206,13 @@ function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelectio
     (a.palette_mode || 'light') === (b.palette_mode || 'light') &&
     stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides)
   )
+}
+
+function buildThemeProfileMatchesSelection(
+  profile: ActiveBuildThemeProfile | null,
+  selection: BuildThemeSelection,
+): boolean {
+  return !!profile && buildThemeSelectionsEqual(profile.theme_payload, selection)
 }
 
 function readBuilderSessionOptions(sessionId: string): BuilderSessionOptions {
@@ -232,11 +246,15 @@ function readBuilderSessionOptions(sessionId: string): BuilderSessionOptions {
       }
     }
 
+    const buildThemeSelection = normalizeStoredBuildThemeSelection(parsed.buildThemeSelection)
+    const activeBuildThemeProfile = normalizeStoredBuildThemeProfile(parsed.activeBuildThemeProfile)
     return {
       version: BUILDER_SESSION_OPTIONS_VERSION,
       activeTemplate: normalizeStoredTemplate(parsed.activeTemplate),
-      buildThemeSelection: normalizeStoredBuildThemeSelection(parsed.buildThemeSelection),
-      activeBuildThemeProfile: normalizeStoredBuildThemeProfile(parsed.activeBuildThemeProfile),
+      buildThemeSelection,
+      activeBuildThemeProfile: buildThemeProfileMatchesSelection(activeBuildThemeProfile, buildThemeSelection)
+        ? activeBuildThemeProfile
+        : null,
     }
   } catch {
     return {
@@ -371,6 +389,12 @@ function BuilderContent() {
     () => hasTemplateOverrideEntries(templateOverrides),
     [templateOverrides],
   )
+  const activeBuildThemeProfileForSelection = useMemo(
+    () => buildThemeProfileMatchesSelection(activeBuildThemeProfile, buildThemeSelection)
+      ? activeBuildThemeProfile
+      : null,
+    [activeBuildThemeProfile, buildThemeSelection],
+  )
   const templateSendOptions = useMemo(() => {
     if (!activeTemplate) return {}
 
@@ -434,7 +458,11 @@ function BuilderContent() {
           buildThemeSelectionRef.current.mode === 'auto'
         ) {
           setBuildThemeSelection(profile.theme_payload)
-          setActiveBuildThemeProfile({ id: profile.id, name: profile.name })
+          setActiveBuildThemeProfile({
+            id: profile.id,
+            name: profile.name,
+            theme_payload: profile.theme_payload,
+          })
         }
       } catch {
         // Standard-theme hydration is display-only; Director still resolves it.
@@ -934,7 +962,11 @@ function BuilderContent() {
           profile.theme_payload.mode !== 'auto' &&
           buildThemeSelectionsEqual(profile.theme_payload, stored.buildThemeSelection)
         ) {
-          setActiveBuildThemeProfile({ id: profile.id, name: profile.name })
+          setActiveBuildThemeProfile({
+            id: profile.id,
+            name: profile.name,
+            theme_payload: profile.theme_payload,
+          })
         }
       })()
     }
@@ -953,8 +985,13 @@ function BuilderContent() {
       return
     }
 
-    writeBuilderSessionOptions(currentSessionId, activeTemplate, buildThemeSelection, activeBuildThemeProfile)
-  }, [currentSessionId, activeTemplate, buildThemeSelection, activeBuildThemeProfile])
+    writeBuilderSessionOptions(
+      currentSessionId,
+      activeTemplate,
+      buildThemeSelection,
+      activeBuildThemeProfileForSelection,
+    )
+  }, [currentSessionId, activeTemplate, buildThemeSelection, activeBuildThemeProfileForSelection])
 
   const loadTemplateSnapshot = useCallback(async (template: BuilderTemplateSelection): Promise<TemplateSnapshot | null> => {
     setTemplateSnapshotLoading(true)
@@ -1023,6 +1060,9 @@ function BuilderContent() {
       })
       return
     }
+    setActiveBuildThemeProfile(current => (
+      buildThemeProfileMatchesSelection(current, next) ? current : null
+    ))
     setBuildThemeSelection(next)
   }, [toast])
 
@@ -2916,7 +2956,7 @@ function BuilderContent() {
                     useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
                   }}
                   buildThemeSelection={buildThemeSelection}
-                  activeBuildThemeProfileName={activeBuildThemeProfile?.name ?? null}
+                  activeBuildThemeProfileName={activeBuildThemeProfileForSelection?.name ?? null}
                   enabled={features.slideComposerEnabled}
                   onBuilt={handleSlideComposerBuilt}
                   onAccepted={handleSlideComposerAccepted}
@@ -3045,7 +3085,7 @@ function BuilderContent() {
                     onCancelTemplateReuse={handleCancelTemplateReuse}
                     buildTheme={buildThemeSelection}
                     onBuildThemeChange={handleBuildThemeChange}
-                    activeBuildThemeProfile={activeBuildThemeProfile}
+                    activeBuildThemeProfile={activeBuildThemeProfileForSelection}
                     onActiveBuildThemeProfileChange={handleActiveBuildThemeProfileChange}
                   />
                 </>
