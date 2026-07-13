@@ -30,6 +30,13 @@ export function buildSlideComposeProgressStatus(
   }
 }
 
+export function hasLiveTrackedEphemeralMessage(
+  messageIds: readonly string[],
+  trackedMessageIds: ReadonlySet<string>,
+): boolean {
+  return messageIds.some(messageId => trackedMessageIds.has(messageId))
+}
+
 export function withAsyncSlideComposeFields<T extends Record<string, unknown>>(
   request: T,
   jobId: string,

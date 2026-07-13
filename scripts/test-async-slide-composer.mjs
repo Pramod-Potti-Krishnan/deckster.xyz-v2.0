@@ -24,6 +24,7 @@ vm.runInNewContext(transpiled.outputText, {
 const {
   withAsyncSlideComposeFields,
   buildSlideComposeProgressStatus,
+  hasLiveTrackedEphemeralMessage,
   normalizeSlideComposeSocketFrame,
   buildSlideComposeVisualOrder,
   canLiveReconcileSlideCompose,
@@ -49,6 +50,15 @@ assert.equal(JSON.stringify(buildSlideComposeProgressStatus({
 }))
 
 assert.equal(buildSlideComposeProgressStatus({ text: '   ' }).text, 'Building slide…')
+
+assert.equal(hasLiveTrackedEphemeralMessage(
+  ['old-progress-1', 'old-progress-2'],
+  new Set(['current-progress-1']),
+), false)
+assert.equal(hasLiveTrackedEphemeralMessage(
+  ['old-progress-1', 'current-progress-1'],
+  new Set(['current-progress-1']),
+), true)
 
 const request = withAsyncSlideComposeFields(
   {
