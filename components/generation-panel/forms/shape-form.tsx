@@ -283,7 +283,14 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               {(['small', 'medium', 'large'] as const).map(s => (
                 <button
                   key={s}
-                  onClick={() => { setSize(s); setAdvancedModified(true) }}
+                  onClick={() => {
+                    setSize(s)
+                    // Size preset drives the shape's width/height (square-ish grid boxes).
+                    const cells = s === 'small' ? 3 : s === 'large' ? 8 : 5
+                    setWidthPx(gridToPx(cells))
+                    setHeightPx(gridToPx(cells))
+                    setAdvancedModified(true)
+                  }}
                   className={`flex-1 px-2 py-1 rounded text-xs font-medium capitalize transition-colors ${
                     size === s
                       ? 'bg-primary text-white border border-primary'

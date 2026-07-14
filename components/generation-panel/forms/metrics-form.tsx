@@ -134,9 +134,8 @@ interface MetricsFormProps {
 export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: MetricsFormProps) {
   const [count, setCount] = useState(1)
   const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
-  const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [config, setConfig] = useState<MetricsConfig>({ ...DEFAULT_METRICS_CONFIG })
-  const [composeEnabled, setComposeEnabled] = useState(false)
+  // Multi-metric compose is derived automatically from count > 1 (no manual toggle).
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
@@ -222,7 +221,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentati
   const handleSubmit = useCallback(() => {
     const formData: MetricsFormData = {
       componentType: 'METRICS',
-      prompt: contentSource === 'placeholder' ? (prompt || 'Generate placeholder metrics') : prompt,
+      prompt,
       count,
       layout,
       advancedModified,
@@ -230,18 +229,18 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentati
       presentationId,
       useDeckTheme,
       themeOverrides,
-      compose: composeEnabled && count > 1,
-      elements: composeEnabled && count > 1 ? buildMetricsComposeElements(positionConfig, count, layout) : undefined,
+      compose: count > 1,
+      elements: count > 1 ? buildMetricsComposeElements(positionConfig, count, layout) : undefined,
       metricsConfig: {
         ...config,
         layout,
-        placeholder_mode: contentSource === 'placeholder',
+        placeholder_mode: false,
       },
       positionConfig: positionConfig.auto_position ? undefined : positionConfig,
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, contentSource, config, composeEnabled, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, layout, config, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -288,19 +287,6 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentati
               </div>
             </div>
           </div>
-          <ToggleRow
-            label="Compose"
-            field="compose"
-            value={composeEnabled ? 'true' : 'false'}
-            options={[
-              { value: 'false', label: 'Single' },
-              { value: 'true', label: 'Multi' },
-            ]}
-            onChange={(_, v) => {
-              setComposeEnabled(v === 'true')
-              setAdvancedModified(true)
-            }}
-          />
         </div>
       </CollapsibleSection>
 

@@ -28,7 +28,6 @@ interface InfographicFormProps {
 }
 
 export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: InfographicFormProps) {
-  const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [advancedModified, setAdvancedModified] = useState(false)
@@ -143,7 +142,6 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presen
     const gridColumn = `${startCol}/${startCol + width}`
 
     let defaultPrompt = 'Generate an infographic'
-    if (contentSource === 'placeholder') defaultPrompt = 'Add placeholder infographic'
     if (referenceImage) defaultPrompt = 'Recreate infographic from reference image'
 
     const normalizedV2Segments = segmentRows
@@ -167,7 +165,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presen
       crop_mode: cropMode,
       target_background: targetBackground,
       fill_internal: fillInternal,
-      placeholder_mode: contentSource === 'placeholder',
+      placeholder_mode: false,
       grid_row: gridRow,
       grid_column: gridColumn,
       start_col: startCol,
@@ -197,7 +195,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presen
       referenceImage,
     }
     onSubmit(formData)
-  }, [prompt, contentSource, referenceImage, mode, aspectRatio, segments, cropMode, targetBackground, fillInternal, layoutFamily, templateId, segmentRows, segmentColorsInput, textMode, showIcons, startCol, startRow, width, height, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, onSubmit])
+  }, [prompt, referenceImage, mode, aspectRatio, segments, cropMode, targetBackground, fillInternal, layoutFamily, templateId, segmentRows, segmentColorsInput, textMode, showIcons, startCol, startRow, width, height, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -231,12 +229,12 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presen
           />
 
           <ToggleRow
-            label="Mode"
+            label="Design"
             field="mode"
             value={mode}
             options={[
-              { value: 'v1', label: 'V1' },
-              { value: 'v2', label: 'V2' },
+              { value: 'v1', label: 'Creative design' },
+              { value: 'v2', label: 'Structured design' },
             ]}
             onChange={(_, v) => { setMode(v as InfographicConfig['mode']); setAdvancedModified(true) }}
           />
