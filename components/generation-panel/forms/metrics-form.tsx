@@ -136,7 +136,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentati
   const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [config, setConfig] = useState<MetricsConfig>({ ...DEFAULT_METRICS_CONFIG })
-  const [composeEnabled, setComposeEnabled] = useState(false)
+  // Multi-metric compose is derived automatically from count > 1 (no manual toggle).
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
@@ -230,8 +230,8 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentati
       presentationId,
       useDeckTheme,
       themeOverrides,
-      compose: composeEnabled && count > 1,
-      elements: composeEnabled && count > 1 ? buildMetricsComposeElements(positionConfig, count, layout) : undefined,
+      compose: count > 1,
+      elements: count > 1 ? buildMetricsComposeElements(positionConfig, count, layout) : undefined,
       metricsConfig: {
         ...config,
         layout,
@@ -241,7 +241,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentati
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, contentSource, config, composeEnabled, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, layout, contentSource, config, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -288,19 +288,6 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentati
               </div>
             </div>
           </div>
-          <ToggleRow
-            label="Compose"
-            field="compose"
-            value={composeEnabled ? 'true' : 'false'}
-            options={[
-              { value: 'false', label: 'Single' },
-              { value: 'true', label: 'Multi' },
-            ]}
-            onChange={(_, v) => {
-              setComposeEnabled(v === 'true')
-              setAdvancedModified(true)
-            }}
-          />
         </div>
       </CollapsibleSection>
 

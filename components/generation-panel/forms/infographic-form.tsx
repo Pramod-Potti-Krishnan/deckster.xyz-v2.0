@@ -231,12 +231,12 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presen
           />
 
           <ToggleRow
-            label="Mode"
+            label="Design"
             field="mode"
             value={mode}
             options={[
-              { value: 'v1', label: 'V1' },
-              { value: 'v2', label: 'V2' },
+              { value: 'v1', label: 'Creative design' },
+              { value: 'v2', label: 'Structured design' },
             ]}
             onChange={(_, v) => { setMode(v as InfographicConfig['mode']); setAdvancedModified(true) }}
           />

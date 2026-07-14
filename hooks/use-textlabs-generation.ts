@@ -347,6 +347,10 @@ export function useTextLabsGeneration({
         height: defaults.height,
         status: 'blank',
       })
+      // The viewer may emit drag/resize events under the id we sent (tempId) rather than
+      // the id it returned. Alias both so the placeholder's resized/dragged geometry is
+      // captured either way (otherwise it silently reverts to the insert size on generate).
+      blankElements.registerAlias(tempId, layoutElementId)
 
       generationPanel.openPanelForElement(componentType, layoutElementId)
     } catch (err) {
