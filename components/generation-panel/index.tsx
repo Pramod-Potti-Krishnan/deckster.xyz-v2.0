@@ -26,6 +26,7 @@ export function GenerationPanel({
   isGenerating,
   error,
   slideIndex,
+  presentationId,
   elementContext,
   mode,
   regenerateEnabled,
@@ -60,16 +61,16 @@ export function GenerationPanel({
     setPrompt('')
   }, [elementType])
 
-  // Force showAdvanced=true when entering edit mode
+  // Force showAdvanced=true when entering edit/refine mode
   useEffect(() => {
-    if (mode === 'edit') {
+    if (mode === 'edit' || mode === 'refine') {
       setShowAdvanced(true)
     }
   }, [mode])
 
   // Visibility logic
-  const showGenerationInput = mode === 'generate' || regenerateEnabled
-  const showFormBody = mode === 'edit' || showAdvanced
+  const showGenerationInput = mode === 'generate' || mode === 'refine' || regenerateEnabled
+  const showFormBody = mode === 'edit' || mode === 'refine' || showAdvanced
 
   // Keyboard shortcuts: Escape to close, Cmd/Ctrl+Enter to generate
   useEffect(() => {
@@ -103,7 +104,7 @@ export function GenerationPanel({
         <GenerationPanelHeader
           elementType={elementType}
           onClose={onClose}
-          onElementTypeChange={mode === 'edit' ? undefined : onElementTypeChange}
+          onElementTypeChange={mode === 'edit' || mode === 'refine' ? undefined : onElementTypeChange}
           mode={mode}
           regenerateEnabled={regenerateEnabled}
           onRegenerateToggle={onRegenerateToggle}
@@ -119,16 +120,18 @@ export function GenerationPanel({
 
         {/* Chat-style generation input — hidden in edit mode when regenerate is OFF */}
         {showGenerationInput && (
-          <GenerationInput
-            prompt={prompt}
-            onPromptChange={setPrompt}
-            mandatoryConfig={mandatoryConfigRef.current}
-            showAdvanced={showAdvanced}
-            onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
-            onSubmit={handleFooterGenerate}
-            isGenerating={isGenerating}
-            error={error}
-          />
+          <>
+            <GenerationInput
+              prompt={prompt}
+              onPromptChange={setPrompt}
+              mandatoryConfig={mandatoryConfigRef.current}
+              showAdvanced={showAdvanced}
+              onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
+              onSubmit={handleFooterGenerate}
+              isGenerating={isGenerating}
+              error={error}
+            />
+          </>
         )}
 
         {/* Scrollable form area — always visible in edit mode, toggled by advanced in generate mode */}
@@ -139,6 +142,7 @@ export function GenerationPanel({
             registerSubmit={registerSubmit}
             isGenerating={isGenerating}
             slideIndex={slideIndex}
+            presentationId={presentationId}
             elementContext={elementContext}
             prompt={prompt}
             showAdvanced={showAdvanced}
@@ -158,6 +162,7 @@ function FormRouter({
   registerSubmit,
   isGenerating,
   slideIndex,
+  presentationId,
   elementContext,
   prompt,
   showAdvanced,
@@ -168,6 +173,7 @@ function FormRouter({
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   slideIndex: number
+  presentationId?: string | null
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
@@ -177,6 +183,7 @@ function FormRouter({
     onSubmit,
     registerSubmit,
     isGenerating,
+    presentationId,
     elementContext,
     prompt,
     showAdvanced,
@@ -195,7 +202,7 @@ function FormRouter({
     case 'IMAGE':
       return <ImageForm {...commonProps} />
     case 'ICON_LABEL':
-      return <IconLabelForm onSubmit={onSubmit} registerSubmit={registerSubmit} isGenerating={isGenerating} prompt={prompt} showAdvanced={showAdvanced} registerMandatoryConfig={registerMandatoryConfig} />
+      return <IconLabelForm onSubmit={onSubmit} registerSubmit={registerSubmit} isGenerating={isGenerating} presentationId={presentationId} prompt={prompt} showAdvanced={showAdvanced} registerMandatoryConfig={registerMandatoryConfig} />
     case 'SHAPE':
       return <ShapeForm {...commonProps} />
     case 'INFOGRAPHIC':

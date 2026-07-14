@@ -6,19 +6,48 @@ import { ElementContext, MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
+import { ThemeSourceSelector } from '../shared/theme-source-selector'
+import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.SHAPE
 
-// Backend-aligned: 8 shape types
-const SHAPE_TYPES: { value: TextLabsShapeType; label: string }[] = [
-  { value: 'circle', label: 'Circle' },
-  { value: 'rectangle', label: 'Rectangle' },
-  { value: 'triangle', label: 'Triangle' },
-  { value: 'star', label: 'Star' },
-  { value: 'diamond', label: 'Diamond' },
-  { value: 'arrow', label: 'Arrow' },
-  { value: 'polygon', label: 'Polygon' },
-  { value: 'custom', label: 'Custom (describe in prompt)' },
+// Backend-aligned: Illustrator currently exposes 24 direct shape types plus custom.
+const SHAPE_TYPE_GROUPS: { group: string; types: { value: TextLabsShapeType; label: string }[] }[] = [
+  { group: 'Core', types: [
+    { value: 'circle', label: 'Circle' },
+    { value: 'ellipse', label: 'Ellipse' },
+    { value: 'square', label: 'Square' },
+    { value: 'rectangle', label: 'Rectangle' },
+    { value: 'triangle', label: 'Triangle' },
+  ] },
+  { group: 'Polygons', types: [
+    { value: 'pentagon', label: 'Pentagon' },
+    { value: 'hexagon', label: 'Hexagon' },
+    { value: 'heptagon', label: 'Heptagon' },
+    { value: 'octagon', label: 'Octagon' },
+    { value: 'polygon', label: 'N-sided Polygon' },
+  ] },
+  { group: 'Quadrilaterals', types: [
+    { value: 'rhombus', label: 'Rhombus' },
+    { value: 'parallelogram', label: 'Parallelogram' },
+    { value: 'trapezoid', label: 'Trapezoid' },
+    { value: 'kite', label: 'Kite' },
+  ] },
+  { group: 'Lines', types: [
+    { value: 'line-horizontal', label: 'Horizontal Line' },
+    { value: 'line-vertical', label: 'Vertical Line' },
+    { value: 'line-diagonal', label: 'Diagonal Line' },
+  ] },
+  { group: 'Special', types: [
+    { value: 'star', label: 'Star' },
+    { value: 'cross', label: 'Cross' },
+    { value: 'arrow', label: 'Arrow' },
+    { value: 'doughnut', label: 'Doughnut' },
+    { value: 'cloud', label: 'Cloud' },
+    { value: 'heart', label: 'Heart' },
+    { value: 'crescent', label: 'Crescent' },
+    { value: 'custom', label: 'Custom' },
+  ] },
 ]
 
 /** Pixel to grid conversion */
@@ -35,13 +64,14 @@ interface ShapeFormProps {
   onSubmit: (formData: ShapeFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  presentationId?: string | null
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ShapeFormProps) {
+export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ShapeFormProps) {
   const [count, setCount] = useState(1)
   const [shapeType, setShapeType] = useState<TextLabsShapeType>('custom')
   const [sides, setSides] = useState(6)
@@ -51,8 +81,10 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
   const [opacity, setOpacity] = useState(1.0)
   const [rotation, setRotation] = useState(0)
   const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium')
+  const [targetBackground, setTargetBackground] = useState('light')
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
   // Pixel-based position (primary)
   const [x, setX] = useState(60)       // px, 0-1919
@@ -85,13 +117,16 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
   const startRow = Math.max(1, Math.round(y / GRID_CELL_SIZE) + 1)
 
   // Register mandatory config — Shape Type
-  const shapeLabel = SHAPE_TYPES.find(t => t.value === shapeType)?.label || 'Circle'
+  const shapeLabel = SHAPE_TYPE_GROUPS.flatMap(group => group.types).find(t => t.value === shapeType)?.label || 'Custom'
 
   useEffect(() => {
     registerMandatoryConfig({
       fieldLabel: 'Shape',
       displayLabel: shapeLabel,
-      options: SHAPE_TYPES.map(t => ({ value: t.value, label: t.label })),
+      optionGroups: SHAPE_TYPE_GROUPS.map(group => ({
+        group: group.group,
+        options: group.types.map(t => ({ value: t.value, label: t.label })),
+      })),
       onChange: (v) => { setShapeType(v as TextLabsShapeType); setAdvancedModified(true) },
       promptPlaceholder: shapeType === 'custom' ? 'e.g., three concentric circles' : 'e.g., a red star',
     })
@@ -111,6 +146,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
       opacity,
       rotation,
       size,
+      target_background: targetBackground,
       x,
       y,
       width_px: widthPx,
@@ -128,6 +164,9 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
       layout: 'horizontal',
       advancedModified,
       z_index: zIndex,
+      presentationId,
+      useDeckTheme,
+      themeOverrides,
       shapeConfig,
       positionConfig: {
         start_col: startCol,
@@ -139,7 +178,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation, size, x, y, widthPx, heightPx, startCol, startRow, gridW, gridH, advancedModified, zIndex, paddingConfig, onSubmit])
+  }, [prompt, count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation, size, targetBackground, x, y, widthPx, heightPx, startCol, startRow, gridW, gridH, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -151,6 +190,12 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
       {/* Section 1: Styling */}
       <CollapsibleSection title="Styling" isOpen={showStyling} onToggle={() => setShowStyling(!showStyling)}>
         <div className="space-y-2">
+          <ThemeSourceSelector
+            presentationId={presentationId}
+            value={themeSource}
+            onChange={updateThemeSource}
+          />
+
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Fill</label>
@@ -178,7 +223,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
               <input
                 type="range"
                 min={0}
-                max={20}
+                max={10}
                 value={strokeWidth}
                 onChange={(e) => { setStrokeWidth(Number(e.target.value)); setAdvancedModified(true) }}
                 className="flex-1"
@@ -186,6 +231,18 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, elementConte
               />
               <span className="text-xs text-gray-400 dark:text-slate-500 w-8 text-right">{strokeWidth}px</span>
             </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Target Background</label>
+            <select
+              value={targetBackground}
+              onChange={(e) => { setTargetBackground(e.target.value); setAdvancedModified(true) }}
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
           </div>
 
           <div className="space-y-1">

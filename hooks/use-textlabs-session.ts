@@ -39,7 +39,7 @@ export function useTextLabsSession(presentationId: string | null) {
     setError(null)
 
     try {
-      const response = await createSession()
+      const response = await createSession(presentationId)
       const newSessionId = response.session_id
       setSessionId(newSessionId)
       console.log('[TextLabs] Session created:', newSessionId)
@@ -53,7 +53,7 @@ export function useTextLabsSession(presentationId: string | null) {
       creatingRef.current = false
       setIsCreating(false)
     }
-  }, [sessionId])
+  }, [presentationId, sessionId])
 
   const resetSession = useCallback(() => {
     setSessionId(null)

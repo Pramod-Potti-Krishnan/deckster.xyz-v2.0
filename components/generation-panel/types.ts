@@ -18,10 +18,15 @@ export interface GenerationPanelProps {
   isGenerating: boolean
   error: string | null
   slideIndex: number
+  presentationId?: string | null
   elementContext?: ElementContext | null
-  mode: 'generate' | 'edit'
+  mode: 'generate' | 'edit' | 'refine'
   regenerateEnabled: boolean
   onRegenerateToggle: (enabled: boolean) => void
+  refineWebResearch?: boolean
+  refineUploadedDocs?: boolean
+  onRefineWebResearchChange?: (enabled: boolean) => void
+  onRefineUploadedDocsChange?: (enabled: boolean) => void
 }
 
 export interface ElementFormProps {

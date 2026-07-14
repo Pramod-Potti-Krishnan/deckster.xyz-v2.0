@@ -51,16 +51,24 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   componentType: 'component_type',
   zIndex: 'z_index',
   textOnlyMode: 'text_only_mode',
+  presentationId: 'presentation_id',
+  useDeckTheme: 'use_deck_theme',
+  themeOverrides: 'theme_overrides',
+  existingElement: 'existing_element',
+  slideContext: 'slide_context',
+  deckContext: 'deck_context',
+  replaceElementId: 'replace_element_id',
 }
 
 // ============================================================================
 // SESSION MANAGEMENT
 // ============================================================================
 
-export async function createSession(): Promise<TextLabsSessionResponse> {
+export async function createSession(presentationId?: string | null): Promise<TextLabsSessionResponse> {
   const response = await fetch(`${TEXT_LABS_BASE_URL}/api/canvas/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(presentationId ? { presentation_id: presentationId } : {}),
   })
 
   if (!response.ok) {
@@ -89,6 +97,15 @@ export async function healthCheck(): Promise<boolean> {
 
 interface SendMessageOptions {
   componentType: TextLabsAllComponentType
+  presentationId?: string | null
+  useDeckTheme?: boolean
+  themeOverrides?: Record<string, unknown> | null
+  refine?: boolean
+  existingElement?: Record<string, unknown> | null
+  slideContext?: Record<string, unknown> | null
+  deckContext?: Record<string, unknown> | null
+  research?: Record<string, unknown> | null
+  replaceElementId?: string | null
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
   zIndex?: number
@@ -96,6 +113,9 @@ interface SendMessageOptions {
   count?: number
   layout?: 'horizontal' | 'vertical' | 'grid'
   itemsPerInstance?: number
+  structure?: string
+  compose?: boolean
+  elements?: Array<Record<string, unknown>>
   // Element-specific configs (only one should be set)
   textboxConfig?: Record<string, unknown>
   metricsConfig?: Record<string, unknown>
@@ -156,12 +176,30 @@ export async function generateInfographic(
   sessionId: string,
   message: string,
   referenceImage: File,
-  config?: Record<string, unknown>
+  config?: Record<string, unknown>,
+  options?: {
+    presentationId?: string | null
+    useDeckTheme?: boolean
+    themeOverrides?: Record<string, unknown> | null
+    refine?: boolean
+    existingElement?: Record<string, unknown> | null
+    slideContext?: Record<string, unknown> | null
+    deckContext?: Record<string, unknown> | null
+    research?: Record<string, unknown> | null
+  }
 ): Promise<TextLabsResponse> {
   const formData = new FormData()
   formData.append('session_id', sessionId)
   formData.append('message', message)
   formData.append('reference_image', referenceImage)
+  if (options?.presentationId) formData.append('presentation_id', options.presentationId)
+  if (options?.useDeckTheme !== undefined) formData.append('use_deck_theme', String(options.useDeckTheme))
+  if (options?.themeOverrides) formData.append('theme_overrides', JSON.stringify(options.themeOverrides))
+  if (options?.refine !== undefined) formData.append('refine', String(options.refine))
+  if (options?.existingElement) formData.append('existing_element', JSON.stringify(options.existingElement))
+  if (options?.slideContext) formData.append('slide_context', JSON.stringify(options.slideContext))
+  if (options?.deckContext) formData.append('deck_context', JSON.stringify(options.deckContext))
+  if (options?.research) formData.append('research', JSON.stringify(options.research))
 
   if (config) {
     formData.append('infographic_config', JSON.stringify(config))
@@ -192,6 +230,15 @@ export function buildApiPayload(
 
   const options: SendMessageOptions = {
     componentType,
+    presentationId: formData.presentationId,
+    useDeckTheme: formData.useDeckTheme,
+    themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
+    refine: formData.refine,
+    existingElement: formData.existingElement,
+    slideContext: formData.slideContext,
+    deckContext: formData.deckContext,
+    research: formData.research as Record<string, unknown> | null | undefined,
+    replaceElementId: formData.replaceElementId,
     textOnlyMode: !advancedModified,
     count,
     layout,
@@ -211,12 +258,24 @@ export function buildApiPayload(
     options.imageConfig = formData.imageConfig as Record<string, unknown>
   }
 
+  if (formData.componentType === 'TEXT_BOX' && (advancedModified || formData.structure || formData.compose)) {
+    options.textboxConfig = formData.textboxConfig as Record<string, unknown>
+    options.itemsPerInstance = formData.itemsPerInstance
+    options.structure = formData.structure
+    options.compose = formData.compose
+    options.elements = formData.elements
+  }
+
+  if (formData.componentType === 'METRICS' && (advancedModified || formData.compose)) {
+    options.metricsConfig = formData.metricsConfig as Record<string, unknown>
+    options.compose = formData.compose
+    options.elements = formData.elements
+  }
+
   // Attach element-specific config when user modified advanced settings
   if (advancedModified) {
     switch (formData.componentType) {
       case 'TEXT_BOX':
-        options.textboxConfig = formData.textboxConfig as Record<string, unknown>
-        options.itemsPerInstance = formData.itemsPerInstance
         break
       case 'METRICS':
         options.metricsConfig = formData.metricsConfig as Record<string, unknown>
@@ -304,7 +363,12 @@ function extractBodyContent(html: string): string {
  */
 export function buildInsertionParams(
   componentType: TextLabsAllComponentType,
-  element: { html?: string; image_url?: string; image_data_url?: string },
+  element: {
+    html?: string
+    image_url?: string
+    image_data_url?: string
+    grid_position?: Partial<TextLabsPositionConfig> & { width?: number; height?: number }
+  },
   positionConfig?: TextLabsPositionConfig,
   paddingConfig?: TextLabsPaddingConfig,
   zIndex?: number,
@@ -317,10 +381,11 @@ export function buildInsertionParams(
   const baseType = isDiagramSubtype(componentType) ? 'DIAGRAM' : componentType as TextLabsComponentType
   const defaults = getDefaultSize(baseType)
 
-  const startCol = positionConfig?.start_col ?? 2
-  const startRow = positionConfig?.start_row ?? 4
-  const width = positionConfig?.position_width ?? defaults.width
-  const height = positionConfig?.position_height ?? defaults.height
+  const gridPosition = element.grid_position
+  const startCol = gridPosition?.start_col ?? positionConfig?.start_col ?? 2
+  const startRow = gridPosition?.start_row ?? positionConfig?.start_row ?? 4
+  const width = gridPosition?.position_width ?? gridPosition?.width ?? positionConfig?.position_width ?? defaults.width
+  const height = gridPosition?.position_height ?? gridPosition?.height ?? positionConfig?.position_height ?? defaults.height
   const elementZIndex = zIndex ?? defaults.zIndex
 
   const elementId = `${baseType.toLowerCase()}_${Date.now()}`

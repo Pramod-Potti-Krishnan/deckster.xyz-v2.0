@@ -3,6 +3,7 @@
 import { useCallback } from "react"
 import { TextLabsFormData, TextLabsComponentType } from '@/types/textlabs'
 import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
+import type { RefineContext } from '@/hooks/use-element-refinement'
 
 interface UseTextLabsGenerationParams {
   generationPanel: {
@@ -11,6 +12,10 @@ interface UseTextLabsGenerationParams {
     elementType: TextLabsComponentType | null
     isGenerating: boolean
     error: string | null
+    mode: 'generate' | 'edit' | 'refine'
+    refineContext: RefineContext | null
+    refineWebResearch: boolean
+    refineUploadedDocs: boolean
     setIsGenerating: (v: boolean) => void
     setError: (v: string | null) => void
     closePanel: () => void
@@ -30,8 +35,34 @@ interface UseTextLabsGenerationParams {
   layoutServiceApis: {
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
   } | null
+  presentationId?: string | null
   currentSlideIndex: number
   toast: (opts: { title: string; description: string }) => void
+}
+
+function applyPositionToFormData(formData: TextLabsFormData, positionConfig: NonNullable<TextLabsFormData['positionConfig']>) {
+  formData.positionConfig = positionConfig
+  const fd = formData as any
+  if (fd.imageConfig) {
+    fd.imageConfig.start_col = positionConfig.start_col
+    fd.imageConfig.start_row = positionConfig.start_row
+    fd.imageConfig.width = positionConfig.position_width
+    fd.imageConfig.height = positionConfig.position_height
+    fd.imageConfig.position_width = positionConfig.position_width
+    fd.imageConfig.position_height = positionConfig.position_height
+  }
+  if (fd.infographicConfig) {
+    fd.infographicConfig.start_col = positionConfig.start_col
+    fd.infographicConfig.start_row = positionConfig.start_row
+    fd.infographicConfig.width = positionConfig.position_width
+    fd.infographicConfig.height = positionConfig.position_height
+  }
+  if (fd.shapeConfig) {
+    fd.shapeConfig.start_col = positionConfig.start_col
+    fd.shapeConfig.start_row = positionConfig.start_row
+    fd.shapeConfig.position_width = positionConfig.position_width
+    fd.shapeConfig.position_height = positionConfig.position_height
+  }
 }
 
 // Placeholder HTML builder for blank elements on canvas
@@ -57,12 +88,33 @@ export function useTextLabsGeneration({
   blankElements,
   textLabsSession,
   layoutServiceApis,
+  presentationId,
   currentSlideIndex,
   toast,
 }: UseTextLabsGenerationParams) {
   const handleGenerate = useCallback(async (formData: TextLabsFormData) => {
     generationPanel.setIsGenerating(true)
     generationPanel.setError(null)
+    formData.presentationId = formData.presentationId ?? presentationId ?? null
+    const refineContext = generationPanel.mode === 'refine' ? generationPanel.refineContext : null
+
+    if (refineContext) {
+      formData.refine = true
+      formData.replaceElementId = refineContext.elementId
+      formData.existingElement = refineContext.existingElement
+      formData.slideContext = refineContext.slideContext
+      formData.deckContext = refineContext.deckContext
+      formData.research = {
+        web: generationPanel.refineWebResearch,
+        uploaded_docs: generationPanel.refineUploadedDocs,
+        store_name: refineContext.research.store_name,
+        session_id: refineContext.research.session_id,
+      }
+      formData.count = 1
+      if (refineContext.gridPosition) {
+        applyPositionToFormData(formData, refineContext.gridPosition)
+      }
+    }
 
     // Check if we're generating for a blank element on canvas
     const blankId = generationPanel.blankElementId
@@ -76,28 +128,13 @@ export function useTextLabsGeneration({
     // If blank element exists, override position from canvas and force count=1
     if (blankInfo) {
       formData.count = 1
-      formData.positionConfig = {
+      applyPositionToFormData(formData, {
         start_col: blankInfo.startCol,
         start_row: blankInfo.startRow,
         position_width: blankInfo.width,
         position_height: blankInfo.height,
         auto_position: false,
-      }
-      const fd = formData as any
-      if (fd.imageConfig) {
-        fd.imageConfig.start_col = blankInfo.startCol
-        fd.imageConfig.start_row = blankInfo.startRow
-        fd.imageConfig.width = blankInfo.width
-        fd.imageConfig.height = blankInfo.height
-        fd.imageConfig.position_width = blankInfo.width
-        fd.imageConfig.position_height = blankInfo.height
-      }
-      if (fd.infographicConfig) {
-        fd.infographicConfig.start_col = blankInfo.startCol
-        fd.infographicConfig.start_row = blankInfo.startRow
-        fd.infographicConfig.width = blankInfo.width
-        fd.infographicConfig.height = blankInfo.height
-      }
+      })
     }
 
     // Set status to generating and update canvas to spinner
@@ -147,7 +184,17 @@ export function useTextLabsGeneration({
           sessionId,
           formData.prompt,
           formData.referenceImage,
-          formData.infographicConfig as Record<string, unknown>
+          formData.infographicConfig as Record<string, unknown>,
+          {
+            presentationId: formData.presentationId,
+            useDeckTheme: formData.useDeckTheme,
+            themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
+            refine: formData.refine,
+            existingElement: formData.existingElement,
+            slideContext: formData.slideContext,
+            deckContext: formData.deckContext,
+            research: formData.research as Record<string, unknown> | null | undefined,
+          }
         )
       } else {
         const { message, options } = buildApiPayload(sessionId, formData)
@@ -175,11 +222,16 @@ export function useTextLabsGeneration({
       }
 
       // Insert each element into the canvas
-      const effectiveSlideIndex = currentBlankInfo?.slideIndex ?? currentSlideIndex
-      for (const element of elements) {
+      const effectiveSlideIndex = currentBlankInfo?.slideIndex ?? refineContext?.slideIndex ?? currentSlideIndex
+      const formElements = 'elements' in formData ? formData.elements : undefined
+      for (const [index, element] of elements.entries()) {
+        const fallbackGridPosition = formElements?.[index]?.grid_position
+        const elementWithPosition = fallbackGridPosition && !(element as any).grid_position
+          ? { ...element, grid_position: fallbackGridPosition }
+          : element
         const { method, params } = buildInsertionParams(
           element.component_type,
-          element,
+          elementWithPosition,
           formData.positionConfig,
           formData.paddingConfig,
           formData.z_index,
@@ -190,10 +242,16 @@ export function useTextLabsGeneration({
         await layoutServiceApis?.sendElementCommand(command, params as Record<string, any>)
       }
 
+      if (refineContext && layoutServiceApis?.sendElementCommand) {
+        await layoutServiceApis.sendElementCommand('deleteElement', { elementId: refineContext.elementId })
+      }
+
       generationPanel.closePanel()
       toast({
-        title: 'Element generated',
-        description: `${formData.componentType.replace(/_/g, ' ')} added to slide`,
+        title: refineContext ? 'Element refined' : 'Element generated',
+        description: refineContext
+          ? `${formData.componentType.replace(/_/g, ' ')} updated on slide`
+          : `${formData.componentType.replace(/_/g, ' ')} added to slide`,
       })
       console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
     } catch (err) {
@@ -243,7 +301,7 @@ export function useTextLabsGeneration({
       clearTimeout(timeoutId)
       generationPanel.setIsGenerating(false)
     }
-  }, [generationPanel, textLabsSession, layoutServiceApis, toast, currentSlideIndex, blankElements])
+  }, [generationPanel, textLabsSession, layoutServiceApis, presentationId, toast, currentSlideIndex, blankElements])
 
   const handleOpenPanel = useCallback(async (type: string) => {
     const componentType = type as TextLabsComponentType

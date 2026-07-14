@@ -1,7 +1,17 @@
 'use client'
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { TextBoxFormData, TextBoxConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, recalcTextBoxLimits } from '@/types/textlabs'
+import {
+  TextBoxFormData,
+  TextBoxConfig,
+  TextBoxStructure,
+  TextBoxTitleStyle,
+  TextLabsPositionConfig,
+  TextLabsPaddingConfig,
+  ThemeSourceSelection,
+  TEXT_LABS_ELEMENT_DEFAULTS,
+  recalcTextBoxLimits,
+} from '@/types/textlabs'
 import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
@@ -9,6 +19,7 @@ import { FontOverrideSection } from '../shared/font-override-section'
 import { PositionPresets } from '../shared/position-presets'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
+import { ThemeSourceSelector } from '../shared/theme-source-selector'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TEXT_BOX
 
@@ -32,6 +43,7 @@ const DEFAULT_TEXTBOX_CONFIG: TextBoxConfig = {
   border: false,
   show_title: true,
   title_style: 'plain',
+  title_underline: false,
   list_style: 'bullets',
   color_scheme: 'accent',
   layout: 'horizontal',
@@ -61,24 +73,115 @@ const DEFAULT_TEXTBOX_CONFIG: TextBoxConfig = {
   content_underline: null,
   content_indent: 0,
   content_line_height: null,
+  simple_subtype: null,
+  target_char_count: null,
+  text: null,
 }
+
+const TEXTBOX_STRUCTURE_OPTIONS: Array<{ value: TextBoxStructure; label: string }> = [
+  { value: 'classic', label: 'Classic' },
+  { value: 'vertical', label: 'Vertical' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'simple', label: 'Simple' },
+  { value: 'SEQUENTIAL', label: 'Sequential' },
+  { value: 'COMPARISON', label: 'Compare' },
+  { value: 'SECTIONS', label: 'Sections' },
+  { value: 'CALLOUT', label: 'Callout' },
+  { value: 'TEXT_BULLETS', label: 'Bullets' },
+  { value: 'BULLET_BOX', label: 'Bullet Box' },
+  { value: 'NUMBERED_LIST', label: 'Numbered' },
+]
+
+const TITLE_STYLE_OPTIONS: Array<{ value: TextBoxTitleStyle; label: string }> = [
+  { value: 'plain', label: 'Plain' },
+  { value: 'highlighted', label: 'Caps' },
+  { value: 'colored-bg', label: 'Badge' },
+  { value: 'neutral', label: 'Neutral' },
+  { value: 'light-bg', label: 'Light' },
+  { value: 'light-bg-dark', label: 'Dark' },
+  { value: 'underline', label: 'Line' },
+  { value: 'colored_underline', label: 'Accent Line' },
+]
 
 interface TextBoxFormProps {
   onSubmit: (formData: TextBoxFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  presentationId?: string | null
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: TextBoxFormProps) {
+function buildComposeElements(
+  positionConfig: TextLabsPositionConfig,
+  count: number,
+  layout: 'horizontal' | 'vertical' | 'grid',
+  gridCols: number
+): TextBoxFormData['elements'] {
+  if (count <= 1) return undefined
+
+  const boxes: NonNullable<TextBoxFormData['elements']> = []
+  const startCol = positionConfig.start_col
+  const startRow = positionConfig.start_row
+  const totalWidth = positionConfig.position_width
+  const totalHeight = positionConfig.position_height
+
+  if (layout === 'vertical') {
+    const baseHeight = Math.max(1, Math.floor(totalHeight / count))
+    for (let index = 0; index < count; index += 1) {
+      const row = startRow + baseHeight * index
+      const height = index === count - 1 ? Math.max(1, totalHeight - baseHeight * index) : baseHeight
+      boxes.push({ grid_position: { start_col: startCol, start_row: row, position_width: totalWidth, position_height: height } })
+    }
+    return boxes
+  }
+
+  if (layout === 'grid') {
+    const cols = Math.min(Math.max(1, gridCols), count)
+    const rows = Math.ceil(count / cols)
+    const baseWidth = Math.max(1, Math.floor(totalWidth / cols))
+    const baseHeight = Math.max(1, Math.floor(totalHeight / rows))
+    for (let index = 0; index < count; index += 1) {
+      const colIndex = index % cols
+      const rowIndex = Math.floor(index / cols)
+      const width = colIndex === cols - 1 ? Math.max(1, totalWidth - baseWidth * colIndex) : baseWidth
+      const height = rowIndex === rows - 1 ? Math.max(1, totalHeight - baseHeight * rowIndex) : baseHeight
+      boxes.push({
+        grid_position: {
+          start_col: startCol + baseWidth * colIndex,
+          start_row: startRow + baseHeight * rowIndex,
+          position_width: width,
+          position_height: height,
+        },
+      })
+    }
+    return boxes
+  }
+
+  const baseWidth = Math.max(1, Math.floor(totalWidth / count))
+  for (let index = 0; index < count; index += 1) {
+    const col = startCol + baseWidth * index
+    const width = index === count - 1 ? Math.max(1, totalWidth - baseWidth * index) : baseWidth
+    boxes.push({ grid_position: { start_col: col, start_row: startRow, position_width: width, position_height: totalHeight } })
+  }
+  return boxes
+}
+
+export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: TextBoxFormProps) {
   // Basic fields
   const [count, setCount] = useState(1)
   const [layout, setLayout] = useState<'horizontal' | 'vertical' | 'grid'>('horizontal')
   const [gridCols, setGridCols] = useState(2)
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
+  const [structure, setStructure] = useState<TextBoxStructure>('classic')
+  const [composeEnabled, setComposeEnabled] = useState(false)
+  const [themeSourceTouched, setThemeSourceTouched] = useState(false)
+  const [themeSource, setThemeSource] = useState<ThemeSourceSelection>({
+    mode: presentationId ? 'deck' : 'none',
+    overrides: null,
+  })
 
   // Advanced config
   const [config, setConfig] = useState<TextBoxConfig>({ ...DEFAULT_TEXTBOX_CONFIG })
@@ -119,6 +222,11 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
       }))
     }
   }, [elementContext])
+
+  useEffect(() => {
+    if (themeSourceTouched) return
+    setThemeSource({ mode: presentationId ? 'deck' : 'none', overrides: null })
+  }, [presentationId, themeSourceTouched])
 
   const updateConfig = useCallback((field: string, value: unknown) => {
     setConfig(prev => ({ ...prev, [field]: value }))
@@ -186,6 +294,12 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
       layout,
       advancedModified,
       z_index: zIndex,
+      presentationId,
+      useDeckTheme: themeSource.mode === 'deck' && Boolean(presentationId),
+      themeOverrides: themeSource.mode === 'another' ? themeSource.overrides || null : null,
+      structure,
+      compose: composeEnabled && count > 1,
+      elements: composeEnabled && count > 1 ? buildComposeElements(positionConfig, count, layout, gridCols) : undefined,
       itemsPerInstance: config.items_per_instance,
       textboxConfig: {
         ...config,
@@ -198,7 +312,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, gridCols, contentSource, config, advancedModified, zIndex, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, layout, gridCols, contentSource, config, advancedModified, zIndex, presentationId, themeSource, structure, composeEnabled, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -229,6 +343,22 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
           </div>
 
           {/* Layout */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Structure</label>
+            <select
+              value={structure}
+              onChange={(e) => {
+                setStructure(e.target.value as TextBoxStructure)
+                setAdvancedModified(true)
+              }}
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              {TEXTBOX_STRUCTURE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
           <ToggleRow
             label="Layout"
             field="layout"
@@ -256,6 +386,48 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
               </select>
             </div>
           )}
+
+          <ToggleRow
+            label="Compose"
+            field="compose"
+            value={composeEnabled ? 'true' : 'false'}
+            options={[
+              { value: 'false', label: 'Single' },
+              { value: 'true', label: 'Multi' },
+            ]}
+            onChange={(_, v) => {
+              setComposeEnabled(v === 'true')
+              setAdvancedModified(true)
+            }}
+          />
+
+          {structure === 'simple' && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Simple Type</label>
+                <select
+                  value={config.simple_subtype || 'phrase'}
+                  onChange={(e) => updateConfig('simple_subtype', e.target.value)}
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="char">Char</option>
+                  <option value="word">Word</option>
+                  <option value="phrase">Phrase</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Target Chars</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={240}
+                  value={config.target_char_count || 48}
+                  onChange={(e) => updateConfig('target_char_count', Number(e.target.value))}
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </CollapsibleSection>
 
@@ -266,6 +438,15 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
         onToggle={() => setShowBoxDesign(!showBoxDesign)}
       >
         <div className="space-y-2">
+          <ThemeSourceSelector
+            presentationId={presentationId}
+            value={themeSource}
+            onChange={(selection) => {
+              setThemeSource(selection)
+              setThemeSourceTouched(true)
+            }}
+          />
+
           {/* Color Variant (disabled when bg=transparent) */}
           {config.background === 'colored' && (
             <div className="space-y-1">
@@ -371,13 +552,18 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, elementCon
                 label="Title Style"
                 field="title_style"
                 value={config.title_style}
-                options={[
-                  { value: 'plain', label: 'Color' },
-                  { value: 'highlighted', label: 'Caps' },
-                  { value: 'colored-bg', label: 'Badge' },
-                  { value: 'neutral', label: 'Black' },
-                ]}
+                options={TITLE_STYLE_OPTIONS}
                 onChange={(f, v) => updateConfig(f, v)}
+              />
+              <ToggleRow
+                label="Title Rule"
+                field="title_underline"
+                value={config.title_underline ? 'true' : 'false'}
+                options={[
+                  { value: 'false', label: 'Off' },
+                  { value: 'true', label: 'On' },
+                ]}
+                onChange={(f, v) => updateConfig(f, v === 'true')}
               />
               <ToggleRow
                 label="Heading Align"

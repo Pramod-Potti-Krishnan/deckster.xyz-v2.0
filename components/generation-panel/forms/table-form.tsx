@@ -9,6 +9,8 @@ import { FontOverrideSection } from '../shared/font-override-section'
 import { PositionPresets } from '../shared/position-presets'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
+import { ThemeSourceSelector } from '../shared/theme-source-selector'
+import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TABLE
 
@@ -80,13 +82,14 @@ interface TableFormProps {
   onSubmit: (formData: TableFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  presentationId?: string | null
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function TableForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: TableFormProps) {
+export function TableForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: TableFormProps) {
   const [count, setCount] = useState(1)
   const [columns, setColumns] = useState(4)
   const [rows, setRows] = useState(5)
@@ -95,6 +98,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
   const [config, setConfig] = useState<TableConfig>({ ...DEFAULT_TABLE_CONFIG })
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
   // Section visibility
   const [showStructure, setShowStructure] = useState(false)
@@ -150,7 +154,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
   }, [])
 
   // Register mandatory config — Header Style
-  const headerStyleLabel = { solid: 'Solid', minimal: 'Minimal', accent: 'Accent' }[config.header_style] || 'Solid'
+  const headerStyleLabel = { solid: 'Solid', minimal: 'Minimal', accent: 'Accent', pastel: 'Pastel' }[config.header_style] || 'Solid'
 
   useEffect(() => {
     registerMandatoryConfig({
@@ -160,6 +164,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
         { value: 'solid', label: 'Solid' },
         { value: 'minimal', label: 'Minimal' },
         { value: 'accent', label: 'Accent' },
+        { value: 'pastel', label: 'Pastel' },
       ],
       onChange: (v) => updateConfig('header_style', v),
       promptPlaceholder: 'e.g., Comparison table of cloud providers AWS, Azure, GCP across pricing, features, and support',
@@ -174,6 +179,9 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
       layout: 'horizontal',
       advancedModified,
       z_index: zIndex,
+      presentationId,
+      useDeckTheme,
+      themeOverrides,
       tableConfig: {
         ...config,
         columns,
@@ -185,7 +193,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, columns, rows, contentSource, config, columnWidths, advancedModified, zIndex, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, columns, rows, contentSource, config, columnWidths, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -313,6 +321,12 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, elementConte
       {/* Section 2: Styling */}
       <CollapsibleSection title="Styling" isOpen={showStyling} onToggle={() => setShowStyling(!showStyling)}>
         <div className="space-y-2">
+          <ThemeSourceSelector
+            presentationId={presentationId}
+            value={themeSource}
+            onChange={updateThemeSource}
+          />
+
           <ToggleRow
             label="Stripe Rows"
             field="stripe_rows"

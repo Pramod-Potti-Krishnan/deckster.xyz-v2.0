@@ -9,6 +9,8 @@ import { FontOverrideSection } from '../shared/font-override-section'
 import { PositionPresets } from '../shared/position-presets'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
+import { ThemeSourceSelector } from '../shared/theme-source-selector'
+import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.METRICS
 
@@ -51,6 +53,7 @@ const DEFAULT_METRICS_CONFIG: MetricsConfig = {
   alignment: 'center',
   color_scheme: 'gradient',
   color_variant: null,
+  trend: null,
   placeholder_mode: false,
   value_min_chars: 2,
   value_max_chars: 6,
@@ -78,23 +81,65 @@ const DEFAULT_METRICS_CONFIG: MetricsConfig = {
   desc_allcaps: null,
 }
 
+function snapGrid(value: number): number {
+  return Number((Math.round(value * 5) / 5).toFixed(1))
+}
+
+function buildMetricsComposeElements(
+  positionConfig: TextLabsPositionConfig,
+  count: number,
+  layout: 'horizontal' | 'vertical'
+): MetricsFormData['elements'] {
+  if (count <= 1) return undefined
+  const boxes: NonNullable<MetricsFormData['elements']> = []
+  const startCol = snapGrid(positionConfig.start_col)
+  const startRow = snapGrid(positionConfig.start_row)
+  const totalWidth = snapGrid(positionConfig.position_width)
+  const totalHeight = snapGrid(positionConfig.position_height)
+
+  if (layout === 'vertical') {
+    const baseHeight = snapGrid(totalHeight / count)
+    let current = startRow
+    const end = snapGrid(startRow + totalHeight)
+    for (let index = 0; index < count; index += 1) {
+      const height = index === count - 1 ? snapGrid(end - current) : baseHeight
+      boxes.push({ grid_position: { start_col: startCol, start_row: current, position_width: totalWidth, position_height: Math.max(height, 0.2) } })
+      current = snapGrid(current + Math.max(height, 0.2))
+    }
+    return boxes
+  }
+
+  const baseWidth = snapGrid(totalWidth / count)
+  let current = startCol
+  const end = snapGrid(startCol + totalWidth)
+  for (let index = 0; index < count; index += 1) {
+    const width = index === count - 1 ? snapGrid(end - current) : baseWidth
+    boxes.push({ grid_position: { start_col: current, start_row: startRow, position_width: Math.max(width, 0.2), position_height: totalHeight } })
+    current = snapGrid(current + Math.max(width, 0.2))
+  }
+  return boxes
+}
+
 interface MetricsFormProps {
   onSubmit: (formData: MetricsFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  presentationId?: string | null
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: MetricsFormProps) {
+export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: MetricsFormProps) {
   const [count, setCount] = useState(1)
   const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [config, setConfig] = useState<MetricsConfig>({ ...DEFAULT_METRICS_CONFIG })
+  const [composeEnabled, setComposeEnabled] = useState(false)
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
   // Section visibility
   const [showInstances, setShowInstances] = useState(false)
@@ -153,10 +198,10 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.color_scheme])
 
-  const fontColorPresets = config.color_scheme === 'accent' ? DARK_FONT_COLORS : LIGHT_FONT_COLORS
+  const fontColorPresets = ['accent', 'transparent', 'bordered'].includes(config.color_scheme) ? DARK_FONT_COLORS : LIGHT_FONT_COLORS
 
   // Register mandatory config — Color Scheme
-  const colorSchemeLabel = { gradient: 'Gradient', solid: 'Solid', accent: 'Pastel' }[config.color_scheme] || 'Gradient'
+  const colorSchemeLabel = { gradient: 'Gradient', solid: 'Solid', accent: 'Pastel', transparent: 'Transparent', bordered: 'Bordered' }[config.color_scheme] || 'Gradient'
 
   useEffect(() => {
     registerMandatoryConfig({
@@ -166,6 +211,8 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
         { value: 'gradient', label: 'Gradient' },
         { value: 'solid', label: 'Solid' },
         { value: 'accent', label: 'Pastel' },
+        { value: 'transparent', label: 'Transparent' },
+        { value: 'bordered', label: 'Bordered' },
       ],
       onChange: (v) => updateConfig('color_scheme', v),
       promptPlaceholder: 'e.g., Key financial metrics for Q4 2024 including revenue, growth, and profit margin',
@@ -180,15 +227,21 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
       layout,
       advancedModified,
       z_index: zIndex,
+      presentationId,
+      useDeckTheme,
+      themeOverrides,
+      compose: composeEnabled && count > 1,
+      elements: composeEnabled && count > 1 ? buildMetricsComposeElements(positionConfig, count, layout) : undefined,
       metricsConfig: {
         ...config,
+        layout,
         placeholder_mode: contentSource === 'placeholder',
       },
       positionConfig: positionConfig.auto_position ? undefined : positionConfig,
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, contentSource, config, advancedModified, zIndex, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, layout, contentSource, config, composeEnabled, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -235,12 +288,31 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
               </div>
             </div>
           </div>
+          <ToggleRow
+            label="Compose"
+            field="compose"
+            value={composeEnabled ? 'true' : 'false'}
+            options={[
+              { value: 'false', label: 'Single' },
+              { value: 'true', label: 'Multi' },
+            ]}
+            onChange={(_, v) => {
+              setComposeEnabled(v === 'true')
+              setAdvancedModified(true)
+            }}
+          />
         </div>
       </CollapsibleSection>
 
       {/* Section 2: Card Design */}
       <CollapsibleSection title="Card Design" isOpen={showCardDesign} onToggle={() => setShowCardDesign(!showCardDesign)}>
         <div className="space-y-2">
+          <ThemeSourceSelector
+            presentationId={presentationId}
+            value={themeSource}
+            onChange={updateThemeSource}
+          />
+
           <ToggleRow
             label="Corners"
             field="corners"
@@ -271,6 +343,17 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, elementCon
               { value: 'right', label: 'R' },
             ]}
             onChange={(f, v) => updateConfig(f, v)}
+          />
+          <ToggleRow
+            label="Trend"
+            field="trend"
+            value={config.trend || 'none'}
+            options={[
+              { value: 'none', label: 'None' },
+              { value: 'arrow', label: 'Arrow' },
+              { value: 'pill', label: 'Pill' },
+            ]}
+            onChange={(_, v) => updateConfig('trend', v === 'none' ? null : v)}
           />
           {/* Card Color */}
           <div className="space-y-1">

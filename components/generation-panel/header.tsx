@@ -20,7 +20,7 @@ interface GenerationPanelHeaderProps {
   elementType: TextLabsComponentType
   onClose: () => void
   onElementTypeChange?: (type: TextLabsComponentType) => void
-  mode: 'generate' | 'edit'
+  mode: 'generate' | 'edit' | 'refine'
   regenerateEnabled: boolean
   onRegenerateToggle: (enabled: boolean) => void
 }
@@ -38,7 +38,7 @@ export function GenerationPanelHeader({ elementType, onClose, mode, regenerateEn
         <div>
           <h3 className="text-xs font-semibold text-gray-900 dark:text-slate-100">{info.label}</h3>
           <p className="text-[10px] text-gray-500 dark:text-slate-400">
-            {mode === 'edit' ? 'Edit element settings' : info.description}
+            {mode === 'edit' ? 'Edit element settings' : mode === 'refine' ? 'Refine selected element' : info.description}
           </p>
         </div>
       </div>

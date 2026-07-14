@@ -7,6 +7,8 @@ import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PositionPresets } from '../shared/position-presets'
 import { ZIndexInput } from '../shared/z-index-input'
+import { ThemeSourceSelector } from '../shared/theme-source-selector'
+import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.CHART
 
@@ -82,13 +84,14 @@ interface ChartFormProps {
   onSubmit: (formData: ChartFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
+  presentationId?: string | null
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ChartFormProps) {
+export function ChartForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ChartFormProps) {
   // Basic fields
   const [count, setCount] = useState(1)
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
@@ -102,6 +105,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
   const [dataError, setDataError] = useState<string | null>(null)
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
   // Section visibility
   const [showConfig, setShowConfig] = useState(false)
@@ -182,6 +186,9 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
       layout: 'horizontal',
       advancedModified,
       z_index: zIndex,
+      presentationId,
+      useDeckTheme,
+      themeOverrides,
       chartConfig: {
         chart_type: chartType,
         include_insights: includeInsights,
@@ -192,7 +199,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
       positionConfig: positionConfig.auto_position ? undefined : positionConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, contentSource, chartType, includeInsights, seriesNamesInput, dataSource, customDataInput, advancedModified, zIndex, positionConfig, onSubmit, validateCustomData])
+  }, [prompt, count, contentSource, chartType, includeInsights, seriesNamesInput, dataSource, customDataInput, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, onSubmit, validateCustomData])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -242,6 +249,12 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, elementConte
       {/* Chart Options */}
       <CollapsibleSection title="Chart Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>
         <div className="space-y-2">
+          <ThemeSourceSelector
+            presentationId={presentationId}
+            value={themeSource}
+            onChange={updateThemeSource}
+          />
+
           {/* Include Insights */}
           <ToggleRow
             label="Include Insights"
