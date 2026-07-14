@@ -367,6 +367,7 @@ export function buildInsertionParams(
     html?: string
     image_url?: string
     image_data_url?: string
+    mode?: string
     grid_position?: Partial<TextLabsPositionConfig> & { width?: number; height?: number }
   },
   positionConfig?: TextLabsPositionConfig,
@@ -377,7 +378,13 @@ export function buildInsertionParams(
   method: InsertionMethod
   params: Record<string, unknown>
 } {
-  const method = getInsertionMethod(componentType)
+  // V2 (structured/deterministic) infographics return self-contained HTML (no raster
+  // image); route them through the HTML insert path instead of insertImage, which would
+  // feed the HTML string in as an <img src> and render nothing.
+  const isV2Infographic =
+    componentType === 'INFOGRAPHIC' &&
+    (element.mode === 'v2' || (!!element.html && !element.image_url && !element.image_data_url))
+  const method: InsertionMethod = isV2Infographic ? 'insertDiagram' : getInsertionMethod(componentType)
   const baseType = isDiagramSubtype(componentType) ? 'DIAGRAM' : componentType as TextLabsComponentType
   const defaults = getDefaultSize(baseType)
 

@@ -176,7 +176,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
   const [gridCols, setGridCols] = useState(2)
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [structure, setStructure] = useState<TextBoxStructure>('classic')
-  const [composeEnabled, setComposeEnabled] = useState(false)
+  // Multi-box compose is derived automatically from count > 1 (no manual toggle).
   const [themeSourceTouched, setThemeSourceTouched] = useState(false)
   const [themeSource, setThemeSource] = useState<ThemeSourceSelection>({
     mode: presentationId ? 'deck' : 'none',
@@ -298,8 +298,8 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
       useDeckTheme: themeSource.mode === 'deck' && Boolean(presentationId),
       themeOverrides: themeSource.mode === 'another' ? themeSource.overrides || null : null,
       structure,
-      compose: composeEnabled && count > 1,
-      elements: composeEnabled && count > 1 ? buildComposeElements(positionConfig, count, layout, gridCols) : undefined,
+      compose: count > 1,
+      elements: count > 1 ? buildComposeElements(positionConfig, count, layout, gridCols) : undefined,
       itemsPerInstance: config.items_per_instance,
       textboxConfig: {
         ...config,
@@ -312,7 +312,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, gridCols, contentSource, config, advancedModified, zIndex, presentationId, themeSource, structure, composeEnabled, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, layout, gridCols, contentSource, config, advancedModified, zIndex, presentationId, themeSource, structure, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -386,20 +386,6 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
               </select>
             </div>
           )}
-
-          <ToggleRow
-            label="Compose"
-            field="compose"
-            value={composeEnabled ? 'true' : 'false'}
-            options={[
-              { value: 'false', label: 'Single' },
-              { value: 'true', label: 'Multi' },
-            ]}
-            onChange={(_, v) => {
-              setComposeEnabled(v === 'true')
-              setAdvancedModified(true)
-            }}
-          />
 
           {structure === 'simple' && (
             <div className="grid grid-cols-2 gap-2">
