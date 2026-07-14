@@ -134,7 +134,6 @@ interface MetricsFormProps {
 export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: MetricsFormProps) {
   const [count, setCount] = useState(1)
   const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
-  const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [config, setConfig] = useState<MetricsConfig>({ ...DEFAULT_METRICS_CONFIG })
   // Multi-metric compose is derived automatically from count > 1 (no manual toggle).
   const [advancedModified, setAdvancedModified] = useState(false)
@@ -222,7 +221,7 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentati
   const handleSubmit = useCallback(() => {
     const formData: MetricsFormData = {
       componentType: 'METRICS',
-      prompt: contentSource === 'placeholder' ? (prompt || 'Generate placeholder metrics') : prompt,
+      prompt,
       count,
       layout,
       advancedModified,
@@ -235,13 +234,13 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentati
       metricsConfig: {
         ...config,
         layout,
-        placeholder_mode: contentSource === 'placeholder',
+        placeholder_mode: false,
       },
       positionConfig: positionConfig.auto_position ? undefined : positionConfig,
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, contentSource, config, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, layout, config, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)

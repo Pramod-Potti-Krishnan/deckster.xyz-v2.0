@@ -174,7 +174,6 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
   const [count, setCount] = useState(1)
   const [layout, setLayout] = useState<'horizontal' | 'vertical' | 'grid'>('horizontal')
   const [gridCols, setGridCols] = useState(2)
-  const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
   const [structure, setStructure] = useState<TextBoxStructure>('classic')
   // Multi-box compose is derived automatically from count > 1 (no manual toggle).
   const [themeSourceTouched, setThemeSourceTouched] = useState(false)
@@ -289,7 +288,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
   const handleSubmit = useCallback(() => {
     const formData: TextBoxFormData = {
       componentType: 'TEXT_BOX',
-      prompt: contentSource === 'placeholder' ? (prompt || 'Generate placeholder text boxes') : prompt,
+      prompt,
       count,
       layout,
       advancedModified,
@@ -303,7 +302,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
       itemsPerInstance: config.items_per_instance,
       textboxConfig: {
         ...config,
-        placeholder_mode: contentSource === 'placeholder',
+        placeholder_mode: false,
         layout,
         items_per_instance: config.items_per_instance,
         grid_cols: layout === 'grid' ? gridCols : null,
@@ -312,7 +311,7 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, gridCols, contentSource, config, advancedModified, zIndex, presentationId, themeSource, structure, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, layout, gridCols, config, advancedModified, zIndex, presentationId, themeSource, structure, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -338,23 +337,6 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
             >
               {[1, 2, 3, 4, 5, 6].map(n => (
                 <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Layout */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Structure</label>
-            <select
-              value={structure}
-              onChange={(e) => {
-                setStructure(e.target.value as TextBoxStructure)
-                setAdvancedModified(true)
-              }}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {TEXTBOX_STRUCTURE_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </div>
@@ -387,6 +369,42 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
             </div>
           )}
 
+        </div>
+      </CollapsibleSection>
+
+      {/* Section 2: Box Design */}
+      <CollapsibleSection
+        title="Box Design"
+        isOpen={showBoxDesign}
+        onToggle={() => setShowBoxDesign(!showBoxDesign)}
+      >
+        <div className="space-y-2">
+          <ThemeSourceSelector
+            presentationId={presentationId}
+            value={themeSource}
+            onChange={(selection) => {
+              setThemeSource(selection)
+              setThemeSourceTouched(true)
+            }}
+          />
+
+          {/* Structure (a box-design concern, not an instance count) */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Structure</label>
+            <select
+              value={structure}
+              onChange={(e) => {
+                setStructure(e.target.value as TextBoxStructure)
+                setAdvancedModified(true)
+              }}
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              {TEXTBOX_STRUCTURE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
           {structure === 'simple' && (
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -414,24 +432,6 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
               </div>
             </div>
           )}
-        </div>
-      </CollapsibleSection>
-
-      {/* Section 2: Box Design */}
-      <CollapsibleSection
-        title="Box Design"
-        isOpen={showBoxDesign}
-        onToggle={() => setShowBoxDesign(!showBoxDesign)}
-      >
-        <div className="space-y-2">
-          <ThemeSourceSelector
-            presentationId={presentationId}
-            value={themeSource}
-            onChange={(selection) => {
-              setThemeSource(selection)
-              setThemeSourceTouched(true)
-            }}
-          />
 
           {/* Color Variant (disabled when bg=transparent) */}
           {config.background === 'colored' && (
