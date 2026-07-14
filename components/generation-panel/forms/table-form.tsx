@@ -93,7 +93,6 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [count, setCount] = useState(1)
   const [columns, setColumns] = useState(4)
   const [rows, setRows] = useState(5)
-  const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
 
   const [config, setConfig] = useState<TableConfig>({ ...DEFAULT_TABLE_CONFIG })
   const [advancedModified, setAdvancedModified] = useState(false)
@@ -174,7 +173,7 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, presentation
   const handleSubmit = useCallback(() => {
     const formData: TableFormData = {
       componentType: 'TABLE',
-      prompt: contentSource === 'placeholder' ? (prompt || 'Generate a placeholder table') : prompt,
+      prompt,
       count,
       layout: 'horizontal',
       advancedModified,
@@ -187,13 +186,13 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, presentation
         columns,
         rows,
         column_widths: columnWidths,
-        placeholder_mode: contentSource === 'placeholder',
+        placeholder_mode: false,
       },
       positionConfig: positionConfig.auto_position ? undefined : positionConfig,
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, columns, rows, contentSource, config, columnWidths, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, columns, rows, config, columnWidths, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
