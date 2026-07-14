@@ -481,16 +481,20 @@ export function PresentationViewer({
   }, [onSlideChange])
 
   // Sync totalSlides with slideCount prop changes
+  const slideCountPresentationUrlRef = useRef(presentationUrl)
   useEffect(() => {
     if (slideCount && slideCount > 0) {
+      const presentationChanged = slideCountPresentationUrlRef.current !== presentationUrl
+      slideCountPresentationUrlRef.current = presentationUrl
       setTotalSlides(prev => {
-        if (prev === slideCount) return prev
-        debugLog(`📊 Updating totalSlides: ${prev} → ${slideCount}`)
-        return slideCount
+        const next = presentationChanged ? slideCount : Math.max(prev, slideCount)
+        if (prev === next) return prev
+        debugLog(`📊 Updating totalSlides: ${prev} → ${next}`)
+        return next
       })
-      setVisualTotalSlides(slideCount)
+      setVisualTotalSlides(prev => presentationChanged ? slideCount : Math.max(prev, slideCount))
     }
-  }, [slideCount])
+  }, [presentationUrl, slideCount])
 
   // Reset CRUD modification flag when fresh slideStructure arrives from WebSocket
   useEffect(() => {
@@ -688,7 +692,14 @@ export function PresentationViewer({
           : await sendCommand(iframeRef.current, 'getCurrentSlideInfo')
         if (result.success && (result.data || hasComposeJobs)) {
           const data = result.data ?? result
-          const { currentVisualIndex, realTotal: total, visualTotal } = resolveSlideComposeViewerState(data, totalSlides)
+          const verifiedMinimumTotal = Math.max(0, totalSlides || 0, slideCount || 0)
+          const {
+            currentVisualIndex,
+            realTotal: resolvedRealTotal,
+            visualTotal: resolvedVisualTotal,
+          } = resolveSlideComposeViewerState(data, verifiedMinimumTotal)
+          const total = Math.max(resolvedRealTotal, verifiedMinimumTotal)
+          const visualTotal = Math.max(resolvedVisualTotal, total)
           const slideNum = currentVisualIndex + 1 // Convert 0-based to 1-based
           const previous = lastSlideInfoRef.current
           const slideInfoChanged = !previous ||
@@ -716,7 +727,7 @@ export function PresentationViewer({
     }, backoffInterval)
 
     return () => clearInterval(interval)
-  }, [composeJobs.length, iframeReady, pollingFailureCount, totalSlides])
+  }, [composeJobs.length, iframeReady, pollingFailureCount, slideCount, totalSlides])
 
   // Force save handler (for Ctrl+S and retry on error)
   // IMPORTANT: Must be declared BEFORE the keyboard shortcuts useEffect that references it

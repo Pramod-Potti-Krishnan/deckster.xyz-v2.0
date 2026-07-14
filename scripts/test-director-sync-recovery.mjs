@@ -178,4 +178,26 @@ function recover(state, payload) {
   assert.equal(result.state.finalPresentationId, 'pres-final');
 }
 
+{
+  const result = recover(baseState({
+    presentationUrl: 'https://layout.example.com/p/final',
+    finalPresentationUrl: 'https://layout.example.com/p/final',
+    presentationId: 'pres-final',
+    finalPresentationId: 'pres-final',
+    activeVersion: 'strawman',
+    isBlankPresentation: false,
+    slideCount: 23,
+    currentStatus: { status: 'generating' },
+  }), {
+    current_state: 'CONTENT_GENERATED',
+    presentation_url: 'https://layout.example.com/p/final',
+    presentation_id: 'pres-final',
+    slide_count: 22,
+  });
+
+  assert.equal(result.didRecover, true);
+  assert.equal(result.didChangeDisplayedDeck, true);
+  assert.equal(result.state.slideCount, 23);
+}
+
 console.log('director sync recovery tests passed');
