@@ -54,6 +54,16 @@ export function applyFinalSyncRecovery<TState extends DirectorSyncRecoverableSta
     state.activeVersion !== 'final'
     || state.presentationUrl !== payload.presentation_url
   );
+  const samePresentation = (
+    state.presentationUrl === payload.presentation_url
+    || (!!payload.presentation_id && (
+      state.presentationId === payload.presentation_id
+      || state.finalPresentationId === payload.presentation_id
+    ))
+  );
+  const nextSlideCount = samePresentation
+    ? Math.max(state.slideCount ?? 0, payload.slide_count ?? 0) || state.slideCount
+    : payload.slide_count ?? state.slideCount;
 
   return {
     state: {
@@ -65,7 +75,7 @@ export function applyFinalSyncRecovery<TState extends DirectorSyncRecoverableSta
       finalPresentationId: finalId,
       activeVersion: 'final',
       isBlankPresentation: false,
-      slideCount: payload.slide_count ?? state.slideCount,
+      slideCount: nextSlideCount,
       currentStatus: null,
     },
     didRecover: true,

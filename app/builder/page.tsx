@@ -1410,12 +1410,20 @@ function BuilderContent() {
       });
 
       if (currentSessionIdRef.current && persistenceRef.current) {
+        const verifiedLayoutCount = (() => {
+          const current = slideComposerPresentationRef.current
+          const samePresentation =
+            !!state.presentationId &&
+            (current.presentationId === state.presentationId || current.presentationUrl === state.presentationUrl)
+          return samePresentation ? current.slideCount : null
+        })()
+        const nextSlideCount = Math.max(state.slideCount ?? 0, verifiedLayoutCount ?? 0) || state.slideCount
         const isStrawman = state.currentStage === 4
         const isFinal = state.currentStage === 6
 
         const updates: any = {
           currentStage: state.currentStage,
-          slideCount: state.slideCount,
+          slideCount: nextSlideCount,
           lastMessageAt: new Date(),
           stateCache: {
             activeVersion: state.activeVersion,
