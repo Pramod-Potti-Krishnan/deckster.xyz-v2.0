@@ -381,6 +381,11 @@ model PublishedDeck {
   // here so revocation isn't silently lost; retried opportunistically on the
   // next publish/rotate/unpublish (self-healing — no cron).
   staleSnapshotIds       String[]  @default([]) @map("stale_snapshot_ids")
+  // Optimistic-concurrency token. Publish/rotate/unpublish CAS on this (update
+  // guarded by the read version + increment) so concurrent lifecycle ops can't
+  // lose a stale-snapshot id or orphan a just-created snapshot. Column name
+  // matches, so no @map (convention here maps only when names differ).
+  version                Int       @default(0)
   viewCount              Int       @default(0) @map("view_count")
   publishedAt            DateTime  @default(now()) @map("published_at")
   republishedAt          DateTime? @map("republished_at")

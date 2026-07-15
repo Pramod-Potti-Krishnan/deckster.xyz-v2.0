@@ -107,29 +107,48 @@ export async function POST(
     // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
     const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds);
 
-    // Mint a fresh slug + point at the new snapshot; retry on the
-    // (astronomically unlikely) slug collision.
-    let updated = null;
-    for (let attempt = 0; attempt < 5 && !updated; attempt++) {
+    // Mint a fresh slug + point at the new snapshot under an optimistic
+    // version-CAS: the swap only lands if nobody else mutated this record since
+    // we read `existing` (otherwise the stale-id sweep would be clobbered or the
+    // new snapshot orphaned). Retry ONLY the (astronomically unlikely) slug
+    // collision — regenerating the slug and re-CASing on the SAME expected
+    // version. A genuine version conflict is not retried (it's a real concurrent
+    // mutation): clean up the orphan and 409.
+    let swapCount = 0;
+    for (let attempt = 0; attempt < 5 && swapCount === 0; attempt++) {
       try {
-        updated = await prisma.publishedDeck.update({
-          where: { id: existing.id },
+        const res = await prisma.publishedDeck.updateMany({
+          where: { id: existing.id, version: existing.version },
           data: {
             slug: generateSlug(),
             snapshotPresentationId: snapshot.snapshotId,
             sourcePresentationId,
             slideCount,
             staleSnapshotIds: carriedStale,
+            version: { increment: 1 },
           },
         });
+        swapCount = res.count;
+        if (swapCount === 0) {
+          // Version mismatch — another lifecycle op won the race. Our new
+          // snapshot is referenced by nobody, so delete it (orphan cleanup) and
+          // ask the client to retry against fresh state.
+          await deletePresentationSnapshot(snapshot.snapshotId);
+          return NextResponse.json(
+            { error: 'Publish state changed, please retry' },
+            { status: 409 }
+          );
+        }
       } catch (error: any) {
-        // P2002 = unique constraint violation — roll again
+        // P2002 = slug unique-constraint collision — roll a new slug and re-CAS
+        // on the SAME expected version (the failed update wrote nothing).
         if (error?.code !== 'P2002') throw error;
       }
     }
 
-    if (!updated) {
-      // Couldn't persist — drop the just-created snapshot so it doesn't orphan
+    if (swapCount === 0) {
+      // Exhausted slug-collision retries — drop the just-created snapshot so it
+      // doesn't orphan.
       await deletePresentationSnapshot(snapshot.snapshotId);
       return NextResponse.json(
         { error: 'Failed to rotate link. Please try again.' },
@@ -139,21 +158,25 @@ export async function POST(
 
     // Reap the old snapshot AFTER the pointer swap (Fix A ordering). Rotating the
     // slug alone doesn't revoke the {layout}/p/{snapshotId} URL — only deleting
-    // the snapshot does. If the delete didn't stick, carry the id forward and
-    // tell the owner the truth (the old copy is still being cleaned up).
+    // the snapshot does. If the delete didn't stick, park the id ATOMICALLY
+    // (append, not read-modify-write) so a concurrent op can't lose it, and tell
+    // the owner the truth (the old copy is still being cleaned up).
     let snapshotDeleted = true;
     if (oldSnapshotId && oldSnapshotId !== snapshot.snapshotId) {
       const { ok } = await deletePresentationSnapshot(oldSnapshotId);
       snapshotDeleted = ok;
       if (!ok) {
-        updated = await prisma.publishedDeck.update({
+        await prisma.publishedDeck.update({
           where: { id: existing.id },
-          // De-dup against the carried backlog (oldSnapshotId may already be in it).
-          data: {
-            staleSnapshotIds: Array.from(new Set([...carriedStale, oldSnapshotId])),
-          },
+          data: { staleSnapshotIds: { push: oldSnapshotId } },
         });
       }
+    }
+
+    // Re-read for the response (updateMany returns only a count).
+    const updated = await prisma.publishedDeck.findUnique({ where: { id: existing.id } });
+    if (!updated) {
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 
     return NextResponse.json({ deck: serializePublishedDeck(updated), snapshotDeleted });

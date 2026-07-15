@@ -188,35 +188,66 @@ export async function DELETE(
       );
     }
 
-    // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
-    const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds);
+    // Revoke under an optimistic version-CAS so a concurrent lifecycle op can't
+    // clobber the stale-id sweep. Set revokedAt FIRST, then reap the snapshot
+    // (best effort) — deleting before the update would, on a lost CAS, leave the
+    // deck "published" while its snapshot is already destroyed (iframe → 404).
+    // On a lost CAS, re-read and retry the revoke ONCE against the fresh version
+    // (re-sweeping the fresh backlog); if it still loses, 409.
+    let current = existing;
+    let revokedCount = 0;
+    for (let attempt = 0; attempt < 2 && revokedCount === 0; attempt++) {
+      // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
+      const carriedStale = await retryDeleteStaleSnapshots(current.staleSnapshotIds);
+      const res = await prisma.publishedDeck.updateMany({
+        where: { id: current.id, version: current.version },
+        data: {
+          revokedAt: new Date(),
+          staleSnapshotIds: carriedStale,
+          version: { increment: 1 },
+        },
+      });
+      revokedCount = res.count;
+      if (revokedCount === 0) {
+        const fresh = await prisma.publishedDeck.findUnique({ where: { id: existing.id } });
+        if (!fresh) {
+          return NextResponse.json(
+            { error: 'Published deck not found' },
+            { status: 404 }
+          );
+        }
+        current = fresh;
+      }
+    }
 
-    // Set revokedAt FIRST, then reap the snapshot (best effort). Deleting before
-    // the update would, on an update failure, leave the deck "published" while its
-    // snapshot is already destroyed (iframe → 404).
-    let revoked = await prisma.publishedDeck.update({
-      where: { id: existing.id },
-      data: { revokedAt: new Date(), staleSnapshotIds: carriedStale },
-    });
+    if (revokedCount === 0) {
+      return NextResponse.json(
+        { error: 'Publish state changed, please retry' },
+        { status: 409 }
+      );
+    }
 
-    // Snapshot cleanup on the Layout Service — never fail the request. If the
-    // delete didn't stick, the {layout}/p/{snapshotId} URL is still live, so
-    // carry the id forward and don't claim the copy is gone.
+    // Snapshot cleanup on the Layout Service — never fail the request. Reap the
+    // snapshot that was live when we revoked (current.snapshotPresentationId — a
+    // concurrent republish may have swapped the pointer). If the delete didn't
+    // stick, the {layout}/p/{snapshotId} URL is still live, so park the id
+    // ATOMICALLY (append, not read-modify-write) and don't claim the copy is gone.
     let snapshotDeleted = true;
-    if (existing.snapshotPresentationId) {
-      const { ok } = await deletePresentationSnapshot(existing.snapshotPresentationId);
+    if (current.snapshotPresentationId) {
+      const { ok } = await deletePresentationSnapshot(current.snapshotPresentationId);
       snapshotDeleted = ok;
       if (!ok) {
-        revoked = await prisma.publishedDeck.update({
+        await prisma.publishedDeck.update({
           where: { id: existing.id },
-          // De-dup against the carried backlog (the id may already be in it).
-          data: {
-            staleSnapshotIds: Array.from(
-              new Set([...carriedStale, existing.snapshotPresentationId])
-            ),
-          },
+          data: { staleSnapshotIds: { push: current.snapshotPresentationId } },
         });
       }
+    }
+
+    // Re-read for the response (updateMany returns only a count).
+    const revoked = await prisma.publishedDeck.findUnique({ where: { id: existing.id } });
+    if (!revoked) {
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 
     return NextResponse.json({ deck: serializePublishedDeck(revoked), snapshotDeleted });

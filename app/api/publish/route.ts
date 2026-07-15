@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import type { PublishedDeck } from '@prisma/client';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { generateSlug } from '@/lib/publish/slug';
@@ -155,7 +156,7 @@ export async function POST(req: NextRequest) {
     const passcodeHash =
       passcode === undefined ? undefined : passcode.length > 0 ? hashPasscode(passcode) : null;
 
-    let record;
+    let record: PublishedDeck | null = null;
     // true only when the previously-live snapshot is confirmed gone
     let snapshotDeleted = true;
     if (existing) {
@@ -165,14 +166,19 @@ export async function POST(req: NextRequest) {
       const oldSnapshotId = existing.snapshotPresentationId;
       // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
       const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds);
-      record = await prisma.publishedDeck.update({
-        where: { id: existing.id },
+      // Swap the pointer under an optimistic version-CAS: the update only lands
+      // if nobody else mutated this record since we read `existing`. Without it,
+      // a concurrent lifecycle op would clobber the stale-id sweep (losing a
+      // failed-delete id) or leave our brand-new snapshot untracked-but-live.
+      const swap = await prisma.publishedDeck.updateMany({
+        where: { id: existing.id, version: existing.version },
         data: {
           sourcePresentationId: chatSession.finalPresentationId,
           snapshotPresentationId: snapshot.snapshotId,
           title,
           slideCount,
           staleSnapshotIds: carriedStale,
+          version: { increment: 1 },
           republishedAt: new Date(),
           revokedAt: null,
           ...(visibility !== undefined ? { visibility } : {}),
@@ -181,23 +187,33 @@ export async function POST(req: NextRequest) {
           ...(allowPptx !== undefined ? { allowPptx } : {}),
         },
       });
+      if (swap.count === 0) {
+        // Lost the race — someone else mutated the record first. Our just-created
+        // snapshot is referenced by nobody, so delete it (orphan cleanup) and ask
+        // the client to retry against the fresh state.
+        await deletePresentationSnapshot(snapshot.snapshotId);
+        return NextResponse.json(
+          { error: 'Publish state changed, please retry' },
+          { status: 409 }
+        );
+      }
       // Reap the now-replaced snapshot AFTER the pointer swap (never fail the
-      // request). If the delete didn't stick, carry the id forward so a later
-      // publish op retries it, and don't claim the old copy is gone.
+      // request). If the delete didn't stick, park the id ATOMICALLY (append,
+      // not read-modify-write) so a concurrent op can't lose it, and don't claim
+      // the old copy is gone. Duplicates are harmless — retryDeleteStaleSnapshots
+      // de-dups its input.
       if (oldSnapshotId && oldSnapshotId !== snapshot.snapshotId) {
         const { ok } = await deletePresentationSnapshot(oldSnapshotId);
         snapshotDeleted = ok;
         if (!ok) {
-          record = await prisma.publishedDeck.update({
+          await prisma.publishedDeck.update({
             where: { id: existing.id },
-            // De-dup against the carried backlog: oldSnapshotId may already be
-            // in carriedStale (e.g. a prior unpublish left it unreaped).
-            data: {
-              staleSnapshotIds: Array.from(new Set([...carriedStale, oldSnapshotId])),
-            },
+            data: { staleSnapshotIds: { push: oldSnapshotId } },
           });
         }
       }
+      // Re-read for the response (updateMany returns only a count).
+      record = await prisma.publishedDeck.findUnique({ where: { id: existing.id } });
     } else {
       record = await prisma.publishedDeck.create({
         data: {
@@ -214,6 +230,12 @@ export async function POST(req: NextRequest) {
           ...(allowPptx !== undefined ? { allowPptx } : {}),
         },
       });
+    }
+
+    if (!record) {
+      // The record vanished between the CAS update and the re-read (e.g. the
+      // session was deleted concurrently) — nothing coherent to serialize.
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 
     return NextResponse.json({ deck: serializePublishedDeck(record), snapshotDeleted });
