@@ -18,6 +18,7 @@ import { buildElementGenerationContext, parseSlideGenerationContext } from '@/li
 import type { ElementResearchMode } from '@/types/textlabs'
 import type { ThemeSyncState } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
+import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 
 const THEME_CHANGED_DURING_GENERATION =
   'The deck theme changed while this element was being generated. Wait for Applied, then generate again.'
@@ -202,6 +203,7 @@ export function useTextLabsGeneration({
           componentType: formData.componentType,
           useDeckTheme: formData.useDeckTheme === true,
           requiresThemeVariant: componentSupportsThemeVariants(formData.componentType),
+          themeVariantSource: 'element_generation',
         })
         blankInfo = {
           ...trackedBlankInfo,
@@ -248,6 +250,7 @@ export function useTextLabsGeneration({
           componentType: refineContext.elementType,
           useDeckTheme: formData.useDeckTheme === true,
           requiresThemeVariant: componentSupportsThemeVariants(refineContext.elementType),
+          themeVariantSource: refineContext.themeVariantSource,
         })
         const liveComponentType = normalizeSemanticComponentType(snapshot.componentType)
           ?? refineContext.elementType
@@ -273,6 +276,8 @@ export function useTextLabsGeneration({
           grid_position: liveGridPosition,
           theme_variant_id: themeVariantId,
           theme_bindings: themeBindings,
+          style_owner: snapshot.styleOwner ?? refineContext.styleOwner,
+          theme_variant_source: snapshot.themeVariantSource ?? refineContext.themeVariantSource,
         }
         formData.themeVariantId = themeVariantId
         formData.themeBindings = themeBindings
@@ -503,6 +508,7 @@ export function useTextLabsGeneration({
           componentType: normalizeSemanticComponentType(formData.componentType) ?? blankInfo.componentType,
           themeVariantId: blankInfo.themeVariantId,
           themeBindings: blankInfo.themeBindings,
+          themeVariantSource: 'element_generation',
         })
         const newId = reinsertResponse?.elementId
         if (newId && newId !== blankId) {
@@ -614,6 +620,17 @@ export function useTextLabsGeneration({
           ...element,
           theme_variant_id: resolvedTheme.themeVariantId,
           theme_bindings: resolvedTheme.themeBindings,
+          // Ownership describes the newly returned HTML. Never carry the
+          // previous element's owner or infer it from component type.
+          style_owner: responseStyleOwner(element),
+          // Variant provenance belongs to the assignment workflow and remains
+          // stable across refinement/replacement.
+          theme_variant_source: parseThemeVariantSource(refineContext?.themeVariantSource)
+            ?? parseThemeVariantSource((element as any).theme_variant_source)
+            ?? parseThemeVariantSource((element as any).themeVariantSource)
+            ?? parseThemeVariantSource((element as any).metadata?.theme_variant_source)
+            ?? parseThemeVariantSource((element as any).metadata?.themeVariantSource)
+            ?? 'element_generation',
         }
         if (authoritativeGridPosition) {
           elementWithPosition = { ...elementWithPosition, grid_position: authoritativeGridPosition }
@@ -722,6 +739,7 @@ export function useTextLabsGeneration({
               componentType: currentBlankInfo.componentType,
               themeVariantId: currentBlankInfo.themeVariantId,
               themeBindings: currentBlankInfo.themeBindings,
+              themeVariantSource: 'element_generation',
             }),
             restoreTracking: restoredElementId => {
               blankElements.removeElement(currentBlankId)
@@ -804,6 +822,7 @@ export function useTextLabsGeneration({
         resizable: true,
         skipAutoSize: true,
         componentType,
+        themeVariantSource: 'element_generation',
       })
 
       const layoutElementId = response?.elementId || tempId

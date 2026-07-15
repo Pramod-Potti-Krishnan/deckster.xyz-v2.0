@@ -22,6 +22,7 @@
     "test:theme-panel-lifecycle": "node scripts/test-theme-panel-lifecycle.mjs",
     "test:element-theme-variants": "node scripts/test-element-theme-variants.mjs",
     "test:element-generation-context": "node scripts/test-element-generation-context.mjs",
+    "test:refinement-provenance": "node scripts/test-refinement-provenance.mjs",
     "test:manual-deck-workflow": "node scripts/test-manual-deck-workflow.mjs",
     "test:textlabs-abort-signal": "node scripts/test-textlabs-abort-signal.mjs",
     "test:textlabs-session-ownership": "node scripts/test-textlabs-session-ownership.mjs",

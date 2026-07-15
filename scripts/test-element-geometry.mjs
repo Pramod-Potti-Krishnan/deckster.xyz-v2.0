@@ -17,6 +17,12 @@ function loadTypeScriptModule(modulePath) {
     module: mod,
     exports: mod.exports,
     setTimeout,
+    require: id => {
+      if (id === '@/lib/element-provenance') {
+        return loadTypeScriptModule(new URL('../lib/element-provenance.ts', import.meta.url))
+      }
+      throw new Error(`Unexpected test import: ${id}`)
+    },
   })
   return mod.exports
 }
@@ -42,11 +48,15 @@ assert.deepEqual(
     componentType: 'METRICS',
     theme_variant_id: 'metric-accent-2',
     themeBindings: { background: 'accent_2', ignored: 42 },
+    style_owner: 'text_service',
+    theme_variant_source: 'full_deck_generation',
   }))),
   {
     componentType: 'METRICS',
     themeVariantId: 'metric-accent-2',
     themeBindings: { background: 'accent_2' },
+    styleOwner: 'text_service',
+    themeVariantSource: 'full_deck_generation',
   },
 )
 
@@ -151,10 +161,11 @@ assert.throws(
     componentType: 'TEXT_BOX',
     useDeckTheme: true,
     requiresThemeVariant: true,
+    themeVariantSource: 'element_generation',
     retries: 1,
     retryDelayMs: 0,
-    sendCommand: async (action) => {
-      calls.push(action)
+    sendCommand: async (action, params) => {
+      calls.push({ action, params })
       if (action === 'getElementGeometry') {
         geometryAttempts += 1
         if (geometryAttempts === 1) throw new Error('Command timeout')
@@ -185,8 +196,38 @@ assert.throws(
     componentType: 'TEXT_BOX',
     themeVariantId: 'textbox-accent-1',
     themeBindings: { background: 'background' },
+    styleOwner: null,
+    themeVariantSource: null,
   })
-  assert.deepEqual(calls, ['getElementGeometry', 'getElementGeometry', 'refreshElementThemeMetadata'])
+  assert.deepEqual(calls.map(call => call.action), ['getElementGeometry', 'getElementGeometry', 'refreshElementThemeMetadata'])
+  assert.equal(calls.at(-1).params.themeVariantSource, 'element_generation')
+}
+
+{
+  const calls = []
+  const snapshot = await readElementGenerationSnapshot({
+    elementId: 'slide-builder-element',
+    componentType: 'TEXT_BOX',
+    useDeckTheme: true,
+    requiresThemeVariant: true,
+    themeVariantSource: 'full_deck_generation',
+    sendCommand: async (action) => {
+      calls.push(action)
+      return {
+        success: true,
+        action,
+        elementId: 'slide-builder-element',
+        position: { gridRow: '4/14', gridColumn: '4/20' },
+        component_type: 'TEXT_BOX',
+        style_owner: 'text_service',
+        theme_variant_source: 'full_deck_generation',
+      }
+    },
+  })
+  assert.deepEqual(calls, ['getElementGeometry'])
+  assert.equal(snapshot.themeVariantId, null)
+  assert.equal(snapshot.styleOwner, 'text_service')
+  assert.equal(snapshot.themeVariantSource, 'full_deck_generation')
 }
 
 {
@@ -197,6 +238,7 @@ assert.throws(
       componentType: 'TEXT_BOX',
       useDeckTheme: true,
       requiresThemeVariant: true,
+      themeVariantSource: 'element_generation',
       retries: 0,
       retryDelayMs: 0,
       sendCommand: async (action) => {

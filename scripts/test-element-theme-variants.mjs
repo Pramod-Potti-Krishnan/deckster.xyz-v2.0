@@ -10,6 +10,13 @@ const semanticCompiled = ts.transpileModule(semanticSource, {
 const semanticMod = { exports: {} }
 vm.runInNewContext(semanticCompiled.outputText, { module: semanticMod, exports: semanticMod.exports })
 
+const provenanceSource = fs.readFileSync(new URL('../lib/element-provenance.ts', import.meta.url), 'utf8')
+const provenanceCompiled = ts.transpileModule(provenanceSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+})
+const provenanceMod = { exports: {} }
+vm.runInNewContext(provenanceCompiled.outputText, { module: provenanceMod, exports: provenanceMod.exports })
+
 const source = fs.readFileSync(new URL('../lib/element-theme-variants.ts', import.meta.url), 'utf8')
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
@@ -77,6 +84,7 @@ vm.runInNewContext(clientCompiled.outputText, {
   require: id => {
     if (id === '@/lib/element-semantic-type') return semanticMod.exports
     if (id === '@/lib/textlabs-theme-metadata') return metadataMod.exports
+    if (id === '@/lib/element-provenance') return provenanceMod.exports
     if (id === '@/types/textlabs') return {
       INSERTION_METHOD_MAP: { TEXT_BOX: 'insertElement', METRICS: 'insertElement' },
       TEXT_LABS_ELEMENT_DEFAULTS: {
@@ -93,6 +101,7 @@ const insertionOne = buildInsertionParams('TEXT_BOX', {
   metadata: {
     theme_variant_id: 'box-variant-1',
     theme_bindings: { background: 'primary_500' },
+    style_owner: 'text_service',
   },
 }).params
 const insertionTwo = buildInsertionParams('TEXT_BOX', {
@@ -100,12 +109,17 @@ const insertionTwo = buildInsertionParams('TEXT_BOX', {
   metadata: {
     theme_variant_id: 'box-variant-2',
     theme_bindings: { background: 'accent_2_500' },
+    theme_variant_source: 'full_deck_generation',
   },
 }).params
 assert.equal(insertionOne.themeVariantId, 'box-variant-1')
+assert.equal(insertionOne.styleOwner, 'text_service')
+assert.equal(insertionOne.themeVariantSource, 'element_generation')
 assert.equal(insertionOne.themeBindings.background, 'primary_500')
 assert.equal(insertionTwo.themeVariantId, 'box-variant-2')
 assert.equal(insertionTwo.themeBindings.background, 'accent_2_500')
+assert.equal(insertionTwo.styleOwner, undefined)
+assert.equal(insertionTwo.themeVariantSource, 'full_deck_generation')
 
 const swatchSource = fs.readFileSync(new URL('../hooks/use-deck-theme-palette.ts', import.meta.url), 'utf8')
 for (const token of [
