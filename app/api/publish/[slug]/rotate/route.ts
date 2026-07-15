@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { generateSlug } from '@/lib/publish/slug';
 import {
   deletePresentationSnapshot,
-  getPresentationSlideCount,
+  getSnapshotSlideCountWithRetry,
   retryDeleteStaleSnapshots,
   snapshotPresentation,
 } from '@/lib/publish/layout';
@@ -85,21 +85,18 @@ export async function POST(
 
     const oldSnapshotId = existing.snapshotPresentationId;
 
-    // Recompute the slide count off the freshly-created snapshot — a re-snapshot
-    // can pick up in-builder slide add/delete since the last publish, and rotate
-    // must persist that authoritative count (the previous rotate left it stale).
-    let slideCount = await getPresentationSlideCount(snapshot.snapshotId);
+    // Slide count is authoritative-or-fail: read it ONLY from the freshly-created
+    // SNAPSHOT deck (a re-snapshot can pick up in-builder slide add/delete since
+    // the last publish). The previous/source counts go stale, so a fallback could
+    // persist a count that doesn't match what viewers receive. Bounded retry (the
+    // snapshot was just created), then fail closed.
+    const slideCount = await getSnapshotSlideCountWithRetry(snapshot.snapshotId);
     if (!slideCount || slideCount <= 0) {
-      slideCount = existing.slideCount ?? null;
-    }
-    if (!slideCount || slideCount <= 0) {
-      slideCount = await getPresentationSlideCount(sourcePresentationId);
-    }
-    if (!slideCount || slideCount <= 0) {
-      // Never persist an unknown count — drop the orphan snapshot and ask to retry
+      // Couldn't read the authoritative count — drop the just-created snapshot so
+      // it doesn't orphan, then ask to retry rather than persist a wrong count.
       await deletePresentationSnapshot(snapshot.snapshotId);
       return NextResponse.json(
-        { error: 'Could not determine slide count; please retry' },
+        { error: 'Could not read the published slide count; please retry' },
         { status: 502 }
       );
     }

@@ -101,7 +101,7 @@ export async function retryDeleteStaleSnapshots(ids: readonly string[]): Promise
 }
 
 /**
- * Fallback slide count: read slides.length off the full deck JSON.
+ * Slide count: read slides.length off the full deck JSON.
  */
 export async function getPresentationSlideCount(presentationId: string): Promise<number | null> {
   try {
@@ -115,4 +115,25 @@ export async function getPresentationSlideCount(presentationId: string): Promise
     console.error('[Publish] Slide count fetch error:', presentationId, error)
     return null
   }
+}
+
+/**
+ * Read the slide count off a just-created SNAPSHOT deck with a small bounded
+ * retry. The snapshot's count is authoritative — it's exactly what viewers and
+ * the PPTX export receive — so publish/rotate must never fall back to a
+ * possibly-stale session/source count. The snapshot was created moments ago, so
+ * a transient GET failure is worth a couple of quick retries before the caller
+ * fails closed. Returns a positive count, or null if it still can't be read.
+ */
+export async function getSnapshotSlideCountWithRetry(
+  snapshotId: string,
+  attempts = 3,
+  delayMs = 250,
+): Promise<number | null> {
+  for (let i = 0; i < attempts; i++) {
+    const count = await getPresentationSlideCount(snapshotId)
+    if (count && count > 0) return count
+    if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs))
+  }
+  return null
 }

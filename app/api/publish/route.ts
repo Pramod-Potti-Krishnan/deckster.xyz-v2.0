@@ -7,7 +7,7 @@ import { generateSlug } from '@/lib/publish/slug';
 import { hashPasscode, MIN_PASSCODE_LENGTH } from '@/lib/publish/passcode';
 import {
   deletePresentationSnapshot,
-  getPresentationSlideCount,
+  getSnapshotSlideCountWithRetry,
   retryDeleteStaleSnapshots,
   snapshotPresentation,
 } from '@/lib/publish/layout';
@@ -129,25 +129,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Slide count: read it from the frozen SNAPSHOT deck — that's exactly what
-    // viewers (and the PPTX export) see. Manual in-builder slide add/delete only
-    // mutates viewer-local state, never ChatSession.slideCount, so trusting the
-    // session first would publish a stale count. Session metadata is a fallback,
-    // then one last authoritative attempt off the source deck.
-    let slideCount = await getPresentationSlideCount(snapshot.snapshotId);
+    // Slide count is authoritative-or-fail: read it ONLY from the frozen
+    // SNAPSHOT deck — that's exactly what viewers (and the PPTX export) receive.
+    // The session/source counts go stale after a manual in-builder slide
+    // add/delete, so falling back to them could persist a count that doesn't
+    // match the snapshot (the PPTX export then silently emits the wrong number
+    // of slides). Bounded retry (the snapshot was just created), then fail closed.
+    const slideCount = await getSnapshotSlideCountWithRetry(snapshot.snapshotId);
     if (!slideCount || slideCount <= 0) {
-      slideCount = chatSession.slideCount ?? null;
-    }
-    if (!slideCount || slideCount <= 0) {
-      slideCount = await getPresentationSlideCount(chatSession.finalPresentationId);
-    }
-    // Never publish with an unknown slide count — the viewer's PPTX export
-    // falls back to 1 slide, silently producing a 1-slide deck of an N-slide deck.
-    if (!slideCount || slideCount <= 0) {
-      // Drop the just-created snapshot so it doesn't orphan, then ask to retry
+      // Couldn't read the authoritative count — drop the just-created snapshot so
+      // it doesn't orphan, then ask to retry rather than publish a wrong count.
       await deletePresentationSnapshot(snapshot.snapshotId);
       return NextResponse.json(
-        { error: 'Could not determine slide count; please retry' },
+        { error: 'Could not read the published slide count; please retry' },
         { status: 502 }
       );
     }
