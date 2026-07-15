@@ -1,9 +1,11 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import { TextLabsFormData, TextLabsComponentType } from '@/types/textlabs'
 import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
 import type { RefineContext } from '@/hooks/use-element-refinement'
+import type { BlankElementInfo } from '@/hooks/use-blank-elements'
+import { parseGetElementGeometryResponse } from '@/lib/element-geometry'
 
 interface UseTextLabsGenerationParams {
   generationPanel: {
@@ -24,10 +26,11 @@ interface UseTextLabsGenerationParams {
     changeElementType: (type: TextLabsComponentType) => void
   }
   blankElements: {
-    getElement: (id: string) => any
+    getElement: (id: string) => BlankElementInfo | undefined
+    updatePosition: (elementId: string, startCol: number, startRow: number, width: number, height: number) => void
     setStatus: (id: string, status: 'blank' | 'generating') => void
     removeElement: (id: string) => void
-    addElement: (info: any) => void
+    addElement: (info: BlankElementInfo) => void
   }
   textLabsSession: {
     ensureSession: () => Promise<string>
@@ -92,9 +95,61 @@ export function useTextLabsGeneration({
   currentSlideIndex,
   toast,
 }: UseTextLabsGenerationParams) {
+  const generateInFlightRef = useRef(false)
+
   const handleGenerate = useCallback(async (formData: TextLabsFormData) => {
+    if (generateInFlightRef.current) return
+    generateInFlightRef.current = true
+
+    // Lock the submit path before the async geometry lookup so a double-click
+    // cannot start two concurrent placeholder swaps.
     generationPanel.setIsGenerating(true)
     generationPanel.setError(null)
+
+    // A blank placeholder's live DOM geometry is authoritative. Resolve it before
+    // mutating canvas state or starting Text Labs so a failed query leaves
+    // the user's placeholder untouched instead of falling back to stale defaults.
+    const blankId = generationPanel.blankElementId
+    const trackedBlankInfo = blankId ? blankElements.getElement(blankId) : undefined
+    let blankInfo = trackedBlankInfo
+
+    if (blankId) {
+      if (!trackedBlankInfo) {
+        generationPanel.setIsGenerating(false)
+        generationPanel.setError('This placeholder is no longer available. Add the element again and retry.')
+        generateInFlightRef.current = false
+        return
+      }
+      if (!layoutServiceApis?.sendElementCommand) {
+        generationPanel.setIsGenerating(false)
+        generationPanel.setError('The presentation is still loading. Wait a moment and try again.')
+        generateInFlightRef.current = false
+        return
+      }
+      try {
+        const geometryResponse = await layoutServiceApis.sendElementCommand('getElementGeometry', {
+          elementId: blankId,
+        })
+        const geometry = parseGetElementGeometryResponse(geometryResponse, blankId)
+        blankInfo = { ...trackedBlankInfo, ...geometry }
+        blankElements.updatePosition(
+          blankId,
+          geometry.startCol,
+          geometry.startRow,
+          geometry.width,
+          geometry.height,
+        )
+      } catch (error) {
+        console.error('[TextLabs] Failed to read live blank geometry:', error)
+        generationPanel.setIsGenerating(false)
+        generationPanel.setError(
+          "Couldn't read the element's current size and position. The placeholder was left unchanged. Please try again.",
+        )
+        generateInFlightRef.current = false
+        return
+      }
+    }
+
     formData.presentationId = formData.presentationId ?? presentationId ?? null
     const refineContext = generationPanel.mode === 'refine' ? generationPanel.refineContext : null
 
@@ -115,10 +170,6 @@ export function useTextLabsGeneration({
         applyPositionToFormData(formData, refineContext.gridPosition)
       }
     }
-
-    // Check if we're generating for a blank element on canvas
-    const blankId = generationPanel.blankElementId
-    const blankInfo = blankId ? blankElements.getElement(blankId) : null
 
     // Track current element ID locally — React state updates are async,
     // so we can't re-read generationPanel.blankElementId after spinner swap
@@ -224,11 +275,20 @@ export function useTextLabsGeneration({
       // Insert each element into the canvas
       const effectiveSlideIndex = currentBlankInfo?.slideIndex ?? refineContext?.slideIndex ?? currentSlideIndex
       const formElements = 'elements' in formData ? formData.elements : undefined
+      const authoritativeBlankGridPosition = currentBlankInfo ? {
+        start_col: currentBlankInfo.startCol,
+        start_row: currentBlankInfo.startRow,
+        position_width: currentBlankInfo.width,
+        position_height: currentBlankInfo.height,
+      } : undefined
       for (const [index, element] of elements.entries()) {
         const fallbackGridPosition = formElements?.[index]?.grid_position
-        const elementWithPosition = fallbackGridPosition && !(element as any).grid_position
-          ? { ...element, grid_position: fallbackGridPosition }
-          : element
+        let elementWithPosition: Parameters<typeof buildInsertionParams>[1] = element
+        if (authoritativeBlankGridPosition) {
+          elementWithPosition = { ...element, grid_position: authoritativeBlankGridPosition }
+        } else if (fallbackGridPosition && !(element as any).grid_position) {
+          elementWithPosition = { ...element, grid_position: fallbackGridPosition }
+        }
         const { method, params } = buildInsertionParams(
           element.component_type,
           elementWithPosition,
@@ -300,6 +360,7 @@ export function useTextLabsGeneration({
     } finally {
       clearTimeout(timeoutId)
       generationPanel.setIsGenerating(false)
+      generateInFlightRef.current = false
     }
   }, [generationPanel, textLabsSession, layoutServiceApis, presentationId, toast, currentSlideIndex, blankElements])
 
@@ -347,11 +408,6 @@ export function useTextLabsGeneration({
         height: defaults.height,
         status: 'blank',
       })
-      // The viewer may emit drag/resize events under the id we sent (tempId) rather than
-      // the id it returned. Alias both so the placeholder's resized/dragged geometry is
-      // captured either way (otherwise it silently reverts to the insert size on generate).
-      blankElements.registerAlias(tempId, layoutElementId)
-
       generationPanel.openPanelForElement(componentType, layoutElementId)
     } catch (err) {
       console.warn('[TextLabs] Failed to insert blank placeholder, falling back to direct panel:', err)

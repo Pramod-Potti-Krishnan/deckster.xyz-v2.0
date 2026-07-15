@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, RotateCcw, Clock, User, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  getLayoutViewerOrigin,
+  isTrustedLayoutViewerMessage,
+} from '@/lib/layout-viewer-messaging'
 
 interface Version {
   version_id: string
@@ -41,9 +45,10 @@ export function VersionHistoryPanel({
     setLoading(true)
     setError(null)
 
-    iframeRef.current.contentWindow?.postMessage({
+    const iframe = iframeRef.current
+    iframe.contentWindow?.postMessage({
       command: 'getVersionHistory'
-    }, viewerOrigin)
+    }, getLayoutViewerOrigin(iframe, viewerOrigin))
   }, [iframeRef, viewerOrigin])
 
   // Fetch versions when panel opens
@@ -56,8 +61,7 @@ export function VersionHistoryPanel({
   // Listen for postMessage responses
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Only accept messages from viewer origin
-      if (event.origin !== viewerOrigin) return
+      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, viewerOrigin)) return
 
       const { command, success, error: errorMsg } = event.data
 
@@ -83,7 +87,7 @@ export function VersionHistoryPanel({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [viewerOrigin])
+  }, [iframeRef, viewerOrigin])
 
   const handleRestore = useCallback((versionId: string) => {
     if (versionId === currentVersionId) {
@@ -102,14 +106,15 @@ export function VersionHistoryPanel({
     setRestoring(versionId)
     setError(null)
 
-    iframeRef.current.contentWindow?.postMessage({
+    const iframe = iframeRef.current
+    iframe.contentWindow?.postMessage({
       command: 'restoreVersion',
       params: {
         versionId,
         createBackup: true,
         reload: true
       }
-    }, viewerOrigin)
+    }, getLayoutViewerOrigin(iframe, viewerOrigin))
   }, [iframeRef, viewerOrigin, currentVersionId])
 
   const formatDate = (isoString: string) => {

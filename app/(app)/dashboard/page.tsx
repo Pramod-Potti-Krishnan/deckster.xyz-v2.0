@@ -15,6 +15,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Plus, Search, Filter, MoreVertical, Sparkles, Calendar, Users, Crown, Folder, Tag, X, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
+import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
 
 interface Presentation {
   id: string
@@ -37,6 +39,36 @@ interface Folder {
   name: string
   color: string
   count: number
+}
+
+function PresentationPreview({ presentation }: { presentation: Presentation }) {
+  const candidate = presentation.finalPresentationUrl || presentation.strawmanPreviewUrl
+  const decision = evaluateLayoutViewerUrl(candidate, LAYOUT_VIEWER_URL_POLICY)
+
+  if (decision.status === 'allowed') {
+    return (
+      <iframe
+        src={decision.url}
+        className="w-full h-full pointer-events-none"
+        title={presentation.title}
+      />
+    )
+  }
+
+  return (
+    <div className="relative h-full w-full">
+      <img
+        src="/placeholder.svg"
+        alt={presentation.title}
+        className="w-full h-full object-cover"
+      />
+      {decision.status === 'blocked' && (
+        <span className="absolute inset-x-2 bottom-2 rounded bg-amber-950/80 px-2 py-1 text-center text-xs text-white">
+          Preview unavailable in this environment
+        </span>
+      )}
+    </div>
+  )
 }
 
 export default function DashboardPage() {
@@ -93,7 +125,7 @@ export default function DashboardPage() {
             updatedAt: session.updatedAt,
             slideCount: session.slideCount || 0,
             status: getStatusFromStage(session.currentStage),
-            thumbnail: session.finalPresentationUrl || session.strawmanPreviewUrl || '/placeholder.svg',
+            thumbnail: '/placeholder.svg',
             folder: 'general',
             tags: [],
             strawmanPreviewUrl: session.strawmanPreviewUrl,
@@ -410,19 +442,7 @@ export default function DashboardPage() {
                   onClick={() => router.push(`/builder?session_id=${presentation.id}`)}
                 >
                   <div className="aspect-video bg-slate-100 rounded-t-lg overflow-hidden">
-                    {presentation.finalPresentationUrl || presentation.strawmanPreviewUrl ? (
-                      <iframe
-                        src={presentation.finalPresentationUrl || presentation.strawmanPreviewUrl || ''}
-                        className="w-full h-full pointer-events-none"
-                        title={presentation.title}
-                      />
-                    ) : (
-                      <img
-                        src={presentation.thumbnail || "/placeholder.svg"}
-                        alt={presentation.title}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
+                    <PresentationPreview presentation={presentation} />
                   </div>
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -511,19 +531,7 @@ export default function DashboardPage() {
                   onClick={() => router.push(`/builder?session_id=${presentation.id}`)}
                 >
                   <div className="aspect-video bg-slate-100 rounded-t-lg overflow-hidden">
-                    {presentation.finalPresentationUrl || presentation.strawmanPreviewUrl ? (
-                      <iframe
-                        src={presentation.finalPresentationUrl || presentation.strawmanPreviewUrl || ''}
-                        className="w-full h-full pointer-events-none"
-                        title={presentation.title}
-                      />
-                    ) : (
-                      <img
-                        src={presentation.thumbnail || "/placeholder.svg"}
-                        alt={presentation.title}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
+                    <PresentationPreview presentation={presentation} />
                   </div>
                   <CardHeader>
                     <div className="flex items-start justify-between">

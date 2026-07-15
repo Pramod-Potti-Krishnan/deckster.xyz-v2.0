@@ -7,6 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { CompactColorPicker } from '@/components/ui/color-picker'
 import { cn } from '@/lib/utils'
+import {
+  getLayoutViewerOrigin,
+  isTrustedLayoutViewerMessage,
+} from '@/lib/layout-viewer-messaging'
 
 // ============================================================================
 // Type Definitions
@@ -435,8 +439,9 @@ export function ThemePanel({
         return
       }
 
+      const iframe = iframeRef.current
       const handler = (event: MessageEvent) => {
-        if (event.origin !== viewerOrigin) return
+        if (!isTrustedLayoutViewerMessage(event, iframe, viewerOrigin)) return
 
         if (event.data.action === action) {
           window.removeEventListener('message', handler)
@@ -458,7 +463,10 @@ export function ThemePanel({
       }, 10000)
 
       console.log(`[ThemePanel] Sending postMessage:`, { action, params })
-      iframeRef.current.contentWindow?.postMessage({ action, params }, viewerOrigin)
+      iframe.contentWindow?.postMessage(
+        { action, params },
+        getLayoutViewerOrigin(iframe, viewerOrigin),
+      )
     })
   }, [iframeRef, viewerOrigin])
 

@@ -9,6 +9,9 @@ import {
   normalizeSlideComposeSocketFrame,
 } from '@/lib/slide-compose-async';
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
+import { guardDirectorLayoutUrlMessage } from '@/lib/director-layout-url-ingress';
+import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client';
+import { evaluateLayoutViewerUrl, sanitizeRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -486,8 +489,22 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Try to restore state from cache first (before creating default state)
   const getInitialState = (): UseDecksterWebSocketV2State => {
-    const cached = sessionCache.getCachedState();
-    if (cached && sessionCache.isCacheValid()) {
+    const rawCached = sessionCache.getCachedState();
+    if (rawCached && sessionCache.isCacheValid()) {
+      const { state: cached, blocked: blockedViewerUrls } = sanitizeRestoredLayoutViewerUrls(
+        rawCached,
+        LAYOUT_VIEWER_URL_POLICY,
+      );
+
+      if (blockedViewerUrls.length > 0) {
+        console.error('[LayoutViewerPolicy] Blocked restored viewer URLs', {
+          source: 'session_storage',
+          sessionId: sessionIdRef.current,
+          blocked: blockedViewerUrls,
+          allowedOrigins: LAYOUT_VIEWER_URL_POLICY.allowedOrigins,
+        });
+      }
+
       debugLog('⚡ Initializing from sessionStorage cache:', {
         messages: cached.messages?.length || 0,
         blank: !!cached.blankPresentationUrl,
@@ -497,10 +514,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
       // Determine activeVersion: use cached value if available, otherwise infer from URLs
       // Priority: final > strawman > blank
-      const cachedActiveVersion = (cached.activeVersion as 'blank' | 'strawman' | 'final') ||
-        (cached.finalPresentationUrl ? 'final' :
-         (cached.strawmanPreviewUrl ? 'strawman' :
-          (cached.blankPresentationUrl ? 'blank' : 'final')));
+      const requestedActiveVersion = cached.activeVersion as 'blank' | 'strawman' | 'final' | undefined;
+      const requestedVersionIsAvailable =
+        (requestedActiveVersion === 'final' && Boolean(cached.finalPresentationUrl)) ||
+        (requestedActiveVersion === 'strawman' && Boolean(cached.strawmanPreviewUrl)) ||
+        (requestedActiveVersion === 'blank' && Boolean(cached.blankPresentationUrl));
+      const cachedActiveVersion = requestedVersionIsAvailable
+        ? requestedActiveVersion!
+        : (cached.finalPresentationUrl ? 'final' :
+          (cached.strawmanPreviewUrl ? 'strawman' :
+            (cached.blankPresentationUrl ? 'blank' : 'final')));
+      const cachedDisplayUrl = cachedActiveVersion === 'blank'
+        ? cached.blankPresentationUrl
+        : cachedActiveVersion === 'strawman'
+          ? cached.strawmanPreviewUrl
+          : cached.finalPresentationUrl;
+      const cachedDisplayId = cachedActiveVersion === 'blank'
+        ? cached.blankPresentationId
+        : cachedActiveVersion === 'strawman'
+          ? cached.strawmanPresentationId
+          : cached.finalPresentationId;
 
       return {
         connected: false,
@@ -510,11 +543,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         userId: userIdRef.current,
         error: null,
         messages: cached.messages || [],
-        presentationUrl: cached.presentationUrl || null,
+        presentationUrl: cachedDisplayUrl || cached.presentationUrl || null,
         strawmanPreviewUrl: cached.strawmanPreviewUrl || null,
         finalPresentationUrl: cached.finalPresentationUrl || null,
         deckOwnerSessionId: sessionIdRef.current,
-        presentationId: cached.presentationId || null,
+        presentationId: cachedDisplayUrl ? cachedDisplayId || null : cached.presentationId || null,
         strawmanPresentationId: cached.strawmanPresentationId || null,
         finalPresentationId: cached.finalPresentationId || null,
         // NEW: Blank presentation state (Builder V2)
@@ -791,7 +824,24 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             return;
           }
 
-          const message = parsedMessage as DirectorMessage;
+          const guardedMessage = guardDirectorLayoutUrlMessage(
+            parsedMessage as DirectorMessage & { payload: Record<string, any> },
+            LAYOUT_VIEWER_URL_POLICY,
+          );
+          const message = guardedMessage.message as DirectorMessage;
+          const blockedIngress = guardedMessage.ingress?.status === 'blocked'
+            ? guardedMessage.ingress
+            : null;
+
+          if (blockedIngress) {
+            console.error('[LayoutViewerPolicy] Blocked Director viewer URL', {
+              source: 'director_message',
+              messageType: message.type,
+              field: blockedIngress.field,
+              origin: blockedIngress.origin,
+              reason: blockedIngress.reason,
+            });
+          }
 
           // Add client-side timestamp for message ordering
           const messageWithTimestamp = {
@@ -821,6 +871,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               ...prev,
               messages: shouldAddToMessages ? [...prev.messages, messageWithTimestamp] : prev.messages,
             };
+
+            if (blockedIngress) {
+              // Keep an already-approved displayed deck, but never let a rejected
+              // frame become a version target, API id, callback, or persisted URL.
+              newState.currentStatus = null;
+            }
 
             // Track ephemeral chat_messages (Director thinking-stream) so MessageList
             // can fade them out once the real slide_update lands.
@@ -883,6 +939,22 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     sessionIdRef.current,
                   );
                   if (recovery.didRecover) {
+                    const recoveredUrlDecision = evaluateLayoutViewerUrl(
+                      recovery.state.finalPresentationUrl,
+                      LAYOUT_VIEWER_URL_POLICY,
+                    );
+                    if (recoveredUrlDecision.status !== 'allowed') {
+                      console.error('[LayoutViewerPolicy] Blocked sync recovery output', {
+                        source: 'sync_recovery',
+                        field: 'state.finalPresentationUrl',
+                        origin: recoveredUrlDecision.origin,
+                        reason: recoveredUrlDecision.status === 'blocked'
+                          ? recoveredUrlDecision.reason
+                          : 'missing_url',
+                      });
+                      break;
+                    }
+
                     Object.assign(newState, recovery.state);
                     debugLog('🔁 Restored finished presentation from sync_response (reconnect repaint)');
 
@@ -905,6 +977,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
               case 'presentation_url':
                 debugLog('🎯 Final presentation URL received:', message.payload.url);
+
+                if (guardedMessage.ingress?.status !== 'allowed') {
+                  newState.currentStatus = null;
+                  break;
+                }
 
                 // Extended-generation builds (Phase 4a) emit one ephemeral
                 // "Building slide N/M…" progress bubble per slide, then close the
@@ -1218,7 +1295,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
           if (message.type === 'slide_progress') {
             options.onSlideComposeProgress?.(message);
-          } else if (message.type === 'slide_ready') {
+          } else if (message.type === 'slide_ready' && !blockedIngress) {
             options.onSlideComposeReady?.(message);
           } else if (message.type === 'slide_failed') {
             options.onSlideComposeFailed?.(message);
@@ -1518,7 +1595,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   }, [sessionCache, setStateWithCache]);
 
   // Restore messages from database (for session loading)
-  const restoreMessages = useCallback((historicalMessages: DirectorMessage[], sessionState?: {
+  const restoreMessages = useCallback((historicalMessages: DirectorMessage[], restoredSessionState?: {
     presentationUrl?: string | null;
     presentationId?: string | null;
     strawmanPreviewUrl?: string | null;
@@ -1534,6 +1611,37 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     currentStage?: number | null;
     activeVersion?: 'blank' | 'strawman' | 'final' | null;
   }) => {
+    const { state: sessionState, blocked: blockedViewerUrls } = sanitizeRestoredLayoutViewerUrls(
+      restoredSessionState || {},
+      LAYOUT_VIEWER_URL_POLICY,
+    );
+
+    if (blockedViewerUrls.length > 0) {
+      console.error('[LayoutViewerPolicy] Blocked restored viewer URLs', {
+        source: 'restore_messages',
+        sessionId: sessionIdRef.current,
+        blocked: blockedViewerUrls,
+        allowedOrigins: LAYOUT_VIEWER_URL_POLICY.allowedOrigins,
+      });
+    }
+
+    const safeHistoricalMessages = historicalMessages.map(message => {
+      const guarded = guardDirectorLayoutUrlMessage(
+        message as DirectorMessage & { payload: Record<string, any> },
+        LAYOUT_VIEWER_URL_POLICY,
+      );
+      if (guarded.ingress?.status === 'blocked') {
+        console.error('[LayoutViewerPolicy] Blocked historical Director viewer URL', {
+          source: 'restore_messages',
+          messageType: message.type,
+          field: guarded.ingress.field,
+          origin: guarded.ingress.origin,
+          reason: guarded.ingress.reason,
+        });
+      }
+      return guarded.message as DirectorMessage;
+    });
+
     debugLog(`🔄 Restoring ${historicalMessages.length} messages from database`);
     debugLog(`📊 Restoration data:`, {
       presentationUrl: sessionState?.presentationUrl || '(none)',
@@ -1551,22 +1659,28 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     // Priority: final > strawman > blank
     let activeVersion: 'blank' | 'strawman' | 'final' = 'final';
 
-    if (sessionState?.activeVersion) {
+    if (
+      sessionState.activeVersion && (
+        (sessionState.activeVersion === 'final' && sessionState.finalPresentationUrl) ||
+        (sessionState.activeVersion === 'strawman' && sessionState.strawmanPreviewUrl) ||
+        (sessionState.activeVersion === 'blank' && sessionState.blankPresentationUrl)
+      )
+    ) {
       // If activeVersion is explicitly provided (from database or cache), use it
       activeVersion = sessionState.activeVersion;
-    } else if (sessionState?.currentStage === 4) {
+    } else if (sessionState.currentStage === 4 && sessionState.strawmanPreviewUrl) {
       // Stage 4 = strawman preview
       activeVersion = 'strawman';
-    } else if (sessionState?.currentStage === 6) {
+    } else if (sessionState.currentStage === 6 && sessionState.finalPresentationUrl) {
       // Stage 6 = final presentation
       activeVersion = 'final';
     } else {
       // Fallback: infer from which URLs are available (prefer final > strawman > blank)
-      if (sessionState?.finalPresentationUrl) {
+      if (sessionState.finalPresentationUrl) {
         activeVersion = 'final';
-      } else if (sessionState?.strawmanPreviewUrl) {
+      } else if (sessionState.strawmanPreviewUrl) {
         activeVersion = 'strawman';
-      } else if (sessionState?.blankPresentationUrl) {
+      } else if (sessionState.blankPresentationUrl) {
         activeVersion = 'blank';
       }
     }
@@ -1576,49 +1690,49 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     let displayId: string | null = null;
 
     if (activeVersion === 'blank') {
-      displayUrl = sessionState?.blankPresentationUrl || null;
-      displayId = sessionState?.blankPresentationId || null;
+      displayUrl = sessionState.blankPresentationUrl || null;
+      displayId = sessionState.blankPresentationId || null;
     } else if (activeVersion === 'strawman') {
-      displayUrl = sessionState?.strawmanPreviewUrl || null;
-      displayId = sessionState?.strawmanPresentationId || null;
+      displayUrl = sessionState.strawmanPreviewUrl || null;
+      displayId = sessionState.strawmanPresentationId || null;
     } else {
-      displayUrl = sessionState?.finalPresentationUrl || null;
-      displayId = sessionState?.finalPresentationId || null;
+      displayUrl = sessionState.finalPresentationUrl || null;
+      displayId = sessionState.finalPresentationId || null;
     }
 
     debugLog(`✅ Determined activeVersion: ${activeVersion} (display URL: ${displayUrl ? 'present' : 'none'})`);
     const restoredDeckOwnerSessionId = (
       displayUrl ||
-      sessionState?.blankPresentationUrl ||
-      sessionState?.strawmanPreviewUrl ||
-      sessionState?.finalPresentationUrl
+      sessionState.blankPresentationUrl ||
+      sessionState.strawmanPreviewUrl ||
+      sessionState.finalPresentationUrl
     ) ? sessionIdRef.current : null;
 
     setStateWithCache(prev => ({
       ...prev,
-      messages: historicalMessages,
+      messages: safeHistoricalMessages,
       // CRITICAL FIX: Use computed display URL based on activeVersion
       // This ensures the correct presentation version is shown
       presentationUrl: displayUrl,
       presentationId: displayId,
-      strawmanPreviewUrl: sessionState?.strawmanPreviewUrl || null,
-      strawmanPresentationId: sessionState?.strawmanPresentationId || null,
-      finalPresentationUrl: sessionState?.finalPresentationUrl || null,
-      finalPresentationId: sessionState?.finalPresentationId || null,
+      strawmanPreviewUrl: sessionState.strawmanPreviewUrl || null,
+      strawmanPresentationId: sessionState.strawmanPresentationId || null,
+      finalPresentationUrl: sessionState.finalPresentationUrl || null,
+      finalPresentationId: sessionState.finalPresentationId || null,
       deckOwnerSessionId: restoredDeckOwnerSessionId,
       // NEW: Blank presentation state (Builder V2)
-      blankPresentationUrl: sessionState?.blankPresentationUrl || null,
-      blankPresentationId: sessionState?.blankPresentationId || null,
-      isBlankPresentation: sessionState?.isBlankPresentation || false,
+      blankPresentationUrl: sessionState.blankPresentationUrl || null,
+      blankPresentationId: sessionState.blankPresentationId || null,
+      isBlankPresentation: sessionState.isBlankPresentation || false,
       activeVersion: activeVersion,
-      slideCount: sessionState?.slideCount || null,
-      slideStructure: sessionState?.slideStructure || null,
-      currentStage: sessionState?.currentStage || null,
+      slideCount: sessionState.slideCount || null,
+      slideStructure: sessionState.slideStructure || null,
+      currentStage: sessionState.currentStage || null,
       currentStatus: null, // Always clear status on session restore
       ephemeralMessageIds: [],
       ephemeralFadeToken: 0,
-      tokenUsage: (sessionState as any)?.tokenUsage || null,
-      tokenUsageMessageId: (sessionState as any)?.tokenUsageMessageId || null,
+      tokenUsage: (sessionState as any).tokenUsage || null,
+      tokenUsageMessageId: (sessionState as any).tokenUsageMessageId || null,
     }));
   }, [setStateWithCache]);
 
