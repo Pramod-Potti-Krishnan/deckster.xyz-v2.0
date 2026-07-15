@@ -26,7 +26,7 @@ import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { iframeTypeToTextLabs, isTextLabsMappable } from '@/lib/element-type-mapping'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
-import type { TextLabsComponentType } from '@/types/textlabs'
+import type { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 // Extracted components
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
@@ -2469,6 +2469,20 @@ function BuilderContent() {
     toast,
   })
 
+  const handleApprovedTextLabsGenerate = useCallback(async (formData: TextLabsFormData) => {
+    if (!layoutServiceApis?.sendElementCommand) {
+      generationPanel.setError('The presentation viewer is unavailable. Reload the presentation and try again.')
+      toast({
+        title: 'Presentation unavailable',
+        description: 'Wait for an approved presentation viewer to load before generating an element.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    await handleTextLabsGenerate(formData)
+  }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast])
+
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
     if (!features.useTextLabsGeneration) return
 
@@ -3090,7 +3104,7 @@ function BuilderContent() {
                     generationPanel.closePanel()
                   }}
                   onReopen={generationPanel.reopenPanel}
-                  onGenerate={handleTextLabsGenerate}
+                  onGenerate={handleApprovedTextLabsGenerate}
                   onElementTypeChange={generationPanel.changeElementType}
                   isGenerating={generationPanel.isGenerating}
                   error={generationPanel.error}

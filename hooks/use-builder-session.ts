@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
+import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
+import { sanitizeRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy'
 import { type DirectorMessage, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
 
 interface UseBuilderSessionParams {
@@ -322,7 +324,7 @@ export function useBuilderSession({
               hasTitleFromPresentationRef.current = true
             }
 
-            const sessionState = {
+            const restoredSessionState = {
               presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl,
               presentationId: session.finalPresentationId || session.strawmanPresentationId,
               strawmanPreviewUrl: session.strawmanPreviewUrl,
@@ -333,6 +335,18 @@ export function useBuilderSession({
               slideStructure: (session as any).stateCache?.slideStructure || null,
               currentStage: session.currentStage,
               activeVersion: (session as any).stateCache?.activeVersion || null
+            }
+            const { state: sessionState, blocked: blockedViewerUrls } = sanitizeRestoredLayoutViewerUrls(
+              restoredSessionState,
+              LAYOUT_VIEWER_URL_POLICY,
+            )
+
+            if (blockedViewerUrls.length > 0) {
+              toast({
+                title: 'Saved presentation unavailable here',
+                description: 'This session points to a Layout Service from another environment, so its viewer was not loaded.',
+                variant: 'destructive',
+              })
             }
 
             if (session.messages && session.messages.length > 0) {
@@ -420,7 +434,11 @@ export function useBuilderSession({
               setUserMessages([])
               userMessageIdsRef.current.clear()
               userMessageContentMapRef.current.clear()
-              const hasPresentationState = Boolean(sessionState.finalPresentationUrl || sessionState.strawmanPreviewUrl)
+              const hasPresentationState = Boolean(
+                sessionState.presentationUrl ||
+                sessionState.finalPresentationUrl ||
+                sessionState.strawmanPreviewUrl
+              )
               if (hasPresentationState) {
                 restoreMessages([], sessionState)
                 debugLog('📊 Restored presentation state without DB messages:', {

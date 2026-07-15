@@ -35,7 +35,12 @@ import {
 import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
-import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
+import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
+import {
+  getLayoutViewerOrigin,
+  isTrustedLayoutViewerMessage,
+} from '@/lib/layout-viewer-messaging'
+import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
 import {
   isMatchingSlideComposeCommandResponse,
   restoreSlideViewerSelection,
@@ -208,7 +213,7 @@ interface PresentationViewerProps {
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
-  }) => void
+  } | null) => void
   onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
 }
 
@@ -247,15 +252,6 @@ interface SlideInfo {
 
 // Viewer origin for postMessage communication
 const VIEWER_ORIGIN = new URL(LAYOUT_SERVICE_URL).origin
-
-function getIframeOrigin(iframe: HTMLIFrameElement | null): string {
-  if (!iframe?.src) return VIEWER_ORIGIN
-  try {
-    return new URL(iframe.src).origin
-  } catch {
-    return VIEWER_ORIGIN
-  }
-}
 
 /**
  * Send command to iframe via postMessage (cross-origin safe)
@@ -297,7 +293,7 @@ function sendCommand(
       return
     }
 
-    const targetOrigin = getIframeOrigin(iframe)
+    const targetOrigin = getLayoutViewerOrigin(iframe, VIEWER_ORIGIN)
     let settled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
@@ -310,8 +306,7 @@ function sendCommand(
     }
 
     const handler = (event: MessageEvent) => {
-      // Only accept messages from viewer origin
-      if (event.origin !== targetOrigin) return
+      if (!isTrustedLayoutViewerMessage(event, iframe, VIEWER_ORIGIN)) return
 
       const matches = requiresStrictResponse
         ? isMatchingSlideComposeCommandResponse(event.data, {
@@ -376,7 +371,10 @@ function postCommand(
   action: string,
   params?: Record<string, any>,
 ) {
-  iframe?.contentWindow?.postMessage({ action, params, requestId: createViewerRequestId() }, getIframeOrigin(iframe))
+  iframe?.contentWindow?.postMessage(
+    { action, params, requestId: createViewerRequestId() },
+    getLayoutViewerOrigin(iframe, VIEWER_ORIGIN),
+  )
 }
 
 function waitForViewerSettle(delayMs: number): Promise<void> {
@@ -453,6 +451,7 @@ export function PresentationViewer({
   const [showThumbnails, setShowThumbnails] = useState(true) // Show by default
   const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
   const [iframeReady, setIframeReady] = useState(false)
+  const [loadedApprovedNavigationUrl, setLoadedApprovedNavigationUrl] = useState<string | null>(null)
   const [pollingFailureCount, setPollingFailureCount] = useState(0)
   const lastSlideInfoRef = useRef<{ slide: number; total: number; visualTotal: number } | null>(null)
   const onSlideChangeRef = useRef(onSlideChange)
@@ -472,11 +471,18 @@ export function PresentationViewer({
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPresentationSettings, setShowPresentationSettings] = useState(false)
   const [showThemePanel, setShowThemePanel] = useState(false)
+  const viewerUrlDecision = useMemo(
+    () => evaluateLayoutViewerUrl(presentationUrl, LAYOUT_VIEWER_URL_POLICY),
+    [presentationUrl],
+  )
+  const approvedPresentationUrl = viewerUrlDecision.status === 'allowed'
+    ? viewerUrlDecision.url
+    : null
   const templateSaveGate = getTemplateSaveGate({
     templateBuilderEnabled,
     sessionId,
     deckOwnerSessionId,
-    presentationUrl,
+    presentationUrl: approvedPresentationUrl,
     presentationId,
     finalPresentationUrl,
     templateSavePresentationId,
@@ -493,6 +499,17 @@ export function PresentationViewer({
   // Layout Service honors ?showNotes=true/false on the iframe URL; in
   // fullscreen we always force false regardless of this state.
   const [isNotesActive, setIsNotesActive] = useState(false)
+  const approvedIframeNavigationUrl = useMemo(() => {
+    if (!approvedPresentationUrl) return null
+    const url = new URL(approvedPresentationUrl)
+    url.searchParams.set('showNotes', String(!isFullscreen && isNotesActive))
+    return url.toString()
+  }, [approvedPresentationUrl, isFullscreen, isNotesActive])
+  const viewerIsReady = Boolean(
+    iframeReady &&
+    approvedIframeNavigationUrl &&
+    loadedApprovedNavigationUrl === approvedIframeNavigationUrl
+  )
   // Theme — read from next-themes (canonical theme source, shared with
   // the profile-menu's "Dark Mode" toggle). Used inside the Mode dropdown.
   const { resolvedTheme, setTheme } = useTheme()
@@ -525,21 +542,43 @@ export function PresentationViewer({
     }
   }, [slideStructure])
 
-  // Reset iframe ready state when presentation URL changes
+  // Reset readiness for every exact iframe navigation, including notes and
+  // fullscreen query-string rewrites.
   useEffect(() => {
-    debugLog('🔄 Presentation URL changed, resetting iframe state')
+    debugLog('🔄 Presentation iframe navigation changed, resetting readiness')
     setIframeReady(false)
+    setLoadedApprovedNavigationUrl(null)
     setPollingFailureCount(0)
     lastSlideInfoRef.current = null
-  }, [presentationUrl])
+  }, [approvedIframeNavigationUrl])
+
+  useEffect(() => {
+    if (viewerUrlDecision.status !== 'blocked') return
+
+    setIframeReady(false)
+    setLoadedApprovedNavigationUrl(null)
+    console.error('[LayoutViewerPolicy] Blocked presentation viewer URL', {
+      source: 'presentation_viewer',
+      origin: viewerUrlDecision.origin,
+      reason: viewerUrlDecision.reason,
+      allowedOrigins: LAYOUT_VIEWER_URL_POLICY.allowedOrigins,
+    })
+  }, [viewerUrlDecision])
 
   // Handle iframe load event
-  const handleIframeLoad = useCallback(() => {
+  const handleIframeLoad = useCallback((event: React.SyntheticEvent<HTMLIFrameElement>) => {
+    const loadedUrl = event.currentTarget.src
+    if (!approvedIframeNavigationUrl || loadedUrl !== approvedIframeNavigationUrl) {
+      setIframeReady(false)
+      setLoadedApprovedNavigationUrl(null)
+      return
+    }
     debugLog('✅ Iframe loaded and ready')
+    setLoadedApprovedNavigationUrl(loadedUrl)
     setIframeReady(true)
     setPollingFailureCount(0) // Reset failure count on load
     lastSlideInfoRef.current = null
-  }, [])
+  }, [approvedIframeNavigationUrl])
 
   // Extract slide thumbnails from slideStructure
   // Use totalSlides when: CRUD ops occurred, OR slideStructure is stale/missing
@@ -624,10 +663,7 @@ export function PresentationViewer({
     if (!iframeRef.current) return
     const nextActive = !isGridActive
     setIsGridActive(nextActive)
-    iframeRef.current.contentWindow?.postMessage(
-      { action: nextActive ? 'showGridOverlay' : 'hideGridOverlay' },
-      VIEWER_ORIGIN
-    )
+    postCommand(iframeRef.current, nextActive ? 'showGridOverlay' : 'hideGridOverlay')
     debugLog(`📐 Grid overlay: ${nextActive ? 'ON' : 'OFF'}`)
   }, [isGridActive])
 
@@ -687,7 +723,7 @@ export function PresentationViewer({
   // Poll for slide info updates via postMessage (with exponential backoff)
   useEffect(() => {
     // Don't poll if iframe isn't ready
-    if (!iframeReady) {
+    if (!viewerIsReady) {
       debugLog('⏸️ Polling paused - iframe not ready yet')
       return
     }
@@ -704,7 +740,7 @@ export function PresentationViewer({
     const backoffInterval = Math.min(baseInterval * Math.pow(2, pollingFailureCount), 10000)
 
     const interval = setInterval(async () => {
-      if (!iframeRef.current || !iframeReady) return
+      if (!iframeRef.current || !viewerIsReady) return
 
       try {
         const hasComposeJobs = composeJobs.length > 0
@@ -748,7 +784,7 @@ export function PresentationViewer({
     }, backoffInterval)
 
     return () => clearInterval(interval)
-  }, [composeJobs.length, iframeReady, pollingFailureCount, slideCount, totalSlides])
+  }, [composeJobs.length, pollingFailureCount, slideCount, totalSlides, viewerIsReady])
 
   // Force save handler (for Ctrl+S and retry on error)
   // IMPORTANT: Must be declared BEFORE the keyboard shortcuts useEffect that references it
@@ -1598,10 +1634,7 @@ export function PresentationViewer({
     if (!iframeRef.current) return
 
     // Send refreshSlide command to iframe - Layout Service will reload current slide
-    iframeRef.current.contentWindow?.postMessage(
-      { action: 'refreshSlide' },
-      VIEWER_ORIGIN
-    )
+    postCommand(iframeRef.current, 'refreshSlide')
     debugLog('[Elementor] Triggered iframe refresh after auto-injection')
   }, [])
 
@@ -1874,20 +1907,27 @@ export function PresentationViewer({
 
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {
-    if (iframeReady && onApiReady) {
-      onApiReady({
-        getSelectionInfo: handleGetSelectionInfo,
-        updateSectionContent: handleUpdateSectionContent,
-        sendTextBoxCommand: handleSendTextBoxCommand,
-        sendElementCommand: handleSendElementCommand
-      })
+    if (!onApiReady) return
+
+    if (!viewerIsReady) {
+      onApiReady(null)
+      return
     }
-  }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand])
+
+    onApiReady({
+      getSelectionInfo: handleGetSelectionInfo,
+      updateSectionContent: handleUpdateSectionContent,
+      sendTextBoxCommand: handleSendTextBoxCommand,
+      sendElementCommand: handleSendElementCommand
+    })
+
+    return () => onApiReady(null)
+  }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand])
 
   useEffect(() => {
     if (!onComposeApiReady) return
 
-    if (!iframeReady) {
+    if (!viewerIsReady) {
       onComposeApiReady(null)
       return
     }
@@ -1907,7 +1947,7 @@ export function PresentationViewer({
 
     return () => onComposeApiReady(null)
   }, [
-    iframeReady,
+    viewerIsReady,
     onComposeApiReady,
     handleComposePlaceholderAdd,
     handleComposeSlideReconcile,
@@ -2079,7 +2119,7 @@ export function PresentationViewer({
   // Listen for save status/refine events from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== VIEWER_ORIGIN) return
+      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
       const type = event.data?.type
       if (typeof type !== 'string' || !isLayoutViewerEvent(type)) return
 
@@ -2111,7 +2151,7 @@ export function PresentationViewer({
   // Listen for text box selection events from iframe
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (event.origin !== VIEWER_ORIGIN) return
+      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       // Handle text box selection - auto-enter edit mode
       if (event.data.type === 'textBoxSelected') {
@@ -2141,7 +2181,7 @@ export function PresentationViewer({
   // Listen for element selection events from iframe (Image, Chart, Table, Infographic, Diagram)
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (event.origin !== VIEWER_ORIGIN) return
+      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       // Handle element selection - auto-enter edit mode and show format panel
       if (event.data.type === 'elementSelected') {
@@ -2173,7 +2213,7 @@ export function PresentationViewer({
     if (!onElementMoved) return
 
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== VIEWER_ORIGIN) return
+      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       if (event.data.type === 'elementMoved' || event.data.action === 'elementMoved') {
         const elementId = event.data.elementId as string
@@ -2217,43 +2257,43 @@ export function PresentationViewer({
           {
             label: 'Table',
             icon: Grid2x2,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('TABLE') : handleInsertTable(3, 3),
           },
           {
             label: 'Metrics',
             icon: TrendingUp,
-            disabled: !presentationUrl || !onOpenGenerationPanel,
+            disabled: !viewerIsReady || !onOpenGenerationPanel,
             action: () => onOpenGenerationPanel?.('METRICS'),
           },
           {
             label: 'Chart',
             icon: BarChart3,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('CHART') : handleInsertChart({ type: 'bar' }),
           },
           {
             label: 'Text Box',
             icon: Type,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('TEXT_BOX') : handleInsertTextBox(),
           },
           {
             label: 'Image',
             icon: Image,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('IMAGE') : handleInsertImage(),
           },
           {
             label: 'Infographic',
             icon: LayoutGrid,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('INFOGRAPHIC') : handleInsertInfographic(),
           },
           {
             label: 'Diagram',
             icon: GitBranch,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('DIAGRAM') : handleInsertDiagram(),
           },
         ]
@@ -2275,7 +2315,7 @@ export function PresentationViewer({
               {/* Add Slide */}
               <SlideLayoutPicker
                 onAddSlide={handleAddSlide}
-                disabled={!presentationUrl || templateModeOn}
+                disabled={!viewerIsReady || templateModeOn}
                 className="min-w-[80px] justify-center"
               />
 
@@ -2283,7 +2323,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    disabled={!presentationUrl || templateModeOn}
+                    disabled={!viewerIsReady || templateModeOn}
                     className={cn(toolbarButtonClass, toolbarBtnBase, "min-w-[96px]")}
                     title="Add an element"
                   >
@@ -2320,6 +2360,7 @@ export function PresentationViewer({
                 >
                   <DropdownMenuTrigger asChild>
                     <button
+                      disabled={!viewerIsReady}
                       className={cn(toolbarButtonClass, toolbarBtnBase)}
                       title="Template options"
                     >
@@ -2399,7 +2440,7 @@ export function PresentationViewer({
               {/* Theme — 4th primary build action; sits with its build siblings */}
               <button
                 onClick={() => setShowThemePanel(true)}
-                disabled={!presentationUrl || templateModeOn}
+                disabled={!viewerIsReady || templateModeOn}
                 className={cn(toolbarButtonClass, toolbarBtnBase)}
                 title="Presentation theme"
               >
@@ -2414,6 +2455,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
+                    disabled={!viewerIsReady}
                     className={cn(toolbarButtonClass, toolbarBtnQuiet)}
                     title="Editing mode + theme"
                   >
@@ -2463,6 +2505,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
+                    disabled={!viewerIsReady}
                     className={cn(toolbarButtonClass, toolbarBtnQuiet)}
                     title="Display options"
                   >
@@ -2521,7 +2564,7 @@ export function PresentationViewer({
               ) : saveStatus === 'unsaved' || saveStatus === 'error' ? (
                 <button
                   onClick={handleSaveChanges}
-                  disabled={isSaving || !presentationUrl}
+                  disabled={isSaving || !viewerIsReady}
                   className={cn(toolbarButtonClass, "bg-amber-500/20 text-amber-700 hover:bg-amber-500/30 dark:text-amber-200")}
                   title="Save changes now"
                 >
@@ -2531,7 +2574,7 @@ export function PresentationViewer({
               ) : null}
 
               {/* Version switcher — only surfaces once a tagged strawman/final version exists */}
-              {(strawmanPreviewUrl || finalPresentationUrl) && (
+              {viewerIsReady && (strawmanPreviewUrl || finalPresentationUrl) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -2585,7 +2628,7 @@ export function PresentationViewer({
               {/* Play */}
               <button
                 onClick={handleFullscreen}
-                disabled={!presentationUrl}
+                disabled={!viewerIsReady}
                 className={cn(toolbarButtonClass, toolbarBtnBase)}
                 title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
               >
@@ -2598,7 +2641,7 @@ export function PresentationViewer({
               </button>
 
               {/* Download Controls */}
-              {downloadControls}
+              {viewerIsReady ? downloadControls : null}
             </div>
           </div>
         )
@@ -2662,7 +2705,7 @@ export function PresentationViewer({
                 </button>
               </div>
             )}
-            {presentationUrl ? (
+            {approvedPresentationUrl ? (
               <div
                 className={cn(
                   isFullscreen ? '' : 'max-w-7xl',
@@ -2694,21 +2737,9 @@ export function PresentationViewer({
                 )}
                 <div className="relative z-10 h-full w-full overflow-hidden rounded-sm">
                   <iframe
+                  key={approvedIframeNavigationUrl}
                   ref={iframeRef}
-                  src={(() => {
-                    // showNotes: true when the user has the Notes toggle on
-                    // AND we're not in fullscreen presentation mode.
-                    // Layout Service honors ?showNotes=true|false on the
-                    // iframe URL (see docs/BACKEND_REQUEST_THUMBNAILS_AND_NOTES.md).
-                    const showNotesInIframe = !isFullscreen && isNotesActive
-                    try {
-                      const u = new URL(presentationUrl, window.location.href)
-                      u.searchParams.set('showNotes', String(showNotesInIframe))
-                      return u.toString()
-                    } catch {
-                      return presentationUrl
-                    }
-                  })()}
+                  src={approvedIframeNavigationUrl || undefined}
                   onLoad={handleIframeLoad}
                   className={cn(
                     "w-full h-full border-0 transition duration-200",
@@ -2730,6 +2761,21 @@ export function PresentationViewer({
                   />
                 )}
                 </div>
+              </div>
+            ) : viewerUrlDecision.status === 'blocked' ? (
+              <div
+                role="alert"
+                className="flex max-w-xl flex-col items-center justify-center rounded-lg border border-amber-300 bg-amber-50 p-8 text-center text-amber-950 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+              >
+                <p className="text-base font-semibold">Presentation blocked in this environment</p>
+                <p className="mt-2 text-sm opacity-80">
+                  This presentation points to a Layout Service origin that is not approved for this deployment.
+                </p>
+                {viewerUrlDecision.origin && (
+                  <code className="mt-3 max-w-full break-all rounded bg-black/5 px-2 py-1 text-xs dark:bg-white/10">
+                    {viewerUrlDecision.origin}
+                  </code>
+                )}
               </div>
             ) : (
               <div className="flex items-center justify-center text-gray-400">

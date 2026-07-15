@@ -6,6 +6,10 @@ import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  getLayoutViewerOrigin,
+  isTrustedLayoutViewerMessage,
+} from '@/lib/layout-viewer-messaging'
 
 // Data models matching backend API
 interface FooterConfig {
@@ -103,8 +107,9 @@ export function PresentationSettingsPanel({
         return
       }
 
+      const iframe = iframeRef.current
       const handler = (event: MessageEvent) => {
-        if (event.origin !== viewerOrigin) return
+        if (!isTrustedLayoutViewerMessage(event, iframe, viewerOrigin)) return
 
         if (event.data.action === action) {
           window.removeEventListener('message', handler)
@@ -124,7 +129,10 @@ export function PresentationSettingsPanel({
         reject(new Error('Command timeout'))
       }, 10000) // 10 second timeout for API calls
 
-      iframeRef.current.contentWindow?.postMessage({ action, params }, viewerOrigin)
+      iframe.contentWindow?.postMessage(
+        { action, params },
+        getLayoutViewerOrigin(iframe, viewerOrigin),
+      )
     })
   }, [iframeRef, viewerOrigin])
 

@@ -21,6 +21,8 @@ import {
 } from "@/hooks/use-deckster-websocket-v2"
 import { debugLog } from "@/lib/debug-log"
 import { hasLiveTrackedEphemeralMessage } from "@/lib/slide-compose-async"
+import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
+import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -391,6 +393,9 @@ export function MessageList({
             {(() => {
               if (msg.type === 'combined_strawman') {
                 const { slideUpdate, presentationUrl, actionRequest } = msg;
+                const presentationUrlDecision = presentationUrl
+                  ? evaluateLayoutViewerUrl(presentationUrl.payload.url, LAYOUT_VIEWER_URL_POLICY)
+                  : null
 
                 return (
                   <div className="flex gap-3 animate-in fade-in duration-200">
@@ -447,10 +452,15 @@ export function MessageList({
                             size="sm"
                             variant="outline"
                             className="text-[11px] h-7 px-2 border-gray-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 dark:bg-slate-900"
-                            onClick={() => window.open(presentationUrl.payload.url, '_blank')}
+                            disabled={presentationUrlDecision?.status !== 'allowed'}
+                            onClick={() => {
+                              if (presentationUrlDecision?.status === 'allowed') {
+                                window.open(presentationUrlDecision.url, '_blank', 'noopener,noreferrer')
+                              }
+                            }}
                           >
                             <ExternalLink className="h-3 w-3 mr-1" />
-                            Open
+                            {presentationUrlDecision?.status === 'allowed' ? 'Open' : 'Unavailable'}
                           </Button>
                         </div>
                       )}
