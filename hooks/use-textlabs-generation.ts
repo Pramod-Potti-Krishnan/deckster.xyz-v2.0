@@ -39,7 +39,7 @@ interface UseTextLabsGenerationParams {
     addElement: (info: BlankElementInfo) => void
   }
   textLabsSession: {
-    ensureSession: () => Promise<string>
+    ensureSession: (signal?: AbortSignal) => Promise<string>
   }
   layoutServiceApis: {
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
@@ -338,7 +338,7 @@ export function useTextLabsGeneration({
     const insertedElementIds: string[] = []
 
     try {
-      const sessionId = await textLabsSession.ensureSession()
+      const sessionId = await textLabsSession.ensureSession(controller.signal)
 
       let response
       if (formData.componentType === 'INFOGRAPHIC' && formData.referenceImage) {
@@ -358,11 +358,12 @@ export function useTextLabsGeneration({
             slideContext: formData.slideContext,
             deckContext: formData.deckContext,
             research: formData.research as Record<string, unknown> | null | undefined,
-          }
+          },
+          controller.signal,
         )
       } else {
         const { message, options } = buildApiPayload(sessionId, formData)
-        response = await sendTextLabsMessage(sessionId, message, options)
+        response = await sendTextLabsMessage(sessionId, message, options, controller.signal)
       }
 
       if (response.error) {
