@@ -81,6 +81,22 @@ function emptyDraft(): SlideNarrationDraft {
   return { script: '', notes: '', references: '' }
 }
 
+// Synthetic placeholder id for a slide whose stable slide_id hasn't resolved yet
+// (deck fetch / WS still pending). NAMESPACED BY PRESENTATION: a real slide_id is
+// globally unique, but a bare `idx:N` is NOT — deck A's index 0 would collide with
+// deck B's. Prefixing the presentation id (with a `::idx:` delimiter that cannot
+// appear in a real slide_id) makes `A::idx:0` and `B::idx:0` distinct, so a parked
+// placeholder edit can never render as, or fold into, another deck's slide.
+function placeholderId(presentationId: string | null, index: number): string {
+  return `${presentationId ?? ''}::idx:${index}`
+}
+
+// True for the synthetic placeholder ids above, for ANY presentation namespace.
+// Replaces the old bare `startsWith('idx:')` check.
+function isPlaceholder(id: string): boolean {
+  return id.includes('::idx:')
+}
+
 /** references may arrive as an array (canonical) or legacy free text */
 function referencesToText(value: unknown): string {
   if (Array.isArray(value)) return value.filter(Boolean).join('\n')
@@ -201,9 +217,11 @@ export function SlideNotesPanel({
     const slides = slideStructure?.slides
     if (!Array.isArray(slides)) return [] as string[]
     return slides.map((slide: any, index: number) =>
-      typeof slide?.slide_id === 'string' && slide.slide_id ? slide.slide_id : `idx:${index}`
+      typeof slide?.slide_id === 'string' && slide.slide_id
+        ? slide.slide_id
+        : placeholderId(presentationId, index)
     )
-  }, [slideStructure])
+  }, [slideStructure, presentationId])
 
   // Number of slides in the current deck — a change (add/delete) re-triggers the
   // authoritative read so drafts pick up new slides. (A reorder keeps the count
@@ -218,9 +236,10 @@ export function SlideNotesPanel({
   const effectiveSlideIds = useMemo(() => {
     const len = Math.max(wsSlideIds.length, slideIds.length)
     const out: string[] = []
-    for (let i = 0; i < len; i++) out.push(wsSlideIds[i] ?? slideIds[i] ?? `idx:${i}`)
+    for (let i = 0; i < len; i++)
+      out.push(wsSlideIds[i] ?? slideIds[i] ?? placeholderId(presentationId, i))
     return out
-  }, [wsSlideIds, slideIds])
+  }, [wsSlideIds, slideIds, presentationId])
   const slideIdsRef = useRef(effectiveSlideIds)
   slideIdsRef.current = effectiveSlideIds
 
@@ -249,21 +268,50 @@ export function SlideNotesPanel({
     ): { ids: string[]; updatedAt: string | null } => {
       const slides = Array.isArray(presentation.slides) ? presentation.slides : []
       const ids = slides.map((slide: any, index: number) =>
-        typeof slide?.slide_id === 'string' && slide.slide_id ? slide.slide_id : `idx:${index}`
+        typeof slide?.slide_id === 'string' && slide.slide_id
+          ? slide.slide_id
+          : placeholderId(forPresentationId, index)
       )
       setSlideIds(ids)
 
       // idx:N → real slide_id migration (F4): an edit made before a stable id
-      // resolved was parked under the synthetic `idx:N` key (drafts, editedFields,
-      // and the pending queue). Now that this GET resolved the real id for index N,
-      // move those entries onto the real id so the previously-stuck edit can drain.
-      // (pending + editedFields migrate synchronously here; drafts inside setDrafts
-      // below. The migration-kick effect then flushes the freed edit once drafts
-      // commit.) We only migrate the pending of the deck this merge is FOR.
+      // resolved was parked under this deck's synthetic placeholder key
+      // (`placeholderId(forPresentationId, N)`) across drafts, editedFields, and the
+      // pending queue. Now that this GET resolved the real id for index N, move those
+      // entries onto the real id so the previously-stuck edit can drain. (pending +
+      // editedFields migrate synchronously here; drafts inside setDrafts below. The
+      // migration-kick effect then flushes the freed edit once drafts commit.) We only
+      // ever migrate the placeholders of the deck this merge is FOR.
       const saver = getSaver(forPresentationId)
+      // Capture, per (realId, field), the PRE-migration edited state so the drafts
+      // merge below can pick the NEWEST edit field-by-field (BUG 2). `realHadEdit` =
+      // the user independently re-edited this field under the real id AFTER it
+      // resolved (a newer edit that must win); `placeholderHadEdit` = the parked
+      // placeholder carried an edit for this field. This MUST be read BEFORE the
+      // editedFields union below folds placeholder:field into realId:field, which
+      // erases the distinction.
+      const migrations = new Map<
+        string,
+        {
+          placeholder: string
+          fields: Record<DirtyField, { realHadEdit: boolean; placeholderHadEdit: boolean }>
+        }
+      >()
       ids.forEach((realId, index) => {
-        if (realId.startsWith('idx:')) return
-        const placeholder = `idx:${index}`
+        if (isPlaceholder(realId)) return
+        const placeholder = placeholderId(forPresentationId, index)
+
+        const fields = {} as Record<DirtyField, { realHadEdit: boolean; placeholderHadEdit: boolean }>
+        ;(['script', 'notes', 'references'] as DirtyField[]).forEach((field) => {
+          fields[field] = {
+            realHadEdit: editedFieldsRef.current.has(`${realId}:${field}`),
+            placeholderHadEdit: editedFieldsRef.current.has(`${placeholder}:${field}`),
+          }
+        })
+        migrations.set(realId, { placeholder, fields })
+
+        // pending union (unchanged): both the parked and any real dirty fields stay
+        // queued so nothing the user typed is dropped.
         const parkedPending = saver.pending.get(placeholder)
         if (parkedPending && parkedPending.size > 0) {
           const target = saver.pending.get(realId) ?? new Set<DirtyField>()
@@ -271,6 +319,8 @@ export function SlideNotesPanel({
           saver.pending.set(realId, target)
         }
         saver.pending.delete(placeholder)
+        // editedFields union (unchanged): a placeholder edit keeps the field protected
+        // from the server refill under the real id too.
         ;(['script', 'notes', 'references'] as DirtyField[]).forEach((field) => {
           if (editedFieldsRef.current.has(`${placeholder}:${field}`)) {
             editedFieldsRef.current.add(`${realId}:${field}`)
@@ -281,16 +331,24 @@ export function SlideNotesPanel({
 
       setDrafts((prev) => {
         const next: Record<string, SlideNarrationDraft> = { ...prev }
-        // Migrate any idx:N draft onto its now-resolved real id before filling, so
-        // the user's parked edit survives (edited fields are protected below).
-        ids.forEach((realId, index) => {
-          if (realId.startsWith('idx:')) return
-          const placeholder = `idx:${index}`
+        // Field-aware idx:N → real id draft migration (BUG 2): the NEWEST edit per
+        // field wins, driven by the pre-migration edited state captured above.
+        //   • realHadEdit  → the user re-edited this field under the real id after it
+        //     resolved: keep the real value, never clobber it with the older parked one.
+        //   • placeholderHadEdit → the placeholder carried the newest edit: take it.
+        //   • neither → keep the real draft (the server fill below handles unedited
+        //     fields), so an empty placeholder value can never overwrite real content.
+        migrations.forEach(({ placeholder, fields }, realId) => {
           const parkedDraft = next[placeholder]
-          if (parkedDraft) {
-            next[realId] = { ...(next[realId] ?? emptyDraft()), ...parkedDraft }
-            delete next[placeholder]
-          }
+          if (!parkedDraft) return
+          const merged: SlideNarrationDraft = { ...(next[realId] ?? emptyDraft()) }
+          ;(['script', 'notes', 'references'] as DirtyField[]).forEach((field) => {
+            const { realHadEdit, placeholderHadEdit } = fields[field]
+            if (realHadEdit) return
+            if (placeholderHadEdit) merged[field] = parkedDraft[field]
+          })
+          next[realId] = merged
+          delete next[placeholder]
         })
         slides.forEach((slide: any, index: number) => {
           const id = ids[index]
@@ -464,7 +522,7 @@ export function SlideNotesPanel({
   // draft. idx: entries stay parked until the authoritative fetch resolves them.
   const hasDrainablePending = useCallback((saver: SaverState) => {
     for (const [slideId, dirty] of saver.pending) {
-      if (slideId.startsWith('idx:') || dirty.size === 0) continue
+      if (isPlaceholder(slideId) || dirty.size === 0) continue
       if (draftsRef.current[slideId]) return true
     }
     return false
@@ -479,9 +537,9 @@ export function SlideNotesPanel({
       const parked = new Map<string, Set<DirtyField>>()
       saver.pending.forEach((dirty, slideId) => {
         const draft = draftsRef.current[slideId]
-        // A synthetic idx: key means we lack a stable id yet (deck fetch / WS still
-        // pending) — keep it queued so a later pass retries rather than dropping it.
-        if (!draft || slideId.startsWith('idx:')) {
+        // A synthetic placeholder key means we lack a stable id yet (deck fetch / WS
+        // still pending) — keep it queued so a later pass retries rather than dropping it.
+        if (!draft || isPlaceholder(slideId)) {
           parked.set(slideId, dirty)
           return
         }
@@ -633,10 +691,11 @@ export function SlideNotesPanel({
 
   const handleFieldChange = useCallback((field: DirtyField, value: string) => {
     const slideIndex = currentSlideIndex
-    const slideId = slideIdsRef.current[slideIndex] ?? `idx:${slideIndex}`
-    editedFieldsRef.current.add(`${slideId}:${field}`)
-    // Queue onto the ON-SCREEN deck's saver — the only deck the user can type into.
+    // The ON-SCREEN deck — the only deck the user can type into. Its id namespaces
+    // any placeholder fallback so a pre-resolution edit can't collide across decks.
     const pid = presentationIdRef.current
+    const slideId = slideIdsRef.current[slideIndex] ?? placeholderId(pid, slideIndex)
+    editedFieldsRef.current.add(`${slideId}:${field}`)
     if (pid) {
       const saver = getSaver(pid)
       const set = saver.pending.get(slideId) ?? new Set<DirtyField>()
@@ -651,7 +710,7 @@ export function SlideNotesPanel({
   }, [currentSlideIndex, getSaver, scheduleSave])
 
   // --- Render ---------------------------------------------------------------
-  const currentSlideId = effectiveSlideIds[currentSlideIndex] ?? `idx:${currentSlideIndex}`
+  const currentSlideId = effectiveSlideIds[currentSlideIndex] ?? placeholderId(presentationId, currentSlideIndex)
   const draft = drafts[currentSlideId] ?? emptyDraft()
   // WS fallback only applies while the user hasn't touched the field and the
   // deck JSON gave us nothing (otherwise clearing the textarea would resurrect it)
