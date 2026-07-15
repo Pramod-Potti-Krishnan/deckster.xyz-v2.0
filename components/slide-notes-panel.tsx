@@ -16,6 +16,13 @@ const TAB_STORAGE_KEY = 'deckster.notesPanel.tab'
 const SAVE_DEBOUNCE_MS = 800
 // How long the "Saved" affordance stays visible after a successful save
 const SAVED_INDICATOR_MS = 2000
+// Single-worker drain: how many save passes before we stop looping and lean on
+// the scheduled fallback retry; the backoff between passes that left a conflict
+// or error; and the fallback-retry delay that recovers a persistent backlog even
+// after the user stops typing.
+const MAX_DRAIN_PASSES = 4
+const DRAIN_BACKOFF_MS = 600
+const DRAIN_RETRY_MS = 3000
 
 type NotesTab = 'script' | 'notes' | 'references'
 type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'syncing'
@@ -127,6 +134,16 @@ export function SlideNotesPanel({
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedIndicatorRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // One active save worker per presentation — a second debounce fire must NOT
+  // launch a concurrent worker (both would read the same updatedAtRef and race
+  // the server guard, the older-finishing write winning → the newer draft lost).
+  const isSavingRef = useRef(false)
+  // Fallback retry timer: reschedules the drain after a persistent conflict/error
+  // so a stuck backlog recovers even if the user stops typing.
+  const drainRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Late-bound handle to the drain, so the retry scheduler can invoke it without
+  // a useCallback dependency cycle (scheduler ↔ drain).
+  const drainSavesRef = useRef<((targetPresentationId: string) => void) | null>(null)
 
   // WS fallback: speaker_notes already travel on slideStructure (index-keyed —
   // this only ever backs the slide currently on screen)
@@ -172,11 +189,18 @@ export function SlideNotesPanel({
   const slideIdsRef = useRef(effectiveSlideIds)
   slideIdsRef.current = effectiveSlideIds
 
-  // Full reset when the presentation itself changes
+  // Full reset when the presentation itself changes. (isSavingRef is intentionally
+  // NOT reset here — a drain flushing the OLD deck owns that flag for its full
+  // lifetime and clears it itself; the flush-on-change cleanup below runs before
+  // this reset, so the old deck's pending is already captured.)
   useEffect(() => {
     editedFieldsRef.current = new Set()
     pendingRef.current = new Map()
     updatedAtRef.current = null
+    if (drainRetryTimerRef.current) {
+      clearTimeout(drainRetryTimerRef.current)
+      drainRetryTimerRef.current = null
+    }
     setDrafts({})
     setSlideIds([])
     setSaveState('idle')
@@ -264,7 +288,7 @@ export function SlideNotesPanel({
     async (
       targetPresentationId: string,
       jobs: Array<{ slideId: string; fields: SlideNarrationFields }>,
-    ) => {
+    ): Promise<{ hadError: boolean; hadConflict: boolean }> => {
       const isCurrent = () => targetPresentationId === presentationIdRef.current
       let hadError = false
       let hadConflict = false
@@ -339,10 +363,103 @@ export function SlideNotesPanel({
         }
       }
 
-      if (hadError) {
-        setSaveState('error')
-      } else if (hadConflict) {
-        setSaveState('syncing')
+      // The drain loop owns the final save-state transition (and any retry) so
+      // it can weigh the whole backlog across passes — return what this pass saw.
+      return { hadError, hadConflict }
+    },
+    [mergeDeck, requeue, toast],
+  )
+
+  // Is there anything the drain can save right now? Drainable = a real slide_id
+  // (not a synthetic idx: key, which means no stable id yet) with a materialized
+  // draft. idx: entries stay parked until the authoritative fetch resolves them.
+  const hasDrainablePending = useCallback(() => {
+    for (const [slideId, dirty] of pendingRef.current) {
+      if (slideId.startsWith('idx:') || dirty.size === 0) continue
+      if (draftsRef.current[slideId]) return true
+    }
+    return false
+  }, [])
+
+  // Pull the drainable PATCH jobs out of the pending queue (payloads addressed by
+  // stable slide_id), leaving idx: / not-yet-materialized entries parked for a
+  // later pass. MOVES jobs out of pending so requeue-on-failure re-adds cleanly.
+  const buildJobs = useCallback((): Array<{ slideId: string; fields: SlideNarrationFields }> => {
+    const jobs: Array<{ slideId: string; fields: SlideNarrationFields }> = []
+    const parked = new Map<string, Set<DirtyField>>()
+    pendingRef.current.forEach((dirty, slideId) => {
+      const draft = draftsRef.current[slideId]
+      // A synthetic idx: key means we lack a stable id yet (deck fetch / WS still
+      // pending) — keep it queued so a later pass retries rather than dropping it.
+      if (!draft || slideId.startsWith('idx:')) {
+        parked.set(slideId, dirty)
+        return
+      }
+      const payload: SlideNarrationFields = {}
+      if (dirty.has('script')) payload.script = draft.script
+      if (dirty.has('notes')) payload.speaker_notes = draft.notes
+      if (dirty.has('references')) payload.references = textToReferences(draft.references)
+      if (Object.keys(payload).length > 0) jobs.push({ slideId, fields: payload })
+    })
+    pendingRef.current = parked
+    return jobs
+  }, [])
+
+  // Reschedule the drain after a persistent conflict/error so a stuck backlog
+  // recovers even if the user stops typing (otherwise the panel would sit on
+  // "Syncing…"/"Not saved" until the next edit or unmount).
+  const scheduleDrainRetry = useCallback((targetPresentationId: string) => {
+    if (drainRetryTimerRef.current) clearTimeout(drainRetryTimerRef.current)
+    drainRetryTimerRef.current = setTimeout(() => {
+      drainRetryTimerRef.current = null
+      // Only retry the on-screen deck; a since-swapped deck was already flushed.
+      if (targetPresentationId === presentationIdRef.current) {
+        drainSavesRef.current?.(targetPresentationId)
+      }
+    }, DRAIN_RETRY_MS)
+  }, [])
+
+  // Single-worker drain loop. Only one runs per presentation at a time (the
+  // isSavingRef guard), so concurrent debounce fires can't race the shared
+  // updated_at token. Each pass saves the queued jobs with the existing per-job
+  // logic (expected_updated_at seeding, single 409 refetch+retry, isCurrent()
+  // guards); a pass that left a conflict/error backs off before the next pass.
+  const drainSaves = useCallback(
+    async (targetPresentationId: string) => {
+      if (isSavingRef.current) return
+      if (!hasDrainablePending()) return
+      isSavingRef.current = true
+      setSaveState('saving')
+
+      let hadError = false
+      try {
+        for (let pass = 0; pass < MAX_DRAIN_PASSES; pass++) {
+          // After the first pass, only keep looping while we're still the
+          // on-screen deck. A flush-on-presentation-change drains the old deck's
+          // captured pending once (correct target) then stops — re-reading pending
+          // would pick up the NEW deck's edits and mis-save them to the old deck.
+          if (pass > 0 && targetPresentationId !== presentationIdRef.current) break
+          const jobs = buildJobs()
+          if (jobs.length === 0) break
+          const result = await runNarrationSaves(targetPresentationId, jobs)
+          hadError = result.hadError
+          if (result.hadError || result.hadConflict) {
+            await new Promise((resolve) => setTimeout(resolve, DRAIN_BACKOFF_MS))
+          }
+        }
+      } finally {
+        isSavingRef.current = false
+      }
+
+      // Only own the UI state if we're still the on-screen deck — a drain that was
+      // flushing a since-swapped deck must not stomp the current deck's state.
+      if (targetPresentationId !== presentationIdRef.current) return
+
+      if (hasDrainablePending()) {
+        // Persistent conflict/error after the bounded passes — surface it and
+        // schedule a fallback retry so it recovers without another edit.
+        setSaveState(hadError ? 'error' : 'syncing')
+        scheduleDrainRetry(targetPresentationId)
       } else {
         setSaveState('saved')
         if (savedIndicatorRef.current) clearTimeout(savedIndicatorRef.current)
@@ -351,39 +468,18 @@ export function SlideNotesPanel({
         }, SAVED_INDICATOR_MS)
       }
     },
-    [mergeDeck, requeue, toast],
+    [hasDrainablePending, buildJobs, runNarrationSaves, scheduleDrainRetry],
   )
+  drainSavesRef.current = drainSaves
 
-  // Build PATCH jobs from the pending queue (payloads addressed by stable
-  // slide_id) and hand them to the sequential saver.
+  // Entry point: ensure the single drain worker is running for this deck. A
+  // second call while one is in flight is a no-op (the worker picks up newly
+  // queued items on its next pass).
   const flushPending = useCallback(
     (targetPresentationId: string) => {
-      const pending = pendingRef.current
-      if (pending.size === 0) return
-      pendingRef.current = new Map()
-
-      const jobs: Array<{ slideId: string; fields: SlideNarrationFields }> = []
-      pending.forEach((dirty, slideId) => {
-        const draft = draftsRef.current[slideId]
-        // The PATCH is addressed by real slide_id. A synthetic idx: key means we
-        // don't have a stable id yet (deck fetch / WS still pending) — re-queue so
-        // a later flush retries rather than dropping the edit.
-        if (!draft || slideId.startsWith('idx:')) {
-          pendingRef.current.set(slideId, dirty)
-          return
-        }
-        const payload: SlideNarrationFields = {}
-        if (dirty.has('script')) payload.script = draft.script
-        if (dirty.has('notes')) payload.speaker_notes = draft.notes
-        if (dirty.has('references')) payload.references = textToReferences(draft.references)
-        if (Object.keys(payload).length > 0) jobs.push({ slideId, fields: payload })
-      })
-      if (jobs.length === 0) return
-
-      setSaveState('saving')
-      void runNarrationSaves(targetPresentationId, jobs)
+      void drainSaves(targetPresentationId)
     },
-    [runNarrationSaves],
+    [drainSaves],
   )
 
   const scheduleSave = useCallback(() => {
@@ -409,6 +505,7 @@ export function SlideNotesPanel({
   useEffect(() => {
     return () => {
       if (savedIndicatorRef.current) clearTimeout(savedIndicatorRef.current)
+      if (drainRetryTimerRef.current) clearTimeout(drainRetryTimerRef.current)
     }
   }, [])
 
