@@ -27,6 +27,30 @@ export interface ElementGenerationMetadata {
   themeBindings: Record<string, string> | null
 }
 
+export type ElementGenerationPreflightStage = 'geometry' | 'theme_metadata'
+
+export class ElementGenerationPreflightError extends Error {
+  readonly stage: ElementGenerationPreflightStage
+
+  constructor(stage: ElementGenerationPreflightStage, message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause })
+    this.name = 'ElementGenerationPreflightError'
+    this.stage = stage
+  }
+}
+
+export interface ElementGenerationSnapshot extends ElementGridGeometry, ElementGenerationMetadata {}
+
+export interface ReadElementGenerationSnapshotOptions {
+  sendCommand: (action: string, params: Record<string, unknown>) => Promise<unknown>
+  elementId: string
+  componentType: string
+  useDeckTheme: boolean
+  requiresThemeVariant: boolean
+  retries?: number
+  retryDelayMs?: number
+}
+
 const LOGICAL_COLUMN_END = 33
 const LOGICAL_ROW_END = 19
 const MINOR_GRID_SCALE = 5
@@ -120,4 +144,83 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
       : null,
     themeBindings,
   }
+}
+
+async function sendPreflightCommandWithRetry(
+  sendCommand: ReadElementGenerationSnapshotOptions['sendCommand'],
+  action: string,
+  params: Record<string, unknown>,
+  retries: number,
+  retryDelayMs: number,
+): Promise<unknown> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await sendCommand(action, params)
+    } catch (error) {
+      lastError = error
+      if (attempt === retries) break
+      await new Promise(resolve => setTimeout(resolve, retryDelayMs * (attempt + 1)))
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Viewer command failed')
+}
+
+/**
+ * Read the authoritative live generation state without ever falling back to
+ * tracked coordinates. Viewer reloads and autosave can briefly race a command,
+ * so each read gets one bounded retry by default.
+ */
+export async function readElementGenerationSnapshot({
+  sendCommand,
+  elementId,
+  componentType,
+  useDeckTheme,
+  requiresThemeVariant,
+  retries = 1,
+  retryDelayMs = 200,
+}: ReadElementGenerationSnapshotOptions): Promise<ElementGenerationSnapshot> {
+  let geometryResponse: unknown
+  let geometry: ElementGridGeometry
+  try {
+    geometryResponse = await sendPreflightCommandWithRetry(
+      sendCommand,
+      'getElementGeometry',
+      { elementId },
+      retries,
+      retryDelayMs,
+    )
+    geometry = parseGetElementGeometryResponse(geometryResponse, elementId)
+  } catch (error) {
+    throw new ElementGenerationPreflightError(
+      'geometry',
+      `Unable to read live geometry for ${elementId}`,
+      error,
+    )
+  }
+
+  let metadata = parseElementGenerationMetadata(geometryResponse)
+  if (useDeckTheme) {
+    try {
+      const refreshed = await sendPreflightCommandWithRetry(
+        sendCommand,
+        'refreshElementThemeMetadata',
+        { elementId, componentType },
+        retries,
+        retryDelayMs,
+      )
+      metadata = parseElementGenerationMetadata(refreshed)
+      if (!metadata.themeBindings || (requiresThemeVariant && !metadata.themeVariantId)) {
+        throw new Error('The placeholder theme treatment is incomplete')
+      }
+    } catch (error) {
+      throw new ElementGenerationPreflightError(
+        'theme_metadata',
+        `Unable to refresh theme metadata for ${elementId}`,
+        error,
+      )
+    }
+  }
+
+  return { ...geometry, ...metadata }
 }

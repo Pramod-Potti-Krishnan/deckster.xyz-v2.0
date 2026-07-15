@@ -5,7 +5,11 @@ import { TextLabsFormData, TextLabsComponentType } from '@/types/textlabs'
 import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
-import { parseElementGenerationMetadata, parseGetElementGeometryResponse } from '@/lib/element-geometry'
+import {
+  ElementGenerationPreflightError,
+  parseElementGenerationMetadata,
+  readElementGenerationSnapshot,
+} from '@/lib/element-geometry'
 import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
 import { componentSupportsThemeVariants, parseElementThemeAssignments } from '@/lib/element-theme-variants'
 import { resolveElementThemeMetadata } from '@/lib/textlabs-theme-metadata'
@@ -191,43 +195,37 @@ export function useTextLabsGeneration({
         return
       }
       try {
-        const geometryResponse = await layoutServiceApis.sendElementCommand('getElementGeometry', {
+        const snapshot = await readElementGenerationSnapshot({
+          sendCommand: layoutServiceApis.sendElementCommand,
           elementId: blankId,
+          componentType: formData.componentType,
+          useDeckTheme: formData.useDeckTheme === true,
+          requiresThemeVariant: componentSupportsThemeVariants(formData.componentType),
         })
-        const geometry = parseGetElementGeometryResponse(geometryResponse, blankId)
-        let metadata = parseElementGenerationMetadata(geometryResponse)
-        if (formData.useDeckTheme === true) {
-          const refreshed = await layoutServiceApis.sendElementCommand('refreshElementThemeMetadata', {
-            elementId: blankId,
-            componentType: formData.componentType,
-          })
-          metadata = parseElementGenerationMetadata(refreshed)
-          if (
-            !metadata.themeBindings ||
-            (componentSupportsThemeVariants(formData.componentType) && !metadata.themeVariantId)
-          ) {
-            throw new Error('The placeholder theme treatment could not be refreshed')
-          }
-        }
         blankInfo = {
           ...trackedBlankInfo,
-          ...geometry,
-          themeVariantId: metadata.themeVariantId ?? trackedBlankInfo.themeVariantId ?? null,
-          themeBindings: metadata.themeBindings ?? trackedBlankInfo.themeBindings ?? null,
+          startCol: snapshot.startCol,
+          startRow: snapshot.startRow,
+          width: snapshot.width,
+          height: snapshot.height,
+          themeVariantId: snapshot.themeVariantId ?? trackedBlankInfo.themeVariantId ?? null,
+          themeBindings: snapshot.themeBindings ?? trackedBlankInfo.themeBindings ?? null,
         }
         blankElements.updatePosition(
           blankId,
-          geometry.startCol,
-          geometry.startRow,
-          geometry.width,
-          geometry.height,
+          snapshot.startCol,
+          snapshot.startRow,
+          snapshot.width,
+          snapshot.height,
         )
-        blankElements.updateGenerationMetadata(blankId, metadata)
+        blankElements.updateGenerationMetadata(blankId, snapshot)
       } catch (error) {
-        console.error('[TextLabs] Failed to read live blank geometry:', error)
+        console.error('[TextLabs] Element generation preflight failed:', error)
         generationPanel.setIsGenerating(false)
         generationPanel.setError(
-          "Couldn't read the element's current size and position. The placeholder was left unchanged. Please try again.",
+          error instanceof ElementGenerationPreflightError && error.stage === 'theme_metadata'
+            ? "Couldn't apply the deck's current theme treatment to this element. The placeholder was left unchanged. Please try again."
+            : "Couldn't read the element's current size and position. The placeholder was left unchanged. Please try again.",
         )
         generateInFlightRef.current = false
         return
@@ -243,40 +241,29 @@ export function useTextLabsGeneration({
       }
 
       try {
-        const geometryResponse = await layoutServiceApis.sendElementCommand('getElementGeometry', {
+        const snapshot = await readElementGenerationSnapshot({
+          sendCommand: layoutServiceApis.sendElementCommand,
           elementId: refineContext.elementId,
+          componentType: refineContext.elementType,
+          useDeckTheme: formData.useDeckTheme === true,
+          requiresThemeVariant: componentSupportsThemeVariants(refineContext.elementType),
         })
-        const geometry = parseGetElementGeometryResponse(geometryResponse, refineContext.elementId)
-        let metadata = parseElementGenerationMetadata(geometryResponse)
-        if (formData.useDeckTheme === true) {
-          const refreshed = await layoutServiceApis.sendElementCommand('refreshElementThemeMetadata', {
-            elementId: refineContext.elementId,
-            componentType: refineContext.elementType,
-          })
-          metadata = parseElementGenerationMetadata(refreshed)
-          if (
-            !metadata.themeBindings ||
-            (componentSupportsThemeVariants(refineContext.elementType) && !metadata.themeVariantId)
-          ) {
-            throw new Error('The element theme treatment could not be refreshed')
-          }
-        }
-        const liveComponentType = normalizeSemanticComponentType(metadata.componentType)
+        const liveComponentType = normalizeSemanticComponentType(snapshot.componentType)
           ?? refineContext.elementType
         const liveGridPosition = {
-          start_col: geometry.startCol,
-          start_row: geometry.startRow,
-          position_width: geometry.width,
-          position_height: geometry.height,
+          start_col: snapshot.startCol,
+          start_row: snapshot.startRow,
+          position_width: snapshot.width,
+          position_height: snapshot.height,
           auto_position: false,
         }
 
         applyPositionToFormData(formData, liveGridPosition)
         const themeVariantId = formData.useDeckTheme === true
-          ? metadata.themeVariantId ?? refineContext.themeVariantId
+          ? snapshot.themeVariantId ?? refineContext.themeVariantId
           : null
         const themeBindings = formData.useDeckTheme === true
-          ? metadata.themeBindings ?? refineContext.themeBindings
+          ? snapshot.themeBindings ?? refineContext.themeBindings
           : null
         formData.existingElement = {
           ...refineContext.existingElement,
@@ -289,10 +276,12 @@ export function useTextLabsGeneration({
         formData.themeVariantId = themeVariantId
         formData.themeBindings = themeBindings
       } catch (error) {
-        console.error('[TextLabs] Failed to read live refine geometry:', error)
+        console.error('[TextLabs] Element regeneration preflight failed:', error)
         generationPanel.setIsGenerating(false)
         generationPanel.setError(
-          "Couldn't read this element's current size and position. The original was left unchanged. Please try again.",
+          error instanceof ElementGenerationPreflightError && error.stage === 'theme_metadata'
+            ? "Couldn't apply the deck's current theme treatment to this element. The original was left unchanged. Please try again."
+            : "Couldn't read this element's current size and position. The original was left unchanged. Please try again.",
         )
         generateInFlightRef.current = false
         return
