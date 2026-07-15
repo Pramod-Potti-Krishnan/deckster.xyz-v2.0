@@ -5,7 +5,13 @@ import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 import type { ThemePalette } from '@/types/textlabs'
 
 export interface DeckThemeToken {
-  id: 'primary' | 'accent_1' | 'accent_2' | 'surface' | 'heading_text' | 'body_text'
+  id:
+    | '--theme-primary'
+    | '--theme-accent-1'
+    | '--theme-accent-2'
+    | '--theme-surface'
+    | '--theme-text-heading'
+    | '--theme-text-body'
   label: string
   color: string
 }
@@ -47,12 +53,12 @@ function derivePalette(vars: Record<string, unknown>): ThemePalette | null {
 
 function deriveTokens(vars: Record<string, unknown>): DeckThemeToken[] {
   const candidates: Array<[DeckThemeToken['id'], string, unknown]> = [
-    ['primary', 'Primary', vars['--theme-primary'] ?? vars['--theme-color-primary'] ?? vars.primary],
-    ['accent_1', 'Accent 1', vars['--theme-accent-1'] ?? vars['--theme-accent'] ?? vars['--theme-primary-light']],
-    ['accent_2', 'Accent 2', vars['--theme-accent-2'] ?? vars['--theme-secondary'] ?? vars['--theme-tertiary']],
-    ['surface', 'Surface', vars['--theme-surface'] ?? vars['--theme-bg-alt'] ?? vars['--theme-background'] ?? vars['--theme-bg']],
-    ['heading_text', 'Heading Text', vars['--theme-text-heading'] ?? vars['--theme-text-primary'] ?? vars['--theme-text']],
-    ['body_text', 'Body Text', vars['--theme-text-body'] ?? vars['--theme-text-secondary'] ?? vars['--theme-text']],
+    ['--theme-primary', 'Primary', vars['--theme-primary'] ?? vars['--theme-color-primary'] ?? vars.primary],
+    ['--theme-accent-1', 'Accent 1', vars['--theme-accent-1'] ?? vars['--theme-accent'] ?? vars['--theme-primary-light']],
+    ['--theme-accent-2', 'Accent 2', vars['--theme-accent-2'] ?? vars['--theme-secondary'] ?? vars['--theme-tertiary']],
+    ['--theme-surface', 'Surface', vars['--theme-surface'] ?? vars['--theme-bg-alt'] ?? vars['--theme-background'] ?? vars['--theme-bg']],
+    ['--theme-text-heading', 'Heading Text', vars['--theme-text-heading'] ?? vars['--theme-text-primary'] ?? vars['--theme-text']],
+    ['--theme-text-body', 'Body Text', vars['--theme-text-body'] ?? vars['--theme-text-secondary'] ?? vars['--theme-text']],
   ]
   return candidates.flatMap(([id, label, value]) => {
     const color = asHex(value)

@@ -33,6 +33,33 @@ const blank = {
 }
 assert.equal(inspectManualDeck(blank).hasMeaningfulWork, false, 'theme-only blank must not prompt')
 
+const canonicalLayoutBlank = structuredClone(blank)
+canonicalLayoutBlank.slides[0].layout = 'H1s'
+canonicalLayoutBlank.slides[0].content = { slide_title: '', subtitle: '', hero_content: '' }
+assert.equal(
+  inspectManualDeck(canonicalLayoutBlank).hasMeaningfulWork,
+  false,
+  'Layout canonical H1s blank marker with empty runtime shape must not prompt',
+)
+
+const changedCanonicalBlank = structuredClone(canonicalLayoutBlank)
+changedCanonicalBlank.slides[0].content.slide_title = 'My custom title'
+assert.equal(inspectManualDeck(changedCanonicalBlank).hasMeaningfulWork, true)
+assert.equal(inspectManualDeck(changedCanonicalBlank).summary.reasons.includes('content'), true)
+
+const canonicalBlankWithGenericElement = structuredClone(canonicalLayoutBlank)
+canonicalBlankWithGenericElement.slides[0].elements = [{ id: 'shape-1' }]
+assert.equal(inspectManualDeck(canonicalBlankWithGenericElement).hasMeaningfulWork, true)
+assert.equal(inspectManualDeck(canonicalBlankWithGenericElement).summary.element_count, 1)
+
+const unmarkedH1s = structuredClone(canonicalLayoutBlank)
+delete unmarkedH1s.slides[0].metadata.is_blank
+assert.equal(
+  inspectManualDeck(unmarkedH1s).hasMeaningfulWork,
+  true,
+  'only the marked initial H1s may bypass the customized-slide prompt',
+)
+
 const twoSlides = structuredClone(blank)
 twoSlides.slides.push(structuredClone(blank.slides[0]))
 assert.equal(inspectManualDeck(twoSlides).hasMeaningfulWork, true)

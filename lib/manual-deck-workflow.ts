@@ -8,9 +8,14 @@ const ELEMENT_COLLECTION_KEYS = [
   'infographics',
   'diagrams',
   'contents',
+  'elements',
+  'tables',
+  'shapes',
+  'icon_labels',
 ] as const
 
 const DEFAULT_BLANK_LAYOUTS = new Set(['H1-structured', 'blank'])
+const INITIAL_BLANK_LAYOUTS = new Set(['H1s', 'H1-structured', 'blank', 'B1'])
 const EMPTY_HTML = /<(?:br|p|div)(?:\s[^>]*)?>\s*(?:&nbsp;|&#160;|\s)*<\/(?:p|div)>|<br\s*\/?>/gi
 
 export interface ManualDeckSummary {
@@ -210,10 +215,24 @@ export function inspectManualDeck(value: unknown): ManualDeckInspection {
 
     const contentChanged = hasMeaningfulValue(slide.content)
     const layout = typeof slide.layout === 'string' ? slide.layout : ''
-    const layoutChanged = !!layout && !DEFAULT_BLANK_LAYOUTS.has(layout)
-    const backgroundChanged = [slide.background_color, slide.background_image]
+    const metadata = asRecord(slide.metadata)
+    const isMarkedInitialBlank = metadata?.is_blank === true || slide.is_blank === true
+    const backgroundChanged = [
+      slide.background_color,
+      slide.background_image,
+      asRecord(slide.content)?.background_color,
+      asRecord(slide.content)?.background_image,
+    ]
       .some(value => typeof value === 'string' && value.trim().length > 0)
     const notesChanged = hasMeaningfulValue(slideNotes(slide))
+    const isPristineInitialBlank = slides.length === 1
+      && isMarkedInitialBlank
+      && INITIAL_BLANK_LAYOUTS.has(layout)
+      && slideElementCount === 0
+      && !contentChanged
+      && !backgroundChanged
+      && !notesChanged
+    const layoutChanged = !isPristineInitialBlank && !!layout && !DEFAULT_BLANK_LAYOUTS.has(layout)
 
     if (contentChanged) hasContent = true
     if (layoutChanged) hasLayoutChange = true

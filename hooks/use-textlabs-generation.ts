@@ -8,6 +8,7 @@ import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import { parseElementGenerationMetadata, parseGetElementGeometryResponse } from '@/lib/element-geometry'
 import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
 import { parseElementThemeAssignments } from '@/lib/element-theme-variants'
+import { resolveElementThemeMetadata } from '@/lib/textlabs-theme-metadata'
 
 interface UseTextLabsGenerationParams {
   generationPanel: {
@@ -412,10 +413,19 @@ export function useTextLabsGeneration({
         const existingThemeBindings = refineContext
           ? (formData.existingElement?.theme_bindings as Record<string, string> | null | undefined)
           : null
+        const requestedElementTheme = formElements?.[index]
+        const resolvedTheme = resolveElementThemeMetadata(element, {
+          themeVariantId: requestedElementTheme?.theme_variant_id
+            ?? formData.themeVariantId
+            ?? existingThemeVariantId,
+          themeBindings: requestedElementTheme?.theme_bindings
+            ?? formData.themeBindings
+            ?? existingThemeBindings,
+        })
         let elementWithPosition: Parameters<typeof buildInsertionParams>[1] = {
           ...element,
-          theme_variant_id: element.theme_variant_id ?? existingThemeVariantId,
-          theme_bindings: element.theme_bindings ?? existingThemeBindings,
+          theme_variant_id: resolvedTheme.themeVariantId,
+          theme_bindings: resolvedTheme.themeBindings,
         }
         if (authoritativeGridPosition) {
           elementWithPosition = { ...elementWithPosition, grid_position: authoritativeGridPosition }

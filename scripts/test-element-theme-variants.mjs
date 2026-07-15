@@ -43,4 +43,77 @@ const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generati
 assert.match(generationSource, /Couldn't assign deterministic deck-theme treatments/)
 assert.doesNotMatch(generationSource, /normal deck-theme fallback/)
 
+const metadataSource = fs.readFileSync(new URL('../lib/textlabs-theme-metadata.ts', import.meta.url), 'utf8')
+const metadataCompiled = ts.transpileModule(metadataSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+})
+const metadataMod = { exports: {} }
+vm.runInNewContext(metadataCompiled.outputText, { module: metadataMod, exports: metadataMod.exports })
+const { resolveElementThemeMetadata } = metadataMod.exports
+
+const nested = resolveElementThemeMetadata({
+  metadata: { theme_variant_id: 'nested-variant', theme_bindings: { background: 'accent_2_500' } },
+})
+assert.equal(nested.themeVariantId, 'nested-variant')
+assert.equal(nested.themeBindings.background, 'accent_2_500')
+
+const assigned = resolveElementThemeMetadata({}, {
+  themeVariantId: 'requested-box-2',
+  themeBindings: { background: 'accent_1_500' },
+})
+assert.equal(assigned.themeVariantId, 'requested-box-2')
+assert.equal(assigned.themeBindings.background, 'accent_1_500')
+assert.match(generationSource, /requestedElementTheme\?\.theme_variant_id/)
+
+const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import.meta.url), 'utf8')
+const clientCompiled = ts.transpileModule(clientSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+})
+const clientMod = { exports: {} }
+vm.runInNewContext(clientCompiled.outputText, {
+  module: clientMod,
+  exports: clientMod.exports,
+  process: { env: {} },
+  require: id => {
+    if (id === '@/lib/element-semantic-type') return semanticMod.exports
+    if (id === '@/lib/textlabs-theme-metadata') return metadataMod.exports
+    if (id === '@/types/textlabs') return {
+      INSERTION_METHOD_MAP: { TEXT_BOX: 'insertElement', METRICS: 'insertElement' },
+      TEXT_LABS_ELEMENT_DEFAULTS: {
+        TEXT_BOX: { width: 12, height: 6, zIndex: 10 },
+        METRICS: { width: 12, height: 6, zIndex: 10 },
+      },
+    }
+    throw new Error(`Unexpected client dependency: ${id}`)
+  },
+})
+const { buildInsertionParams } = clientMod.exports
+const insertionOne = buildInsertionParams('TEXT_BOX', {
+  html: '<div>One</div>',
+  metadata: {
+    theme_variant_id: 'box-variant-1',
+    theme_bindings: { background: 'primary_500' },
+  },
+}).params
+const insertionTwo = buildInsertionParams('TEXT_BOX', {
+  html: '<div>Two</div>',
+  metadata: {
+    theme_variant_id: 'box-variant-2',
+    theme_bindings: { background: 'accent_2_500' },
+  },
+}).params
+assert.equal(insertionOne.themeVariantId, 'box-variant-1')
+assert.equal(insertionOne.themeBindings.background, 'primary_500')
+assert.equal(insertionTwo.themeVariantId, 'box-variant-2')
+assert.equal(insertionTwo.themeBindings.background, 'accent_2_500')
+
+const swatchSource = fs.readFileSync(new URL('../hooks/use-deck-theme-palette.ts', import.meta.url), 'utf8')
+for (const token of [
+  '--theme-primary', '--theme-accent-1', '--theme-accent-2',
+  '--theme-surface', '--theme-text-heading', '--theme-text-body',
+]) {
+  assert.match(swatchSource, new RegExp(`\\['${token.replaceAll('-', '\\-')}'`))
+}
+assert.doesNotMatch(swatchSource, /\['(?:heading_text|body_text)'/)
+
 console.log('element theme variant tests passed')
