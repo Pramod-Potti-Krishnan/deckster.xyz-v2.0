@@ -21,6 +21,7 @@ import {
   InsertionMethod,
   TextLabsComponentType,
 } from '@/types/textlabs'
+import { semanticTypeForInsertion } from '@/lib/element-semantic-type'
 
 // Same service as Elementor - reuse the URL
 const TEXT_LABS_BASE_URL = process.env.NEXT_PUBLIC_ELEMENTOR_URL || 'https://web-production-3b42.up.railway.app'
@@ -369,6 +370,8 @@ export function buildInsertionParams(
     image_data_url?: string
     mode?: string
     grid_position?: Partial<TextLabsPositionConfig> & { width?: number; height?: number }
+    theme_variant_id?: string | null
+    theme_bindings?: Record<string, string> | null
   },
   positionConfig?: TextLabsPositionConfig,
   paddingConfig?: TextLabsPaddingConfig,
@@ -386,6 +389,7 @@ export function buildInsertionParams(
     (element.mode === 'v2' || (!!element.html && !element.image_url && !element.image_data_url))
   const method: InsertionMethod = isV2Infographic ? 'insertDiagram' : getInsertionMethod(componentType)
   const baseType = isDiagramSubtype(componentType) ? 'DIAGRAM' : componentType as TextLabsComponentType
+  const semanticComponentType = semanticTypeForInsertion(componentType)
   const defaults = getDefaultSize(baseType)
 
   const gridPosition = element.grid_position
@@ -410,7 +414,11 @@ export function buildInsertionParams(
     draggable: true,
     resizable: true,
     skipAutoSize: true,
+    componentType: semanticComponentType,
   }
+
+  if (element.theme_variant_id) baseParams.themeVariantId = element.theme_variant_id
+  if (element.theme_bindings) baseParams.themeBindings = element.theme_bindings
 
   if (paddingConfig) {
     baseParams.style = {

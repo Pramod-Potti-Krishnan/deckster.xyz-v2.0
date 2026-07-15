@@ -518,6 +518,8 @@ export interface TextLabsElement {
   image_url?: string
   image_data_url?: string
   component_type: TextLabsAllComponentType
+  theme_variant_id?: string | null
+  theme_bindings?: Record<string, string> | null
 }
 
 export interface TextLabsResponse {

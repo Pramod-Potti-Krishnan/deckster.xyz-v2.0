@@ -16,6 +16,8 @@
     "test:layout-viewer-messaging": "node scripts/test-layout-viewer-messaging.mjs",
     "test:layout-viewer-url-policy": "node scripts/test-layout-viewer-url-policy.mjs",
     "test:builder-presentation-ownership": "node scripts/test-builder-presentation-ownership.mjs",
+    "test:element-semantic-type": "node scripts/test-element-semantic-type.mjs",
+    "test:element-geometry": "node scripts/test-element-geometry.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "start": "next start",
     "postinstall": "prisma generate"

@@ -77,6 +77,7 @@ import {
   isPresentationCallbackCurrent,
   resolveEffectivePresentation,
 } from '@/lib/builder-presentation-ownership'
+import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -85,49 +86,8 @@ const DEFAULT_DRAWER_WIDTH = 420
 const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 1
-const TEXTLABS_COMPONENT_TYPES = new Set<TextLabsComponentType>([
-  'TEXT_BOX',
-  'METRICS',
-  'TABLE',
-  'CHART',
-  'IMAGE',
-  'ICON_LABEL',
-  'SHAPE',
-  'INFOGRAPHIC',
-  'DIAGRAM',
-])
-
 function normalizeTextLabsElementType(value: unknown): TextLabsComponentType | null {
-  if (typeof value !== 'string') return null
-  const upper = value.toUpperCase().replace(/[-\s]/g, '_') as TextLabsComponentType
-  if (TEXTLABS_COMPONENT_TYPES.has(upper)) return upper
-
-  switch (value.toLowerCase()) {
-    case 'text':
-    case 'textbox':
-    case 'text_box':
-      return 'TEXT_BOX'
-    case 'image':
-      return 'IMAGE'
-    case 'table':
-      return 'TABLE'
-    case 'chart':
-      return 'CHART'
-    case 'infographic':
-      return 'INFOGRAPHIC'
-    case 'diagram':
-      return 'DIAGRAM'
-    case 'shape':
-      return 'SHAPE'
-    case 'icon':
-    case 'icon_label':
-    case 'icon-label':
-      return 'ICON_LABEL'
-    case 'metrics':
-      return 'METRICS'
-    default:
-      return null
-  }
+  return normalizeSemanticComponentType(value)
 }
 
 function scTrace(event: string, payload: Record<string, unknown>) {
@@ -2582,9 +2542,9 @@ function BuilderContent() {
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
     if (!features.useTextLabsGeneration) return
 
-    const componentType = normalizeTextLabsElementType(payload.elementType)
+    const componentType = normalizeTextLabsElementType(payload.componentType ?? payload.elementType)
     if (!componentType) {
-      console.warn('[ElementRefine] Unsupported element type from viewer:', payload.elementType)
+      console.warn('[ElementRefine] Unsupported element type from viewer:', payload.componentType ?? payload.elementType)
       return
     }
 
