@@ -1670,7 +1670,10 @@ export function PresentationViewer({
     // Direct Layout Service command - send to iframe
     if (commandType === 'layout-service') {
       debugLog(`[ElementCommand] Layout Service: ${action}`, params)
-      return sendCommand(iframeRef.current, action, params)
+      const timeoutMs = action === 'getElementGeometry' || action === 'refreshElementThemeMetadata'
+        ? 8000
+        : 5000
+      return sendCommand(iframeRef.current, action, params, { timeoutMs })
     }
 
     // Elementor command - call Elementor API (auto-injects into Layout Service)
