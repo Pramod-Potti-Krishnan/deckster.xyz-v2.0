@@ -1,47 +1,59 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
-import { KG_BASE, kgHeaders } from '@/lib/kg-proxy'
+import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 
 /**
  * "Import my past sessions" (KG v2 P3, D-KG7).
  *
- * Gathers the user's past Researcher session ids from Prisma
- * (ChatSession.geminiStoreId — one per chat session that uploaded files or
- * ran research) and asks the Researcher to consolidate them into the user's
- * knowledge graph. The consolidator is idempotent per session, so re-runs
- * are safe no-ops.
+ * Asks the Researcher to consolidate the user's past research-bearing sessions
+ * into their knowledge graph. The consolidator is idempotent per session, so
+ * re-runs are safe no-ops.
+ *
+ * Session-id coverage (review finding 7): a chat's research can be keyed under
+ * two different ids —
+ *   - uploads/chunks under `ChatSession.geminiStoreId` (the Researcher session
+ *     minted when the first file was uploaded), and
+ *   - web/deep-research artifacts under `ChatSession.id` (Director keys
+ *     `researcher_context` by the frontend session id it connects with).
+ * A web-research-only session has no `geminiStoreId`, so filtering on it (the
+ * old behavior) missed those. We now send the UNION of both ids across
+ * research-bearing sessions. We deliberately exclude pure drafts so we don't
+ * consolidate-and-mark empty sessions (which would pre-empt a later real
+ * consolidation of that id).
  */
 export async function POST() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const gate = await requireKgEntitled()
+  if (gate.error) return gate.error
+  const userId = gate.userId
 
-  // Researcher sessions are created with the frontend chat-session id
-  // passed through (use-file-upload.ts), and geminiStoreId records it.
   const chatSessions = await prisma.chatSession.findMany({
     where: {
-      userId: session.user.id,
-      geminiStoreId: { not: null },
+      userId,
       NOT: { status: 'deleted' },
+      // Research-bearing signal: uploaded a file, produced a deck, or advanced
+      // past the intake stages. Excludes empty drafts.
+      OR: [
+        { geminiStoreId: { not: null } },
+        { strawmanPresentationId: { not: null } },
+        { finalPresentationId: { not: null } },
+        { currentStage: { gte: 3 } },
+      ],
     },
-    select: { geminiStoreId: true },
+    select: { id: true, geminiStoreId: true },
     orderBy: { updatedAt: 'desc' },
-    take: 50, // backend cap per request
+    take: 40,
   })
-  const sessionIds = Array.from(
-    new Set(
-      chatSessions
-        .map((s) => s.geminiStoreId)
-        .filter((id): id is string => !!id && id.trim().length > 0)
-    )
-  )
+
+  const idSet = new Set<string>()
+  for (const s of chatSessions) {
+    if (s.id) idSet.add(s.id)
+    if (s.geminiStoreId && s.geminiStoreId.trim()) idSet.add(s.geminiStoreId)
+  }
+  const sessionIds = Array.from(idSet).slice(0, 50) // backend cap per request
 
   if (sessionIds.length === 0) {
     return NextResponse.json({
-      user_id: session.user.id,
+      user_id: userId,
       sessions_processed: 0,
       sessions_already_consolidated: 0,
       entities_created: 0,
@@ -55,10 +67,7 @@ export async function POST() {
     const resp = await fetch(`${KG_BASE}/api/v1/kg/backfill`, {
       method: 'POST',
       headers: kgHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        user_id: session.user.id,
-        session_ids: sessionIds,
-      }),
+      body: JSON.stringify({ user_id: userId, session_ids: sessionIds }),
     })
     if (resp.status === 404) {
       return NextResponse.json(

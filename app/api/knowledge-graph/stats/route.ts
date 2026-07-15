@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth-options'
-import { KG_BASE, kgHeaders } from '@/lib/kg-proxy'
+import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const gate = await requireKgEntitled()
+  if (gate.error) return gate.error
 
   try {
     const resp = await fetch(
-      `${KG_BASE}/api/v1/kg/${session.user.id}/stats`,
+      `${KG_BASE}/api/v1/kg/${gate.userId}/stats`,
       { headers: kgHeaders({ Accept: 'application/json' }) }
     )
     if (resp.status === 404) {
