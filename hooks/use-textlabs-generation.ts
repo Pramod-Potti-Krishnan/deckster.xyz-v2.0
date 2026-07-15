@@ -202,6 +202,7 @@ export function useTextLabsGeneration({
           componentType: formData.componentType,
           useDeckTheme: formData.useDeckTheme === true,
           requiresThemeVariant: componentSupportsThemeVariants(formData.componentType),
+          themeVariantSource: 'element_generation',
         })
         blankInfo = {
           ...trackedBlankInfo,
@@ -248,6 +249,7 @@ export function useTextLabsGeneration({
           componentType: refineContext.elementType,
           useDeckTheme: formData.useDeckTheme === true,
           requiresThemeVariant: componentSupportsThemeVariants(refineContext.elementType),
+          themeVariantSource: refineContext.themeVariantSource,
         })
         const liveComponentType = normalizeSemanticComponentType(snapshot.componentType)
           ?? refineContext.elementType
@@ -273,6 +275,8 @@ export function useTextLabsGeneration({
           grid_position: liveGridPosition,
           theme_variant_id: themeVariantId,
           theme_bindings: themeBindings,
+          style_owner: snapshot.styleOwner ?? refineContext.styleOwner,
+          theme_variant_source: snapshot.themeVariantSource ?? refineContext.themeVariantSource,
         }
         formData.themeVariantId = themeVariantId
         formData.themeBindings = themeBindings
@@ -503,7 +507,6 @@ export function useTextLabsGeneration({
           componentType: normalizeSemanticComponentType(formData.componentType) ?? blankInfo.componentType,
           themeVariantId: blankInfo.themeVariantId,
           themeBindings: blankInfo.themeBindings,
-          styleOwner: 'text_labs',
           themeVariantSource: 'element_generation',
         })
         const newId = reinsertResponse?.elementId
@@ -616,6 +619,17 @@ export function useTextLabsGeneration({
           ...element,
           theme_variant_id: resolvedTheme.themeVariantId,
           theme_bindings: resolvedTheme.themeBindings,
+          style_owner: (element as any).style_owner
+            ?? (element as any).styleOwner
+            ?? (element as any).metadata?.style_owner
+            ?? (element as any).metadata?.styleOwner
+            ?? refineContext?.styleOwner,
+          theme_variant_source: refineContext?.themeVariantSource
+            ?? (element as any).theme_variant_source
+            ?? (element as any).themeVariantSource
+            ?? (element as any).metadata?.theme_variant_source
+            ?? (element as any).metadata?.themeVariantSource
+            ?? 'element_generation',
         }
         if (authoritativeGridPosition) {
           elementWithPosition = { ...elementWithPosition, grid_position: authoritativeGridPosition }
@@ -724,7 +738,6 @@ export function useTextLabsGeneration({
               componentType: currentBlankInfo.componentType,
               themeVariantId: currentBlankInfo.themeVariantId,
               themeBindings: currentBlankInfo.themeBindings,
-              styleOwner: 'text_labs',
               themeVariantSource: 'element_generation',
             }),
             restoreTracking: restoredElementId => {
@@ -808,7 +821,6 @@ export function useTextLabsGeneration({
         resizable: true,
         skipAutoSize: true,
         componentType,
-        styleOwner: 'text_labs',
         themeVariantSource: 'element_generation',
       })
 

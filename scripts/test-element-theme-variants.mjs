@@ -93,6 +93,7 @@ const insertionOne = buildInsertionParams('TEXT_BOX', {
   metadata: {
     theme_variant_id: 'box-variant-1',
     theme_bindings: { background: 'primary_500' },
+    style_owner: 'text_service',
   },
 }).params
 const insertionTwo = buildInsertionParams('TEXT_BOX', {
@@ -100,14 +101,17 @@ const insertionTwo = buildInsertionParams('TEXT_BOX', {
   metadata: {
     theme_variant_id: 'box-variant-2',
     theme_bindings: { background: 'accent_2_500' },
+    theme_variant_source: 'slide_builder_renderer',
   },
 }).params
 assert.equal(insertionOne.themeVariantId, 'box-variant-1')
-assert.equal(insertionOne.styleOwner, 'text_labs')
+assert.equal(insertionOne.styleOwner, 'text_service')
 assert.equal(insertionOne.themeVariantSource, 'element_generation')
 assert.equal(insertionOne.themeBindings.background, 'primary_500')
 assert.equal(insertionTwo.themeVariantId, 'box-variant-2')
 assert.equal(insertionTwo.themeBindings.background, 'accent_2_500')
+assert.equal(insertionTwo.styleOwner, undefined)
+assert.equal(insertionTwo.themeVariantSource, 'slide_builder_renderer')
 
 const swatchSource = fs.readFileSync(new URL('../hooks/use-deck-theme-palette.ts', import.meta.url), 'utf8')
 for (const token of [
