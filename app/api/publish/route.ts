@@ -160,6 +160,17 @@ export async function POST(req: NextRequest) {
       const oldSnapshotId = existing.snapshotPresentationId;
       // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
       const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds, existing.id);
+      // Pre-park the old snapshot id IN THE SAME version-CAS that swaps the
+      // pointer, BEFORE attempting the external Layout delete. Once the swap
+      // lands, the old id is already durably recorded in staleSnapshotIds, so no
+      // later failure — a failed Layout DELETE, a failed tidy-up write, or the
+      // route throwing before cleanup — can lose it: the next lifecycle op's
+      // retryDeleteStaleSnapshots sweep will reap it. dedup via Set so a
+      // carried-over id isn't duplicated.
+      const willReapOld = Boolean(oldSnapshotId && oldSnapshotId !== snapshot.snapshotId);
+      const stagedStale = willReapOld
+        ? Array.from(new Set([...carriedStale, oldSnapshotId]))
+        : carriedStale;
       // Swap the pointer under an optimistic version-CAS: the update only lands
       // if nobody else mutated this record since we read `existing`. Without it,
       // a concurrent lifecycle op would clobber the stale-id sweep (losing a
@@ -171,7 +182,7 @@ export async function POST(req: NextRequest) {
           snapshotPresentationId: snapshot.snapshotId,
           title,
           slideCount,
-          staleSnapshotIds: carriedStale,
+          staleSnapshotIds: stagedStale,
           version: { increment: 1 },
           republishedAt: new Date(),
           revokedAt: null,
@@ -184,50 +195,80 @@ export async function POST(req: NextRequest) {
       if (swap.count === 0) {
         // Lost the race — someone else mutated the record first. Our just-created
         // snapshot is referenced by nobody, so delete it (orphan cleanup) and ask
-        // the client to retry against the fresh state.
-        await deletePresentationSnapshot(snapshot.snapshotId);
+        // the client to retry against the fresh state. If that cleanup delete
+        // fails, the new snapshot is live-but-untracked — park it ATOMICALLY on
+        // the winner's record (same source-deck lineage) so a future sweep
+        // retries it. A failed park here is a compound double-failure: acceptable
+        // residual, so it stays non-fatal and we still return the 409.
+        const { ok } = await deletePresentationSnapshot(snapshot.snapshotId);
+        if (!ok) {
+          await prisma.publishedDeck.update({
+            where: { id: existing.id },
+            data: { staleSnapshotIds: { push: snapshot.snapshotId }, version: { increment: 1 } },
+          }).catch(() => {});
+        }
         return NextResponse.json(
           { error: 'Publish state changed, please retry' },
           { status: 409 }
         );
       }
-      // Reap the now-replaced snapshot AFTER the pointer swap (never fail the
-      // request). If the delete didn't stick, park the id ATOMICALLY (append,
-      // not read-modify-write) so a concurrent op can't lose it, and don't claim
-      // the old copy is gone. Duplicates are harmless — retryDeleteStaleSnapshots
-      // de-dups its input.
-      if (oldSnapshotId && oldSnapshotId !== snapshot.snapshotId) {
+      // The old snapshot id is already durably parked by the CAS above. Reap it
+      // AFTER the pointer swap (never fail the request). On success, best-effort
+      // REMOVE it from staleSnapshotIds (tidy-up) under a version-CAS so a
+      // concurrent op isn't clobbered; if that removal loses or throws it's
+      // non-fatal — the next op's sweep deletes the already-gone id (404 → ok)
+      // and drops it. On failure, leave it parked (already recorded).
+      if (willReapOld) {
         const { ok } = await deletePresentationSnapshot(oldSnapshotId);
         snapshotDeleted = ok;
-        if (!ok) {
-          // Bump version too: the array append is atomic, but a concurrent
-          // lifecycle op's full-array CAS write could otherwise clobber this
-          // just-parked id. Incrementing version makes that racer's stale-version
-          // CAS lose (clean 409) instead — so a failed-delete id is never lost.
-          await prisma.publishedDeck.update({
-            where: { id: existing.id },
-            data: { staleSnapshotIds: { push: oldSnapshotId }, version: { increment: 1 } },
-          });
+        if (ok) {
+          const fresh = await prisma.publishedDeck.findUnique({ where: { id: existing.id } });
+          if (fresh && fresh.staleSnapshotIds.includes(oldSnapshotId)) {
+            await prisma.publishedDeck.updateMany({
+              where: { id: existing.id, version: fresh.version },
+              data: {
+                staleSnapshotIds: fresh.staleSnapshotIds.filter((sid) => sid !== oldSnapshotId),
+                version: { increment: 1 },
+              },
+            }).catch(() => {});
+          }
         }
       }
       // Re-read for the response (updateMany returns only a count).
       record = await prisma.publishedDeck.findUnique({ where: { id: existing.id } });
     } else {
-      record = await prisma.publishedDeck.create({
-        data: {
-          slug: generateSlug(),
-          userId: user.id,
-          sessionId,
-          sourcePresentationId: chatSession.finalPresentationId,
-          snapshotPresentationId: snapshot.snapshotId,
-          title,
-          slideCount,
-          visibility: visibility ?? 'unlisted',
-          passcodeHash: passcodeHash ?? null,
-          ...(allowPdf !== undefined ? { allowPdf } : {}),
-          ...(allowPptx !== undefined ? { allowPptx } : {}),
-        },
-      });
+      // First publish for this session. Two concurrent first-publishes both read
+      // existing=null and both create a snapshot; the unique sessionId constraint
+      // lets only one create() win. The loser must NOT fall through to the generic
+      // 500 — its just-created snapshot would then be referenced by nobody
+      // (orphan). On P2002 (sessionId unique violation) the loser best-effort
+      // deletes its own now-unreferenced snapshot and returns a clean 409.
+      try {
+        record = await prisma.publishedDeck.create({
+          data: {
+            slug: generateSlug(),
+            userId: user.id,
+            sessionId,
+            sourcePresentationId: chatSession.finalPresentationId,
+            snapshotPresentationId: snapshot.snapshotId,
+            title,
+            slideCount,
+            visibility: visibility ?? 'unlisted',
+            passcodeHash: passcodeHash ?? null,
+            ...(allowPdf !== undefined ? { allowPdf } : {}),
+            ...(allowPptx !== undefined ? { allowPptx } : {}),
+          },
+        });
+      } catch (error: any) {
+        if (error?.code === 'P2002') {
+          await deletePresentationSnapshot(snapshot.snapshotId);
+          return NextResponse.json(
+            { error: 'This deck was just published in another request; please refresh.' },
+            { status: 409 }
+          );
+        }
+        throw error;
+      }
     }
 
     if (!record) {

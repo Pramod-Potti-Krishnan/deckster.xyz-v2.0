@@ -103,6 +103,17 @@ export async function POST(
 
     // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
     const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds, existing.id);
+    // Pre-park the old snapshot id IN THE SAME version-CAS that swaps the pointer,
+    // BEFORE attempting the external Layout delete. Once the swap lands, the old
+    // id is already durably recorded in staleSnapshotIds, so no later failure — a
+    // failed Layout DELETE, a failed tidy-up write, or the route throwing before
+    // cleanup — can lose it: the next lifecycle op's sweep reaps it. dedup via Set
+    // so a carried-over id isn't duplicated. (Slug-collision retries below re-CAS
+    // with this SAME staged array, since the failed update wrote nothing.)
+    const willReapOld = Boolean(oldSnapshotId && oldSnapshotId !== snapshot.snapshotId);
+    const stagedStale = willReapOld
+      ? Array.from(new Set([...carriedStale, oldSnapshotId]))
+      : carriedStale;
 
     // Mint a fresh slug + point at the new snapshot under an optimistic
     // version-CAS: the swap only lands if nobody else mutated this record since
@@ -121,7 +132,7 @@ export async function POST(
             snapshotPresentationId: snapshot.snapshotId,
             sourcePresentationId,
             slideCount,
-            staleSnapshotIds: carriedStale,
+            staleSnapshotIds: stagedStale,
             version: { increment: 1 },
           },
         });
@@ -129,8 +140,18 @@ export async function POST(
         if (swapCount === 0) {
           // Version mismatch — another lifecycle op won the race. Our new
           // snapshot is referenced by nobody, so delete it (orphan cleanup) and
-          // ask the client to retry against fresh state.
-          await deletePresentationSnapshot(snapshot.snapshotId);
+          // ask the client to retry against fresh state. If that cleanup delete
+          // fails, the new snapshot is live-but-untracked — park it ATOMICALLY on
+          // the winner's record (same source-deck lineage) so a future sweep
+          // retries it. A failed park here is a compound double-failure:
+          // acceptable residual, so it stays non-fatal and we still return 409.
+          const { ok } = await deletePresentationSnapshot(snapshot.snapshotId);
+          if (!ok) {
+            await prisma.publishedDeck.update({
+              where: { id: existing.id },
+              data: { staleSnapshotIds: { push: snapshot.snapshotId }, version: { increment: 1 } },
+            }).catch(() => {});
+          }
           return NextResponse.json(
             { error: 'Publish state changed, please retry' },
             { status: 409 }
@@ -153,22 +174,29 @@ export async function POST(
       );
     }
 
-    // Reap the old snapshot AFTER the pointer swap (Fix A ordering). Rotating the
-    // slug alone doesn't revoke the {layout}/p/{snapshotId} URL — only deleting
-    // the snapshot does. If the delete didn't stick, park the id ATOMICALLY
-    // (append, not read-modify-write) so a concurrent op can't lose it, and tell
-    // the owner the truth (the old copy is still being cleaned up).
+    // The old snapshot id is already durably parked by the swap CAS above. Reap
+    // it AFTER the pointer swap (Fix A ordering) — rotating the slug alone doesn't
+    // revoke the {layout}/p/{snapshotId} URL, only deleting the snapshot does. On
+    // success, best-effort REMOVE it from staleSnapshotIds (tidy-up) under a
+    // version-CAS so a concurrent op isn't clobbered; if that removal loses or
+    // throws it's non-fatal — the next op's sweep deletes the already-gone id
+    // (404 → ok) and drops it. On failure, leave it parked (already recorded) and
+    // tell the owner the truth (the old copy is still being cleaned up).
     let snapshotDeleted = true;
-    if (oldSnapshotId && oldSnapshotId !== snapshot.snapshotId) {
+    if (willReapOld) {
       const { ok } = await deletePresentationSnapshot(oldSnapshotId);
       snapshotDeleted = ok;
-      if (!ok) {
-        // Bump version too so a concurrent lifecycle op's full-array CAS write
-        // can't clobber this just-parked id (its stale-version CAS loses instead).
-        await prisma.publishedDeck.update({
-          where: { id: existing.id },
-          data: { staleSnapshotIds: { push: oldSnapshotId }, version: { increment: 1 } },
-        });
+      if (ok) {
+        const fresh = await prisma.publishedDeck.findUnique({ where: { id: existing.id } });
+        if (fresh && fresh.staleSnapshotIds.includes(oldSnapshotId)) {
+          await prisma.publishedDeck.updateMany({
+            where: { id: existing.id, version: fresh.version },
+            data: {
+              staleSnapshotIds: fresh.staleSnapshotIds.filter((sid) => sid !== oldSnapshotId),
+              version: { increment: 1 },
+            },
+          }).catch(() => {});
+        }
       }
     }
 

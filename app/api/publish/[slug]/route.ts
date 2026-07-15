@@ -223,11 +223,22 @@ export async function DELETE(
     for (let attempt = 0; attempt < 2 && revokedCount === 0; attempt++) {
       // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
       const carriedStale = await retryDeleteStaleSnapshots(current.staleSnapshotIds, existing.id);
+      // Pre-park the snapshot being revoked IN THE SAME version-CAS that flips
+      // revokedAt, BEFORE the external Layout delete. Once the revoke lands, the
+      // id is already durably recorded in staleSnapshotIds, so no later failure —
+      // a failed Layout DELETE, a failed tidy-up write, or the route throwing —
+      // can lose it: the next lifecycle op's sweep reaps it. dedup via Set. Uses
+      // current.snapshotPresentationId, which a concurrent republish may have
+      // swapped, so it's re-read on each CAS attempt.
+      const toReap = current.snapshotPresentationId;
+      const stagedStale = toReap
+        ? Array.from(new Set([...carriedStale, toReap]))
+        : carriedStale;
       const res = await prisma.publishedDeck.updateMany({
         where: { id: current.id, version: current.version },
         data: {
           revokedAt: new Date(),
-          staleSnapshotIds: carriedStale,
+          staleSnapshotIds: stagedStale,
           version: { increment: 1 },
         },
       });
@@ -251,25 +262,31 @@ export async function DELETE(
       );
     }
 
-    // Snapshot cleanup on the Layout Service — never fail the request. Reap the
+    // Snapshot cleanup on the Layout Service — never fail the request. The
     // snapshot that was live when we revoked (current.snapshotPresentationId — a
-    // concurrent republish may have swapped the pointer). If the delete didn't
-    // stick, the {layout}/p/{snapshotId} URL is still live, so park the id
-    // ATOMICALLY (append, not read-modify-write) and don't claim the copy is gone.
+    // concurrent republish may have swapped the pointer) is already durably parked
+    // by the revoke CAS above. On success, best-effort REMOVE it from
+    // staleSnapshotIds (tidy-up) under a version-CAS so a concurrent op isn't
+    // clobbered; if that removal loses or throws it's non-fatal — the next op's
+    // sweep deletes the already-gone id (404 → ok) and drops it. On failure, the
+    // {layout}/p/{snapshotId} URL is still live, so leave it parked (already
+    // recorded) and don't claim the copy is gone.
+    const revokedSnapshotId = current.snapshotPresentationId;
     let snapshotDeleted = true;
-    if (current.snapshotPresentationId) {
-      const { ok } = await deletePresentationSnapshot(current.snapshotPresentationId);
+    if (revokedSnapshotId) {
+      const { ok } = await deletePresentationSnapshot(revokedSnapshotId);
       snapshotDeleted = ok;
-      if (!ok) {
-        // Bump version too so a concurrent lifecycle op's full-array CAS write
-        // can't clobber this just-parked id (its stale-version CAS loses instead).
-        await prisma.publishedDeck.update({
-          where: { id: existing.id },
-          data: {
-            staleSnapshotIds: { push: current.snapshotPresentationId },
-            version: { increment: 1 },
-          },
-        });
+      if (ok) {
+        const fresh = await prisma.publishedDeck.findUnique({ where: { id: existing.id } });
+        if (fresh && fresh.staleSnapshotIds.includes(revokedSnapshotId)) {
+          await prisma.publishedDeck.updateMany({
+            where: { id: existing.id, version: fresh.version },
+            data: {
+              staleSnapshotIds: fresh.staleSnapshotIds.filter((sid) => sid !== revokedSnapshotId),
+              version: { increment: 1 },
+            },
+          }).catch(() => {});
+        }
       }
     }
 
