@@ -79,13 +79,22 @@ export async function deletePresentationSnapshot(presentationId: string): Promis
   }
 }
 
+// Warn once the still-failing stale-snapshot backlog crosses this size. The
+// Set de-dup removes exact repeats, but under a sustained delete-key mismatch
+// each republish parks a NEW distinct old-snapshot id, so the backlog grows
+// unbounded (bigger reads + bigger DELETE sweeps every lifecycle op).
+const STALE_SNAPSHOT_BACKLOG_WARN_THRESHOLD = 20
+
 /**
  * Opportunistic self-heal: retry-delete snapshot ids a previous
  * publish/rotate/unpublish couldn't reap, and return the ids that STILL can't be
  * deleted (to persist back onto the record). No cron needed — every publish
- * lifecycle op sweeps the backlog.
+ * lifecycle op sweeps the backlog. `deckRef` (id/slug) is logging context only.
  */
-export async function retryDeleteStaleSnapshots(ids: readonly string[]): Promise<string[]> {
+export async function retryDeleteStaleSnapshots(
+  ids: readonly string[],
+  deckRef?: string,
+): Promise<string[]> {
   if (!ids || ids.length === 0) return []
   // De-dup: the stored backlog can contain repeats, and there is no point
   // issuing the same DELETE twice in one sweep.
@@ -97,6 +106,19 @@ export async function retryDeleteStaleSnapshots(ids: readonly string[]): Promise
       if (!ok) stillStale.push(id)
     })
   )
+  // A growing backlog means revocation DELETEs keep failing — surface it loudly
+  // for operators instead of accumulating silently. Do NOT cap or discard ids
+  // (that would leak live snapshots); just make the trend visible in logs.
+  // TODO(publish): move persistently-failing ids onto a dedicated cleanup queue
+  // rather than carrying them inline forever (documented follow-up).
+  if (stillStale.length > STALE_SNAPSHOT_BACKLOG_WARN_THRESHOLD) {
+    console.warn(
+      `[Publish] Stale-snapshot backlog is growing: ${stillStale.length} snapshots ` +
+        `still cannot be deleted${deckRef ? ` for deck ${deckRef}` : ''}. Likely cause: ` +
+        `the publish delete key (LAYOUT_PUBLISH_KEY / PUBLISH_DELETE_KEY) is misconfigured, ` +
+        `so Layout revocation DELETEs are rejected.`
+    )
+  }
   return stillStale
 }
 

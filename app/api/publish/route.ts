@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       // slug pointing at a destroyed snapshot (iframe → 404) and orphan the new one.
       const oldSnapshotId = existing.snapshotPresentationId;
       // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
-      const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds);
+      const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds, existing.id);
       // Swap the pointer under an optimistic version-CAS: the update only lands
       // if nobody else mutated this record since we read `existing`. Without it,
       // a concurrent lifecycle op would clobber the stale-id sweep (losing a

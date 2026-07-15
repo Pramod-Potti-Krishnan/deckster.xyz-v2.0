@@ -102,7 +102,7 @@ export async function POST(
     }
 
     // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
-    const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds);
+    const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds, existing.id);
 
     // Mint a fresh slug + point at the new snapshot under an optimistic
     // version-CAS: the swap only lands if nobody else mutated this record since

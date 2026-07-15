@@ -198,7 +198,7 @@ export async function DELETE(
     let revokedCount = 0;
     for (let attempt = 0; attempt < 2 && revokedCount === 0; attempt++) {
       // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
-      const carriedStale = await retryDeleteStaleSnapshots(current.staleSnapshotIds);
+      const carriedStale = await retryDeleteStaleSnapshots(current.staleSnapshotIds, existing.id);
       const res = await prisma.publishedDeck.updateMany({
         where: { id: current.id, version: current.version },
         data: {
