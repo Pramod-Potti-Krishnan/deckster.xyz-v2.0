@@ -108,21 +108,45 @@ export async function PATCH(
       );
     }
 
-    // Restricted decks must keep a passcode
-    const nextVisibility = data.visibility ?? existing.visibility;
-    const nextPasscodeHash =
-      data.passcodeHash !== undefined ? data.passcodeHash : existing.passcodeHash;
-    if (nextVisibility === 'restricted' && !nextPasscodeHash) {
-      return NextResponse.json(
-        { error: 'A passcode is required for restricted visibility' },
-        { status: 400 }
-      );
+    // Apply the settings change under an optimistic version-CAS so a concurrent
+    // republish/rotate can't silently revert it (a lost passcode/visibility change
+    // would leave the deck more exposed than the owner believes). The
+    // restricted-must-have-a-passcode invariant is re-validated against the fresh
+    // record on each attempt. On a lost CAS, re-read and retry ONCE, then 409.
+    let current = existing;
+    let updated = null;
+    for (let attempt = 0; attempt < 2 && !updated; attempt++) {
+      const nextVisibility = data.visibility ?? current.visibility;
+      const nextPasscodeHash =
+        data.passcodeHash !== undefined ? data.passcodeHash : current.passcodeHash;
+      if (nextVisibility === 'restricted' && !nextPasscodeHash) {
+        return NextResponse.json(
+          { error: 'A passcode is required for restricted visibility' },
+          { status: 400 }
+        );
+      }
+
+      const res = await prisma.publishedDeck.updateMany({
+        where: { id: current.id, version: current.version },
+        data: { ...data, version: { increment: 1 } },
+      });
+      if (res.count > 0) {
+        updated = await prisma.publishedDeck.findUnique({ where: { id: existing.id } });
+        break;
+      }
+      const fresh = await prisma.publishedDeck.findUnique({ where: { id: existing.id } });
+      if (!fresh) {
+        return NextResponse.json({ error: 'Published deck not found' }, { status: 404 });
+      }
+      current = fresh;
     }
 
-    const updated = await prisma.publishedDeck.update({
-      where: { id: existing.id },
-      data,
-    });
+    if (!updated) {
+      return NextResponse.json(
+        { error: 'Publish state changed, please retry' },
+        { status: 409 }
+      );
+    }
 
     return NextResponse.json({ deck: serializePublishedDeck(updated) });
 
