@@ -138,6 +138,9 @@ export function SlideNotesPanel({
   // launch a concurrent worker (both would read the same updatedAtRef and race
   // the server guard, the older-finishing write winning → the newer draft lost).
   const isSavingRef = useRef(false)
+  // Suppress duplicate hard-error toasts across drain-retry passes (reset on any
+  // successful save) so a sustained outage doesn't fire a toast every few seconds.
+  const errorToastShownRef = useRef(false)
   // Fallback retry timer: reschedules the drain after a persistent conflict/error
   // so a stuck backlog recovers even if the user stops typing.
   const drainRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -345,6 +348,9 @@ export function SlideNotesPanel({
         }
 
         if (result.success) {
+          // A successful save means any prior outage is over — allow the next
+          // hard error to surface a fresh toast.
+          errorToastShownRef.current = false
           if (result.updatedAt && isCurrent()) updatedAtRef.current = result.updatedAt
         } else if (result.status === 409) {
           // Still conflicting after one retry — back off softly; next debounce tries.
@@ -353,13 +359,19 @@ export function SlideNotesPanel({
         } else {
           hadError = true
           requeue(job.slideId, job.fields)
-          toast({
-            title: 'Failed to save notes',
-            description:
-              result.error?.message ||
-              'Your latest edits could not be saved. They will retry on your next change.',
-            variant: 'destructive',
-          })
+          // Toast once per outage — the drain retries every few seconds, so
+          // toasting each failed pass would spam a destructive toast while the
+          // server is down. Reset on the next successful save (above).
+          if (!errorToastShownRef.current) {
+            errorToastShownRef.current = true
+            toast({
+              title: 'Failed to save notes',
+              description:
+                result.error?.message ||
+                'Your latest edits could not be saved. They will retry automatically.',
+              variant: 'destructive',
+            })
+          }
         }
       }
 
