@@ -9,6 +9,7 @@ import {
   ElementGenerationPreflightError,
   parseElementGenerationMetadata,
   readElementGenerationSnapshot,
+  remapElementGridPositions,
 } from '@/lib/element-geometry'
 import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
 import { componentSupportsThemeVariants, parseElementThemeAssignments } from '@/lib/element-theme-variants'
@@ -300,9 +301,33 @@ export function useTextLabsGeneration({
     let currentBlankInfo = blankInfo
     let blankTrackingWasRemoved = false
 
-    // If blank element exists, override position from canvas and force count=1
+    // If a blank element exists, its live canvas bounds are authoritative. For
+    // text/metric multi-instance generation, preserve the requested count and
+    // remap the form's child layout into those live bounds.
     if (blankInfo) {
-      formData.count = 1
+      const livePosition = {
+        start_col: blankInfo.startCol,
+        start_row: blankInfo.startRow,
+        position_width: blankInfo.width,
+        position_height: blankInfo.height,
+      }
+      const supportsMultipleInstances = formData.componentType === 'TEXT_BOX' || formData.componentType === 'METRICS'
+      if (!supportsMultipleInstances) {
+        formData.count = 1
+      } else if (formData.count > 1) {
+        const formElements = 'elements' in formData ? formData.elements : undefined
+        if (!formData.positionConfig || !formElements || formElements.length !== formData.count) {
+          generationPanel.setIsGenerating(false)
+          generationPanel.setError('The requested multi-element layout is incomplete. The placeholder was left unchanged.')
+          generateInFlightRef.current = false
+          return
+        }
+        formData.elements = remapElementGridPositions(
+          formElements,
+          formData.positionConfig,
+          livePosition,
+        )
+      }
       formData.themeVariantId = formData.useDeckTheme === true
         ? blankInfo.themeVariantId ?? null
         : null
@@ -310,10 +335,7 @@ export function useTextLabsGeneration({
         ? blankInfo.themeBindings ?? null
         : null
       applyPositionToFormData(formData, {
-        start_col: blankInfo.startCol,
-        start_row: blankInfo.startRow,
-        position_width: blankInfo.width,
-        position_height: blankInfo.height,
+        ...livePosition,
         auto_position: false,
       })
     }
@@ -559,7 +581,7 @@ export function useTextLabsGeneration({
       // Insert each element into the canvas
       const effectiveSlideIndex = generationSlideIndex
       const formElements = 'elements' in formData ? formData.elements : undefined
-      const authoritativeGridPosition = currentBlankInfo ? {
+      const authoritativeGridPosition = currentBlankInfo && formData.count <= 1 ? {
         start_col: currentBlankInfo.startCol,
         start_row: currentBlankInfo.startRow,
         position_width: currentBlankInfo.width,
