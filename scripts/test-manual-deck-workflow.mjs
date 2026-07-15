@@ -47,9 +47,14 @@ assert.equal(elementInspection.summary.customized_slide_count, 1)
 
 const withContent = structuredClone(blank)
 withContent.slides[0].content.slide_title = 'My retained slide'
+withContent.slides[0].content.purpose = 'Customer onboarding narrative'
+withContent.slides[0].speaker_notes = '<p>Emphasize the launch sequence.</p>'
 const contentInspection = inspectManualDeck(withContent)
 assert.equal(contentInspection.hasMeaningfulWork, true)
 assert.equal(contentInspection.summary.slide_titles[0], 'My retained slide')
+assert.equal(contentInspection.summary.slides[0].content.purpose, 'Customer onboarding narrative')
+assert.equal(contentInspection.summary.slides[0].notes, 'Emphasize the launch sequence.')
+assert.equal(contentInspection.summary.slides[0].intent, 'Customer onboarding narrative')
 
 const withLayout = structuredClone(blank)
 withLayout.slides[0].layout = 'C1-text'
