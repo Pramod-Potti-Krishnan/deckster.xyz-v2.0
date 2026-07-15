@@ -9,6 +9,8 @@ export interface RefineContext {
   elementType: TextLabsComponentType
   slideIndex: number
   gridPosition: TextLabsPositionConfig | null
+  themeVariantId: string | null
+  themeBindings: Record<string, string> | null
   existingElement: Record<string, unknown>
   slideContext: Record<string, unknown> | null
   deckContext: Record<string, unknown> | null
@@ -78,10 +80,14 @@ export function useElementRefinement({
       elementType,
       slideIndex,
       gridPosition,
+      themeVariantId: payload.themeVariantId ?? null,
+      themeBindings: payload.themeBindings ?? null,
       existingElement: {
         element_id: payload.elementId,
-        component_type: payload.elementType,
-        normalized_component_type: elementType,
+        component_type: elementType,
+        renderer_type: payload.elementType,
+        theme_variant_id: payload.themeVariantId ?? null,
+        theme_bindings: payload.themeBindings ?? null,
         content: payload.content ?? null,
         formatting: payload.formatting ?? null,
         properties: payload.properties ?? null,

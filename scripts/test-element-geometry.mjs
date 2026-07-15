@@ -20,7 +20,7 @@ function loadTypeScriptModule(modulePath) {
   return mod.exports
 }
 
-const { parseGetElementGeometryResponse } = loadTypeScriptModule(
+const { parseElementGenerationMetadata, parseGetElementGeometryResponse } = loadTypeScriptModule(
   new URL('../lib/element-geometry.ts', import.meta.url),
 )
 const { getCommandType } = loadTypeScriptModule(
@@ -28,6 +28,20 @@ const { getCommandType } = loadTypeScriptModule(
 )
 
 assert.equal(getCommandType('getElementGeometry'), 'layout-service')
+assert.equal(getCommandType('setElementGenerationState'), 'layout-service')
+
+assert.deepEqual(
+  JSON.parse(JSON.stringify(parseElementGenerationMetadata({
+    componentType: 'METRICS',
+    theme_variant_id: 'metric-accent-2',
+    themeBindings: { background: 'accent_2', ignored: 42 },
+  }))),
+  {
+    componentType: 'METRICS',
+    themeVariantId: 'metric-accent-2',
+    themeBindings: { background: 'accent_2' },
+  },
+)
 
 const geometry = parseGetElementGeometryResponse({
   success: true,
