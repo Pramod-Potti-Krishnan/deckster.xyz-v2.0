@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
-import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
-import { sanitizeRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy'
+import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
+import { recoverRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy'
 import { type DirectorMessage, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
 
 interface UseBuilderSessionParams {
@@ -339,10 +339,51 @@ export function useBuilderSession({
               currentStage: session.currentStage,
               activeVersion: (session as any).stateCache?.activeVersion || null
             }
-            const { state: sessionState, blocked: blockedViewerUrls } = sanitizeRestoredLayoutViewerUrls(
+            const {
+              state: sessionState,
+              recovered: recoveredViewerUrls,
+              blocked: blockedViewerUrls,
+            } = await recoverRestoredLayoutViewerUrls(
               restoredSessionState,
               LAYOUT_VIEWER_URL_POLICY,
+              async (presentationId) => {
+                const response = await fetch(
+                  `${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(presentationId)}`,
+                  { cache: 'no-store' },
+                )
+                return response.ok
+              },
             )
+
+            if (recoveredViewerUrls.length > 0) {
+              const normalizedSessionUrls: Record<string, string> = {}
+              for (const recovered of recoveredViewerUrls) {
+                if (
+                  recovered.field === 'blankPresentationUrl' ||
+                  recovered.field === 'strawmanPreviewUrl' ||
+                  recovered.field === 'finalPresentationUrl'
+                ) {
+                  normalizedSessionUrls[recovered.field] = recovered.url
+                }
+              }
+
+              if (Object.keys(normalizedSessionUrls).length > 0) {
+                try {
+                  const response = await fetch(`/api/sessions/${encodeURIComponent(session.id)}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(normalizedSessionUrls),
+                  })
+                  if (!response.ok) {
+                    console.warn('Failed to persist recovered Layout viewer URLs:', response.status)
+                  }
+                } catch (error) {
+                  // The recovered in-memory state is still safe to use for this
+                  // load; a later reload can retry the id-verified normalization.
+                  console.warn('Failed to persist recovered Layout viewer URLs:', error)
+                }
+              }
+            }
 
             if (blockedViewerUrls.length > 0) {
               toast({

@@ -52,6 +52,12 @@ export interface BlockedRestoredLayoutViewerUrl {
   reason: LayoutViewerUrlBlockReason
 }
 
+export interface RecoveredRestoredLayoutViewerUrl {
+  field: LayoutViewerUrlField
+  presentationId: string
+  url: string
+}
+
 const RESTORED_URL_FIELDS: ReadonlyArray<{
   urlField: LayoutViewerUrlField
   idField: keyof RestoredLayoutViewerUrls
@@ -201,4 +207,70 @@ export function sanitizeRestoredLayoutViewerUrls<T extends RestoredLayoutViewerU
   }
 
   return { state, blocked }
+}
+
+/**
+ * Re-home a saved viewer URL onto the configured Layout environment only when
+ * that environment confirms that the paired presentation id exists there.
+ *
+ * This keeps the iframe allowlist fail-closed: UAT never embeds a production
+ * viewer, even when an older session stored a production-origin URL while the
+ * underlying presentation database was shared across environments.
+ */
+export async function recoverRestoredLayoutViewerUrls<T extends RestoredLayoutViewerUrls>(
+  restoredState: T,
+  policy: LayoutViewerUrlPolicy,
+  presentationExistsInConfiguredEnvironment: (presentationId: string) => Promise<boolean>,
+): Promise<{
+  state: T
+  recovered: RecoveredRestoredLayoutViewerUrl[]
+  blocked: BlockedRestoredLayoutViewerUrl[]
+}> {
+  const state = { ...restoredState }
+  const writableState = state as Record<string, unknown>
+  const recovered: RecoveredRestoredLayoutViewerUrl[] = []
+  const blocked: BlockedRestoredLayoutViewerUrl[] = []
+  const availability = new Map<string, Promise<boolean>>()
+
+  for (const { urlField, idField } of RESTORED_URL_FIELDS) {
+    const decision = evaluateLayoutViewerUrl(restoredState[urlField], policy)
+    if (decision.status !== 'blocked') continue
+
+    const rawPresentationId = restoredState[idField]
+    const presentationId = typeof rawPresentationId === 'string' && rawPresentationId.trim()
+      ? rawPresentationId.trim()
+      : null
+    let existsHere = false
+
+    if (
+      decision.reason === 'unapproved_origin' &&
+      policy.configuredOrigin &&
+      presentationId
+    ) {
+      let pending = availability.get(presentationId)
+      if (!pending) {
+        pending = presentationExistsInConfiguredEnvironment(presentationId).catch(() => false)
+        availability.set(presentationId, pending)
+      }
+      existsHere = await pending
+    }
+
+    if (existsHere && presentationId && policy.configuredOrigin) {
+      const recoveredUrl = `${policy.configuredOrigin}/p/${encodeURIComponent(presentationId)}`
+      writableState[urlField] = recoveredUrl
+      writableState[idField] = presentationId
+      recovered.push({ field: urlField, presentationId, url: recoveredUrl })
+      continue
+    }
+
+    writableState[urlField] = null
+    writableState[idField] = null
+    blocked.push({
+      field: urlField,
+      origin: decision.origin,
+      reason: decision.reason,
+    })
+  }
+
+  return { state, recovered, blocked }
 }

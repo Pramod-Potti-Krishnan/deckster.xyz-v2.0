@@ -23,6 +23,7 @@ const {
   createLayoutViewerUrlPolicy,
   evaluateLayoutViewerUrl,
   gateLayoutViewerUrlIngress,
+  recoverRestoredLayoutViewerUrls,
   sanitizeRestoredLayoutViewerUrls,
 } = mod.exports;
 
@@ -86,6 +87,38 @@ assert.equal(
     'allowed',
     'an additional origin is allowed only when explicitly configured',
   );
+}
+
+{
+  const verifiedIds = [];
+  const restored = await recoverRestoredLayoutViewerUrls({
+    presentationUrl: `${productionOrigin}/p/shared-presentation`,
+    presentationId: 'shared-presentation',
+    finalPresentationUrl: `${productionOrigin}/p/shared-presentation`,
+    finalPresentationId: 'shared-presentation',
+  }, uatPolicy, async (presentationId) => {
+    verifiedIds.push(presentationId);
+    return presentationId === 'shared-presentation';
+  });
+
+  assert.equal(restored.state.presentationUrl, `${uatOrigin}/p/shared-presentation`);
+  assert.equal(restored.state.finalPresentationUrl, `${uatOrigin}/p/shared-presentation`);
+  assert.equal(restored.state.presentationId, 'shared-presentation');
+  assert.equal(restored.blocked.length, 0);
+  assert.equal(restored.recovered.length, 2);
+  assert.deepEqual(verifiedIds, ['shared-presentation'], 'the same id is verified only once');
+}
+
+{
+  const restored = await recoverRestoredLayoutViewerUrls({
+    finalPresentationUrl: `${productionOrigin}/p/production-only`,
+    finalPresentationId: 'production-only',
+  }, uatPolicy, async () => false);
+
+  assert.equal(restored.state.finalPresentationUrl, null);
+  assert.equal(restored.state.finalPresentationId, null);
+  assert.equal(restored.recovered.length, 0);
+  assert.equal(restored.blocked.length, 1);
 }
 
 for (const value of [
