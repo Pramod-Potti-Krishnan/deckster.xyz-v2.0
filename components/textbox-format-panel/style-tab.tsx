@@ -22,6 +22,7 @@ import { CompactColorPicker } from '@/components/ui/color-picker'
 import { CSSClassesInput } from '@/components/ui/css-classes-input'
 import { cn } from '@/lib/utils'
 import { TEXT_TRANSFORMS, TextTransform } from '@/types/elements'
+import { useDeckThemePalette, type DeckThemeToken } from '@/hooks/use-deck-theme-palette'
 import {
   PanelSection,
   ControlRow,
@@ -38,6 +39,7 @@ interface StyleTabProps {
   onSendCommand: (action: string, params: Record<string, any>) => Promise<any>
   isApplying: boolean
   elementId: string
+  presentationId?: string | null
 }
 
 const FONT_FAMILIES = [
@@ -80,7 +82,8 @@ const parseFontSize = (size: string | number | undefined | null): string => {
   return str.replace('px', '').replace('pt', '')
 }
 
-export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: StyleTabProps) {
+export function StyleTab({ formatting, onSendCommand, isApplying, elementId, presentationId }: StyleTabProps) {
+  const { tokens: themeTokens } = useDeckThemePalette(presentationId)
   // Font state
   const [fontFamily, setFontFamily] = useState(formatting?.fontFamily || 'Inter')
   const [fontWeight, setFontWeight] = useState(formatting?.fontWeight || '400')
@@ -101,6 +104,9 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
   const [borderWidth, setBorderWidth] = useState('1')
   const [roundedCorners, setRoundedCorners] = useState(false)
   const [boxBackground, setBoxBackground] = useState('#ffffff')
+  const [themeBindings, setThemeBindings] = useState<Record<string, string>>(
+    formatting?.themeBindings || {},
+  )
 
   // Text transform and CSS classes state
   const [textTransform, setTextTransform] = useState<TextTransform>('none')
@@ -134,12 +140,14 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
 
   const handleColorChange = async (color: string) => {
     setTextColor(color)
-    await onSendCommand('setTextBoxColor', { elementId, color })
+    setThemeBindings(current => ({ ...current, text_color: '' }))
+    await onSendCommand('setTextBoxColor', { elementId, color, themeBinding: null })
   }
 
   const handleHighlightChange = async (color: string) => {
     setHighlightColor(color)
-    await onSendCommand('setTextHighlightColor', { elementId, color })
+    setThemeBindings(current => ({ ...current, highlight: '' }))
+    await onSendCommand('setTextHighlightColor', { elementId, color, themeBinding: null })
   }
 
   const handleAlignment = async (alignment: string) => {
@@ -183,12 +191,14 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
 
   const handleBorderColorChange = async (color: string) => {
     setBorderColor(color)
+    setThemeBindings(current => ({ ...current, border: '' }))
     await onSendCommand('setTextBoxBorder', {
       elementId,
       borderStyle,
       borderWidth: `${borderWidth}pt`,
       borderColor: color,
-      borderRadius: roundedCorners ? '4px' : '0px'
+      borderRadius: roundedCorners ? '4px' : '0px',
+      themeBinding: null,
     })
   }
 
@@ -216,7 +226,60 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
 
   const handleBoxBackgroundChange = async (color: string) => {
     setBoxBackground(color)
-    await onSendCommand('setTextBoxBackground', { elementId, backgroundColor: color })
+    setThemeBindings(current => ({ ...current, background: '' }))
+    await onSendCommand('setTextBoxBackground', { elementId, backgroundColor: color, themeBinding: null })
+  }
+
+  const applyThemeColor = async (
+    property: 'text_color' | 'highlight' | 'border' | 'background',
+    token: DeckThemeToken,
+    resetThemeBinding = false,
+  ) => {
+    setThemeBindings(current => ({ ...current, [property]: token.id }))
+    if (property === 'text_color') {
+      setTextColor(token.color)
+      await onSendCommand('setTextBoxColor', {
+        elementId,
+        color: token.color,
+        themeBinding: token.id,
+        resetThemeBinding,
+      })
+    } else if (property === 'highlight') {
+      setHighlightColor(token.color)
+      await onSendCommand('setTextHighlightColor', {
+        elementId,
+        color: token.color,
+        themeBinding: token.id,
+        resetThemeBinding,
+      })
+    } else if (property === 'border') {
+      setBorderColor(token.color)
+      await onSendCommand('setTextBoxBorder', {
+        elementId,
+        borderStyle,
+        borderWidth: `${borderWidth}pt`,
+        borderColor: token.color,
+        borderRadius: roundedCorners ? '4px' : '0px',
+        themeBinding: token.id,
+        resetThemeBinding,
+      })
+    } else {
+      setBoxBackground(token.color)
+      await onSendCommand('setTextBoxBackground', {
+        elementId,
+        backgroundColor: token.color,
+        themeBinding: token.id,
+        resetThemeBinding,
+      })
+    }
+  }
+
+  const resetThemeColor = (
+    property: 'text_color' | 'highlight' | 'border' | 'background',
+    preferredToken: DeckThemeToken['id'],
+  ) => {
+    const token = themeTokens.find(item => item.id === preferredToken) || themeTokens[0]
+    if (token) void applyThemeColor(property, token, true)
   }
 
   const handleTextTransformChange = async (value: TextTransform) => {
@@ -337,6 +400,10 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
                 value={textColor}
                 onChange={handleColorChange}
                 disabled={isApplying}
+                themeColors={themeTokens}
+                themeBinding={themeBindings.text_color}
+                onThemeSelect={token => void applyThemeColor('text_color', token)}
+                onResetTheme={() => resetThemeColor('text_color', 'body_text')}
               />
             </ControlRow>
           </div>
@@ -347,6 +414,10 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
                 onChange={handleHighlightChange}
                 disabled={isApplying}
                 allowNoFill={true}
+                themeColors={themeTokens}
+                themeBinding={themeBindings.highlight}
+                onThemeSelect={token => void applyThemeColor('highlight', token)}
+                onResetTheme={() => resetThemeColor('highlight', 'accent_1')}
               />
             </ControlRow>
           </div>
@@ -524,6 +595,10 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
                 value={borderColor}
                 onChange={handleBorderColorChange}
                 disabled={isApplying}
+                themeColors={themeTokens}
+                themeBinding={themeBindings.border}
+                onThemeSelect={token => void applyThemeColor('border', token)}
+                onResetTheme={() => resetThemeColor('border', 'primary')}
               />
               <PanelInput
                 type="number"
@@ -553,6 +628,10 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId }: S
             onChange={handleBoxBackgroundChange}
             disabled={isApplying}
             allowNoFill={true}
+            themeColors={themeTokens}
+            themeBinding={themeBindings.background}
+            onThemeSelect={token => void applyThemeColor('background', token)}
+            onResetTheme={() => resetThemeColor('background', 'surface')}
           />
         </ControlRow>
 

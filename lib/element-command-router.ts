@@ -29,6 +29,7 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   // Element management
   'getElementGeometry',
   'setElementGenerationState',
+  'getElementThemeVariants',
   'deleteElement',
   'deleteTextBox',
 

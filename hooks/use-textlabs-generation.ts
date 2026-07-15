@@ -7,6 +7,7 @@ import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import { parseElementGenerationMetadata, parseGetElementGeometryResponse } from '@/lib/element-geometry'
 import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
+import { parseElementThemeAssignments } from '@/lib/element-theme-variants'
 
 interface UseTextLabsGenerationParams {
   generationPanel: {
@@ -30,6 +31,10 @@ interface UseTextLabsGenerationParams {
     getElement: (id: string) => BlankElementInfo | undefined
     updatePosition: (elementId: string, startCol: number, startRow: number, width: number, height: number) => void
     setStatus: (id: string, status: 'blank' | 'generating') => void
+    updateGenerationMetadata: (
+      id: string,
+      metadata: Pick<BlankElementInfo, 'themeVariantId' | 'themeBindings'>,
+    ) => void
     removeElement: (id: string) => void
     addElement: (info: BlankElementInfo) => void
   }
@@ -135,7 +140,13 @@ export function useTextLabsGeneration({
           elementId: blankId,
         })
         const geometry = parseGetElementGeometryResponse(geometryResponse, blankId)
-        blankInfo = { ...trackedBlankInfo, ...geometry }
+        const metadata = parseElementGenerationMetadata(geometryResponse)
+        blankInfo = {
+          ...trackedBlankInfo,
+          ...geometry,
+          themeVariantId: metadata.themeVariantId ?? trackedBlankInfo.themeVariantId ?? null,
+          themeBindings: metadata.themeBindings ?? trackedBlankInfo.themeBindings ?? null,
+        }
         blankElements.updatePosition(
           blankId,
           geometry.startCol,
@@ -143,6 +154,7 @@ export function useTextLabsGeneration({
           geometry.width,
           geometry.height,
         )
+        blankElements.updateGenerationMetadata(blankId, metadata)
       } catch (error) {
         console.error('[TextLabs] Failed to read live blank geometry:', error)
         generationPanel.setIsGenerating(false)
@@ -189,6 +201,8 @@ export function useTextLabsGeneration({
           theme_variant_id: metadata.themeVariantId ?? refineContext.themeVariantId,
           theme_bindings: metadata.themeBindings ?? refineContext.themeBindings,
         }
+        formData.themeVariantId = metadata.themeVariantId ?? refineContext.themeVariantId
+        formData.themeBindings = metadata.themeBindings ?? refineContext.themeBindings
       } catch (error) {
         console.error('[TextLabs] Failed to read live refine geometry:', error)
         generationPanel.setIsGenerating(false)
@@ -234,6 +248,8 @@ export function useTextLabsGeneration({
     // If blank element exists, override position from canvas and force count=1
     if (blankInfo) {
       formData.count = 1
+      formData.themeVariantId = blankInfo.themeVariantId ?? null
+      formData.themeBindings = blankInfo.themeBindings ?? null
       applyPositionToFormData(formData, {
         start_col: blankInfo.startCol,
         start_row: blankInfo.startRow,
@@ -241,6 +257,42 @@ export function useTextLabsGeneration({
         position_height: blankInfo.height,
         auto_position: false,
       })
+    }
+
+    if (
+      (formData.componentType === 'TEXT_BOX' || formData.componentType === 'METRICS') &&
+      formData.useDeckTheme === true &&
+      formData.count > 1 &&
+      formData.elements?.length === formData.count &&
+      layoutServiceApis?.sendElementCommand
+    ) {
+      try {
+        const assignmentResponse = await layoutServiceApis.sendElementCommand('getElementThemeVariants', {
+          componentType: formData.componentType,
+          count: formData.count,
+          slideIndex: currentSlideIndex,
+          seed: [
+            presentationId || 'unsaved',
+            currentSlideIndex,
+            formData.componentType,
+            JSON.stringify(formData.elements.map(item => item.grid_position)),
+          ].join(':'),
+        })
+        const assignments = parseElementThemeAssignments(
+          assignmentResponse,
+          formData.componentType,
+          formData.count,
+        )
+        formData.elements = formData.elements.map((element, index) => ({
+          ...element,
+          theme_variant_id: assignments[index].themeVariantId,
+          theme_bindings: assignments[index].themeBindings,
+        }))
+      } catch (error) {
+        // Older Layout deployments can still generate; Text Labs will apply its
+        // normal deck-theme fallback until the assignment command is available.
+        console.warn('[TextLabs] Multi-element theme assignments are unavailable:', error)
+      }
     }
 
     // Set status to generating and update canvas to spinner
@@ -264,6 +316,8 @@ export function useTextLabsGeneration({
           resizable: false,
           skipAutoSize: true,
           componentType: normalizeSemanticComponentType(formData.componentType) ?? blankInfo.componentType,
+          themeVariantId: blankInfo.themeVariantId,
+          themeBindings: blankInfo.themeBindings,
         })
         const newId = reinsertResponse?.elementId
         if (newId && newId !== blankId) {
@@ -297,6 +351,8 @@ export function useTextLabsGeneration({
             presentationId: formData.presentationId,
             useDeckTheme: formData.useDeckTheme,
             themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
+            themeVariantId: formData.themeVariantId,
+            themeBindings: formData.themeBindings,
             refine: formData.refine,
             existingElement: formData.existingElement,
             slideContext: formData.slideContext,
@@ -447,6 +503,8 @@ export function useTextLabsGeneration({
             resizable: true,
             skipAutoSize: true,
             componentType: currentBlankInfo.componentType,
+            themeVariantId: currentBlankInfo.themeVariantId,
+            themeBindings: currentBlankInfo.themeBindings,
           })
           const newId = restoreResponse?.elementId
           if (newId && newId !== currentBlankId) {
@@ -509,6 +567,7 @@ export function useTextLabsGeneration({
       })
 
       const layoutElementId = response?.elementId || tempId
+      const metadata = parseElementGenerationMetadata(response)
 
       blankElements.addElement({
         elementId: layoutElementId,
@@ -519,6 +578,8 @@ export function useTextLabsGeneration({
         width: defaults.width,
         height: defaults.height,
         status: 'blank',
+        themeVariantId: metadata.themeVariantId,
+        themeBindings: metadata.themeBindings,
       })
       generationPanel.openPanelForElement(componentType, layoutElementId)
     } catch (err) {

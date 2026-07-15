@@ -12,6 +12,8 @@ export interface BlankElementInfo {
   width: number
   height: number
   status: 'blank' | 'generating'
+  themeVariantId?: string | null
+  themeBindings?: Record<string, string> | null
 }
 
 /**
@@ -68,6 +70,16 @@ export function useBlankElements() {
     }
   }, [])
 
+  const updateGenerationMetadata = useCallback((
+    elementId: string,
+    metadata: Pick<BlankElementInfo, 'themeVariantId' | 'themeBindings'>,
+  ) => {
+    const info = mapRef.current.get(elementId)
+    if (!info) return
+    info.themeVariantId = metadata.themeVariantId ?? info.themeVariantId ?? null
+    info.themeBindings = metadata.themeBindings ?? info.themeBindings ?? null
+  }, [])
+
   const getElement = useCallback((elementId: string): BlankElementInfo | undefined => {
     return mapRef.current.get(elementId)
   }, [])
@@ -92,6 +104,7 @@ export function useBlankElements() {
     removeElement,
     updatePosition,
     setStatus,
+    updateGenerationMetadata,
     getElement,
     isBlankElement,
     trackElement,
