@@ -2955,6 +2955,7 @@ export function PresentationViewer({
         presentationId={presentationId}
         buildThemeSelection={buildThemeSelection}
         themeSync={themeSync}
+        selectionLocked={templateSelectionLocked}
         onBuildThemeChange={onBuildThemeChange}
       />
     </div>

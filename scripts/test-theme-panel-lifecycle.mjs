@@ -54,6 +54,9 @@ const panelSource = fs.readFileSync(new URL('../components/theme-panel.tsx', imp
 assert.doesNotMatch(panelSource, /sendCommand\s*\(/)
 assert.doesNotMatch(panelSource, /['"](?:setTheme|previewTheme|saveTheme)['"]/) 
 assert.match(panelSource, /onBuildThemeChange\(next\)/)
+assert.match(panelSource, /Template and theme choices are locked once generation starts/)
+assert.match(panelSource, /if \(selectionLocked \|\| !canApply \|\| !onBuildThemeChange\) return/)
+assert.match(panelSource, /&& !selectionLocked/)
 assert.match(panelSource, /Syncing/)
 assert.match(panelSource, /Applied/)
 assert.match(panelSource, /Failed/)
@@ -63,5 +66,6 @@ const viewerSource = fs.readFileSync(new URL('../components/presentation-viewer.
 assert.match(areaSource, /buildThemeSelection=\{buildThemeSelection\}/)
 assert.match(areaSource, /themeSync=\{themeSync\}/)
 assert.match(viewerSource, /onBuildThemeChange=\{onBuildThemeChange\}/)
+assert.match(viewerSource, /selectionLocked=\{templateSelectionLocked\}/)
 
 console.log('theme panel lifecycle tests passed')

@@ -113,6 +113,7 @@ interface ThemePanelProps {
   presentationId?: string | null
   buildThemeSelection: BuildThemeSelection
   themeSync: ThemeSyncState
+  selectionLocked?: boolean
   onBuildThemeChange?: (selection: BuildThemeSelection) => void
 }
 
@@ -159,6 +160,7 @@ function HexField({
   value,
   fallback,
   linkedLabel,
+  disabled = false,
   onChange,
   onReset,
 }: {
@@ -166,6 +168,7 @@ function HexField({
   value?: string
   fallback: string
   linkedLabel?: string
+  disabled?: boolean
   onChange: (value: string) => void
   onReset?: () => void
 }) {
@@ -180,7 +183,8 @@ function HexField({
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800"
+            disabled={disabled}
+            className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label={`Reset ${label} to theme`}
           >
             <RotateCcw className="h-3 w-3" /> Reset to theme
@@ -194,14 +198,16 @@ function HexField({
           type="color"
           value={validValue}
           onChange={event => onChange(event.target.value)}
-          className="h-8 w-9 rounded border border-gray-200 bg-white p-0.5"
+          disabled={disabled}
+          className="h-8 w-9 rounded border border-gray-200 bg-white p-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           aria-label={`${label} color`}
         />
         <input
           value={value || ''}
           onChange={event => onChange(event.target.value)}
+          disabled={disabled}
           className={cn(
-            'h-8 min-w-0 flex-1 rounded-md border bg-white px-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-200',
+            'h-8 min-w-0 flex-1 rounded-md border bg-white px-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-60',
             value && !isValidThemeHex(value) ? 'border-rose-400 text-rose-700' : 'border-gray-200 text-gray-700',
           )}
           placeholder={isExplicit ? '#000000' : `Theme (${fallback})`}
@@ -218,6 +224,7 @@ export function ThemePanel({
   presentationId,
   buildThemeSelection,
   themeSync,
+  selectionLocked = false,
   onBuildThemeChange,
 }: ThemePanelProps) {
   const [draft, setDraft] = useState<BuildThemeSelection>(() => (
@@ -229,7 +236,7 @@ export function ThemePanel({
     if (!isOpen) return
     setDraft(normalizeThemePanelSelection(buildThemeSelection))
     setSubmittedFromRequestId(undefined)
-  }, [buildThemeSelection, isOpen])
+  }, [buildThemeSelection, isOpen, selectionLocked])
 
   useEffect(() => {
     if (submittedFromRequestId === undefined) return
@@ -261,6 +268,7 @@ export function ThemePanel({
   const invalidOverride = Object.values(draft.color_overrides || {}).some(value => !isValidThemeHex(value))
   const canApply = Boolean(
     onBuildThemeChange
+    && !selectionLocked
     && !invalidCustomColor
     && !invalidOverride
     && (hasChanges || visibleSyncStatus === 'failed'),
@@ -277,6 +285,7 @@ export function ThemePanel({
   if (!isOpen) return null
 
   const updateDraft = (next: BuildThemeSelection) => {
+    if (selectionLocked) return
     setDraft(normalizeThemePanelSelection(next))
     setSubmittedFromRequestId(undefined)
   }
@@ -328,7 +337,7 @@ export function ThemePanel({
   }
 
   const applyTheme = () => {
-    if (!canApply || !onBuildThemeChange) return
+    if (selectionLocked || !canApply || !onBuildThemeChange) return
     const next = normalizeThemePanelSelection(draft)
     setSubmittedFromRequestId(themeSync.requestId)
     onBuildThemeChange(next)
@@ -357,15 +366,22 @@ export function ThemePanel({
         </div>
       )}
 
+      {selectionLocked && (
+        <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800">
+          Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.
+        </div>
+      )}
+
       <div className="border-b border-gray-200 px-3 py-2">
         <div className="flex rounded-lg bg-gray-100 p-0.5">
           <button
             type="button"
+            disabled={selectionLocked}
             onClick={() => {
               if (draft.mode === 'custom') selectPreset(selectedPresetId)
             }}
             className={cn(
-              'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-all',
+              'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50',
               mode === 'preset' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900',
             )}
           >
@@ -373,9 +389,10 @@ export function ThemePanel({
           </button>
           <button
             type="button"
+            disabled={selectionLocked}
             onClick={selectCustomMode}
             className={cn(
-              'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-all',
+              'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50',
               mode === 'custom' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900',
             )}
           >
@@ -410,9 +427,10 @@ export function ThemePanel({
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
+                disabled={selectionLocked}
                 onClick={selectAuto}
                 className={cn(
-                  'col-span-2 rounded-lg border-2 px-3 py-2 text-left transition-colors',
+                  'col-span-2 rounded-lg border-2 px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                   draft.mode === 'auto' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300',
                 )}
               >
@@ -427,10 +445,11 @@ export function ThemePanel({
                 return (
                   <button
                     type="button"
+                    disabled={selectionLocked}
                     key={theme.id}
                     onClick={() => selectPreset(theme.id)}
                     className={cn(
-                      'relative rounded-lg border-2 p-2 text-left transition-colors',
+                      'relative rounded-lg border-2 p-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                       selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300',
                     )}
                   >
@@ -459,6 +478,7 @@ export function ThemePanel({
                 value={draft[key]}
                 fallback={index === 0 ? selectedPreview.primary : index === 1 ? selectedPreview.accent : selectedPreview.surface}
                 linkedLabel="Generated from primary"
+                disabled={selectionLocked}
                 onChange={value => updateCustomColor(key, value)}
                 onReset={() => updateCustomColor(key, '')}
               />
@@ -475,8 +495,9 @@ export function ThemePanel({
             {draft.color_overrides && Object.keys(draft.color_overrides).length > 0 && (
               <button
                 type="button"
+                disabled={selectionLocked}
                 onClick={() => updateDraft({ ...draft, color_overrides: undefined })}
-                className="inline-flex shrink-0 items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800"
+                className="inline-flex shrink-0 items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RotateCcw className="h-3 w-3" /> Reset all
               </button>
@@ -501,6 +522,7 @@ export function ThemePanel({
                 label={label}
                 value={draft.color_overrides?.[key]}
                 fallback={fallbacks[key]}
+                disabled={selectionLocked}
                 onChange={value => updateOverride(key, value)}
                 onReset={() => updateOverride(key)}
               />
