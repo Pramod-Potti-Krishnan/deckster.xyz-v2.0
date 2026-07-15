@@ -88,6 +88,7 @@ export function useElementRefinement({
         renderer_type: payload.elementType,
         theme_variant_id: payload.themeVariantId ?? null,
         theme_bindings: payload.themeBindings ?? null,
+        research_provenance: payload.researchProvenance ?? null,
         content: payload.content ?? null,
         formatting: payload.formatting ?? null,
         properties: payload.properties ?? null,

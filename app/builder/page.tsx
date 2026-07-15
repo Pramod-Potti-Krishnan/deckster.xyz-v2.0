@@ -438,6 +438,9 @@ function BuilderContent() {
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
   const [activeBuildThemeProfile, setActiveBuildThemeProfile] = useState<ActiveBuildThemeProfile | null>(null)
   const [themeSync, setThemeSync] = useState<ThemeSyncState>(IDLE_THEME_SYNC)
+  const themeSyncRef = useRef(themeSync)
+  themeSyncRef.current = themeSync
+  const getThemeSyncSnapshot = useCallback(() => themeSyncRef.current, [])
   const latestThemeSyncRequestRef = useRef<string | null>(null)
   const themeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const standardThemeLoadedRef = useRef(false)
@@ -2034,7 +2037,7 @@ function BuilderContent() {
   )
 
   useEffect(() => {
-    if (!isReady || !presentationId || templateModeOn) {
+    if (!isReady || !effectivePresentationId || templateModeOn) {
       latestThemeSyncRequestRef.current = null
       setThemeSync(IDLE_THEME_SYNC)
       return
@@ -2042,13 +2045,13 @@ function BuilderContent() {
 
     const requestId = crypto.randomUUID()
     latestThemeSyncRequestRef.current = requestId
-    setThemeSync(syncingTheme(requestId, presentationId))
+    setThemeSync(syncingTheme(requestId, effectivePresentationId))
 
-    if (!sendThemeSelection(buildThemeSelection, requestId)) {
+    if (!sendThemeSelection(buildThemeSelection, requestId, effectivePresentationId)) {
       setThemeSync({
         status: 'failed',
         requestId,
-        presentationId,
+        presentationId: effectivePresentationId,
         error: 'Director is not connected. Reconnect before generating with the deck theme.',
       })
       return
@@ -2059,7 +2062,7 @@ function BuilderContent() {
       setThemeSync({
         status: 'failed',
         requestId,
-        presentationId,
+        presentationId: effectivePresentationId,
         error: 'Theme application timed out. Retry the theme selection before generating an element.',
       })
     }, 20_000)
@@ -2070,7 +2073,14 @@ function BuilderContent() {
         themeSyncTimeoutRef.current = null
       }
     }
-  }, [buildThemeSelection, isReady, presentationId, sendThemeSelection, templateModeOn])
+  }, [
+    buildThemeSelection,
+    effectivePresentationId,
+    isReady,
+    presentationId,
+    sendThemeSelection,
+    templateModeOn,
+  ])
 
   useEffect(() => {
     if (!slideComposerOverride || directorOwnedPresentation.usesOverride) return
@@ -2625,6 +2635,10 @@ function BuilderContent() {
     layoutServiceApis,
     presentationId: effectivePresentationId,
     currentSlideIndex,
+    deckContext: deckContext as Record<string, unknown> | null | undefined,
+    researchSessionId: currentSessionId || wsSessionId || null,
+    researchStoreName: sessionStoreName,
+    getThemeSyncSnapshot,
     toast,
   })
 
@@ -3620,10 +3634,14 @@ function BuilderContent() {
                   mode={generationPanel.mode}
                   regenerateEnabled={generationPanel.regenerateEnabled}
                   onRegenerateToggle={generationPanel.setRegenerateEnabled}
-                  refineWebResearch={generationPanel.refineWebResearch}
-                  refineUploadedDocs={generationPanel.refineUploadedDocs}
-                  onRefineWebResearchChange={generationPanel.setRefineWebResearch}
-                  onRefineUploadedDocsChange={generationPanel.setRefineUploadedDocs}
+                  researchMode={generationPanel.researchMode}
+                  researchWeb={generationPanel.researchWeb}
+                  researchUploadedDocs={generationPanel.researchUploadedDocs}
+                  researchSessionAvailable={Boolean(currentSessionId || wsSessionId)}
+                  uploadedDocsAvailable={Boolean(sessionStoreName)}
+                  onResearchModeChange={generationPanel.setResearchMode}
+                  onResearchWebChange={generationPanel.setResearchWeb}
+                  onResearchUploadedDocsChange={generationPanel.setResearchUploadedDocs}
                 />
               )}
 

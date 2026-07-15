@@ -31,6 +31,14 @@ export function GenerationPanel({
   mode,
   regenerateEnabled,
   onRegenerateToggle,
+  researchMode,
+  researchWeb,
+  researchUploadedDocs,
+  researchSessionAvailable,
+  uploadedDocsAvailable,
+  onResearchModeChange,
+  onResearchWebChange,
+  onResearchUploadedDocsChange,
 }: GenerationPanelProps) {
   // Form registers its submit function here
   const submitFnRef = useRef<(() => void) | null>(null)
@@ -131,6 +139,59 @@ export function GenerationPanel({
               isGenerating={isGenerating}
               error={error}
             />
+            <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Research grounding</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Your prompt stays authoritative; research is supporting evidence.
+                  </div>
+                </div>
+                <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5 dark:border-slate-600 dark:bg-slate-900">
+                  {(['auto', 'on', 'off'] as const).map(value => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={researchMode === value}
+                      onClick={() => onResearchModeChange(value)}
+                      className={cn(
+                        'rounded px-2 py-1 text-[11px] font-medium capitalize',
+                        researchMode === value
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700',
+                      )}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {researchMode !== 'off' && (
+                <div className="mt-2 flex items-center gap-4 text-[11px] text-slate-600 dark:text-slate-300">
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={researchUploadedDocs && uploadedDocsAvailable}
+                      disabled={!researchSessionAvailable || !uploadedDocsAvailable}
+                      onChange={event => onResearchUploadedDocsChange(event.target.checked)}
+                    />
+                    Uploaded documents{!uploadedDocsAvailable ? ' (none)' : ''}
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={researchWeb}
+                      disabled={!researchSessionAvailable}
+                      onChange={event => onResearchWebChange(event.target.checked)}
+                    />
+                    Web
+                  </label>
+                  {!researchSessionAvailable && (
+                    <span className="text-amber-600 dark:text-amber-400">Attach a source to enable grounding.</span>
+                  )}
+                </div>
+              )}
+            </div>
           </>
         )}
 

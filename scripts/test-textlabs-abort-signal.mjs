@@ -28,6 +28,11 @@ vm.runInNewContext(compiled.outputText, {
     if (id === '@/lib/element-semantic-type') {
       return { semanticTypeForInsertion: value => value }
     }
+    if (id === '@/lib/textlabs-theme-metadata') {
+      return {
+        resolveElementThemeMetadata: () => ({ themeVariantId: null, themeBindings: null }),
+      }
+    }
     throw new Error(`Unexpected dependency: ${id}`)
   },
 })

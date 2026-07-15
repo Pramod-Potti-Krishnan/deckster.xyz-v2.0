@@ -156,6 +156,7 @@ export interface RefineElementRequest {
   properties?: Record<string, unknown>
   themeVariantId?: string | null
   themeBindings?: Record<string, string> | null
+  researchProvenance?: Record<string, unknown> | null
   content?: unknown
 }
 
@@ -2170,6 +2171,7 @@ export function PresentationViewer({
               ? event.data.theme_variant_id
               : null,
           themeBindings: event.data.themeBindings || event.data.theme_bindings,
+          researchProvenance: event.data.researchProvenance || event.data.research_provenance || null,
           content: event.data.content,
         })
       }
