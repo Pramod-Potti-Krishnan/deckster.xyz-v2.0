@@ -325,8 +325,11 @@ export function useBuilderSession({
             }
 
             const restoredSessionState = {
-              presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl,
-              presentationId: session.finalPresentationId || session.strawmanPresentationId,
+              presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl || session.blankPresentationUrl,
+              presentationId: session.finalPresentationId || session.strawmanPresentationId || session.blankPresentationId,
+              blankPresentationUrl: session.blankPresentationUrl,
+              blankPresentationId: session.blankPresentationId,
+              isBlankPresentation: Boolean(session.blankPresentationUrl),
               strawmanPreviewUrl: session.strawmanPreviewUrl,
               strawmanPresentationId: session.strawmanPresentationId,
               finalPresentationUrl: session.finalPresentationUrl,

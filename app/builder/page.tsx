@@ -35,6 +35,7 @@ import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { TopUpModal } from '@/components/builder/topup-modal'
+import { ManualDeckConflictDialog } from '@/components/builder/manual-deck-conflict-dialog'
 import type { SlideComposeThumbnailJob } from '@/components/slide-thumbnail-strip'
 import {
   canPollCompleteSlideComposeJob,
@@ -72,6 +73,31 @@ import type { BuildThemeSelection } from '@/lib/theme-builder'
 import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import {
+  deriveBuilderStage,
+  isPresentationCallbackCurrent,
+  resolveEffectivePresentation,
+} from '@/lib/builder-presentation-ownership'
+import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
+import {
+  IDLE_THEME_SYNC,
+  applyThemeSyncResponse,
+  isThemeAppliedToPresentation,
+  isThemeSyncTerminal,
+  syncingTheme,
+  type ThemeSyncState,
+} from '@/lib/theme-sync'
+import {
+  buildSessionHandoffRequest,
+  clearPendingHandoff,
+  createManualDeckContext,
+  inspectManualDeck,
+  readPendingHandoff,
+  savePendingHandoff,
+  type ManualDeckContext,
+  type ManualDeckSummary,
+  type PendingHandoffSubmission,
+} from '@/lib/manual-deck-workflow'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -80,49 +106,8 @@ const DEFAULT_DRAWER_WIDTH = 420
 const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 1
-const TEXTLABS_COMPONENT_TYPES = new Set<TextLabsComponentType>([
-  'TEXT_BOX',
-  'METRICS',
-  'TABLE',
-  'CHART',
-  'IMAGE',
-  'ICON_LABEL',
-  'SHAPE',
-  'INFOGRAPHIC',
-  'DIAGRAM',
-])
-
 function normalizeTextLabsElementType(value: unknown): TextLabsComponentType | null {
-  if (typeof value !== 'string') return null
-  const upper = value.toUpperCase().replace(/[-\s]/g, '_') as TextLabsComponentType
-  if (TEXTLABS_COMPONENT_TYPES.has(upper)) return upper
-
-  switch (value.toLowerCase()) {
-    case 'text':
-    case 'textbox':
-    case 'text_box':
-      return 'TEXT_BOX'
-    case 'image':
-      return 'IMAGE'
-    case 'table':
-      return 'TABLE'
-    case 'chart':
-      return 'CHART'
-    case 'infographic':
-      return 'INFOGRAPHIC'
-    case 'diagram':
-      return 'DIAGRAM'
-    case 'shape':
-      return 'SHAPE'
-    case 'icon':
-    case 'icon_label':
-    case 'icon-label':
-      return 'ICON_LABEL'
-    case 'metrics':
-      return 'METRICS'
-    default:
-      return null
-  }
+  return normalizeSemanticComponentType(value)
 }
 
 function scTrace(event: string, payload: Record<string, unknown>) {
@@ -150,6 +135,7 @@ interface SlideComposeJobState {
   status: SlideComposeJobStatus
   title: string
   request: Record<string, unknown>
+  target_presentation_id?: string | null
   real_slide_id?: string | null
   expected_slide_count?: number | null
   lastProgressText?: string
@@ -161,6 +147,21 @@ interface BuilderSessionOptions {
   activeTemplate: BuilderTemplateSelection | null
   buildThemeSelection: BuildThemeSelection
   activeBuildThemeProfile: ActiveBuildThemeProfile | null
+}
+
+interface PendingManualDeckBuild {
+  messageText: string
+  presentationId: string
+  presentationUrl: string | null
+  summary: ManualDeckSummary
+  operationId: string
+}
+
+interface DirectorHandoffResponse {
+  new_session_id: string
+  source_session_id: string
+  status: 'ready'
+  continued_from_session_id: string
 }
 
 function getBuilderSessionOptionsKey(sessionId: string): string {
@@ -417,6 +418,9 @@ function BuilderContent() {
 
   // UI state
   const [inputMessage, setInputMessage] = useState("")
+  const [pendingManualDeckBuild, setPendingManualDeckBuild] = useState<PendingManualDeckBuild | null>(null)
+  const [manualDeckHandoffBusy, setManualDeckHandoffBusy] = useState(false)
+  const [manualDeckHandoffError, setManualDeckHandoffError] = useState<string | null>(null)
   const templateBuilderEnabled = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
   const blueprintEditorV2Enabled = templateBuilderEnabled && process.env.NEXT_PUBLIC_BLUEPRINT_EDITOR_V2 === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
@@ -433,6 +437,12 @@ function BuilderContent() {
   const [selectedTemplateElementId, setSelectedTemplateElementId] = useState<string | null>(null)
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
   const [activeBuildThemeProfile, setActiveBuildThemeProfile] = useState<ActiveBuildThemeProfile | null>(null)
+  const [themeSync, setThemeSync] = useState<ThemeSyncState>(IDLE_THEME_SYNC)
+  const themeSyncRef = useRef(themeSync)
+  themeSyncRef.current = themeSync
+  const getThemeSyncSnapshot = useCallback(() => themeSyncRef.current, [])
+  const latestThemeSyncRequestRef = useRef<string | null>(null)
+  const themeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const standardThemeLoadedRef = useRef(false)
   const buildThemeSelectionRef = useRef(buildThemeSelection)
   const { getStandardTheme } = useThemeProfiles()
@@ -610,6 +620,19 @@ function BuilderContent() {
   const slideComposeFallbackReloadInFlightRef = useRef(false)
   const pendingComposeSelectionRestoreRef = useRef<number | null>(null)
   const slideComposerLayoutCountReconcileRef = useRef<string | null>(null)
+
+  const clearSlideComposerWork = useCallback(() => {
+    setSlideComposeJobs({})
+    Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
+    slideComposeWatchdogsRef.current = {}
+    Object.values(slideComposePollersRef.current).forEach(clearInterval)
+    slideComposePollersRef.current = {}
+    pendingComposePlaceholdersRef.current.clear()
+    slideComposeReconcileQueuesRef.current = {}
+    slideComposeFallbackReloadInFlightRef.current = false
+    pendingComposeSelectionRestoreRef.current = null
+    slideComposerLayoutCountReconcileRef.current = null
+  }, [])
 
   const clearSlideComposeWatchdog = useCallback((jobId: string) => {
     const timer = slideComposeWatchdogsRef.current[jobId]
@@ -1007,6 +1030,9 @@ function BuilderContent() {
 
   // Guard to prevent concurrent executions of handleSendMessage
   const isExecutingSendRef = useRef(false)
+  const manualDeckInspectionInFlightRef = useRef(false)
+  const handoffSubmissionInFlightRef = useRef<Set<string>>(new Set())
+  const pendingHandoffMemoryRef = useRef<PendingHandoffSubmission | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -1069,15 +1095,11 @@ function BuilderContent() {
 
   useEffect(() => {
     standardThemeLoadedRef.current = false
+    setPendingManualDeckBuild(null)
+    setManualDeckHandoffError(null)
+    setManualDeckHandoffBusy(false)
     setSlideComposerOverride(null)
-    setSlideComposeJobs({})
-    Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
-    slideComposeWatchdogsRef.current = {}
-    Object.values(slideComposePollersRef.current).forEach(clearInterval)
-    slideComposePollersRef.current = {}
-    pendingComposePlaceholdersRef.current.clear()
-    slideComposeReconcileQueuesRef.current = {}
-    slideComposeFallbackReloadInFlightRef.current = false
+    clearSlideComposerWork()
     setSelectedLayoutSlideIndex(0)
     setShowFormatPanel(false)
     setTemplateModeOn(false)
@@ -1088,7 +1110,7 @@ function BuilderContent() {
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
     setTemplateSourceSlideIndex(0)
-  }, [currentSessionId])
+  }, [clearSlideComposerWork, currentSessionId])
 
   useEffect(() => {
     setSelectedTemplateElementId(null)
@@ -1429,6 +1451,7 @@ function BuilderContent() {
     tokenUsageMessageId,
     sendMessage,
     sendControlMessage,
+    sendThemeSelection,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,
@@ -1465,6 +1488,7 @@ function BuilderContent() {
           return samePresentation ? current.slideCount : null
         })()
         const nextSlideCount = Math.max(state.slideCount ?? 0, verifiedLayoutCount ?? 0) || state.slideCount
+        const isBlank = state.currentStage === 0
         const isStrawman = state.currentStage === 4
         const isFinal = state.currentStage === 6
 
@@ -1478,7 +1502,11 @@ function BuilderContent() {
           }
         }
 
-        if (isStrawman) {
+        if (isBlank) {
+          updates.blankPresentationUrl = state.presentationUrl
+          updates.blankPresentationId = state.presentationId
+          console.log('Saving blank presentation URLs:', { url: state.presentationUrl, id: state.presentationId })
+        } else if (isStrawman) {
           updates.strawmanPreviewUrl = state.presentationUrl
           updates.strawmanPresentationId = state.presentationId
           console.log('Saving strawman URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
@@ -1498,6 +1526,17 @@ function BuilderContent() {
       }
     },
     onMessage: (message) => {
+      if (message.type === 'theme_sync') {
+        if (message.payload.request_id !== latestThemeSyncRequestRef.current) return
+        const terminal = isThemeSyncTerminal(message.payload.status)
+        if (terminal && themeSyncTimeoutRef.current) {
+          clearTimeout(themeSyncTimeoutRef.current)
+          themeSyncTimeoutRef.current = null
+        }
+        setThemeSync(current => applyThemeSyncResponse(current, message.payload))
+        return
+      }
+
       const isTemplateActionRequest = message.type === 'action_request'
         && message.payload.actions.some((action) => action.value.startsWith('template_'))
       if (isTemplateActionRequest) {
@@ -1524,6 +1563,18 @@ function BuilderContent() {
     },
     onSlideComposeProgress: (message: SlideComposeProgress) => {
       const payload = message.payload
+      const progressJob = slideComposeJobsRef.current[payload.job_id]
+      if (progressJob && !isPresentationCallbackCurrent({
+        callbackPresentationId: progressJob.target_presentation_id,
+        livePresentationId: presentationId,
+      })) {
+        scTrace('builder.ws.slide_progress.ignored_stale', {
+          job_id: payload.job_id,
+          callback_presentation_id: progressJob.target_presentation_id ?? null,
+          live_presentation_id: presentationId,
+        })
+        return
+      }
       setSlideComposeJobs(prev => {
         const existing = prev[payload.job_id]
         if (!existing || existing.status === 'error') return prev
@@ -1548,6 +1599,25 @@ function BuilderContent() {
     },
     onSlideComposeReady: (message: SlideComposeReady) => {
       const payload = message.payload
+      const readyJob = slideComposeJobsRef.current[payload.job_id]
+      const callbackPresentationId = payload.presentation_id ?? readyJob?.target_presentation_id
+      if (!isPresentationCallbackCurrent({
+        callbackPresentationId,
+        livePresentationId: presentationId,
+      })) {
+        scTrace('builder.ws.slide_ready.ignored_stale', {
+          job_id: payload.job_id,
+          callback_presentation_id: callbackPresentationId ?? null,
+          live_presentation_id: presentationId,
+        })
+        clearSlideComposeWatchdog(payload.job_id)
+        clearSlideComposePoller(payload.job_id)
+        setSlideComposeJobs(prev => {
+          const { [payload.job_id]: _stale, ...rest } = prev
+          return rest
+        })
+        return
+      }
       const presentationKey = payload.presentation_id
         ?? slideComposerPresentationRef.current.presentationId
         ?? '__unknown__'
@@ -1887,6 +1957,18 @@ function BuilderContent() {
       const payload = message.payload
       const errors = payload.errors?.filter(Boolean) ?? []
       const failedJob = slideComposeJobsRef.current[payload.job_id]
+      if (failedJob && !isPresentationCallbackCurrent({
+        callbackPresentationId: failedJob.target_presentation_id,
+        livePresentationId: presentationId,
+      })) {
+        clearSlideComposeWatchdog(payload.job_id)
+        clearSlideComposePoller(payload.job_id)
+        setSlideComposeJobs(prev => {
+          const { [payload.job_id]: _stale, ...rest } = prev
+          return rest
+        })
+        return
+      }
       const failedKind: SlideComposeJobKind = payload.kind ?? failedJob?.kind ?? 'compose'
       clearSlideComposeWatchdog(payload.job_id)
       clearSlideComposePoller(payload.job_id)
@@ -1932,17 +2014,91 @@ function BuilderContent() {
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
 
+  const directorOwnedPresentation = useMemo(
+    () => resolveEffectivePresentation({
+      livePresentationUrl: presentationUrl,
+      livePresentationId: presentationId,
+      liveSlideCount: slideCount,
+      override: slideComposerOverride,
+    }),
+    [presentationId, presentationUrl, slideComposerOverride, slideCount],
+  )
   const effectivePresentationId = templateModeSourcePresentationId
-    ?? slideComposerOverride?.presentationId
-    ?? presentationId
-  const effectiveSlideCount = slideComposerOverride?.slideCount ?? slideCount
+    ?? directorOwnedPresentation.presentationId
+  const effectiveSlideCount = templateModeSourcePresentationId
+    ? slideCount
+    : directorOwnedPresentation.slideCount
   const effectivePresentationUrl = useMemo(
     () => withSlideComposerRefreshToken(
-      templateModeSourcePresentationUrl ?? slideComposerOverride?.presentationUrl ?? presentationUrl,
-      slideComposerOverride?.refreshToken ?? 0,
+      templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
+      templateModeSourcePresentationId ? 0 : directorOwnedPresentation.refreshToken,
     ),
-    [presentationUrl, slideComposerOverride, templateModeSourcePresentationUrl],
+    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl],
   )
+
+  useEffect(() => {
+    if (!isReady || !effectivePresentationId || templateModeOn) {
+      latestThemeSyncRequestRef.current = null
+      setThemeSync(IDLE_THEME_SYNC)
+      return
+    }
+
+    const requestId = crypto.randomUUID()
+    latestThemeSyncRequestRef.current = requestId
+    setThemeSync(syncingTheme(requestId, effectivePresentationId))
+
+    if (!sendThemeSelection(buildThemeSelection, requestId, effectivePresentationId)) {
+      setThemeSync({
+        status: 'failed',
+        requestId,
+        presentationId: effectivePresentationId,
+        error: 'Director is not connected. Reconnect before generating with the deck theme.',
+      })
+      return
+    }
+
+    themeSyncTimeoutRef.current = setTimeout(() => {
+      if (latestThemeSyncRequestRef.current !== requestId) return
+      setThemeSync({
+        status: 'failed',
+        requestId,
+        presentationId: effectivePresentationId,
+        error: 'Theme application timed out. Retry the theme selection before generating an element.',
+      })
+    }, 20_000)
+
+    return () => {
+      if (themeSyncTimeoutRef.current) {
+        clearTimeout(themeSyncTimeoutRef.current)
+        themeSyncTimeoutRef.current = null
+      }
+    }
+  }, [
+    buildThemeSelection,
+    effectivePresentationId,
+    isReady,
+    presentationId,
+    sendThemeSelection,
+    templateModeOn,
+  ])
+
+  useEffect(() => {
+    if (!slideComposerOverride || directorOwnedPresentation.usesOverride) return
+
+    scTrace('builder.override.cleared_for_director_deck', {
+      override_presentation_id: slideComposerOverride.presentationId,
+      director_presentation_id: presentationId,
+      active_version: activeVersion,
+    })
+    setSlideComposerOverride(null)
+    clearSlideComposerWork()
+  }, [
+    activeVersion,
+    clearSlideComposerWork,
+    directorOwnedPresentation.usesOverride,
+    presentationId,
+    slideComposerOverride,
+  ])
   const templateSavePresentationId = useMemo(() => {
     if (templateModeOn || activeVersion !== 'final') return null
     return finalPresentationId
@@ -1960,19 +2116,18 @@ function BuilderContent() {
 
   useEffect(() => {
     slideComposerPresentationRef.current = {
-      presentationUrl: slideComposerOverride?.presentationUrl ?? presentationUrl,
+      presentationUrl: directorOwnedPresentation.presentationUrl,
       presentationId: effectivePresentationId,
       slideCount: effectiveSlideCount,
       activeVersion,
-      refreshToken: slideComposerOverride?.refreshToken ?? 0,
+      refreshToken: directorOwnedPresentation.refreshToken,
     }
   }, [
     activeVersion,
+    directorOwnedPresentation.presentationUrl,
+    directorOwnedPresentation.refreshToken,
     effectivePresentationId,
     effectiveSlideCount,
-    presentationUrl,
-    slideComposerOverride?.refreshToken,
-    slideComposerOverride?.presentationUrl,
   ])
 
   useEffect(() => {
@@ -2062,6 +2217,16 @@ function BuilderContent() {
   const handleSlideComposerBuilt = useCallback((result: SlideComposeBuiltResult) => {
     const nextSlideIndex = Math.max(0, result.slide_index)
     const targetPresentationId = result.presentation_id
+    if (!isPresentationCallbackCurrent({
+      callbackPresentationId: targetPresentationId,
+      livePresentationId: presentationId,
+    })) {
+      scTrace('builder.http.slide_built.ignored_stale', {
+        callback_presentation_id: targetPresentationId,
+        live_presentation_id: presentationId,
+      })
+      return
+    }
     const targetPresentationUrl = result.presentation_url ?? slideComposerOverride?.presentationUrl ?? presentationUrl
     const existingDeck = !!effectivePresentationId && targetPresentationId === effectivePresentationId
     const baseSlideCount = effectiveSlideCount ?? 0
@@ -2105,6 +2270,7 @@ function BuilderContent() {
     effectivePresentationId,
     effectiveSlideCount,
     persistence,
+    presentationId,
     presentationUrl,
     slideComposerOverride?.presentationUrl,
     toast,
@@ -2203,6 +2369,9 @@ function BuilderContent() {
         status: 'building',
         title: job.title,
         request: job.request,
+        target_presentation_id:
+          (typeof job.request.presentation_id === 'string' ? job.request.presentation_id : null)
+          ?? slideComposerPresentationRef.current.presentationId,
         expected_slide_count: expectedSlideCount,
       },
     }))
@@ -2466,6 +2635,10 @@ function BuilderContent() {
     layoutServiceApis,
     presentationId: effectivePresentationId,
     currentSlideIndex,
+    deckContext: deckContext as Record<string, unknown> | null | undefined,
+    researchSessionId: currentSessionId || wsSessionId || null,
+    researchStoreName: sessionStoreName,
+    getThemeSyncSnapshot,
     toast,
   })
 
@@ -2480,15 +2653,31 @@ function BuilderContent() {
       return
     }
 
+    if (
+      formData.useDeckTheme &&
+      !isThemeAppliedToPresentation(themeSync, effectivePresentationId)
+    ) {
+      const description = themeSync.status === 'syncing'
+        ? 'The selected theme is still being applied. Wait for the Applied status and try again.'
+        : themeSync.error || 'Apply the selected deck theme before generating this element.'
+      generationPanel.setError(description)
+      toast({
+        title: 'Deck theme not ready',
+        description,
+        variant: 'destructive',
+      })
+      return
+    }
+
     await handleTextLabsGenerate(formData)
-  }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast])
+  }, [effectivePresentationId, generationPanel, handleTextLabsGenerate, layoutServiceApis, themeSync, toast])
 
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
     if (!features.useTextLabsGeneration) return
 
-    const componentType = normalizeTextLabsElementType(payload.elementType)
+    const componentType = normalizeTextLabsElementType(payload.componentType ?? payload.elementType)
     if (!componentType) {
-      console.warn('[ElementRefine] Unsupported element type from viewer:', payload.elementType)
+      console.warn('[ElementRefine] Unsupported element type from viewer:', payload.componentType ?? payload.elementType)
       return
     }
 
@@ -2559,11 +2748,18 @@ function BuilderContent() {
 
   // Infer current stage from available data
   const currentStage = useMemo(() => {
-    if (effectivePresentationUrl) return 6;
-    if (effectiveSlideCount && effectiveSlideCount > 0) return 5;
-    if (slideStructure && (slideStructure as any).length > 0) return 4;
-    return 3;
-  }, [effectivePresentationUrl, effectiveSlideCount, slideStructure])
+    const hasSlideStructure = Array.isArray((slideStructure as any)?.slides)
+      ? (slideStructure as any).slides.length > 0
+      : Array.isArray(slideStructure)
+        ? slideStructure.length > 0
+        : Boolean(slideStructure)
+    return deriveBuilderStage({
+      activeVersion,
+      presentationUrl: effectivePresentationUrl,
+      slideCount: effectiveSlideCount,
+      hasSlideStructure,
+    })
+  }, [activeVersion, effectivePresentationUrl, effectiveSlideCount, slideStructure])
   const buildSelectionsLocked = Boolean(
     finalPresentationUrl
     && !isBlankPresentation
@@ -2611,9 +2807,14 @@ function BuilderContent() {
   }, [user])
 
   // Handle sending messages
-  const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
+  const handleSendMessage = useCallback(async (
+    e?: React.FormEvent,
+    messageOverride?: string,
+    turnContext?: { manualDeck?: ManualDeckContext },
+  ) => {
     if (e) e.preventDefault()
-    if (!inputMessage.trim()) return
+    const messageText = (messageOverride ?? inputMessage).trim()
+    if (!messageText) return
 
     if (!user) {
       console.warn('Cannot send message: user not authenticated')
@@ -2654,6 +2855,73 @@ function BuilderContent() {
       return
     }
 
+    // A blank Layout presentation may already contain user-authored slides or
+    // elements. Inspect the persisted source immediately before the first build
+    // turn so theme selection alone does not trigger the choice dialog and no
+    // stale client-side slide count can lose manual work.
+    const manualSourcePresentationId = blankPresentationId ?? presentationId ?? effectivePresentationId
+    const shouldInspectManualDeck = Boolean(
+      !pendingActionInput &&
+      !turnContext?.manualDeck &&
+      !templateModeOn &&
+      isBlankPresentation &&
+      activeVersion === 'blank' &&
+      manualSourcePresentationId,
+    )
+    if (shouldInspectManualDeck) {
+      if (pendingManualDeckBuild || manualDeckInspectionInFlightRef.current) return
+      manualDeckInspectionInFlightRef.current = true
+      try {
+        const response = await fetch(
+          `${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(manualSourcePresentationId!)}`,
+          { cache: 'no-store' },
+        )
+        if (response.ok) {
+          const body = await response.json().catch(() => null) as Record<string, unknown> | null
+          const snapshot = body?.presentation ?? body
+          if (!snapshot || typeof snapshot !== 'object' || !Array.isArray((snapshot as Record<string, unknown>).slides)) {
+            toast({
+              title: 'Could not verify your current slides',
+              description: 'Layout returned an incomplete presentation. Your deck was left unchanged; retry before building.',
+              variant: 'destructive',
+            })
+            return
+          }
+          const inspection = inspectManualDeck(snapshot)
+          if (inspection.hasMeaningfulWork) {
+            setManualDeckHandoffError(null)
+            setPendingManualDeckBuild({
+              messageText,
+              presentationId: manualSourcePresentationId!,
+              presentationUrl: effectivePresentationUrl
+                ?? `${LAYOUT_SERVICE_URL}/p/${encodeURIComponent(manualSourcePresentationId!)}`,
+              summary: inspection.summary,
+              operationId: crypto.randomUUID(),
+            })
+            return
+          }
+        } else {
+          console.warn('[Manual Deck] Layout inspection failed:', response.status)
+          toast({
+            title: 'Could not verify your current slides',
+            description: 'Your deck was left unchanged. Retry when the presentation is available so customized slides cannot be lost.',
+            variant: 'destructive',
+          })
+          return
+        }
+      } catch (error) {
+        console.warn('[Manual Deck] Could not inspect presentation before build.', error)
+        toast({
+          title: 'Could not verify your current slides',
+          description: 'Your deck was left unchanged. Check your connection and retry before building.',
+          variant: 'destructive',
+        })
+        return
+      } finally {
+        manualDeckInspectionInFlightRef.current = false
+      }
+    }
+
     if (isExecutingSendRef.current) {
       console.log('Already executing send, skipping duplicate call')
       return
@@ -2662,8 +2930,6 @@ function BuilderContent() {
     isExecutingSendRef.current = true
 
     try {
-      const messageText = inputMessage.trim()
-
       // Template reuse skips the strawman→accept step that normally turns on the
       // build animation, so the right pane would sit static. Flip it on here so a
       // reuse turn runs the SAME live slide-build animation as a normal build (the
@@ -2709,6 +2975,7 @@ function BuilderContent() {
           actionValue: action.value,
           actionLabel: action.label,
           ...buildSendOptions,
+          manualDeck: turnContext?.manualDeck,
         })
         if (success) {
           setInputMessage("")
@@ -2810,6 +3077,7 @@ function BuilderContent() {
               fileUpload: !!sessionStoreName,
               storeName: sessionStoreName,
               ...buildSendOptions,
+              manualDeck: turnContext?.manualDeck,
             })
             if (successfulFiles.length > 0) {
               clearAllFiles()
@@ -2869,6 +3137,7 @@ function BuilderContent() {
             fileUpload: !!sessionStoreName,
             storeName: sessionStoreName,
             ...buildSendOptions,
+            manualDeck: turnContext?.manualDeck,
           })
           if (successfulFiles.length > 0) {
             clearAllFiles()
@@ -2921,6 +3190,7 @@ function BuilderContent() {
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
         ...buildSendOptions,
+        manualDeck: turnContext?.manualDeck,
       })
       if (success) {
         setInputMessage("")
@@ -2933,7 +3203,257 @@ function BuilderContent() {
         isExecutingSendRef.current = false
       }, 500)
     }
-  }, [inputMessage, isReady, sendMessage, currentSessionId, persistence, session.isResumedSession, connected, connecting, connect, isUnsavedSession, createSession, router, uploadedFiles, clearAllFiles, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, quota.status, toast, buildSendOptions, activeTemplate, isGeneratingFinal, pendingActionInput])
+  }, [
+    inputMessage, isReady, sendMessage, currentSessionId, persistence,
+    session.isResumedSession, connected, connecting, connect, isUnsavedSession,
+    createSession, router, uploadedFiles, clearAllFiles, researchEnabled,
+    webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled,
+    showKnowledgeGraphToggle, sessionStoreName, quota.status, toast,
+    buildSendOptions, activeTemplate, isGeneratingFinal, pendingActionInput,
+    blankPresentationId, presentationId, effectivePresentationId,
+    effectivePresentationUrl, isBlankPresentation, activeVersion,
+    pendingManualDeckBuild, templateModeOn,
+  ])
+
+  const handleCancelManualDeckBuild = useCallback(() => {
+    if (manualDeckHandoffBusy) return
+    setPendingManualDeckBuild(null)
+    setManualDeckHandoffError(null)
+  }, [manualDeckHandoffBusy])
+
+  const handlePrependGeneratedSlides = useCallback(() => {
+    const pending = pendingManualDeckBuild
+    if (!pending || manualDeckHandoffBusy) return
+
+    const manualDeck = createManualDeckContext({
+      presentationId: pending.presentationId,
+      presentationUrl: pending.presentationUrl,
+      summary: pending.summary,
+      operationId: pending.operationId,
+    })
+    setPendingManualDeckBuild(null)
+    setManualDeckHandoffError(null)
+    void handleSendMessage(undefined, pending.messageText, { manualDeck })
+  }, [handleSendMessage, manualDeckHandoffBusy, pendingManualDeckBuild])
+
+  const handleStartHandoffSession = useCallback(async () => {
+    const pending = pendingManualDeckBuild
+    const sourceSessionId = currentSessionId || wsSessionId
+    const userId = user?.id || user?.email
+    if (!pending || !sourceSessionId || !userId || manualDeckHandoffBusy) return
+
+    setManualDeckHandoffBusy(true)
+    setManualDeckHandoffError(null)
+    const idempotencyKey = pending.operationId
+
+    try {
+      // Immediate-connection sessions do not have a frontend history row until
+      // their first message. Save this source first so the customized deck is
+      // visible in history even though its build request moves to a new session.
+      if (isUnsavedSession) {
+        const sourceRow = await createSession(sourceSessionId, 'Customized slides')
+        if (!sourceRow) throw new Error('Could not save the customized deck to session history.')
+        setIsUnsavedSession(false)
+        try { sessionStorage.removeItem(`deckster_unsaved_${sourceSessionId}`) } catch {}
+      }
+
+      const sourceSaveResponse = await fetch(`/api/sessions/${encodeURIComponent(sourceSessionId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentStage: 0,
+          blankPresentationUrl: pending.presentationUrl,
+          blankPresentationId: pending.presentationId,
+          slideCount: pending.summary.slide_count,
+          lastMessageAt: new Date().toISOString(),
+        }),
+      })
+      if (!sourceSaveResponse.ok) {
+        throw new Error('Could not save the customized deck to session history.')
+      }
+
+      const successfulFiles = uploadedFiles.filter(file => file.status === 'success')
+      const request = buildSessionHandoffRequest({
+        userId,
+        idempotencyKey,
+        pendingRequest: pending.messageText,
+        theme: buildThemeSelection,
+        templateMode: Boolean(activeTemplate),
+        templateId: activeTemplate?.id,
+        deepResearch: researchEnabled,
+        webSearch: webSearchEnabled,
+        useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
+        storeName: sessionStoreName,
+        manualDeckSummary: pending.summary,
+      })
+      const response = await fetch(
+        `/api/director/sessions/${encodeURIComponent(sourceSessionId)}/handoff`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(request),
+        },
+      )
+      const responseBody = await response.json().catch(() => ({})) as Partial<DirectorHandoffResponse> & {
+        error?: string
+        detail?: string
+      }
+      if (
+        !response.ok ||
+        responseBody.status !== 'ready' ||
+        typeof responseBody.new_session_id !== 'string'
+      ) {
+        throw new Error(responseBody.detail || responseBody.error || 'Director could not create the new session.')
+      }
+
+      const newSessionId = responseBody.new_session_id
+      const pendingSubmission: PendingHandoffSubmission = {
+        version: 1,
+        source_session_id: sourceSessionId,
+        new_session_id: newSessionId,
+        idempotency_key: idempotencyKey,
+        text: pending.messageText,
+        store_name: sessionStoreName,
+        file_count: successfulFiles.length,
+        deep_research: researchEnabled,
+        web_search: webSearchEnabled,
+        extended_generation: extendedGenerationEnabled,
+        use_knowledge_graph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
+        theme: buildThemeSelection,
+        template_mode: Boolean(activeTemplate),
+        template_id: activeTemplate?.id ?? null,
+        ...(hasTemplateOverrides ? { element_overrides: templateOverrides } : {}),
+      }
+      pendingHandoffMemoryRef.current = pendingSubmission
+      try {
+        savePendingHandoff(window.sessionStorage, pendingSubmission)
+      } catch (error) {
+        // Same-page navigation can still complete from memory. The Director
+        // idempotency key protects a retry if browser storage is unavailable.
+        console.warn('[Manual Deck] Could not persist handoff submission in session storage.', error)
+      }
+      writeBuilderSessionOptions(
+        newSessionId,
+        activeTemplate,
+        buildThemeSelection,
+        activeBuildThemeProfileForSelection,
+      )
+
+      // Create the frontend history row before navigation when possible. If the
+      // local write is briefly unavailable, useBuilderSession will adopt the
+      // already-verified Director session at the destination URL.
+      const generatedTitle = persistence?.generateTitle(pending.messageText)
+        ?? pending.messageText.slice(0, 50)
+      const newSessionRow = await createSession(newSessionId, generatedTitle)
+
+      disconnect()
+      clearMessages()
+      session.setUserMessages([])
+      session.lastLoadedSessionRef.current = null
+      session.hasTitleFromUserMessageRef.current = false
+      session.hasTitleFromPresentationRef.current = false
+      session.answeredActionsRef.current.clear()
+      setInputMessage('')
+      setSessionStoreName(pendingSubmission.store_name)
+      setPendingManualDeckBuild(null)
+      setManualDeckHandoffBusy(false)
+
+      if (newSessionRow) {
+        session.justCreatedSessionRef.current = newSessionId
+        setCurrentSessionId(newSessionId)
+        setIsUnsavedSession(false)
+        try { sessionStorage.removeItem(`deckster_unsaved_${newSessionId}`) } catch {}
+      }
+      router.push(`/builder?session_id=${encodeURIComponent(newSessionId)}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not start the new session.'
+      setManualDeckHandoffError(message)
+      setManualDeckHandoffBusy(false)
+      toast({
+        title: 'Session handoff failed',
+        description: `${message} Your current session is still open.`,
+        variant: 'destructive',
+      })
+    }
+  }, [
+    activeBuildThemeProfileForSelection, activeTemplate, buildThemeSelection,
+    clearMessages, createSession, currentSessionId, disconnect,
+    extendedGenerationEnabled, hasTemplateOverrides, isUnsavedSession,
+    knowledgeGraphEnabled, manualDeckHandoffBusy, pendingManualDeckBuild,
+    persistence, researchEnabled, router, session, sessionStoreName,
+    showKnowledgeGraphToggle, templateOverrides, toast, uploadedFiles, user,
+    webSearchEnabled, wsSessionId,
+  ])
+
+  // The Director handoff endpoint seeds a pending request but intentionally does
+  // not execute it. Submit it once after the new session's socket is ready. The
+  // key is retained until WebSocket.send succeeds, so reloads can safely retry;
+  // Director suppresses a duplicate with the same idempotency key.
+  useEffect(() => {
+    if (!isReady || !currentSessionId || typeof window === 'undefined') return
+    const pending = readPendingHandoff(window.sessionStorage, currentSessionId)
+      ?? (pendingHandoffMemoryRef.current?.new_session_id === currentSessionId
+        ? pendingHandoffMemoryRef.current
+        : null)
+    if (!pending) return
+
+    const submissionKey = `${pending.new_session_id}:${pending.idempotency_key}`
+    if (handoffSubmissionInFlightRef.current.has(submissionKey)) return
+    handoffSubmissionInFlightRef.current.add(submissionKey)
+
+    const sent = sendMessage(pending.text, undefined, pending.file_count, {
+      deepResearch: pending.deep_research,
+      webSearch: pending.web_search,
+      extendedGeneration: pending.extended_generation,
+      useKnowledgeGraph: pending.use_knowledge_graph,
+      fileUpload: !!pending.store_name,
+      storeName: pending.store_name,
+      theme: pending.theme,
+      templateMode: pending.template_mode,
+      templateId: pending.template_id,
+      elementOverrides: pending.element_overrides,
+      handoffIdempotencyKey: pending.idempotency_key,
+    })
+    if (!sent) {
+      handoffSubmissionInFlightRef.current.delete(submissionKey)
+      return
+    }
+
+    clearPendingHandoff(window.sessionStorage, currentSessionId)
+    pendingHandoffMemoryRef.current = null
+    const timestamp = Date.now()
+    const messageId = pending.idempotency_key
+    session.userMessageIdsRef.current.add(messageId)
+    session.userMessageContentMapRef.current.set(pending.text.trim().toLowerCase(), messageId)
+    session.setUserMessages(previous => previous.some(message => message.id === messageId)
+      ? previous
+      : [...previous, { id: messageId, text: pending.text, timestamp }])
+    session.hasTitleFromUserMessageRef.current = true
+    setInputMessage('')
+    setSessionStoreName(pending.store_name)
+    setResearchEnabled(pending.deep_research)
+    setWebSearchEnabled(pending.web_search)
+    setExtendedGenerationEnabled(pending.extended_generation)
+    setKnowledgeGraphEnabled(pending.use_knowledge_graph)
+    clearAllFiles()
+
+    const persistedMessage = {
+      id: messageId,
+      messageType: 'chat_message',
+      timestamp: new Date(timestamp).toISOString(),
+      payload: { text: pending.text },
+      userText: pending.text,
+    }
+    void fetch(`/api/sessions/${encodeURIComponent(currentSessionId)}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [persistedMessage] }),
+    }).catch(error => console.warn('[Manual Deck] Could not persist handed-off user message.', error))
+  }, [
+    clearAllFiles, currentSessionId, isReady, sendMessage,
+    session.hasTitleFromUserMessageRef, session.setUserMessages,
+    session.userMessageContentMapRef, session.userMessageIdsRef,
+  ])
 
   // Handle action button clicks
   const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
@@ -3114,10 +3634,14 @@ function BuilderContent() {
                   mode={generationPanel.mode}
                   regenerateEnabled={generationPanel.regenerateEnabled}
                   onRegenerateToggle={generationPanel.setRegenerateEnabled}
-                  refineWebResearch={generationPanel.refineWebResearch}
-                  refineUploadedDocs={generationPanel.refineUploadedDocs}
-                  onRefineWebResearchChange={generationPanel.setRefineWebResearch}
-                  onRefineUploadedDocsChange={generationPanel.setRefineUploadedDocs}
+                  researchMode={generationPanel.researchMode}
+                  researchWeb={generationPanel.researchWeb}
+                  researchUploadedDocs={generationPanel.researchUploadedDocs}
+                  researchSessionAvailable={Boolean(currentSessionId || wsSessionId)}
+                  uploadedDocsAvailable={Boolean(sessionStoreName)}
+                  onResearchModeChange={generationPanel.setResearchMode}
+                  onResearchWebChange={generationPanel.setResearchWeb}
+                  onResearchUploadedDocsChange={generationPanel.setResearchUploadedDocs}
                 />
               )}
 
@@ -3404,6 +3928,8 @@ function BuilderContent() {
                     onBuildThemeChange={handleBuildThemeChange}
                     activeBuildThemeProfile={activeBuildThemeProfileForSelection}
                     onActiveBuildThemeProfileChange={handleActiveBuildThemeProfileChange}
+                    themeSyncStatus={themeSync.status}
+                    themeSyncError={themeSync.error}
                   />
                 </>
               )}
@@ -3562,6 +4088,9 @@ function BuilderContent() {
             generationPanel={generationPanel}
             onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
             onRefineElementRequested={features.useTextLabsGeneration ? handleRefineElementRequested : undefined}
+            buildThemeSelection={buildThemeSelection}
+            themeSync={themeSync}
+            onBuildThemeChange={handleBuildThemeChange}
             connected={connected}
             connecting={connecting}
             toolbarPortalTarget={toolbarPortalTarget}
@@ -3602,6 +4131,16 @@ function BuilderContent() {
 
       {/* Onboarding Modal */}
       <OnboardingModal open={showOnboarding} onClose={() => setShowOnboarding(false)} />
+
+      <ManualDeckConflictDialog
+        open={Boolean(pendingManualDeckBuild)}
+        summary={pendingManualDeckBuild?.summary ?? null}
+        busy={manualDeckHandoffBusy}
+        error={manualDeckHandoffError}
+        onCancel={handleCancelManualDeckBuild}
+        onPrependGenerated={handlePrependGeneratedSlides}
+        onStartNewSession={handleStartHandoffSession}
+      />
 
       {/* Reserve credit top-up */}
       <TopUpModal open={topUpOpen} onOpenChange={setTopUpOpen} reason={topUpReason} />

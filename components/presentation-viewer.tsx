@@ -97,6 +97,10 @@ import {
   ElementorPosition
 } from '@/lib/elementor-client'
 import { SlideBuildingLoader } from './slide-building-loader'
+import type { BuildThemeSelection } from '@/lib/theme-builder'
+import { IDLE_THEME_SYNC, type ThemeSyncState } from '@/lib/theme-sync'
+
+const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
 function scTrace(event: string, payload: Record<string, unknown>) {
   if (typeof window === 'undefined') return
@@ -131,11 +135,13 @@ export interface TextBoxFormatting {
   padding?: string
   border?: string
   borderRadius?: string
+  themeBindings?: Record<string, string> | null
 }
 
 export interface RefineElementRequest {
   elementId: string
   elementType: string
+  componentType?: string
   slideIndex?: number
   gridPosition?: {
     gridRow?: string
@@ -148,6 +154,9 @@ export interface RefineElementRequest {
   isBlank?: boolean
   formatting?: Record<string, unknown>
   properties?: Record<string, unknown>
+  themeVariantId?: string | null
+  themeBindings?: Record<string, string> | null
+  researchProvenance?: Record<string, unknown> | null
   content?: unknown
 }
 
@@ -176,6 +185,9 @@ interface PresentationViewerProps {
   // Text Labs Generation Panel - opens generation panel for the given element type
   onOpenGenerationPanel?: (type: string) => void  // Uses string to avoid coupling to TextLabsComponentType
   onRefineElementRequested?: (payload: RefineElementRequest) => void
+  buildThemeSelection?: BuildThemeSelection
+  themeSync?: ThemeSyncState
+  onBuildThemeChange?: (selection: BuildThemeSelection) => void
   // Element moved/resized on canvas (for position sync with GenerationPanel)
   onElementMoved?: (elementId: string, gridRow: string, gridColumn: string) => void
   // Bottom toolbar items (moved from header)
@@ -404,6 +416,9 @@ export function PresentationViewer({
   onComposeApiReady,
   onOpenGenerationPanel,
   onRefineElementRequested,
+  buildThemeSelection = DEFAULT_BUILD_THEME_SELECTION,
+  themeSync = IDLE_THEME_SYNC,
+  onBuildThemeChange,
   onElementMoved,
   toolbarPortalTarget,
   toolbarOffset = 0,
@@ -1226,6 +1241,7 @@ export function PresentationViewer({
     if (iframeRef.current) {
       try {
         const result = await sendCommand(iframeRef.current, 'insertTable', {
+          componentType: 'TABLE',
           slideIndex: currentSlide - 1,
           gridRow: '5/15',
           gridColumn: '3/30',
@@ -1292,6 +1308,7 @@ export function PresentationViewer({
     if (iframeRef.current) {
       try {
         const result = await sendCommand(iframeRef.current, 'insertChart', {
+          componentType: 'CHART',
           slideIndex: currentSlide - 1,
           gridRow: '3/16',
           gridColumn: '2/20',
@@ -1348,6 +1365,7 @@ export function PresentationViewer({
     if (iframeRef.current) {
       try {
         const result = await sendCommand(iframeRef.current, 'insertImage', {
+          componentType: 'IMAGE',
           slideIndex: currentSlide - 1,
           gridRow: '4/14',
           gridColumn: '8/24',
@@ -1406,6 +1424,7 @@ export function PresentationViewer({
     if (iframeRef.current) {
       try {
         const result = await sendCommand(iframeRef.current, 'insertInfographic', {
+          componentType: 'INFOGRAPHIC',
           slideIndex: currentSlide - 1,
           gridRow: '3/16',
           gridColumn: '2/31',
@@ -1465,6 +1484,7 @@ export function PresentationViewer({
     if (iframeRef.current) {
       try {
         const result = await sendCommand(iframeRef.current, 'insertDiagram', {
+          componentType: 'DIAGRAM',
           slideIndex: currentSlide - 1,
           gridRow: '3/16',
           gridColumn: '4/28',
@@ -1507,6 +1527,7 @@ export function PresentationViewer({
 
     try {
       const result = await sendCommand(iframeRef.current!, 'insertTextBox', {
+        componentType: 'TEXT_BOX',
         slideIndex: currentSlide - 1, // Convert to 0-based
         gridRow: '6/12',      // Center position
         gridColumn: '8/24',
@@ -2130,15 +2151,27 @@ export function PresentationViewer({
         debugLog(`💾 Save status: ${status}`)
       }
 
-      if (type === 'refineElementRequested' && event.data.elementId && event.data.elementType) {
+      if (
+        type === 'refineElementRequested' &&
+        event.data.elementId &&
+        (event.data.componentType || event.data.elementType)
+      ) {
         onRefineElementRequested?.({
           elementId: String(event.data.elementId),
-          elementType: String(event.data.elementType),
+          elementType: String(event.data.elementType || event.data.componentType),
+          componentType: event.data.componentType ? String(event.data.componentType) : undefined,
           slideIndex: typeof event.data.slideIndex === 'number' ? event.data.slideIndex : undefined,
           gridPosition: event.data.gridPosition,
           isBlank: Boolean(event.data.isBlank),
           formatting: event.data.formatting,
           properties: event.data.properties,
+          themeVariantId: typeof event.data.themeVariantId === 'string'
+            ? event.data.themeVariantId
+            : typeof event.data.theme_variant_id === 'string'
+              ? event.data.theme_variant_id
+              : null,
+          themeBindings: event.data.themeBindings || event.data.theme_bindings,
+          researchProvenance: event.data.researchProvenance || event.data.research_provenance || null,
           content: event.data.content,
         })
       }
@@ -2921,9 +2954,11 @@ export function PresentationViewer({
       <ThemePanel
         isOpen={showThemePanel}
         onClose={() => setShowThemePanel(false)}
-        iframeRef={iframeRef}
-        viewerOrigin={VIEWER_ORIGIN}
         presentationId={presentationId}
+        buildThemeSelection={buildThemeSelection}
+        themeSync={themeSync}
+        selectionLocked={templateSelectionLocked}
+        onBuildThemeChange={onBuildThemeChange}
       />
     </div>
   )

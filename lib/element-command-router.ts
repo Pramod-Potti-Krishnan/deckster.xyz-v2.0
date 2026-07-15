@@ -28,6 +28,10 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
 
   // Element management
   'getElementGeometry',
+  'getSlideGenerationContext',
+  'refreshElementThemeMetadata',
+  'setElementGenerationState',
+  'getElementThemeVariants',
   'deleteElement',
   'deleteTextBox',
 

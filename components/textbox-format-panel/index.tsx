@@ -112,10 +112,12 @@ export function TextBoxFormatPanel({
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'style' && (
             <StyleTab
+              key={elementId || 'no-selection'}
               formatting={formatting}
               onSendCommand={handleSendCommand}
               isApplying={isApplying}
               elementId={elementId || ''}
+              presentationId={presentationId}
             />
           )}
           {activeTab === 'ai' && (

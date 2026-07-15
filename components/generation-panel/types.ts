@@ -1,5 +1,5 @@
 import React from 'react'
-import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
+import { ElementResearchMode, TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 
 export interface ElementContext {
   startCol: number
@@ -23,10 +23,14 @@ export interface GenerationPanelProps {
   mode: 'generate' | 'edit' | 'refine'
   regenerateEnabled: boolean
   onRegenerateToggle: (enabled: boolean) => void
-  refineWebResearch?: boolean
-  refineUploadedDocs?: boolean
-  onRefineWebResearchChange?: (enabled: boolean) => void
-  onRefineUploadedDocsChange?: (enabled: boolean) => void
+  researchMode: ElementResearchMode
+  researchWeb: boolean
+  researchUploadedDocs: boolean
+  researchSessionAvailable: boolean
+  uploadedDocsAvailable: boolean
+  onResearchModeChange: (mode: ElementResearchMode) => void
+  onResearchWebChange: (enabled: boolean) => void
+  onResearchUploadedDocsChange: (enabled: boolean) => void
 }
 
 export interface ElementFormProps {

@@ -4,6 +4,7 @@ import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
+import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import {
   buildSlideComposeProgressStatus,
   normalizeSlideComposeSocketFrame,
@@ -19,7 +20,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_ready' | 'slide_failed';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_ready' | 'slide_failed' | 'theme_sync';
   payload: any;
 }
 
@@ -36,6 +37,7 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'slide_progress',
   'slide_ready',
   'slide_failed',
+  'theme_sync',
 ]);
 
 function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
@@ -301,7 +303,21 @@ export interface SlideComposeFailed {
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideComposeReady | SlideComposeFailed;
+export interface ThemeSyncMessage {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'theme_sync';
+  payload: {
+    request_id: string;
+    status: 'syncing' | 'applied' | 'failed';
+    presentation_id?: string | null;
+    theme_session_id?: string | null;
+    error?: string | null;
+  };
+}
+
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage;
 
 export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
   return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
@@ -327,12 +343,45 @@ export interface UserMessage {
     element_overrides?: TemplateOverrides;
     action_value?: string;
     action_label?: string;
+    // Customized-slide workflow. Director latches this source before the
+    // generated strawman/final presentation replaces the live blank deck.
+    manual_deck?: ManualDeckContext;
+    // One-shot key seeded by POST /api/sessions/{id}/handoff. Director uses it
+    // to suppress navigation/reconnect retries of the pending build request.
+    handoff_idempotency_key?: string;
   };
+}
+
+export interface SendUserMessageOptions {
+  deepResearch?: boolean;
+  webSearch?: boolean;
+  extendedGeneration?: boolean;
+  fileUpload?: boolean;
+  storeName?: string | null;
+  useKnowledgeGraph?: boolean;
+  theme?: BuildThemeSelection;
+  // Template Builder (reuse): set when a saved template is locked in.
+  templateMode?: boolean;
+  templateId?: string | null;
+  elementOverrides?: TemplateOverrides;
+  actionValue?: string;
+  actionLabel?: string;
+  manualDeck?: ManualDeckContext;
+  handoffIdempotencyKey?: string;
 }
 
 export interface ControlMessage {
   type: 'cancel_template_reuse';
   data?: Record<string, never>;
+}
+
+export interface SetThemeMessage {
+  type: 'set_theme';
+  data: {
+    request_id: string;
+    theme: BuildThemeSelection;
+    presentation_id: string;
+  };
 }
 
 // Hook state
@@ -865,6 +914,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               message.type !== 'slide_progress' &&
               message.type !== 'slide_ready' &&
               message.type !== 'slide_failed' &&
+              message.type !== 'theme_sync' &&
               !isDuplicate;
 
             const newState = {
@@ -1257,6 +1307,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 });
                 break;
 
+              case 'theme_sync':
+                debugLog('🎨 Theme sync response:', message.payload);
+                break;
+
               case 'slide_ready':
                 debugLog('✅ slide_ready received:', {
                   job_id: message.payload.job_id,
@@ -1447,21 +1501,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     text: string,
     storeName?: string,
     fileCount?: number,
-    options?: {
-      deepResearch?: boolean;
-      webSearch?: boolean;
-      extendedGeneration?: boolean;
-      fileUpload?: boolean;
-      storeName?: string | null;
-      useKnowledgeGraph?: boolean;
-      theme?: BuildThemeSelection;
-      // Template Builder (reuse): set when a saved template is locked in.
-      templateMode?: boolean;
-      templateId?: string | null;
-      elementOverrides?: TemplateOverrides;
-      actionValue?: string;
-      actionLabel?: string;
-    },
+    options?: SendUserMessageOptions,
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send message: WebSocket not connected');
@@ -1489,6 +1529,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.elementOverrides && { element_overrides: options.elementOverrides }),
           ...(options?.actionValue && { action_value: options.actionValue }),
           ...(options?.actionLabel && { action_label: options.actionLabel }),
+          ...(options?.manualDeck && { manual_deck: options.manualDeck }),
+          ...(options?.handoffIdempotencyKey && {
+            handoff_idempotency_key: options.handoffIdempotencyKey,
+          }),
         },
       };
 
@@ -1496,7 +1540,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         '📤 Sending message:',
         text,
         effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
-        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}]`
+        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
 
@@ -1520,6 +1564,30 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return true;
     } catch (error) {
       console.error('Failed to send control message:', error);
+      return false;
+    }
+  }, []);
+
+  const sendThemeSelection = useCallback((
+    theme: BuildThemeSelection,
+    requestId: string,
+    presentationId: string,
+  ): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot sync theme: WebSocket not connected');
+      return false;
+    }
+
+    try {
+      const message: SetThemeMessage = {
+        type: 'set_theme',
+        data: { request_id: requestId, theme, presentation_id: presentationId },
+      };
+      wsRef.current.send(JSON.stringify(message));
+      debugLog('🎨 Theme sync requested:', requestId, theme.mode);
+      return true;
+    } catch (error) {
+      console.error('Failed to sync theme:', error);
       return false;
     }
   }, []);
@@ -1788,6 +1856,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     disconnect,
     sendMessage,
     sendControlMessage,
+    sendThemeSelection,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,

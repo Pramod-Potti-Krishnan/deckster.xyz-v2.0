@@ -7,8 +7,10 @@ export interface ChatSession {
   updatedAt: string;
   lastMessageAt: string | null;
   currentStage: number;
+  blankPresentationUrl: string | null;
   strawmanPreviewUrl: string | null;
   finalPresentationUrl: string | null;
+  blankPresentationId: string | null;
   strawmanPresentationId: string | null;
   finalPresentationId: string | null;
   slideCount: number | null;
@@ -17,8 +19,9 @@ export interface ChatSession {
   geminiStoreName?: string | null;
   messages?: ChatMessage[];
   stateCache?: {
-    currentStatus: any;
-    slideStructure: any;
+    currentStatus?: any;
+    slideStructure?: any;
+    activeVersion?: 'blank' | 'strawman' | 'final';
   } | null;
 }
 

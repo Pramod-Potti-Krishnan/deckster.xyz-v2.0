@@ -4,6 +4,18 @@ import { useEffect, useState } from 'react'
 import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 import type { ThemePalette } from '@/types/textlabs'
 
+export interface DeckThemeToken {
+  id:
+    | '--theme-primary'
+    | '--theme-accent-1'
+    | '--theme-accent-2'
+    | '--theme-surface'
+    | '--theme-text-heading'
+    | '--theme-text-body'
+  label: string
+  color: string
+}
+
 function asHex(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
@@ -39,14 +51,31 @@ function derivePalette(vars: Record<string, unknown>): ThemePalette | null {
   }
 }
 
+function deriveTokens(vars: Record<string, unknown>): DeckThemeToken[] {
+  const candidates: Array<[DeckThemeToken['id'], string, unknown]> = [
+    ['--theme-primary', 'Primary', vars['--theme-primary'] ?? vars['--theme-color-primary'] ?? vars.primary],
+    ['--theme-accent-1', 'Accent 1', vars['--theme-accent-1'] ?? vars['--theme-accent'] ?? vars['--theme-primary-light']],
+    ['--theme-accent-2', 'Accent 2', vars['--theme-accent-2'] ?? vars['--theme-secondary'] ?? vars['--theme-tertiary']],
+    ['--theme-surface', 'Surface', vars['--theme-surface'] ?? vars['--theme-bg-alt'] ?? vars['--theme-background'] ?? vars['--theme-bg']],
+    ['--theme-text-heading', 'Heading Text', vars['--theme-text-heading'] ?? vars['--theme-text-primary'] ?? vars['--theme-text']],
+    ['--theme-text-body', 'Body Text', vars['--theme-text-body'] ?? vars['--theme-text-secondary'] ?? vars['--theme-text']],
+  ]
+  return candidates.flatMap(([id, label, value]) => {
+    const color = asHex(value)
+    return color ? [{ id, label, color }] : []
+  })
+}
+
 export function useDeckThemePalette(presentationId?: string | null) {
   const [palette, setPalette] = useState<ThemePalette | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tokens, setTokens] = useState<DeckThemeToken[]>([])
 
   useEffect(() => {
     if (!presentationId) {
       setPalette(null)
+      setTokens([])
       setError(null)
       return
     }
@@ -68,10 +97,12 @@ export function useDeckThemePalette(presentationId?: string | null) {
           ? data.css_variables
           : data
         setPalette(derivePalette(vars || {}))
+        setTokens(deriveTokens(vars || {}))
       })
       .catch(err => {
         if (cancelled) return
         setPalette(null)
+        setTokens([])
         setError(err instanceof Error ? err.message : String(err))
       })
       .finally(() => {
@@ -83,5 +114,5 @@ export function useDeckThemePalette(presentationId?: string | null) {
     }
   }, [presentationId])
 
-  return { palette, loading, error }
+  return { palette, tokens, loading, error }
 }

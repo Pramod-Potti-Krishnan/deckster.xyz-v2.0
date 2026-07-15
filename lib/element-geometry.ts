@@ -13,6 +13,18 @@ export interface GetElementGeometryResponse {
     gridRow: string
     gridColumn: string
   }
+  componentType?: string
+  component_type?: string
+  themeVariantId?: string | null
+  theme_variant_id?: string | null
+  themeBindings?: Record<string, string> | null
+  theme_bindings?: Record<string, string> | null
+}
+
+export interface ElementGenerationMetadata {
+  componentType: string | null
+  themeVariantId: string | null
+  themeBindings: Record<string, string> | null
 }
 
 const LOGICAL_COLUMN_END = 33
@@ -86,5 +98,26 @@ export function parseGetElementGeometryResponse(
     startRow,
     width: normalizeGridLine(endCol - startCol),
     height: normalizeGridLine(endRow - startRow),
+  }
+}
+
+export function parseElementGenerationMetadata(response: unknown): ElementGenerationMetadata {
+  if (!isRecord(response)) {
+    return { componentType: null, themeVariantId: null, themeBindings: null }
+  }
+  const rawBindings = response.themeBindings ?? response.theme_bindings
+  const themeBindings = isRecord(rawBindings)
+    ? Object.fromEntries(
+        Object.entries(rawBindings).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+      )
+    : null
+  return {
+    componentType: typeof (response.componentType ?? response.component_type) === 'string'
+      ? String(response.componentType ?? response.component_type)
+      : null,
+    themeVariantId: typeof (response.themeVariantId ?? response.theme_variant_id) === 'string'
+      ? String(response.themeVariantId ?? response.theme_variant_id)
+      : null,
+    themeBindings,
   }
 }
