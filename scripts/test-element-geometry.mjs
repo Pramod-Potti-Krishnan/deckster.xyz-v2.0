@@ -16,11 +16,18 @@ function loadTypeScriptModule(modulePath) {
   vm.runInNewContext(compiled.outputText, {
     module: mod,
     exports: mod.exports,
+    setTimeout,
   })
   return mod.exports
 }
 
-const { parseElementGenerationMetadata, parseGetElementGeometryResponse } = loadTypeScriptModule(
+const {
+  ElementGenerationPreflightError,
+  parseElementGenerationMetadata,
+  parseGetElementGeometryResponse,
+  readElementGenerationSnapshot,
+  remapElementGridPositions,
+} = loadTypeScriptModule(
   new URL('../lib/element-geometry.ts', import.meta.url),
 )
 const { getCommandType } = loadTypeScriptModule(
@@ -135,5 +142,115 @@ assert.throws(
   }, 'placeholder-1'),
   /Invalid getElementGeometry response/,
 )
+
+{
+  const calls = []
+  let geometryAttempts = 0
+  const snapshot = await readElementGenerationSnapshot({
+    elementId: 'placeholder-retry',
+    componentType: 'TEXT_BOX',
+    useDeckTheme: true,
+    requiresThemeVariant: true,
+    retries: 1,
+    retryDelayMs: 0,
+    sendCommand: async (action) => {
+      calls.push(action)
+      if (action === 'getElementGeometry') {
+        geometryAttempts += 1
+        if (geometryAttempts === 1) throw new Error('Command timeout')
+        return {
+          success: true,
+          action,
+          elementId: 'placeholder-retry',
+          position: { gridRow: '4/14', gridColumn: '4.4/26.2' },
+          component_type: 'TEXT_BOX',
+        }
+      }
+      return {
+        success: true,
+        action,
+        elementId: 'placeholder-retry',
+        component_type: 'TEXT_BOX',
+        theme_variant_id: 'textbox-accent-1',
+        theme_bindings: { background: 'background' },
+      }
+    },
+  })
+
+  assert.deepEqual(JSON.parse(JSON.stringify(snapshot)), {
+    startCol: 4.4,
+    startRow: 4,
+    width: 21.8,
+    height: 10,
+    componentType: 'TEXT_BOX',
+    themeVariantId: 'textbox-accent-1',
+    themeBindings: { background: 'background' },
+  })
+  assert.deepEqual(calls, ['getElementGeometry', 'getElementGeometry', 'refreshElementThemeMetadata'])
+}
+
+{
+  let caught = null
+  try {
+    await readElementGenerationSnapshot({
+      elementId: 'placeholder-theme-failure',
+      componentType: 'TEXT_BOX',
+      useDeckTheme: true,
+      requiresThemeVariant: true,
+      retries: 0,
+      retryDelayMs: 0,
+      sendCommand: async (action) => {
+        if (action === 'getElementGeometry') {
+          return {
+            success: true,
+            action,
+            elementId: 'placeholder-theme-failure',
+            position: { gridRow: '4/14', gridColumn: '4/20' },
+          }
+        }
+        throw new Error('Current presentation theme contract is unavailable')
+      },
+    })
+  } catch (error) {
+    caught = error
+  }
+  assert.ok(caught instanceof ElementGenerationPreflightError)
+  assert.equal(caught.stage, 'theme_metadata')
+}
+
+{
+  const remapped = remapElementGridPositions([
+    { id: 'one', grid_position: { start_col: 2, start_row: 4, position_width: 9, position_height: 8 } },
+    { id: 'two', grid_position: { start_col: 11, start_row: 4, position_width: 9, position_height: 8 } },
+    { id: 'three', grid_position: { start_col: 20, start_row: 4, position_width: 9, position_height: 8 } },
+  ], {
+    start_col: 2,
+    start_row: 4,
+    position_width: 27,
+    position_height: 8,
+  }, {
+    start_col: 4.4,
+    start_row: 4,
+    position_width: 21.8,
+    position_height: 10,
+  })
+
+  assert.equal(remapped.length, 3)
+  assert.equal(remapped[0].grid_position.start_col, 4.4)
+  assert.equal(remapped[0].grid_position.start_row, 4)
+  assert.equal(remapped[0].grid_position.position_height, 10)
+  assert.equal(
+    remapped[2].grid_position.start_col + remapped[2].grid_position.position_width,
+    26.2,
+  )
+  assert.equal(
+    Number((remapped[0].grid_position.start_col + remapped[0].grid_position.position_width).toFixed(1)),
+    Number(remapped[1].grid_position.start_col.toFixed(1)),
+  )
+  assert.equal(
+    Number((remapped[1].grid_position.start_col + remapped[1].grid_position.position_width).toFixed(1)),
+    Number(remapped[2].grid_position.start_col.toFixed(1)),
+  )
+}
 
 console.log('element geometry parser tests passed')

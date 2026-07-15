@@ -27,6 +27,37 @@ export interface ElementGenerationMetadata {
   themeBindings: Record<string, string> | null
 }
 
+export type ElementGenerationPreflightStage = 'geometry' | 'theme_metadata'
+
+export class ElementGenerationPreflightError extends Error {
+  readonly stage: ElementGenerationPreflightStage
+
+  constructor(stage: ElementGenerationPreflightStage, message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause })
+    this.name = 'ElementGenerationPreflightError'
+    this.stage = stage
+  }
+}
+
+export interface ElementGenerationSnapshot extends ElementGridGeometry, ElementGenerationMetadata {}
+
+export interface ElementGridPositionConfig {
+  start_col: number
+  start_row: number
+  position_width: number
+  position_height: number
+}
+
+export interface ReadElementGenerationSnapshotOptions {
+  sendCommand: (action: string, params: Record<string, unknown>) => Promise<unknown>
+  elementId: string
+  componentType: string
+  useDeckTheme: boolean
+  requiresThemeVariant: boolean
+  retries?: number
+  retryDelayMs?: number
+}
+
 const LOGICAL_COLUMN_END = 33
 const LOGICAL_ROW_END = 19
 const MINOR_GRID_SCALE = 5
@@ -120,4 +151,138 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
       : null,
     themeBindings,
   }
+}
+
+async function sendPreflightCommandWithRetry(
+  sendCommand: ReadElementGenerationSnapshotOptions['sendCommand'],
+  action: string,
+  params: Record<string, unknown>,
+  retries: number,
+  retryDelayMs: number,
+): Promise<unknown> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await sendCommand(action, params)
+    } catch (error) {
+      lastError = error
+      if (attempt === retries) break
+      await new Promise(resolve => setTimeout(resolve, retryDelayMs * (attempt + 1)))
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Viewer command failed')
+}
+
+/**
+ * Read the authoritative live generation state without ever falling back to
+ * tracked coordinates. Viewer reloads and autosave can briefly race a command,
+ * so each read gets one bounded retry by default.
+ */
+export async function readElementGenerationSnapshot({
+  sendCommand,
+  elementId,
+  componentType,
+  useDeckTheme,
+  requiresThemeVariant,
+  retries = 1,
+  retryDelayMs = 200,
+}: ReadElementGenerationSnapshotOptions): Promise<ElementGenerationSnapshot> {
+  let geometryResponse: unknown
+  let geometry: ElementGridGeometry
+  try {
+    geometryResponse = await sendPreflightCommandWithRetry(
+      sendCommand,
+      'getElementGeometry',
+      { elementId },
+      retries,
+      retryDelayMs,
+    )
+    geometry = parseGetElementGeometryResponse(geometryResponse, elementId)
+  } catch (error) {
+    throw new ElementGenerationPreflightError(
+      'geometry',
+      `Unable to read live geometry for ${elementId}`,
+      error,
+    )
+  }
+
+  let metadata = parseElementGenerationMetadata(geometryResponse)
+  if (useDeckTheme) {
+    try {
+      const refreshed = await sendPreflightCommandWithRetry(
+        sendCommand,
+        'refreshElementThemeMetadata',
+        { elementId, componentType },
+        retries,
+        retryDelayMs,
+      )
+      metadata = parseElementGenerationMetadata(refreshed)
+      if (!metadata.themeBindings || (requiresThemeVariant && !metadata.themeVariantId)) {
+        throw new Error('The placeholder theme treatment is incomplete')
+      }
+    } catch (error) {
+      throw new ElementGenerationPreflightError(
+        'theme_metadata',
+        `Unable to refresh theme metadata for ${elementId}`,
+        error,
+      )
+    }
+  }
+
+  return { ...geometry, ...metadata }
+}
+
+function snapLogicalGrid(value: number): number {
+  return Number((Math.round(value * MINOR_GRID_SCALE) / MINOR_GRID_SCALE).toFixed(1))
+}
+
+/**
+ * Preserve a multi-instance layout when its containing placeholder was moved
+ * or resized after the side panel calculated the original child positions.
+ */
+export function remapElementGridPositions<T extends { grid_position: ElementGridPositionConfig }>(
+  elements: T[],
+  source: ElementGridPositionConfig,
+  target: ElementGridPositionConfig,
+): T[] {
+  if (
+    source.position_width <= 0 ||
+    source.position_height <= 0 ||
+    target.position_width <= 0 ||
+    target.position_height <= 0
+  ) {
+    throw new Error('Multi-element container geometry must have positive dimensions')
+  }
+
+  const targetEndCol = snapLogicalGrid(target.start_col + target.position_width)
+  const targetEndRow = snapLogicalGrid(target.start_row + target.position_height)
+
+  return elements.map((element) => {
+    const position = element.grid_position
+    const colStartRatio = (position.start_col - source.start_col) / source.position_width
+    const colEndRatio = (position.start_col + position.position_width - source.start_col) / source.position_width
+    const rowStartRatio = (position.start_row - source.start_row) / source.position_height
+    const rowEndRatio = (position.start_row + position.position_height - source.start_row) / source.position_height
+
+    const startCol = snapLogicalGrid(target.start_col + colStartRatio * target.position_width)
+    const endCol = Math.min(
+      targetEndCol,
+      snapLogicalGrid(target.start_col + colEndRatio * target.position_width),
+    )
+    const startRow = snapLogicalGrid(target.start_row + rowStartRatio * target.position_height)
+    const endRow = Math.min(
+      targetEndRow,
+      snapLogicalGrid(target.start_row + rowEndRatio * target.position_height),
+    )
+
+    return {
+      ...element,
+      grid_position: {
+        start_col: startCol,
+        start_row: startRow,
+        position_width: Math.max(0.2, snapLogicalGrid(endCol - startCol)),
+        position_height: Math.max(0.2, snapLogicalGrid(endRow - startRow)),
+      },
+    }
+  })
 }
