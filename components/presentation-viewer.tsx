@@ -97,6 +97,10 @@ import {
   ElementorPosition
 } from '@/lib/elementor-client'
 import { SlideBuildingLoader } from './slide-building-loader'
+import type { BuildThemeSelection } from '@/lib/theme-builder'
+import { IDLE_THEME_SYNC, type ThemeSyncState } from '@/lib/theme-sync'
+
+const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
 function scTrace(event: string, payload: Record<string, unknown>) {
   if (typeof window === 'undefined') return
@@ -180,6 +184,9 @@ interface PresentationViewerProps {
   // Text Labs Generation Panel - opens generation panel for the given element type
   onOpenGenerationPanel?: (type: string) => void  // Uses string to avoid coupling to TextLabsComponentType
   onRefineElementRequested?: (payload: RefineElementRequest) => void
+  buildThemeSelection?: BuildThemeSelection
+  themeSync?: ThemeSyncState
+  onBuildThemeChange?: (selection: BuildThemeSelection) => void
   // Element moved/resized on canvas (for position sync with GenerationPanel)
   onElementMoved?: (elementId: string, gridRow: string, gridColumn: string) => void
   // Bottom toolbar items (moved from header)
@@ -408,6 +415,9 @@ export function PresentationViewer({
   onComposeApiReady,
   onOpenGenerationPanel,
   onRefineElementRequested,
+  buildThemeSelection = DEFAULT_BUILD_THEME_SELECTION,
+  themeSync = IDLE_THEME_SYNC,
+  onBuildThemeChange,
   onElementMoved,
   toolbarPortalTarget,
   toolbarOffset = 0,
@@ -2942,9 +2952,10 @@ export function PresentationViewer({
       <ThemePanel
         isOpen={showThemePanel}
         onClose={() => setShowThemePanel(false)}
-        iframeRef={iframeRef}
-        viewerOrigin={VIEWER_ORIGIN}
         presentationId={presentationId}
+        buildThemeSelection={buildThemeSelection}
+        themeSync={themeSync}
+        onBuildThemeChange={onBuildThemeChange}
       />
     </div>
   )
