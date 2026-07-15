@@ -72,6 +72,11 @@ import type { BuildThemeSelection } from '@/lib/theme-builder'
 import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import {
+  deriveBuilderStage,
+  isPresentationCallbackCurrent,
+  resolveEffectivePresentation,
+} from '@/lib/builder-presentation-ownership'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -150,6 +155,7 @@ interface SlideComposeJobState {
   status: SlideComposeJobStatus
   title: string
   request: Record<string, unknown>
+  target_presentation_id?: string | null
   real_slide_id?: string | null
   expected_slide_count?: number | null
   lastProgressText?: string
@@ -611,6 +617,19 @@ function BuilderContent() {
   const pendingComposeSelectionRestoreRef = useRef<number | null>(null)
   const slideComposerLayoutCountReconcileRef = useRef<string | null>(null)
 
+  const clearSlideComposerWork = useCallback(() => {
+    setSlideComposeJobs({})
+    Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
+    slideComposeWatchdogsRef.current = {}
+    Object.values(slideComposePollersRef.current).forEach(clearInterval)
+    slideComposePollersRef.current = {}
+    pendingComposePlaceholdersRef.current.clear()
+    slideComposeReconcileQueuesRef.current = {}
+    slideComposeFallbackReloadInFlightRef.current = false
+    pendingComposeSelectionRestoreRef.current = null
+    slideComposerLayoutCountReconcileRef.current = null
+  }, [])
+
   const clearSlideComposeWatchdog = useCallback((jobId: string) => {
     const timer = slideComposeWatchdogsRef.current[jobId]
     if (timer) {
@@ -1070,14 +1089,7 @@ function BuilderContent() {
   useEffect(() => {
     standardThemeLoadedRef.current = false
     setSlideComposerOverride(null)
-    setSlideComposeJobs({})
-    Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
-    slideComposeWatchdogsRef.current = {}
-    Object.values(slideComposePollersRef.current).forEach(clearInterval)
-    slideComposePollersRef.current = {}
-    pendingComposePlaceholdersRef.current.clear()
-    slideComposeReconcileQueuesRef.current = {}
-    slideComposeFallbackReloadInFlightRef.current = false
+    clearSlideComposerWork()
     setSelectedLayoutSlideIndex(0)
     setShowFormatPanel(false)
     setTemplateModeOn(false)
@@ -1088,7 +1100,7 @@ function BuilderContent() {
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
     setTemplateSourceSlideIndex(0)
-  }, [currentSessionId])
+  }, [clearSlideComposerWork, currentSessionId])
 
   useEffect(() => {
     setSelectedTemplateElementId(null)
@@ -1524,6 +1536,18 @@ function BuilderContent() {
     },
     onSlideComposeProgress: (message: SlideComposeProgress) => {
       const payload = message.payload
+      const progressJob = slideComposeJobsRef.current[payload.job_id]
+      if (progressJob && !isPresentationCallbackCurrent({
+        callbackPresentationId: progressJob.target_presentation_id,
+        livePresentationId: presentationId,
+      })) {
+        scTrace('builder.ws.slide_progress.ignored_stale', {
+          job_id: payload.job_id,
+          callback_presentation_id: progressJob.target_presentation_id ?? null,
+          live_presentation_id: presentationId,
+        })
+        return
+      }
       setSlideComposeJobs(prev => {
         const existing = prev[payload.job_id]
         if (!existing || existing.status === 'error') return prev
@@ -1548,6 +1572,25 @@ function BuilderContent() {
     },
     onSlideComposeReady: (message: SlideComposeReady) => {
       const payload = message.payload
+      const readyJob = slideComposeJobsRef.current[payload.job_id]
+      const callbackPresentationId = payload.presentation_id ?? readyJob?.target_presentation_id
+      if (!isPresentationCallbackCurrent({
+        callbackPresentationId,
+        livePresentationId: presentationId,
+      })) {
+        scTrace('builder.ws.slide_ready.ignored_stale', {
+          job_id: payload.job_id,
+          callback_presentation_id: callbackPresentationId ?? null,
+          live_presentation_id: presentationId,
+        })
+        clearSlideComposeWatchdog(payload.job_id)
+        clearSlideComposePoller(payload.job_id)
+        setSlideComposeJobs(prev => {
+          const { [payload.job_id]: _stale, ...rest } = prev
+          return rest
+        })
+        return
+      }
       const presentationKey = payload.presentation_id
         ?? slideComposerPresentationRef.current.presentationId
         ?? '__unknown__'
@@ -1887,6 +1930,18 @@ function BuilderContent() {
       const payload = message.payload
       const errors = payload.errors?.filter(Boolean) ?? []
       const failedJob = slideComposeJobsRef.current[payload.job_id]
+      if (failedJob && !isPresentationCallbackCurrent({
+        callbackPresentationId: failedJob.target_presentation_id,
+        livePresentationId: presentationId,
+      })) {
+        clearSlideComposeWatchdog(payload.job_id)
+        clearSlideComposePoller(payload.job_id)
+        setSlideComposeJobs(prev => {
+          const { [payload.job_id]: _stale, ...rest } = prev
+          return rest
+        })
+        return
+      }
       const failedKind: SlideComposeJobKind = payload.kind ?? failedJob?.kind ?? 'compose'
       clearSlideComposeWatchdog(payload.job_id)
       clearSlideComposePoller(payload.job_id)
@@ -1932,17 +1987,45 @@ function BuilderContent() {
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
 
+  const directorOwnedPresentation = useMemo(
+    () => resolveEffectivePresentation({
+      livePresentationUrl: presentationUrl,
+      livePresentationId: presentationId,
+      liveSlideCount: slideCount,
+      override: slideComposerOverride,
+    }),
+    [presentationId, presentationUrl, slideComposerOverride, slideCount],
+  )
   const effectivePresentationId = templateModeSourcePresentationId
-    ?? slideComposerOverride?.presentationId
-    ?? presentationId
-  const effectiveSlideCount = slideComposerOverride?.slideCount ?? slideCount
+    ?? directorOwnedPresentation.presentationId
+  const effectiveSlideCount = templateModeSourcePresentationId
+    ? slideCount
+    : directorOwnedPresentation.slideCount
   const effectivePresentationUrl = useMemo(
     () => withSlideComposerRefreshToken(
-      templateModeSourcePresentationUrl ?? slideComposerOverride?.presentationUrl ?? presentationUrl,
-      slideComposerOverride?.refreshToken ?? 0,
+      templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
+      templateModeSourcePresentationId ? 0 : directorOwnedPresentation.refreshToken,
     ),
-    [presentationUrl, slideComposerOverride, templateModeSourcePresentationUrl],
+    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl],
   )
+
+  useEffect(() => {
+    if (!slideComposerOverride || directorOwnedPresentation.usesOverride) return
+
+    scTrace('builder.override.cleared_for_director_deck', {
+      override_presentation_id: slideComposerOverride.presentationId,
+      director_presentation_id: presentationId,
+      active_version: activeVersion,
+    })
+    setSlideComposerOverride(null)
+    clearSlideComposerWork()
+  }, [
+    activeVersion,
+    clearSlideComposerWork,
+    directorOwnedPresentation.usesOverride,
+    presentationId,
+    slideComposerOverride,
+  ])
   const templateSavePresentationId = useMemo(() => {
     if (templateModeOn || activeVersion !== 'final') return null
     return finalPresentationId
@@ -1960,19 +2043,18 @@ function BuilderContent() {
 
   useEffect(() => {
     slideComposerPresentationRef.current = {
-      presentationUrl: slideComposerOverride?.presentationUrl ?? presentationUrl,
+      presentationUrl: directorOwnedPresentation.presentationUrl,
       presentationId: effectivePresentationId,
       slideCount: effectiveSlideCount,
       activeVersion,
-      refreshToken: slideComposerOverride?.refreshToken ?? 0,
+      refreshToken: directorOwnedPresentation.refreshToken,
     }
   }, [
     activeVersion,
+    directorOwnedPresentation.presentationUrl,
+    directorOwnedPresentation.refreshToken,
     effectivePresentationId,
     effectiveSlideCount,
-    presentationUrl,
-    slideComposerOverride?.refreshToken,
-    slideComposerOverride?.presentationUrl,
   ])
 
   useEffect(() => {
@@ -2062,6 +2144,16 @@ function BuilderContent() {
   const handleSlideComposerBuilt = useCallback((result: SlideComposeBuiltResult) => {
     const nextSlideIndex = Math.max(0, result.slide_index)
     const targetPresentationId = result.presentation_id
+    if (!isPresentationCallbackCurrent({
+      callbackPresentationId: targetPresentationId,
+      livePresentationId: presentationId,
+    })) {
+      scTrace('builder.http.slide_built.ignored_stale', {
+        callback_presentation_id: targetPresentationId,
+        live_presentation_id: presentationId,
+      })
+      return
+    }
     const targetPresentationUrl = result.presentation_url ?? slideComposerOverride?.presentationUrl ?? presentationUrl
     const existingDeck = !!effectivePresentationId && targetPresentationId === effectivePresentationId
     const baseSlideCount = effectiveSlideCount ?? 0
@@ -2105,6 +2197,7 @@ function BuilderContent() {
     effectivePresentationId,
     effectiveSlideCount,
     persistence,
+    presentationId,
     presentationUrl,
     slideComposerOverride?.presentationUrl,
     toast,
@@ -2203,6 +2296,9 @@ function BuilderContent() {
         status: 'building',
         title: job.title,
         request: job.request,
+        target_presentation_id:
+          (typeof job.request.presentation_id === 'string' ? job.request.presentation_id : null)
+          ?? slideComposerPresentationRef.current.presentationId,
         expected_slide_count: expectedSlideCount,
       },
     }))
@@ -2559,11 +2655,18 @@ function BuilderContent() {
 
   // Infer current stage from available data
   const currentStage = useMemo(() => {
-    if (effectivePresentationUrl) return 6;
-    if (effectiveSlideCount && effectiveSlideCount > 0) return 5;
-    if (slideStructure && (slideStructure as any).length > 0) return 4;
-    return 3;
-  }, [effectivePresentationUrl, effectiveSlideCount, slideStructure])
+    const hasSlideStructure = Array.isArray((slideStructure as any)?.slides)
+      ? (slideStructure as any).slides.length > 0
+      : Array.isArray(slideStructure)
+        ? slideStructure.length > 0
+        : Boolean(slideStructure)
+    return deriveBuilderStage({
+      activeVersion,
+      presentationUrl: effectivePresentationUrl,
+      slideCount: effectiveSlideCount,
+      hasSlideStructure,
+    })
+  }, [activeVersion, effectivePresentationUrl, effectiveSlideCount, slideStructure])
   const buildSelectionsLocked = Boolean(
     finalPresentationUrl
     && !isBlankPresentation
