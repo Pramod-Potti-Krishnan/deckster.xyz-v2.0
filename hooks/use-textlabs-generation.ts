@@ -18,6 +18,7 @@ import { buildElementGenerationContext, parseSlideGenerationContext } from '@/li
 import type { ElementResearchMode } from '@/types/textlabs'
 import type { ThemeSyncState } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
+import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 
 const THEME_CHANGED_DURING_GENERATION =
   'The deck theme changed while this element was being generated. Wait for Applied, then generate again.'
@@ -619,16 +620,16 @@ export function useTextLabsGeneration({
           ...element,
           theme_variant_id: resolvedTheme.themeVariantId,
           theme_bindings: resolvedTheme.themeBindings,
-          style_owner: (element as any).style_owner
-            ?? (element as any).styleOwner
-            ?? (element as any).metadata?.style_owner
-            ?? (element as any).metadata?.styleOwner
-            ?? refineContext?.styleOwner,
-          theme_variant_source: refineContext?.themeVariantSource
-            ?? (element as any).theme_variant_source
-            ?? (element as any).themeVariantSource
-            ?? (element as any).metadata?.theme_variant_source
-            ?? (element as any).metadata?.themeVariantSource
+          // Ownership describes the newly returned HTML. Never carry the
+          // previous element's owner or infer it from component type.
+          style_owner: responseStyleOwner(element),
+          // Variant provenance belongs to the assignment workflow and remains
+          // stable across refinement/replacement.
+          theme_variant_source: parseThemeVariantSource(refineContext?.themeVariantSource)
+            ?? parseThemeVariantSource((element as any).theme_variant_source)
+            ?? parseThemeVariantSource((element as any).themeVariantSource)
+            ?? parseThemeVariantSource((element as any).metadata?.theme_variant_source)
+            ?? parseThemeVariantSource((element as any).metadata?.themeVariantSource)
             ?? 'element_generation',
         }
         if (authoritativeGridPosition) {
