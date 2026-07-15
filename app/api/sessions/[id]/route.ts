@@ -147,12 +147,32 @@ export async function PATCH(
 
     // Parse request body
     const body = await req.json();
+    const { stateCache, ...sessionUpdates } = body;
+    const stateCacheUpdate = stateCache && typeof stateCache === 'object'
+      ? {
+          stateCache: {
+            upsert: {
+              create: {
+                currentStatus: stateCache.currentStatus,
+                slideStructure: stateCache.slideStructure,
+                activeVersion: stateCache.activeVersion,
+              },
+              update: {
+                currentStatus: stateCache.currentStatus,
+                slideStructure: stateCache.slideStructure,
+                activeVersion: stateCache.activeVersion,
+              },
+            },
+          },
+        }
+      : {};
 
     // Update session
     const updated = await prisma.chatSession.update({
       where: { id },
       data: {
-        ...body,
+        ...sessionUpdates,
+        ...stateCacheUpdate,
         updatedAt: new Date()
       }
     });

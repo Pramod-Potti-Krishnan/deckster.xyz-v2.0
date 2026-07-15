@@ -4,6 +4,7 @@ import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
+import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import {
   buildSlideComposeProgressStatus,
   normalizeSlideComposeSocketFrame,
@@ -342,7 +343,31 @@ export interface UserMessage {
     element_overrides?: TemplateOverrides;
     action_value?: string;
     action_label?: string;
+    // Customized-slide workflow. Director latches this source before the
+    // generated strawman/final presentation replaces the live blank deck.
+    manual_deck?: ManualDeckContext;
+    // One-shot key seeded by POST /api/sessions/{id}/handoff. Director uses it
+    // to suppress navigation/reconnect retries of the pending build request.
+    handoff_idempotency_key?: string;
   };
+}
+
+export interface SendUserMessageOptions {
+  deepResearch?: boolean;
+  webSearch?: boolean;
+  extendedGeneration?: boolean;
+  fileUpload?: boolean;
+  storeName?: string | null;
+  useKnowledgeGraph?: boolean;
+  theme?: BuildThemeSelection;
+  // Template Builder (reuse): set when a saved template is locked in.
+  templateMode?: boolean;
+  templateId?: string | null;
+  elementOverrides?: TemplateOverrides;
+  actionValue?: string;
+  actionLabel?: string;
+  manualDeck?: ManualDeckContext;
+  handoffIdempotencyKey?: string;
 }
 
 export interface ControlMessage {
@@ -1475,21 +1500,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     text: string,
     storeName?: string,
     fileCount?: number,
-    options?: {
-      deepResearch?: boolean;
-      webSearch?: boolean;
-      extendedGeneration?: boolean;
-      fileUpload?: boolean;
-      storeName?: string | null;
-      useKnowledgeGraph?: boolean;
-      theme?: BuildThemeSelection;
-      // Template Builder (reuse): set when a saved template is locked in.
-      templateMode?: boolean;
-      templateId?: string | null;
-      elementOverrides?: TemplateOverrides;
-      actionValue?: string;
-      actionLabel?: string;
-    },
+    options?: SendUserMessageOptions,
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send message: WebSocket not connected');
@@ -1517,6 +1528,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.elementOverrides && { element_overrides: options.elementOverrides }),
           ...(options?.actionValue && { action_value: options.actionValue }),
           ...(options?.actionLabel && { action_label: options.actionLabel }),
+          ...(options?.manualDeck && { manual_deck: options.manualDeck }),
+          ...(options?.handoffIdempotencyKey && {
+            handoff_idempotency_key: options.handoffIdempotencyKey,
+          }),
         },
       };
 
@@ -1524,7 +1539,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         '📤 Sending message:',
         text,
         effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
-        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}]`
+        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
 

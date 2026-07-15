@@ -246,12 +246,19 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
   const updateMetadata = useCallback(async (updates: {
     title?: string;
     currentStage?: number;
+    blankPresentationUrl?: string;
     strawmanPreviewUrl?: string;
     finalPresentationUrl?: string;
+    blankPresentationId?: string;
     strawmanPresentationId?: string;
     finalPresentationId?: string;
     slideCount?: number;
     lastMessageAt?: Date | string;
+    stateCache?: {
+      currentStatus?: unknown;
+      slideStructure?: unknown;
+      activeVersion?: 'blank' | 'strawman' | 'final';
+    };
   }) => {
     // FIX 8: Use ref instead of closure value
     const currentSessionId = sessionIdRef.current;
