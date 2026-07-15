@@ -12,8 +12,16 @@ const compiled = ts.transpileModule(fs.readFileSync(path, 'utf8'), {
 const mod = { exports: {} }
 vm.runInNewContext(compiled.outputText, { module: mod, exports: mod.exports, require })
 
-const { applyThemeSyncResponse, isThemeAppliedToPresentation, syncingTheme } = mod.exports
+const { applyThemeSyncResponse, isThemeAppliedToPresentation, isThemeSyncTerminal, syncingTheme } = mod.exports
 const current = syncingTheme('new-request', 'deck-2')
+const acknowledged = applyThemeSyncResponse(current, {
+  request_id: 'new-request', status: 'syncing', presentation_id: 'deck-2',
+})
+assert.equal(acknowledged.status, 'syncing')
+assert.equal(isThemeAppliedToPresentation(acknowledged, 'deck-2'), false)
+assert.equal(isThemeSyncTerminal('syncing'), false)
+assert.equal(isThemeSyncTerminal('applied'), true)
+assert.equal(isThemeSyncTerminal('failed'), true)
 const stale = applyThemeSyncResponse(current, {
   request_id: 'old-request', status: 'applied', presentation_id: 'deck-1',
 })

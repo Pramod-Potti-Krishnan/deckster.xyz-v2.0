@@ -83,6 +83,7 @@ import {
   IDLE_THEME_SYNC,
   applyThemeSyncResponse,
   isThemeAppliedToPresentation,
+  isThemeSyncTerminal,
   syncingTheme,
   type ThemeSyncState,
 } from '@/lib/theme-sync'
@@ -1524,7 +1525,8 @@ function BuilderContent() {
     onMessage: (message) => {
       if (message.type === 'theme_sync') {
         if (message.payload.request_id !== latestThemeSyncRequestRef.current) return
-        if (themeSyncTimeoutRef.current) {
+        const terminal = isThemeSyncTerminal(message.payload.status)
+        if (terminal && themeSyncTimeoutRef.current) {
           clearTimeout(themeSyncTimeoutRef.current)
           themeSyncTimeoutRef.current = null
         }

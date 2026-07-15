@@ -39,4 +39,8 @@ assert.throws(
   /every element slot/,
 )
 
+const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
+assert.match(generationSource, /Couldn't assign deterministic deck-theme treatments/)
+assert.doesNotMatch(generationSource, /normal deck-theme fallback/)
+
 console.log('element theme variant tests passed')

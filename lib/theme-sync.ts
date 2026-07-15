@@ -22,7 +22,7 @@ export function applyThemeSyncResponse(
   current: ThemeSyncState,
   payload: {
     request_id: string
-    status: 'applied' | 'failed'
+    status: 'syncing' | 'applied' | 'failed'
     presentation_id?: string | null
     error?: string | null
   },
@@ -47,4 +47,8 @@ export function isThemeAppliedToPresentation(
     sync.status === 'applied' &&
     sync.presentationId === presentationId,
   )
+}
+
+export function isThemeSyncTerminal(status: ThemeSyncStatus): boolean {
+  return status === 'applied' || status === 'failed'
 }

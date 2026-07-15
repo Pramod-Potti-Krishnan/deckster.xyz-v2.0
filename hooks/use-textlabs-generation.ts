@@ -289,9 +289,13 @@ export function useTextLabsGeneration({
           theme_bindings: assignments[index].themeBindings,
         }))
       } catch (error) {
-        // Older Layout deployments can still generate; Text Labs will apply its
-        // normal deck-theme fallback until the assignment command is available.
-        console.warn('[TextLabs] Multi-element theme assignments are unavailable:', error)
+        console.error('[TextLabs] Multi-element theme assignments failed:', error)
+        generationPanel.setError(
+          "Couldn't assign deterministic deck-theme treatments. No elements were generated; retry when the presentation is available.",
+        )
+        generationPanel.setIsGenerating(false)
+        generateInFlightRef.current = false
+        return
       }
     }
 
