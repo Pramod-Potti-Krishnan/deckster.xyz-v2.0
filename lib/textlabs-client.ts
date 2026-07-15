@@ -20,6 +20,8 @@ import {
   TEXT_LABS_ELEMENT_DEFAULTS,
   InsertionMethod,
   TextLabsComponentType,
+  ElementGenerationContext,
+  ElementResearchPolicy,
 } from '@/types/textlabs'
 import { semanticTypeForInsertion } from '@/lib/element-semantic-type'
 import { resolveElementThemeMetadata } from '@/lib/textlabs-theme-metadata'
@@ -54,6 +56,7 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   zIndex: 'z_index',
   textOnlyMode: 'text_only_mode',
   presentationId: 'presentation_id',
+  slideIndex: 'slide_index',
   useDeckTheme: 'use_deck_theme',
   themeOverrides: 'theme_overrides',
   themeVariantId: 'theme_variant_id',
@@ -61,6 +64,7 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   existingElement: 'existing_element',
   slideContext: 'slide_context',
   deckContext: 'deck_context',
+  generationContext: 'generation_context',
   replaceElementId: 'replace_element_id',
 }
 
@@ -106,6 +110,7 @@ export async function healthCheck(): Promise<boolean> {
 interface SendMessageOptions {
   componentType: TextLabsAllComponentType
   presentationId?: string | null
+  slideIndex?: number
   useDeckTheme?: boolean
   themeOverrides?: Record<string, unknown> | null
   themeVariantId?: string | null
@@ -114,7 +119,8 @@ interface SendMessageOptions {
   existingElement?: Record<string, unknown> | null
   slideContext?: Record<string, unknown> | null
   deckContext?: Record<string, unknown> | null
-  research?: Record<string, unknown> | null
+  generationContext?: ElementGenerationContext | null
+  research?: ElementResearchPolicy | null
   replaceElementId?: string | null
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
@@ -191,6 +197,7 @@ export async function generateInfographic(
   config?: Record<string, unknown>,
   options?: {
     presentationId?: string | null
+    slideIndex?: number
     useDeckTheme?: boolean
     themeOverrides?: Record<string, unknown> | null
     themeVariantId?: string | null
@@ -199,7 +206,8 @@ export async function generateInfographic(
     existingElement?: Record<string, unknown> | null
     slideContext?: Record<string, unknown> | null
     deckContext?: Record<string, unknown> | null
-    research?: Record<string, unknown> | null
+    generationContext?: ElementGenerationContext | null
+    research?: ElementResearchPolicy | null
   },
   signal?: AbortSignal,
 ): Promise<TextLabsResponse> {
@@ -208,6 +216,7 @@ export async function generateInfographic(
   formData.append('message', message)
   formData.append('reference_image', referenceImage)
   if (options?.presentationId) formData.append('presentation_id', options.presentationId)
+  if (options?.slideIndex !== undefined) formData.append('slide_index', String(options.slideIndex))
   if (options?.useDeckTheme !== undefined) formData.append('use_deck_theme', String(options.useDeckTheme))
   if (options?.themeOverrides) formData.append('theme_overrides', JSON.stringify(options.themeOverrides))
   if (options?.themeVariantId) formData.append('theme_variant_id', options.themeVariantId)
@@ -216,6 +225,7 @@ export async function generateInfographic(
   if (options?.existingElement) formData.append('existing_element', JSON.stringify(options.existingElement))
   if (options?.slideContext) formData.append('slide_context', JSON.stringify(options.slideContext))
   if (options?.deckContext) formData.append('deck_context', JSON.stringify(options.deckContext))
+  if (options?.generationContext) formData.append('generation_context', JSON.stringify(options.generationContext))
   if (options?.research) formData.append('research', JSON.stringify(options.research))
 
   if (config) {
@@ -249,6 +259,7 @@ export function buildApiPayload(
   const options: SendMessageOptions = {
     componentType,
     presentationId: formData.presentationId,
+    slideIndex: formData.slideIndex,
     useDeckTheme: formData.useDeckTheme,
     themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
     themeVariantId: formData.themeVariantId,
@@ -257,7 +268,8 @@ export function buildApiPayload(
     existingElement: formData.existingElement,
     slideContext: formData.slideContext,
     deckContext: formData.deckContext,
-    research: formData.research as Record<string, unknown> | null | undefined,
+    generationContext: formData.generationContext,
+    research: formData.research,
     replaceElementId: formData.replaceElementId,
     textOnlyMode: !advancedModified,
     count,
@@ -391,6 +403,7 @@ export function buildInsertionParams(
     grid_position?: Partial<TextLabsPositionConfig> & { width?: number; height?: number }
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
+    research_provenance?: Record<string, unknown> | null
     metadata?: Record<string, unknown> | null
   },
   positionConfig?: TextLabsPositionConfig,
@@ -440,6 +453,8 @@ export function buildInsertionParams(
 
   if (themeMetadata.themeVariantId) baseParams.themeVariantId = themeMetadata.themeVariantId
   if (themeMetadata.themeBindings) baseParams.themeBindings = themeMetadata.themeBindings
+  const researchProvenance = element.research_provenance ?? element.metadata?.research_provenance
+  if (researchProvenance) baseParams.researchProvenance = researchProvenance
 
   if (paddingConfig) {
     baseParams.style = {

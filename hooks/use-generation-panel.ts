@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { TextLabsComponentType } from '@/types/textlabs'
 import type { RefineContext } from '@/hooks/use-element-refinement'
+import type { ElementResearchMode } from '@/types/textlabs'
 
 /**
  * Manages the GenerationPanel open/close state and selected element type.
@@ -23,8 +24,9 @@ export function useGenerationPanel() {
   const [regenerateEnabled, setRegenerateEnabled] = useState(false)
   const [editElementId, setEditElementId] = useState<string | null>(null)
   const [refineContext, setRefineContext] = useState<RefineContext | null>(null)
-  const [refineWebResearch, setRefineWebResearch] = useState(false)
-  const [refineUploadedDocs, setRefineUploadedDocs] = useState(false)
+  const [researchMode, setResearchMode] = useState<ElementResearchMode>('auto')
+  const [researchWeb, setResearchWeb] = useState(false)
+  const [researchUploadedDocs, setResearchUploadedDocs] = useState(true)
 
   const openPanel = useCallback((type: TextLabsComponentType) => {
     setElementType(type)
@@ -72,8 +74,6 @@ export function useGenerationPanel() {
     setMode('refine')
     setEditElementId(context.elementId)
     setRefineContext(context)
-    setRefineWebResearch(false)
-    setRefineUploadedDocs(false)
     setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)
@@ -119,8 +119,9 @@ export function useGenerationPanel() {
     regenerateEnabled,
     editElementId,
     refineContext,
-    refineWebResearch,
-    refineUploadedDocs,
+    researchMode,
+    researchWeb,
+    researchUploadedDocs,
     openPanel,
     openPanelForElement,
     openPanelForEdit,
@@ -131,7 +132,8 @@ export function useGenerationPanel() {
     setIsGenerating,
     setError,
     setRegenerateEnabled,
-    setRefineWebResearch,
-    setRefineUploadedDocs,
+    setResearchMode,
+    setResearchWeb,
+    setResearchUploadedDocs,
   }
 }

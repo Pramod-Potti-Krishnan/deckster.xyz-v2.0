@@ -21,8 +21,11 @@
     "test:theme-sync": "node scripts/test-theme-sync.mjs",
     "test:theme-panel-lifecycle": "node scripts/test-theme-panel-lifecycle.mjs",
     "test:element-theme-variants": "node scripts/test-element-theme-variants.mjs",
+    "test:element-generation-context": "node scripts/test-element-generation-context.mjs",
     "test:manual-deck-workflow": "node scripts/test-manual-deck-workflow.mjs",
     "test:textlabs-abort-signal": "node scripts/test-textlabs-abort-signal.mjs",
+    "test:textlabs-session-ownership": "node scripts/test-textlabs-session-ownership.mjs",
+    "test:blank-element-recovery": "node scripts/test-blank-element-recovery.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "start": "next start",
     "postinstall": "prisma generate"

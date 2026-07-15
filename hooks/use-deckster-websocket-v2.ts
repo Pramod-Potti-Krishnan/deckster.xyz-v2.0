@@ -380,6 +380,7 @@ export interface SetThemeMessage {
   data: {
     request_id: string;
     theme: BuildThemeSelection;
+    presentation_id: string;
   };
 }
 
@@ -1567,7 +1568,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, []);
 
-  const sendThemeSelection = useCallback((theme: BuildThemeSelection, requestId: string): boolean => {
+  const sendThemeSelection = useCallback((
+    theme: BuildThemeSelection,
+    requestId: string,
+    presentationId: string,
+  ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot sync theme: WebSocket not connected');
       return false;
@@ -1576,7 +1581,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     try {
       const message: SetThemeMessage = {
         type: 'set_theme',
-        data: { request_id: requestId, theme },
+        data: { request_id: requestId, theme, presentation_id: presentationId },
       };
       wsRef.current.send(JSON.stringify(message));
       debugLog('🎨 Theme sync requested:', requestId, theme.mode);

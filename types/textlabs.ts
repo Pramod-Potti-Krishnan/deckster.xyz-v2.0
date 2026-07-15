@@ -69,6 +69,28 @@ export interface ThemeSourceSelection {
   overrides?: ThemePalette | null
 }
 
+export type ElementResearchMode = 'auto' | 'on' | 'off'
+
+export interface ElementResearchPolicy {
+  mode: ElementResearchMode
+  web?: boolean
+  uploaded_docs?: boolean
+  store_name?: string | null
+  session_id?: string | null
+  depth?: 'quick' | 'standard'
+}
+
+export interface ElementGenerationContext {
+  generation_intent: {
+    user_prompt: string
+    component_type: TextLabsAllComponentType
+  }
+  reference_context: {
+    slide?: Record<string, unknown> | null
+    deck?: Record<string, unknown> | null
+  }
+}
+
 export type TextBoxStructure =
   | 'classic'
   | 'vertical'
@@ -423,18 +445,15 @@ export interface TextLabsBaseFormData {
   themeOverrides?: ThemePalette | null
   themeVariantId?: string | null
   themeBindings?: Record<string, string> | null
+  slideIndex?: number
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
   refine?: boolean
   existingElement?: Record<string, unknown> | null
   slideContext?: Record<string, unknown> | null
   deckContext?: Record<string, unknown> | null
-  research?: {
-    web?: boolean
-    uploaded_docs?: boolean
-    store_name?: string | null
-    session_id?: string | null
-  } | null
+  generationContext?: ElementGenerationContext | null
+  research?: ElementResearchPolicy | null
   replaceElementId?: string | null
 }
 
@@ -524,9 +543,11 @@ export interface TextLabsElement {
   component_type: TextLabsAllComponentType
   theme_variant_id?: string | null
   theme_bindings?: Record<string, string> | null
+  research_provenance?: Record<string, unknown> | null
   metadata?: {
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
+    research_provenance?: Record<string, unknown> | null
     [key: string]: unknown
   } | null
 }

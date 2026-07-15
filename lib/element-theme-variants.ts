@@ -8,6 +8,13 @@ export interface ElementThemeAssignment {
   themeBindings: Record<string, string> | null
 }
 
+const THEME_VARIANT_COMPONENT_TYPES = new Set<TextLabsComponentType>(['TEXT_BOX', 'METRICS'])
+
+export function componentSupportsThemeVariants(value: unknown): boolean {
+  const componentType = normalizeSemanticComponentType(value)
+  return componentType !== null && THEME_VARIANT_COMPONENT_TYPES.has(componentType)
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>

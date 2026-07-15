@@ -7,8 +7,15 @@ import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import { parseElementGenerationMetadata, parseGetElementGeometryResponse } from '@/lib/element-geometry'
 import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
-import { parseElementThemeAssignments } from '@/lib/element-theme-variants'
+import { componentSupportsThemeVariants, parseElementThemeAssignments } from '@/lib/element-theme-variants'
 import { resolveElementThemeMetadata } from '@/lib/textlabs-theme-metadata'
+import { buildElementGenerationContext, parseSlideGenerationContext } from '@/lib/element-generation-context'
+import type { ElementResearchMode } from '@/types/textlabs'
+import type { ThemeSyncState } from '@/lib/theme-sync'
+import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
+
+const THEME_CHANGED_DURING_GENERATION =
+  'The deck theme changed while this element was being generated. Wait for Applied, then generate again.'
 
 interface UseTextLabsGenerationParams {
   generationPanel: {
@@ -19,8 +26,9 @@ interface UseTextLabsGenerationParams {
     error: string | null
     mode: 'generate' | 'edit' | 'refine'
     refineContext: RefineContext | null
-    refineWebResearch: boolean
-    refineUploadedDocs: boolean
+    researchMode: ElementResearchMode
+    researchWeb: boolean
+    researchUploadedDocs: boolean
     setIsGenerating: (v: boolean) => void
     setError: (v: string | null) => void
     closePanel: () => void
@@ -38,6 +46,7 @@ interface UseTextLabsGenerationParams {
     ) => void
     removeElement: (id: string) => void
     addElement: (info: BlankElementInfo) => void
+    trackElement: (id: string | null) => void
   }
   textLabsSession: {
     ensureSession: (signal?: AbortSignal) => Promise<string>
@@ -47,6 +56,10 @@ interface UseTextLabsGenerationParams {
   } | null
   presentationId?: string | null
   currentSlideIndex: number
+  deckContext?: Record<string, unknown> | null
+  researchSessionId?: string | null
+  researchStoreName?: string | null
+  getThemeSyncSnapshot: () => ThemeSyncState
   toast: (opts: { title: string; description: string }) => void
 }
 
@@ -100,6 +113,10 @@ export function useTextLabsGeneration({
   layoutServiceApis,
   presentationId,
   currentSlideIndex,
+  deckContext,
+  researchSessionId,
+  researchStoreName,
+  getThemeSyncSnapshot,
   toast,
 }: UseTextLabsGenerationParams) {
   const generateInFlightRef = useRef(false)
@@ -115,6 +132,43 @@ export function useTextLabsGeneration({
     const refineContext = generationPanel.mode === 'refine' ? generationPanel.refineContext : null
     let refineOverlayActive = false
     let refineElementDeleted = false
+
+    // The displayed presentation owned by the hook is authoritative. Form
+    // callbacks can remain mounted across deck transitions and must not revive
+    // a captured presentation ID from the previous viewer.
+    formData.presentationId = presentationId ?? null
+    if (formData.useDeckTheme === true && !formData.presentationId) {
+      generationPanel.setIsGenerating(false)
+      generationPanel.setError('The active presentation is unavailable, so its deck theme cannot be resolved.')
+      generateInFlightRef.current = false
+      return
+    }
+    const expectedThemeSync = formData.useDeckTheme === true
+      ? getThemeSyncSnapshot()
+      : null
+    if (
+      formData.useDeckTheme === true &&
+      (
+        expectedThemeSync?.status !== 'applied' ||
+        !expectedThemeSync.requestId ||
+        expectedThemeSync.presentationId !== formData.presentationId
+      )
+    ) {
+      generationPanel.setIsGenerating(false)
+      generationPanel.setError('The selected deck theme is not Applied to this presentation yet.')
+      generateInFlightRef.current = false
+      return
+    }
+    const themeIsStillAuthoritative = () => {
+      if (!expectedThemeSync) return true
+      const current = getThemeSyncSnapshot()
+      return current.status === 'applied'
+        && current.requestId === expectedThemeSync.requestId
+        && current.presentationId === expectedThemeSync.presentationId
+    }
+    const assertThemeIsStillAuthoritative = () => {
+      if (!themeIsStillAuthoritative()) throw new Error(THEME_CHANGED_DURING_GENERATION)
+    }
 
     // A blank placeholder's live DOM geometry is authoritative. Resolve it before
     // mutating canvas state or starting Text Labs so a failed query leaves
@@ -141,7 +195,20 @@ export function useTextLabsGeneration({
           elementId: blankId,
         })
         const geometry = parseGetElementGeometryResponse(geometryResponse, blankId)
-        const metadata = parseElementGenerationMetadata(geometryResponse)
+        let metadata = parseElementGenerationMetadata(geometryResponse)
+        if (formData.useDeckTheme === true) {
+          const refreshed = await layoutServiceApis.sendElementCommand('refreshElementThemeMetadata', {
+            elementId: blankId,
+            componentType: formData.componentType,
+          })
+          metadata = parseElementGenerationMetadata(refreshed)
+          if (
+            !metadata.themeBindings ||
+            (componentSupportsThemeVariants(formData.componentType) && !metadata.themeVariantId)
+          ) {
+            throw new Error('The placeholder theme treatment could not be refreshed')
+          }
+        }
         blankInfo = {
           ...trackedBlankInfo,
           ...geometry,
@@ -167,8 +234,6 @@ export function useTextLabsGeneration({
       }
     }
 
-    formData.presentationId = formData.presentationId ?? presentationId ?? null
-
     if (refineContext) {
       if (!layoutServiceApis?.sendElementCommand) {
         generationPanel.setIsGenerating(false)
@@ -182,7 +247,20 @@ export function useTextLabsGeneration({
           elementId: refineContext.elementId,
         })
         const geometry = parseGetElementGeometryResponse(geometryResponse, refineContext.elementId)
-        const metadata = parseElementGenerationMetadata(geometryResponse)
+        let metadata = parseElementGenerationMetadata(geometryResponse)
+        if (formData.useDeckTheme === true) {
+          const refreshed = await layoutServiceApis.sendElementCommand('refreshElementThemeMetadata', {
+            elementId: refineContext.elementId,
+            componentType: refineContext.elementType,
+          })
+          metadata = parseElementGenerationMetadata(refreshed)
+          if (
+            !metadata.themeBindings ||
+            (componentSupportsThemeVariants(refineContext.elementType) && !metadata.themeVariantId)
+          ) {
+            throw new Error('The element theme treatment could not be refreshed')
+          }
+        }
         const liveComponentType = normalizeSemanticComponentType(metadata.componentType)
           ?? refineContext.elementType
         const liveGridPosition = {
@@ -194,16 +272,22 @@ export function useTextLabsGeneration({
         }
 
         applyPositionToFormData(formData, liveGridPosition)
+        const themeVariantId = formData.useDeckTheme === true
+          ? metadata.themeVariantId ?? refineContext.themeVariantId
+          : null
+        const themeBindings = formData.useDeckTheme === true
+          ? metadata.themeBindings ?? refineContext.themeBindings
+          : null
         formData.existingElement = {
           ...refineContext.existingElement,
           component_type: liveComponentType,
           normalized_component_type: liveComponentType,
           grid_position: liveGridPosition,
-          theme_variant_id: metadata.themeVariantId ?? refineContext.themeVariantId,
-          theme_bindings: metadata.themeBindings ?? refineContext.themeBindings,
+          theme_variant_id: themeVariantId,
+          theme_bindings: themeBindings,
         }
-        formData.themeVariantId = metadata.themeVariantId ?? refineContext.themeVariantId
-        formData.themeBindings = metadata.themeBindings ?? refineContext.themeBindings
+        formData.themeVariantId = themeVariantId
+        formData.themeBindings = themeBindings
       } catch (error) {
         console.error('[TextLabs] Failed to read live refine geometry:', error)
         generationPanel.setIsGenerating(false)
@@ -217,40 +301,25 @@ export function useTextLabsGeneration({
       formData.refine = true
       formData.replaceElementId = refineContext.elementId
       formData.existingElement = formData.existingElement ?? refineContext.existingElement
-      formData.slideContext = refineContext.slideContext
-      formData.deckContext = refineContext.deckContext
-      formData.research = {
-        web: generationPanel.refineWebResearch,
-        uploaded_docs: generationPanel.refineUploadedDocs,
-        store_name: refineContext.research.store_name,
-        session_id: refineContext.research.session_id,
-      }
       formData.count = 1
 
-      try {
-        await layoutServiceApis.sendElementCommand('setElementGenerationState', {
-          elementId: refineContext.elementId,
-          generating: true,
-          label: 'Regenerating…',
-        })
-        refineOverlayActive = true
-      } catch (error) {
-        // Layout deployments before the transient overlay command remain usable;
-        // geometry and safe replacement are still enforced.
-        console.warn('[TextLabs] Regeneration overlay is unavailable:', error)
-      }
     }
 
     // Track current element ID locally — React state updates are async,
     // so we can't re-read generationPanel.blankElementId after spinner swap
     let currentBlankId = blankId
     let currentBlankInfo = blankInfo
+    let blankTrackingWasRemoved = false
 
     // If blank element exists, override position from canvas and force count=1
     if (blankInfo) {
       formData.count = 1
-      formData.themeVariantId = blankInfo.themeVariantId ?? null
-      formData.themeBindings = blankInfo.themeBindings ?? null
+      formData.themeVariantId = formData.useDeckTheme === true
+        ? blankInfo.themeVariantId ?? null
+        : null
+      formData.themeBindings = formData.useDeckTheme === true
+        ? blankInfo.themeBindings ?? null
+        : null
       applyPositionToFormData(formData, {
         start_col: blankInfo.startCol,
         start_row: blankInfo.startRow,
@@ -258,6 +327,82 @@ export function useTextLabsGeneration({
         position_height: blankInfo.height,
         auto_position: false,
       })
+    }
+
+    const generationSlideIndex = blankInfo?.slideIndex ?? refineContext?.slideIndex ?? currentSlideIndex
+    formData.slideIndex = generationSlideIndex
+
+    const effectiveResearchSessionId = researchSessionId
+      ?? refineContext?.research.session_id
+      ?? null
+    const effectiveResearchStoreName = researchStoreName
+      ?? refineContext?.research.store_name
+      ?? null
+    const useUploadedDocs = generationPanel.researchUploadedDocs && Boolean(effectiveResearchStoreName)
+    if (
+      generationPanel.researchMode === 'on' &&
+      (!effectiveResearchSessionId || (!generationPanel.researchWeb && !useUploadedDocs))
+    ) {
+      generationPanel.setIsGenerating(false)
+      generationPanel.setError(
+        'Research is set to On. Select Web or Uploaded documents and make sure this session has a research source.',
+      )
+      generateInFlightRef.current = false
+      return
+    }
+    formData.research = {
+      mode: generationPanel.researchMode,
+      web: generationPanel.researchWeb,
+      uploaded_docs: useUploadedDocs,
+      store_name: effectiveResearchStoreName,
+      session_id: effectiveResearchSessionId,
+      // Researcher intentionally skips web at quick depth, so an explicit Web
+      // selection must raise the pass to standard even while mode remains Auto.
+      depth: generationPanel.researchMode === 'on' || generationPanel.researchWeb
+        ? 'standard'
+        : 'quick',
+    }
+
+    if (!layoutServiceApis?.sendElementCommand) {
+      generationPanel.setIsGenerating(false)
+      generationPanel.setError('The presentation viewer is unavailable, so live slide context could not be read.')
+      generateInFlightRef.current = false
+      return
+    }
+    const deckReference = deckContext ?? refineContext?.deckContext ?? null
+    try {
+      const contextResponse = await layoutServiceApis.sendElementCommand('getSlideGenerationContext', {
+        slideIndex: generationSlideIndex,
+        targetElementId: blankId ?? refineContext?.elementId ?? undefined,
+      })
+      const liveSlide = parseSlideGenerationContext(contextResponse, generationSlideIndex)
+      const generationContext = buildElementGenerationContext(
+        formData.prompt,
+        formData.componentType,
+        liveSlide,
+        deckReference,
+      )
+      formData.generationContext = generationContext
+      formData.slideContext = generationContext.reference_context.slide ?? null
+      formData.deckContext = generationContext.reference_context.deck ?? null
+    } catch (error) {
+      // Slide/deck context improves relevance but is reference material, not
+      // generation intent. Never substitute a stale Director plan by index;
+      // continue with the exact prompt and an explicit degraded-context marker.
+      console.warn('[TextLabs] Live slide context unavailable; continuing prompt-first:', error)
+      const generationContext = buildElementGenerationContext(
+        formData.prompt,
+        formData.componentType,
+        {
+          slide_index: generationSlideIndex,
+          context_status: 'unavailable',
+          elements: [],
+        },
+        deckReference,
+      )
+      formData.generationContext = generationContext
+      formData.slideContext = generationContext.reference_context.slide ?? null
+      formData.deckContext = generationContext.reference_context.deck ?? null
     }
 
     if (
@@ -271,10 +416,10 @@ export function useTextLabsGeneration({
         const assignmentResponse = await layoutServiceApis.sendElementCommand('getElementThemeVariants', {
           componentType: formData.componentType,
           count: formData.count,
-          slideIndex: currentSlideIndex,
+          slideIndex: generationSlideIndex,
           seed: [
             presentationId || 'unsaved',
-            currentSlideIndex,
+            generationSlideIndex,
             formData.componentType,
             JSON.stringify(formData.elements.map(item => item.grid_position)),
           ].join(':'),
@@ -297,6 +442,30 @@ export function useTextLabsGeneration({
         generationPanel.setIsGenerating(false)
         generateInFlightRef.current = false
         return
+      }
+    }
+
+    if (!themeIsStillAuthoritative()) {
+      generationPanel.setError(THEME_CHANGED_DURING_GENERATION)
+      generationPanel.setIsGenerating(false)
+      generateInFlightRef.current = false
+      return
+    }
+
+    // Only mutate the live refine UI after every fallible preflight has passed.
+    // From this point onward, the generation try/finally always clears it.
+    if (refineContext && layoutServiceApis?.sendElementCommand) {
+      try {
+        await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+          elementId: refineContext.elementId,
+          generating: true,
+          label: 'Regenerating…',
+        })
+        refineOverlayActive = true
+      } catch (error) {
+        // Layout deployments before the transient overlay command remain usable;
+        // geometry and safe replacement are still enforced.
+        console.warn('[TextLabs] Regeneration overlay is unavailable:', error)
       }
     }
 
@@ -337,9 +506,12 @@ export function useTextLabsGeneration({
       }
     }
 
-    // 30-second timeout
+    // Grounded generation may include one bounded Researcher round-trip.
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      generationPanel.researchMode === 'off' ? 30_000 : 90_000,
+    )
     const insertedElementIds: string[] = []
 
     try {
@@ -354,6 +526,7 @@ export function useTextLabsGeneration({
           formData.infographicConfig as Record<string, unknown>,
           {
             presentationId: formData.presentationId,
+            slideIndex: formData.slideIndex,
             useDeckTheme: formData.useDeckTheme,
             themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
             themeVariantId: formData.themeVariantId,
@@ -362,7 +535,8 @@ export function useTextLabsGeneration({
             existingElement: formData.existingElement,
             slideContext: formData.slideContext,
             deckContext: formData.deckContext,
-            research: formData.research as Record<string, unknown> | null | undefined,
+            generationContext: formData.generationContext,
+            research: formData.research,
           },
           controller.signal,
         )
@@ -374,6 +548,7 @@ export function useTextLabsGeneration({
       if (response.error) {
         throw new Error(response.error)
       }
+      assertThemeIsStillAuthoritative()
 
       const elements = response.elements || (response.element ? [response.element] : [])
 
@@ -389,10 +564,11 @@ export function useTextLabsGeneration({
           console.warn('[TextLabs] Failed to delete blank placeholder:', err)
         }
         blankElements.removeElement(currentBlankId)
+        blankTrackingWasRemoved = true
       }
 
       // Insert each element into the canvas
-      const effectiveSlideIndex = currentBlankInfo?.slideIndex ?? refineContext?.slideIndex ?? currentSlideIndex
+      const effectiveSlideIndex = generationSlideIndex
       const formElements = 'elements' in formData ? formData.elements : undefined
       const authoritativeGridPosition = currentBlankInfo ? {
         start_col: currentBlankInfo.startCol,
@@ -406,6 +582,7 @@ export function useTextLabsGeneration({
         position_height: formData.positionConfig.position_height,
       } : undefined
       for (const [index, element] of elements.entries()) {
+        assertThemeIsStillAuthoritative()
         const fallbackGridPosition = formElements?.[index]?.grid_position
         const existingThemeVariantId = refineContext
           ? (formData.existingElement?.theme_variant_id as string | null | undefined)
@@ -451,9 +628,11 @@ export function useTextLabsGeneration({
             : null
         if (insertedElementId) insertedElementIds.push(insertedElementId)
       }
+      assertThemeIsStillAuthoritative()
 
       if (refineContext && layoutServiceApis?.sendElementCommand) {
         try {
+          assertThemeIsStillAuthoritative()
           await layoutServiceApis.sendElementCommand('deleteElement', { elementId: refineContext.elementId })
           refineElementDeleted = true
         } catch (deleteError) {
@@ -482,21 +661,28 @@ export function useTextLabsGeneration({
     } catch (err) {
       let errorMessage = 'Generation failed'
       if (err instanceof DOMException && err.name === 'AbortError') {
-        errorMessage = 'Generation timed out after 30 seconds. Try again or simplify your prompt.'
+        const timeoutSeconds = generationPanel.researchMode === 'off' ? 30 : 90
+        errorMessage = `Generation timed out after ${timeoutSeconds} seconds. Try again or simplify your prompt.`
       } else if (err instanceof TypeError && err.message.includes('fetch')) {
         errorMessage = 'Network error. Check your connection and try again.'
       } else if (err instanceof Error) {
         errorMessage = err.message
       }
-      generationPanel.setError(errorMessage)
       console.error('[TextLabs] Generation error:', err)
 
-      if (refineContext && !refineElementDeleted && insertedElementIds.length > 0 && layoutServiceApis?.sendElementCommand) {
-        await Promise.allSettled(
+      if (
+        (!refineContext || !refineElementDeleted) &&
+        insertedElementIds.length > 0 &&
+        layoutServiceApis?.sendElementCommand
+      ) {
+        const rollbackResults = await Promise.allSettled(
           insertedElementIds.map(elementId => layoutServiceApis.sendElementCommand('deleteElement', { elementId })),
         )
+        if (rollbackResults.some(result => result.status === 'rejected')) {
+          errorMessage += ' Some generated elements could not be removed; reload the slide before retrying.'
+        }
+        insertedElementIds.length = 0
       }
-
       // Restore placeholder on failure
       if (currentBlankId && currentBlankInfo && layoutServiceApis?.sendElementCommand) {
         blankElements.setStatus(currentBlankId, 'blank')
@@ -504,33 +690,49 @@ export function useTextLabsGeneration({
         const gridRow = `${currentBlankInfo.startRow}/${currentBlankInfo.startRow + currentBlankInfo.height}`
         const gridColumn = `${currentBlankInfo.startCol}/${currentBlankInfo.startCol + currentBlankInfo.width}`
         try {
-          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: currentBlankId })
-          const restoreResponse = await layoutServiceApis.sendElementCommand('insertTextBox', {
+          await restoreBlankElementAfterFailure({
             elementId: currentBlankId,
-            slideIndex: currentBlankInfo.slideIndex,
-            content: placeholderHtml,
-            gridRow,
-            gridColumn,
-            positionWidth: currentBlankInfo.width,
-            positionHeight: currentBlankInfo.height,
-            zIndex: 10,
-            draggable: true,
-            resizable: true,
-            skipAutoSize: true,
-            componentType: currentBlankInfo.componentType,
-            themeVariantId: currentBlankInfo.themeVariantId,
-            themeBindings: currentBlankInfo.themeBindings,
+            trackingWasRemoved: blankTrackingWasRemoved,
+            deleteElement: () => layoutServiceApis.sendElementCommand('deleteElement', {
+              elementId: currentBlankId,
+            }),
+            insertElement: () => layoutServiceApis.sendElementCommand('insertTextBox', {
+              elementId: currentBlankId,
+              slideIndex: currentBlankInfo.slideIndex,
+              content: placeholderHtml,
+              gridRow,
+              gridColumn,
+              positionWidth: currentBlankInfo.width,
+              positionHeight: currentBlankInfo.height,
+              zIndex: 10,
+              draggable: true,
+              resizable: true,
+              skipAutoSize: true,
+              componentType: currentBlankInfo.componentType,
+              themeVariantId: currentBlankInfo.themeVariantId,
+              themeBindings: currentBlankInfo.themeBindings,
+            }),
+            restoreTracking: restoredElementId => {
+              blankElements.removeElement(currentBlankId)
+              blankElements.addElement({
+                ...currentBlankInfo,
+                elementId: restoredElementId,
+                status: 'blank',
+              })
+              blankElements.trackElement(restoredElementId)
+              generationPanel.openPanelForElement(currentBlankInfo.componentType, restoredElementId)
+            },
+            onDeleteError: deleteError => {
+              console.warn('[TextLabs] Spinner was already absent during placeholder recovery:', deleteError)
+            },
           })
-          const newId = restoreResponse?.elementId
-          if (newId && newId !== currentBlankId) {
-            blankElements.removeElement(currentBlankId)
-            blankElements.addElement({ ...currentBlankInfo, elementId: newId, status: 'blank' })
-            generationPanel.openPanelForElement(currentBlankInfo.componentType, newId)
-          }
         } catch (restoreErr) {
           console.warn('[TextLabs] Failed to restore placeholder after error:', restoreErr)
         }
       }
+      // openPanelForElement clears prior panel errors, so publish the final
+      // failure only after any placeholder/tracking recovery has completed.
+      generationPanel.setError(errorMessage)
     } finally {
       clearTimeout(timeoutId)
       if (refineContext && refineOverlayActive && !refineElementDeleted && layoutServiceApis?.sendElementCommand) {
@@ -546,7 +748,19 @@ export function useTextLabsGeneration({
       generationPanel.setIsGenerating(false)
       generateInFlightRef.current = false
     }
-  }, [generationPanel, textLabsSession, layoutServiceApis, presentationId, toast, currentSlideIndex, blankElements])
+  }, [
+    generationPanel,
+    textLabsSession,
+    layoutServiceApis,
+    presentationId,
+    toast,
+    currentSlideIndex,
+    blankElements,
+    deckContext,
+    researchSessionId,
+    researchStoreName,
+    getThemeSyncSnapshot,
+  ])
 
   const handleOpenPanel = useCallback(async (type: string) => {
     const componentType = type as TextLabsComponentType
