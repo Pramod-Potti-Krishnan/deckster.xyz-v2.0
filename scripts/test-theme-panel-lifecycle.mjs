@@ -52,7 +52,7 @@ assert.deepEqual(
 
 const panelSource = fs.readFileSync(new URL('../components/theme-panel.tsx', import.meta.url), 'utf8')
 assert.doesNotMatch(panelSource, /sendCommand\s*\(/)
-assert.doesNotMatch(panelSource, /['"](?:setTheme|previewTheme|saveTheme)['"]/) 
+assert.doesNotMatch(panelSource, /['"](?:setTheme|previewTheme|saveTheme)['"]/)
 assert.match(panelSource, /onBuildThemeChange\(next\)/)
 assert.match(panelSource, /Template and theme choices are locked once generation starts/)
 assert.match(panelSource, /if \(selectionLocked \|\| !canApply \|\| !onBuildThemeChange\) return/)
