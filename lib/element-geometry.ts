@@ -1,3 +1,5 @@
+import { parseStyleOwner, parseThemeVariantSource } from '@/lib/element-provenance'
+
 export interface ElementGridGeometry {
   startCol: number
   startRow: number
@@ -160,12 +162,10 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
       ? String(response.themeVariantId ?? response.theme_variant_id)
       : null,
     themeBindings,
-    styleOwner: typeof (response.styleOwner ?? response.style_owner) === 'string'
-      ? String(response.styleOwner ?? response.style_owner)
-      : null,
-    themeVariantSource: typeof (response.themeVariantSource ?? response.theme_variant_source) === 'string'
-      ? String(response.themeVariantSource ?? response.theme_variant_source)
-      : null,
+    styleOwner: parseStyleOwner(response.styleOwner ?? response.style_owner),
+    themeVariantSource: parseThemeVariantSource(
+      response.themeVariantSource ?? response.theme_variant_source,
+    ),
   }
 }
 

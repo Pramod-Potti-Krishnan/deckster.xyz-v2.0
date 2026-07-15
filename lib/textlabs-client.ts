@@ -25,6 +25,7 @@ import {
 } from '@/types/textlabs'
 import { semanticTypeForInsertion } from '@/lib/element-semantic-type'
 import { resolveElementThemeMetadata } from '@/lib/textlabs-theme-metadata'
+import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 
 // Same service as Elementor - reuse the URL
 const TEXT_LABS_BASE_URL = process.env.NEXT_PUBLIC_ELEMENTOR_URL || 'https://web-production-3b42.up.railway.app'
@@ -457,15 +458,13 @@ export function buildInsertionParams(
 
   if (themeMetadata.themeVariantId) baseParams.themeVariantId = themeMetadata.themeVariantId
   if (themeMetadata.themeBindings) baseParams.themeBindings = themeMetadata.themeBindings
-  const styleOwner = element.style_owner ?? element.styleOwner
-    ?? element.metadata?.style_owner ?? element.metadata?.styleOwner
-  if (typeof styleOwner === 'string' && styleOwner.trim()) baseParams.styleOwner = styleOwner.trim()
-  const themeVariantSource = element.theme_variant_source ?? element.themeVariantSource
-    ?? element.metadata?.theme_variant_source ?? element.metadata?.themeVariantSource
-    ?? 'element_generation'
-  if (typeof themeVariantSource === 'string' && themeVariantSource.trim()) {
-    baseParams.themeVariantSource = themeVariantSource.trim()
-  }
+  const styleOwner = responseStyleOwner(element)
+  if (styleOwner) baseParams.styleOwner = styleOwner
+  const themeVariantSource = parseThemeVariantSource(
+    element.theme_variant_source ?? element.themeVariantSource
+      ?? element.metadata?.theme_variant_source ?? element.metadata?.themeVariantSource,
+  ) ?? 'element_generation'
+  baseParams.themeVariantSource = themeVariantSource
   const researchProvenance = element.research_provenance ?? element.metadata?.research_provenance
   if (researchProvenance) baseParams.researchProvenance = researchProvenance
 

@@ -29,18 +29,50 @@ const context = buildRefineContext({
   elementType: 'textbox',
   componentType: 'TEXT_BOX',
   styleOwner: 'text_service',
-  themeVariantSource: 'slide_builder_renderer',
+  themeVariantSource: 'full_deck_generation',
 }, 'TEXT_BOX')
 
 assert.equal(context.styleOwner, 'text_service')
-assert.equal(context.themeVariantSource, 'slide_builder_renderer')
+assert.equal(context.themeVariantSource, 'full_deck_generation')
 assert.equal(context.existingElement.style_owner, 'text_service')
-assert.equal(context.existingElement.theme_variant_source, 'slide_builder_renderer')
+assert.equal(context.existingElement.theme_variant_source, 'full_deck_generation')
 
 const generationSource = fs.readFileSync(
   new URL('../hooks/use-textlabs-generation.ts', import.meta.url),
   'utf8',
 )
-assert.match(generationSource, /theme_variant_source: refineContext\?\.themeVariantSource/)
+assert.match(generationSource, /style_owner: responseStyleOwner\(element\)/)
+assert.doesNotMatch(generationSource, /\?\? refineContext\?\.styleOwner/)
+assert.match(generationSource, /parseThemeVariantSource\(refineContext\?\.themeVariantSource\)/)
+
+const provenanceSource = fs.readFileSync(
+  new URL('../lib/element-provenance.ts', import.meta.url),
+  'utf8',
+)
+const provenanceCompiled = ts.transpileModule(provenanceSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+})
+const provenanceMod = { exports: {} }
+vm.runInNewContext(provenanceCompiled.outputText, {
+  module: provenanceMod,
+  exports: provenanceMod.exports,
+})
+const { parseStyleOwner, parseThemeVariantSource, responseStyleOwner } = provenanceMod.exports
+
+for (const owner of [
+  'text_service', 'analytics', 'image_builder', 'illustrator',
+  'diagram_generator', 'slide_builder_placeholder',
+]) assert.equal(parseStyleOwner(owner), owner)
+assert.equal(parseStyleOwner('analytics_service'), null)
+assert.equal(parseStyleOwner('text_labs'), null)
+assert.equal(responseStyleOwner({}), null, 'missing new owner stays unset')
+assert.equal(responseStyleOwner({ style_owner: 'illustrator' }), 'illustrator')
+assert.equal(responseStyleOwner({ style_owner: 'analytics_service' }), null)
+assert.equal(parseThemeVariantSource('full_deck_generation'), 'full_deck_generation')
+assert.equal(parseThemeVariantSource('slide_builder_renderer'), null)
+
+const insertIndex = generationSource.indexOf('const { method, params } = buildInsertionParams')
+const deleteIndex = generationSource.indexOf("sendElementCommand('deleteElement'", insertIndex)
+assert.ok(insertIndex >= 0 && deleteIndex > insertIndex, 'replacement inserts before deleting the original')
 
 console.log('refinement provenance tests passed')
