@@ -13,7 +13,8 @@ export function useTextLabsSession(presentationId: string | null) {
   const [error, setError] = useState<string | null>(null)
   const creatingRef = useRef(false)
 
-  const ensureSession = useCallback(async (): Promise<string> => {
+  const ensureSession = useCallback(async (signal?: AbortSignal): Promise<string> => {
+    if (signal?.aborted) throw new DOMException('Generation aborted', 'AbortError')
     // Return existing session
     if (sessionId) return sessionId
 
@@ -21,9 +22,14 @@ export function useTextLabsSession(presentationId: string | null) {
     if (creatingRef.current) {
       // Wait for in-flight creation
       return new Promise((resolve, reject) => {
+        const onAbort = () => {
+          clearInterval(interval)
+          reject(new DOMException('Generation aborted', 'AbortError'))
+        }
         const interval = setInterval(() => {
           if (!creatingRef.current) {
             clearInterval(interval)
+            signal?.removeEventListener('abort', onAbort)
             if (sessionId) {
               resolve(sessionId)
             } else {
@@ -31,6 +37,8 @@ export function useTextLabsSession(presentationId: string | null) {
             }
           }
         }, 100)
+        signal?.addEventListener('abort', onAbort, { once: true })
+        if (signal?.aborted) onAbort()
       })
     }
 
@@ -39,7 +47,7 @@ export function useTextLabsSession(presentationId: string | null) {
     setError(null)
 
     try {
-      const response = await createSession(presentationId)
+      const response = await createSession(presentationId, signal)
       const newSessionId = response.session_id
       setSessionId(newSessionId)
       console.log('[TextLabs] Session created:', newSessionId)

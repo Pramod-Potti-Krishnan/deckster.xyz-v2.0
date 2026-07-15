@@ -67,11 +67,15 @@ const CONFIG_KEY_MAP: Record<string, string> = {
 // SESSION MANAGEMENT
 // ============================================================================
 
-export async function createSession(presentationId?: string | null): Promise<TextLabsSessionResponse> {
+export async function createSession(
+  presentationId?: string | null,
+  signal?: AbortSignal,
+): Promise<TextLabsSessionResponse> {
   const response = await fetch(`${TEXT_LABS_BASE_URL}/api/canvas/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(presentationId ? { presentation_id: presentationId } : {}),
+    signal,
   })
 
   if (!response.ok) {
@@ -144,7 +148,8 @@ interface SendMessageOptions {
 export async function sendMessage(
   sessionId: string,
   message: string,
-  options: SendMessageOptions
+  options: SendMessageOptions,
+  signal?: AbortSignal,
 ): Promise<TextLabsResponse> {
   // Build payload with snake_case keys
   const payload: Record<string, unknown> = {
@@ -163,6 +168,7 @@ export async function sendMessage(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal,
   })
 
   if (!response.ok) {
@@ -193,7 +199,8 @@ export async function generateInfographic(
     slideContext?: Record<string, unknown> | null
     deckContext?: Record<string, unknown> | null
     research?: Record<string, unknown> | null
-  }
+  },
+  signal?: AbortSignal,
 ): Promise<TextLabsResponse> {
   const formData = new FormData()
   formData.append('session_id', sessionId)
@@ -217,6 +224,7 @@ export async function generateInfographic(
   const response = await fetch(`${TEXT_LABS_BASE_URL}/api/infographic/generate`, {
     method: 'POST',
     body: formData,
+    signal,
   })
 
   if (!response.ok) {
