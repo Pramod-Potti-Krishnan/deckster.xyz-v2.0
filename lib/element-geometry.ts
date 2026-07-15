@@ -41,6 +41,13 @@ export class ElementGenerationPreflightError extends Error {
 
 export interface ElementGenerationSnapshot extends ElementGridGeometry, ElementGenerationMetadata {}
 
+export interface ElementGridPositionConfig {
+  start_col: number
+  start_row: number
+  position_width: number
+  position_height: number
+}
+
 export interface ReadElementGenerationSnapshotOptions {
   sendCommand: (action: string, params: Record<string, unknown>) => Promise<unknown>
   elementId: string
@@ -223,4 +230,59 @@ export async function readElementGenerationSnapshot({
   }
 
   return { ...geometry, ...metadata }
+}
+
+function snapLogicalGrid(value: number): number {
+  return Number((Math.round(value * MINOR_GRID_SCALE) / MINOR_GRID_SCALE).toFixed(1))
+}
+
+/**
+ * Preserve a multi-instance layout when its containing placeholder was moved
+ * or resized after the side panel calculated the original child positions.
+ */
+export function remapElementGridPositions<T extends { grid_position: ElementGridPositionConfig }>(
+  elements: T[],
+  source: ElementGridPositionConfig,
+  target: ElementGridPositionConfig,
+): T[] {
+  if (
+    source.position_width <= 0 ||
+    source.position_height <= 0 ||
+    target.position_width <= 0 ||
+    target.position_height <= 0
+  ) {
+    throw new Error('Multi-element container geometry must have positive dimensions')
+  }
+
+  const targetEndCol = snapLogicalGrid(target.start_col + target.position_width)
+  const targetEndRow = snapLogicalGrid(target.start_row + target.position_height)
+
+  return elements.map((element) => {
+    const position = element.grid_position
+    const colStartRatio = (position.start_col - source.start_col) / source.position_width
+    const colEndRatio = (position.start_col + position.position_width - source.start_col) / source.position_width
+    const rowStartRatio = (position.start_row - source.start_row) / source.position_height
+    const rowEndRatio = (position.start_row + position.position_height - source.start_row) / source.position_height
+
+    const startCol = snapLogicalGrid(target.start_col + colStartRatio * target.position_width)
+    const endCol = Math.min(
+      targetEndCol,
+      snapLogicalGrid(target.start_col + colEndRatio * target.position_width),
+    )
+    const startRow = snapLogicalGrid(target.start_row + rowStartRatio * target.position_height)
+    const endRow = Math.min(
+      targetEndRow,
+      snapLogicalGrid(target.start_row + rowEndRatio * target.position_height),
+    )
+
+    return {
+      ...element,
+      grid_position: {
+        start_col: startCol,
+        start_row: startRow,
+        position_width: Math.max(0.2, snapLogicalGrid(endCol - startCol)),
+        position_height: Math.max(0.2, snapLogicalGrid(endRow - startRow)),
+      },
+    }
+  })
 }

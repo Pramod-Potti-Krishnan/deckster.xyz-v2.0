@@ -26,6 +26,7 @@ const {
   parseElementGenerationMetadata,
   parseGetElementGeometryResponse,
   readElementGenerationSnapshot,
+  remapElementGridPositions,
 } = loadTypeScriptModule(
   new URL('../lib/element-geometry.ts', import.meta.url),
 )
@@ -215,6 +216,41 @@ assert.throws(
   }
   assert.ok(caught instanceof ElementGenerationPreflightError)
   assert.equal(caught.stage, 'theme_metadata')
+}
+
+{
+  const remapped = remapElementGridPositions([
+    { id: 'one', grid_position: { start_col: 2, start_row: 4, position_width: 9, position_height: 8 } },
+    { id: 'two', grid_position: { start_col: 11, start_row: 4, position_width: 9, position_height: 8 } },
+    { id: 'three', grid_position: { start_col: 20, start_row: 4, position_width: 9, position_height: 8 } },
+  ], {
+    start_col: 2,
+    start_row: 4,
+    position_width: 27,
+    position_height: 8,
+  }, {
+    start_col: 4.4,
+    start_row: 4,
+    position_width: 21.8,
+    position_height: 10,
+  })
+
+  assert.equal(remapped.length, 3)
+  assert.equal(remapped[0].grid_position.start_col, 4.4)
+  assert.equal(remapped[0].grid_position.start_row, 4)
+  assert.equal(remapped[0].grid_position.position_height, 10)
+  assert.equal(
+    remapped[2].grid_position.start_col + remapped[2].grid_position.position_width,
+    26.2,
+  )
+  assert.equal(
+    Number((remapped[0].grid_position.start_col + remapped[0].grid_position.position_width).toFixed(1)),
+    Number(remapped[1].grid_position.start_col.toFixed(1)),
+  )
+  assert.equal(
+    Number((remapped[1].grid_position.start_col + remapped[1].grid_position.position_width).toFixed(1)),
+    Number(remapped[2].grid_position.start_col.toFixed(1)),
+  )
 }
 
 console.log('element geometry parser tests passed')
