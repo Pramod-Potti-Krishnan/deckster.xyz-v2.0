@@ -19,12 +19,18 @@ export interface GetElementGeometryResponse {
   theme_variant_id?: string | null
   themeBindings?: Record<string, string> | null
   theme_bindings?: Record<string, string> | null
+  styleOwner?: string | null
+  style_owner?: string | null
+  themeVariantSource?: string | null
+  theme_variant_source?: string | null
 }
 
 export interface ElementGenerationMetadata {
   componentType: string | null
   themeVariantId: string | null
   themeBindings: Record<string, string> | null
+  styleOwner: string | null
+  themeVariantSource: string | null
 }
 
 export type ElementGenerationPreflightStage = 'geometry' | 'theme_metadata'
@@ -54,6 +60,7 @@ export interface ReadElementGenerationSnapshotOptions {
   componentType: string
   useDeckTheme: boolean
   requiresThemeVariant: boolean
+  themeVariantSource?: string | null
   retries?: number
   retryDelayMs?: number
 }
@@ -134,7 +141,10 @@ export function parseGetElementGeometryResponse(
 
 export function parseElementGenerationMetadata(response: unknown): ElementGenerationMetadata {
   if (!isRecord(response)) {
-    return { componentType: null, themeVariantId: null, themeBindings: null }
+    return {
+      componentType: null, themeVariantId: null, themeBindings: null,
+      styleOwner: null, themeVariantSource: null,
+    }
   }
   const rawBindings = response.themeBindings ?? response.theme_bindings
   const themeBindings = isRecord(rawBindings)
@@ -150,6 +160,12 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
       ? String(response.themeVariantId ?? response.theme_variant_id)
       : null,
     themeBindings,
+    styleOwner: typeof (response.styleOwner ?? response.style_owner) === 'string'
+      ? String(response.styleOwner ?? response.style_owner)
+      : null,
+    themeVariantSource: typeof (response.themeVariantSource ?? response.theme_variant_source) === 'string'
+      ? String(response.themeVariantSource ?? response.theme_variant_source)
+      : null,
   }
 }
 
@@ -184,6 +200,7 @@ export async function readElementGenerationSnapshot({
   componentType,
   useDeckTheme,
   requiresThemeVariant,
+  themeVariantSource = null,
   retries = 1,
   retryDelayMs = 200,
 }: ReadElementGenerationSnapshotOptions): Promise<ElementGenerationSnapshot> {
@@ -207,12 +224,12 @@ export async function readElementGenerationSnapshot({
   }
 
   let metadata = parseElementGenerationMetadata(geometryResponse)
-  if (useDeckTheme) {
+  if (useDeckTheme && themeVariantSource === 'element_generation') {
     try {
       const refreshed = await sendPreflightCommandWithRetry(
         sendCommand,
         'refreshElementThemeMetadata',
-        { elementId, componentType, themeVariantSource: 'element_generation' },
+        { elementId, componentType, themeVariantSource },
         retries,
         retryDelayMs,
       )

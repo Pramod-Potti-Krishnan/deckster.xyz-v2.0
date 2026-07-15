@@ -403,6 +403,10 @@ export function buildInsertionParams(
     grid_position?: Partial<TextLabsPositionConfig> & { width?: number; height?: number }
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
+    style_owner?: string | null
+    styleOwner?: string | null
+    theme_variant_source?: string | null
+    themeVariantSource?: string | null
     research_provenance?: Record<string, unknown> | null
     metadata?: Record<string, unknown> | null
   },
@@ -449,12 +453,19 @@ export function buildInsertionParams(
     resizable: true,
     skipAutoSize: true,
     componentType: semanticComponentType,
-    styleOwner: 'text_labs',
-    themeVariantSource: 'element_generation',
   }
 
   if (themeMetadata.themeVariantId) baseParams.themeVariantId = themeMetadata.themeVariantId
   if (themeMetadata.themeBindings) baseParams.themeBindings = themeMetadata.themeBindings
+  const styleOwner = element.style_owner ?? element.styleOwner
+    ?? element.metadata?.style_owner ?? element.metadata?.styleOwner
+  if (typeof styleOwner === 'string' && styleOwner.trim()) baseParams.styleOwner = styleOwner.trim()
+  const themeVariantSource = element.theme_variant_source ?? element.themeVariantSource
+    ?? element.metadata?.theme_variant_source ?? element.metadata?.themeVariantSource
+    ?? 'element_generation'
+  if (typeof themeVariantSource === 'string' && themeVariantSource.trim()) {
+    baseParams.themeVariantSource = themeVariantSource.trim()
+  }
   const researchProvenance = element.research_provenance ?? element.metadata?.research_provenance
   if (researchProvenance) baseParams.researchProvenance = researchProvenance
 
