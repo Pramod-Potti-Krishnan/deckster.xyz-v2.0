@@ -503,6 +503,8 @@ export function useTextLabsGeneration({
           componentType: normalizeSemanticComponentType(formData.componentType) ?? blankInfo.componentType,
           themeVariantId: blankInfo.themeVariantId,
           themeBindings: blankInfo.themeBindings,
+          styleOwner: 'text_labs',
+          themeVariantSource: 'element_generation',
         })
         const newId = reinsertResponse?.elementId
         if (newId && newId !== blankId) {
@@ -722,6 +724,8 @@ export function useTextLabsGeneration({
               componentType: currentBlankInfo.componentType,
               themeVariantId: currentBlankInfo.themeVariantId,
               themeBindings: currentBlankInfo.themeBindings,
+              styleOwner: 'text_labs',
+              themeVariantSource: 'element_generation',
             }),
             restoreTracking: restoredElementId => {
               blankElements.removeElement(currentBlankId)
@@ -804,6 +808,8 @@ export function useTextLabsGeneration({
         resizable: true,
         skipAutoSize: true,
         componentType,
+        styleOwner: 'text_labs',
+        themeVariantSource: 'element_generation',
       })
 
       const layoutElementId = response?.elementId || tempId

@@ -103,6 +103,8 @@ const insertionTwo = buildInsertionParams('TEXT_BOX', {
   },
 }).params
 assert.equal(insertionOne.themeVariantId, 'box-variant-1')
+assert.equal(insertionOne.styleOwner, 'text_labs')
+assert.equal(insertionOne.themeVariantSource, 'element_generation')
 assert.equal(insertionOne.themeBindings.background, 'primary_500')
 assert.equal(insertionTwo.themeVariantId, 'box-variant-2')
 assert.equal(insertionTwo.themeBindings.background, 'accent_2_500')
