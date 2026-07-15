@@ -4070,6 +4070,9 @@ function BuilderContent() {
             generationPanel={generationPanel}
             onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
             onRefineElementRequested={features.useTextLabsGeneration ? handleRefineElementRequested : undefined}
+            buildThemeSelection={buildThemeSelection}
+            themeSync={themeSync}
+            onBuildThemeChange={handleBuildThemeChange}
             connected={connected}
             connecting={connecting}
             toolbarPortalTarget={toolbarPortalTarget}

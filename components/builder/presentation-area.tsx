@@ -11,6 +11,8 @@ import { ElementType, ElementProperties } from '@/types/elements'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/hooks/use-templates'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import type { BuildThemeSelection } from '@/lib/theme-builder'
+import type { ThemeSyncState } from '@/lib/theme-sync'
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -72,6 +74,9 @@ export interface PresentationAreaProps {
   onOpenGenerationPanel?: (type: string) => void
   onRefineElementRequested?: (payload: RefineElementRequest) => void
   onEditModeChange?: (isEditing: boolean) => void
+  buildThemeSelection: BuildThemeSelection
+  themeSync: ThemeSyncState
+  onBuildThemeChange: (selection: BuildThemeSelection) => void
   // Bottom toolbar items (moved from header)
   connected: boolean
   connecting: boolean
@@ -127,6 +132,9 @@ export function PresentationArea({
   onOpenGenerationPanel,
   onRefineElementRequested,
   onEditModeChange,
+  buildThemeSelection,
+  themeSync,
+  onBuildThemeChange,
   connected,
   connecting,
   toolbarPortalTarget,
@@ -199,6 +207,9 @@ export function PresentationArea({
             onComposeApiReady={onComposeApiReady}
             onOpenGenerationPanel={onOpenGenerationPanel}
             onRefineElementRequested={onRefineElementRequested}
+            buildThemeSelection={buildThemeSelection}
+            themeSync={themeSync}
+            onBuildThemeChange={onBuildThemeChange}
             connected={connected}
             connecting={connecting}
             onElementMoved={(elementId, gridRow, gridColumn) => {
