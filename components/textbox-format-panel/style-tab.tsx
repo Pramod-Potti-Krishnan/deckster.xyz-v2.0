@@ -403,7 +403,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId, pre
                 themeColors={themeTokens}
                 themeBinding={themeBindings.text_color}
                 onThemeSelect={token => void applyThemeColor('text_color', token)}
-                onResetTheme={() => resetThemeColor('text_color', 'body_text')}
+                onResetTheme={() => resetThemeColor('text_color', '--theme-text-body')}
               />
             </ControlRow>
           </div>
@@ -417,7 +417,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId, pre
                 themeColors={themeTokens}
                 themeBinding={themeBindings.highlight}
                 onThemeSelect={token => void applyThemeColor('highlight', token)}
-                onResetTheme={() => resetThemeColor('highlight', 'accent_1')}
+                onResetTheme={() => resetThemeColor('highlight', '--theme-accent-1')}
               />
             </ControlRow>
           </div>
@@ -598,7 +598,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId, pre
                 themeColors={themeTokens}
                 themeBinding={themeBindings.border}
                 onThemeSelect={token => void applyThemeColor('border', token)}
-                onResetTheme={() => resetThemeColor('border', 'primary')}
+                onResetTheme={() => resetThemeColor('border', '--theme-primary')}
               />
               <PanelInput
                 type="number"
@@ -631,7 +631,7 @@ export function StyleTab({ formatting, onSendCommand, isApplying, elementId, pre
             themeColors={themeTokens}
             themeBinding={themeBindings.background}
             onThemeSelect={token => void applyThemeColor('background', token)}
-            onResetTheme={() => resetThemeColor('background', 'surface')}
+            onResetTheme={() => resetThemeColor('background', '--theme-surface')}
           />
         </ControlRow>
 

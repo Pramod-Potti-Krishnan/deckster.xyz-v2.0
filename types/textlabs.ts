@@ -524,6 +524,11 @@ export interface TextLabsElement {
   component_type: TextLabsAllComponentType
   theme_variant_id?: string | null
   theme_bindings?: Record<string, string> | null
+  metadata?: {
+    theme_variant_id?: string | null
+    theme_bindings?: Record<string, string> | null
+    [key: string]: unknown
+  } | null
 }
 
 export interface TextLabsResponse {
