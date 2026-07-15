@@ -8,9 +8,15 @@
  */
 
 import { SlideLayoutType, SLIDE_LAYOUT_DEFAULTS } from '@/types/elements'
+import { createLayoutViewerUrlPolicy } from '@/lib/layout-viewer-url-policy'
 
 // Layout Service API Base URL
 export const LAYOUT_SERVICE_URL = process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL || 'https://web-production-f0d13.up.railway.app'
+
+export const LAYOUT_VIEWER_URL_POLICY = createLayoutViewerUrlPolicy(
+  LAYOUT_SERVICE_URL,
+  process.env.NEXT_PUBLIC_LAYOUT_VIEWER_ALLOWED_ORIGINS,
+)
 
 // ============================================================================
 // TYPES

@@ -12,6 +12,9 @@
     "dev": "next dev",
     "lint": "next lint",
     "test:director-sync-recovery": "node scripts/test-director-sync-recovery.mjs",
+    "test:director-layout-url-ingress": "node scripts/test-director-layout-url-ingress.mjs",
+    "test:layout-viewer-messaging": "node scripts/test-layout-viewer-messaging.mjs",
+    "test:layout-viewer-url-policy": "node scripts/test-layout-viewer-url-policy.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "start": "next start",
     "postinstall": "prisma generate"
