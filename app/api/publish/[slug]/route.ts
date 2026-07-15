@@ -237,9 +237,14 @@ export async function DELETE(
       const { ok } = await deletePresentationSnapshot(current.snapshotPresentationId);
       snapshotDeleted = ok;
       if (!ok) {
+        // Bump version too so a concurrent lifecycle op's full-array CAS write
+        // can't clobber this just-parked id (its stale-version CAS loses instead).
         await prisma.publishedDeck.update({
           where: { id: existing.id },
-          data: { staleSnapshotIds: { push: current.snapshotPresentationId } },
+          data: {
+            staleSnapshotIds: { push: current.snapshotPresentationId },
+            version: { increment: 1 },
+          },
         });
       }
     }
