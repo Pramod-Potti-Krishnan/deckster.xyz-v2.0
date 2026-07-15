@@ -110,10 +110,12 @@ model ChatSession {
   currentStage           Int       @default(1) @map("current_stage")
 
   // Presentation URLs
+  blankPresentationUrl   String?   @map("blank_presentation_url") @db.Text
   strawmanPreviewUrl     String?   @map("strawman_preview_url") @db.Text
   finalPresentationUrl   String?   @map("final_presentation_url") @db.Text
 
   // Presentation IDs for downloads
+  blankPresentationId    String?   @map("blank_presentation_id")
   strawmanPresentationId String?   @map("strawman_presentation_id")
   finalPresentationId    String?   @map("final_presentation_id")
 
