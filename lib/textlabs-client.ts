@@ -55,6 +55,8 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   presentationId: 'presentation_id',
   useDeckTheme: 'use_deck_theme',
   themeOverrides: 'theme_overrides',
+  themeVariantId: 'theme_variant_id',
+  themeBindings: 'theme_bindings',
   existingElement: 'existing_element',
   slideContext: 'slide_context',
   deckContext: 'deck_context',
@@ -101,6 +103,8 @@ interface SendMessageOptions {
   presentationId?: string | null
   useDeckTheme?: boolean
   themeOverrides?: Record<string, unknown> | null
+  themeVariantId?: string | null
+  themeBindings?: Record<string, string> | null
   refine?: boolean
   existingElement?: Record<string, unknown> | null
   slideContext?: Record<string, unknown> | null
@@ -182,6 +186,8 @@ export async function generateInfographic(
     presentationId?: string | null
     useDeckTheme?: boolean
     themeOverrides?: Record<string, unknown> | null
+    themeVariantId?: string | null
+    themeBindings?: Record<string, string> | null
     refine?: boolean
     existingElement?: Record<string, unknown> | null
     slideContext?: Record<string, unknown> | null
@@ -196,6 +202,8 @@ export async function generateInfographic(
   if (options?.presentationId) formData.append('presentation_id', options.presentationId)
   if (options?.useDeckTheme !== undefined) formData.append('use_deck_theme', String(options.useDeckTheme))
   if (options?.themeOverrides) formData.append('theme_overrides', JSON.stringify(options.themeOverrides))
+  if (options?.themeVariantId) formData.append('theme_variant_id', options.themeVariantId)
+  if (options?.themeBindings) formData.append('theme_bindings', JSON.stringify(options.themeBindings))
   if (options?.refine !== undefined) formData.append('refine', String(options.refine))
   if (options?.existingElement) formData.append('existing_element', JSON.stringify(options.existingElement))
   if (options?.slideContext) formData.append('slide_context', JSON.stringify(options.slideContext))
@@ -234,6 +242,8 @@ export function buildApiPayload(
     presentationId: formData.presentationId,
     useDeckTheme: formData.useDeckTheme,
     themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
+    themeVariantId: formData.themeVariantId,
+    themeBindings: formData.themeBindings,
     refine: formData.refine,
     existingElement: formData.existingElement,
     slideContext: formData.slideContext,

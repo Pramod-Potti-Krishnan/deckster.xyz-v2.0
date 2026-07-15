@@ -25,6 +25,8 @@ import {
   Star,
   Trash2,
   X,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react"
 import { config, features } from '@/lib/config'
 import {
@@ -92,6 +94,8 @@ export interface ChatInputProps {
   onBuildThemeChange: (theme: BuildThemeSelection) => void
   activeBuildThemeProfile?: ActiveBuildThemeProfile | null
   onActiveBuildThemeProfileChange?: (profile: ActiveBuildThemeProfile | null) => void
+  themeSyncStatus?: 'idle' | 'syncing' | 'applied' | 'failed'
+  themeSyncError?: string | null
 }
 
 export function ChatInput({
@@ -129,6 +133,8 @@ export function ChatInput({
   onBuildThemeChange,
   activeBuildThemeProfile,
   onActiveBuildThemeProfileChange,
+  themeSyncStatus = 'idle',
+  themeSyncError,
 }: ChatInputProps) {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [themePresets, setThemePresets] = useState<ThemePresetSummary[]>(FALLBACK_THEME_PRESETS)
@@ -434,6 +440,24 @@ export function ChatInput({
           <div className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 text-xs font-medium min-w-0">
             <Palette className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{themeChipLabel}: {activeThemeLabel}</span>
+            {themeSyncStatus === 'syncing' && (
+              <span className="ml-1 inline-flex items-center gap-1 text-[10px] font-normal" title="Applying theme to the current deck">
+                <Loader2 className="h-3 w-3 animate-spin" /> Syncing
+              </span>
+            )}
+            {themeSyncStatus === 'applied' && (
+              <span className="ml-1 inline-flex items-center gap-1 text-[10px] font-normal" title="Theme applied to the current deck">
+                <CheckCircle2 className="h-3 w-3" /> Applied
+              </span>
+            )}
+            {themeSyncStatus === 'failed' && (
+              <span
+                className="ml-1 inline-flex items-center gap-1 text-[10px] font-normal text-rose-600 dark:text-rose-300"
+                title={themeSyncError || 'Theme application failed'}
+              >
+                <AlertCircle className="h-3 w-3" /> Failed
+              </span>
+            )}
           </div>
           {!templateSelectionLocked && (
             <button

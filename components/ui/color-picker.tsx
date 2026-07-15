@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { cn, normalizeColorToHex } from '@/lib/utils'
 import { X } from 'lucide-react'
+import type { DeckThemeToken } from '@/hooks/use-deck-theme-palette'
 
 export interface CompactColorPickerProps {
   label?: string
@@ -13,6 +14,10 @@ export interface CompactColorPickerProps {
   allowNoFill?: boolean
   /** Custom preset colors (overrides default palette) */
   presetColors?: string[]
+  themeColors?: DeckThemeToken[]
+  themeBinding?: string | null
+  onThemeSelect?: (token: DeckThemeToken) => void
+  onResetTheme?: () => void
 }
 
 // Checkerboard pattern for transparent color display
@@ -47,7 +52,11 @@ export function CompactColorPicker({
   onChange,
   disabled = false,
   allowNoFill = false,
-  presetColors = DEFAULT_PALETTE
+  presetColors = DEFAULT_PALETTE,
+  themeColors = [],
+  themeBinding,
+  onThemeSelect,
+  onResetTheme,
 }: CompactColorPickerProps) {
   const colorInputRef = useRef<HTMLInputElement>(null)
   const [showPalette, setShowPalette] = useState(false)
@@ -115,6 +124,39 @@ export function CompactColorPicker({
             className="absolute right-0 top-full mt-1 z-50 bg-gray-800 rounded-lg shadow-xl border border-gray-600 p-2"
             style={{ width: '220px' }}
           >
+            {themeColors.length > 0 && (
+              <div className="mb-2 border-b border-gray-600 pb-2">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Deck theme</span>
+                  {onResetTheme && (
+                    <button
+                      type="button"
+                      onClick={() => { onResetTheme(); setShowPalette(false) }}
+                      className="text-[10px] text-indigo-300 hover:text-indigo-200"
+                    >
+                      Reset to theme
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-1">
+                  {themeColors.map(token => (
+                    <button
+                      type="button"
+                      key={token.id}
+                      onClick={() => { onThemeSelect?.(token); setShowPalette(false) }}
+                      className={cn(
+                        "flex min-w-0 items-center gap-1 rounded border px-1 py-1 text-left text-[9px] text-gray-200 hover:bg-gray-700",
+                        themeBinding === token.id ? "border-indigo-300 bg-indigo-500/15" : "border-gray-600",
+                      )}
+                      title={`${token.label}: ${token.color}`}
+                    >
+                      <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-white/50" style={{ backgroundColor: token.color }} />
+                      <span className="truncate">{token.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* No Fill option */}
             {allowNoFill && (
               <button

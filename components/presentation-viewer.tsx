@@ -131,6 +131,7 @@ export interface TextBoxFormatting {
   padding?: string
   border?: string
   borderRadius?: string
+  themeBindings?: Record<string, string> | null
 }
 
 export interface RefineElementRequest {

@@ -421,6 +421,8 @@ export interface TextLabsBaseFormData {
   presentationId?: string | null
   useDeckTheme?: boolean
   themeOverrides?: ThemePalette | null
+  themeVariantId?: string | null
+  themeBindings?: Record<string, string> | null
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
   refine?: boolean
@@ -449,6 +451,8 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
       position_width: number
       position_height: number
     }
+    theme_variant_id?: string | null
+    theme_bindings?: Record<string, string> | null
   }>
 }
 

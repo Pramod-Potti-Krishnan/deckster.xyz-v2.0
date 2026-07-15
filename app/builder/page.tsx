@@ -78,6 +78,13 @@ import {
   resolveEffectivePresentation,
 } from '@/lib/builder-presentation-ownership'
 import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
+import {
+  IDLE_THEME_SYNC,
+  applyThemeSyncResponse,
+  isThemeAppliedToPresentation,
+  syncingTheme,
+  type ThemeSyncState,
+} from '@/lib/theme-sync'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -399,6 +406,9 @@ function BuilderContent() {
   const [selectedTemplateElementId, setSelectedTemplateElementId] = useState<string | null>(null)
   const [buildThemeSelection, setBuildThemeSelection] = useState<BuildThemeSelection>({ mode: 'auto' })
   const [activeBuildThemeProfile, setActiveBuildThemeProfile] = useState<ActiveBuildThemeProfile | null>(null)
+  const [themeSync, setThemeSync] = useState<ThemeSyncState>(IDLE_THEME_SYNC)
+  const latestThemeSyncRequestRef = useRef<string | null>(null)
+  const themeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const standardThemeLoadedRef = useRef(false)
   const buildThemeSelectionRef = useRef(buildThemeSelection)
   const { getStandardTheme } = useThemeProfiles()
@@ -1401,6 +1411,7 @@ function BuilderContent() {
     tokenUsageMessageId,
     sendMessage,
     sendControlMessage,
+    sendThemeSelection,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,
@@ -1470,6 +1481,16 @@ function BuilderContent() {
       }
     },
     onMessage: (message) => {
+      if (message.type === 'theme_sync') {
+        if (message.payload.request_id !== latestThemeSyncRequestRef.current) return
+        if (themeSyncTimeoutRef.current) {
+          clearTimeout(themeSyncTimeoutRef.current)
+          themeSyncTimeoutRef.current = null
+        }
+        setThemeSync(current => applyThemeSyncResponse(current, message.payload))
+        return
+      }
+
       const isTemplateActionRequest = message.type === 'action_request'
         && message.payload.actions.some((action) => action.value.startsWith('template_'))
       if (isTemplateActionRequest) {
@@ -1968,6 +1989,45 @@ function BuilderContent() {
     ),
     [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl],
   )
+
+  useEffect(() => {
+    if (!isReady || !presentationId || templateModeOn) {
+      latestThemeSyncRequestRef.current = null
+      setThemeSync(IDLE_THEME_SYNC)
+      return
+    }
+
+    const requestId = crypto.randomUUID()
+    latestThemeSyncRequestRef.current = requestId
+    setThemeSync(syncingTheme(requestId, presentationId))
+
+    if (!sendThemeSelection(buildThemeSelection, requestId)) {
+      setThemeSync({
+        status: 'failed',
+        requestId,
+        presentationId,
+        error: 'Director is not connected. Reconnect before generating with the deck theme.',
+      })
+      return
+    }
+
+    themeSyncTimeoutRef.current = setTimeout(() => {
+      if (latestThemeSyncRequestRef.current !== requestId) return
+      setThemeSync({
+        status: 'failed',
+        requestId,
+        presentationId,
+        error: 'Theme application timed out. Retry the theme selection before generating an element.',
+      })
+    }, 20_000)
+
+    return () => {
+      if (themeSyncTimeoutRef.current) {
+        clearTimeout(themeSyncTimeoutRef.current)
+        themeSyncTimeoutRef.current = null
+      }
+    }
+  }, [buildThemeSelection, isReady, presentationId, sendThemeSelection, templateModeOn])
 
   useEffect(() => {
     if (!slideComposerOverride || directorOwnedPresentation.usesOverride) return
@@ -2536,8 +2596,24 @@ function BuilderContent() {
       return
     }
 
+    if (
+      formData.useDeckTheme &&
+      !isThemeAppliedToPresentation(themeSync, effectivePresentationId)
+    ) {
+      const description = themeSync.status === 'syncing'
+        ? 'The selected theme is still being applied. Wait for the Applied status and try again.'
+        : themeSync.error || 'Apply the selected deck theme before generating this element.'
+      generationPanel.setError(description)
+      toast({
+        title: 'Deck theme not ready',
+        description,
+        variant: 'destructive',
+      })
+      return
+    }
+
     await handleTextLabsGenerate(formData)
-  }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast])
+  }, [effectivePresentationId, generationPanel, handleTextLabsGenerate, layoutServiceApis, themeSync, toast])
 
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
     if (!features.useTextLabsGeneration) return
@@ -3467,6 +3543,8 @@ function BuilderContent() {
                     onBuildThemeChange={handleBuildThemeChange}
                     activeBuildThemeProfile={activeBuildThemeProfileForSelection}
                     onActiveBuildThemeProfileChange={handleActiveBuildThemeProfileChange}
+                    themeSyncStatus={themeSync.status}
+                    themeSyncError={themeSync.error}
                   />
                 </>
               )}
