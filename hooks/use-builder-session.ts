@@ -11,6 +11,12 @@ import {
   type DirectorReconnectStatus,
   shouldRequestBuilderSessionConnection,
 } from '@/lib/director-reconnect-policy'
+import {
+  SESSION_CACHE_VERSION,
+  sessionCacheKey,
+  type CachedSessionState,
+} from '@/hooks/use-session-cache'
+import { unsavedBuilderSessionKey } from '@/lib/last-builder-session'
 
 interface UseBuilderSessionParams {
   user: any
@@ -67,6 +73,7 @@ export function useBuilderSession({
   setSessionStoreName,
 }: UseBuilderSessionParams) {
   const router = useRouter()
+  const builderCacheOwner = user?.id ?? user?.email ?? ''
 
   const currentSessionIdRef = useRef(currentSessionId)
 
@@ -79,15 +86,21 @@ export function useBuilderSession({
 
   const [userMessages, setUserMessages] = useState<Array<{ id: string; text: string; timestamp: number }>>(() => {
     if (typeof window === 'undefined') return [];
+    const cacheOwner = user?.id ?? user?.email ?? '';
+    if (isAuthLoading || !cacheOwner) return [];
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session_id');
     if (!sessionId) return [];
     try {
-      const cacheKey = `deckster_session_${sessionId}`;
+      const cacheKey = sessionCacheKey(cacheOwner, sessionId);
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.userMessages?.length > 0) {
+        const parsed = JSON.parse(cached) as CachedSessionState;
+        if (
+          parsed.version === SESSION_CACHE_VERSION
+          && parsed.ownerUserId === cacheOwner
+          && parsed.userMessages?.length > 0
+        ) {
           debugLog('⚡ Initialized userMessages from cache:', parsed.userMessages.length);
           return parsed.userMessages;
         }
@@ -512,13 +525,21 @@ export function useBuilderSession({
               setCurrentSessionId(adopted.id)
               setSessionStoreName(adopted.geminiStoreName || null)
               setIsUnsavedSession(false)
-              try { sessionStorage.removeItem(`deckster_unsaved_${adopted.id}`) } catch {}
+              try {
+                if (builderCacheOwner) {
+                  sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, adopted.id))
+                }
+              } catch {}
               debugLog('✅ Adopted URL session in frontend DB:', adopted.id)
             } else {
               setCurrentSessionId(sessionParam)
               setSessionStoreName(null)
               setIsUnsavedSession(true)
-              try { sessionStorage.setItem(`deckster_unsaved_${sessionParam}`, 'true') } catch {}
+              try {
+                if (builderCacheOwner) {
+                  sessionStorage.setItem(unsavedBuilderSessionKey(builderCacheOwner, sessionParam), 'true')
+                }
+              } catch {}
               debugLog('⚠️ URL session adoption failed; keeping unsaved guard active:', sessionParam)
             }
             setIsResumedSession(false)
@@ -537,7 +558,11 @@ export function useBuilderSession({
               clearMessages()
               setCurrentSessionId(newSessionId)
               setIsUnsavedSession(true)
-              try { sessionStorage.setItem(`deckster_unsaved_${newSessionId}`, 'true') } catch {}
+              try {
+                if (builderCacheOwner) {
+                  sessionStorage.setItem(unsavedBuilderSessionKey(builderCacheOwner, newSessionId), 'true')
+                }
+              } catch {}
               setIsResumedSession(false)
               router.replace(`/builder?session_id=${newSessionId}`, { scroll: false })
             } else {
@@ -602,7 +627,11 @@ export function useBuilderSession({
       if (session) {
         setCurrentSessionId(session.id)
         setIsUnsavedSession(false)
-        try { sessionStorage.removeItem(`deckster_unsaved_${session.id}`) } catch {}
+        try {
+          if (builderCacheOwner) {
+            sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, session.id))
+          }
+        } catch {}
         // Only update URL if session ID changed (avoid redundant navigation)
         if (session.id !== currentSessionId) {
           router.push(`/builder?session_id=${session.id}`)
@@ -617,7 +646,7 @@ export function useBuilderSession({
     } finally {
       setIsCreatingSession(false)
     }
-  }, [currentSessionId, isUnsavedSession, createSession, router, setIsUnsavedSession])
+  }, [builderCacheOwner, currentSessionId, isUnsavedSession, createSession, router, setIsUnsavedSession])
 
   // Handle session selection from sidebar
   const handleSessionSelect = useCallback((sessionId: string) => {
@@ -663,9 +692,13 @@ export function useBuilderSession({
     setCurrentSessionId(newSessionId)
     currentSessionIdRef.current = newSessionId
     setSessionStoreName(null)
-    try { sessionStorage.setItem(`deckster_unsaved_${newSessionId}`, 'true') } catch {}
+    try {
+      if (builderCacheOwner) {
+        sessionStorage.setItem(unsavedBuilderSessionKey(builderCacheOwner, newSessionId), 'true')
+      }
+    } catch {}
     router.push(`/builder?session_id=${newSessionId}`)
-  }, [router, clearMessages, disconnect, setUserMessages, setIsUnsavedSession, setIsResumedSession, setCurrentSessionId, setSessionStoreName])
+  }, [builderCacheOwner, router, clearMessages, disconnect, setUserMessages, setIsUnsavedSession, setIsResumedSession, setCurrentSessionId, setSessionStoreName])
 
   // The session layer owns exactly one initial connection request for each
   // adopted session. After that handoff, the WebSocket hook exclusively owns

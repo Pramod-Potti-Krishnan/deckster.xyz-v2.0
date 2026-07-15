@@ -75,6 +75,8 @@ export interface ChatInputProps {
   knowledgeGraphEnabled: boolean
   onKnowledgeGraphEnabledChange: (enabled: boolean) => void
   showKnowledgeGraphToggle: boolean
+  knowledgeGraphAccess: 'locked' | 'setup' | 'ready' | 'unavailable' | 'loading'
+  onKnowledgeGraphAccessClick: () => void
   isReady: boolean
   isLoadingSession: boolean
   connected: boolean
@@ -115,6 +117,8 @@ export function ChatInput({
   knowledgeGraphEnabled,
   onKnowledgeGraphEnabledChange,
   showKnowledgeGraphToggle,
+  knowledgeGraphAccess,
+  onKnowledgeGraphAccessClick,
   isReady,
   isLoadingSession,
   connected,
@@ -793,11 +797,29 @@ export function ChatInput({
                         <Brain className="h-4 w-4 text-gray-500 dark:text-slate-400" />
                         <span className="text-xs">Knowledge graph</span>
                       </div>
-                      <Switch
-                        checked={knowledgeGraphEnabled}
-                        onCheckedChange={onKnowledgeGraphEnabledChange}
-                        className="scale-75"
-                      />
+                      {knowledgeGraphAccess === 'ready' ? (
+                        <Switch
+                          checked={knowledgeGraphEnabled}
+                          onCheckedChange={onKnowledgeGraphEnabledChange}
+                          className="scale-75"
+                          aria-label="Use my knowledge graph for this deck"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={onKnowledgeGraphAccessClick}
+                          disabled={knowledgeGraphAccess === 'unavailable' || knowledgeGraphAccess === 'loading'}
+                          className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-300"
+                        >
+                          {knowledgeGraphAccess === 'locked'
+                            ? 'Pro'
+                            : knowledgeGraphAccess === 'unavailable'
+                              ? 'Offline'
+                              : knowledgeGraphAccess === 'loading'
+                                ? '…'
+                                : 'Enable'}
+                        </button>
+                      )}
                     </div>
                   )}
                 </DropdownMenuContent>

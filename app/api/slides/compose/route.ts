@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 
 export const maxDuration = 300
 
@@ -42,17 +43,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
+  const research = body.research
+  const useKnowledgeGraph = Boolean(
+    research &&
+    typeof research === 'object' &&
+    !Array.isArray(research) &&
+    (research as Record<string, unknown>).use_knowledge_graph === true
+  )
+
+  let effectiveUserId = userId
+  let directorHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (useKnowledgeGraph) {
+    // Re-read billing live rather than trusting the long-lived NextAuth JWT.
+    // The returned user id is authoritative for this request, preventing a
+    // downgraded account or a forged JSON user_id from using Director as a KG
+    // service-secret proxy.
+    const gate = await requireKgEntitled()
+    if (gate.error) return gate.error
+    effectiveUserId = gate.userId
+    directorHeaders = kgHeaders(directorHeaders)
+  }
+
   const payload = {
     ...body,
-    user_id: userId,
+    user_id: effectiveUserId,
   }
 
   try {
     const response = await fetch(`${directorBaseUrl()}/api/v1/slides/compose-one`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: directorHeaders,
       body: JSON.stringify(payload),
       cache: 'no-store',
     })

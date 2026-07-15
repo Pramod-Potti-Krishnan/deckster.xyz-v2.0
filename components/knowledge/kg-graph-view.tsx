@@ -1,14 +1,15 @@
 "use client"
 
-/**
- * KG v2 P3 — dependency-free force-directed graph view (D-KG5).
- *
- * Deterministic: nodes start on a circle (angle by index) and a fixed number
- * of force iterations run synchronously in a memo — same input, same layout,
- * no RAF loop, no d3. Scoped to the top ~100 nodes by the caller.
- */
-
-import { useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
+} from "react"
+import { Focus, Minus, Plus, RotateCcw } from "lucide-react"
 
 export interface KgViewNode {
   node_id: string
@@ -26,25 +27,26 @@ export interface KgViewEdge {
   weight: number
 }
 
-// Fixed palette keyed by entity type; unknown types hash into it.
 const TYPE_COLORS: Record<string, string> = {
-  ORG: "#2980B9",
-  PERSON: "#8E44AD",
-  CONCEPT: "#16A085",
-  METRIC: "#E67E22",
-  PRODUCT: "#C0392B",
-  EVENT: "#D35400",
-  PLACE: "#27AE60",
-  TECHNOLOGY: "#34495E",
-  TREND: "#7F8C8D",
+  ORG: "#60A5FA",
+  PERSON: "#C084FC",
+  CONCEPT: "#2DD4BF",
+  METRIC: "#FBBF24",
+  PRODUCT: "#FB7185",
+  EVENT: "#FB923C",
+  PLACE: "#4ADE80",
+  TECHNOLOGY: "#818CF8",
+  TREND: "#94A3B8",
 }
 const FALLBACK_COLORS = Object.values(TYPE_COLORS)
 
 export function typeColor(entityType: string): string {
   if (TYPE_COLORS[entityType]) return TYPE_COLORS[entityType]
-  let h = 0
-  for (let i = 0; i < entityType.length; i++) h = (h * 31 + entityType.charCodeAt(i)) | 0
-  return FALLBACK_COLORS[Math.abs(h) % FALLBACK_COLORS.length]
+  let hash = 0
+  for (let i = 0; i < entityType.length; i++) {
+    hash = (hash * 31 + entityType.charCodeAt(i)) | 0
+  }
+  return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length]
 }
 
 interface LayoutNode extends KgViewNode {
@@ -53,82 +55,116 @@ interface LayoutNode extends KgViewNode {
   r: number
 }
 
+interface ViewTransform {
+  x: number
+  y: number
+  scale: number
+}
+
+const MIN_SCALE = 0.45
+const MAX_SCALE = 3.5
+
 function computeLayout(
   nodes: KgViewNode[],
   edges: KgViewEdge[],
   width: number,
   height: number
 ): LayoutNode[] {
-  const n = nodes.length
-  if (n === 0) return []
-  const cx = width / 2
-  const cy = height / 2
+  const count = nodes.length
+  if (count === 0) return []
+
+  const centerX = width / 2
+  const centerY = height / 2
   const spread = Math.min(width, height) * 0.38
+  const entityTypes = Array.from(new Set(nodes.map((node) => node.entity_type))).sort()
+  const clusterCenters = new Map(
+    entityTypes.map((type, index) => {
+      const angle = (2 * Math.PI * index) / Math.max(entityTypes.length, 1) - Math.PI / 2
+      const clusterRadius = Math.min(width, height) * (entityTypes.length > 1 ? 0.25 : 0)
+      return [
+        type,
+        {
+          x: centerX + clusterRadius * Math.cos(angle),
+          y: centerY + clusterRadius * Math.sin(angle),
+        },
+      ] as const
+    })
+  )
 
-  const pts: LayoutNode[] = nodes.map((node, i) => ({
+  const points: LayoutNode[] = nodes.map((node, index) => ({
     ...node,
-    x: cx + spread * Math.cos((2 * Math.PI * i) / n),
-    y: cy + spread * Math.sin((2 * Math.PI * i) / n),
-    r: 6 + Math.min(node.salience ?? 1, 18),
+    x: centerX + spread * Math.cos((2 * Math.PI * index) / count),
+    y: centerY + spread * Math.sin((2 * Math.PI * index) / count),
+    r: 7 + Math.min(Math.sqrt(Math.max(node.salience ?? 1, 1)) * 3.2, 15),
   }))
-  const index = new Map(pts.map((p, i) => [p.node_id, i]))
+  const indexById = new Map(points.map((point, index) => [point.node_id, index]))
 
-  const ITERATIONS = 250
-  const REPULSION = 2200
-  const SPRING = 0.015
-  const SPRING_LEN = 90
-  const CENTER_PULL = 0.012
+  const iterations = 260
+  const repulsion = 2500
+  const spring = 0.016
+  const springLength = 94
+  const centerPull = 0.009
+  const clusterPull = entityTypes.length > 1 ? 0.012 : 0
 
-  for (let it = 0; it < ITERATIONS; it++) {
-    const fx = new Array(n).fill(0)
-    const fy = new Array(n).fill(0)
+  for (let iteration = 0; iteration < iterations; iteration++) {
+    const forceX = new Array(count).fill(0)
+    const forceY = new Array(count).fill(0)
 
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        let dx = pts[i].x - pts[j].x
-        let dy = pts[i].y - pts[j].y
-        let d2 = dx * dx + dy * dy
-        if (d2 < 1) {
-          // Deterministic nudge for coincident points.
+    for (let i = 0; i < count; i++) {
+      for (let j = i + 1; j < count; j++) {
+        let dx = points[i].x - points[j].x
+        let dy = points[i].y - points[j].y
+        let distanceSquared = dx * dx + dy * dy
+        if (distanceSquared < 1) {
           dx = 0.5 + (i % 3) * 0.25
           dy = 0.5 + (j % 3) * 0.25
-          d2 = dx * dx + dy * dy
+          distanceSquared = dx * dx + dy * dy
         }
-        const f = REPULSION / d2
-        const d = Math.sqrt(d2)
-        fx[i] += (dx / d) * f
-        fy[i] += (dy / d) * f
-        fx[j] -= (dx / d) * f
-        fy[j] -= (dy / d) * f
+        const distance = Math.sqrt(distanceSquared)
+        const force = repulsion / distanceSquared
+        forceX[i] += (dx / distance) * force
+        forceY[i] += (dy / distance) * force
+        forceX[j] -= (dx / distance) * force
+        forceY[j] -= (dy / distance) * force
       }
     }
 
-    for (const e of edges) {
-      const a = index.get(e.src_node_id)
-      const b = index.get(e.dst_node_id)
-      if (a === undefined || b === undefined) continue
-      const dx = pts[b].x - pts[a].x
-      const dy = pts[b].y - pts[a].y
-      const d = Math.sqrt(dx * dx + dy * dy) || 1
-      const f = SPRING * (d - SPRING_LEN) * Math.min(e.weight ?? 1, 4)
-      fx[a] += (dx / d) * f
-      fy[a] += (dy / d) * f
-      fx[b] -= (dx / d) * f
-      fy[b] -= (dy / d) * f
+    for (const edge of edges) {
+      const source = indexById.get(edge.src_node_id)
+      const target = indexById.get(edge.dst_node_id)
+      if (source === undefined || target === undefined) continue
+      const dx = points[target].x - points[source].x
+      const dy = points[target].y - points[source].y
+      const distance = Math.sqrt(dx * dx + dy * dy) || 1
+      const force = spring * (distance - springLength) * Math.min(edge.weight ?? 1, 4)
+      forceX[source] += (dx / distance) * force
+      forceY[source] += (dy / distance) * force
+      forceX[target] -= (dx / distance) * force
+      forceY[target] -= (dy / distance) * force
     }
 
-    const cool = 1 - it / ITERATIONS
-    for (let i = 0; i < n; i++) {
-      fx[i] += (cx - pts[i].x) * CENTER_PULL
-      fy[i] += (cy - pts[i].y) * CENTER_PULL
-      const cap = 12 * cool + 1
-      pts[i].x += Math.max(-cap, Math.min(cap, fx[i]))
-      pts[i].y += Math.max(-cap, Math.min(cap, fy[i]))
-      pts[i].x = Math.max(pts[i].r, Math.min(width - pts[i].r, pts[i].x))
-      pts[i].y = Math.max(pts[i].r, Math.min(height - pts[i].r, pts[i].y))
+    const cooling = 1 - iteration / iterations
+    for (let i = 0; i < count; i++) {
+      const cluster = clusterCenters.get(points[i].entity_type)
+      forceX[i] += (centerX - points[i].x) * centerPull
+      forceY[i] += (centerY - points[i].y) * centerPull
+      if (cluster) {
+        forceX[i] += (cluster.x - points[i].x) * clusterPull
+        forceY[i] += (cluster.y - points[i].y) * clusterPull
+      }
+      const cap = 12 * cooling + 1
+      points[i].x += Math.max(-cap, Math.min(cap, forceX[i]))
+      points[i].y += Math.max(-cap, Math.min(cap, forceY[i]))
+      points[i].x = Math.max(points[i].r + 14, Math.min(width - points[i].r - 14, points[i].x))
+      points[i].y = Math.max(points[i].r + 28, Math.min(height - points[i].r - 14, points[i].y))
     }
   }
-  return pts
+
+  return points
+}
+
+function friendlyRelation(relation: string): string {
+  return relation.replace(/_/g, " ").toLowerCase()
 }
 
 export function KgGraphView({
@@ -136,8 +172,8 @@ export function KgGraphView({
   edges,
   selectedId,
   onSelect,
-  width = 860,
-  height = 520,
+  width = 960,
+  height = 610,
 }: {
   nodes: KgViewNode[]
   edges: KgViewEdge[]
@@ -146,98 +182,366 @@ export function KgGraphView({
   width?: number
   height?: number
 }) {
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  const panRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
   const [hoverId, setHoverId] = useState<string | null>(null)
+  const [view, setView] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 })
 
   const layout = useMemo(
     () => computeLayout(nodes, edges, width, height),
     [nodes, edges, width, height]
   )
-  const byId = useMemo(
-    () => new Map(layout.map((p) => [p.node_id, p])),
-    [layout]
-  )
+  const byId = useMemo(() => new Map(layout.map((point) => [point.node_id, point])), [layout])
 
-  // Label the most salient nodes only, to keep the canvas readable.
   const labeledIds = useMemo(() => {
     const sorted = [...layout].sort((a, b) => b.salience - a.salience)
-    return new Set(sorted.slice(0, 20).map((p) => p.node_id))
+    return new Set(sorted.slice(0, 18).map((point) => point.node_id))
   }, [layout])
+  const mobileNodes = useMemo(
+    () => [...nodes].sort((a, b) => b.salience - a.salience).slice(0, 100),
+    [nodes]
+  )
 
+  const activeId = hoverId || selectedId
   const neighborIds = useMemo(() => {
-    const active = hoverId || selectedId
-    if (!active) return null
-    const ids = new Set<string>([active])
-    for (const e of edges) {
-      if (e.src_node_id === active) ids.add(e.dst_node_id)
-      if (e.dst_node_id === active) ids.add(e.src_node_id)
+    if (!activeId) return null
+    const ids = new Set<string>([activeId])
+    for (const edge of edges) {
+      if (edge.src_node_id === activeId) ids.add(edge.dst_node_id)
+      if (edge.dst_node_id === activeId) ids.add(edge.src_node_id)
     }
     return ids
-  }, [hoverId, selectedId, edges])
+  }, [activeId, edges])
+
+  const fitGraph = useCallback(() => {
+    if (layout.length === 0) {
+      setView({ x: 0, y: 0, scale: 1 })
+      return
+    }
+    const minX = Math.min(...layout.map((point) => point.x - point.r))
+    const maxX = Math.max(...layout.map((point) => point.x + point.r))
+    const minY = Math.min(...layout.map((point) => point.y - point.r - 24))
+    const maxY = Math.max(...layout.map((point) => point.y + point.r))
+    const graphWidth = Math.max(maxX - minX, 1)
+    const graphHeight = Math.max(maxY - minY, 1)
+    const scale = Math.max(
+      MIN_SCALE,
+      Math.min(MAX_SCALE, Math.min((width - 80) / graphWidth, (height - 80) / graphHeight))
+    )
+    setView({
+      scale,
+      x: width / 2 - ((minX + maxX) / 2) * scale,
+      y: height / 2 - ((minY + maxY) / 2) * scale,
+    })
+  }, [height, layout, width])
+
+  useEffect(() => {
+    fitGraph()
+  }, [fitGraph])
+
+  const zoomAround = useCallback(
+    (nextScale: number, anchorX = width / 2, anchorY = height / 2) => {
+      setView((current) => {
+        const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, nextScale))
+        const contentX = (anchorX - current.x) / current.scale
+        const contentY = (anchorY - current.y) / current.scale
+        return {
+          scale,
+          x: anchorX - contentX * scale,
+          y: anchorY - contentY * scale,
+        }
+      })
+    },
+    [height, width]
+  )
+
+  const handleWheel = useCallback(
+    (event: ReactWheelEvent<SVGSVGElement>) => {
+      event.preventDefault()
+      const rect = event.currentTarget.getBoundingClientRect()
+      const anchorX = ((event.clientX - rect.left) / rect.width) * width
+      const anchorY = ((event.clientY - rect.top) / rect.height) * height
+      const factor = event.deltaY > 0 ? 0.9 : 1.1
+      zoomAround(view.scale * factor, anchorX, anchorY)
+    },
+    [height, view.scale, width, zoomAround]
+  )
+
+  const handlePointerDown = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
+    if (event.button !== 0) return
+    if ((event.target as Element).closest("[data-kg-node]")) return
+    panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }, [])
+
+  const handlePointerMove = useCallback(
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      const pan = panRef.current
+      if (!pan || pan.pointerId !== event.pointerId) return
+      const rect = event.currentTarget.getBoundingClientRect()
+      const dx = ((event.clientX - pan.x) / rect.width) * width
+      const dy = ((event.clientY - pan.y) / rect.height) * height
+      panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+      setView((current) => ({ ...current, x: current.x + dx, y: current.y + dy }))
+    },
+    [height, width]
+  )
+
+  const endPan = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
+    if (panRef.current?.pointerId === event.pointerId) panRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }, [])
 
   if (nodes.length === 0) return null
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="h-auto w-full rounded-lg border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-950"
-      role="img"
-      aria-label="Knowledge graph visualization"
-    >
-      {edges.map((e, i) => {
-        const a = byId.get(e.src_node_id)
-        const b = byId.get(e.dst_node_id)
-        if (!a || !b) return null
-        const dimmed = neighborIds
-          ? !(neighborIds.has(e.src_node_id) && neighborIds.has(e.dst_node_id))
-          : false
-        return (
-          <line
-            key={`e${i}`}
-            x1={a.x}
-            y1={a.y}
-            x2={b.x}
-            y2={b.y}
-            stroke="currentColor"
-            className="text-gray-300 dark:text-slate-700"
-            strokeWidth={Math.min(0.5 + (e.weight ?? 1) * 0.5, 3)}
-            opacity={dimmed ? 0.15 : 0.7}
-          />
-        )
-      })}
-      {layout.map((p) => {
-        const dimmed = neighborIds ? !neighborIds.has(p.node_id) : false
-        const isSelected = selectedId === p.node_id
-        return (
-          <g
-            key={p.node_id}
-            transform={`translate(${p.x},${p.y})`}
-            className="cursor-pointer"
-            opacity={dimmed ? 0.3 : 1}
-            onClick={() => onSelect?.(p.node_id)}
-            onMouseEnter={() => setHoverId(p.node_id)}
-            onMouseLeave={() => setHoverId(null)}
-          >
-            <circle
-              r={p.r}
-              fill={typeColor(p.entity_type)}
-              stroke={isSelected ? "#0F172A" : "white"}
-              strokeWidth={isSelected ? 3 : 1.5}
-              opacity={0.9}
-            >
-              <title>{`${p.name} (${p.entity_type}) — seen ${p.mention_count}×`}</title>
-            </circle>
-            {(labeledIds.has(p.node_id) || isSelected || hoverId === p.node_id) && (
-              <text
-                y={-p.r - 4}
-                textAnchor="middle"
-                className="fill-gray-700 text-[10px] font-medium dark:fill-slate-300"
+    <div className="relative h-full overflow-hidden rounded-2xl bg-[#070b18] lg:min-h-[520px]">
+      <div className="lg:hidden">
+        <div className="border-b border-white/10 px-4 py-3">
+          <p className="text-sm font-medium text-white">Entities by relevance</p>
+          <p className="mt-0.5 text-xs text-slate-400">
+            Select an entity to inspect its relationships and source evidence.
+          </p>
+        </div>
+        <ul className="max-h-[430px] overflow-y-auto p-2" aria-label="Knowledge graph entities">
+          {mobileNodes.map((node) => (
+            <li key={node.node_id}>
+              <button
+                type="button"
+                onClick={() => onSelect?.(node.node_id)}
+                aria-pressed={selectedId === node.node_id}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
+                  selectedId === node.node_id ? "bg-white/10" : "hover:bg-white/[0.06]"
+                }`}
               >
-                {p.name.length > 24 ? `${p.name.slice(0, 23)}…` : p.name}
-              </text>
-            )}
-          </g>
-        )
-      })}
-    </svg>
+                <span
+                  className="h-3.5 w-3.5 shrink-0 rounded-full ring-4 ring-white/5"
+                  style={{ backgroundColor: typeColor(node.entity_type) }}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-slate-100">{node.name}</span>
+                  <span className="mt-0.5 block truncate text-xs text-slate-400">
+                    {node.entity_type.toLowerCase()} · seen {node.mention_count}×
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="absolute right-3 top-3 z-10 hidden items-center gap-1 rounded-xl border border-white/10 bg-slate-950/80 p-1 shadow-xl backdrop-blur lg:flex">
+        <button
+          type="button"
+          onClick={() => zoomAround(view.scale * 1.2)}
+          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          aria-label="Zoom in"
+          title="Zoom in"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => zoomAround(view.scale / 1.2)}
+          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          aria-label="Zoom out"
+          title="Zoom out"
+        >
+          <Minus className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={fitGraph}
+          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          aria-label="Fit graph to view"
+          title="Fit graph"
+        >
+          <Focus className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setView({ x: 0, y: 0, scale: 1 })}
+          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          aria-label="Reset graph view"
+          title="Reset view"
+        >
+          <RotateCcw className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="pointer-events-none absolute bottom-3 left-3 z-10 hidden rounded-lg border border-white/10 bg-slate-950/65 px-2.5 py-1.5 text-[11px] text-slate-400 backdrop-blur lg:block">
+        Scroll to zoom · drag to explore
+      </div>
+
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="xMidYMid meet"
+        className="hidden h-full w-full cursor-grab select-none touch-none active:cursor-grabbing lg:block lg:min-h-[520px]"
+        role="group"
+        aria-label={`Knowledge graph with ${nodes.length} entities and ${edges.length} relations`}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endPan}
+        onPointerCancel={endPan}
+      >
+        <defs>
+          <radialGradient id="kg-canvas-glow" cx="50%" cy="44%" r="70%">
+            <stop offset="0%" stopColor="#312e81" stopOpacity="0.34" />
+            <stop offset="52%" stopColor="#111827" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#020617" stopOpacity="0" />
+          </radialGradient>
+          <pattern id="kg-dot-grid" width="28" height="28" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="1" fill="#94a3b8" opacity="0.13" />
+          </pattern>
+          <filter id="kg-node-glow" x="-120%" y="-120%" width="340%" height="340%">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <rect width={width} height={height} fill="#070b18" />
+        <rect width={width} height={height} fill="url(#kg-canvas-glow)" />
+        <rect width={width} height={height} fill="url(#kg-dot-grid)" />
+
+        <g transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
+          {edges.map((edge) => {
+            const source = byId.get(edge.src_node_id)
+            const target = byId.get(edge.dst_node_id)
+            if (!source || !target) return null
+            const isAdjacent = activeId
+              ? edge.src_node_id === activeId || edge.dst_node_id === activeId
+              : false
+            const dimmed = neighborIds
+              ? !(neighborIds.has(edge.src_node_id) && neighborIds.has(edge.dst_node_id))
+              : false
+            return (
+              <line
+                key={`${edge.src_node_id}-${edge.dst_node_id}-${edge.relation}`}
+                x1={source.x}
+                y1={source.y}
+                x2={target.x}
+                y2={target.y}
+                stroke={isAdjacent ? "#A78BFA" : "#64748B"}
+                strokeWidth={isAdjacent ? 2 : Math.min(0.6 + (edge.weight ?? 1) * 0.38, 2.2)}
+                opacity={dimmed ? 0.06 : isAdjacent ? 0.88 : 0.3}
+              />
+            )
+          })}
+
+          {activeId && edges
+            .filter((edge) => edge.src_node_id === activeId || edge.dst_node_id === activeId)
+            .slice(0, 8)
+            .map((edge) => {
+              const source = byId.get(edge.src_node_id)
+              const target = byId.get(edge.dst_node_id)
+              if (!source || !target) return null
+              const label = friendlyRelation(edge.relation)
+              const x = (source.x + target.x) / 2
+              const y = (source.y + target.y) / 2
+              const labelWidth = Math.max(42, Math.min(label.length * 5.4 + 14, 126))
+              return (
+                <g key={`label-${edge.src_node_id}-${edge.dst_node_id}-${edge.relation}`}>
+                  <rect
+                    x={x - labelWidth / 2}
+                    y={y - 9}
+                    width={labelWidth}
+                    height={18}
+                    rx={9}
+                    fill="#0F172A"
+                    stroke="#475569"
+                    strokeWidth={0.7}
+                    opacity={0.96}
+                  />
+                  <text x={x} y={y + 3} textAnchor="middle" fill="#CBD5E1" fontSize={8.5}>
+                    {label.length > 20 ? `${label.slice(0, 19)}…` : label}
+                  </text>
+                </g>
+              )
+            })}
+
+          {layout.map((point) => {
+            const dimmed = neighborIds ? !neighborIds.has(point.node_id) : false
+            const isSelected = selectedId === point.node_id
+            const isHovered = hoverId === point.node_id
+            const showLabel = labeledIds.has(point.node_id) || isSelected || isHovered
+            return (
+              <g
+                key={point.node_id}
+                data-kg-node
+                transform={`translate(${point.x},${point.y})`}
+                className="cursor-pointer outline-none"
+                opacity={dimmed ? 0.18 : 1}
+                role="button"
+                tabIndex={0}
+                aria-label={`${point.name}, ${point.entity_type.toLowerCase()}, seen ${point.mention_count} times`}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onSelect?.(point.node_id)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    onSelect?.(point.node_id)
+                  }
+                }}
+                onMouseEnter={() => setHoverId(point.node_id)}
+                onMouseLeave={() => setHoverId(null)}
+                onFocus={() => setHoverId(point.node_id)}
+                onBlur={() => setHoverId(null)}
+              >
+                {(isSelected || isHovered) && (
+                  <circle
+                    r={point.r + 11}
+                    fill={typeColor(point.entity_type)}
+                    opacity={isSelected ? 0.15 : 0.09}
+                    filter="url(#kg-node-glow)"
+                  />
+                )}
+                <circle
+                  r={point.r}
+                  fill={typeColor(point.entity_type)}
+                  stroke={isSelected ? "#F8FAFC" : "#E2E8F0"}
+                  strokeWidth={isSelected ? 3 : 1.2}
+                  opacity={0.96}
+                  filter={isSelected ? "url(#kg-node-glow)" : undefined}
+                >
+                  <title>{`${point.name} (${point.entity_type}) — seen ${point.mention_count}×`}</title>
+                </circle>
+                <circle r={Math.max(point.r - 4, 2)} fill="#FFFFFF" opacity={0.08} />
+                {showLabel && (
+                  <g className="pointer-events-none">
+                    <rect
+                      x={-Math.min(point.name.length * 3.1 + 8, 78)}
+                      y={-point.r - 23}
+                      width={Math.min(point.name.length * 6.2 + 16, 156)}
+                      height={17}
+                      rx={8.5}
+                      fill="#020617"
+                      opacity={0.86}
+                    />
+                    <text
+                      y={-point.r - 12}
+                      textAnchor="middle"
+                      fill="#E2E8F0"
+                      fontSize={9.5}
+                      fontWeight={500}
+                    >
+                      {point.name.length > 25 ? `${point.name.slice(0, 24)}…` : point.name}
+                    </text>
+                  </g>
+                )}
+              </g>
+            )
+          })}
+        </g>
+      </svg>
+    </div>
   )
 }

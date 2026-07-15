@@ -12,13 +12,14 @@ function isPersistableMessage(message: DirectorMessage): message is PersistableD
 
 export interface SessionPersistenceOptions {
   sessionId: string;
+  userId: string;
   enabled?: boolean;
   debounceMs?: number; // Debounce for bot messages (default: 3000ms)
   onError?: (error: Error) => void;
 }
 
 export function useSessionPersistence(options: SessionPersistenceOptions) {
-  const { sessionId, enabled = true, debounceMs = 3000, onError } = options;
+  const { sessionId, userId, enabled = true, debounceMs = 3000, onError } = options;
   const { saveMessages, updateSession } = useChatSessions();
 
   // FIX 8: Use ref for sessionId to avoid stale closure issues
@@ -43,6 +44,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
   // Initialize browser cache
   const sessionCache = useSessionCache({
     sessionId,
+    userId,
     enabled,
     ttl: 24 * 60 * 60 * 1000, // 24 hours
   });

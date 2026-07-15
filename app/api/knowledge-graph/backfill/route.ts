@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 
+export const maxDuration = 300
+
+const BACKFILL_BATCH_SIZE = 3
+
 /**
  * "Import my past sessions" (KG v2 P3, D-KG7).
  *
@@ -21,7 +25,7 @@ import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
  * consolidate-and-mark empty sessions (which would pre-empt a later real
  * consolidation of that id).
  */
-export async function POST() {
+export async function POST(request: Request) {
   const gate = await requireKgEntitled()
   if (gate.error) return gate.error
   const userId = gate.userId
@@ -52,17 +56,32 @@ export async function POST() {
     if (s.id) idSet.add(s.id)
     if (s.geminiStoreId && s.geminiStoreId.trim()) idSet.add(s.geminiStoreId)
   }
-  const sessionIds = Array.from(idSet).slice(0, 50) // backend cap per request
+  const allSessionIds = Array.from(idSet).slice(0, 50) // backend cap overall
+  const requestedCursor = Number(new URL(request.url).searchParams.get('cursor') ?? 0)
+  const cursor = Number.isInteger(requestedCursor) && requestedCursor >= 0
+    ? Math.min(requestedCursor, allSessionIds.length)
+    : 0
+  // Keep each Vercel invocation bounded. The browser advances the cursor and
+  // aggregates results, rather than holding one function open for 50 serial
+  // LLM calls.
+  const sessionIds = allSessionIds.slice(cursor, cursor + BACKFILL_BATCH_SIZE)
+  const nextCursor = cursor + sessionIds.length < allSessionIds.length
+    ? cursor + sessionIds.length
+    : null
 
   if (sessionIds.length === 0) {
     return NextResponse.json({
       user_id: userId,
       sessions_processed: 0,
+      sessions_completed: 0,
+      sessions_retryable: 0,
       sessions_already_consolidated: 0,
       entities_created: 0,
       entities_merged: 0,
       results: [],
       no_sessions_found: true,
+      next_cursor: null,
+      total_candidates: allSessionIds.length,
     })
   }
 
@@ -83,7 +102,11 @@ export async function POST() {
       console.error('[KG Proxy] Backfill error:', resp.status, body)
       return NextResponse.json({ error: 'Backfill failed' }, { status: resp.status })
     }
-    return NextResponse.json(await resp.json())
+    return NextResponse.json({
+      ...(await resp.json()),
+      next_cursor: nextCursor,
+      total_candidates: allSessionIds.length,
+    })
   } catch (e) {
     console.error('[KG Proxy] Backfill network error:', e)
     return NextResponse.json(

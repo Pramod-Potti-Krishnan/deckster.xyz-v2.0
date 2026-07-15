@@ -13,18 +13,23 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { DirectorMessage, TokenUsagePayload } from './use-deckster-websocket-v2'
 
-const CACHE_VERSION = 1 // Increment when schema changes
+export const SESSION_CACHE_VERSION = 2 // Increment when schema changes
 const DEFAULT_TTL = 24 * 60 * 60 * 1000 // 24 hours
 const MAX_MESSAGES = 500 // Limit to prevent quota issues
 
-// Cache key generation
-const CACHE_KEYS = {
-  SESSION_STATE: (sessionId: string) => `deckster_session_${sessionId}`,
-  METADATA: (sessionId: string) => `deckster_metadata_${sessionId}`,
-}
+// Browser caches are part of the authenticated user's trust boundary. Keep the
+// owner in both the key and payload so a session id left in the URL cannot make
+// a newly signed-in account render another account's cached deck or messages.
+export const sessionCacheKey = (userId: string, sessionId: string) =>
+  `deckster_session_v2_${encodeURIComponent(userId)}_${sessionId}`
+
+export const sessionMetadataCacheKey = (userId: string, sessionId: string) =>
+  `deckster_metadata_v2_${encodeURIComponent(userId)}_${sessionId}`
 
 // Cached session state structure
 export interface CachedSessionState {
+  ownerUserId: string
+
   // WebSocket messages
   messages: DirectorMessage[]
   userMessages: Array<{ id: string; text: string; timestamp: number }>
@@ -58,6 +63,7 @@ export interface CachedSessionState {
 
 export interface SessionCacheOptions {
   sessionId: string
+  userId: string
   enabled?: boolean
   ttl?: number // Time to live in milliseconds
 }
@@ -80,17 +86,22 @@ export interface SessionCache {
 }
 
 export function useSessionCache(options: SessionCacheOptions): SessionCache {
-  const { sessionId, enabled = true, ttl = DEFAULT_TTL } = options
+  const { sessionId, userId, enabled = true, ttl = DEFAULT_TTL } = options
   const sessionIdRef = useRef(sessionId)
+  const userIdRef = useRef(userId)
 
   // CRITICAL FIX: Update ref SYNCHRONOUSLY during render, not in useEffect
   // This ensures callbacks always have the latest sessionId even before effects run
   // Without this, restoreMessages was calling setCachedState with empty sessionId
   // because the effect hadn't run yet to update the ref
-  if (sessionIdRef.current !== sessionId && sessionId) {
+  if (sessionIdRef.current !== sessionId) {
     const oldSessionId = sessionIdRef.current
     console.log(`🔄 Session ID updated synchronously: ${oldSessionId || '(empty)'} → ${sessionId}`)
     sessionIdRef.current = sessionId
+  }
+
+  if (userIdRef.current !== userId) {
+    userIdRef.current = userId
   }
 
   // Clean up old session cache in effect (after render)
@@ -107,10 +118,11 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
     // FIX 8: Remove 'enabled' check - sessionIdRef.current is sufficient
     // The 'enabled' flag was creating stale closure issues for first message saves
     const currentSessionId = sessionIdRef.current
-    if (!currentSessionId) return null
+    const currentUserId = userIdRef.current
+    if (!currentSessionId || !currentUserId) return null
 
     try {
-      const key = CACHE_KEYS.SESSION_STATE(currentSessionId)
+      const key = sessionCacheKey(currentUserId, currentSessionId)
       const cached = sessionStorage.getItem(key)
 
       if (!cached) {
@@ -118,6 +130,13 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
       }
 
       const parsed = JSON.parse(cached) as CachedSessionState
+      if (
+        parsed.version !== SESSION_CACHE_VERSION
+        || parsed.ownerUserId !== currentUserId
+      ) {
+        sessionStorage.removeItem(key)
+        return null
+      }
       return parsed
     } catch (error) {
       console.error('❌ Failed to read from cache:', error)
@@ -133,8 +152,8 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
     if (!cached) return false
 
     // Check version
-    if (cached.version !== CACHE_VERSION) {
-      console.log('❌ Cache version mismatch:', { cached: cached.version, current: CACHE_VERSION })
+    if (cached.version !== SESSION_CACHE_VERSION) {
+      console.log('❌ Cache version mismatch:', { cached: cached.version, current: SESSION_CACHE_VERSION })
       return false
     }
 
@@ -199,20 +218,26 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
   const setCachedState = useCallback((state: Partial<CachedSessionState>): void => {
     // FIX 8: Remove 'enabled' check - sessionIdRef.current is sufficient
     const currentSessionId = sessionIdRef.current
-    if (!currentSessionId) {
-      console.warn('⚠️ setCachedState skipped - no sessionId:', { sessionId: currentSessionId, messagesCount: state.messages?.length })
+    const currentUserId = userIdRef.current
+    if (!currentSessionId || !currentUserId) {
+      console.warn('⚠️ setCachedState skipped - no authenticated cache owner/session:', {
+        hasUserId: !!currentUserId,
+        sessionId: currentSessionId,
+        messagesCount: state.messages?.length,
+      })
       return
     }
 
     try {
-      const key = CACHE_KEYS.SESSION_STATE(currentSessionId)
+      const key = sessionCacheKey(currentUserId, currentSessionId)
       const existing = getCachedState() || {} as CachedSessionState
 
       const updated: CachedSessionState = {
         ...existing,
         ...state,
+        ownerUserId: currentUserId,
         lastUpdated: Date.now(),
-        version: CACHE_VERSION,
+        version: SESSION_CACHE_VERSION,
       }
 
       sessionStorage.setItem(key, JSON.stringify(updated))
@@ -239,14 +264,15 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
 
         try {
           const trimmed = trimCache(state)
-          const key = CACHE_KEYS.SESSION_STATE(currentSessionId)
+          const key = sessionCacheKey(currentUserId, currentSessionId)
           const existing = getCachedState() || {} as CachedSessionState
 
           const updated: CachedSessionState = {
             ...existing,
             ...trimmed,
+            ownerUserId: currentUserId,
             lastUpdated: Date.now(),
-            version: CACHE_VERSION,
+            version: SESSION_CACHE_VERSION,
           }
 
           sessionStorage.setItem(key, JSON.stringify(updated))
@@ -325,10 +351,11 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
    */
   const clearCache = useCallback((): void => {
     const currentSessionId = sessionIdRef.current
-    if (!currentSessionId) return
+    const currentUserId = userIdRef.current
+    if (!currentSessionId || !currentUserId) return
 
     try {
-      const key = CACHE_KEYS.SESSION_STATE(currentSessionId)
+      const key = sessionCacheKey(currentUserId, currentSessionId)
       sessionStorage.removeItem(key)
       console.log(`🗑️ Cleared cache for session: ${currentSessionId}`)
     } catch (error) {

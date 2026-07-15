@@ -5,6 +5,9 @@
   "installCommand": "pnpm install",
   "regions": ["iad1"],
   "functions": {
+    "app/api/knowledge-graph/backfill/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/**/route.ts": {
       "maxDuration": 30
     }

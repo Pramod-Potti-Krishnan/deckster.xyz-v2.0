@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSubscription } from './use-subscription'
 import { isKgEntitled } from '@/lib/kg-entitlement'
@@ -40,143 +40,296 @@ interface PurgeResult {
 }
 
 export function useKnowledgeGraph() {
-  const { data: session } = useSession()
-  const { subscription } = useSubscription()
+  const { data: session, status: sessionStatus } = useSession()
+  const {
+    subscription,
+    isLoading: subscriptionLoading,
+    accountKey,
+  } = useSubscription()
   const [settings, setSettings] = useState<KgSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [serviceAvailable, setServiceAvailable] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [capability, setCapability] = useState<KgCapability>(UNKNOWN_CAPABILITY)
+  const settingsGenerationRef = useRef(0)
+  const settingsAbortRef = useRef<AbortController | null>(null)
+  const mutationGenerationRef = useRef(0)
+  const mutationAbortRef = useRef<AbortController | null>(null)
 
   const userId = session?.user?.id
   // Central entitlement check (lib/kg-entitlement.ts): coupon `premium`
   // user tier OR an active paid subscription (premium/pro/enterprise).
   const isEntitled = isKgEntitled(session?.user?.tier, subscription)
+  const entitlementKey = `${accountKey}:${isEntitled ? 'entitled' : 'locked'}`
+  const [resolvedEntitlementKey, setResolvedEntitlementKey] = useState<string | null>(null)
+  const currentEntitlementKeyRef = useRef(entitlementKey)
+  currentEntitlementKeyRef.current = entitlementKey
 
   const fetchSettings = useCallback(async () => {
+    const generation = ++settingsGenerationRef.current
+    settingsAbortRef.current?.abort()
+    const controller = new AbortController()
+    settingsAbortRef.current = controller
+    const isCurrent = () =>
+      !controller.signal.aborted &&
+      settingsGenerationRef.current === generation &&
+      currentEntitlementKeyRef.current === entitlementKey
+
+    if (sessionStatus === 'loading' || subscriptionLoading) {
+      if (isCurrent()) setIsLoading(true)
+      return
+    }
     if (!userId || !isEntitled) {
-      setSettings(null)
-      setCapability(UNKNOWN_CAPABILITY)
-      setIsLoading(false)
+      if (isCurrent()) {
+        setSettings(null)
+        setCapability(UNKNOWN_CAPABILITY)
+        setServiceAvailable(true)
+        setError(null)
+        setIsLoading(false)
+        setResolvedEntitlementKey(entitlementKey)
+      }
       return
     }
 
+    if (isCurrent()) setIsLoading(true)
     try {
-      const resp = await fetch('/api/knowledge-graph/settings')
+      const resp = await fetch('/api/knowledge-graph/settings', { signal: controller.signal })
       if (resp.ok) {
-        const body = await resp.json()
-        setSettings(body)
-        setCapability(body.capability || UNKNOWN_CAPABILITY)
-        setError(null)
+        const body: KgSettings = await resp.json()
+        if (isCurrent()) {
+          setSettings(body)
+          setCapability(body.capability || UNKNOWN_CAPABILITY)
+          setServiceAvailable(body.capability?.available !== false)
+          setError(null)
+        }
       } else {
         const body = await resp.json().catch(() => ({}))
-        setSettings(null)
-        setCapability({
-          source: 'knowledge_graph',
-          configured: false,
-          available: false,
-          code: body.code || 'KG_BACKEND_FAILURE',
-          reason: body.reason || 'Knowledge Graph availability could not be verified.',
-        })
-        setError(body.error || 'Failed to fetch Knowledge Graph settings')
+        if (isCurrent()) {
+          setSettings(null)
+          setCapability({
+            source: 'knowledge_graph',
+            configured: false,
+            available: false,
+            code: body.code || 'KG_BACKEND_FAILURE',
+            reason: body.reason || 'Knowledge Graph availability could not be verified.',
+          })
+          setServiceAvailable(resp.status !== 503)
+          setError(body.error || 'Failed to load knowledge graph settings')
+        }
       }
     } catch (e) {
-      console.error('Failed to fetch KG settings:', e)
-      setSettings(null)
-      setCapability({
-        source: 'knowledge_graph',
-        configured: false,
-        available: false,
-        code: 'KG_BACKEND_FAILURE',
-        reason: 'Knowledge Graph availability could not be verified.',
-      })
-      setError('Knowledge Graph service is temporarily unavailable')
+      if (!controller.signal.aborted) {
+        console.error('Failed to fetch KG settings:', e)
+        if (isCurrent()) {
+          setSettings(null)
+          setCapability({
+            source: 'knowledge_graph',
+            configured: false,
+            available: false,
+            code: 'KG_BACKEND_FAILURE',
+            reason: 'Knowledge Graph availability could not be verified.',
+          })
+          setServiceAvailable(false)
+          setError('Knowledge graph settings are temporarily unavailable')
+        }
+      }
     } finally {
-      setIsLoading(false)
+      if (isCurrent()) {
+        setIsLoading(false)
+        setResolvedEntitlementKey(entitlementKey)
+      }
     }
-  }, [userId, isEntitled])
+  }, [entitlementKey, isEntitled, sessionStatus, subscriptionLoading, userId])
 
   useEffect(() => {
-    fetchSettings()
+    void fetchSettings()
   }, [fetchSettings])
+
+  useEffect(() => {
+    // Mutations are scoped to the account/entitlement that initiated them.
+    // Abort them as soon as that ownership boundary changes.
+    mutationAbortRef.current?.abort()
+    mutationGenerationRef.current += 1
+  }, [entitlementKey])
+
+  useEffect(() => () => {
+    settingsAbortRef.current?.abort()
+    mutationAbortRef.current?.abort()
+    settingsGenerationRef.current += 1
+    mutationGenerationRef.current += 1
+  }, [])
 
   const subscribe = useCallback(async (): Promise<boolean> => {
     if (!userId) return false
+    settingsAbortRef.current?.abort()
+    settingsGenerationRef.current += 1
+    const requestKey = entitlementKey
+    const generation = ++mutationGenerationRef.current
+    mutationAbortRef.current?.abort()
+    const controller = new AbortController()
+    mutationAbortRef.current = controller
+    const isCurrent = () =>
+      !controller.signal.aborted &&
+      mutationGenerationRef.current === generation &&
+      currentEntitlementKeyRef.current === requestKey
     try {
       const resp = await fetch('/api/knowledge-graph/subscribe', {
         method: 'POST',
+        signal: controller.signal,
       })
       if (resp.ok) {
-        setSettings(await resp.json())
+        const body: KgSettings = await resp.json()
+        if (!isCurrent()) return false
+        setSettings(body)
+        setServiceAvailable(!body.service_unavailable)
         setError(null)
-        return true
+        return !body.service_unavailable
       }
       const body = await resp.json().catch(() => ({}))
+      if (!isCurrent()) return false
+      if (resp.status === 503 || body.service_unavailable) {
+        setServiceAvailable(false)
+      }
       setError(body.error || 'Failed to enable knowledge graph')
       return false
     } catch (e) {
-      console.error('KG subscribe error:', e)
-      setError('Network error. Please try again.')
+      if (!controller.signal.aborted) {
+        console.error('KG subscribe error:', e)
+        if (isCurrent()) {
+          setServiceAvailable(false)
+          setError('Network error. Please try again.')
+        }
+      }
       return false
+    } finally {
+      if (isCurrent()) {
+        setIsLoading(false)
+        setResolvedEntitlementKey(requestKey)
+      }
     }
-  }, [userId])
+  }, [entitlementKey, userId])
 
   const unsubscribe = useCallback(async (): Promise<boolean> => {
     if (!userId) return false
+    settingsAbortRef.current?.abort()
+    settingsGenerationRef.current += 1
+    const requestKey = entitlementKey
+    const generation = ++mutationGenerationRef.current
+    mutationAbortRef.current?.abort()
+    const controller = new AbortController()
+    mutationAbortRef.current = controller
+    const isCurrent = () =>
+      !controller.signal.aborted &&
+      mutationGenerationRef.current === generation &&
+      currentEntitlementKeyRef.current === requestKey
     try {
       // Durable pause on the backend — keeps graph data, stops KG engagement.
       const resp = await fetch('/api/knowledge-graph/unsubscribe', {
         method: 'POST',
+        signal: controller.signal,
       })
       if (resp.ok) {
-        setSettings(await resp.json())
+        const body: KgSettings = await resp.json()
+        if (!isCurrent()) return false
+        setSettings(body)
+        setServiceAvailable(!body.service_unavailable)
         setError(null)
-        return true
+        return !body.service_unavailable
       }
       const body = await resp.json().catch(() => ({}))
+      if (!isCurrent()) return false
+      if (resp.status === 503 || body.service_unavailable) {
+        setServiceAvailable(false)
+      }
       setError(body.error || 'Failed to pause knowledge graph')
       return false
     } catch (e) {
-      console.error('KG unsubscribe error:', e)
-      setError('Network error. Please try again.')
+      if (!controller.signal.aborted) {
+        console.error('KG unsubscribe error:', e)
+        if (isCurrent()) {
+          setServiceAvailable(false)
+          setError('Network error. Please try again.')
+        }
+      }
       return false
+    } finally {
+      if (isCurrent()) {
+        setIsLoading(false)
+        setResolvedEntitlementKey(requestKey)
+      }
     }
-  }, [userId])
+  }, [entitlementKey, userId])
 
   const purge = useCallback(async (): Promise<PurgeResult | null> => {
     if (!userId) return null
+    settingsAbortRef.current?.abort()
+    settingsGenerationRef.current += 1
+    const requestKey = entitlementKey
+    const generation = ++mutationGenerationRef.current
+    mutationAbortRef.current?.abort()
+    const controller = new AbortController()
+    mutationAbortRef.current = controller
+    const isCurrent = () =>
+      !controller.signal.aborted &&
+      mutationGenerationRef.current === generation &&
+      currentEntitlementKeyRef.current === requestKey
     try {
       const resp = await fetch('/api/knowledge-graph/purge', {
         method: 'DELETE',
+        signal: controller.signal,
       })
       if (resp.ok) {
         const result: PurgeResult = await resp.json()
+        if (!isCurrent()) return null
         setSettings(null)
         setError(null)
         return result
       }
       const body = await resp.json().catch(() => ({}))
+      if (!isCurrent()) return null
+      if (resp.status === 503 || body.service_unavailable) {
+        setServiceAvailable(false)
+      }
       setError(body.error || 'Failed to delete knowledge graph')
       return null
     } catch (e) {
-      console.error('KG purge error:', e)
-      setError('Network error. Please try again.')
+      if (!controller.signal.aborted) {
+        console.error('KG purge error:', e)
+        if (isCurrent()) {
+          setServiceAvailable(false)
+          setError('Network error. Please try again.')
+        }
+      }
       return null
+    } finally {
+      if (isCurrent()) {
+        setIsLoading(false)
+        setResolvedEntitlementKey(requestKey)
+      }
     }
-  }, [userId])
+  }, [entitlementKey, userId])
 
-  const isSubscribed = !!(settings?.subscribed && settings?.cross_session_enabled)
-  const serviceAvailable = !settings?.service_unavailable
+  const accessResolved = resolvedEntitlementKey === entitlementKey
+  const currentSettings = accessResolved ? settings : null
+  const isSubscribed = !!(currentSettings?.subscribed && currentSettings?.cross_session_enabled)
+  const accessLoading =
+    sessionStatus === 'loading' ||
+    subscriptionLoading ||
+    isLoading ||
+    !accessResolved
 
   return {
     /** @deprecated alias of isEntitled, kept for existing call sites */
     isPremium: isEntitled,
     isEntitled,
     isSubscribed,
-    serviceAvailable,
-    isLoading,
-    error,
+    serviceAvailable: accessResolved ? serviceAvailable : true,
+    isLoading: accessLoading,
+    error: accessResolved ? error : null,
     capability,
-    settings,
+    settings: currentSettings,
+    accountKey,
+    entitlementKey,
     subscribe,
     unsubscribe,
     purge,
