@@ -27,6 +27,7 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   'updateTableData',
 
   // Element management
+  'getElementGeometry',
   'deleteElement',
   'deleteTextBox',
 

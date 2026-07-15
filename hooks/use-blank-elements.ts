@@ -31,21 +31,6 @@ export function useBlankElements() {
     setVersion(v => v + 1)
   }, [])
 
-  /**
-   * Register an additional id that points at the SAME info object as `targetId`.
-   * The Layout viewer can emit move/resize events under a different id than the one
-   * we track (e.g. the id we sent at insert vs the id it returned). Aliasing both ids
-   * to one shared info object means drag/resize updates land on the tracked placeholder
-   * regardless of which id the event carries.
-   */
-  const registerAlias = useCallback((aliasId: string, targetId: string) => {
-    if (!aliasId || aliasId === targetId) return
-    const info = mapRef.current.get(targetId)
-    if (info) {
-      mapRef.current.set(aliasId, info)
-    }
-  }, [])
-
   const removeElement = useCallback((elementId: string) => {
     mapRef.current.delete(elementId)
     setVersion(v => v + 1)
@@ -104,7 +89,6 @@ export function useBlankElements() {
 
   return {
     addElement,
-    registerAlias,
     removeElement,
     updatePosition,
     setStatus,
