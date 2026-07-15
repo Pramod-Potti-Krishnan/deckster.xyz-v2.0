@@ -30,13 +30,16 @@ export async function POST() {
     where: {
       userId,
       NOT: { status: 'deleted' },
-      // Research-bearing signal: uploaded a file, produced a deck, or advanced
-      // past the intake stages. Excludes empty drafts.
+      // Research-bearing AND output-producing signals only: uploaded a file,
+      // reached a strawman, or produced a deck. We intentionally do NOT
+      // include a bare `currentStage >= 3` (review round 2, finding 3): that
+      // catches in-progress sessions that may have no material yet, which the
+      // consolidator would consolidate empty. (The consolidator now also
+      // refuses to mark empty sessions, so this is defense-in-depth.)
       OR: [
         { geminiStoreId: { not: null } },
         { strawmanPresentationId: { not: null } },
         { finalPresentationId: { not: null } },
-        { currentStage: { gte: 3 } },
       ],
     },
     select: { id: true, geminiStoreId: true },

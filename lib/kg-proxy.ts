@@ -7,6 +7,8 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { prisma } from '@/lib/prisma'
+import { getUserSubscription } from '@/lib/stripe/stripe-utils'
 import { isKgEntitled } from '@/lib/kg-entitlement'
 
 export const KG_BASE =
@@ -21,6 +23,12 @@ export const KG_BASE =
  * gate) and self-grant KG via `POST /subscribe` (review finding 1). So every
  * entitlement-requiring proxy calls this first.
  *
+ * Entitlement is read LIVE from Prisma, not from the session JWT: the JWT's
+ * tier/subscription snapshot is refreshed only at sign-in (30-day token), so
+ * a cancelled/downgraded subscriber would otherwise keep KG access until
+ * re-login (review round 2, finding 1). The live `User.tier` + active
+ * subscription are the source of truth.
+ *
  * Returns `{ userId }` when the caller is authenticated AND KG-entitled, or a
  * ready-to-return `NextResponse` (401/403) otherwise.
  */
@@ -31,7 +39,30 @@ export async function requireKgEntitled(): Promise<
   if (!session?.user?.id) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
-  if (!isKgEntitled(session.user.tier, session.user.subscription)) {
+
+  const userId = session.user.id
+  let liveTier: string | null | undefined
+  let subscription: { status?: string | null; tier?: string | null } | null
+  try {
+    const [dbUser, sub] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { tier: true } }),
+      getUserSubscription(userId), // active/trialing only, live
+    ])
+    liveTier = dbUser?.tier
+    subscription = sub
+  } catch (e) {
+    // Fail closed: if we can't verify entitlement, deny rather than trust a
+    // stale token.
+    console.error('[KG Proxy] entitlement lookup failed:', e)
+    return {
+      error: NextResponse.json(
+        { error: 'Could not verify entitlement' },
+        { status: 503 }
+      ),
+    }
+  }
+
+  if (!isKgEntitled(liveTier, subscription)) {
     return {
       error: NextResponse.json(
         { error: 'Knowledge Graph requires a Pro plan or above' },
@@ -39,7 +70,7 @@ export async function requireKgEntitled(): Promise<
       ),
     }
   }
-  return { userId: session.user.id }
+  return { userId }
 }
 
 /**
