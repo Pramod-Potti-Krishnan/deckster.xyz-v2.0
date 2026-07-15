@@ -310,7 +310,7 @@ export interface ThemeSyncMessage {
   type: 'theme_sync';
   payload: {
     request_id: string;
-    status: 'applied' | 'failed';
+    status: 'syncing' | 'applied' | 'failed';
     presentation_id?: string | null;
     theme_session_id?: string | null;
     error?: string | null;
