@@ -2879,7 +2879,8 @@ function BuilderContent() {
             setPendingManualDeckBuild({
               messageText,
               presentationId: manualSourcePresentationId!,
-              presentationUrl: effectivePresentationUrl,
+              presentationUrl: effectivePresentationUrl
+                ?? `${LAYOUT_SERVICE_URL}/p/${encodeURIComponent(manualSourcePresentationId!)}`,
               summary: inspection.summary,
               operationId: crypto.randomUUID(),
             })

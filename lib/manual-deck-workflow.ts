@@ -19,7 +19,18 @@ export interface ManualDeckSummary {
   customized_slide_count: number
   note_count: number
   slide_titles: string[]
+  slides: ManualDeckSlideSummary[]
   reasons: Array<'additional_slides' | 'elements' | 'content' | 'layout' | 'background' | 'notes'>
+}
+
+export interface ManualDeckSlideSummary {
+  slide_index: number
+  title: string
+  layout: string
+  content: Record<string, string | number | boolean>
+  element_counts: Record<string, number>
+  notes?: string
+  intent?: string
 }
 
 export interface ManualDeckInspection {
@@ -112,6 +123,66 @@ function slideNotes(slide: Record<string, unknown>): unknown {
   return slide.speaker_notes ?? slide.notes ?? asRecord(slide.content)?.speaker_notes
 }
 
+function boundedText(value: unknown, limit: number): string | null {
+  if (typeof value !== 'string') return null
+  const text = normalizedText(value)
+  return text ? text.slice(0, limit) : null
+}
+
+function summarizeContent(value: unknown): Record<string, string | number | boolean> {
+  const content = asRecord(value)
+  if (!content) return {}
+
+  return Object.entries(content).slice(0, 24).reduce<Record<string, string | number | boolean>>(
+    (summary, [key, item]) => {
+      if (typeof item === 'string') {
+        const text = boundedText(item, 500)
+        if (text) summary[key] = text
+      } else if (typeof item === 'number' && Number.isFinite(item)) {
+        summary[key] = item
+      } else if (typeof item === 'boolean') {
+        summary[key] = item
+      } else if (Array.isArray(item) || asRecord(item)) {
+        try {
+          const text = normalizedText(JSON.stringify(item)).slice(0, 500)
+          if (text && text !== '[]' && text !== '{}') summary[key] = text
+        } catch {
+          // Non-serializable editor state is omitted from the structured handoff.
+        }
+      }
+      return summary
+    },
+    {},
+  )
+}
+
+function summarizeSlide(slide: Record<string, unknown>, index: number): ManualDeckSlideSummary {
+  const content = asRecord(slide.content)
+  const metadata = asRecord(slide.metadata)
+  const elementCounts = ELEMENT_COLLECTION_KEYS.reduce<Record<string, number>>((counts, key) => {
+    const collection = slide[key]
+    if (Array.isArray(collection) && collection.length > 0) counts[key] = collection.length
+    return counts
+  }, {})
+  const intent = [
+    slide.intent,
+    metadata?.intent,
+    content?.intent,
+    content?.purpose,
+  ].map(value => boundedText(value, 300)).find(Boolean) ?? null
+  const notes = boundedText(slideNotes(slide), 800)
+
+  return {
+    slide_index: index,
+    title: slideTitle(slide, index),
+    layout: typeof slide.layout === 'string' ? slide.layout : 'unknown',
+    content: summarizeContent(slide.content),
+    element_counts: elementCounts,
+    ...(notes ? { notes } : {}),
+    ...(intent ? { intent } : {}),
+  }
+}
+
 /**
  * Detects customized slide work without considering presentation-level theme data.
  * The untouched Director blank is deliberately narrow: one H1/blank slide, empty
@@ -169,6 +240,7 @@ export function inspectManualDeck(value: unknown): ManualDeckInspection {
       customized_slide_count: customizedSlideCount,
       note_count: noteCount,
       slide_titles: slides.map(slideTitle).slice(0, 30),
+      slides: slides.slice(0, 30).map(summarizeSlide),
       reasons,
     },
   }
