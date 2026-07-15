@@ -212,7 +212,7 @@ export async function readElementGenerationSnapshot({
       const refreshed = await sendPreflightCommandWithRetry(
         sendCommand,
         'refreshElementThemeMetadata',
-        { elementId, componentType },
+        { elementId, componentType, themeVariantSource: 'element_generation' },
         retries,
         retryDelayMs,
       )

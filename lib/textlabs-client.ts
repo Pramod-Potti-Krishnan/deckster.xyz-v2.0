@@ -449,6 +449,8 @@ export function buildInsertionParams(
     resizable: true,
     skipAutoSize: true,
     componentType: semanticComponentType,
+    styleOwner: 'text_labs',
+    themeVariantSource: 'element_generation',
   }
 
   if (themeMetadata.themeVariantId) baseParams.themeVariantId = themeMetadata.themeVariantId

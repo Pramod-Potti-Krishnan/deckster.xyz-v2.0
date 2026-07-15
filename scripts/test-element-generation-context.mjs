@@ -68,8 +68,13 @@ const themeVariantsSource = fs.readFileSync(
   new URL('../lib/element-theme-variants.ts', import.meta.url),
   'utf8',
 )
+const elementGeometrySource = fs.readFileSync(
+  new URL('../lib/element-geometry.ts', import.meta.url),
+  'utf8',
+)
 assert.match(hookSource, /getSlideGenerationContext/)
-assert.match(hookSource, /refreshElementThemeMetadata/)
+assert.match(elementGeometrySource, /refreshElementThemeMetadata/)
+assert.match(elementGeometrySource, /themeVariantSource: 'element_generation'/)
 assert.match(hookSource, /formData\.slideIndex = generationSlideIndex/)
 assert.match(contextSource, /generation_intent/)
 assert.match(themeVariantsSource, /\['TEXT_BOX', 'METRICS'\]/)
