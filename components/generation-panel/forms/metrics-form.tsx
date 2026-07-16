@@ -11,6 +11,7 @@ import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
+import { splitGridArea } from '@/lib/grid-splitter'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.METRICS
 
@@ -81,43 +82,18 @@ const DEFAULT_METRICS_CONFIG: MetricsConfig = {
   desc_allcaps: null,
 }
 
-function snapGrid(value: number): number {
-  return Number((Math.round(value * 5) / 5).toFixed(1))
-}
-
 function buildMetricsComposeElements(
   positionConfig: TextLabsPositionConfig,
   count: number,
   layout: 'horizontal' | 'vertical'
 ): MetricsFormData['elements'] {
   if (count <= 1) return undefined
-  const boxes: NonNullable<MetricsFormData['elements']> = []
-  const startCol = snapGrid(positionConfig.start_col)
-  const startRow = snapGrid(positionConfig.start_row)
-  const totalWidth = snapGrid(positionConfig.position_width)
-  const totalHeight = snapGrid(positionConfig.position_height)
-
-  if (layout === 'vertical') {
-    const baseHeight = snapGrid(totalHeight / count)
-    let current = startRow
-    const end = snapGrid(startRow + totalHeight)
-    for (let index = 0; index < count; index += 1) {
-      const height = index === count - 1 ? snapGrid(end - current) : baseHeight
-      boxes.push({ grid_position: { start_col: startCol, start_row: current, position_width: totalWidth, position_height: Math.max(height, 0.2) } })
-      current = snapGrid(current + Math.max(height, 0.2))
-    }
-    return boxes
-  }
-
-  const baseWidth = snapGrid(totalWidth / count)
-  let current = startCol
-  const end = snapGrid(startCol + totalWidth)
-  for (let index = 0; index < count; index += 1) {
-    const width = index === count - 1 ? snapGrid(end - current) : baseWidth
-    boxes.push({ grid_position: { start_col: current, start_row: startRow, position_width: Math.max(width, 0.2), position_height: totalHeight } })
-    current = snapGrid(current + Math.max(width, 0.2))
-  }
-  return boxes
+  return splitGridArea({
+    start_col: positionConfig.start_col,
+    start_row: positionConfig.start_row,
+    position_width: positionConfig.position_width,
+    position_height: positionConfig.position_height,
+  }, count, layout).map(grid_position => ({ grid_position }))
 }
 
 interface MetricsFormProps {

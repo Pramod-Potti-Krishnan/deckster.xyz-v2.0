@@ -352,13 +352,13 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-[10px] text-gray-400 dark:text-slate-500">Col</label>
-                  <input type="number" value={startCol} min={1} max={32}
+                  <input type="number" value={startCol} min={1} max={32} step={0.2}
                     onChange={(e) => { setStartCol(Number(e.target.value)); setSelectedPositionPreset(null); setAdvancedModified(true) }}
                     className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] text-gray-400 dark:text-slate-500">Row</label>
-                  <input type="number" value={startRow} min={1} max={18}
+                  <input type="number" value={startRow} min={1} max={18} step={0.2}
                     onChange={(e) => { setStartRow(Number(e.target.value)); setSelectedPositionPreset(null); setAdvancedModified(true) }}
                     className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
                 </div>
@@ -370,13 +370,13 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Width</label>
-              <input type="number" value={width} min={1} max={32}
+              <input type="number" value={width} min={0.2} max={32} step={0.2}
                 onChange={(e) => { setWidth(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Height</label>
-              <input type="number" value={height} min={1} max={18}
+              <input type="number" value={height} min={0.2} max={18} step={0.2}
                 onChange={(e) => { setHeight(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
             </div>

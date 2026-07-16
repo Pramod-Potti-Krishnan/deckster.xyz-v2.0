@@ -20,6 +20,7 @@ import { PositionPresets } from '../shared/position-presets'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
+import { splitGridArea } from '@/lib/grid-splitter'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TEXT_BOX
 
@@ -122,51 +123,12 @@ function buildComposeElements(
 ): TextBoxFormData['elements'] {
   if (count <= 1) return undefined
 
-  const boxes: NonNullable<TextBoxFormData['elements']> = []
-  const startCol = positionConfig.start_col
-  const startRow = positionConfig.start_row
-  const totalWidth = positionConfig.position_width
-  const totalHeight = positionConfig.position_height
-
-  if (layout === 'vertical') {
-    const baseHeight = Math.max(1, Math.floor(totalHeight / count))
-    for (let index = 0; index < count; index += 1) {
-      const row = startRow + baseHeight * index
-      const height = index === count - 1 ? Math.max(1, totalHeight - baseHeight * index) : baseHeight
-      boxes.push({ grid_position: { start_col: startCol, start_row: row, position_width: totalWidth, position_height: height } })
-    }
-    return boxes
-  }
-
-  if (layout === 'grid') {
-    const cols = Math.min(Math.max(1, gridCols), count)
-    const rows = Math.ceil(count / cols)
-    const baseWidth = Math.max(1, Math.floor(totalWidth / cols))
-    const baseHeight = Math.max(1, Math.floor(totalHeight / rows))
-    for (let index = 0; index < count; index += 1) {
-      const colIndex = index % cols
-      const rowIndex = Math.floor(index / cols)
-      const width = colIndex === cols - 1 ? Math.max(1, totalWidth - baseWidth * colIndex) : baseWidth
-      const height = rowIndex === rows - 1 ? Math.max(1, totalHeight - baseHeight * rowIndex) : baseHeight
-      boxes.push({
-        grid_position: {
-          start_col: startCol + baseWidth * colIndex,
-          start_row: startRow + baseHeight * rowIndex,
-          position_width: width,
-          position_height: height,
-        },
-      })
-    }
-    return boxes
-  }
-
-  const baseWidth = Math.max(1, Math.floor(totalWidth / count))
-  for (let index = 0; index < count; index += 1) {
-    const col = startCol + baseWidth * index
-    const width = index === count - 1 ? Math.max(1, totalWidth - baseWidth * index) : baseWidth
-    boxes.push({ grid_position: { start_col: col, start_row: startRow, position_width: width, position_height: totalHeight } })
-  }
-  return boxes
+  return splitGridArea({
+    start_col: positionConfig.start_col,
+    start_row: positionConfig.start_row,
+    position_width: positionConfig.position_width,
+    position_height: positionConfig.position_height,
+  }, count, layout, gridCols).map(grid_position => ({ grid_position }))
 }
 
 export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: TextBoxFormProps) {
