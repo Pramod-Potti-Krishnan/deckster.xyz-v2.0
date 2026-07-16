@@ -179,7 +179,11 @@ interface PresentationViewerProps {
   isBlankPresentation?: boolean
   onVersionSwitch?: (version: 'blank' | 'strawman' | 'final') => void
   // Text box panel callbacks
-  onTextBoxSelected?: (elementId: string, formatting: TextBoxFormatting | null) => void
+  onTextBoxSelected?: (
+    elementId: string,
+    formatting: TextBoxFormatting | null,
+    componentType?: string,
+  ) => void
   onTextBoxDeselected?: () => void
   // Element panel callbacks (Image, Table, Chart, Infographic, Diagram)
   onElementSelected?: (elementId: string, elementType: ElementType, properties: ElementProperties) => void
@@ -2197,13 +2201,16 @@ export function PresentationViewer({
       if (event.data.type === 'textBoxSelected') {
         const elementId = event.data.elementId
         const formatting = event.data.formatting as TextBoxFormatting | null
+        const componentType = typeof event.data.componentType === 'string'
+          ? event.data.componentType
+          : undefined
 
         // Auto-enter edit mode when user clicks on a text box
         await ensureEditMode()
 
         setSelectedTextBoxId(elementId)
-        onTextBoxSelected?.(elementId, formatting)
-        debugLog(`📦 Text box selected: ${elementId}`)
+        onTextBoxSelected?.(elementId, formatting, componentType)
+        debugLog(`📦 Text box selected: ${elementId} (${componentType || 'TEXT_BOX'})`)
       }
 
       // Handle text box deselection
