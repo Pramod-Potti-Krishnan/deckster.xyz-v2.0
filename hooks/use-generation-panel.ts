@@ -24,9 +24,10 @@ export function useGenerationPanel() {
   const [regenerateEnabled, setRegenerateEnabled] = useState(false)
   const [editElementId, setEditElementId] = useState<string | null>(null)
   const [refineContext, setRefineContext] = useState<RefineContext | null>(null)
-  const [researchMode, setResearchMode] = useState<ElementResearchMode>('auto')
+  const [researchMode, setResearchMode] = useState<ElementResearchMode>('off')
   const [researchWeb, setResearchWeb] = useState(false)
-  const [researchUploadedDocs, setResearchUploadedDocs] = useState(true)
+  const [researchUploadedDocs, setResearchUploadedDocs] = useState(false)
+  const [researchKnowledgeGraph, setResearchKnowledgeGraph] = useState(false)
 
   const openPanel = useCallback((type: TextLabsComponentType) => {
     setElementType(type)
@@ -122,6 +123,7 @@ export function useGenerationPanel() {
     researchMode,
     researchWeb,
     researchUploadedDocs,
+    researchKnowledgeGraph,
     openPanel,
     openPanelForElement,
     openPanelForEdit,
@@ -135,5 +137,6 @@ export function useGenerationPanel() {
     setResearchMode,
     setResearchWeb,
     setResearchUploadedDocs,
+    setResearchKnowledgeGraph,
   }
 }

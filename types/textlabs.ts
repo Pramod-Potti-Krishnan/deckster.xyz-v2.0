@@ -69,14 +69,29 @@ export interface ThemeSourceSelection {
   overrides?: ThemePalette | null
 }
 
-export type ElementResearchMode = 'auto' | 'on' | 'off'
+export type ElementResearchMode = 'on' | 'off'
+
+export interface ElementResearchSourceCapability {
+  available: boolean
+  code?: string | null
+  reason?: string | null
+}
+
+export interface ElementResearchCapabilities {
+  web: ElementResearchSourceCapability
+  uploaded_documents: ElementResearchSourceCapability
+  knowledge_graph: ElementResearchSourceCapability
+}
 
 export interface ElementResearchPolicy {
   mode: ElementResearchMode
   web?: boolean
   uploaded_docs?: boolean
+  use_knowledge_graph?: boolean
+  user_id?: string | null
   store_name?: string | null
   session_id?: string | null
+  source_capabilities?: ElementResearchCapabilities
   depth?: 'quick' | 'standard'
 }
 
@@ -556,6 +571,9 @@ export interface TextLabsResponse {
   element?: TextLabsElement
   elements?: TextLabsElement[]
   error?: string
+  error_code?: string
+  retryable?: boolean
+  warnings?: string[]
   message?: string
 }
 
