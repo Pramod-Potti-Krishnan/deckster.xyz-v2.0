@@ -2212,6 +2212,9 @@ export function PresentationViewer({
 
         setSelectedTextBoxId(elementId)
         onTextBoxSelected?.(elementId, formatting, componentType)
+        void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
+          console.warn('[PresentationViewer] Failed to bring selected text box to front:', error)
+        })
         debugLog(`📦 Text box selected: ${elementId} (${componentType || 'TEXT_BOX'})`)
       }
 
@@ -2243,6 +2246,9 @@ export function PresentationViewer({
 
         // Notify parent to show the appropriate format panel
         onElementSelected?.(elementId, elementType, properties)
+        void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
+          console.warn('[PresentationViewer] Failed to bring selected element to front:', error)
+        })
         debugLog(`🎯 Element selected: ${elementType} (${elementId})`)
       }
 

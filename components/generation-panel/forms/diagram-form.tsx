@@ -138,8 +138,26 @@ export function DiagramForm({ onSubmit, registerSubmit, isGenerating, presentati
       options: DIAGRAM_SUBTYPES.map(s => ({ value: s.value, label: s.label })),
       onChange: (v) => { setSubtype(v as TextLabsDiagramSubtype); setAdvancedModified(true) },
       promptPlaceholder: PROMPT_PLACEHOLDERS[subtype],
+      customRender: (
+        <select
+          aria-label="Diagram type"
+          value={subtype}
+          onChange={(event) => {
+            setSubtype(event.target.value as TextLabsDiagramSubtype)
+            setAdvancedModified(true)
+          }}
+          className="max-w-[170px] rounded-lg border border-gray-200 bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 outline-none transition-colors hover:bg-gray-200 focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+          disabled={isGenerating}
+        >
+          {DIAGRAM_SUBTYPES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      ),
     })
-  }, [subtype, subtypeLabel, registerMandatoryConfig])
+  }, [subtype, subtypeLabel, registerMandatoryConfig, isGenerating])
 
   const buildDiagramConfig = useCallback((): Partial<
     CodeDisplayConfig | KanbanConfig | GanttConfig | ChevronConfig |
