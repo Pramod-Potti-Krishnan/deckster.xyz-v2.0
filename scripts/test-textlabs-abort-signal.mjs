@@ -23,7 +23,13 @@ vm.runInNewContext(compiled.outputText, {
   DOMException,
   require: id => {
     if (id === '@/types/textlabs') {
-      return { INSERTION_METHOD_MAP: {}, TEXT_LABS_ELEMENT_DEFAULTS: {} }
+      return {
+        INSERTION_METHOD_MAP: { ICON_LABEL: 'insertElement' },
+        TEXT_LABS_ELEMENT_DEFAULTS: {
+          ICON_LABEL: { width: 6, height: 4, zIndex: 100 },
+          TEXT_BOX: { width: 10, height: 6, zIndex: 100 },
+        },
+      }
     }
     if (id === '@/lib/element-semantic-type') {
       return { semanticTypeForInsertion: value => value }
@@ -33,11 +39,27 @@ vm.runInNewContext(compiled.outputText, {
         resolveElementThemeMetadata: () => ({ themeVariantId: null, themeBindings: null }),
       }
     }
+    if (id === '@/lib/element-provenance') {
+      return {
+        parseThemeVariantSource: () => null,
+        responseStyleOwner: () => null,
+      }
+    }
     throw new Error(`Unexpected dependency: ${id}`)
   },
 })
 
-const { generateInfographic, sendMessage } = mod.exports
+const { buildInsertionParams, formatBackendError, generateInfographic, sendMessage } = mod.exports
+
+assert.equal(
+  formatBackendError({ detail: [{ loc: ['body', 'chart_config', 'data'], msg: 'Explicit chart data is invalid' }] }, 'API error: 422'),
+  'chart_config.data: Explicit chart data is invalid',
+)
+
+const iconInsertion = buildInsertionParams('ICON_LABEL', { html: '<div>Priority</div>' })
+assert.equal(iconInsertion.method, 'insertElement')
+assert.equal(iconInsertion.params.componentType, 'ICON_LABEL')
+assert.equal(iconInsertion.params.content, '<div>Priority</div>')
 
 let capturedSignal
 fetchImplementation = async (_url, init) => {

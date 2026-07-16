@@ -197,12 +197,13 @@ export function useTextLabsGeneration({
         return
       }
       try {
+        const supportsLayoutThemeMetadata = componentSupportsThemeVariants(formData.componentType)
         const snapshot = await readElementGenerationSnapshot({
           sendCommand: layoutServiceApis.sendElementCommand,
           elementId: blankId,
           componentType: formData.componentType,
           useDeckTheme: formData.useDeckTheme === true,
-          requiresThemeVariant: componentSupportsThemeVariants(formData.componentType),
+          requiresThemeVariant: supportsLayoutThemeMetadata,
           themeVariantSource: 'element_generation',
         })
         blankInfo = {
@@ -211,8 +212,16 @@ export function useTextLabsGeneration({
           startRow: snapshot.startRow,
           width: snapshot.width,
           height: snapshot.height,
-          themeVariantId: snapshot.themeVariantId ?? trackedBlankInfo.themeVariantId ?? null,
-          themeBindings: snapshot.themeBindings ?? trackedBlankInfo.themeBindings ?? null,
+          // A new leaf placeholder does not carry user-authored detach state.
+          // Its empty Layout metadata must remain absent so Text Labs applies
+          // the component theme defaults. Existing elements preserve explicit
+          // `{}` through the refine path below.
+          themeVariantId: supportsLayoutThemeMetadata
+            ? snapshot.themeVariantId ?? trackedBlankInfo.themeVariantId ?? null
+            : null,
+          themeBindings: supportsLayoutThemeMetadata
+            ? snapshot.themeBindings ?? trackedBlankInfo.themeBindings ?? null
+            : null,
         }
         blankElements.updatePosition(
           blankId,

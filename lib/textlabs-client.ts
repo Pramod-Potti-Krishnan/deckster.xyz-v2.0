@@ -153,6 +153,43 @@ interface SendMessageOptions {
   dataArchitectureConfig?: Record<string, unknown>
 }
 
+type BackendValidationIssue = {
+  loc?: unknown
+  msg?: unknown
+  message?: unknown
+}
+
+/** Turn FastAPI/Pydantic validation payloads into an actionable UI message. */
+export function formatBackendError(errorData: unknown, fallback: string): string {
+  if (!errorData || typeof errorData !== 'object') return fallback
+  const payload = errorData as Record<string, unknown>
+  for (const key of ['error', 'message'] as const) {
+    if (typeof payload[key] === 'string' && payload[key].trim()) return payload[key].trim()
+  }
+
+  const detail = payload.detail
+  if (typeof detail === 'string' && detail.trim()) return detail.trim()
+  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+    const issue = detail as BackendValidationIssue
+    const message = typeof issue.message === 'string' ? issue.message : issue.msg
+    if (typeof message === 'string' && message.trim()) return message.trim()
+  }
+  if (Array.isArray(detail)) {
+    const issues = detail.flatMap(item => {
+      if (!item || typeof item !== 'object') return []
+      const issue = item as BackendValidationIssue
+      const message = typeof issue.msg === 'string' ? issue.msg : issue.message
+      if (typeof message !== 'string' || !message.trim()) return []
+      const location = Array.isArray(issue.loc)
+        ? issue.loc.filter(part => part !== 'body').map(String).join('.')
+        : ''
+      return [`${location ? `${location}: ` : ''}${message.trim()}`]
+    })
+    if (issues.length) return issues.join('; ')
+  }
+  return fallback
+}
+
 export async function sendMessage(
   sessionId: string,
   message: string,
@@ -181,7 +218,7 @@ export async function sendMessage(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || `API error: ${response.status}`)
+    throw new Error(formatBackendError(errorData, `API error: ${response.status}`))
   }
 
   return response.json()
@@ -241,7 +278,7 @@ export async function generateInfographic(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.error || `Infographic upload failed: ${response.status}`)
+    throw new Error(formatBackendError(errorData, `Infographic upload failed: ${response.status}`))
   }
 
   return response.json()
