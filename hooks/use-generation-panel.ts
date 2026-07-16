@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { TextLabsComponentType } from '@/types/textlabs'
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { ElementResearchMode } from '@/types/textlabs'
@@ -28,6 +28,21 @@ export function useGenerationPanel() {
   const [researchWeb, setResearchWeb] = useState(false)
   const [researchUploadedDocs, setResearchUploadedDocs] = useState(false)
   const [researchKnowledgeGraph, setResearchKnowledgeGraph] = useState(false)
+  const snapshotRef = useRef({
+    isOpen,
+    blankElementId,
+    editElementId,
+    mode,
+  })
+
+  useEffect(() => {
+    snapshotRef.current = {
+      isOpen,
+      blankElementId,
+      editElementId,
+      mode,
+    }
+  }, [isOpen, blankElementId, editElementId, mode])
 
   const openPanel = useCallback((type: TextLabsComponentType) => {
     setElementType(type)
@@ -81,16 +96,14 @@ export function useGenerationPanel() {
   }, [])
 
   const closePanel = useCallback(() => {
-    if (!isGenerating) {
-      setIsOpen(false)
-      setBlankElementId(null)
-      setMode('generate')
-      setEditElementId(null)
-      setRefineContext(null)
-      setRegenerateEnabled(false)
-      setError(null)
-    }
-  }, [isGenerating])
+    setIsOpen(false)
+    setBlankElementId(null)
+    setMode('generate')
+    setEditElementId(null)
+    setRefineContext(null)
+    setRegenerateEnabled(false)
+    setError(null)
+  }, [])
 
   const changeElementType = useCallback((type: TextLabsComponentType) => {
     setElementType(type)
@@ -109,6 +122,8 @@ export function useGenerationPanel() {
     setIsOpen(true)
     setError(null)
   }, [])
+
+  const getSnapshot = useCallback(() => snapshotRef.current, [])
 
   return {
     isOpen,
@@ -131,6 +146,7 @@ export function useGenerationPanel() {
     closePanel,
     changeElementType,
     reopenPanel,
+    getSnapshot,
     setIsGenerating,
     setError,
     setRegenerateEnabled,
