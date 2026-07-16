@@ -595,15 +595,15 @@ export const TEXT_LABS_ELEMENT_DEFAULTS: Record<TextLabsComponentType, {
   height: number
   zIndex: number
 }> = {
-  TEXT_BOX: { width: 10, height: 6, zIndex: 50 },
-  METRICS: { width: 8, height: 5, zIndex: 90 },
-  TABLE: { width: 16, height: 8, zIndex: 50 },
-  CHART: { width: 16, height: 12, zIndex: 50 },
-  IMAGE: { width: 12, height: 7, zIndex: 75 },
-  ICON_LABEL: { width: 2, height: 2, zIndex: 90 },
-  SHAPE: { width: 3, height: 3, zIndex: 10 },
-  INFOGRAPHIC: { width: 16, height: 9, zIndex: 50 },
-  DIAGRAM: { width: 30, height: 14, zIndex: 50 },
+  TEXT_BOX: { width: 10, height: 6, zIndex: 1000 },
+  METRICS: { width: 8, height: 5, zIndex: 1000 },
+  TABLE: { width: 16, height: 8, zIndex: 1000 },
+  CHART: { width: 16, height: 12, zIndex: 1000 },
+  IMAGE: { width: 12, height: 7, zIndex: 1000 },
+  ICON_LABEL: { width: 2, height: 2, zIndex: 1000 },
+  SHAPE: { width: 3, height: 3, zIndex: 1000 },
+  INFOGRAPHIC: { width: 16, height: 9, zIndex: 1000 },
+  DIAGRAM: { width: 30, height: 14, zIndex: 1000 },
 }
 
 export const POSITION_PRESETS: Record<string, {
