@@ -46,6 +46,12 @@ interface UseTextLabsGenerationParams {
     openPanel: (type: TextLabsComponentType) => void
     openPanelForElement: (type: TextLabsComponentType, elementId: string) => void
     changeElementType: (type: TextLabsComponentType) => void
+    getSnapshot: () => {
+      isOpen: boolean
+      blankElementId: string | null
+      editElementId: string | null
+      mode: 'generate' | 'edit' | 'refine'
+    }
   }
   blankElements: {
     getElement: (id: string) => BlankElementInfo | undefined
@@ -134,17 +140,20 @@ export function useTextLabsGeneration({
   getThemeSyncSnapshot,
   toast,
 }: UseTextLabsGenerationParams) {
-  const generateInFlightRef = useRef(false)
+  const activeGenerationKeysRef = useRef<Set<string>>(new Set())
 
   const handleGenerate = useCallback(async (formData: TextLabsFormData) => {
-    if (generateInFlightRef.current) return
-    generateInFlightRef.current = true
+    const refineContext = generationPanel.mode === 'refine' ? generationPanel.refineContext : null
+    const generationKey = refineContext
+      ? `refine:${refineContext.elementId}`
+      : `blank:${generationPanel.blankElementId ?? 'direct'}`
+    if (activeGenerationKeysRef.current.has(generationKey)) return
+    activeGenerationKeysRef.current.add(generationKey)
 
-    // Lock the submit path before the async geometry lookup so a double-click
-    // cannot start two concurrent placeholder swaps.
+    // Lock this panel's submit path before the async geometry lookup so a
+    // double-click cannot start two concurrent swaps for the same placeholder.
     generationPanel.setIsGenerating(true)
     generationPanel.setError(null)
-    const refineContext = generationPanel.mode === 'refine' ? generationPanel.refineContext : null
     let refineOverlayActive = false
     let refineElementDeleted = false
 
@@ -155,7 +164,7 @@ export function useTextLabsGeneration({
     if (formData.useDeckTheme === true && !formData.presentationId) {
       generationPanel.setIsGenerating(false)
       generationPanel.setError('The active presentation is unavailable, so its deck theme cannot be resolved.')
-      generateInFlightRef.current = false
+      activeGenerationKeysRef.current.delete(generationKey)
       return
     }
     const expectedThemeSync = formData.useDeckTheme === true
@@ -171,7 +180,7 @@ export function useTextLabsGeneration({
     ) {
       generationPanel.setIsGenerating(false)
       generationPanel.setError('The selected deck theme is not Applied to this presentation yet.')
-      generateInFlightRef.current = false
+      activeGenerationKeysRef.current.delete(generationKey)
       return
     }
     const themeIsStillAuthoritative = () => {
@@ -196,13 +205,13 @@ export function useTextLabsGeneration({
       if (!trackedBlankInfo) {
         generationPanel.setIsGenerating(false)
         generationPanel.setError('This placeholder is no longer available. Add the element again and retry.')
-        generateInFlightRef.current = false
+        activeGenerationKeysRef.current.delete(generationKey)
         return
       }
       if (!layoutServiceApis?.sendElementCommand) {
         generationPanel.setIsGenerating(false)
         generationPanel.setError('The presentation is still loading. Wait a moment and try again.')
-        generateInFlightRef.current = false
+        activeGenerationKeysRef.current.delete(generationKey)
         return
       }
       try {
@@ -248,7 +257,7 @@ export function useTextLabsGeneration({
             ? "Couldn't apply the deck's current theme treatment to this element. The placeholder was left unchanged. Please try again."
             : "Couldn't read the element's current size and position. The placeholder was left unchanged. Please try again.",
         )
-        generateInFlightRef.current = false
+        activeGenerationKeysRef.current.delete(generationKey)
         return
       }
     }
@@ -257,7 +266,7 @@ export function useTextLabsGeneration({
       if (!layoutServiceApis?.sendElementCommand) {
         generationPanel.setIsGenerating(false)
         generationPanel.setError('The presentation is still loading. Wait a moment and try again.')
-        generateInFlightRef.current = false
+        activeGenerationKeysRef.current.delete(generationKey)
         return
       }
 
@@ -307,7 +316,7 @@ export function useTextLabsGeneration({
             ? "Couldn't apply the deck's current theme treatment to this element. The original was left unchanged. Please try again."
             : "Couldn't read this element's current size and position. The original was left unchanged. Please try again.",
         )
-        generateInFlightRef.current = false
+        activeGenerationKeysRef.current.delete(generationKey)
         return
       }
 
@@ -342,7 +351,7 @@ export function useTextLabsGeneration({
         if (!formData.positionConfig || !formElements || formElements.length !== formData.count) {
           generationPanel.setIsGenerating(false)
           generationPanel.setError('The requested multi-element layout is incomplete. The placeholder was left unchanged.')
-          generateInFlightRef.current = false
+          activeGenerationKeysRef.current.delete(generationKey)
           return
         }
         formData.elements = remapElementGridPositions(
@@ -389,7 +398,7 @@ export function useTextLabsGeneration({
       generationPanel.setError(
         'Research is on, but no available source is selected. Enable Web Search or configure Uploaded Documents or Knowledge Graph.',
       )
-      generateInFlightRef.current = false
+      activeGenerationKeysRef.current.delete(generationKey)
       return
     }
     formData.research = researchPolicy
@@ -397,7 +406,7 @@ export function useTextLabsGeneration({
     if (!layoutServiceApis?.sendElementCommand) {
       generationPanel.setIsGenerating(false)
       generationPanel.setError('The presentation viewer is unavailable, so live slide context could not be read.')
-      generateInFlightRef.current = false
+      activeGenerationKeysRef.current.delete(generationKey)
       return
     }
     const deckReference = deckContext ?? refineContext?.deckContext ?? null
@@ -471,7 +480,7 @@ export function useTextLabsGeneration({
           "Couldn't assign deterministic deck-theme treatments. No elements were generated; retry when the presentation is available.",
         )
         generationPanel.setIsGenerating(false)
-        generateInFlightRef.current = false
+        activeGenerationKeysRef.current.delete(generationKey)
         return
       }
     }
@@ -479,7 +488,7 @@ export function useTextLabsGeneration({
     if (!themeIsStillAuthoritative()) {
       generationPanel.setError(THEME_CHANGED_DURING_GENERATION)
       generationPanel.setIsGenerating(false)
-      generateInFlightRef.current = false
+      activeGenerationKeysRef.current.delete(generationKey)
       return
     }
 
@@ -537,6 +546,9 @@ export function useTextLabsGeneration({
         console.warn('[TextLabs] Failed to update blank to spinner:', err)
       }
     }
+
+    generationPanel.closePanel()
+    generationPanel.setIsGenerating(false)
 
     // Grounded generation may include one bounded Researcher round-trip.
     const controller = new AbortController()
@@ -693,7 +705,6 @@ export function useTextLabsGeneration({
         }
       }
 
-      generationPanel.closePanel()
       toast({
         title: refineContext ? 'Element refined' : 'Element generated',
         description: refineContext
@@ -764,7 +775,10 @@ export function useTextLabsGeneration({
                 status: 'blank',
               })
               blankElements.trackElement(restoredElementId)
-              generationPanel.openPanelForElement(currentBlankInfo.componentType, restoredElementId)
+              const latestPanel = generationPanel.getSnapshot()
+              if (!latestPanel.isOpen) {
+                generationPanel.openPanelForElement(currentBlankInfo.componentType, restoredElementId)
+              }
             },
             onDeleteError: deleteError => {
               console.warn('[TextLabs] Spinner was already absent during placeholder recovery:', deleteError)
@@ -776,7 +790,20 @@ export function useTextLabsGeneration({
       }
       // openPanelForElement clears prior panel errors, so publish the final
       // failure only after any placeholder/tracking recovery has completed.
-      generationPanel.setError(errorMessage)
+      const latestPanel = generationPanel.getSnapshot()
+      const ownsCurrentPanel = currentBlankId
+        ? latestPanel.blankElementId === currentBlankId
+        : refineContext
+          ? latestPanel.editElementId === refineContext.elementId
+          : !latestPanel.isOpen
+      if (ownsCurrentPanel || !latestPanel.isOpen) {
+        generationPanel.setError(errorMessage)
+      } else {
+        toast({
+          title: 'Element generation failed',
+          description: errorMessage,
+        })
+      }
     } finally {
       clearTimeout(timeoutId)
       if (refineContext && refineOverlayActive && !refineElementDeleted && layoutServiceApis?.sendElementCommand) {
@@ -790,7 +817,7 @@ export function useTextLabsGeneration({
         }
       }
       generationPanel.setIsGenerating(false)
-      generateInFlightRef.current = false
+      activeGenerationKeysRef.current.delete(generationKey)
     }
   }, [
     generationPanel,
