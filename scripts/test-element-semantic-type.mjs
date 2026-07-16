@@ -22,4 +22,23 @@ assert.equal(normalizeSemanticComponentType('unknown'), null)
 assert.equal(semanticTypeForInsertion('TABLE'), 'TABLE')
 assert.equal(semanticTypeForInsertion('GANTT_CHART'), 'DIAGRAM')
 
+const viewerSource = fs.readFileSync(new URL('../components/presentation-viewer.tsx', import.meta.url), 'utf8')
+const builderSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
+
+assert.match(
+  viewerSource,
+  /onTextBoxSelected\?\.\(elementId, formatting, componentType\)/,
+  'textbox-rendered semantic types must survive the Layout selection event',
+)
+assert.match(
+  builderSource,
+  /normalizeTextLabsElementType\(selectedComponentType\) \?\? 'TEXT_BOX'/,
+  'metrics and tables must route by semantic type, with TEXT_BOX only as a legacy fallback',
+)
+assert.doesNotMatch(
+  builderSource,
+  /onTextBoxSelected=\{\(elementId, formatting\) => \{[\s\S]{0,250}openPanelForEdit\('TEXT_BOX'/,
+  'the selection handler must not collapse every textbox renderer to TEXT_BOX',
+)
+
 console.log('element semantic type tests passed')

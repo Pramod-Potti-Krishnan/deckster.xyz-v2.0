@@ -56,7 +56,11 @@ export interface PresentationAreaProps {
   onApiReady: (apis: any) => void
   onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
   // Text box selection
-  onTextBoxSelected: (elementId: string, formatting: TextBoxFormatting | null) => void
+  onTextBoxSelected: (
+    elementId: string,
+    formatting: TextBoxFormatting | null,
+    componentType?: string,
+  ) => void
   onTextBoxDeselected: () => void
   // Element selection
   onElementSelected: (elementId: string, elementType: ElementType, properties: ElementProperties) => void
@@ -194,9 +198,9 @@ export function PresentationArea({
               console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
               onEditModeChange?.(isEditing)
             }}
-            onTextBoxSelected={(elementId, formatting) => {
+            onTextBoxSelected={(elementId, formatting, componentType) => {
               if (handleBlankElementClick(elementId, blankElements, generationPanel)) return
-              onTextBoxSelected(elementId, formatting)
+              onTextBoxSelected(elementId, formatting, componentType)
             }}
             onTextBoxDeselected={onTextBoxDeselected}
             onElementSelected={(elementId, elementType, properties) => {
