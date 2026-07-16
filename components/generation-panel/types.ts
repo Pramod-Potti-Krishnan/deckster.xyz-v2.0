@@ -1,5 +1,10 @@
 import React from 'react'
-import { ElementResearchMode, TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
+import {
+  ElementResearchCapabilities,
+  ElementResearchMode,
+  TextLabsComponentType,
+  TextLabsFormData,
+} from '@/types/textlabs'
 
 export interface ElementContext {
   startCol: number
@@ -26,11 +31,12 @@ export interface GenerationPanelProps {
   researchMode: ElementResearchMode
   researchWeb: boolean
   researchUploadedDocs: boolean
-  researchSessionAvailable: boolean
-  uploadedDocsAvailable: boolean
+  researchKnowledgeGraph: boolean
+  researchCapabilities: ElementResearchCapabilities
   onResearchModeChange: (mode: ElementResearchMode) => void
   onResearchWebChange: (enabled: boolean) => void
   onResearchUploadedDocsChange: (enabled: boolean) => void
+  onResearchKnowledgeGraphChange: (enabled: boolean) => void
 }
 
 export interface ElementFormProps {

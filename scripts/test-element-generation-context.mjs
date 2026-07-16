@@ -15,6 +15,11 @@ function loadTypeScriptModule(modulePath) {
 const { buildElementGenerationContext, parseSlideGenerationContext } = loadTypeScriptModule(
   new URL('../lib/element-generation-context.ts', import.meta.url),
 )
+const {
+  buildElementResearchPolicy,
+  defaultElementResearchSelection,
+  hasSelectedElementResearchSource,
+} = loadTypeScriptModule(new URL('../lib/element-research-policy.ts', import.meta.url))
 
 const liveSlide = parseSlideGenerationContext({
   success: true,
@@ -56,6 +61,56 @@ const boundedContext = buildElementGenerationContext('Keep me exact', 'TEXT_BOX'
 assert.equal(boundedContext.generation_intent.user_prompt, 'Keep me exact')
 assert.equal(boundedContext.reference_context.slide.planned_context.notes.length, 1600)
 
+const researchCapabilities = {
+  web: { available: true },
+  uploaded_documents: {
+    available: false,
+    code: 'NO_UPLOADED_DOCUMENTS',
+    reason: 'No uploaded documents are ready in this session.',
+  },
+  knowledge_graph: {
+    available: false,
+    code: 'KG_NOT_CONFIGURED',
+    reason: 'Knowledge Graph is not configured in this environment.',
+  },
+}
+assert.equal(
+  JSON.stringify(defaultElementResearchSelection(true, researchCapabilities)),
+  JSON.stringify({ web: true, uploadedDocuments: false, knowledgeGraph: false }),
+  'turning Research on enables every currently available source',
+)
+const webOnlyPolicy = buildElementResearchPolicy({
+  mode: 'on',
+  selection: { web: true, uploadedDocuments: true, knowledgeGraph: true },
+  capabilities: researchCapabilities,
+  storeName: null,
+  sessionId: 'session-1',
+  userId: 'user-1',
+})
+assert.equal(webOnlyPolicy.web, true)
+assert.equal(webOnlyPolicy.uploaded_docs, false)
+assert.equal(webOnlyPolicy.use_knowledge_graph, false)
+assert.equal(webOnlyPolicy.depth, 'standard')
+assert.equal(hasSelectedElementResearchSource(webOnlyPolicy), true)
+
+const allSourcesCapabilities = {
+  web: { available: true },
+  uploaded_documents: { available: true },
+  knowledge_graph: { available: true },
+}
+const allSourcesPolicy = buildElementResearchPolicy({
+  mode: 'on',
+  selection: defaultElementResearchSelection(true, allSourcesCapabilities),
+  capabilities: allSourcesCapabilities,
+  storeName: 'research-corpus',
+  sessionId: 'session-1',
+  userId: 'user-1',
+})
+assert.equal(allSourcesPolicy.web, true)
+assert.equal(allSourcesPolicy.uploaded_docs, true)
+assert.equal(allSourcesPolicy.use_knowledge_graph, true)
+assert.equal(allSourcesPolicy.user_id, 'user-1')
+
 const hookSource = fs.readFileSync(
   new URL('../hooks/use-textlabs-generation.ts', import.meta.url),
   'utf8',
@@ -73,6 +128,7 @@ const elementGeometrySource = fs.readFileSync(
   'utf8',
 )
 assert.match(hookSource, /getSlideGenerationContext/)
+assert.match(hookSource, /buildElementResearchPolicy/)
 assert.match(elementGeometrySource, /refreshElementThemeMetadata/)
 assert.match(hookSource, /themeVariantSource: 'element_generation'/)
 assert.match(hookSource, /themeVariantSource: refineContext\.themeVariantSource/)
@@ -109,5 +165,23 @@ assert.match(
   builderSource,
   /sendThemeSelection\(buildThemeSelection, requestId, effectivePresentationId\)/,
 )
+
+const generationPanelSource = fs.readFileSync(
+  new URL('../components/generation-panel/index.tsx', import.meta.url),
+  'utf8',
+)
+assert.match(generationPanelSource, /Enable research/)
+assert.match(generationPanelSource, /Web Search/)
+assert.match(generationPanelSource, /Uploaded Documents/)
+assert.match(generationPanelSource, /Knowledge Graph/)
+assert.doesNotMatch(generationPanelSource, /\(\['auto', 'on', 'off'\]/)
+
+const kgSettingsRoute = fs.readFileSync(
+  new URL('../app/api/knowledge-graph/settings/route.ts', import.meta.url),
+  'utf8',
+)
+assert.match(kgSettingsRoute, /api\/v1\/kg\/capabilities/)
+assert.match(kgSettingsRoute, /KG_SETTINGS_ROUTE_MISSING/)
+assert.match(kgSettingsRoute, /KG_BACKEND_FAILURE/)
 
 console.log('element generation context tests passed')
