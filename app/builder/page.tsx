@@ -4035,9 +4035,10 @@ function BuilderContent() {
             onApiReady={setLayoutServiceApis}
             onComposeApiReady={handleComposeApiReady}
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
-            onTextBoxSelected={(elementId, formatting) => {
+            onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
               if (features.useTextLabsGeneration) {
-                generationPanel.openPanelForEdit('TEXT_BOX', elementId)
+                const componentType = normalizeTextLabsElementType(selectedComponentType) ?? 'TEXT_BOX'
+                generationPanel.openPanelForEdit(componentType, elementId)
                 bringToFront('element')
                 setShowTextBoxPanel(false)
                 setShowElementPanel(false)
