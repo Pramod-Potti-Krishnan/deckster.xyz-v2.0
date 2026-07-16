@@ -115,6 +115,7 @@ export function PositionPresets({
                   value={positionConfig[field]}
                   min={min}
                   max={max}
+                  step={0.2}
                   onChange={(e) => {
                     onChange({ ...positionConfig, [field]: Number(e.target.value) })
                     onAdvancedModified()
@@ -130,8 +131,8 @@ export function PositionPresets({
       {/* Width/Height Inputs (always visible) */}
       <div className="grid grid-cols-2 gap-2">
         {[
-          { label: 'Width', field: 'position_width' as const, min: 1, max: 32 },
-          { label: 'Height', field: 'position_height' as const, min: 1, max: 18 },
+          { label: 'Width', field: 'position_width' as const, min: 0.2, max: 32 },
+          { label: 'Height', field: 'position_height' as const, min: 0.2, max: 18 },
         ].map(({ label, field, min, max }) => (
           <div key={field} className="space-y-1">
             <label className="text-[10px] text-gray-400 dark:text-slate-500">{label}</label>
@@ -140,6 +141,7 @@ export function PositionPresets({
               value={positionConfig[field]}
               min={min}
               max={max}
+              step={0.2}
               onChange={(e) => {
                 onChange({ ...positionConfig, [field]: Number(e.target.value) })
                 onAdvancedModified()

@@ -394,6 +394,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 value={startCol}
                 min={1}
                 max={32}
+                step={0.2}
                 onChange={(e) => { setX((Number(e.target.value) - 1) * GRID_CELL_SIZE); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
@@ -405,6 +406,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 value={startRow}
                 min={1}
                 max={18}
+                step={0.2}
                 onChange={(e) => { setY((Number(e.target.value) - 1) * GRID_CELL_SIZE); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
@@ -414,8 +416,9 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <input
                 type="number"
                 value={gridW}
-                min={1}
+                min={0.2}
                 max={32}
+                step={0.2}
                 onChange={(e) => { setWidthPx(Number(e.target.value) * GRID_CELL_SIZE); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
@@ -425,8 +428,9 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <input
                 type="number"
                 value={gridH}
-                min={1}
+                min={0.2}
                 max={18}
+                step={0.2}
                 onChange={(e) => { setHeightPx(Number(e.target.value) * GRID_CELL_SIZE); setAdvancedModified(true) }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />

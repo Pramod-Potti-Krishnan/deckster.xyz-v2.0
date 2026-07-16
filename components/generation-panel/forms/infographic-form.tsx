@@ -459,8 +459,8 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presen
             {[
               { label: 'Col', value: startCol, setter: setStartCol, min: 1, max: 32 },
               { label: 'Row', value: startRow, setter: setStartRow, min: 1, max: 18 },
-              { label: 'Width', value: width, setter: setWidth, min: 1, max: 32 },
-              { label: 'Height', value: height, setter: setHeight, min: 1, max: 18 },
+              { label: 'Width', value: width, setter: setWidth, min: 0.2, max: 32 },
+              { label: 'Height', value: height, setter: setHeight, min: 0.2, max: 18 },
             ].map(({ label, value, setter, min, max }) => (
               <div key={label} className="space-y-1">
                 <label className="text-[10px] text-gray-400 dark:text-slate-500">{label}</label>
@@ -469,6 +469,7 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presen
                   value={value}
                   min={min}
                   max={max}
+                  step={0.2}
                   onChange={(e) => { setter(Number(e.target.value)); setPositionPreset('custom'); setAdvancedModified(true) }}
                   className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
                 />
