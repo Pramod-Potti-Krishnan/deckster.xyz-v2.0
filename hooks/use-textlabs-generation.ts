@@ -15,7 +15,11 @@ import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
 import { componentSupportsThemeVariants, parseElementThemeAssignments } from '@/lib/element-theme-variants'
 import { resolveElementThemeMetadata } from '@/lib/textlabs-theme-metadata'
 import { buildElementGenerationContext, parseSlideGenerationContext } from '@/lib/element-generation-context'
-import type { ElementResearchMode } from '@/types/textlabs'
+import type { ElementResearchCapabilities, ElementResearchMode } from '@/types/textlabs'
+import {
+  buildElementResearchPolicy,
+  hasSelectedElementResearchSource,
+} from '@/lib/element-research-policy'
 import type { ThemeSyncState } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
@@ -35,6 +39,7 @@ interface UseTextLabsGenerationParams {
     researchMode: ElementResearchMode
     researchWeb: boolean
     researchUploadedDocs: boolean
+    researchKnowledgeGraph: boolean
     setIsGenerating: (v: boolean) => void
     setError: (v: string | null) => void
     closePanel: () => void
@@ -65,6 +70,8 @@ interface UseTextLabsGenerationParams {
   deckContext?: Record<string, unknown> | null
   researchSessionId?: string | null
   researchStoreName?: string | null
+  researchUserId?: string | null
+  researchCapabilities: ElementResearchCapabilities
   getThemeSyncSnapshot: () => ThemeSyncState
   toast: (opts: { title: string; description: string }) => void
 }
@@ -122,6 +129,8 @@ export function useTextLabsGeneration({
   deckContext,
   researchSessionId,
   researchStoreName,
+  researchUserId,
+  researchCapabilities,
   getThemeSyncSnapshot,
   toast,
 }: UseTextLabsGenerationParams) {
@@ -363,30 +372,27 @@ export function useTextLabsGeneration({
     const effectiveResearchStoreName = researchStoreName
       ?? refineContext?.research.store_name
       ?? null
-    const useUploadedDocs = generationPanel.researchUploadedDocs && Boolean(effectiveResearchStoreName)
-    if (
-      generationPanel.researchMode === 'on' &&
-      (!effectiveResearchSessionId || (!generationPanel.researchWeb && !useUploadedDocs))
-    ) {
+    const researchPolicy = buildElementResearchPolicy({
+      mode: generationPanel.researchMode,
+      selection: {
+        web: generationPanel.researchWeb,
+        uploadedDocuments: generationPanel.researchUploadedDocs,
+        knowledgeGraph: generationPanel.researchKnowledgeGraph,
+      },
+      capabilities: researchCapabilities,
+      storeName: effectiveResearchStoreName,
+      sessionId: effectiveResearchSessionId,
+      userId: researchUserId,
+    })
+    if (generationPanel.researchMode === 'on' && !hasSelectedElementResearchSource(researchPolicy)) {
       generationPanel.setIsGenerating(false)
       generationPanel.setError(
-        'Research is set to On. Select Web or Uploaded documents and make sure this session has a research source.',
+        'Research is on, but no available source is selected. Enable Web Search or configure Uploaded Documents or Knowledge Graph.',
       )
       generateInFlightRef.current = false
       return
     }
-    formData.research = {
-      mode: generationPanel.researchMode,
-      web: generationPanel.researchWeb,
-      uploaded_docs: useUploadedDocs,
-      store_name: effectiveResearchStoreName,
-      session_id: effectiveResearchSessionId,
-      // Researcher intentionally skips web at quick depth, so an explicit Web
-      // selection must raise the pass to standard even while mode remains Auto.
-      depth: generationPanel.researchMode === 'on' || generationPanel.researchWeb
-        ? 'standard'
-        : 'quick',
-    }
+    formData.research = researchPolicy
 
     if (!layoutServiceApis?.sendElementCommand) {
       generationPanel.setIsGenerating(false)
@@ -797,6 +803,8 @@ export function useTextLabsGeneration({
     deckContext,
     researchSessionId,
     researchStoreName,
+    researchUserId,
+    researchCapabilities,
     getThemeSyncSnapshot,
   ])
 

@@ -12,6 +12,22 @@ interface KgSettings {
   updated_at: string | null
 }
 
+export interface KgCapability {
+  source: 'knowledge_graph'
+  configured: boolean
+  available: boolean
+  code: string | null
+  reason: string | null
+}
+
+const UNKNOWN_CAPABILITY: KgCapability = {
+  source: 'knowledge_graph',
+  configured: false,
+  available: false,
+  code: 'KG_CAPABILITY_UNKNOWN',
+  reason: 'Knowledge Graph availability has not been verified.',
+}
+
 interface PurgeResult {
   user_id: string
   settings_deleted: boolean
@@ -26,6 +42,7 @@ export function useKnowledgeGraph() {
   const [settings, setSettings] = useState<KgSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [capability, setCapability] = useState<KgCapability>(UNKNOWN_CAPABILITY)
 
   const userId = session?.user?.id
   // Premium can be granted by a coupon (session user tier) or a Stripe
@@ -36,6 +53,7 @@ export function useKnowledgeGraph() {
   const fetchSettings = useCallback(async () => {
     if (!userId || !isPremium) {
       setSettings(null)
+      setCapability(UNKNOWN_CAPABILITY)
       setIsLoading(false)
       return
     }
@@ -43,15 +61,33 @@ export function useKnowledgeGraph() {
     try {
       const resp = await fetch('/api/knowledge-graph/settings')
       if (resp.ok) {
-        setSettings(await resp.json())
+        const body = await resp.json()
+        setSettings(body)
+        setCapability(body.capability || UNKNOWN_CAPABILITY)
+        setError(null)
       } else {
+        const body = await resp.json().catch(() => ({}))
         setSettings(null)
+        setCapability({
+          source: 'knowledge_graph',
+          configured: false,
+          available: false,
+          code: body.code || 'KG_BACKEND_FAILURE',
+          reason: body.reason || 'Knowledge Graph availability could not be verified.',
+        })
+        setError(body.error || 'Failed to fetch Knowledge Graph settings')
       }
-      setError(null)
     } catch (e) {
       console.error('Failed to fetch KG settings:', e)
       setSettings(null)
-      // Don't show error for network issues — just treat as unsubscribed
+      setCapability({
+        source: 'knowledge_graph',
+        configured: false,
+        available: false,
+        code: 'KG_BACKEND_FAILURE',
+        reason: 'Knowledge Graph availability could not be verified.',
+      })
+      setError('Knowledge Graph service is temporarily unavailable')
     } finally {
       setIsLoading(false)
     }
@@ -117,6 +153,7 @@ export function useKnowledgeGraph() {
     isSubscribed,
     isLoading,
     error,
+    capability,
     settings,
     subscribe,
     unsubscribe,

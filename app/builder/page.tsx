@@ -26,7 +26,11 @@ import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { iframeTypeToTextLabs, isTextLabsMappable } from '@/lib/element-type-mapping'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
-import type { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
+import type {
+  ElementResearchCapabilities,
+  TextLabsComponentType,
+  TextLabsFormData,
+} from '@/types/textlabs'
 // Extracted components
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
@@ -483,7 +487,12 @@ function BuilderContent() {
   const [researchEnabled, setResearchEnabled] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)
-  const { isSubscribed: kgSubscribed, isPremium: kgIsPremium } = useKnowledgeGraph()
+  const {
+    isSubscribed: kgSubscribed,
+    isPremium: kgIsPremium,
+    isLoading: kgIsLoading,
+    capability: kgCapability,
+  } = useKnowledgeGraph()
   const [knowledgeGraphEnabled, setKnowledgeGraphEnabled] = useState(false)
   const showKnowledgeGraphToggle = kgIsPremium && kgSubscribed
 
@@ -533,6 +542,46 @@ function BuilderContent() {
   }, [user, isAuthLoading, themeSearchOverride, buildThemeSelection.mode, getStandardTheme])
 
   const [sessionStoreName, setSessionStoreName] = useState<string | null>(null)
+  const elementResearchCapabilities = useMemo<ElementResearchCapabilities>(() => {
+    let knowledgeGraph: ElementResearchCapabilities['knowledge_graph'] = {
+      available: false,
+      code: 'KG_NOT_SUBSCRIBED',
+      reason: 'Enable Knowledge Graph in Settings before using it for element research.',
+    }
+    if (!kgIsPremium) {
+      knowledgeGraph = {
+        available: false,
+        code: 'KG_PLAN_REQUIRED',
+        reason: 'Knowledge Graph requires the Max plan.',
+      }
+    } else if (kgIsLoading) {
+      knowledgeGraph = {
+        available: false,
+        code: 'KG_CAPABILITY_CHECKING',
+        reason: 'Checking Knowledge Graph availability.',
+      }
+    } else if (!kgCapability.available) {
+      knowledgeGraph = {
+        available: false,
+        code: kgCapability.code || 'KG_NOT_CONFIGURED',
+        reason: kgCapability.reason || 'Knowledge Graph is not configured in this environment.',
+      }
+    } else if (kgSubscribed) {
+      knowledgeGraph = { available: true, code: null, reason: null }
+    }
+
+    return {
+      web: { available: true, code: null, reason: null },
+      uploaded_documents: sessionStoreName
+        ? { available: true, code: null, reason: null }
+        : {
+            available: false,
+            code: 'NO_UPLOADED_DOCUMENTS',
+            reason: 'No uploaded documents are ready in this session.',
+          },
+      knowledge_graph: knowledgeGraph,
+    }
+  }, [kgCapability, kgIsLoading, kgIsPremium, kgSubscribed, sessionStoreName])
   const [pendingActionInput, setPendingActionInput] = useState<{
     action: ActionRequest['payload']['actions'][0];
     messageId: string;
@@ -2638,6 +2687,8 @@ function BuilderContent() {
     deckContext: deckContext as Record<string, unknown> | null | undefined,
     researchSessionId: currentSessionId || wsSessionId || null,
     researchStoreName: sessionStoreName,
+    researchUserId: user?.id ?? null,
+    researchCapabilities: elementResearchCapabilities,
     getThemeSyncSnapshot,
     toast,
   })
@@ -3637,11 +3688,12 @@ function BuilderContent() {
                   researchMode={generationPanel.researchMode}
                   researchWeb={generationPanel.researchWeb}
                   researchUploadedDocs={generationPanel.researchUploadedDocs}
-                  researchSessionAvailable={Boolean(currentSessionId || wsSessionId)}
-                  uploadedDocsAvailable={Boolean(sessionStoreName)}
+                  researchKnowledgeGraph={generationPanel.researchKnowledgeGraph}
+                  researchCapabilities={elementResearchCapabilities}
                   onResearchModeChange={generationPanel.setResearchMode}
                   onResearchWebChange={generationPanel.setResearchWeb}
                   onResearchUploadedDocsChange={generationPanel.setResearchUploadedDocs}
+                  onResearchKnowledgeGraphChange={generationPanel.setResearchKnowledgeGraph}
                 />
               )}
 
