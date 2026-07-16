@@ -24,6 +24,7 @@ assert.equal(semanticTypeForInsertion('GANTT_CHART'), 'DIAGRAM')
 
 const viewerSource = fs.readFileSync(new URL('../components/presentation-viewer.tsx', import.meta.url), 'utf8')
 const builderSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
+const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
 
 assert.match(
   viewerSource,
@@ -39,6 +40,25 @@ assert.doesNotMatch(
   builderSource,
   /onTextBoxSelected=\{\(elementId, formatting\) => \{[\s\S]{0,250}openPanelForEdit\('TEXT_BOX'/,
   'the selection handler must not collapse every textbox renderer to TEXT_BOX',
+)
+assert.match(
+  generationSource,
+  /const liveComponentType = normalizeSemanticComponentType\(snapshot\.componentType\)/,
+  'refine and regenerate must preserve the live semantic component type',
+)
+assert.match(generationSource, /component_type: liveComponentType,[\s\S]{0,100}normalized_component_type: liveComponentType/)
+assert.match(viewerSource, /label: 'Icon \/ Label',[\s\S]{0,180}onOpenGenerationPanel\?\.\('ICON_LABEL'\)/)
+assert.match(viewerSource, /label: 'Shape',[\s\S]{0,180}onOpenGenerationPanel\?\.\('SHAPE'\)/)
+
+const chartFormSource = fs.readFileSync(new URL('../components/generation-panel/forms/chart-form.tsx', import.meta.url), 'utf8')
+assert.match(chartFormSource, /chart_type: 'auto'/, 'new charts default to semantic Auto routing')
+assert.match(chartFormSource, /useState<TextLabsChartType>\('auto'\)/)
+
+const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import.meta.url), 'utf8')
+assert.match(
+  clientSource,
+  /case 'insertElement':[\s\S]{0,260}content: element\.html \|\| ''/,
+  'table and other atomic HTML must cross the Layout insertion boundary unchanged',
 )
 
 console.log('element semantic type tests passed')

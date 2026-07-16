@@ -155,6 +155,31 @@ assert.throws(
 
 {
   const calls = []
+  const snapshot = await readElementGenerationSnapshot({
+    elementId: 'diagram-placeholder',
+    componentType: 'DIAGRAM',
+    useDeckTheme: true,
+    requiresThemeVariant: false,
+    themeVariantSource: 'element_generation',
+    sendCommand: async (action) => {
+      calls.push(action)
+      assert.equal(action, 'getElementGeometry')
+      return {
+        success: true,
+        action,
+        elementId: 'diagram-placeholder',
+        position: { gridRow: '4/14', gridColumn: '2/30' },
+        component_type: 'DIAGRAM',
+        theme_bindings: {},
+      }
+    },
+  })
+  assert.deepEqual(calls, ['getElementGeometry'], 'leaf generation keeps geometry preflight but skips Layout theme refresh')
+  assert.deepEqual(JSON.parse(JSON.stringify(snapshot.themeBindings)), {})
+}
+
+{
+  const calls = []
   let geometryAttempts = 0
   const snapshot = await readElementGenerationSnapshot({
     elementId: 'placeholder-retry',

@@ -31,6 +31,8 @@ import {
   Eye,
   Sun,
   Moon,
+  Tag,
+  Pentagon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
@@ -2330,6 +2332,18 @@ export function PresentationViewer({
             icon: Image,
             disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('IMAGE') : handleInsertImage(),
+          },
+          {
+            label: 'Icon / Label',
+            icon: Tag,
+            disabled: !viewerIsReady || !onOpenGenerationPanel,
+            action: () => onOpenGenerationPanel?.('ICON_LABEL'),
+          },
+          {
+            label: 'Shape',
+            icon: Pentagon,
+            disabled: !viewerIsReady || !onOpenGenerationPanel,
+            action: () => onOpenGenerationPanel?.('SHAPE'),
           },
           {
             label: 'Infographic',

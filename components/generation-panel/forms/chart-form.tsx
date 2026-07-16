@@ -15,6 +15,12 @@ const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.CHART
 // Chart type groupings for the dropdown
 const CHART_TYPE_GROUPS: { group: string; types: { value: TextLabsChartType; label: string }[] }[] = [
   {
+    group: 'Recommended',
+    types: [
+      { value: 'auto', label: 'Auto' },
+    ],
+  },
+  {
     group: 'Basic',
     types: [
       { value: 'line', label: 'Line Chart' },
@@ -73,7 +79,7 @@ const DATA_TEMPLATES: Partial<Record<TextLabsChartType, string>> = {
 }
 
 const DEFAULT_CHART_CONFIG: ChartConfig = {
-  chart_type: 'line',
+  chart_type: 'auto',
   include_insights: false,
   series_names: [],
   placeholder_mode: false,
@@ -97,7 +103,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [contentSource, setContentSource] = useState<'ai' | 'placeholder'>('ai')
 
   // Chart config
-  const [chartType, setChartType] = useState<TextLabsChartType>('line')
+  const [chartType, setChartType] = useState<TextLabsChartType>('auto')
   const [includeInsights, setIncludeInsights] = useState(false)
   const [seriesNamesInput, setSeriesNamesInput] = useState('')
   const [dataSource, setDataSource] = useState<'ai' | 'custom'>('ai')
@@ -152,7 +158,7 @@ export function ChartForm({ onSubmit, registerSubmit, isGenerating, presentation
   }, [])
 
   // Register mandatory config — Chart Type
-  const chartTypeLabel = CHART_TYPE_GROUPS.flatMap(g => g.types).find(t => t.value === chartType)?.label || 'Line Chart'
+  const chartTypeLabel = CHART_TYPE_GROUPS.flatMap(g => g.types).find(t => t.value === chartType)?.label || 'Auto'
 
   useEffect(() => {
     registerMandatoryConfig({
