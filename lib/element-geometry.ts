@@ -224,7 +224,12 @@ export async function readElementGenerationSnapshot({
   }
 
   let metadata = parseElementGenerationMetadata(geometryResponse)
-  if (useDeckTheme && themeVariantSource === 'element_generation') {
+  // Only Layout-owned component variants need the metadata refresh. Leaf-owned
+  // elements (chart/table/diagram/etc.) resolve the deck contract in Text Labs;
+  // requiring a placeholder variant here couples their generation to an
+  // unsupported Layout operation and turns Layout's placeholder `{}` into a
+  // false "detach every theme field" instruction.
+  if (useDeckTheme && requiresThemeVariant && themeVariantSource === 'element_generation') {
     try {
       const refreshed = await sendPreflightCommandWithRetry(
         sendCommand,

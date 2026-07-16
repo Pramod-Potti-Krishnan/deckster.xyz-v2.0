@@ -249,7 +249,7 @@ export interface TableConfig {
 // ============================================================================
 
 export type TextLabsChartType =
-  | 'line' | 'bar_vertical' | 'bar_horizontal' | 'pie' | 'doughnut'
+  | 'auto' | 'line' | 'bar_vertical' | 'bar_horizontal' | 'pie' | 'doughnut'
   | 'scatter' | 'bubble' | 'radar' | 'polar_area' | 'area'
   | 'area_stacked' | 'bar_grouped' | 'bar_stacked' | 'waterfall'
 
