@@ -3788,7 +3788,7 @@ function BuilderContent() {
             </div>
 
             {/* Handle */}
-            {features.useTextLabsGeneration && (
+            {features.useTextLabsGeneration && generationPanel.isOpen && (
               <button
                 type="button"
                 onClick={() => {

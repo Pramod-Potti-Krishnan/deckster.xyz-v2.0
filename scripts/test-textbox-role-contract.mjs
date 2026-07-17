@@ -187,6 +187,7 @@ assert.equal(manualPayload.geometryMode, 'MANUAL')
 const mediumArea = { start_col: 2, start_row: 4, position_width: 10, position_height: 6 }
 assert.equal(layoutModule.isTextBoxLayoutViable(mediumArea, 3, 'horizontal'), false)
 assert.equal(layoutModule.isTextBoxLayoutViable(mediumArea, 3, 'vertical'), false)
+assert.equal(layoutModule.isTextBoxLayoutViable(mediumArea, 3, 'grid', 2), true)
 assert.equal(layoutModule.isTextBoxLayoutViable(mediumArea, 4, 'grid', 2), true)
 assert.equal(layoutModule.isTextBoxCountViable(mediumArea, 6), false)
 const automaticGrid = layoutModule.resolveTextBoxLayout(mediumArea, 4, 'auto')
@@ -196,6 +197,10 @@ assert.equal(automaticGrid.gridRows, 2)
 assert.deepEqual(
   JSON.parse(JSON.stringify(layoutModule.textBoxGridDimensions(6))),
   [{ columns: 2, rows: 3 }, { columns: 3, rows: 2 }],
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(layoutModule.textBoxGridDimensions(3))),
+  [{ columns: 2, rows: 2 }, { columns: 3, rows: 1 }].filter(item => item.rows >= 2),
 )
 const wideArea = { start_col: 2, start_row: 4, position_width: 18, position_height: 6 }
 assert.equal(layoutModule.isTextBoxLayoutViable(wideArea, 3, 'horizontal'), true)
@@ -246,6 +251,41 @@ assert.equal(footerUpsert.content, '<p>Confidential</p>')
 assert.equal(footerUpsert.semanticRole, 'FOOTER')
 assert.equal(footerUpsert.slotKind, 'structural')
 assert.equal(footerUpsert.geometry, undefined)
+
+const refinedBodyInsertion = clientModule.buildInsertionParams('TEXT_BOX', {
+  html: '<p>Refined body</p>',
+  component_type: 'TEXT_BOX',
+  semantic_role: 'BODY_TEXT',
+  slot_name: 'content',
+  slot_kind: 'body',
+  grid_position: {
+    start_col: 5,
+    start_row: 10,
+    position_width: 10,
+    position_height: 6,
+  },
+})
+const refinedBodyUpsert = clientModule.buildSemanticUpsertParams(
+  refinedBodyInsertion.params,
+  0,
+  'existing-body',
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(refinedBodyUpsert.geometry)),
+  { gridRow: '10/16', gridColumn: '5/15' },
+  'BODY_TEXT regeneration forwards the live element rectangle to Layout',
+)
+
+const formLifecycleSource = fs.readFileSync(new URL('../components/generation-panel/forms/text-box-form.tsx', import.meta.url), 'utf8')
+assert.match(formLifecycleSource, /previousTargetIdentity\.current !== targetIdentity/)
+assert.match(formLifecycleSource, /\{\(isBodyText \|\| isSystemManaged\) && researchControls\}/)
+assert.match(formLifecycleSource, /\{isStructuralText && \(\s*<CollapsibleSection title="Template Text"/)
+const builderSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
+assert.match(
+  builderSource,
+  /features\.useTextLabsGeneration && generationPanel\.isOpen/,
+  'the Element drawer handle is unavailable without an active target',
+)
 
 const logoInsertion = clientModule.buildInsertionParams('IMAGE', {
   image_url: 'https://cdn.example.com/acme-logo.png',

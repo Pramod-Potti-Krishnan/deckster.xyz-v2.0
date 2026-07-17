@@ -22,9 +22,8 @@ export interface ResolvedTextBoxLayout {
 export function textBoxGridDimensions(count: number): TextBoxGridDimensions[] {
   const safeCount = Math.min(6, Math.max(1, Math.trunc(count)))
   const dimensions: TextBoxGridDimensions[] = []
-  for (let columns = 2; columns <= safeCount; columns += 1) {
-    if (safeCount % columns !== 0) continue
-    const rows = safeCount / columns
+  for (let columns = 2; columns <= Math.min(3, safeCount); columns += 1) {
+    const rows = Math.ceil(safeCount / columns)
     if (rows < 2) continue
     dimensions.push({ columns, rows })
   }
