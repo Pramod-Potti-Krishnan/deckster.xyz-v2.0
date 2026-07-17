@@ -18,9 +18,9 @@ export interface ElementContext {
 
 export interface GenerationPanelProps {
   isOpen: boolean
+  activationId: number
   elementType: TextLabsComponentType
   onClose: () => void
-  onReopen: () => void
   onGenerate: (formData: TextLabsFormData) => Promise<void>
   onElementTypeChange: (type: TextLabsComponentType) => void
   isGenerating: boolean

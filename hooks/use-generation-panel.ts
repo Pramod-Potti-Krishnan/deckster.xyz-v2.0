@@ -13,7 +13,7 @@ import type { ElementResearchMode } from '@/types/textlabs'
  */
 export function useGenerationPanel() {
   const [isOpen, setIsOpen] = useState(false)
-  const lastTypeRef = useRef<TextLabsComponentType>('TEXT_BOX')
+  const [activationId, setActivationId] = useState(0)
   const [elementType, setElementType] = useState<TextLabsComponentType>('TEXT_BOX')
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -43,21 +43,17 @@ export function useGenerationPanel() {
     }
   }, [isOpen, blankElementId, editElementId, mode])
 
-  const openPanel = useCallback((type: TextLabsComponentType) => {
-    setElementType(type)
-    lastTypeRef.current = type
-    setBlankElementId(null)
-    setMode('generate')
-    setEditElementId(null)
-    setRefineContext(null)
-    setIsOpen(true)
-    setError(null)
+  const resetResearch = useCallback(() => {
+    setResearchMode('off')
+    setResearchWeb(false)
+    setResearchUploadedDocs(false)
+    setResearchKnowledgeGraph(false)
   }, [])
 
   /** Open panel for a specific blank element on the canvas */
   const openPanelForElement = useCallback((type: TextLabsComponentType, elementId: string) => {
     setElementType(type)
-    lastTypeRef.current = type
+    setActivationId(previous => previous + 1)
     setBlankElementId(elementId)
     setMode('generate')
     setEditElementId(null)
@@ -68,12 +64,24 @@ export function useGenerationPanel() {
     setResearchKnowledgeGraph(false)
     setIsOpen(true)
     setError(null)
+    resetResearch()
+  }, [resetResearch])
+
+  /** Keep the current draft when Layout replaces the same placeholder identity. */
+  const resumePanelForElement = useCallback((type: TextLabsComponentType, elementId: string) => {
+    setElementType(type)
+    setBlankElementId(elementId)
+    setMode('generate')
+    setEditElementId(null)
+    setRefineContext(null)
+    setIsOpen(true)
+    setError(null)
   }, [])
 
   /** Open panel in edit mode for an existing element */
   const openPanelForEdit = useCallback((type: TextLabsComponentType, elementId: string) => {
     setElementType(type)
-    lastTypeRef.current = type
+    setActivationId(previous => previous + 1)
     setBlankElementId(null)
     setMode('edit')
     setEditElementId(elementId)
@@ -84,12 +92,13 @@ export function useGenerationPanel() {
     setResearchKnowledgeGraph(false)
     setIsOpen(true)
     setError(null)
-  }, [])
+    resetResearch()
+  }, [resetResearch])
 
   /** Open panel in refine mode for an existing element. */
   const openPanelForRefine = useCallback((type: TextLabsComponentType, context: RefineContext) => {
     setElementType(type)
-    lastTypeRef.current = type
+    setActivationId(previous => previous + 1)
     setBlankElementId(null)
     setMode('refine')
     setEditElementId(context.elementId)
@@ -100,7 +109,8 @@ export function useGenerationPanel() {
     setResearchKnowledgeGraph(false)
     setIsOpen(true)
     setError(null)
-  }, [])
+    resetResearch()
+  }, [resetResearch])
 
   const closePanel = useCallback(() => {
     setIsOpen(false)
@@ -113,25 +123,16 @@ export function useGenerationPanel() {
 
   const changeElementType = useCallback((type: TextLabsComponentType) => {
     setElementType(type)
-    lastTypeRef.current = type
+    setActivationId(previous => previous + 1)
     setError(null)
-  }, [])
-
-  // Re-open panel with last-used element type
-  const reopenPanel = useCallback(() => {
-    setElementType(lastTypeRef.current)
-    setBlankElementId(null)
-    setMode('generate')
-    setEditElementId(null)
-    setRefineContext(null)
-    setIsOpen(true)
-    setError(null)
-  }, [])
+    resetResearch()
+  }, [resetResearch])
 
   const getSnapshot = useCallback(() => snapshotRef.current, [])
 
   return {
     isOpen,
+    activationId,
     elementType,
     isGenerating,
     error,
@@ -143,13 +144,12 @@ export function useGenerationPanel() {
     researchWeb,
     researchUploadedDocs,
     researchKnowledgeGraph,
-    openPanel,
     openPanelForElement,
+    resumePanelForElement,
     openPanelForEdit,
     openPanelForRefine,
     closePanel,
     changeElementType,
-    reopenPanel,
     getSnapshot,
     setIsGenerating,
     setError,

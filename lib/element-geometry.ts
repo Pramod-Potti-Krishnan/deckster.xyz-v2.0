@@ -25,6 +25,8 @@ export interface GetElementGeometryResponse {
   style_owner?: string | null
   themeVariantSource?: string | null
   theme_variant_source?: string | null
+  metricsColorVariant?: string | null
+  metrics_color_variant?: string | null
 }
 
 export interface ElementGenerationMetadata {
@@ -33,6 +35,7 @@ export interface ElementGenerationMetadata {
   themeBindings: Record<string, string> | null
   styleOwner: string | null
   themeVariantSource: string | null
+  metricsColorVariant: string | null
 }
 
 export type ElementGenerationPreflightStage = 'geometry' | 'theme_metadata'
@@ -145,7 +148,7 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
   if (!isRecord(response)) {
     return {
       componentType: null, themeVariantId: null, themeBindings: null,
-      styleOwner: null, themeVariantSource: null,
+      styleOwner: null, themeVariantSource: null, metricsColorVariant: null,
     }
   }
   const rawBindings = response.themeBindings ?? response.theme_bindings
@@ -166,6 +169,9 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
     themeVariantSource: parseThemeVariantSource(
       response.themeVariantSource ?? response.theme_variant_source,
     ),
+    metricsColorVariant: typeof (response.metricsColorVariant ?? response.metrics_color_variant) === 'string'
+      ? String(response.metricsColorVariant ?? response.metrics_color_variant)
+      : null,
   }
 }
 

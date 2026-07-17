@@ -24,6 +24,7 @@ const metricsLayout = compile(new URL('../lib/metrics-layout.ts', import.meta.ur
   if (id === '@/lib/grid-splitter') return splitter
   throw new Error(`Unexpected layout dependency: ${id}`)
 })
+const metricsCardDesign = compile(new URL('../lib/metrics-card-design.ts', import.meta.url))
 
 const wide = { start_col: 1, start_row: 3, position_width: 28, position_height: 6 }
 const tall = { start_col: 4, start_row: 1, position_width: 8, position_height: 16 }
@@ -64,6 +65,39 @@ assert.deepEqual(
 )
 assert.equal(metricsLayout.isMetricsLayoutViable({ start_col: 2, start_row: 4, position_width: 3, position_height: 3 }, 4, 'grid'), false)
 
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch(undefined, 'blue'))),
+  { color_scheme: 'solid', color_variant: 'blue' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('accent', 'blue'))),
+  { color_scheme: 'accent', color_variant: 'blue' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('solid', 'yellow'))),
+  { color_scheme: 'solid', color_variant: 'yellow' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('bordered', 'blue'))),
+  { color_scheme: 'bordered', color_variant: 'blue' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('transparent', 'blue'))),
+  { color_scheme: 'solid', color_variant: 'blue' },
+)
+assert.equal(
+  metricsCardDesign.METRICS_CARD_COLOR_PRESETS.find(preset => preset.label === 'Gold').name,
+  'yellow',
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('solid', 'transparent'))),
+  { color_scheme: 'transparent' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('transparent', 'auto'))),
+  {},
+)
+
 const client = compile(new URL('../lib/textlabs-client.ts', import.meta.url), id => {
   if (id === '@/types/textlabs') return {
     INSERTION_METHOD_MAP: { METRICS: 'insertElement', TABLE: 'insertElement' },
@@ -82,6 +116,7 @@ const baseMetrics = {
   layout: 'grid',
   advancedModified: false,
   z_index: 1000,
+  multiBoxColorMode: 'SAME',
   metricsFitMode: 'AUTO',
   metricsConfig: { layout: 'grid' },
   compose: true,
@@ -96,6 +131,13 @@ assert.equal(autoOptions.elements.length, 4)
 assert.deepEqual(JSON.parse(JSON.stringify(autoOptions.metricsConfig)), { layout: 'grid' })
 assert.equal(autoOptions.manualMetricsOverrides, undefined)
 assert.equal(autoOptions.paddingConfig, undefined)
+assert.equal(autoOptions.multiBoxColorMode, 'SAME')
+
+const multiColorOptions = client.buildApiPayload('session-1', {
+  ...baseMetrics,
+  multiBoxColorMode: 'PRIMARY_ACCENTS',
+}).options
+assert.equal(multiColorOptions.multiBoxColorMode, 'PRIMARY_ACCENTS')
 
 const containerPaddingOptions = client.buildApiPayload('session-1', {
   ...baseMetrics,
@@ -147,12 +189,41 @@ assert.deepEqual(JSON.parse(JSON.stringify(appearanceOptions.elements[0].theme_b
 const surfaceOptions = client.buildApiPayload('session-1', {
   ...baseMetrics,
   advancedModified: true,
-  themeBindings: { background: 'accent_1_500', accent: 'accent_1_500', value_font: 'metric_value' },
+  themeBindings: {
+    background: 'accent_1_500',
+    accent: 'accent_1_500',
+    value_color: 'on_background',
+    label_color: 'on_background',
+    description_color: 'on_background',
+    value_font: 'metric_value',
+  },
   metricsConfig: { layout: 'grid', color_scheme: 'transparent' },
 }).options
 assert.deepEqual(JSON.parse(JSON.stringify(surfaceOptions.themeBindings)), {
   accent: 'accent_1_500',
   value_font: 'metric_value',
+})
+
+const namedCardColorOptions = client.buildApiPayload('session-1', {
+  ...baseMetrics,
+  advancedModified: true,
+  metricsConfig: { layout: 'grid', color_scheme: 'solid', color_variant: 'blue' },
+}).options
+assert.deepEqual(JSON.parse(JSON.stringify(namedCardColorOptions.metricsConfig)), {
+  layout: 'grid',
+  color_scheme: 'solid',
+  color_variant: 'blue',
+})
+
+const goldCardColorOptions = client.buildApiPayload('session-1', {
+  ...baseMetrics,
+  advancedModified: true,
+  metricsConfig: { layout: 'grid', color_scheme: 'solid', color_variant: 'yellow' },
+}).options
+assert.deepEqual(JSON.parse(JSON.stringify(goldCardColorOptions.metricsConfig)), {
+  layout: 'grid',
+  color_scheme: 'solid',
+  color_variant: 'yellow',
 })
 
 const typographyOptions = client.buildApiPayload('session-1', {
@@ -184,6 +255,7 @@ const firstInsertion = client.buildInsertionParams('METRICS', {
   component_type: 'METRICS',
   citations_used: [{ source_key: 'source-a' }],
   resolved_metrics_profile: { tier: 'regular', padding_px: 14, layout: 'grid' },
+  metadata: { metrics_color_variant: '#547ea9' },
 })
 
 const emptyManualOptions = client.buildApiPayload('session-1', {
@@ -198,12 +270,17 @@ assert.notEqual(firstInsertion.params.elementId, secondInsertion.params.elementI
 assert.equal(firstInsertion.params.componentType, 'METRICS')
 assert.equal(firstInsertion.params.citationsUsed[0].source_key, 'source-a')
 assert.equal(firstInsertion.params.resolvedMetricsProfile.tier, 'regular')
+assert.equal(firstInsertion.params.metricsColorVariant, '#547ea9')
 
 const formSource = fs.readFileSync(new URL('../components/generation-panel/forms/metrics-form.tsx', import.meta.url), 'utf8')
 const researchSource = fs.readFileSync(new URL('../components/generation-panel/shared/research-controls.tsx', import.meta.url), 'utf8')
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
 const routerSource = fs.readFileSync(new URL('../lib/element-command-router.ts', import.meta.url), 'utf8')
 const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import.meta.url), 'utf8')
+const toggleRowSource = fs.readFileSync(new URL('../components/generation-panel/shared/toggle-row.tsx', import.meta.url), 'utf8')
+const panelSource = fs.readFileSync(new URL('../components/generation-panel/index.tsx', import.meta.url), 'utf8')
+const panelHookSource = fs.readFileSync(new URL('../hooks/use-generation-panel.ts', import.meta.url), 'utf8')
+const builderSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
 assert.doesNotMatch(formSource, /fieldLabel:\s*['"]Color Scheme/)
 assert.match(formSource, /registerMandatoryConfig\(null\)/)
 assert.match(formSource, /value: 'gradient', label: 'Gradient'/)
@@ -212,8 +289,21 @@ assert.match(formSource, /ADVANCED_SURFACES\.map/)
 assert.match(formSource, /const LIGHT_FONT_COLORS/)
 assert.match(formSource, /const DARK_FONT_COLORS/)
 assert.match(formSource, /Color presets/)
+assert.match(formSource, /METRICS_CARD_COLOR_PRESETS/)
+assert.match(formSource, /Card color: Transparent/)
+assert.match(formSource, /selectCardColor\('transparent'\)/)
+assert.match(formSource, /resolveMetricsCardColorPatch/)
+assert.doesNotMatch(formSource, /disabled=\{!surfaceValue\}/)
+assert.match(toggleRowSource, /type="button"/)
+assert.match(toggleRowSource, /aria-pressed=\{value === option\.value\}/)
+assert.match(toggleRowSource, /role="group"/)
+assert.match(toggleRowSource, /aria-label=\{label\}/)
 assert.match(formSource, /Metric count/)
 assert.match(formSource, /Metric layout/)
+assert.match(formSource, /Same color — default/)
+assert.match(formSource, /Alternating theme colors/)
+assert.match(formSource, /Primary color accents/)
+assert.match(formSource, /Different theme colors/)
 assert.match(formSource, /Auto fit/)
 assert.match(formSource, /disabled=\{!fitIsManual\}/)
 assert.match(formSource, /hasEffectiveVisualOverrides = Object\.keys\(metricsConfig\)/)
@@ -231,6 +321,8 @@ assert.doesNotMatch(researchSource, /ResearchSourceSwitch/)
 assert.match(generationSource, /sendElementCommand\('upsertCitedElement'/)
 assert.match(generationSource, /componentType: params\.componentType/)
 assert.match(generationSource, /resolvedMetricsProfile/)
+assert.match(generationSource, /metricsColorVariant: params\.metricsColorVariant/)
+assert.match(generationSource, /resumePanelForElement/)
 assert.match(generationSource, /resolveMetricsLayout\([\s\S]*livePosition/)
 assert.match(generationSource, /detachMetricsOverrideBindings/)
 assert.match(generationSource, /live placeholder is too small/)
@@ -238,5 +330,13 @@ assert.match(generationSource, /including a[\s\S]*single card/)
 assert.match(routerSource, /'upsertCitedElement'/)
 assert.match(clientSource, /metricsFitMode: 'metrics_fit_mode'/)
 assert.match(clientSource, /manualMetricsOverrides: 'manual_metrics_overrides'/)
+assert.match(clientSource, /options\.multiBoxColorMode = formData\.multiBoxColorMode/)
+assert.match(panelSource, /setShowAdvanced\(false\)/)
+assert.match(panelSource, /key=\{`\$\{activationId\}:\$\{elementType\}`\}/)
+assert.match(panelHookSource, /setActivationId\(previous => previous \+ 1\)/)
+assert.doesNotMatch(panelHookSource, /reopenPanel|const openPanel =/)
+assert.match(builderSource, /features\.useTextLabsGeneration && generationPanel\.isOpen/)
+assert.doesNotMatch(builderSource, /generationPanel\.reopenPanel/)
+assert.doesNotMatch(generationSource, /falling back to direct panel|generationPanel\.openPanel\(/)
 
 console.log('metrics sparse fit, layout, research, and cited-upsert contract tests passed')

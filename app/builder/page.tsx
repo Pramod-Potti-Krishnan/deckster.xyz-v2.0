@@ -3677,11 +3677,11 @@ function BuilderContent() {
               {features.useTextLabsGeneration && (
                 <GenerationPanel
                   isOpen={generationPanel.isOpen}
+                  activationId={generationPanel.activationId}
                   elementType={generationPanel.elementType}
                   onClose={() => {
                     generationPanel.closePanel()
                   }}
-                  onReopen={generationPanel.reopenPanel}
                   onGenerate={handleApprovedTextLabsGenerate}
                   onElementTypeChange={generationPanel.changeElementType}
                   isGenerating={generationPanel.isGenerating}
@@ -3791,31 +3791,18 @@ function BuilderContent() {
             {features.useTextLabsGeneration && generationPanel.isOpen && (
               <button
                 type="button"
-                onClick={() => {
-                  if (generationPanel.isOpen) {
-                    generationPanel.closePanel()
-                  } else {
-                    generationPanel.reopenPanel()
-                    bringToFront('element')
-                  }
-                }}
+                onClick={generationPanel.closePanel}
                 className={cn(
                   "absolute top-[33%] -translate-y-1/2",
                   "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
                   "flex flex-col items-center justify-center gap-0.5 cursor-pointer",
                   "transition-colors pointer-events-auto",
-                  generationPanel.isOpen
-                    ? "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700 dark:bg-purple-900/50 dark:hover:bg-purple-800/60 dark:border-purple-700 dark:text-purple-200"
-                    : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-purple-300"
+                  "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700 dark:bg-purple-900/50 dark:hover:bg-purple-800/60 dark:border-purple-700 dark:text-purple-200"
                 )}
                 style={{ left: drawerWidth }}
-                title={generationPanel.isOpen ? 'Close element panel' : 'Open element panel'}
+                title="Close element panel"
               >
-                {isElementDrawerOpen ? (
-                  <ChevronLeft className="h-2.5 w-2.5" />
-                ) : (
-                  <ChevronRight className="h-2.5 w-2.5" />
-                )}
+                <ChevronLeft className="h-2.5 w-2.5" />
                 <span className="[writing-mode:vertical-rl] text-[9px] font-semibold uppercase tracking-wider select-none leading-none">
                   Element
                 </span>

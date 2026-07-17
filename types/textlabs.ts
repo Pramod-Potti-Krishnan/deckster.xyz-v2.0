@@ -632,6 +632,7 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
 export interface MetricsFormData extends TextLabsBaseFormData {
   componentType: 'METRICS'
   metricsConfig: Partial<MetricsConfig>
+  multiBoxColorMode?: 'SAME' | 'ALTERNATING' | 'PRIMARY_ACCENTS' | 'THEME_SEQUENCE'
   /** Panel-only intent used to re-resolve against preflight live geometry. */
   metricsLayoutChoice?: 'auto' | 'horizontal' | 'vertical' | 'grid'
   metricsFitMode: MetricsFitMode
@@ -709,6 +710,7 @@ export interface TextLabsElement {
   resolved_geometry?: Record<string, unknown> | null
   platinum_profile?: Record<string, unknown> | string | null
   resolved_metrics_profile?: Record<string, unknown> | null
+  metrics_color_variant?: string | null
   resolved_table_profile?: Record<string, unknown> | null
   citations_used?: Array<Record<string, unknown>> | null
   metadata?: {
@@ -722,6 +724,7 @@ export interface TextLabsElement {
     resolved_geometry?: Record<string, unknown> | null
     platinum_profile?: Record<string, unknown> | string | null
     resolved_metrics_profile?: Record<string, unknown> | null
+    metrics_color_variant?: string | null
     resolved_table_profile?: Record<string, unknown> | null
     citations_used?: Array<Record<string, unknown>> | null
     [key: string]: unknown

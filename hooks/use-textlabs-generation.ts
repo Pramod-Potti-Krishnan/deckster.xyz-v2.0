@@ -44,8 +44,8 @@ interface UseTextLabsGenerationParams {
     setIsGenerating: (v: boolean) => void
     setError: (v: string | null) => void
     closePanel: () => void
-    openPanel: (type: TextLabsComponentType) => void
     openPanelForElement: (type: TextLabsComponentType, elementId: string) => void
+    resumePanelForElement: (type: TextLabsComponentType, elementId: string) => void
     changeElementType: (type: TextLabsComponentType) => void
     getSnapshot: () => {
       isOpen: boolean
@@ -308,9 +308,22 @@ export function useTextLabsGeneration({
           theme_bindings: themeBindings,
           style_owner: snapshot.styleOwner ?? refineContext.styleOwner,
           theme_variant_source: snapshot.themeVariantSource ?? refineContext.themeVariantSource,
+          metrics_color_variant: snapshot.metricsColorVariant ?? refineContext.metricsColorVariant,
         }
         formData.themeVariantId = themeVariantId
         formData.themeBindings = themeBindings
+        if (
+          formData.componentType === 'METRICS'
+          && !Object.prototype.hasOwnProperty.call(formData.metricsConfig, 'color_variant')
+        ) {
+          const persistedColor = snapshot.metricsColorVariant ?? refineContext.metricsColorVariant
+          if (persistedColor) {
+            formData.metricsConfig = {
+              ...formData.metricsConfig,
+              color_variant: persistedColor,
+            }
+          }
+        }
       } catch (error) {
         console.error('[TextLabs] Element regeneration preflight failed:', error)
         generationPanel.setIsGenerating(false)
@@ -597,7 +610,7 @@ export function useTextLabsGeneration({
         if (newId && newId !== blankId) {
           blankElements.removeElement(blankId)
           blankElements.addElement({ ...blankInfo, elementId: newId, status: 'generating' })
-          generationPanel.openPanelForElement(blankInfo.componentType, newId)
+          generationPanel.resumePanelForElement(blankInfo.componentType, newId)
           currentBlankId = newId
           currentBlankInfo = { ...blankInfo, elementId: newId }
         }
@@ -785,6 +798,7 @@ export function useTextLabsGeneration({
                 themeBindings: params.themeBindings,
                 themeVariantSource: params.themeVariantSource,
                 resolvedMetricsProfile: params.resolvedMetricsProfile,
+                metricsColorVariant: params.metricsColorVariant,
                 resolvedTableProfile: params.resolvedTableProfile,
               },
             })
@@ -897,7 +911,7 @@ export function useTextLabsGeneration({
               blankElements.trackElement(restoredElementId)
               const latestPanel = generationPanel.getSnapshot()
               if (!latestPanel.isOpen) {
-                generationPanel.openPanelForElement(currentBlankInfo.componentType, restoredElementId)
+                generationPanel.resumePanelForElement(currentBlankInfo.componentType, restoredElementId)
               }
             },
             onDeleteError: deleteError => {
@@ -968,10 +982,9 @@ export function useTextLabsGeneration({
     const startRow = 4
 
     if (!layoutServiceApis?.sendElementCommand) {
-      toast({
-        title: 'Canvas is still loading',
-        description: 'Wait a moment, then add the element again.',
-      })
+      const message = 'The presentation viewer is not ready, so an element placeholder could not be added.'
+      generationPanel.setError(message)
+      toast({ title: 'Element not added', description: message })
       return
     }
 
@@ -1019,10 +1032,9 @@ export function useTextLabsGeneration({
       generationPanel.openPanelForElement(componentType, layoutElementId)
     } catch (err) {
       console.warn('[TextLabs] Failed to insert blank placeholder:', err)
-      toast({
-        title: 'Element was not added',
-        description: 'The panel opens only after the canvas placeholder is ready. Try again.',
-      })
+      const message = 'The element placeholder could not be added. Please wait for the slide to finish loading and try again.'
+      generationPanel.setError(message)
+      toast({ title: 'Element not added', description: message })
     }
   }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, toast])
 
