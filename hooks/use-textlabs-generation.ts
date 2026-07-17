@@ -818,6 +818,24 @@ export function useTextLabsGeneration({
       }
       assertThemeIsStillAuthoritative()
 
+      // Defensive cleanup: if the pre-insert delete raced or failed silently,
+      // the generated TABLE/METRICS/TEXT element can coexist with its old
+      // blank/spinner placeholder. The generated insert uses a fresh element id,
+      // so a retry against the known blank id cannot delete the new content.
+      if (
+        currentBlankId
+        && layoutServiceApis?.sendElementCommand
+        && !insertedElementIds.includes(currentBlankId)
+      ) {
+        try {
+          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: currentBlankId })
+          blankElements.removeElement(currentBlankId)
+        } catch (cleanupError) {
+          // Already-deleted placeholders are the common success path here.
+          console.debug('[TextLabs] Blank placeholder cleanup retry found nothing to delete:', cleanupError)
+        }
+      }
+
       if (refineContext && !refineElementDeleted && layoutServiceApis?.sendElementCommand) {
         try {
           assertThemeIsStillAuthoritative()
