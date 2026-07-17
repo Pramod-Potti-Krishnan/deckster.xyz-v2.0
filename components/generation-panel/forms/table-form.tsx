@@ -4,6 +4,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import type {
   TableCellMark,
   TableColumnBrief,
+  TableColumnConfig,
   TableColumnKind,
   TableConfig,
   TableFormData,
@@ -88,6 +89,29 @@ function OptionalTextInput({
   )
 }
 
+function OptionalBooleanSelect({
+  label,
+  value,
+  onChange,
+  onLabel = 'On',
+  offLabel = 'Off',
+}: {
+  label: string
+  value?: boolean | null
+  onChange: (value: boolean | undefined) => void
+  onLabel?: string
+  offLabel?: string
+}) {
+  return (
+    <OptionalSelect
+      label={label}
+      value={value === undefined || value === null ? '' : value ? 'on' : 'off'}
+      onChange={next => onChange(next === undefined ? undefined : next === 'on')}
+      options={[{ value: 'on', label: onLabel }, { value: 'off', label: offLabel }]}
+    />
+  )
+}
+
 function OptionalNumberInput({
   label,
   value,
@@ -125,6 +149,10 @@ function makeColumnBrief(index: number): TableColumnBrief {
     detail: index === 1 ? 'Concise row label' : 'One grounded value per row',
     target_len: index === 1 ? 'short' : 'medium',
   }
+}
+
+function makeColumnConfig(col: number): TableColumnConfig {
+  return { col }
 }
 
 export function TableForm({
@@ -192,6 +220,24 @@ export function TableForm({
     setColumnBrief(previous => previous.map(column => column.index === index ? { ...column, ...updates } : column))
   }, [])
 
+  const updateColumnConfig = useCallback((col: number, updates: Partial<TableColumnConfig>) => {
+    setPatch(previous => {
+      const current = previous.column_config?.length
+        ? previous.column_config
+        : Array.from({ length: columns }, (_, index) => makeColumnConfig(index + 1))
+      const next = current
+        .filter(config => config.col <= columns)
+        .map(config => config.col === col ? { ...config, ...updates } : config)
+      return { ...previous, column_config: next }
+    })
+  }, [columns])
+
+  const ensureColumnConfig = useCallback(() => {
+    setPatch(previous => previous.column_config?.length
+      ? previous
+      : { ...previous, column_config: Array.from({ length: columns }, (_, index) => makeColumnConfig(index + 1)) })
+  }, [columns])
+
   const ensureBrief = useCallback(() => {
     setColumnBrief(previous => previous.length
       ? previous.slice(0, columns)
@@ -202,6 +248,9 @@ export function TableForm({
     setColumnBrief(previous => previous.filter(column => column.index <= columns))
     setCellMarks(previous => previous.filter(mark => mark.row <= rows && mark.col <= columns))
     setMarkDraft(previous => ({ ...previous, row: Math.min(previous.row, rows), col: Math.min(previous.col, columns) }))
+    setPatch(previous => previous.column_config?.some(config => config.col > columns)
+      ? { ...previous, column_config: previous.column_config.filter(config => config.col <= columns) }
+      : previous)
   }, [columns, rows])
 
   const status = structureMode === 'AUTO' ? 'Auto' : `Manual · ${rows} rows × ${columns} columns`
@@ -344,6 +393,29 @@ export function TableForm({
                 </div>
               ))}
               {columnBrief.length > 0 && <button type="button" onClick={() => setColumnBrief([])} className="text-[10px] font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400">Reset semantics to Auto</button>}
+              <div className="rounded-md border border-slate-200 p-2 dark:border-slate-700">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Column rendering</span>
+                  {!patch.column_config?.length && <button type="button" onClick={ensureColumnConfig} className="rounded border border-slate-300 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">Customize</button>}
+                </div>
+                {patch.column_config?.length ? (
+                  <div className="space-y-1.5">
+                    {patch.column_config.map(config => (
+                      <div key={config.col} className="grid grid-cols-12 gap-1">
+                        <div className="col-span-1 self-center text-[10px] font-semibold text-slate-500">C{config.col}</div>
+                        <select aria-label={`Column ${config.col} alignment`} value={config.alignment ?? ''} onChange={event => updateColumnConfig(config.col, { alignment: event.target.value ? event.target.value as TableColumnConfig['alignment'] : undefined })} className="col-span-2 rounded border border-slate-300 px-1 py-1 text-[9px] dark:border-slate-600 dark:bg-slate-800"><option value="">Align</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
+                        <select aria-label={`Column ${config.col} emphasis`} value={config.emphasis ?? ''} onChange={event => updateColumnConfig(config.col, { emphasis: event.target.value ? event.target.value as TableColumnConfig['emphasis'] : undefined })} className="col-span-2 rounded border border-slate-300 px-1 py-1 text-[9px] dark:border-slate-600 dark:bg-slate-800"><option value="">Weight</option><option value="normal">Normal</option><option value="bold">Bold</option></select>
+                        <select aria-label={`Column ${config.col} format`} value={config.format ?? ''} onChange={event => updateColumnConfig(config.col, { format: event.target.value ? event.target.value as TableColumnConfig['format'] : undefined })} className="col-span-2 rounded border border-slate-300 px-1 py-1 text-[9px] dark:border-slate-600 dark:bg-slate-800"><option value="">Format</option><option value="text">Text</option><option value="number">Number</option><option value="percent">Percent</option><option value="currency">Currency</option><option value="boolean">Boolean</option></select>
+                        <select aria-label={`Column ${config.col} content kind`} value={config.content_kind ?? ''} onChange={event => updateColumnConfig(config.col, { content_kind: event.target.value ? event.target.value as TableColumnConfig['content_kind'] : undefined })} className="col-span-3 rounded border border-slate-300 px-1 py-1 text-[9px] dark:border-slate-600 dark:bg-slate-800"><option value="">Kind</option>{COLUMN_KINDS.filter(kind => !['currency', 'percent', 'status'].includes(kind)).map(kind => <option key={kind} value={kind}>{kind.replace('_', ' ')}</option>)}</select>
+                        <input aria-label={`Column ${config.col} max chars`} type="number" min={5} max={400} value={config.cell_max_chars ?? ''} placeholder="Max" onChange={event => updateColumnConfig(config.col, { cell_max_chars: event.target.value ? Number(event.target.value) : undefined })} className="col-span-2 rounded border border-slate-300 px-1 py-1 text-[9px] dark:border-slate-600 dark:bg-slate-800" />
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => updatePatch('column_config', undefined)} className="text-[10px] font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400">Reset column rendering to Auto</button>
+                  </div>
+                ) : (
+                  <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">Optional per-column alignment, emphasis, format, content kind, and max character hints.</p>
+                )}
+              </div>
             </div>
           </CollapsibleSection>
 
@@ -355,10 +427,18 @@ export function TableForm({
                 <OptionalSelect label="Alignment" value={patch.alignment ?? ''} onChange={value => updatePatch('alignment', value as TableConfig['alignment'])} options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }]} />
                 <OptionalSelect label="Density" value={patch.density ?? ''} onChange={value => updatePatch('density', value as TableConfig['density'])} options={[{ value: 'compact', label: 'Compact' }, { value: 'regular', label: 'Regular' }, { value: 'spacious', label: 'Spacious' }]} />
               </div>
-              <div className="grid grid-cols-4 gap-1.5 rounded-md border border-slate-200 p-2 dark:border-slate-700">
+              <div className="grid grid-cols-2 gap-2">
+                <OptionalTextInput label="Total fill" value={patch.total_row_fill} placeholder="Auto, e.g. #EEF2FF" onChange={value => updatePatch('total_row_fill', value)} />
+                <OptionalTextInput label="Total rule" value={patch.total_row_rule_color} placeholder="Auto, e.g. #4F46E5" onChange={value => updatePatch('total_row_rule_color', value)} />
+                <OptionalBooleanSelect label="First col bold" value={patch.first_column_bold} onChange={value => updatePatch('first_column_bold', value)} />
+                <OptionalBooleanSelect label="Last col bold" value={patch.last_column_bold} onChange={value => updatePatch('last_column_bold', value)} />
+                <OptionalBooleanSelect label="Mark legend" value={patch.show_mark_legend} onChange={value => updatePatch('show_mark_legend', value)} onLabel="Show" offLabel="Hide" />
+              </div>
+              <div className="grid grid-cols-5 gap-1.5 rounded-md border border-slate-200 p-2 dark:border-slate-700">
                 <select aria-label="Cell mark row" disabled={structureMode !== 'MANUAL'} value={markDraft.row} onChange={event => setMarkDraft(previous => ({ ...previous, row: Number(event.target.value) }))} className="rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">{Array.from({ length: rows }, (_, i) => <option key={i + 1}>{i + 1}</option>)}</select>
                 <select aria-label="Cell mark column" disabled={structureMode !== 'MANUAL'} value={markDraft.col} onChange={event => setMarkDraft(previous => ({ ...previous, col: Number(event.target.value) }))} className="rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">{Array.from({ length: columns }, (_, i) => <option key={i + 1}>{i + 1}</option>)}</select>
                 <select aria-label="Cell mark" disabled={structureMode !== 'MANUAL'} value={markDraft.mark} onChange={event => setMarkDraft(previous => ({ ...previous, mark: event.target.value as TableCellMark['mark'] }))} className="rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800"><option value="highlight">Highlight</option><option value="good">Good</option><option value="bad">Bad</option><option value="warn">Warn</option><option value="trend_up">Up</option><option value="trend_down">Down</option><option value="flat">Flat</option></select>
+                <select aria-label="Cell mark style" disabled={structureMode !== 'MANUAL'} value={markDraft.style} onChange={event => setMarkDraft(previous => ({ ...previous, style: event.target.value as TableCellMark['style'] }))} className="rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800"><option value="chip">Chip</option><option value="pill">Pill</option><option value="tint">Tint</option><option value="arrow">Arrow</option></select>
                 <button type="button" disabled={structureMode !== 'MANUAL'} onClick={() => setCellMarks(previous => [...previous.filter(mark => mark.row !== markDraft.row || mark.col !== markDraft.col), markDraft])} className="rounded bg-slate-800 px-1 py-1 text-[10px] font-semibold text-white disabled:bg-slate-300 dark:bg-slate-200 dark:text-slate-900">Add mark</button>
               </div>
               {cellMarks.length > 0 && <div className="flex flex-wrap gap-1">{cellMarks.map(mark => <button type="button" key={`${mark.row}-${mark.col}`} title="Remove mark" onClick={() => setCellMarks(previous => previous.filter(item => item !== mark))} className="rounded bg-slate-100 px-1.5 py-1 text-[9px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">R{mark.row} C{mark.col}: {mark.mark} ×</button>)}</div>}
@@ -369,6 +449,17 @@ export function TableForm({
             <div className="space-y-2">
               <ThemeSourceSelector presentationId={presentationId} value={themeSource} onChange={updateThemeSource} />
               <div className="grid grid-cols-2 gap-2">
+                <OptionalTextInput label="Header color" value={patch.header_color} placeholder="Auto, e.g. purple or #4F46E5" onChange={value => updatePatch('header_color', value)} />
+                <OptionalTextInput label="Header text" value={patch.header_font_color} placeholder="Auto, e.g. #FFFFFF" onChange={value => updatePatch('header_font_color', value)} />
+                <OptionalTextInput label="Cell text" value={patch.cell_font_color} placeholder="Auto, e.g. #334155" onChange={value => updatePatch('cell_font_color', value)} />
+                <OptionalTextInput label="Row bg" value={patch.row_background} placeholder="Auto, e.g. #FFFFFF" onChange={value => updatePatch('row_background', value)} />
+                <OptionalTextInput label="Alt row bg" value={patch.row_alt_background} placeholder="Auto, e.g. #F8FAFC" onChange={value => updatePatch('row_alt_background', value)} />
+                <OptionalBooleanSelect label="Header bold" value={patch.header_bold} onChange={value => updatePatch('header_bold', value)} />
+                <OptionalBooleanSelect label="Header italic" value={patch.header_italic} onChange={value => updatePatch('header_italic', value)} />
+                <OptionalBooleanSelect label="Header caps" value={patch.header_allcaps} onChange={value => updatePatch('header_allcaps', value)} onLabel="Caps" offLabel="Normal" />
+                <OptionalBooleanSelect label="Cell bold" value={patch.cell_bold} onChange={value => updatePatch('cell_bold', value)} />
+                <OptionalBooleanSelect label="Cell italic" value={patch.cell_italic} onChange={value => updatePatch('cell_italic', value)} />
+                <OptionalBooleanSelect label="Cell caps" value={patch.cell_allcaps} onChange={value => updatePatch('cell_allcaps', value)} onLabel="Caps" offLabel="Normal" />
                 <OptionalTextInput label="Header font" value={patch.header_font_family} onChange={value => updatePatch('header_font_family', value)} />
                 <OptionalTextInput label="Header size" value={patch.header_font_size} placeholder="Auto, e.g. 14px" onChange={value => updatePatch('header_font_size', value)} />
                 <OptionalTextInput label="Cell font" value={patch.cell_font_family} onChange={value => updatePatch('cell_font_family', value)} />
