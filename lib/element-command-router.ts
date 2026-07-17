@@ -16,6 +16,7 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   'insertTextBox',
   'insertTable',
   'insertShape',
+  'upsertSemanticElement',
 
   // Content updates (manual updates, not from AI)
   'updateImageSource',
@@ -29,6 +30,7 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   // Element management
   'getElementGeometry',
   'getSlideGenerationContext',
+  'getTemplateSlotCatalog',
   'refreshElementThemeMetadata',
   'setElementGenerationState',
   'getElementThemeVariants',

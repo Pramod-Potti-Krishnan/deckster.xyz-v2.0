@@ -1,8 +1,7 @@
 'use client'
 
-import { X, Type, TrendingUp, Table, BarChart3, ImageIcon, Tag, Pentagon, LayoutGrid, GitBranch, RefreshCw } from 'lucide-react'
+import { X, Type, TrendingUp, Table, BarChart3, ImageIcon, Tag, Pentagon, LayoutGrid, GitBranch } from 'lucide-react'
 import { TextLabsComponentType, COMPONENT_TYPE_INFO } from '@/types/textlabs'
-import { Switch } from '@/components/ui/switch'
 
 const COMPONENT_ICONS: Record<TextLabsComponentType, React.ComponentType<{ className?: string }>> = {
   TEXT_BOX: Type,
@@ -21,11 +20,9 @@ interface GenerationPanelHeaderProps {
   onClose: () => void
   onElementTypeChange?: (type: TextLabsComponentType) => void
   mode: 'generate' | 'edit' | 'refine'
-  regenerateEnabled: boolean
-  onRegenerateToggle: (enabled: boolean) => void
 }
 
-export function GenerationPanelHeader({ elementType, onClose, mode, regenerateEnabled, onRegenerateToggle }: GenerationPanelHeaderProps) {
+export function GenerationPanelHeader({ elementType, onClose, mode }: GenerationPanelHeaderProps) {
   const Icon = COMPONENT_ICONS[elementType] || Type
   const info = COMPONENT_TYPE_INFO[elementType] || { label: elementType, description: '' }
 
@@ -43,17 +40,6 @@ export function GenerationPanelHeader({ elementType, onClose, mode, regenerateEn
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {mode === 'edit' && (
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <RefreshCw className="h-3 w-3 text-gray-500 dark:text-slate-400" />
-            <span className="text-[10px] text-gray-500 dark:text-slate-400">Regenerate</span>
-            <Switch
-              checked={regenerateEnabled}
-              onCheckedChange={onRegenerateToggle}
-              className="scale-75"
-            />
-          </label>
-        )}
         <button
           onClick={onClose}
           className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700 transition-colors"

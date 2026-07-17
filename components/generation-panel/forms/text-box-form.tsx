@@ -1,85 +1,33 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  TextBoxFormData,
-  TextBoxConfig,
-  TextBoxStructure,
-  TextBoxTitleStyle,
-  TextLabsPositionConfig,
-  TextLabsPaddingConfig,
-  ThemeSourceSelection,
+  type TemplateSlotCatalog,
+  type TextBoxConfig,
+  type TextBoxFormData,
+  type TextBoxStructure,
+  type TextBoxTitleStyle,
+  type TextLabsPositionConfig,
+  type TextManualGeometryOverrides,
+  type TextSemanticRole,
+  type TextSlotKind,
   TEXT_LABS_ELEMENT_DEFAULTS,
-  recalcTextBoxLimits,
 } from '@/types/textlabs'
-import { ElementContext, MandatoryConfig } from '../types'
-import { ToggleRow } from '../shared/toggle-row'
+import { type ElementContext, type MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
-import { FontOverrideSection } from '../shared/font-override-section'
 import { PositionPresets } from '../shared/position-presets'
-import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
-import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { splitGridArea } from '@/lib/grid-splitter'
+import {
+  BODY_TEXT_AUTO_SLOT,
+  findSelectedSlot,
+  selectionForExistingTarget,
+  slotSelectionValue,
+} from '@/lib/text-slot-catalog'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TEXT_BOX
 
-const COLOR_VARIANT_PRESETS = [
-  { name: 'purple', label: 'Purple', hex: '#E8D7F1' },
-  { name: 'blue', label: 'Blue', hex: '#B4DCFF' },
-  { name: 'green', label: 'Green', hex: '#B4F5D2' },
-  { name: 'red', label: 'Red', hex: '#FFC8C3' },
-  { name: 'cyan', label: 'Cyan', hex: '#B2EBF2' },
-  { name: 'orange', label: 'Orange', hex: '#FFCCBC' },
-  { name: 'pink', label: 'Pink', hex: '#F8BBD9' },
-  { name: 'yellow', label: 'Yellow', hex: '#FFF0BE' },
-  { name: 'teal', label: 'Teal', hex: '#B2DFDB' },
-  { name: 'indigo', label: 'Indigo', hex: '#D1D9FF' },
-] as const
-
-const DEFAULT_TEXTBOX_CONFIG: TextBoxConfig = {
-  background: 'colored',
-  shadow: true,
-  corners: 'rounded',
-  border: false,
-  show_title: true,
-  title_style: 'plain',
-  title_underline: false,
-  list_style: 'bullets',
-  color_scheme: 'accent',
-  layout: 'horizontal',
-  heading_align: 'left',
-  content_align: 'left',
-  placeholder_mode: false,
-  title_min_chars: 20,
-  title_max_chars: 30,
-  item_min_chars: 30,
-  item_max_chars: 40,
-  items_per_instance: 3,
-  theme_mode: 'light',
-  color_variant: null,
-  grid_cols: null,
-  heading_font_color: null,
-  heading_font_size: null,
-  heading_font_family: null,
-  heading_bold: null,
-  heading_italic: null,
-  heading_underline: null,
-  heading_indent: 0,
-  content_font_color: null,
-  content_font_size: null,
-  content_font_family: null,
-  content_bold: null,
-  content_italic: null,
-  content_underline: null,
-  content_indent: 0,
-  content_line_height: null,
-  simple_subtype: null,
-  target_char_count: null,
-  text: null,
-}
-
-const TEXTBOX_STRUCTURE_OPTIONS: Array<{ value: TextBoxStructure; label: string }> = [
+const STRUCTURE_OPTIONS: Array<{ value: TextBoxStructure; label: string }> = [
   { value: 'classic', label: 'Classic' },
   { value: 'vertical', label: 'Vertical' },
   { value: 'mixed', label: 'Mixed' },
@@ -98,11 +46,31 @@ const TITLE_STYLE_OPTIONS: Array<{ value: TextBoxTitleStyle; label: string }> = 
   { value: 'highlighted', label: 'Caps' },
   { value: 'colored-bg', label: 'Badge' },
   { value: 'neutral', label: 'Neutral' },
-  { value: 'light-bg', label: 'Light' },
-  { value: 'light-bg-dark', label: 'Dark' },
-  { value: 'underline', label: 'Line' },
-  { value: 'colored_underline', label: 'Accent Line' },
+  { value: 'light-bg', label: 'Light surface' },
+  { value: 'light-bg-dark', label: 'Dark surface' },
+  { value: 'underline', label: 'Rule' },
+  { value: 'colored_underline', label: 'Accent rule' },
 ]
+
+const COLOR_VARIANTS = [
+  { value: 'purple', label: 'Purple' },
+  { value: 'blue', label: 'Blue' },
+  { value: 'green', label: 'Green' },
+  { value: 'red', label: 'Red' },
+  { value: 'cyan', label: 'Cyan' },
+  { value: 'orange', label: 'Orange' },
+  { value: 'pink', label: 'Pink' },
+  { value: 'yellow', label: 'Yellow' },
+  { value: 'teal', label: 'Teal' },
+  { value: 'indigo', label: 'Indigo' },
+]
+
+interface ExistingTextTarget {
+  semanticRole?: TextSemanticRole | null
+  slotName?: string | null
+  slotKind?: TextSlotKind | null
+  accessoryType?: string | null
+}
 
 interface TextBoxFormProps {
   onSubmit: (formData: TextBoxFormData) => void
@@ -113,16 +81,20 @@ interface TextBoxFormProps {
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
+  researchControls?: ReactNode
+  slotCatalog: TemplateSlotCatalog
+  slotCatalogLoading: boolean
+  slotCatalogError?: string | null
+  existingTextTarget?: ExistingTextTarget | null
 }
 
 function buildComposeElements(
   positionConfig: TextLabsPositionConfig,
   count: number,
   layout: 'horizontal' | 'vertical' | 'grid',
-  gridCols: number
+  gridCols: number,
 ): TextBoxFormData['elements'] {
   if (count <= 1) return undefined
-
   return splitGridArea({
     start_col: positionConfig.start_col,
     start_row: positionConfig.start_row,
@@ -131,33 +103,72 @@ function buildComposeElements(
   }, count, layout, gridCols).map(grid_position => ({ grid_position }))
 }
 
-export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: TextBoxFormProps) {
-  // Basic fields
+function roleLabel(role?: TextSemanticRole | null): string {
+  if (!role) return 'Text'
+  return role.toLowerCase().split('_').map(word => `${word[0].toUpperCase()}${word.slice(1)}`).join(' ')
+}
+
+function OptionalNumberInput({
+  label,
+  value,
+  onChange,
+  min = 0,
+  max,
+  step = 1,
+}: {
+  label: string
+  value: number | undefined
+  onChange: (value: number | undefined) => void
+  min?: number
+  max?: number
+  step?: number
+}) {
+  return (
+    <label className="space-y-1">
+      <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <input
+        type="number"
+        value={value ?? ''}
+        min={min}
+        max={max}
+        step={step}
+        placeholder="Auto"
+        onChange={(event) => onChange(event.target.value === '' ? undefined : Number(event.target.value))}
+        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+      />
+    </label>
+  )
+}
+
+export function TextBoxForm({
+  onSubmit,
+  registerSubmit,
+  presentationId,
+  elementContext,
+  prompt,
+  showAdvanced,
+  registerMandatoryConfig,
+  researchControls,
+  slotCatalog,
+  slotCatalogLoading,
+  slotCatalogError,
+  existingTextTarget,
+}: TextBoxFormProps) {
+  const [targetValue, setTargetValue] = useState(BODY_TEXT_AUTO_SLOT)
+  const [structure, setStructure] = useState<'auto' | TextBoxStructure>('auto')
   const [count, setCount] = useState(1)
   const [layout, setLayout] = useState<'horizontal' | 'vertical' | 'grid'>('horizontal')
   const [gridCols, setGridCols] = useState(2)
-  const [structure, setStructure] = useState<TextBoxStructure>('classic')
-  // Multi-box compose is derived automatically from count > 1 (no manual toggle).
-  const [themeSourceTouched, setThemeSourceTouched] = useState(false)
-  const [themeSource, setThemeSource] = useState<ThemeSourceSelection>({
-    mode: presentationId ? 'deck' : 'none',
-    overrides: null,
-  })
-
-  // Advanced config
-  const [config, setConfig] = useState<TextBoxConfig>({ ...DEFAULT_TEXTBOX_CONFIG })
-  const [advancedModified, setAdvancedModified] = useState(false)
+  const [textboxOverrides, setTextboxOverrides] = useState<Partial<TextBoxConfig>>({})
+  const [geometryMode, setGeometryMode] = useState<'AUTO' | 'MANUAL'>('AUTO')
+  const [manualGeometryOverrides, setManualGeometryOverrides] = useState<TextManualGeometryOverrides>({})
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-
-  // Section visibility
+  const [positionModified, setPositionModified] = useState(false)
   const [showInstances, setShowInstances] = useState(false)
-  const [showBoxDesign, setShowBoxDesign] = useState(false)
-  const [showHeading, setShowHeading] = useState(false)
-  const [showContent, setShowContent] = useState(false)
-  const [showPositioning, setShowPositioning] = useState(false)
-  const [showPadding, setShowPadding] = useState(false)
-
-  // Position
+  const [showTypography, setShowTypography] = useState(false)
+  const [showSpacing, setShowSpacing] = useState(false)
+  const [showPosition, setShowPosition] = useState(false)
+  const [showEffects, setShowEffects] = useState(false)
   const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
     start_col: 2,
     start_row: 4,
@@ -166,563 +177,424 @@ export function TextBoxForm({ onSubmit, registerSubmit, isGenerating, presentati
     auto_position: false,
   })
 
-  // Padding
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
-    top: 0, right: 0, bottom: 0, left: 0,
-  })
-
-  // Initialize position from canvas context
   useEffect(() => {
-    if (elementContext) {
-      setPositionConfig(prev => ({
-        ...prev,
-        start_col: elementContext.startCol,
-        start_row: elementContext.startRow,
-        position_width: elementContext.width,
-        position_height: elementContext.height,
-      }))
-    }
+    if (!elementContext) return
+    setPositionConfig(previous => ({
+      ...previous,
+      start_col: elementContext.startCol,
+      start_row: elementContext.startRow,
+      position_width: elementContext.width,
+      position_height: elementContext.height,
+    }))
   }, [elementContext])
 
-  useEffect(() => {
-    if (themeSourceTouched) return
-    setThemeSource({ mode: presentationId ? 'deck' : 'none', overrides: null })
-  }, [presentationId, themeSourceTouched])
+  const effectiveCatalog = useMemo<TemplateSlotCatalog>(() => {
+    if (!existingTextTarget?.slotName || slotCatalog.slots.some(slot => slot.slot_name === existingTextTarget.slotName)) {
+      return slotCatalog
+    }
+    const role = existingTextTarget.semanticRole ?? null
+    const kind = existingTextTarget.slotKind
+      ?? (existingTextTarget.accessoryType ? 'accessory' : role === 'BODY_TEXT' ? 'body' : 'structural')
+    return {
+      ...slotCatalog,
+      slots: [...slotCatalog.slots, {
+        slot_name: existingTextTarget.slotName,
+        label: `Current ${existingTextTarget.accessoryType === 'LOGO' ? 'Logo' : roleLabel(role)}`,
+        role,
+        kind,
+        accessory_type: existingTextTarget.accessoryType ?? null,
+        supported: true,
+        single_instance: kind !== 'body',
+        system_managed: kind === 'system',
+      }],
+    }
+  }, [existingTextTarget?.accessoryType, existingTextTarget?.semanticRole, existingTextTarget?.slotKind, existingTextTarget?.slotName, slotCatalog])
 
-  const updateConfig = useCallback((field: string, value: unknown) => {
-    setConfig(prev => ({ ...prev, [field]: value }))
-    setAdvancedModified(true)
+  useEffect(() => {
+    setTargetValue(selectionForExistingTarget(effectiveCatalog, existingTextTarget))
+  }, [
+    effectiveCatalog,
+    existingTextTarget?.accessoryType,
+    existingTextTarget?.semanticRole,
+    existingTextTarget?.slotName,
+  ])
+
+  const selectedSlot = useMemo(
+    () => findSelectedSlot(effectiveCatalog, targetValue),
+    [effectiveCatalog, targetValue],
+  )
+  const semanticRole = selectedSlot?.role ?? 'BODY_TEXT'
+  const slotKind = selectedSlot?.kind ?? 'body'
+  const isBodyText = semanticRole === 'BODY_TEXT' && slotKind === 'body'
+  const isSystemManaged = Boolean(selectedSlot?.system_managed || slotKind === 'system')
+  const isAccessory = slotKind === 'accessory'
+
+  const updateTextboxOverride = useCallback(<K extends keyof TextBoxConfig>(field: K, value: TextBoxConfig[K] | undefined) => {
+    setTextboxOverrides(previous => {
+      const next = { ...previous }
+      if (value === undefined) delete next[field]
+      else next[field] = value
+      return next
+    })
   }, [])
 
-  // Track which char limit fields the user has manually overridden
-  const [charLimitOverrides, setCharLimitOverrides] = useState<Set<string>>(new Set())
-
-  const handleCharLimitChange = useCallback((field: string, value: number) => {
-    updateConfig(field, value)
-    setCharLimitOverrides(prev => new Set(prev).add(field))
-  }, [updateConfig])
-
-  // Computed text box limits
-  const calcLimits = useMemo(() => recalcTextBoxLimits({
-    position_width: positionConfig.position_width,
-    position_height: positionConfig.position_height,
-    count,
-    layout,
-    grid_cols: layout === 'grid' ? gridCols : null,
-    padding_left: paddingConfig.left,
-    padding_right: paddingConfig.right,
-    padding_top: paddingConfig.top,
-    padding_bottom: paddingConfig.bottom,
-    heading_font_size: config.heading_font_size,
-    content_font_size: config.content_font_size,
-    heading_indent: config.heading_indent,
-    content_indent: config.content_indent,
-    content_line_height: config.content_line_height,
-  }), [positionConfig.position_width, positionConfig.position_height, count, layout, gridCols, paddingConfig, config.heading_font_size, config.content_font_size, config.heading_indent, config.content_indent, config.content_line_height])
-
-  // Sync calculated limits into config (skip fields the user has overridden)
-  useEffect(() => {
-    setConfig(prev => ({
-      ...prev,
-      ...(charLimitOverrides.has('title_min_chars') ? {} : { title_min_chars: calcLimits.title_min_chars }),
-      ...(charLimitOverrides.has('title_max_chars') ? {} : { title_max_chars: calcLimits.title_max_chars }),
-      ...(charLimitOverrides.has('item_min_chars') ? {} : { item_min_chars: calcLimits.item_min_chars }),
-      ...(charLimitOverrides.has('item_max_chars') ? {} : { item_max_chars: calcLimits.item_max_chars }),
-      items_per_instance: calcLimits.items_per_instance,
-    }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calcLimits]) // charLimitOverrides intentionally excluded to avoid loop
-
-  // Register mandatory config — Background
-  useEffect(() => {
-    registerMandatoryConfig({
-      fieldLabel: 'Background',
-      displayLabel: config.background === 'colored' ? 'Pastel' : 'Transparent',
-      options: [
-        { value: 'colored', label: 'Pastel' },
-        { value: 'transparent', label: 'Transparent' },
-      ],
-      onChange: (v) => { updateConfig('background', v); setAdvancedModified(true) },
-      promptPlaceholder: 'e.g., 3 key benefits of cloud computing with icons and descriptions',
+  const updateManualOverride = useCallback(<K extends keyof TextManualGeometryOverrides>(
+    field: K,
+    value: TextManualGeometryOverrides[K] | undefined,
+  ) => {
+    setManualGeometryOverrides(previous => {
+      const next = { ...previous }
+      if (value === undefined) delete next[field]
+      else next[field] = value
+      return next
     })
-  }, [config.background, registerMandatoryConfig, updateConfig])
+  }, [])
+
+  const roleOptions = useMemo(() => [
+    { value: BODY_TEXT_AUTO_SLOT, label: 'Auto (Body text)' },
+    ...effectiveCatalog.slots.map(slot => ({
+      value: slotSelectionValue(slot),
+      label: slot.accessory_type === 'LOGO'
+        ? `Logo (${slot.label})`
+        : `${slot.label || roleLabel(slot.role)}${slot.optional ? ' (optional)' : ''}`,
+    })),
+  ], [effectiveCatalog.slots])
+
+  useEffect(() => {
+    const selected = roleOptions.find(option => option.value === targetValue) ?? roleOptions[0]
+    registerMandatoryConfig({
+      fieldLabel: 'Role',
+      displayLabel: selected.label,
+      options: roleOptions,
+      onChange: setTargetValue,
+      promptPlaceholder: isAccessory
+        ? 'Describe the logo or brand mark to use'
+        : isSystemManaged
+          ? 'Describe the sources or footer treatment'
+          : 'Describe the message this text should communicate',
+    })
+  }, [isAccessory, isSystemManaged, registerMandatoryConfig, roleOptions, targetValue])
+
+  const advancedModified = positionModified
+    || structure !== 'auto'
+    || Object.keys(textboxOverrides).length > 0
+    || geometryMode === 'MANUAL'
 
   const handleSubmit = useCallback(() => {
+    const bodyCount = isBodyText ? count : 1
     const formData: TextBoxFormData = {
       componentType: 'TEXT_BOX',
       prompt,
-      count,
+      count: bodyCount,
       layout,
       advancedModified,
       z_index: zIndex,
       presentationId,
-      useDeckTheme: themeSource.mode === 'deck' && Boolean(presentationId),
-      themeOverrides: themeSource.mode === 'another' ? themeSource.overrides || null : null,
-      structure,
-      compose: count > 1,
-      elements: count > 1 ? buildComposeElements(positionConfig, count, layout, gridCols) : undefined,
-      itemsPerInstance: config.items_per_instance,
-      textboxConfig: {
-        ...config,
-        placeholder_mode: false,
-        layout,
-        items_per_instance: config.items_per_instance,
-        grid_cols: layout === 'grid' ? gridCols : null,
-      },
-      positionConfig: positionConfig.auto_position ? undefined : positionConfig,
-      paddingConfig,
+      useDeckTheme: Boolean(presentationId),
+      themeOverrides: null,
+      semanticRole,
+      slotName: selectedSlot?.slot_name ?? null,
+      slotKind,
+      accessoryType: selectedSlot?.accessory_type ?? null,
+      geometryMode,
+      manualGeometryOverrides: geometryMode === 'MANUAL' && Object.keys(manualGeometryOverrides).length
+        ? manualGeometryOverrides
+        : undefined,
+      structure: isBodyText && structure !== 'auto' ? structure : undefined,
+      compose: isBodyText && bodyCount > 1,
+      elements: isBodyText && bodyCount > 1
+        ? buildComposeElements(positionConfig, bodyCount, layout, gridCols)
+        : undefined,
+      textboxConfig: textboxOverrides,
+      // Layout owns fixed template-slot geometry. BODY_TEXT keeps its live canvas
+      // placement, while Text Service owns all automatic internal geometry.
+      positionConfig: isBodyText ? positionConfig : undefined,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, gridCols, config, advancedModified, zIndex, presentationId, themeSource, structure, positionConfig, paddingConfig, onSubmit])
+  }, [
+    advancedModified,
+    count,
+    geometryMode,
+    gridCols,
+    isBodyText,
+    layout,
+    manualGeometryOverrides,
+    onSubmit,
+    positionConfig,
+    presentationId,
+    prompt,
+    selectedSlot,
+    semanticRole,
+    slotKind,
+    structure,
+    textboxOverrides,
+    zIndex,
+  ])
 
-  useEffect(() => {
-    registerSubmit(handleSubmit)
-  }, [registerSubmit, handleSubmit])
+  useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
+
+  const showTitleValue = textboxOverrides.show_title === undefined
+    ? 'auto'
+    : textboxOverrides.show_title ? 'show' : 'hide'
+  const backgroundValue = textboxOverrides.background ?? 'auto'
+  const cornersValue = textboxOverrides.corners ?? 'auto'
 
   return (
-    <div className="space-y-2.5">
-      {showAdvanced && (<>
-      {/* Section 1: Instances */}
-      <CollapsibleSection
-        title="Instances"
-        isOpen={showInstances}
-        onToggle={() => setShowInstances(!showInstances)}
-      >
-        <div className="space-y-2">
-          {/* Count */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
-            <select
-              value={count}
-              onChange={(e) => setCount(Number(e.target.value))}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {[1, 2, 3, 4, 5, 6].map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
-
-          <ToggleRow
-            label="Layout"
-            field="layout"
-            value={layout}
-            options={[
-              { value: 'horizontal', label: 'H' },
-              { value: 'vertical', label: 'V' },
-              { value: 'grid', label: 'G' },
-            ]}
-            onChange={(_, v) => setLayout(v as 'horizontal' | 'vertical' | 'grid')}
-          />
-
-          {/* Grid Columns (visible when layout=grid) */}
-          {layout === 'grid' && (
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Grid Columns</label>
-              <select
-                value={gridCols}
-                onChange={(e) => { setGridCols(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {[2, 3, 4, 5, 6].map(n => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
+    <div className="space-y-3">
+      <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor="textbox-role" className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+            Semantic role
+          </label>
+          {slotCatalog.canvas_type && (
+            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300">
+              {slotCatalog.canvas_type}
+            </span>
           )}
-
         </div>
-      </CollapsibleSection>
+        <select
+          id="textbox-role"
+          value={targetValue}
+          disabled={slotCatalogLoading}
+          onChange={event => setTargetValue(event.target.value)}
+          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+        >
+          {roleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+        {slotCatalogLoading && <p className="text-[10px] text-slate-500">Loading roles from the active template…</p>}
+        {slotCatalogError && <p className="text-[10px] text-amber-600 dark:text-amber-400">{slotCatalogError}</p>}
+        {selectedSlot && (
+          <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+            Uses template slot <span className="font-mono">{selectedSlot.slot_name}</span>.
+            {selectedSlot.single_instance ? ' Repeated generation replaces this slot.' : ''}
+            {isSystemManaged ? ' Layout manages this slide-global element.' : ''}
+          </p>
+        )}
+      </section>
 
-      {/* Section 2: Box Design */}
-      <CollapsibleSection
-        title="Box Design"
-        isOpen={showBoxDesign}
-        onToggle={() => setShowBoxDesign(!showBoxDesign)}
-      >
-        <div className="space-y-2">
-          <ThemeSourceSelector
-            presentationId={presentationId}
-            value={themeSource}
-            onChange={(selection) => {
-              setThemeSource(selection)
-              setThemeSourceTouched(true)
-            }}
-          />
+      {isBodyText && (
+        <section className="space-y-2 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
+          <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Body structure</label>
+          <select
+            value={structure}
+            onChange={event => setStructure(event.target.value as 'auto' | TextBoxStructure)}
+            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+          >
+            <option value="auto">Auto</option>
+            {STRUCTURE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </section>
+      )}
 
-          {/* Structure (a box-design concern, not an instance count) */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Structure</label>
-            <select
-              value={structure}
-              onChange={(e) => {
-                setStructure(e.target.value as TextBoxStructure)
-                setAdvancedModified(true)
-              }}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {TEXTBOX_STRUCTURE_OPTIONS.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {structure === 'simple' && (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Simple Type</label>
-                <select
-                  value={config.simple_subtype || 'phrase'}
-                  onChange={(e) => updateConfig('simple_subtype', e.target.value)}
-                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="char">Char</option>
-                  <option value="word">Word</option>
-                  <option value="phrase">Phrase</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Target Chars</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={240}
-                  value={config.target_char_count || 48}
-                  onChange={(e) => updateConfig('target_char_count', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Color Variant (disabled when bg=transparent) */}
-          {config.background === 'colored' && (
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Box Color</label>
-              <div className="flex flex-wrap gap-1.5">
-                {/* Auto swatch — rainbow gradient */}
-                <button
-                  onClick={() => updateConfig('color_variant', null)}
-                  style={{ background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' }}
-                  className={`h-6 w-6 rounded-full border transition-all ${
-                    config.color_variant === null
-                      ? 'ring-2 ring-primary ring-offset-1'
-                      : 'border-gray-200 dark:border-slate-700 hover:scale-110'
-                  }`}
-                  title="Auto"
-                />
-                {/* 10 named preset swatches */}
-                {COLOR_VARIANT_PRESETS.map(preset => (
-                  <button
-                    key={preset.name}
-                    onClick={() => updateConfig('color_variant', preset.name)}
-                    style={{ backgroundColor: preset.hex }}
-                    className={`h-6 w-6 rounded-full border transition-all ${
-                      config.color_variant === preset.name
-                        ? 'ring-2 ring-primary ring-offset-1'
-                        : 'border-gray-200 dark:border-slate-700 hover:scale-110'
-                    }`}
-                    title={preset.label}
-                  />
-                ))}
-              </div>
-              {config.color_variant && (
-                <span className="text-[10px] text-gray-400 dark:text-slate-500 capitalize">{config.color_variant}</span>
-              )}
-            </div>
-          )}
-
-          <ToggleRow
-            label="Corners"
-            field="corners"
-            value={config.corners}
-            options={[
-              { value: 'rounded', label: 'Rnd' },
-              { value: 'square', label: 'Sqr' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
+      {!isAccessory && !isSystemManaged && (
+        <section className="space-y-2 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
+          <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Title</div>
           <div className="grid grid-cols-2 gap-2">
-            <ToggleRow
-              label="Shadow"
-              field="shadow"
-              value={config.shadow ? 'true' : 'false'}
-              options={[
-                { value: 'true', label: 'On' },
-                { value: 'false', label: 'Off' },
-              ]}
-              onChange={(f, v) => updateConfig(f, v === 'true')}
-            />
-            <ToggleRow
-              label="Border"
-              field="border"
-              value={config.border ? 'true' : 'false'}
-              options={[
-                { value: 'true', label: 'On' },
-                { value: 'false', label: 'Off' },
-              ]}
-              onChange={(f, v) => updateConfig(f, v === 'true')}
-            />
-          </div>
-          <ToggleRow
-            label="Theme"
-            field="theme_mode"
-            value={config.theme_mode}
-            options={[
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
-        </div>
-      </CollapsibleSection>
-
-      {/* Section 3: Heading */}
-      <CollapsibleSection
-        title="Heading"
-        isOpen={showHeading}
-        onToggle={() => setShowHeading(!showHeading)}
-      >
-        <div className="space-y-2">
-          <ToggleRow
-            label="Show Title"
-            field="show_title"
-            value={config.show_title ? 'true' : 'false'}
-            options={[
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v === 'true')}
-          />
-          {config.show_title && (
-            <>
-              <ToggleRow
-                label="Title Style"
-                field="title_style"
-                value={config.title_style}
-                options={TITLE_STYLE_OPTIONS}
-                onChange={(f, v) => updateConfig(f, v)}
-              />
-              <ToggleRow
-                label="Title Rule"
-                field="title_underline"
-                value={config.title_underline ? 'true' : 'false'}
-                options={[
-                  { value: 'false', label: 'Off' },
-                  { value: 'true', label: 'On' },
-                ]}
-                onChange={(f, v) => updateConfig(f, v === 'true')}
-              />
-              <ToggleRow
-                label="Heading Align"
-                field="heading_align"
-                value={config.heading_align}
-                options={[
-                  { value: 'left', label: 'L' },
-                  { value: 'center', label: 'C' },
-                  { value: 'right', label: 'R' },
-                ]}
-                onChange={(f, v) => updateConfig(f, v)}
-              />
-              {/* Heading Indent */}
-              <ToggleRow
-                label="Head Indent"
-                field="heading_indent"
-                value={String(config.heading_indent)}
-                options={[
-                  { value: '0', label: '0' },
-                  { value: '1', label: '1' },
-                  { value: '2', label: '2' },
-                  { value: '3', label: '3' },
-                ]}
-                onChange={(_, v) => updateConfig('heading_indent', Number(v))}
-              />
-              {/* Title Char Limits */}
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
-                  Title Chars (auto: {calcLimits.title_min_chars}–{calcLimits.title_max_chars})
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
-                    <input
-                      type="number"
-                      value={config.title_min_chars}
-                      onChange={(e) => handleCharLimitChange('title_min_chars', Number(e.target.value))}
-                      className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
-                    <input
-                      type="number"
-                      value={config.title_max_chars}
-                      onChange={(e) => handleCharLimitChange('title_max_chars', Number(e.target.value))}
-                      className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                </div>
-              </div>
-              {/* Heading Font Overrides */}
-              <FontOverrideSection
-                label="Heading Font"
-                prefix="heading"
-                config={config as unknown as Record<string, unknown>}
-                onChange={updateConfig}
-                thirdToggle="underline"
-              />
-            </>
-          )}
-        </div>
-      </CollapsibleSection>
-
-      {/* Section 4: Content */}
-      <CollapsibleSection
-        title="Content"
-        isOpen={showContent}
-        onToggle={() => setShowContent(!showContent)}
-      >
-        <div className="space-y-2">
-          {/* Items per box */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Items/Box (auto: {calcLimits.items_per_instance})</label>
-            <select
-              value={config.items_per_instance}
-              onChange={(e) => updateConfig('items_per_instance', Number(e.target.value))}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {Array.from({ length: 14 }, (_, i) => i + 1).map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
-
-          <ToggleRow
-            label="List Style"
-            field="list_style"
-            value={config.list_style}
-            options={[
-              { value: 'bullets', label: 'Bullets' },
-              { value: 'numbered', label: 'Numbers' },
-              { value: 'plain', label: 'Plain' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
-
-          <ToggleRow
-            label="Content Align"
-            field="content_align"
-            value={config.content_align}
-            options={[
-              { value: 'left', label: 'L' },
-              { value: 'center', label: 'C' },
-              { value: 'right', label: 'R' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
-
-          {/* Content Indent */}
-          <ToggleRow
-            label="Content Indent"
-            field="content_indent"
-            value={String(config.content_indent)}
-            options={[
-              { value: '0', label: '0' },
-              { value: '1', label: '1' },
-              { value: '2', label: '2' },
-              { value: '3', label: '3' },
-            ]}
-            onChange={(_, v) => updateConfig('content_indent', Number(v))}
-          />
-
-          {/* Line Spacing */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Line Spacing</label>
-            <select
-              value={config.content_line_height || 'auto'}
-              onChange={(e) => updateConfig('content_line_height', e.target.value === 'auto' ? null : e.target.value)}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="auto">Auto</option>
-              {['1.0', '1.2', '1.4', '1.5', '1.6', '1.8', '2.0', '2.2', '2.5'].map(v => (
-                <option key={v} value={v}>{v}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Item Char Limits */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">
-              Item Chars (auto: {calcLimits.item_min_chars}–{calcLimits.item_max_chars})
+            <label className="space-y-1">
+              <span className="text-[10px] text-slate-500">Visibility</span>
+              <select
+                value={showTitleValue}
+                onChange={event => updateTextboxOverride(
+                  'show_title',
+                  event.target.value === 'auto' ? undefined : event.target.value === 'show',
+                )}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+              >
+                <option value="auto">Auto</option>
+                <option value="show">Show</option>
+                <option value="hide">Hide</option>
+              </select>
             </label>
+            <label className="space-y-1">
+              <span className="text-[10px] text-slate-500">Style</span>
+              <select
+                value={textboxOverrides.title_style ?? 'auto'}
+                onChange={event => updateTextboxOverride(
+                  'title_style',
+                  event.target.value === 'auto' ? undefined : event.target.value as TextBoxTitleStyle,
+                )}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+              >
+                <option value="auto">Auto</option>
+                {TITLE_STYLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+          </div>
+        </section>
+      )}
+
+      {researchControls}
+
+      {!isSystemManaged && (
+        <section className="space-y-2 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
+          <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Surface</div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="text-[10px] text-slate-500">Box</span>
+              <select
+                value={backgroundValue}
+                onChange={event => updateTextboxOverride(
+                  'background',
+                  event.target.value === 'auto' ? undefined : event.target.value as TextBoxConfig['background'],
+                )}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+              >
+                <option value="auto">Auto</option>
+                <option value="colored">Color</option>
+                <option value="transparent">Transparent</option>
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-[10px] text-slate-500">Corners</span>
+              <select
+                value={cornersValue}
+                onChange={event => updateTextboxOverride(
+                  'corners',
+                  event.target.value === 'auto' ? undefined : event.target.value as TextBoxConfig['corners'],
+                )}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+              >
+                <option value="auto">Auto</option>
+                <option value="rounded">Rounded</option>
+                <option value="square">Square</option>
+              </select>
+            </label>
+          </div>
+          {backgroundValue === 'colored' && (
             <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
-                <input
-                  type="number"
-                  value={config.item_min_chars}
-                  onChange={(e) => handleCharLimitChange('item_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
-                <input
-                  type="number"
-                  value={config.item_max_chars}
-                  onChange={(e) => handleCharLimitChange('item_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+              <label className="space-y-1">
+                <span className="text-[10px] text-slate-500">Color</span>
+                <select
+                  value={textboxOverrides.color_variant ?? 'auto'}
+                  onChange={event => updateTextboxOverride('color_variant', event.target.value === 'auto' ? undefined : event.target.value)}
+                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                >
+                  <option value="auto">Auto</option>
+                  {COLOR_VARIANTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] text-slate-500">Opacity</span>
+                <select
+                  value={textboxOverrides.opacity ?? 'auto'}
+                  onChange={event => updateTextboxOverride('opacity', event.target.value === 'auto' ? undefined : Number(event.target.value))}
+                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                >
+                  <option value="auto">Auto</option>
+                  <option value="1">100%</option>
+                  <option value="0.8">80%</option>
+                  <option value="0.6">60%</option>
+                  <option value="0.4">40%</option>
+                  <option value="0.2">20%</option>
+                </select>
+              </label>
+            </div>
+          )}
+        </section>
+      )}
+
+      {showAdvanced && (
+        <section className="space-y-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-700 dark:bg-slate-800/40">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Advanced</div>
+              <div className="text-[10px] text-slate-500">Automatic geometry uses Platinum defaults.</div>
+            </div>
+            <select
+              aria-label="Geometry mode"
+              value={geometryMode}
+              onChange={event => setGeometryMode(event.target.value as 'AUTO' | 'MANUAL')}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold dark:border-slate-600 dark:bg-slate-800"
+            >
+              <option value="AUTO">Auto</option>
+              <option value="MANUAL">Manual</option>
+            </select>
+          </div>
+
+          {geometryMode === 'MANUAL' && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/20">
+              <p className="mb-2 text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+                Only fields you set are sent. Blank fields continue to use the resolved profile.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {isBodyText && (
+                  <OptionalNumberInput label="Items per box" min={1} max={14} value={manualGeometryOverrides.items_per_box} onChange={value => updateManualOverride('items_per_box', value)} />
+                )}
+                <OptionalNumberInput label="Title min chars" value={manualGeometryOverrides.title_min_chars} onChange={value => updateManualOverride('title_min_chars', value)} />
+                <OptionalNumberInput label="Title max chars" value={manualGeometryOverrides.title_max_chars} onChange={value => updateManualOverride('title_max_chars', value)} />
+                {isBodyText && <OptionalNumberInput label="Item min chars" value={manualGeometryOverrides.item_min_chars} onChange={value => updateManualOverride('item_min_chars', value)} />}
+                {isBodyText && <OptionalNumberInput label="Item max chars" value={manualGeometryOverrides.item_max_chars} onChange={value => updateManualOverride('item_max_chars', value)} />}
+                <OptionalNumberInput label="Max lines" min={1} value={manualGeometryOverrides.max_lines} onChange={value => updateManualOverride('max_lines', value)} />
+                <OptionalNumberInput label="Max chars" min={1} value={manualGeometryOverrides.max_chars} onChange={value => updateManualOverride('max_chars', value)} />
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Content Font Overrides */}
-          <FontOverrideSection
-            label="Content Font"
-            prefix="content"
-            config={config as unknown as Record<string, unknown>}
-            onChange={updateConfig}
-            thirdToggle="underline"
-          />
-        </div>
-      </CollapsibleSection>
+          {isBodyText && (
+            <CollapsibleSection title="Instances" isOpen={showInstances} onToggle={() => setShowInstances(value => !value)}>
+              <div className="grid grid-cols-2 gap-2">
+                <OptionalNumberInput label="Count" min={1} max={6} value={count} onChange={value => setCount(value ?? 1)} />
+                <label className="space-y-1">
+                  <span className="text-[10px] text-slate-500">Arrangement</span>
+                  <select value={layout} onChange={event => setLayout(event.target.value as typeof layout)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800">
+                    <option value="horizontal">Horizontal</option>
+                    <option value="vertical">Vertical</option>
+                    <option value="grid">Grid</option>
+                  </select>
+                </label>
+                {layout === 'grid' && <OptionalNumberInput label="Grid columns" min={2} max={6} value={gridCols} onChange={value => setGridCols(value ?? 2)} />}
+              </div>
+            </CollapsibleSection>
+          )}
 
-      {/* Section 5: Positioning */}
-      <CollapsibleSection
-        title="Positioning"
-        isOpen={showPositioning}
-        onToggle={() => setShowPositioning(!showPositioning)}
-      >
-        <div className="space-y-2.5">
-          <PositionPresets
-            positionConfig={positionConfig}
-            onChange={setPositionConfig}
-            elementType="TEXT_BOX"
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
+          {geometryMode === 'MANUAL' && (<>
+            <CollapsibleSection title="Typography" isOpen={showTypography} onToggle={() => setShowTypography(value => !value)}>
+              <div className="grid grid-cols-2 gap-2">
+                <OptionalNumberInput label="Heading size (px)" min={1} value={manualGeometryOverrides.heading_font_size_px} onChange={value => updateManualOverride('heading_font_size_px', value)} />
+                <OptionalNumberInput label="Content size (px)" min={1} value={manualGeometryOverrides.content_font_size_px} onChange={value => updateManualOverride('content_font_size_px', value)} />
+              </div>
+            </CollapsibleSection>
 
-          <ZIndexInput
-            value={zIndex}
-            onChange={setZIndex}
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
-        </div>
-      </CollapsibleSection>
+            <CollapsibleSection title="Spacing" isOpen={showSpacing} onToggle={() => setShowSpacing(value => !value)}>
+              <div className="grid grid-cols-2 gap-2">
+                <OptionalNumberInput label="Line height" min={0.5} step={0.1} value={manualGeometryOverrides.line_height} onChange={value => updateManualOverride('line_height', value)} />
+                <OptionalNumberInput label="Bullet gap (px)" value={manualGeometryOverrides.bullet_gap_px} onChange={value => updateManualOverride('bullet_gap_px', value)} />
+                <OptionalNumberInput label="Padding (px)" value={typeof manualGeometryOverrides.padding_px === 'number' ? manualGeometryOverrides.padding_px : undefined} onChange={value => updateManualOverride('padding_px', value)} />
+              </div>
+            </CollapsibleSection>
+          </>)}
 
-      {/* Section 6: Container Padding */}
-      <CollapsibleSection
-        title="Container Padding"
-        isOpen={showPadding}
-        onToggle={() => setShowPadding(!showPadding)}
-      >
-        <PaddingControl
-          paddingConfig={paddingConfig}
-          onChange={setPaddingConfig}
-          onAdvancedModified={() => setAdvancedModified(true)}
-        />
-      </CollapsibleSection>
-      </>)}
+          {!isSystemManaged && (
+            <CollapsibleSection title="Border & shadow" isOpen={showEffects} onToggle={() => setShowEffects(value => !value)}>
+              <div className="grid grid-cols-2 gap-2">
+                {(['border', 'shadow'] as const).map(field => (
+                  <label key={field} className="space-y-1">
+                    <span className="text-[10px] capitalize text-slate-500">{field}</span>
+                    <select
+                      value={textboxOverrides[field] === undefined ? 'auto' : textboxOverrides[field] ? 'on' : 'off'}
+                      onChange={event => updateTextboxOverride(field, event.target.value === 'auto' ? undefined : event.target.value === 'on')}
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="on">On</option>
+                      <option value="off">Off</option>
+                    </select>
+                  </label>
+                ))}
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {isBodyText && (
+            <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(value => !value)}>
+              <div className="space-y-2">
+                <PositionPresets positionConfig={positionConfig} onChange={setPositionConfig} elementType="TEXT_BOX" onAdvancedModified={() => setPositionModified(true)} />
+                <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setPositionModified(true)} />
+              </div>
+            </CollapsibleSection>
+          )}
+        </section>
+      )}
     </div>
   )
 }

@@ -645,6 +645,13 @@ export function useTextLabsGeneration({
         })
         let elementWithPosition: Parameters<typeof buildInsertionParams>[1] = {
           ...element,
+          semantic_role: element.semantic_role ?? (formData.componentType === 'TEXT_BOX' ? formData.semanticRole : null),
+          slot_name: element.slot_name ?? (formData.componentType === 'TEXT_BOX' ? formData.slotName : null),
+          slot_kind: element.slot_kind ?? (formData.componentType === 'TEXT_BOX' ? formData.slotKind : null),
+          accessory_type: element.accessory_type ?? (formData.componentType === 'TEXT_BOX' ? formData.accessoryType : null),
+          citations_used: element.citations_used ?? response.citations_used ?? null,
+          resolved_geometry: element.resolved_geometry ?? response.resolved_geometry ?? null,
+          platinum_profile: element.platinum_profile ?? response.platinum_profile ?? null,
           theme_variant_id: resolvedTheme.themeVariantId,
           theme_bindings: resolvedTheme.themeBindings,
           // Ownership describes the newly returned HTML. Never carry the
@@ -674,8 +681,43 @@ export function useTextLabsGeneration({
           effectiveSlideIndex
         )
 
-        const command = method === 'insertElement' ? 'insertTextBox' : method
-        const insertResponse = await layoutServiceApis?.sendElementCommand(command, params as Record<string, any>)
+        const citationsUsed = Array.isArray(params.citationsUsed) ? params.citationsUsed : []
+        const usesSemanticUpsert = insertionComponentType === 'TEXT_BOX' && (
+          Boolean(params.slotName) ||
+          params.semanticRole !== 'BODY_TEXT' ||
+          citationsUsed.length > 0 ||
+          Boolean(refineContext?.slotName)
+        )
+        const insertResponse = usesSemanticUpsert
+          ? await layoutServiceApis?.sendElementCommand('upsertSemanticElement', {
+              elementId: params.elementId,
+              replacesElementId: refineContext?.elementId,
+              slideIndex: effectiveSlideIndex,
+              content: params.content,
+              semanticRole: params.semanticRole,
+              slotName: params.slotName,
+              slotKind: params.slotKind,
+              accessoryType: params.accessoryType,
+              geometry: params.slotKind === 'body' ? {
+                gridRow: params.gridRow,
+                gridColumn: params.gridColumn,
+              } : undefined,
+              citationsUsed,
+              metadata: {
+                componentType: params.componentType,
+                researchProvenance: params.researchProvenance,
+                styleOwner: params.styleOwner,
+                themeVariantId: params.themeVariantId,
+                themeBindings: params.themeBindings,
+                resolvedGeometry: params.resolvedGeometry,
+                platinumProfile: params.platinumProfile,
+              },
+            })
+          : await layoutServiceApis?.sendElementCommand(
+              method === 'insertElement' ? 'insertTextBox' : method,
+              params as Record<string, any>,
+            )
+        if (usesSemanticUpsert && refineContext) refineElementDeleted = true
         const insertedElementId = typeof insertResponse?.elementId === 'string'
           ? insertResponse.elementId
           : typeof params.elementId === 'string'
@@ -685,7 +727,7 @@ export function useTextLabsGeneration({
       }
       assertThemeIsStillAuthoritative()
 
-      if (refineContext && layoutServiceApis?.sendElementCommand) {
+      if (refineContext && !refineElementDeleted && layoutServiceApis?.sendElementCommand) {
         try {
           assertThemeIsStillAuthoritative()
           await layoutServiceApis.sendElementCommand('deleteElement', { elementId: refineContext.elementId })

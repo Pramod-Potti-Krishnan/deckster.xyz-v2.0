@@ -30,12 +30,20 @@ const context = buildRefineContext({
   componentType: 'TEXT_BOX',
   styleOwner: 'text_service',
   themeVariantSource: 'full_deck_generation',
+  semanticRole: 'SLIDE_TITLE',
+  slotName: 'slide_title',
+  slotKind: 'structural',
+  citationsUsed: [{ source_key: 'market-report' }],
 }, 'TEXT_BOX')
 
 assert.equal(context.styleOwner, 'text_service')
 assert.equal(context.themeVariantSource, 'full_deck_generation')
 assert.equal(context.existingElement.style_owner, 'text_service')
 assert.equal(context.existingElement.theme_variant_source, 'full_deck_generation')
+assert.equal(context.semanticRole, 'SLIDE_TITLE')
+assert.equal(context.slotName, 'slide_title')
+assert.equal(context.existingElement.slot_name, 'slide_title')
+assert.equal(context.existingElement.citations_used[0].source_key, 'market-report')
 
 const generationSource = fs.readFileSync(
   new URL('../hooks/use-textlabs-generation.ts', import.meta.url),

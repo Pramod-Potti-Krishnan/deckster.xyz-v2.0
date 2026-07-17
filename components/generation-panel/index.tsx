@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useRef, useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { defaultElementResearchSelection } from '@/lib/element-research-policy'
-import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
+import { TemplateSlotCatalog, TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import { Switch } from '@/components/ui/switch'
 import { GenerationPanelHeader } from './header'
 import { GenerationInput } from './shared/generation-input'
@@ -17,6 +17,7 @@ import { ShapeForm } from './forms/shape-form'
 import { InfographicForm } from './forms/infographic-form'
 import { DiagramForm } from './forms/diagram-form'
 import { GenerationPanelProps, ElementContext, MandatoryConfig } from './types'
+import { parseTemplateSlotCatalog } from '@/lib/text-slot-catalog'
 
 export function GenerationPanel({
   isOpen,
@@ -31,8 +32,8 @@ export function GenerationPanel({
   presentationId,
   elementContext,
   mode,
-  regenerateEnabled,
-  onRegenerateToggle,
+  getTemplateSlotCatalog,
+  existingTextTarget,
   researchMode,
   researchWeb,
   researchUploadedDocs,
@@ -70,7 +71,10 @@ export function GenerationPanel({
 
   // Prompt state — lifted to panel level, passed to forms
   const [prompt, setPrompt] = useState('')
-  const [showAdvanced, setShowAdvanced] = useState(true)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [slotCatalog, setSlotCatalog] = useState<TemplateSlotCatalog>({ slots: [] })
+  const [slotCatalogLoading, setSlotCatalogLoading] = useState(false)
+  const [slotCatalogError, setSlotCatalogError] = useState<string | null>(null)
 
   // Mandatory config — registered by each form
   const mandatoryConfigRef = useRef<MandatoryConfig | null>(null)
@@ -86,16 +90,54 @@ export function GenerationPanel({
     setPrompt('')
   }, [elementType])
 
-  // Force showAdvanced=true when entering edit/refine mode
   useEffect(() => {
-    if (mode === 'edit' || mode === 'refine') {
-      setShowAdvanced(true)
+    if (!isOpen || elementType !== 'TEXT_BOX') return
+    let cancelled = false
+    if (!getTemplateSlotCatalog) {
+      setSlotCatalog({ slots: [] })
+      setSlotCatalogLoading(false)
+      setSlotCatalogError('Template roles are unavailable; Body text remains available.')
+      return
     }
-  }, [mode])
+    setSlotCatalogLoading(true)
+    setSlotCatalogError(null)
+    void getTemplateSlotCatalog(slideIndex)
+      .then(response => {
+        if (cancelled) return
+        const catalog = parseTemplateSlotCatalog(response)
+        setSlotCatalog(catalog)
+        if (!catalog.slots.length) {
+          setSlotCatalogError('This template exposes no structural text slots; Body text remains available.')
+        }
+      })
+      .catch(error => {
+        if (cancelled) return
+        console.warn('[GenerationPanel] Template slot catalog unavailable:', error)
+        setSlotCatalog({ slots: [] })
+        setSlotCatalogError('Template roles could not be loaded; Body text remains available.')
+      })
+      .finally(() => {
+        if (!cancelled) setSlotCatalogLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [elementType, getTemplateSlotCatalog, isOpen, slideIndex])
 
   // Visibility logic
-  const showGenerationInput = mode === 'generate' || mode === 'refine' || regenerateEnabled
-  const showFormBody = mode === 'edit' || mode === 'refine' || showAdvanced
+  const showGenerationInput = mode === 'generate' || mode === 'refine'
+
+  const researchControls = showGenerationInput ? (
+    <ResearchControls
+      researchMode={researchMode}
+      researchWeb={researchWeb}
+      researchUploadedDocs={researchUploadedDocs}
+      researchKnowledgeGraph={researchKnowledgeGraph}
+      researchCapabilities={researchCapabilities}
+      onResearchEnabledChange={handleResearchEnabledChange}
+      onResearchWebChange={onResearchWebChange}
+      onResearchUploadedDocsChange={onResearchUploadedDocsChange}
+      onResearchKnowledgeGraphChange={onResearchKnowledgeGraphChange}
+    />
+  ) : null
 
   // Keyboard shortcuts: Escape to close, Cmd/Ctrl+Enter to generate
   useEffect(() => {
@@ -131,8 +173,6 @@ export function GenerationPanel({
           onClose={onClose}
           onElementTypeChange={mode === 'edit' || mode === 'refine' ? undefined : onElementTypeChange}
           mode={mode}
-          regenerateEnabled={regenerateEnabled}
-          onRegenerateToggle={onRegenerateToggle}
         />
 
         {/* Canvas position indicator */}
@@ -143,63 +183,23 @@ export function GenerationPanel({
           </div>
         )}
 
-        {/* Chat-style generation input — hidden in edit mode when regenerate is OFF */}
+        {/* Regenerate is a direct viewer action; edit mode never needs a second toggle. */}
         {showGenerationInput && (
-          <>
-            <GenerationInput
-              prompt={prompt}
-              onPromptChange={setPrompt}
-              mandatoryConfig={mandatoryConfigRef.current}
-              showAdvanced={showAdvanced}
-              onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
-              onSubmit={handleFooterGenerate}
-              isGenerating={isGenerating}
-              error={error}
-            />
-            <div className="border-b border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">Research</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Your prompt leads; slide, deck, then research provide supporting context.
-                  </div>
-                </div>
-                <Switch
-                  aria-label="Enable research"
-                  checked={researchMode === 'on'}
-                  onCheckedChange={handleResearchEnabledChange}
-                  className="scale-90"
-                />
-              </div>
-              <div className="mt-2 grid gap-1.5">
-                <ResearchSourceSwitch
-                  label="Web Search"
-                  checked={researchWeb}
-                  researchEnabled={researchMode === 'on'}
-                  capability={researchCapabilities.web}
-                  onCheckedChange={onResearchWebChange}
-                />
-                <ResearchSourceSwitch
-                  label="Uploaded Documents"
-                  checked={researchUploadedDocs}
-                  researchEnabled={researchMode === 'on'}
-                  capability={researchCapabilities.uploaded_documents}
-                  onCheckedChange={onResearchUploadedDocsChange}
-                />
-                <ResearchSourceSwitch
-                  label="Knowledge Graph"
-                  checked={researchKnowledgeGraph}
-                  researchEnabled={researchMode === 'on'}
-                  capability={researchCapabilities.knowledge_graph}
-                  onCheckedChange={onResearchKnowledgeGraphChange}
-                />
-              </div>
-            </div>
-          </>
+          <GenerationInput
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            mandatoryConfig={mandatoryConfigRef.current}
+            showAdvanced={showAdvanced}
+            onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
+            onSubmit={handleFooterGenerate}
+            isGenerating={isGenerating}
+            error={error}
+          />
         )}
 
-        {/* Scrollable form area — always visible in edit mode, toggled by advanced in generate mode */}
-        <div className={`flex-1 overflow-y-auto px-3 py-3 ${!showFormBody ? 'hidden' : ''}`}>
+        {elementType !== 'TEXT_BOX' && researchControls}
+
+        <div className="flex-1 overflow-y-auto px-3 py-3">
           <FormRouter
             elementType={elementType}
             onSubmit={onGenerate}
@@ -211,10 +211,53 @@ export function GenerationPanel({
             prompt={prompt}
             showAdvanced={showAdvanced}
             registerMandatoryConfig={registerMandatoryConfig}
+            researchControls={elementType === 'TEXT_BOX' ? researchControls : null}
+            slotCatalog={slotCatalog}
+            slotCatalogLoading={slotCatalogLoading}
+            slotCatalogError={slotCatalogError}
+            existingTextTarget={existingTextTarget}
           />
         </div>
       </div>
 
+    </div>
+  )
+}
+
+function ResearchControls({
+  researchMode,
+  researchWeb,
+  researchUploadedDocs,
+  researchKnowledgeGraph,
+  researchCapabilities,
+  onResearchEnabledChange,
+  onResearchWebChange,
+  onResearchUploadedDocsChange,
+  onResearchKnowledgeGraphChange,
+}: Pick<GenerationPanelProps,
+  | 'researchMode'
+  | 'researchWeb'
+  | 'researchUploadedDocs'
+  | 'researchKnowledgeGraph'
+  | 'researchCapabilities'
+  | 'onResearchWebChange'
+  | 'onResearchUploadedDocsChange'
+  | 'onResearchKnowledgeGraphChange'
+> & { onResearchEnabledChange: (enabled: boolean) => void }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Research</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400">Prompt first; selected sources support it.</div>
+        </div>
+        <Switch aria-label="Enable research" checked={researchMode === 'on'} onCheckedChange={onResearchEnabledChange} className="scale-90" />
+      </div>
+      <div className="mt-1.5 grid gap-1">
+        <ResearchSourceSwitch label="Web Search" checked={researchWeb} researchEnabled={researchMode === 'on'} capability={researchCapabilities.web} onCheckedChange={onResearchWebChange} />
+        <ResearchSourceSwitch label="Uploaded Documents" checked={researchUploadedDocs} researchEnabled={researchMode === 'on'} capability={researchCapabilities.uploaded_documents} onCheckedChange={onResearchUploadedDocsChange} />
+        <ResearchSourceSwitch label="Knowledge Graph" checked={researchKnowledgeGraph} researchEnabled={researchMode === 'on'} capability={researchCapabilities.knowledge_graph} onCheckedChange={onResearchKnowledgeGraphChange} />
+      </div>
     </div>
   )
 }
@@ -271,6 +314,11 @@ function FormRouter({
   prompt,
   showAdvanced,
   registerMandatoryConfig,
+  researchControls,
+  slotCatalog,
+  slotCatalogLoading,
+  slotCatalogError,
+  existingTextTarget,
 }: {
   elementType: TextLabsComponentType
   onSubmit: (formData: TextLabsFormData) => Promise<void>
@@ -282,6 +330,11 @@ function FormRouter({
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
+  researchControls?: ReactNode
+  slotCatalog: TemplateSlotCatalog
+  slotCatalogLoading: boolean
+  slotCatalogError?: string | null
+  existingTextTarget?: GenerationPanelProps['existingTextTarget']
 }) {
   const commonProps = {
     onSubmit,
@@ -296,7 +349,7 @@ function FormRouter({
 
   switch (elementType) {
     case 'TEXT_BOX':
-      return <TextBoxForm {...commonProps} />
+      return <TextBoxForm {...commonProps} researchControls={researchControls} slotCatalog={slotCatalog} slotCatalogLoading={slotCatalogLoading} slotCatalogError={slotCatalogError} existingTextTarget={existingTextTarget} />
     case 'METRICS':
       return <MetricsForm {...commonProps} />
     case 'TABLE':
