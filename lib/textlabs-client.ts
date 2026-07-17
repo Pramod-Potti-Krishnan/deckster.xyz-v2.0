@@ -587,6 +587,11 @@ function extractBodyContent(html: string): string {
   return html
 }
 
+function extractImageSource(value: string): string {
+  const match = value.match(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i)
+  return match?.[1] || value
+}
+
 /**
  * Build postMessage params for canvas insertion based on element type and API response
  */
@@ -598,6 +603,7 @@ export function buildInsertionParams(
     image_url?: string
     image_data_url?: string
     mode?: string
+    renderer_type?: string | null
     grid_position?: Partial<TextLabsPositionConfig> & { width?: number; height?: number }
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
@@ -634,9 +640,37 @@ export function buildInsertionParams(
   // V2 (structured/deterministic) infographics return self-contained HTML (no raster
   // image); route them through the HTML insert path instead of insertImage, which would
   // feed the HTML string in as an <img src> and render nothing.
+  const infographicMode = element.mode
+    ?? element.metadata?.mode
+    ?? element.metadata?.generation_mode
+    ?? element.metadata?.renderer
+  const normalizedInfographicMode = typeof infographicMode === 'string'
+    ? infographicMode.toLocaleLowerCase()
+    : ''
+  const rendererValue = element.renderer_type
+    ?? element.metadata?.renderer_type
+    ?? element.metadata?.rendererType
+  const rendererType = typeof rendererValue === 'string'
+    ? rendererValue.toLocaleLowerCase()
+    : ''
+  const isExplicitV1Infographic =
+    componentType === 'INFOGRAPHIC' &&
+    (
+      normalizedInfographicMode === 'v1' ||
+      normalizedInfographicMode.includes('image_v1') ||
+      normalizedInfographicMode.includes('raster') ||
+      rendererType.includes('image')
+    )
   const isV2Infographic =
     componentType === 'INFOGRAPHIC' &&
-    (element.mode === 'v2' || (!!element.html && !element.image_url && !element.image_data_url))
+    !isExplicitV1Infographic &&
+    (
+      normalizedInfographicMode === 'v2' ||
+      normalizedInfographicMode.includes('html_v2') ||
+      normalizedInfographicMode.includes('structured') ||
+      rendererType.includes('diagram') ||
+      (!!element.html && !element.image_url && !element.image_data_url)
+    )
   const method: InsertionMethod = isV2Infographic ? 'insertDiagram' : getInsertionMethod(componentType)
   const baseType = isDiagramSubtype(componentType) ? 'DIAGRAM' : componentType as TextLabsComponentType
   const semanticComponentType = semanticTypeForInsertion(componentType)
@@ -745,7 +779,12 @@ export function buildInsertionParams(
     case 'insertImage':
       return {
         method: 'insertImage',
-        params: { ...baseParams, imageUrl: element.image_url || element.image_data_url || element.html || '' },
+        params: {
+          ...baseParams,
+          imageUrl: extractImageSource(
+            element.image_url || element.image_data_url || element.html || '',
+          ),
+        },
       }
     case 'insertDiagram':
       return {

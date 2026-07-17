@@ -45,6 +45,16 @@ function trimmedOptional(value: string | undefined): string | undefined {
   return trimmed || undefined
 }
 
+function normalizedIconHint(value: string): string {
+  const generic = new Set(['icon', 'symbol', 'glyph', 'outline', 'illustration', 'graphic'])
+  return value
+    .toLocaleLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(token => token && !generic.has(token))
+    .sort()
+    .join(' ')
+}
+
 export function normalizeManualInfographicSegments(
   segments: InfographicV2Segment[],
 ): InfographicV2Segment[] {
@@ -97,7 +107,12 @@ export function validateManualInfographicSegments(
       if (PLACEHOLDER_COPY.test(value)) {
         return `Segment ${index + 1} needs meaningful ${label} copy, not "${value}".`
       }
-      const normalizedValue = value.toLocaleLowerCase()
+      const normalizedValue = field === 'icon_hint'
+        ? normalizedIconHint(value)
+        : value.toLocaleLowerCase()
+      if (!normalizedValue) {
+        return `Segment ${index + 1} needs a specific icon concept.`
+      }
       if (uniqueValues[field].has(normalizedValue)) {
         return `Manual segment ${label}s must be unique.`
       }
@@ -145,17 +160,31 @@ export function inferExistingInfographicMode(target?: {
   const metadata = target?.metadata && typeof target.metadata === 'object'
     ? target.metadata as Record<string, unknown>
     : null
-  const explicitMode = target?.mode ?? metadata?.mode ?? metadata?.generation_mode
-  if (explicitMode === 'v2') return 'v2'
-  if (explicitMode === 'v1') return 'v1'
+  const explicitMode = target?.mode
+    ?? metadata?.mode
+    ?? metadata?.generation_mode
+    ?? metadata?.renderer
+  const normalizedMode = typeof explicitMode === 'string'
+    ? explicitMode.toLocaleLowerCase()
+    : ''
+  if (normalizedMode === 'v2' || normalizedMode.includes('html_v2') || normalizedMode.includes('structured')) {
+    return 'v2'
+  }
+  if (normalizedMode === 'v1' || normalizedMode.includes('image_v1') || normalizedMode.includes('raster')) {
+    return 'v1'
+  }
 
-  const rendererType = typeof target?.rendererType === 'string'
-    ? target.rendererType.toLocaleLowerCase()
+  const rendererValue = target?.rendererType
+    ?? metadata?.renderer_type
+    ?? metadata?.rendererType
+  const rendererType = typeof rendererValue === 'string'
+    ? rendererValue.toLocaleLowerCase()
     : ''
   if (rendererType.includes('diagram')) return 'v2'
   if (rendererType.includes('image')) return 'v1'
 
   const content = typeof target?.content === 'string' ? target.content.trim() : ''
+  if (/^<img\b/i.test(content)) return 'v1'
   if (content.startsWith('<') && content.endsWith('>')) return 'v2'
   return 'v1'
 }

@@ -528,7 +528,7 @@ export interface InfographicConfig {
   // New clients send structured rows only in explicit manual-content mode.
   // Legacy string counts remain accepted by Text Labs for backward compatibility.
   segments?: LegacyInfographicSegmentCount | InfographicV2Segment[]
-  crop_mode?: 'shape' | 'rectangle'
+  crop_mode?: 'shape' | 'content'
   target_background?: 'light' | 'dark'
   fill_internal?: boolean
   placeholder_mode?: boolean

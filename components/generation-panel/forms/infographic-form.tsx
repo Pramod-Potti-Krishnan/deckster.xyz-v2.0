@@ -43,6 +43,7 @@ type InfographicOverrides = Partial<Pick<
 interface InfographicFormProps {
   onSubmit: (formData: InfographicFormData) => void
   registerSubmit: (fn: () => void) => void
+  isOpen: boolean
   isGenerating: boolean
   presentationId?: string | null
   elementContext?: ElementContext | null
@@ -64,6 +65,7 @@ function emptySegment(): InfographicV2Segment {
 export function InfographicForm({
   onSubmit,
   registerSubmit,
+  isOpen,
   isGenerating,
   presentationId,
   elementContext,
@@ -93,6 +95,9 @@ export function InfographicForm({
   const [height, setHeight] = useState(DEFAULTS.height)
   const [showPosition, setShowPosition] = useState(false)
   const existingMode = inferExistingInfographicMode(existingTarget)
+  const panelSessionKey = isOpen
+    ? `${panelMode}:${existingTarget?.elementId ?? 'new'}`
+    : 'closed'
 
   useEffect(() => {
     if (!elementContext) return
@@ -106,6 +111,7 @@ export function InfographicForm({
   // A refine target can be a raster V1 image or V2 HTML persisted through the
   // diagram renderer. Preserve that path instead of silently reverting V2 to V1.
   useEffect(() => {
+    if (panelSessionKey === 'closed') return
     if (panelMode === 'refine') {
       setMode(existingMode)
     } else {
@@ -119,9 +125,12 @@ export function InfographicForm({
     setManualContentError(null)
     setOverrides({})
     setSegmentColorsInput('')
+    setPositionModified(false)
+    setZIndex(DEFAULTS.zIndex)
+    setShowPosition(false)
   }, [
-    existingTarget?.elementId,
     existingMode,
+    panelSessionKey,
     panelMode,
   ])
 
@@ -430,7 +439,7 @@ export function InfographicForm({
                 >
                   <option value="">Auto</option>
                   <option value="shape">Shape</option>
-                  <option value="rectangle">Rectangle</option>
+                  <option value="content">Content</option>
                 </select>
               </label>
               <label className="space-y-1">

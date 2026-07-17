@@ -100,12 +100,31 @@ assert.match(
   ]),
   /icon hints must be unique/,
 )
+assert.match(
+  configModule.validateManualInfographicSegments([
+    { ...manualSegments[0], icon_hint: 'microscope icon' },
+    { ...manualSegments[1], icon_hint: 'icon microscope symbol' },
+  ]),
+  /icon hints must be unique/,
+)
 
 assert.equal(configModule.inferExistingInfographicMode({ rendererType: 'diagram' }), 'v2')
 assert.equal(configModule.inferExistingInfographicMode({ rendererType: 'image' }), 'v1')
 assert.equal(
   configModule.inferExistingInfographicMode({ rendererType: 'image', content: '<img src="data:image/png;base64,abc">' }),
   'v1',
+)
+assert.equal(
+  configModule.inferExistingInfographicMode({ content: '<img src="https://example.test/creative.png">' }),
+  'v1',
+)
+assert.equal(
+  configModule.inferExistingInfographicMode({ metadata: { renderer: 'v1' }, content: '<section>Wrapper</section>' }),
+  'v1',
+)
+assert.equal(
+  configModule.inferExistingInfographicMode({ metadata: { renderer: 'html_v2' } }),
+  'v2',
 )
 assert.equal(configModule.inferExistingInfographicMode({ content: '<section>Structured</section>' }), 'v2')
 assert.equal(
@@ -190,6 +209,22 @@ const creativeInsertion = clientModule.buildInsertionParams('INFOGRAPHIC', {
   image_data_url: 'data:image/png;base64,abc',
 })
 assert.equal(creativeInsertion.method, 'insertImage')
+const explicitCreativeHtmlInsertion = clientModule.buildInsertionParams('INFOGRAPHIC', {
+  component_type: 'INFOGRAPHIC',
+  mode: 'v1',
+  renderer_type: 'image',
+  html: '<img src="https://example.test/creative.png">',
+})
+assert.equal(
+  explicitCreativeHtmlInsertion.method,
+  'insertImage',
+  'explicit V1/image metadata wins over the HTML fallback heuristic',
+)
+assert.equal(
+  explicitCreativeHtmlInsertion.params.imageUrl,
+  'https://example.test/creative.png',
+  'creative HTML fallback extracts the actual image source',
+)
 
 const formSource = fs.readFileSync(
   new URL('../components/generation-panel/forms/infographic-form.tsx', import.meta.url),
@@ -212,7 +247,12 @@ assert.doesNotMatch(formSource, /label:\s*['"`]Step \d/)
 assert.match(formSource, /Choose the generation path\. Creative is the default\./)
 assert.match(formSource, /Reset to Auto/)
 assert.match(formSource, /Manual rows are authoritative/)
+assert.match(formSource, /panelSessionKey === 'closed'/)
+assert.match(formSource, /setMode\('v1'\)/)
+assert.match(formSource, /option value="content">Content/)
+assert.doesNotMatch(formSource, /option value="rectangle"/)
 assert.match(panelSource, /elementType !== 'INFOGRAPHIC'/)
+assert.match(panelSource, /if \(isOpen\) setShowAdvanced\(false\)/)
 assert.match(stateSource, /type !== 'INFOGRAPHIC'/)
 assert.match(stateSource, /setResearchMode\('off'\)/)
 assert.match(generationSource, /infographicResearchDisabled/)
