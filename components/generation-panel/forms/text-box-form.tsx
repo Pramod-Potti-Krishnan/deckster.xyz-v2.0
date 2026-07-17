@@ -55,6 +55,17 @@ const STRUCTURE_OPTIONS: Array<{ value: TextBoxStructure; label: string }> = [
   { value: 'BULLET_BOX', label: 'Bullet Box' },
   { value: 'NUMBERED_LIST', label: 'Numbered' },
 ]
+const STRUCTURE_VALUES: Array<'auto' | TextBoxStructure> = [
+  'auto',
+  ...STRUCTURE_OPTIONS.map(option => option.value),
+]
+const LAYOUT_CHOICE_VALUES: TextBoxLayoutChoice[] = ['auto', 'horizontal', 'vertical', 'grid']
+const MULTI_BOX_COLOR_VALUES: Array<NonNullable<TextBoxFormData['multiBoxColorMode']>> = [
+  'SAME',
+  'ALTERNATING',
+  'PRIMARY_ACCENTS',
+  'THEME_SEQUENCE',
+]
 
 const TITLE_STYLE_OPTIONS: Array<{ value: TextBoxTitleStyle; label: string }> = [
   { value: 'plain', label: 'Plain' },
@@ -86,6 +97,7 @@ interface ExistingTextTarget {
   slotName?: string | null
   slotKind?: TextSlotKind | null
   accessoryType?: string | null
+  generationConfig?: Record<string, unknown> | null
 }
 
 interface TextBoxFormProps {
@@ -107,6 +119,51 @@ interface TextBoxFormProps {
 function roleLabel(role?: TextSemanticRole | null): string {
   if (!role) return 'Text'
   return role.toLowerCase().split('_').map(word => `${word[0].toUpperCase()}${word.slice(1)}`).join(' ')
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function stringValue<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? value as T : fallback
+}
+
+function numberValue(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function booleanValue(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function compactRecord(value: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!value) return null
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
+  )
+}
+
+function readSavedTextBoxGenerationConfig(value: unknown) {
+  const source = asRecord(value)
+  if (!source) return null
+  return {
+    prompt: typeof source.prompt === 'string' ? source.prompt : undefined,
+    structure: stringValue(source.structure, STRUCTURE_VALUES, 'auto'),
+    count: Math.max(1, Math.min(6, Math.round(numberValue(source.count, 1)))),
+    layoutChoice: stringValue(source.layoutChoice, LAYOUT_CHOICE_VALUES, 'auto'),
+    gridCols: Math.max(1, Math.min(6, Math.round(numberValue(source.gridCols, 2)))),
+    multiBoxColorMode: stringValue(source.multiBoxColorMode, MULTI_BOX_COLOR_VALUES, 'SAME'),
+    textboxOverrides: asRecord(source.textboxOverrides) as Partial<TextBoxConfig> | null,
+    geometryMode: stringValue(source.geometryMode, ['AUTO', 'MANUAL'] as const, 'AUTO'),
+    manualGeometryOverrides: asRecord(source.manualGeometryOverrides) as TextManualGeometryOverrides | null,
+    zIndex: Math.round(numberValue(source.zIndex, DEFAULTS.zIndex)),
+    positionModified: booleanValue(source.positionModified, false),
+    paddingModified: booleanValue(source.paddingModified, false),
+    paddingConfig: asRecord(source.paddingConfig) as TextLabsPaddingConfig | null,
+  }
 }
 
 function OptionalNumberInput({
@@ -192,21 +249,23 @@ export function TextBoxForm({
   const targetIdentity = elementContext?.elementId
     ?? existingTextTarget?.elementId
     ?? (existingTextTarget?.slotName ? `slot:${existingTextTarget.slotName}` : null)
+  const targetResetKey = `${targetIdentity ?? 'new'}:${existingTextTarget?.generationConfig ? 'saved' : 'auto'}`
 
   useEffect(() => {
-    if (previousTargetIdentity.current !== targetIdentity) {
-      setStructure('auto')
-      setCount(1)
-      setLayoutChoice('auto')
-      setGridCols(2)
-      setMultiBoxColorMode('SAME')
-      setTextboxOverrides({})
-      setGeometryMode('AUTO')
-      setManualGeometryOverrides({})
-      setZIndex(DEFAULTS.zIndex)
-      setPositionModified(false)
-      setPaddingModified(false)
-      setPaddingConfig({ top: 0, right: 0, bottom: 0, left: 0 })
+    if (previousTargetIdentity.current !== targetResetKey) {
+      const saved = readSavedTextBoxGenerationConfig(existingTextTarget?.generationConfig)
+      setStructure(saved?.structure ?? 'auto')
+      setCount(saved?.count ?? 1)
+      setLayoutChoice(saved?.layoutChoice ?? 'auto')
+      setGridCols(saved?.gridCols ?? 2)
+      setMultiBoxColorMode(saved?.multiBoxColorMode ?? 'SAME')
+      setTextboxOverrides(saved?.textboxOverrides ?? {})
+      setGeometryMode(saved?.geometryMode ?? 'AUTO')
+      setManualGeometryOverrides(saved?.manualGeometryOverrides ?? {})
+      setZIndex(saved?.zIndex ?? DEFAULTS.zIndex)
+      setPositionModified(saved?.positionModified ?? false)
+      setPaddingModified(saved?.paddingModified ?? false)
+      setPaddingConfig(saved?.paddingConfig ?? { top: 0, right: 0, bottom: 0, left: 0 })
       setShowInstances(false)
       setShowBoxDesign(false)
       setShowHeading(false)
@@ -214,8 +273,8 @@ export function TextBoxForm({
       setShowPositioning(false)
       setShowPadding(false)
     }
-    previousTargetIdentity.current = targetIdentity
-  }, [targetIdentity])
+    previousTargetIdentity.current = targetResetKey
+  }, [existingTextTarget?.generationConfig, targetResetKey])
 
   useEffect(() => {
     if (!elementContext) return
@@ -405,6 +464,38 @@ export function TextBoxForm({
     || Object.keys(textboxOverrides).length > 0
     || effectiveGeometry.geometryMode === 'MANUAL'
 
+  const generationConfig = useMemo(() => compactRecord({
+    version: 1,
+    prompt,
+    targetValue,
+    structure,
+    count,
+    layoutChoice,
+    gridCols,
+    multiBoxColorMode,
+    textboxOverrides,
+    geometryMode: effectiveGeometry.geometryMode,
+    manualGeometryOverrides: effectiveGeometry.manualGeometryOverrides,
+    zIndex,
+    positionModified,
+    paddingModified,
+    paddingConfig,
+  }), [
+    count,
+    effectiveGeometry,
+    gridCols,
+    layoutChoice,
+    multiBoxColorMode,
+    paddingConfig,
+    paddingModified,
+    positionModified,
+    prompt,
+    structure,
+    targetValue,
+    textboxOverrides,
+    zIndex,
+  ])
+
   const handleSubmit = useCallback(() => {
     const bodyCount = isBodyText ? count : 1
     const slotMetadata = slotMetadataForRequest(selectedSlot)
@@ -419,6 +510,7 @@ export function TextBoxForm({
         presentationId,
         useDeckTheme: Boolean(presentationId),
         themeOverrides: null,
+        generationConfig,
         slotName: selectedSlot.slot_name,
         slotKind: 'accessory',
         accessoryType: 'LOGO',
@@ -445,6 +537,7 @@ export function TextBoxForm({
       presentationId,
       useDeckTheme: Boolean(presentationId),
       themeOverrides: null,
+      generationConfig,
       semanticRole,
       slotName: selectedSlot?.slot_name ?? null,
       slotKind,
@@ -470,6 +563,7 @@ export function TextBoxForm({
     effectiveGeometry,
     isBodyText,
     isAccessory,
+    generationConfig,
     multiBoxColorMode,
     onSubmit,
     positionConfig,

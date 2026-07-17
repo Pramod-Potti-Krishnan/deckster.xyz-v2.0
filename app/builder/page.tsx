@@ -23,7 +23,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { useElementRefinement } from '@/hooks/use-element-refinement'
-import { iframeTypeToTextLabs, isTextLabsMappable } from '@/lib/element-type-mapping'
+import { isTextLabsMappable } from '@/lib/element-type-mapping'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
 import type {
@@ -3697,6 +3697,7 @@ function BuilderContent() {
                     slotName: generationPanel.refineContext.slotName,
                     slotKind: generationPanel.refineContext.slotKind,
                     accessoryType: generationPanel.refineContext.accessoryType,
+                    generationConfig: generationPanel.refineContext.generationConfig,
                   } : null}
                   researchMode={generationPanel.researchMode}
                   researchWeb={generationPanel.researchWeb}
@@ -4089,8 +4090,8 @@ function BuilderContent() {
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
               if (features.useTextLabsGeneration) {
-                const componentType = normalizeTextLabsElementType(selectedComponentType) ?? 'TEXT_BOX'
-                generationPanel.openPanelForEdit(componentType, elementId)
+                setSelectedTextBoxId(elementId)
+                setSelectedTextBoxFormatting(formatting)
                 bringToFront('element')
                 setShowTextBoxPanel(false)
                 setShowElementPanel(false)
@@ -4113,8 +4114,9 @@ function BuilderContent() {
             }}
             onElementSelected={(elementId, elementType, properties) => {
               if (features.useTextLabsGeneration && isTextLabsMappable(elementType)) {
-                const mappedType = iframeTypeToTextLabs(elementType)!
-                generationPanel.openPanelForEdit(mappedType, elementId)
+                setSelectedElementId(elementId)
+                setSelectedElementType(elementType)
+                setSelectedElementProperties(properties)
                 bringToFront('element')
                 setShowElementPanel(false)
                 setShowTextBoxPanel(false)

@@ -89,12 +89,18 @@ export function GenerationPanel({
   // Remounting the form below clears all element-specific Auto/Manual state,
   // while this reset closes Advanced and removes prompt/chip state.
   useEffect(() => {
-    setPrompt('')
+    const savedConfig = existingTextTarget?.generationConfig
+    const savedPrompt = mode === 'refine'
+      && savedConfig
+      && typeof savedConfig.prompt === 'string'
+      ? savedConfig.prompt
+      : ''
+    setPrompt(savedPrompt)
     setShowAdvanced(false)
     submitFnRef.current = null
     mandatoryConfigRef.current = null
     forceUpdate(n => n + 1)
-  }, [activationId, elementType])
+  }, [activationId, elementType, existingTextTarget?.elementId, mode])
 
   useEffect(() => {
     if (!isOpen || elementType !== 'TEXT_BOX') return

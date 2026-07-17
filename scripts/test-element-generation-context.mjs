@@ -165,6 +165,11 @@ assert.match(
   builderSource,
   /sendThemeSelection\(buildThemeSelection, requestId, effectivePresentationId\)/,
 )
+assert.doesNotMatch(
+  builderSource,
+  /generationPanel\.openPanelForEdit/,
+  'ordinary element selection must not open the Text Labs drawer; only explicit Regenerate should',
+)
 
 const generationPanelSource = fs.readFileSync(
   new URL('../components/generation-panel/shared/research-controls.tsx', import.meta.url),
