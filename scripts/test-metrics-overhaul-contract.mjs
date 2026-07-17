@@ -24,6 +24,7 @@ const metricsLayout = compile(new URL('../lib/metrics-layout.ts', import.meta.ur
   if (id === '@/lib/grid-splitter') return splitter
   throw new Error(`Unexpected layout dependency: ${id}`)
 })
+const metricsCardDesign = compile(new URL('../lib/metrics-card-design.ts', import.meta.url))
 
 const wide = { start_col: 1, start_row: 3, position_width: 28, position_height: 6 }
 const tall = { start_col: 4, start_row: 1, position_width: 8, position_height: 16 }
@@ -63,6 +64,39 @@ assert.deepEqual(
   [8.4, 8.4, 8.2],
 )
 assert.equal(metricsLayout.isMetricsLayoutViable({ start_col: 2, start_row: 4, position_width: 3, position_height: 3 }, 4, 'grid'), false)
+
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch(undefined, 'blue'))),
+  { color_scheme: 'solid', color_variant: 'blue' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('accent', 'blue'))),
+  { color_scheme: 'accent', color_variant: 'blue' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('solid', 'yellow'))),
+  { color_scheme: 'solid', color_variant: 'yellow' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('bordered', 'blue'))),
+  { color_scheme: 'bordered', color_variant: 'blue' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('transparent', 'blue'))),
+  { color_scheme: 'transparent', color_variant: 'blue' },
+)
+assert.equal(
+  metricsCardDesign.METRICS_CARD_COLOR_PRESETS.find(preset => preset.label === 'Gold').name,
+  'yellow',
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('solid', 'transparent'))),
+  { color_scheme: 'transparent' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('transparent', 'auto'))),
+  {},
+)
 
 const client = compile(new URL('../lib/textlabs-client.ts', import.meta.url), id => {
   if (id === '@/types/textlabs') return {
@@ -155,6 +189,28 @@ assert.deepEqual(JSON.parse(JSON.stringify(surfaceOptions.themeBindings)), {
   value_font: 'metric_value',
 })
 
+const namedCardColorOptions = client.buildApiPayload('session-1', {
+  ...baseMetrics,
+  advancedModified: true,
+  metricsConfig: { layout: 'grid', color_scheme: 'solid', color_variant: 'blue' },
+}).options
+assert.deepEqual(JSON.parse(JSON.stringify(namedCardColorOptions.metricsConfig)), {
+  layout: 'grid',
+  color_scheme: 'solid',
+  color_variant: 'blue',
+})
+
+const goldCardColorOptions = client.buildApiPayload('session-1', {
+  ...baseMetrics,
+  advancedModified: true,
+  metricsConfig: { layout: 'grid', color_scheme: 'solid', color_variant: 'yellow' },
+}).options
+assert.deepEqual(JSON.parse(JSON.stringify(goldCardColorOptions.metricsConfig)), {
+  layout: 'grid',
+  color_scheme: 'solid',
+  color_variant: 'yellow',
+})
+
 const typographyOptions = client.buildApiPayload('session-1', {
   ...baseMetrics,
   advancedModified: true,
@@ -204,6 +260,7 @@ const researchSource = fs.readFileSync(new URL('../components/generation-panel/s
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
 const routerSource = fs.readFileSync(new URL('../lib/element-command-router.ts', import.meta.url), 'utf8')
 const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import.meta.url), 'utf8')
+const toggleRowSource = fs.readFileSync(new URL('../components/generation-panel/shared/toggle-row.tsx', import.meta.url), 'utf8')
 assert.doesNotMatch(formSource, /fieldLabel:\s*['"]Color Scheme/)
 assert.match(formSource, /registerMandatoryConfig\(null\)/)
 assert.match(formSource, /value: 'gradient', label: 'Gradient'/)
@@ -212,6 +269,15 @@ assert.match(formSource, /ADVANCED_SURFACES\.map/)
 assert.match(formSource, /const LIGHT_FONT_COLORS/)
 assert.match(formSource, /const DARK_FONT_COLORS/)
 assert.match(formSource, /Color presets/)
+assert.match(formSource, /METRICS_CARD_COLOR_PRESETS/)
+assert.match(formSource, /Card color: Transparent/)
+assert.match(formSource, /selectCardColor\('transparent'\)/)
+assert.match(formSource, /resolveMetricsCardColorPatch/)
+assert.doesNotMatch(formSource, /disabled=\{!surfaceValue\}/)
+assert.match(toggleRowSource, /type="button"/)
+assert.match(toggleRowSource, /aria-pressed=\{value === option\.value\}/)
+assert.match(toggleRowSource, /role="group"/)
+assert.match(toggleRowSource, /aria-label=\{label\}/)
 assert.match(formSource, /Metric count/)
 assert.match(formSource, /Metric layout/)
 assert.match(formSource, /Auto fit/)
