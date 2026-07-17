@@ -30,6 +30,7 @@
     "test:blank-element-recovery": "node scripts/test-blank-element-recovery.mjs",
     "test:textbox-role-contract": "node scripts/test-textbox-role-contract.mjs",
     "test:metrics-overhaul-contract": "node scripts/test-metrics-overhaul-contract.mjs",
+    "test:table-overhaul-contract": "node scripts/test-table-overhaul-contract.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "start": "next start",
     "postinstall": "prisma generate"
