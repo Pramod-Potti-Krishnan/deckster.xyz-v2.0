@@ -26,9 +26,14 @@ import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
 import { researchedChartRecoveryMessage } from '@/lib/chart-data-contract'
+import {
+  assertLayoutCommandSucceeded,
+  layoutCommandSucceeded,
+} from '@/lib/layout-command-result'
 
 const THEME_CHANGED_DURING_GENERATION =
   'The deck theme changed while this element was being generated. Wait for Applied, then generate again.'
+const snapGridLine = (value: number) => Number((Math.round(value * 5) / 5).toFixed(1))
 
 interface UseTextLabsGenerationParams {
   generationPanel: {
@@ -518,10 +523,12 @@ export function useTextLabsGeneration({
     const effectiveResearchStoreName = researchStoreName
       ?? refineContext?.research.store_name
       ?? null
-    const effectiveResearchMode: ElementResearchMode = nonResearchVisual
+    const diagramCodeDoesNotResearch = formData.componentType === 'CODE_DISPLAY'
+    const researchDisabled = nonResearchVisual || diagramCodeDoesNotResearch
+    const effectiveResearchMode: ElementResearchMode = researchDisabled
       ? 'off'
       : generationPanel.researchMode
-    const researchPolicy = nonResearchVisual
+    const researchPolicy = researchDisabled
       ? null
       : buildElementResearchPolicy({
           mode: effectiveResearchMode,
@@ -535,7 +542,7 @@ export function useTextLabsGeneration({
           sessionId: effectiveResearchSessionId,
           userId: researchUserId,
         })
-    if (!nonResearchVisual && effectiveResearchMode === 'on' && researchPolicy && !hasSelectedElementResearchSource(researchPolicy)) {
+    if (!researchDisabled && effectiveResearchMode === 'on' && researchPolicy && !hasSelectedElementResearchSource(researchPolicy)) {
       generationPanel.setIsGenerating(false)
       generationPanel.setError(
         'Research is on, but no available source is selected. Enable Web Search or configure Uploaded Documents or Knowledge Graph.',
@@ -673,8 +680,8 @@ export function useTextLabsGeneration({
     if (blankId && blankInfo && layoutServiceApis?.sendElementCommand) {
       blankElements.setStatus(blankId, 'generating')
       const spinnerHtml = buildSpinnerHtml(blankId, formData.componentType)
-      const gridRow = `${blankInfo.startRow}/${blankInfo.startRow + blankInfo.height}`
-      const gridColumn = `${blankInfo.startCol}/${blankInfo.startCol + blankInfo.width}`
+      const gridRow = `${snapGridLine(blankInfo.startRow)}/${snapGridLine(blankInfo.startRow + blankInfo.height)}`
+      const gridColumn = `${snapGridLine(blankInfo.startCol)}/${snapGridLine(blankInfo.startCol + blankInfo.width)}`
       try {
         await layoutServiceApis.sendElementCommand('deleteElement', { elementId: blankId })
         const reinsertResponse = await layoutServiceApis.sendElementCommand('insertTextBox', {
@@ -838,13 +845,15 @@ export function useTextLabsGeneration({
           requested_data_source_mode: formData.componentType === 'CHART'
             ? formData.chartConfig.requested_data_source_mode
             : null,
+          generation_config: element.generation_config ?? response.generation_config
+            ?? formData.generationConfig ?? null,
           resolved_geometry: element.resolved_geometry ?? response.resolved_geometry ?? null,
           platinum_profile: element.platinum_profile ?? response.platinum_profile ?? null,
           resolved_metrics_profile: element.resolved_metrics_profile ?? (
             elements.length === 1 ? response.resolved_metrics_profile ?? null : null
           ),
-          generation_config: formData.generationConfig ?? null,
-          generationConfig: formData.generationConfig ?? null,
+          generationConfig: element.generation_config ?? response.generation_config
+            ?? formData.generationConfig ?? null,
           theme_variant_id: resolvedTheme.themeVariantId,
           theme_bindings: resolvedTheme.themeBindings,
           // Ownership describes the newly returned HTML. Never carry the
@@ -875,7 +884,6 @@ export function useTextLabsGeneration({
           formData.z_index,
           effectiveSlideIndex
         )
-
         const semanticUpsertParams = buildSemanticUpsertParams(
           params,
           effectiveSlideIndex,
@@ -918,6 +926,12 @@ export function useTextLabsGeneration({
               method === 'insertElement' ? 'insertTextBox' : method,
               params as Record<string, any>,
             )
+        assertLayoutCommandSucceeded(
+          insertResponse,
+          usesCitedUpsert
+            ? 'Cited element upsert'
+            : semanticUpsertParams ? 'Semantic element upsert' : 'Element insertion',
+        )
         if ((semanticUpsertParams || usesCitedUpsert) && refineContext && index === 0) refineElementDeleted = true
         const insertedElementId = typeof insertResponse?.elementId === 'string'
           ? insertResponse.elementId
@@ -1027,13 +1041,19 @@ export function useTextLabsGeneration({
       if (refineContext && !refineElementDeleted && layoutServiceApis?.sendElementCommand) {
         try {
           assertThemeIsStillAuthoritative()
-          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: refineContext.elementId })
+          const deleteResponse = await layoutServiceApis.sendElementCommand(
+            'deleteElement',
+            { elementId: refineContext.elementId },
+          )
+          assertLayoutCommandSucceeded(deleteResponse, 'Original element deletion')
           refineElementDeleted = true
         } catch (deleteError) {
           const rollbackResults = await Promise.allSettled(
             insertedElementIds.map(elementId => layoutServiceApis.sendElementCommand('deleteElement', { elementId })),
           )
-          const rollbackFailed = rollbackResults.some(result => result.status === 'rejected')
+          const rollbackFailed = rollbackResults.some(result => (
+            result.status === 'rejected' || !layoutCommandSucceeded(result.value)
+          ))
           insertedElementIds.length = 0
           throw new Error(
             rollbackFailed
@@ -1087,7 +1107,9 @@ export function useTextLabsGeneration({
         const rollbackResults = await Promise.allSettled(
           insertedElementIds.map(elementId => layoutServiceApis.sendElementCommand('deleteElement', { elementId })),
         )
-        if (rollbackResults.some(result => result.status === 'rejected')) {
+        if (rollbackResults.some(result => (
+          result.status === 'rejected' || !layoutCommandSucceeded(result.value)
+        ))) {
           errorMessage += ' Some generated elements could not be removed; reload the slide before retrying.'
         }
         insertedElementIds.length = 0
@@ -1097,8 +1119,8 @@ export function useTextLabsGeneration({
       if (currentBlankId && currentBlankInfo && layoutServiceApis?.sendElementCommand) {
         blankElements.setStatus(currentBlankId, 'blank')
         const placeholderHtml = buildPlaceholderHtml(currentBlankId, formData.componentType)
-        const gridRow = `${currentBlankInfo.startRow}/${currentBlankInfo.startRow + currentBlankInfo.height}`
-        const gridColumn = `${currentBlankInfo.startCol}/${currentBlankInfo.startCol + currentBlankInfo.width}`
+        const gridRow = `${snapGridLine(currentBlankInfo.startRow)}/${snapGridLine(currentBlankInfo.startRow + currentBlankInfo.height)}`
+        const gridColumn = `${snapGridLine(currentBlankInfo.startCol)}/${snapGridLine(currentBlankInfo.startCol + currentBlankInfo.width)}`
         try {
           restoredBlankElementId = await restoreBlankElementAfterFailure({
             elementId: currentBlankId,

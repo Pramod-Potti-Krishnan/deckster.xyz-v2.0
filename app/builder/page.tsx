@@ -3714,6 +3714,10 @@ function BuilderContent() {
                         }
                       : null
                   }
+                  existingDiagramTarget={generationPanel.refineContext ? {
+                    subtype: generationPanel.refineContext.diagramSubtype,
+                    generationConfig: generationPanel.refineContext.generationConfig as import('@/types/textlabs').DiagramGenerationConfig | null,
+                  } : null}
                   researchMode={generationPanel.researchMode}
                   researchWeb={generationPanel.researchWeb}
                   researchUploadedDocs={generationPanel.researchUploadedDocs}

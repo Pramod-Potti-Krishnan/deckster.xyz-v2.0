@@ -21,6 +21,7 @@ const DIAGRAM_SUBTYPES = new Set([
   'CLOUD_ARCHITECTURE',
   'LOGICAL_ARCHITECTURE',
   'DATA_ARCHITECTURE',
+  'CUSTOM',
 ])
 
 export function normalizeSemanticComponentType(value: unknown): TextLabsComponentType | null {

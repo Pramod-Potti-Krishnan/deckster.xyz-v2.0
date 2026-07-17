@@ -100,6 +100,7 @@ export function GenerationPanel({
   getTemplateSlotCatalog,
   existingTextTarget,
   existingInfographicTarget,
+  existingDiagramTarget,
   researchMode,
   researchWeb,
   researchUploadedDocs,
@@ -339,7 +340,7 @@ export function GenerationPanel({
           />
         )}
 
-        {elementType !== 'TEXT_BOX' && elementType !== 'METRICS' && elementType !== 'TABLE' && researchControls}
+        {elementType !== 'TEXT_BOX' && elementType !== 'METRICS' && elementType !== 'TABLE' && elementType !== 'DIAGRAM' && researchControls}
 
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <FormRouter
@@ -354,7 +355,14 @@ export function GenerationPanel({
             prompt={prompt}
             showAdvanced={showAdvanced}
             registerMandatoryConfig={registerMandatoryConfig}
-            researchControls={elementType === 'TEXT_BOX' || elementType === 'METRICS' || elementType === 'TABLE' ? researchControls : null}
+            researchControls={
+              elementType === 'TEXT_BOX' ||
+              elementType === 'METRICS' ||
+              elementType === 'TABLE' ||
+              elementType === 'DIAGRAM'
+                ? researchControls
+                : null
+            }
             slotCatalog={slotCatalog}
             slotCatalogLoading={slotCatalogLoading}
             slotCatalogError={slotCatalogError}
@@ -363,6 +371,7 @@ export function GenerationPanel({
             onDraftChange={onDraftChange}
             existingInfographicTarget={existingInfographicTarget}
             panelMode={mode}
+            existingDiagramTarget={existingDiagramTarget}
           />
         </div>
       </div>
@@ -392,6 +401,7 @@ function FormRouter({
   onDraftChange,
   existingInfographicTarget,
   panelMode,
+  existingDiagramTarget,
 }: {
   elementType: TextLabsComponentType
   onSubmit: (formData: TextLabsFormData) => Promise<void>
@@ -412,6 +422,7 @@ function FormRouter({
   onDraftChange?: GenerationPanelProps['onDraftChange']
   existingInfographicTarget?: GenerationPanelProps['existingInfographicTarget']
   panelMode: GenerationPanelProps['mode']
+  existingDiagramTarget?: GenerationPanelProps['existingDiagramTarget']
 }) {
   const commonProps = {
     onSubmit,
@@ -449,7 +460,7 @@ function FormRouter({
         />
       )
     case 'DIAGRAM':
-      return <DiagramForm {...commonProps} />
+      return <DiagramForm {...commonProps} researchControls={researchControls} existingDiagramTarget={existingDiagramTarget} />
     default:
       return null
   }

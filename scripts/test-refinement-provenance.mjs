@@ -35,6 +35,16 @@ const context = buildRefineContext({
   slotKind: 'structural',
   generationConfig: { version: 1, count: 3, multiBoxColorMode: 'ALTERNATING' },
   citationsUsed: [{ source_key: 'market-report' }],
+  researchProvenance: {
+    mode: 'on',
+    sources: [{ source_type: 'uploaded_docs', selected: true }],
+  },
+  diagramSubtype: 'code_display',
+  generationConfig: {
+    version: 'diagram_generation_config_v1',
+    diagram_type: 'GANTT_CHART',
+    settings: { time_unit: 'weeks' },
+  },
 }, 'TEXT_BOX')
 
 assert.equal(context.styleOwner, 'text_service')
@@ -47,6 +57,10 @@ assert.equal(context.existingElement.slot_name, 'slide_title')
 assert.equal(context.generationConfig.count, 3)
 assert.equal(context.existingElement.generation_config.multiBoxColorMode, 'ALTERNATING')
 assert.equal(context.existingElement.citations_used[0].source_key, 'market-report')
+assert.equal(context.researchProvenance.sources[0].source_type, 'uploaded_docs')
+assert.equal(context.diagramSubtype, 'GANTT_CHART')
+assert.equal(context.generationConfig.settings.time_unit, 'weeks')
+assert.equal(context.existingElement.generation_config.diagram_type, 'GANTT_CHART')
 
 const generationSource = fs.readFileSync(
   new URL('../hooks/use-textlabs-generation.ts', import.meta.url),

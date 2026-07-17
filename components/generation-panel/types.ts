@@ -1,7 +1,9 @@
 import React from 'react'
 import {
+  DiagramGenerationConfig,
   ElementResearchCapabilities,
   ElementResearchMode,
+  TextLabsDiagramSubtype,
   TextLabsComponentType,
   TextLabsFormData,
   TextSemanticRole,
@@ -47,6 +49,10 @@ export interface GenerationPanelProps {
     mode?: string | null
     metadata?: Record<string, unknown> | null
     content?: unknown
+  } | null
+  existingDiagramTarget?: {
+    subtype?: TextLabsDiagramSubtype | null
+    generationConfig?: DiagramGenerationConfig | null
   } | null
   researchMode: ElementResearchMode
   researchWeb: boolean

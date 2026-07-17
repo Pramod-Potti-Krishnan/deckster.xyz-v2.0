@@ -30,6 +30,7 @@ import { isNonResearchVisualElement } from '@/lib/element-research-policy'
 
 // Same service as Elementor - reuse the URL
 const TEXT_LABS_BASE_URL = process.env.NEXT_PUBLIC_ELEMENTOR_URL || 'https://web-production-3b42.up.railway.app'
+const snapGridLine = (value: number) => Number((Math.round(value * 5) / 5).toFixed(1))
 
 let elementIdSequence = 0
 
@@ -65,6 +66,7 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   zIndex: 'z_index',
   textOnlyMode: 'text_only_mode',
   presentationId: 'presentation_id',
+  serverSideInsert: 'server_side_insert',
   slideIndex: 'slide_index',
   useDeckTheme: 'use_deck_theme',
   themeOverrides: 'theme_overrides',
@@ -74,6 +76,7 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   slideContext: 'slide_context',
   deckContext: 'deck_context',
   generationContext: 'generation_context',
+  generationConfig: 'generation_config',
   replaceElementId: 'replace_element_id',
   semanticRole: 'semantic_role',
   slotName: 'slot_name',
@@ -129,6 +132,7 @@ export async function healthCheck(): Promise<boolean> {
 interface SendMessageOptions {
   componentType: TextLabsAllComponentType
   presentationId?: string | null
+  serverSideInsert?: boolean
   slideIndex?: number
   useDeckTheme?: boolean
   themeOverrides?: Record<string, unknown> | null
@@ -139,6 +143,7 @@ interface SendMessageOptions {
   slideContext?: Record<string, unknown> | null
   deckContext?: Record<string, unknown> | null
   generationContext?: ElementGenerationContext | null
+  generationConfig?: import('@/types/textlabs').DiagramGenerationConfig | null
   research?: ElementResearchPolicy | null
   replaceElementId?: string | null
   semanticRole?: string | null
@@ -392,6 +397,9 @@ export function buildApiPayload(
   const options: SendMessageOptions = {
     componentType,
     presentationId: formData.presentationId,
+    // The Builder owns live insertion through the Layout iframe. Text Labs
+    // must not also persist a REST copy of the same generated diagram.
+    serverSideInsert: false,
     slideIndex: formData.slideIndex,
     useDeckTheme: formData.useDeckTheme,
     themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
@@ -402,6 +410,7 @@ export function buildApiPayload(
     slideContext: formData.slideContext,
     deckContext: formData.deckContext,
     generationContext: formData.generationContext,
+    generationConfig: formData.generationConfig,
     research: isNonResearchVisualElement(
       formData.componentType,
       formData.slotKind,
@@ -422,7 +431,9 @@ export function buildApiPayload(
       ? manualGeometryOverrides
       : undefined,
     slotMetadata: formData.slotMetadata as Record<string, unknown> | undefined,
-    textOnlyMode: !advancedModified,
+    textOnlyMode: isDiagramSubtype(formData.componentType)
+      ? false
+      : !advancedModified,
     count,
     layout,
     zIndex: z_index,
@@ -500,6 +511,38 @@ export function buildApiPayload(
   // explicit illustrative/custom request before it resolves provenance.
   if (formData.componentType === 'CHART') {
     options.chartConfig = formData.chartConfig as Record<string, unknown>
+  }
+
+  // Diagram configuration is identity, not an optional styling tweak. Always
+  // send it so create/refine/regenerate preserve the selected subtype and
+  // normalized settings even when Advanced was never opened.
+  switch (formData.componentType) {
+    case 'CODE_DISPLAY':
+      options.codeDisplayConfig = formData.diagramConfig as Record<string, unknown>
+      break
+    case 'KANBAN_BOARD':
+      options.kanbanConfig = formData.diagramConfig as Record<string, unknown>
+      break
+    case 'GANTT_CHART':
+      options.ganttConfig = formData.diagramConfig as Record<string, unknown>
+      break
+    case 'CHEVRON_MATURITY':
+      options.chevronConfig = formData.diagramConfig as Record<string, unknown>
+      break
+    case 'IDEA_BOARD':
+      options.ideaBoardConfig = formData.diagramConfig as Record<string, unknown>
+      break
+    case 'CLOUD_ARCHITECTURE':
+      options.cloudArchitectureConfig = formData.diagramConfig as Record<string, unknown>
+      break
+    case 'LOGICAL_ARCHITECTURE':
+      options.logicalArchitectureConfig = formData.diagramConfig as Record<string, unknown>
+      break
+    case 'DATA_ARCHITECTURE':
+      options.dataArchitectureConfig = formData.diagramConfig as Record<string, unknown>
+      break
+    case 'CUSTOM':
+      break
   }
 
   // Attach element-specific config when user modified advanced settings
@@ -625,8 +668,8 @@ export function buildInsertionParams(
     metrics_color_variant?: string | null
     resolved_table_profile?: Record<string, unknown> | null
     citations_used?: Array<Record<string, unknown>> | null
-    generation_config?: Record<string, unknown> | null
-    generationConfig?: Record<string, unknown> | null
+    generation_config?: Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null
+    generationConfig?: Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null
     metadata?: Record<string, unknown> | null
   },
   positionConfig?: TextLabsPositionConfig,
@@ -690,8 +733,8 @@ export function buildInsertionParams(
   const elementId = componentType === 'CHART' && element.element_id
     ? element.element_id
     : `${baseType.toLowerCase()}_${Date.now()}_${nextElementIdSequence()}`
-  const gridRow = `${startRow}/${startRow + height}`
-  const gridColumn = `${startCol}/${startCol + width}`
+  const gridRow = `${snapGridLine(startRow)}/${snapGridLine(startRow + height)}`
+  const gridColumn = `${snapGridLine(startCol)}/${snapGridLine(startCol + width)}`
 
   const baseParams: Record<string, unknown> = {
     elementId,
@@ -742,6 +785,10 @@ export function buildInsertionParams(
     ?? element.metadata?.generationConfig
   const structuredPlan = element.metadata?.structured_plan
     ?? element.metadata?.structuredPlan
+  const diagramGenerationConfig = generationConfig && typeof generationConfig === 'object'
+    && typeof (generationConfig as Record<string, unknown>).diagram_type === 'string'
+    ? generationConfig as import('@/types/textlabs').DiagramGenerationConfig
+    : null
   if (semanticRole) baseParams.semanticRole = semanticRole
   if (slotName) baseParams.slotName = slotName
   if (slotKind) baseParams.slotKind = slotKind
@@ -756,6 +803,13 @@ export function buildInsertionParams(
   if (citationsUsed) baseParams.citationsUsed = citationsUsed
   if (generationConfig) baseParams.generationConfig = generationConfig
   if (structuredPlan) baseParams.structuredPlan = structuredPlan
+  if (diagramGenerationConfig) {
+    baseParams.diagramSubtype = diagramGenerationConfig.diagram_type
+    baseParams.diagramType = diagramGenerationConfig.diagram_type
+  } else if (isDiagramSubtype(componentType)) {
+    baseParams.diagramSubtype = componentType
+    baseParams.diagramType = componentType
+  }
 
   if (paddingConfig) {
     baseParams.style = {
@@ -845,6 +899,7 @@ function isDiagramSubtype(type: TextLabsAllComponentType): boolean {
   return [
     'CODE_DISPLAY', 'KANBAN_BOARD', 'GANTT_CHART', 'CHEVRON_MATURITY',
     'IDEA_BOARD', 'CLOUD_ARCHITECTURE', 'LOGICAL_ARCHITECTURE', 'DATA_ARCHITECTURE',
+    'CUSTOM',
   ].includes(type)
 }
 

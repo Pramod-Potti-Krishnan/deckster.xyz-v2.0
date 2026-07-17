@@ -2,7 +2,14 @@
 
 import { useCallback } from 'react'
 import type { RefineElementRequest } from '@/components/presentation-viewer'
-import type { TextLabsComponentType, TextLabsPositionConfig, TextSemanticRole, TextSlotKind } from '@/types/textlabs'
+import type {
+  DiagramGenerationConfig,
+  TextLabsComponentType,
+  TextLabsDiagramSubtype,
+  TextLabsPositionConfig,
+  TextSemanticRole,
+  TextSlotKind,
+} from '@/types/textlabs'
 
 export interface RefineContext {
   elementId: string
@@ -17,9 +24,11 @@ export interface RefineContext {
   slotName: string | null
   slotKind: TextSlotKind | null
   accessoryType: string | null
-  generationConfig: Record<string, unknown> | null
   citationsUsed: Array<Record<string, unknown>>
   metricsColorVariant: string | null
+  researchProvenance: Record<string, unknown> | null
+  diagramSubtype: TextLabsDiagramSubtype | null
+  generationConfig: Record<string, unknown> | DiagramGenerationConfig | null
   existingElement: Record<string, unknown>
   slideContext: Record<string, unknown> | null
   deckContext: Record<string, unknown> | null
@@ -72,6 +81,24 @@ function normalizeGridPosition(gridPosition: RefineElementRequest['gridPosition'
   }
 }
 
+const DIAGRAM_SUBTYPES = new Set<TextLabsDiagramSubtype>([
+  'CODE_DISPLAY',
+  'KANBAN_BOARD',
+  'GANTT_CHART',
+  'CHEVRON_MATURITY',
+  'IDEA_BOARD',
+  'CLOUD_ARCHITECTURE',
+  'LOGICAL_ARCHITECTURE',
+  'DATA_ARCHITECTURE',
+  'CUSTOM',
+])
+
+function normalizeDiagramSubtype(value: unknown): TextLabsDiagramSubtype | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toUpperCase().replace(/[-\s]/g, '_') as TextLabsDiagramSubtype
+  return DIAGRAM_SUBTYPES.has(normalized) ? normalized : null
+}
+
 export function useElementRefinement({
   slideContextByIndex,
   deckContext,
@@ -83,6 +110,8 @@ export function useElementRefinement({
     const slideIndex = payload.slideIndex ?? currentSlideIndex
     const gridPosition = normalizeGridPosition(payload.gridPosition)
     const slideContext = slideContextByIndex?.[slideIndex]
+    const diagramSubtype = normalizeDiagramSubtype(payload.generationConfig?.diagram_type)
+      ?? normalizeDiagramSubtype(payload.diagramSubtype)
 
     return {
       elementId: payload.elementId,
@@ -100,6 +129,8 @@ export function useElementRefinement({
       generationConfig: payload.generationConfig ?? null,
       citationsUsed: payload.citationsUsed ?? [],
       metricsColorVariant: payload.metricsColorVariant ?? null,
+      researchProvenance: payload.researchProvenance ?? null,
+      diagramSubtype,
       existingElement: {
         element_id: payload.elementId,
         component_type: elementType,
@@ -116,6 +147,7 @@ export function useElementRefinement({
         generation_config: payload.generationConfig ?? null,
         citations_used: payload.citationsUsed ?? [],
         metrics_color_variant: payload.metricsColorVariant ?? null,
+        diagram_subtype: diagramSubtype,
         content: payload.content ?? null,
         formatting: payload.formatting ?? null,
         properties: payload.properties ?? null,

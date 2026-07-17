@@ -20,6 +20,12 @@ function profileToPalette(profile: SavedThemeProfile): ThemePalette | null {
   const palette: ThemePalette = {
     primary: isHex(payload.primary_hex) ? payload.primary_hex : undefined,
     secondary: isHex(payload.secondary_hex) ? payload.secondary_hex : undefined,
+    surface: isHex(overrides.surface)
+      ? overrides.surface
+      : (isHex(payload.secondary_hex) ? payload.secondary_hex : undefined),
+    border: isHex(overrides.border)
+      ? overrides.border
+      : (isHex(payload.secondary_hex) ? payload.secondary_hex : undefined),
     accents,
     text: isHex(payload.neutral_hex) ? payload.neutral_hex : undefined,
     background: isHex(overrides.background) ? overrides.background : undefined,
