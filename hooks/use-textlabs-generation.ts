@@ -736,6 +736,8 @@ export function useTextLabsGeneration({
           resolved_metrics_profile: element.resolved_metrics_profile ?? (
             elements.length === 1 ? response.resolved_metrics_profile ?? null : null
           ),
+          generation_config: formData.generationConfig ?? null,
+          generationConfig: formData.generationConfig ?? null,
           theme_variant_id: resolvedTheme.themeVariantId,
           theme_bindings: resolvedTheme.themeBindings,
           // Ownership describes the newly returned HTML. Never carry the
@@ -800,6 +802,7 @@ export function useTextLabsGeneration({
                 resolvedMetricsProfile: params.resolvedMetricsProfile,
                 metricsColorVariant: params.metricsColorVariant,
                 resolvedTableProfile: params.resolvedTableProfile,
+                generationConfig: params.generationConfig,
               },
             })
           : semanticUpsertParams
@@ -964,7 +967,7 @@ export function useTextLabsGeneration({
       }
     } finally {
       clearTimeout(timeoutId)
-      if (refineContext && refineOverlayActive && !refineElementDeleted && layoutServiceApis?.sendElementCommand) {
+      if (refineContext && refineOverlayActive && layoutServiceApis?.sendElementCommand) {
         try {
           await layoutServiceApis.sendElementCommand('setElementGenerationState', {
             elementId: refineContext.elementId,

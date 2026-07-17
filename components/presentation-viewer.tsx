@@ -165,6 +165,7 @@ export interface RefineElementRequest {
   slotName?: string | null
   slotKind?: import('@/types/textlabs').TextSlotKind | null
   accessoryType?: string | null
+  generationConfig?: Record<string, unknown> | null
   citationsUsed?: Array<Record<string, unknown>> | null
   metricsColorVariant?: string | null
   content?: unknown
@@ -2195,6 +2196,7 @@ export function PresentationViewer({
           slotName: event.data.slotName || event.data.slot_name || null,
           slotKind: event.data.slotKind || event.data.slot_kind || null,
           accessoryType: event.data.accessoryType || event.data.accessory_type || null,
+          generationConfig: event.data.generationConfig || event.data.generation_config || null,
           citationsUsed: event.data.citationsUsed || event.data.citations_used || null,
           metricsColorVariant: event.data.metricsColorVariant || event.data.metrics_color_variant || null,
           content: event.data.content,

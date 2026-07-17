@@ -33,6 +33,7 @@ const context = buildRefineContext({
   semanticRole: 'SLIDE_TITLE',
   slotName: 'slide_title',
   slotKind: 'structural',
+  generationConfig: { version: 1, count: 3, multiBoxColorMode: 'ALTERNATING' },
   citationsUsed: [{ source_key: 'market-report' }],
 }, 'TEXT_BOX')
 
@@ -43,6 +44,8 @@ assert.equal(context.existingElement.theme_variant_source, 'full_deck_generation
 assert.equal(context.semanticRole, 'SLIDE_TITLE')
 assert.equal(context.slotName, 'slide_title')
 assert.equal(context.existingElement.slot_name, 'slide_title')
+assert.equal(context.generationConfig.count, 3)
+assert.equal(context.existingElement.generation_config.multiBoxColorMode, 'ALTERNATING')
 assert.equal(context.existingElement.citations_used[0].source_key, 'market-report')
 
 const generationSource = fs.readFileSync(
@@ -52,6 +55,11 @@ const generationSource = fs.readFileSync(
 assert.match(generationSource, /style_owner: responseStyleOwner\(element\)/)
 assert.doesNotMatch(generationSource, /\?\? refineContext\?\.styleOwner/)
 assert.match(generationSource, /parseThemeVariantSource\(refineContext\?\.themeVariantSource\)/)
+assert.match(
+  generationSource,
+  /refineContext && refineOverlayActive && layoutServiceApis\?\.sendElementCommand/,
+  'regeneration overlay cleanup must not be gated by refineElementDeleted',
+)
 
 const provenanceSource = fs.readFileSync(
   new URL('../lib/element-provenance.ts', import.meta.url),
