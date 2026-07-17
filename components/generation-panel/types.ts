@@ -9,6 +9,7 @@ import {
 } from '@/types/textlabs'
 
 export interface ElementContext {
+  elementId?: string
   startCol: number
   startRow: number
   width: number
@@ -30,6 +31,7 @@ export interface GenerationPanelProps {
   mode: 'generate' | 'edit' | 'refine'
   getTemplateSlotCatalog?: (slideIndex: number) => Promise<unknown>
   existingTextTarget?: {
+    elementId?: string | null
     semanticRole?: TextSemanticRole | null
     slotName?: string | null
     slotKind?: TextSlotKind | null
