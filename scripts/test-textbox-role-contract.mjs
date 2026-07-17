@@ -105,11 +105,19 @@ const structuralPayload = clientModule.buildApiPayload('session-1', {
   semanticRole: 'SLIDE_TITLE',
   slotName: 'slide_title',
   slotKind: 'structural',
+  slotMetadata: {
+    geometry: { grid_width: 28, grid_height: 3, start_col: 2, start_row: 2 },
+    typography: { font_size_px: 36, line_height: 1.1 },
+    single_instance: true,
+    kind: 'structural',
+  },
   positionConfig: undefined,
 }).options
 assert.equal(structuralPayload.semanticRole, 'SLIDE_TITLE')
 assert.equal(structuralPayload.slotName, 'slide_title')
 assert.equal(structuralPayload.positionConfig, undefined)
+assert.equal(structuralPayload.slotMetadata.geometry.grid_width, 28)
+assert.equal(structuralPayload.slotMetadata.typography.line_height, 1.1)
 
 const manualPayload = clientModule.buildApiPayload('session-1', {
   ...baseForm,

@@ -73,6 +73,7 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   accessoryType: 'accessory_type',
   geometryMode: 'geometry_mode',
   manualGeometryOverrides: 'manual_geometry_overrides',
+  slotMetadata: 'slot_metadata',
 }
 
 // ============================================================================
@@ -135,6 +136,7 @@ interface SendMessageOptions {
   accessoryType?: string | null
   geometryMode?: 'AUTO' | 'MANUAL'
   manualGeometryOverrides?: Record<string, unknown>
+  slotMetadata?: Record<string, unknown>
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
   zIndex?: number
@@ -328,6 +330,9 @@ export function buildApiPayload(
     geometryMode: formData.componentType === 'TEXT_BOX' ? formData.geometryMode : undefined,
     manualGeometryOverrides: formData.componentType === 'TEXT_BOX' && formData.geometryMode === 'MANUAL'
       ? formData.manualGeometryOverrides as Record<string, unknown> | undefined
+      : undefined,
+    slotMetadata: formData.componentType === 'TEXT_BOX'
+      ? formData.slotMetadata as Record<string, unknown> | undefined
       : undefined,
     textOnlyMode: !advancedModified,
     count,
