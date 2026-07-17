@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 
-function compile(file, requireImplementation = () => ({})) {
+function compile(file, requireImplementation = () => ({}), extraContext = {}) {
   const source = fs.readFileSync(file, 'utf8')
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
@@ -15,11 +15,12 @@ function compile(file, requireImplementation = () => ({})) {
     process: { env: {} },
     Date,
     require: requireImplementation,
+    ...extraContext,
   })
   return mod.exports
 }
 
-const client = compile(new URL('../lib/textlabs-client.ts', import.meta.url), id => {
+const clientDependencies = id => {
   if (id === '@/types/textlabs') return {
     INSERTION_METHOD_MAP: { TABLE: 'insertElement' },
     TEXT_LABS_ELEMENT_DEFAULTS: { TABLE: { width: 18, height: 8, zIndex: 1000 } },
@@ -28,7 +29,9 @@ const client = compile(new URL('../lib/textlabs-client.ts', import.meta.url), id
   if (id === '@/lib/textlabs-theme-metadata') return { resolveElementThemeMetadata: () => ({ themeVariantId: null, themeBindings: null }) }
   if (id === '@/lib/element-provenance') return { parseThemeVariantSource: () => null, responseStyleOwner: () => 'text_service' }
   throw new Error(`Unexpected client dependency: ${id}`)
-})
+}
+
+const client = compile(new URL('../lib/textlabs-client.ts', import.meta.url), clientDependencies)
 
 const baseTable = {
   componentType: 'TABLE',
@@ -113,6 +116,25 @@ assert.equal(insertion.params.componentType, 'TABLE')
 assert.equal(insertion.params.citationsUsed.length, 1)
 assert.equal(insertion.params.resolvedTableProfile.rows, 1)
 
+const failedClient = compile(new URL('../lib/textlabs-client.ts', import.meta.url), clientDependencies, {
+  fetch: async () => ({
+    ok: true,
+    json: async () => ({
+      success: false,
+      response_text: 'Web Search returned no factual findings.',
+      error_code: 'WEB_NO_FACTS_RETURNED',
+      retryable: true,
+    }),
+  }),
+})
+await assert.rejects(
+  () => failedClient.sendMessage('session-table', 'Generate researched table', {
+    componentType: 'TABLE',
+    tableConfig: { structure_mode: 'AUTO' },
+  }),
+  /Web Search returned no factual findings\./,
+)
+
 const formSource = fs.readFileSync(new URL('../components/generation-panel/forms/table-form.tsx', import.meta.url), 'utf8')
 const panelSource = fs.readFileSync(new URL('../components/generation-panel/index.tsx', import.meta.url), 'utf8')
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
@@ -157,6 +179,7 @@ assert.match(
   'every TABLE insert uses the generalized atomic cited-element path',
 )
 assert.match(generationSource, /resolvedTableProfile/)
+assert.match(generationSource, /150_000/, 'researched table generation timeout allows Researcher bounded retries')
 assert.match(formSource, /z_index: zIndexModified \? zIndex : undefined/)
 assert.match(formSource, /positionConfig: positionModified \? positionConfig : undefined/)
 assert.doesNotMatch(formSource, /chars"[^>]*min=\{1\}/, 'character-limit controls match the backend minimum')

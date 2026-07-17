@@ -611,9 +611,10 @@ export function useTextLabsGeneration({
 
     // Grounded generation may include one bounded Researcher round-trip.
     const controller = new AbortController()
+    const generationTimeoutMs = generationPanel.researchMode === 'off' ? 30_000 : 150_000
     const timeoutId = setTimeout(
       () => controller.abort(),
-      generationPanel.researchMode === 'off' ? 30_000 : 90_000,
+      generationTimeoutMs,
     )
     const insertedElementIds: string[] = []
 
@@ -833,7 +834,7 @@ export function useTextLabsGeneration({
     } catch (err) {
       let errorMessage = 'Generation failed'
       if (err instanceof DOMException && err.name === 'AbortError') {
-        const timeoutSeconds = generationPanel.researchMode === 'off' ? 30 : 90
+        const timeoutSeconds = generationTimeoutMs / 1000
         errorMessage = `Generation timed out after ${timeoutSeconds} seconds. Try again or simplify your prompt.`
       } else if (err instanceof TypeError && err.message.includes('fetch')) {
         errorMessage = 'Network error. Check your connection and try again.'

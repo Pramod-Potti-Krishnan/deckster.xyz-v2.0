@@ -226,8 +226,13 @@ export function detachMetricsOverrideBindings(
 export function formatBackendError(errorData: unknown, fallback: string): string {
   if (!errorData || typeof errorData !== 'object') return fallback
   const payload = errorData as Record<string, unknown>
-  for (const key of ['error', 'message'] as const) {
+  for (const key of ['error', 'message', 'response_text'] as const) {
     if (typeof payload[key] === 'string' && payload[key].trim()) return payload[key].trim()
+  }
+  if (payload.error && typeof payload.error === 'object' && !Array.isArray(payload.error)) {
+    const nested = payload.error as BackendValidationIssue
+    const message = typeof nested.message === 'string' ? nested.message : nested.msg
+    if (typeof message === 'string' && message.trim()) return message.trim()
   }
 
   const detail = payload.detail
@@ -284,7 +289,12 @@ export async function sendMessage(
     throw new Error(formatBackendError(errorData, `API error: ${response.status}`))
   }
 
-  return response.json()
+  const data = await response.json()
+  if (data && typeof data === 'object' && (data as Record<string, unknown>).success === false) {
+    throw new Error(formatBackendError(data, 'Element generation failed'))
+  }
+
+  return data
 }
 
 // ============================================================================
