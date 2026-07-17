@@ -167,7 +167,7 @@ assert.match(
 )
 
 const generationPanelSource = fs.readFileSync(
-  new URL('../components/generation-panel/index.tsx', import.meta.url),
+  new URL('../components/generation-panel/shared/research-controls.tsx', import.meta.url),
   'utf8',
 )
 assert.match(generationPanelSource, /Enable research/)

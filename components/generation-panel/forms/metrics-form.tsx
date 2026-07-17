@@ -1,100 +1,41 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { MetricsFormData, MetricsConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
-import { ElementContext, MandatoryConfig } from '../types'
-import { ToggleRow } from '../shared/toggle-row'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import type {
+  MetricsConfig,
+  MetricsFitMode,
+  MetricsFormData,
+  MetricsManualOverrides,
+  TextLabsPositionConfig,
+} from '@/types/textlabs'
+import { TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
+import type { ElementContext, MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
-import { FontOverrideSection } from '../shared/font-override-section'
 import { PositionPresets } from '../shared/position-presets'
-import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
-import { ThemeSourceSelector } from '../shared/theme-source-selector'
-import { useThemeSourceState } from '../shared/use-theme-source-state'
-import { splitGridArea } from '@/lib/grid-splitter'
+import {
+  isMetricsLayoutViable,
+  resolveMetricsLayout,
+  type MetricsLayoutChoice,
+} from '@/lib/metrics-layout'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.METRICS
+const SURFACES: Array<{ value: '' | MetricsConfig['color_scheme']; label: string }> = [
+  { value: '', label: 'Auto' },
+  { value: 'solid', label: 'Filled' },
+  { value: 'accent', label: 'Pastel' },
+  { value: 'transparent', label: 'Clear' },
+  { value: 'bordered', label: 'Outline' },
+]
+const COLORS = ['', 'purple', 'blue', 'green', 'red', 'cyan', 'orange', 'pink', 'gold', 'teal', 'indigo']
+const FONT_SIZES = ['', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '40px', '48px']
+const FONT_FAMILIES = ['', 'Poppins', 'Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Lato', 'Source Sans Pro']
 
-const CARD_COLOR_PRESETS = [
-  { name: 'purple', label: 'Purple', hex: '#805AA0', pastelHex: '#C9A6E8' },
-  { name: 'blue', label: 'Blue', hex: '#2980B9', pastelHex: '#90C4E8' },
-  { name: 'green', label: 'Green', hex: '#27AE60', pastelHex: '#8ED4A8' },
-  { name: 'red', label: 'Red', hex: '#C0392B', pastelHex: '#E8A09A' },
-  { name: 'cyan', label: 'Cyan', hex: '#0097A7', pastelHex: '#80D4DE' },
-  { name: 'orange', label: 'Orange', hex: '#E65100', pastelHex: '#F4B88A' },
-  { name: 'pink', label: 'Pink', hex: '#C2185B', pastelHex: '#E890B2' },
-  { name: 'gold', label: 'Gold', hex: '#D39E1E', pastelHex: '#EDD08E' },
-  { name: 'teal', label: 'Teal', hex: '#00796B', pastelHex: '#80C4BB' },
-  { name: 'indigo', label: 'Indigo', hex: '#3949AB', pastelHex: '#9CA6D8' },
-] as const
-
-const LIGHT_FONT_COLORS = [
-  { value: null, label: 'Auto', hex: null },
-  { value: '#FFFFFF', label: 'White', hex: '#FFFFFF' },
-  { value: '#E5E7EB', label: 'Light Gray', hex: '#E5E7EB' },
-  { value: '#C4B5FD', label: 'Lavender', hex: '#C4B5FD' },
-  { value: '#93C5FD', label: 'Sky', hex: '#93C5FD' },
-  { value: '#FDE68A', label: 'Gold', hex: '#FDE68A' },
-  { value: '#FCA5A5', label: 'Rose', hex: '#FCA5A5' },
-] as const
-
-const DARK_FONT_COLORS = [
-  { value: null, label: 'Auto', hex: null },
-  { value: '#1F2937', label: 'Dark', hex: '#1F2937' },
-  { value: '#374151', label: 'Gray', hex: '#374151' },
-  { value: '#5B21B6', label: 'Purple', hex: '#5B21B6' },
-  { value: '#1D4ED8', label: 'Blue', hex: '#1D4ED8' },
-  { value: '#D97706', label: 'Amber', hex: '#D97706' },
-  { value: '#BE185D', label: 'Pink', hex: '#BE185D' },
-] as const
-
-const DEFAULT_METRICS_CONFIG: MetricsConfig = {
-  corners: 'rounded',
-  border: false,
-  alignment: 'center',
-  color_scheme: 'gradient',
-  color_variant: null,
-  trend: null,
-  placeholder_mode: false,
-  value_min_chars: 2,
-  value_max_chars: 6,
-  label_min_chars: 6,
-  label_max_chars: 18,
-  description_min_chars: 60,
-  description_max_chars: 90,
-  value_font_color: null,
-  value_font_size: null,
-  value_font_family: null,
-  value_bold: null,
-  value_italic: null,
-  value_allcaps: null,
-  label_font_color: null,
-  label_font_size: null,
-  label_font_family: null,
-  label_bold: null,
-  label_italic: null,
-  label_allcaps: null,
-  desc_font_color: null,
-  desc_font_size: null,
-  desc_font_family: null,
-  desc_bold: null,
-  desc_italic: null,
-  desc_allcaps: null,
-}
-
-function buildMetricsComposeElements(
-  positionConfig: TextLabsPositionConfig,
-  count: number,
-  layout: 'horizontal' | 'vertical'
-): MetricsFormData['elements'] {
-  if (count <= 1) return undefined
-  return splitGridArea({
-    start_col: positionConfig.start_col,
-    start_row: positionConfig.start_row,
-    position_width: positionConfig.position_width,
-    position_height: positionConfig.position_height,
-  }, count, layout).map(grid_position => ({ grid_position }))
-}
+const TYPOGRAPHY_VISUAL_FIELDS: Array<keyof MetricsConfig> = [
+  'value_font_color', 'value_font_family', 'value_bold', 'value_italic', 'value_allcaps',
+  'label_font_color', 'label_font_family', 'label_bold', 'label_italic', 'label_allcaps',
+  'desc_font_color', 'desc_font_family', 'desc_bold', 'desc_italic', 'desc_allcaps',
+]
 
 interface MetricsFormProps {
   onSubmit: (formData: MetricsFormData) => void
@@ -104,28 +45,101 @@ interface MetricsFormProps {
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
-  registerMandatoryConfig: (config: MandatoryConfig) => void
+  registerMandatoryConfig: (config: MandatoryConfig | null) => void
+  researchControls?: ReactNode
 }
 
-export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: MetricsFormProps) {
+function OptionalNumberInput({
+  label,
+  value,
+  disabled,
+  min = 0,
+  max,
+  step = 1,
+  onChange,
+}: {
+  label: string
+  value?: number
+  disabled: boolean
+  min?: number
+  max?: number
+  step?: number
+  onChange: (value: number | undefined) => void
+}) {
+  return (
+    <label className="space-y-1">
+      <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <input
+        type="number"
+        value={value ?? ''}
+        disabled={disabled}
+        min={min}
+        max={max}
+        step={step}
+        placeholder="Auto"
+        onChange={event => onChange(event.target.value === '' ? undefined : Number(event.target.value))}
+        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:disabled:bg-slate-900"
+      />
+    </label>
+  )
+}
+
+function TriStateStyleButton({
+  label,
+  fieldLabel,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string
+  fieldLabel: string
+  value?: boolean | null
+  disabled: boolean
+  onChange: (value: boolean | undefined) => void
+}) {
+  const stateLabel = value === undefined || value === null ? 'Auto' : value ? 'On' : 'Off'
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-label={`${fieldLabel}: ${stateLabel}. Activate to change.`}
+      onClick={() => onChange(value === undefined || value === null ? true : value ? false : undefined)}
+      className={`h-6 min-w-7 rounded border px-1 text-[9px] font-semibold disabled:cursor-not-allowed ${
+        value === true
+          ? 'border-primary bg-primary text-white'
+          : value === false
+            ? 'border-slate-300 bg-white text-slate-400 line-through dark:border-slate-600 dark:bg-slate-800'
+            : 'border-dashed border-slate-300 bg-transparent text-slate-400 dark:border-slate-600'
+      }`}
+      title={`${fieldLabel}: ${stateLabel}`}
+    >
+      {label}
+    </button>
+  )
+}
+
+export function MetricsForm({
+  onSubmit,
+  registerSubmit,
+  isGenerating,
+  presentationId,
+  elementContext,
+  prompt,
+  showAdvanced,
+  registerMandatoryConfig,
+  researchControls,
+}: MetricsFormProps) {
   const [count, setCount] = useState(1)
-  const [layout, setLayout] = useState<'horizontal' | 'vertical'>('horizontal')
-  const [config, setConfig] = useState<MetricsConfig>({ ...DEFAULT_METRICS_CONFIG })
-  // Multi-metric compose is derived automatically from count > 1 (no manual toggle).
-  const [advancedModified, setAdvancedModified] = useState(false)
+  const [layoutChoice, setLayoutChoice] = useState<MetricsLayoutChoice>('auto')
+  const [visualOverrides, setVisualOverrides] = useState<Partial<MetricsConfig>>({})
+  const [fitMode, setFitMode] = useState<MetricsFitMode>('AUTO')
+  const [manualOverrides, setManualOverrides] = useState<MetricsManualOverrides>({})
+  const [positionModified, setPositionModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
-
-  // Section visibility
-  const [showInstances, setShowInstances] = useState(false)
-  const [showCardDesign, setShowCardDesign] = useState(false)
-  const [showValue, setShowValue] = useState(false)
-  const [showLabel, setShowLabel] = useState(false)
-  const [showDescription, setShowDescription] = useState(false)
+  const [showContentFit, setShowContentFit] = useState(false)
+  const [showTypography, setShowTypography] = useState(false)
+  const [showSpacing, setShowSpacing] = useState(false)
   const [showPositioning, setShowPositioning] = useState(false)
-  const [showPadding, setShowPadding] = useState(false)
-
-  // Position
   const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
     start_col: 2,
     start_row: 4,
@@ -134,370 +148,276 @@ export function MetricsForm({ onSubmit, registerSubmit, isGenerating, presentati
     auto_position: false,
   })
 
-  // Padding
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
-    top: 0, right: 0, bottom: 0, left: 0,
-  })
-
-  // Initialize position from canvas context
   useEffect(() => {
-    if (elementContext) {
-      setPositionConfig(prev => ({
-        ...prev,
-        start_col: elementContext.startCol,
-        start_row: elementContext.startRow,
-        position_width: elementContext.width,
-        position_height: elementContext.height,
-      }))
-    }
+    registerMandatoryConfig(null)
+  }, [registerMandatoryConfig])
+
+  useEffect(() => {
+    if (!elementContext) return
+    setPositionConfig(previous => ({
+      ...previous,
+      start_col: elementContext.startCol,
+      start_row: elementContext.startRow,
+      position_width: elementContext.width,
+      position_height: elementContext.height,
+    }))
   }, [elementContext])
 
-  const updateConfig = useCallback((field: string, value: unknown) => {
-    setConfig(prev => ({ ...prev, [field]: value }))
-    setAdvancedModified(true)
+  const area = useMemo(() => ({
+    start_col: positionConfig.start_col,
+    start_row: positionConfig.start_row,
+    position_width: positionConfig.position_width,
+    position_height: positionConfig.position_height,
+  }), [positionConfig])
+  const resolvedLayout = useMemo(
+    () => resolveMetricsLayout(area, count, layoutChoice),
+    [area, count, layoutChoice],
+  )
+
+  useEffect(() => {
+    if (count === 1 && layoutChoice !== 'auto') setLayoutChoice('auto')
+  }, [count, layoutChoice])
+
+  const updateVisualOverride = useCallback(<K extends keyof MetricsConfig>(field: K, value: MetricsConfig[K] | undefined) => {
+    setVisualOverrides(previous => {
+      const next = { ...previous }
+      if (value === undefined) delete next[field]
+      else next[field] = value
+      return next
+    })
   }, [])
 
-  // Auto-update font colors when color scheme changes (only null/auto colors)
-  const prevSchemeRef = useRef(config.color_scheme)
-  useEffect(() => {
-    if (prevSchemeRef.current === config.color_scheme) return
-    prevSchemeRef.current = config.color_scheme
-    const isDarkBg = config.color_scheme === 'gradient' || config.color_scheme === 'solid'
-    const autoColor = isDarkBg ? '#FFFFFF' : '#1F2937'
-    setConfig(prev => ({
-      ...prev,
-      value_font_color: prev.value_font_color === null ? autoColor : prev.value_font_color,
-      label_font_color: prev.label_font_color === null ? autoColor : prev.label_font_color,
-      desc_font_color: prev.desc_font_color === null ? autoColor : prev.desc_font_color,
-    }))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.color_scheme])
-
-  const fontColorPresets = ['accent', 'transparent', 'bordered'].includes(config.color_scheme) ? DARK_FONT_COLORS : LIGHT_FONT_COLORS
-
-  // Register mandatory config — Color Scheme
-  const colorSchemeLabel = { gradient: 'Gradient', solid: 'Solid', accent: 'Pastel', transparent: 'Transparent', bordered: 'Bordered' }[config.color_scheme] || 'Gradient'
-
-  useEffect(() => {
-    registerMandatoryConfig({
-      fieldLabel: 'Color Scheme',
-      displayLabel: colorSchemeLabel,
-      options: [
-        { value: 'gradient', label: 'Gradient' },
-        { value: 'solid', label: 'Solid' },
-        { value: 'accent', label: 'Pastel' },
-        { value: 'transparent', label: 'Transparent' },
-        { value: 'bordered', label: 'Bordered' },
-      ],
-      onChange: (v) => updateConfig('color_scheme', v),
-      promptPlaceholder: 'e.g., Key financial metrics for Q4 2024 including revenue, growth, and profit margin',
+  const updateManualOverride = useCallback(<K extends keyof MetricsManualOverrides>(field: K, value: MetricsManualOverrides[K] | undefined) => {
+    setManualOverrides(previous => {
+      const next = { ...previous }
+      if (value === undefined) delete next[field]
+      else next[field] = value
+      return next
     })
-  }, [config.color_scheme, colorSchemeLabel, registerMandatoryConfig, updateConfig])
+  }, [])
+
+  const surfaceValue = visualOverrides.color_scheme ?? ''
+  const cornersValue = visualOverrides.corners ?? ''
+  const borderValue = visualOverrides.border === undefined ? '' : visualOverrides.border ? 'on' : 'off'
+  const fitIsManual = fitMode === 'MANUAL'
 
   const handleSubmit = useCallback(() => {
+    const metricsConfig: Partial<MetricsConfig> = {
+      ...visualOverrides,
+      // Text Labs owns no parallel layout resolver; its compose geometry reads
+      // this explicit structural field from the sparse metrics config.
+      layout: resolvedLayout.layout,
+    }
+    if (fitMode === 'AUTO') {
+      for (const field of TYPOGRAPHY_VISUAL_FIELDS) delete metricsConfig[field]
+    }
+    if (!metricsConfig.color_scheme) delete metricsConfig.color_variant
+
     const formData: MetricsFormData = {
       componentType: 'METRICS',
       prompt,
       count,
-      layout,
-      advancedModified,
+      // The backend receives the resolved structural arrangement. "Auto" is a
+      // panel decision, never a second content-fit formula.
+      layout: resolvedLayout.layout,
+      advancedModified: positionModified
+        || Object.keys(visualOverrides).length > 0
+        || fitMode === 'MANUAL',
       z_index: zIndex,
       presentationId,
-      useDeckTheme,
-      themeOverrides,
+      useDeckTheme: Boolean(presentationId),
+      themeOverrides: null,
+      metricsFitMode: fitMode,
+      metricsLayoutChoice: layoutChoice,
+      // MANUAL is an explicit ownership handoff. An empty object is meaningful
+      // when the user changed only visual typography fields.
+      manualMetricsOverrides: fitIsManual ? manualOverrides : undefined,
+      metricsConfig,
       compose: count > 1,
-      elements: count > 1 ? buildMetricsComposeElements(positionConfig, count, layout) : undefined,
-      metricsConfig: {
-        ...config,
-        layout,
-        placeholder_mode: false,
-      },
-      positionConfig: positionConfig.auto_position ? undefined : positionConfig,
-      paddingConfig,
+      elements: count > 1
+        ? resolvedLayout.boxes.map(grid_position => ({ grid_position }))
+        : undefined,
+      positionConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, layout, config, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
+  }, [count, fitIsManual, fitMode, manualOverrides, onSubmit, positionConfig, positionModified, presentationId, prompt, resolvedLayout, visualOverrides, zIndex])
 
-  useEffect(() => {
-    registerSubmit(handleSubmit)
-  }, [registerSubmit, handleSubmit])
+  useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 
   return (
-    <div className="space-y-2.5">
-      {showAdvanced && (<>
-      {/* Section 1: Instances */}
-      <CollapsibleSection title="Instances" isOpen={showInstances} onToggle={() => setShowInstances(!showInstances)}>
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
-              <select
-                value={count}
-                onChange={(e) => setCount(Number(e.target.value))}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {[1, 2, 3, 4].map(n => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Layout</label>
-              <div className="flex gap-1">
-                {[
-                  { value: 'horizontal', label: 'H' },
-                  { value: 'vertical', label: 'V' },
-                ].map(option => (
+    <div className="space-y-3">
+      <section className="rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
+        <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-2">
+          <label className="space-y-1">
+            <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Count</span>
+            <select
+              aria-label="Metric count"
+              value={count}
+              disabled={isGenerating}
+              onChange={event => setCount(Number(event.target.value))}
+              className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+            >
+              {[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+          <div className="min-w-0 space-y-1">
+            <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Layout</span>
+            <div className="grid grid-cols-4 gap-1" role="group" aria-label="Metric layout">
+              {([
+                ['auto', 'Auto'],
+                ['horizontal', 'H'],
+                ['vertical', 'V'],
+                ['grid', 'Grid'],
+              ] as const).map(([value, label]) => {
+                const unavailable = value !== 'auto' && (
+                  count === 1 || !isMetricsLayoutViable(area, count, value)
+                )
+                return (
                   <button
-                    key={option.value}
-                    onClick={() => setLayout(option.value as 'horizontal' | 'vertical')}
-                    className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                      layout === option.value
-                        ? 'bg-primary text-white border border-primary'
-                        : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
+                    key={value}
+                    type="button"
+                    title={unavailable ? 'Resize the placeholder to make this layout viable.' : label}
+                    disabled={isGenerating || unavailable}
+                    aria-pressed={layoutChoice === value}
+                    onClick={() => setLayoutChoice(value)}
+                    className={`rounded-md border px-1 py-1.5 text-[10px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                      layoutChoice === value
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
                     }`}
                   >
-                    {option.label}
+                    {label}
                   </button>
-                ))}
-              </div>
+                )
+              })}
             </div>
           </div>
         </div>
-      </CollapsibleSection>
+        <p className={`mt-1.5 text-[9px] ${resolvedLayout.viable ? 'text-slate-400' : 'font-medium text-amber-600 dark:text-amber-400'}`}>
+          {count === 1
+            ? 'One card uses the full live placeholder.'
+            : resolvedLayout.viable
+              ? `${layoutChoice === 'auto' ? 'Auto resolves' : 'Layout resolves'} to ${resolvedLayout.layout} for this ${area.position_width}×${area.position_height} area.`
+              : 'This area is too small for viable metric cards. Resize the placeholder before generating.'}
+        </p>
+      </section>
 
-      {/* Section 2: Card Design */}
-      <CollapsibleSection title="Card Design" isOpen={showCardDesign} onToggle={() => setShowCardDesign(!showCardDesign)}>
-        <div className="space-y-2">
-          <ThemeSourceSelector
-            presentationId={presentationId}
-            value={themeSource}
-            onChange={updateThemeSource}
-          />
+      {researchControls}
 
-          <ToggleRow
-            label="Corners"
-            field="corners"
-            value={config.corners}
-            options={[
-              { value: 'rounded', label: 'Rnd' },
-              { value: 'square', label: 'Sqr' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
-          <ToggleRow
-            label="Border"
-            field="border"
-            value={config.border ? 'true' : 'false'}
-            options={[
-              { value: 'true', label: 'On' },
-              { value: 'false', label: 'Off' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v === 'true')}
-          />
-          <ToggleRow
-            label="Alignment"
-            field="alignment"
-            value={config.alignment}
-            options={[
-              { value: 'left', label: 'L' },
-              { value: 'center', label: 'C' },
-              { value: 'right', label: 'R' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
-          <ToggleRow
-            label="Trend"
-            field="trend"
-            value={config.trend || 'none'}
-            options={[
-              { value: 'none', label: 'None' },
-              { value: 'arrow', label: 'Arrow' },
-              { value: 'pill', label: 'Pill' },
-            ]}
-            onChange={(_, v) => updateConfig('trend', v === 'none' ? null : v)}
-          />
-          {/* Card Color */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Card Color</label>
-            <div className="flex flex-wrap gap-1.5">
-              {/* Auto (rainbow) */}
-              <button
-                onClick={() => updateConfig('color_variant', null)}
-                className={`h-6 w-6 rounded-full border border-gray-300 dark:border-slate-600 bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 transition-all ${
-                  config.color_variant === null
-                    ? 'ring-2 ring-primary ring-offset-1'
-                    : 'hover:scale-110'
-                }`}
-                title="Auto"
-              />
-              {CARD_COLOR_PRESETS.map(preset => (
-                <button
-                  key={preset.name}
-                  onClick={() => updateConfig('color_variant', preset.name)}
-                  style={{ backgroundColor: config.color_scheme === 'accent' ? preset.pastelHex : preset.hex }}
-                  className={`h-6 w-6 rounded-full border border-gray-200 dark:border-slate-700 transition-all ${
-                    config.color_variant === preset.name
-                      ? 'ring-2 ring-primary ring-offset-1'
-                      : 'hover:scale-110'
-                  }`}
-                  title={preset.label}
-                />
+      <section className="rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
+        <div className="mb-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200">Appearance</div>
+        <div className="grid grid-cols-3 gap-2">
+          <label className="space-y-1">
+            <span className="text-[10px] text-slate-500">Surface</span>
+            <select
+              aria-label="Metric surface"
+              value={surfaceValue}
+              onChange={event => {
+                const value = event.target.value as '' | MetricsConfig['color_scheme']
+                updateVisualOverride('color_scheme', value || undefined)
+                if (!value) updateVisualOverride('color_variant', undefined)
+              }}
+              className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800"
+            >
+              {SURFACES.map(option => <option key={option.value || 'auto'} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] text-slate-500">Corners</span>
+            <select aria-label="Metric corners" value={cornersValue} onChange={event => updateVisualOverride('corners', event.target.value ? event.target.value as MetricsConfig['corners'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800">
+              <option value="">Auto</option><option value="rounded">Rounded</option><option value="square">Square</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-[10px] text-slate-500">Border</span>
+            <select aria-label="Metric border" value={borderValue} onChange={event => updateVisualOverride('border', event.target.value === '' ? undefined : event.target.value === 'on')} className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800">
+              <option value="">Auto</option><option value="on">On</option><option value="off">Off</option>
+            </select>
+          </label>
+        </div>
+        <p className="mt-1.5 text-[9px] leading-4 text-slate-400">Auto uses the presentation theme contract when available, otherwise the Metrics renderer default.</p>
+      </section>
+
+      {showAdvanced && (
+        <section className="space-y-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-700 dark:bg-slate-800/40">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Advanced</div>
+              <div className="text-[9px] text-slate-500">Auto fit is resolved by Text Service from each card.</div>
+            </div>
+            <select aria-label="Metrics fit mode" value={fitMode} onChange={event => setFitMode(event.target.value as MetricsFitMode)} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold dark:border-slate-600 dark:bg-slate-800">
+              <option value="AUTO">Auto fit</option><option value="MANUAL">Manual fit</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1">
+              <span className="text-[10px] text-slate-500">Alignment</span>
+              <select value={visualOverrides.alignment ?? ''} onChange={event => updateVisualOverride('alignment', event.target.value ? event.target.value as MetricsConfig['alignment'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800">
+                <option value="">Auto</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-[10px] text-slate-500">Trend</span>
+              <select value={visualOverrides.trend ?? ''} onChange={event => updateVisualOverride('trend', event.target.value ? event.target.value as MetricsConfig['trend'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800">
+                <option value="">Auto</option><option value="arrow">Arrow</option><option value="pill">Pill</option>
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-[10px] text-slate-500">Surface color</span>
+              <select disabled={!surfaceValue} value={visualOverrides.color_variant ?? ''} onChange={event => updateVisualOverride('color_variant', event.target.value || undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:disabled:bg-slate-900">
+                {COLORS.map(color => <option key={color || 'auto'} value={color}>{color ? color[0].toUpperCase() + color.slice(1) : 'Auto'}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <CollapsibleSection title="Content fit" isOpen={showContentFit} onToggle={() => setShowContentFit(value => !value)}>
+            <fieldset disabled={!fitIsManual} className="grid grid-cols-2 gap-2 disabled:opacity-45">
+              <OptionalNumberInput label="Value min chars" value={manualOverrides.value_min_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('value_min_chars', value)} />
+              <OptionalNumberInput label="Value max chars" value={manualOverrides.value_max_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('value_max_chars', value)} />
+              <OptionalNumberInput label="Label min chars" value={manualOverrides.label_min_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('label_min_chars', value)} />
+              <OptionalNumberInput label="Label max chars" value={manualOverrides.label_max_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('label_max_chars', value)} />
+              <OptionalNumberInput label="Description min" value={manualOverrides.description_min_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('description_min_chars', value)} />
+              <OptionalNumberInput label="Description max" value={manualOverrides.description_max_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('description_max_chars', value)} />
+            </fieldset>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Typography" isOpen={showTypography} onToggle={() => setShowTypography(value => !value)}>
+            <fieldset disabled={!fitIsManual} className="space-y-2 disabled:opacity-45">
+              {(['value', 'label', 'desc'] as const).map(prefix => (
+                <div key={prefix} className="space-y-1.5 rounded-md border border-slate-200 p-1.5 dark:border-slate-700">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <label className="space-y-1"><span className="text-[9px] capitalize text-slate-500">{prefix === 'desc' ? 'Description' : prefix} size</span><select disabled={!fitIsManual} value={manualOverrides[`${prefix}_font_size`]} onChange={event => updateManualOverride(`${prefix}_font_size`, event.target.value || undefined)} className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">{FONT_SIZES.map(size => <option key={size || 'auto'} value={size}>{size || 'Auto'}</option>)}</select></label>
+                    <label className="space-y-1"><span className="text-[9px] text-slate-500">Family</span><select disabled={!fitIsManual} value={(visualOverrides[`${prefix}_font_family`] as string | null | undefined) ?? ''} onChange={event => updateVisualOverride(`${prefix}_font_family`, event.target.value || undefined)} className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">{FONT_FAMILIES.map(family => <option key={family || 'auto'} value={family}>{family || 'Auto'}</option>)}</select></label>
+                    <label className="space-y-1"><span className="text-[9px] text-slate-500">Color</span><input disabled={!fitIsManual} type="text" placeholder="Auto" value={(visualOverrides[`${prefix}_font_color`] as string | null | undefined) ?? ''} onChange={event => updateVisualOverride(`${prefix}_font_color`, event.target.value || undefined)} className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800" /></label>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="mr-auto text-[9px] capitalize text-slate-400">{prefix === 'desc' ? 'Description' : prefix} style</span>
+                    <TriStateStyleButton label="B" fieldLabel={`${prefix} bold`} value={visualOverrides[`${prefix}_bold`] as boolean | null | undefined} disabled={!fitIsManual} onChange={value => updateVisualOverride(`${prefix}_bold`, value)} />
+                    <TriStateStyleButton label="I" fieldLabel={`${prefix} italic`} value={visualOverrides[`${prefix}_italic`] as boolean | null | undefined} disabled={!fitIsManual} onChange={value => updateVisualOverride(`${prefix}_italic`, value)} />
+                    <TriStateStyleButton label="AA" fieldLabel={`${prefix} uppercase`} value={visualOverrides[`${prefix}_allcaps`] as boolean | null | undefined} disabled={!fitIsManual} onChange={value => updateVisualOverride(`${prefix}_allcaps`, value)} />
+                  </div>
+                </div>
               ))}
+            </fieldset>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Spacing & padding" isOpen={showSpacing} onToggle={() => setShowSpacing(value => !value)}>
+            <fieldset disabled={!fitIsManual} className="grid grid-cols-3 gap-2 disabled:opacity-45">
+              <OptionalNumberInput label="Padding (px)" value={manualOverrides.padding_px} disabled={!fitIsManual} onChange={value => updateManualOverride('padding_px', value)} />
+              <OptionalNumberInput label="Value gap (px)" value={manualOverrides.value_margin_bottom_px} disabled={!fitIsManual} onChange={value => updateManualOverride('value_margin_bottom_px', value)} />
+              <OptionalNumberInput label="Label gap (px)" value={manualOverrides.label_margin_bottom_px} disabled={!fitIsManual} onChange={value => updateManualOverride('label_margin_bottom_px', value)} />
+            </fieldset>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(value => !value)}>
+            <div className="space-y-2">
+              <PositionPresets positionConfig={positionConfig} onChange={setPositionConfig} elementType="METRICS" onAdvancedModified={() => setPositionModified(true)} />
+              <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setPositionModified(true)} />
             </div>
-          </div>
-        </div>
-      </CollapsibleSection>
-
-      {/* Section 3: Value */}
-      <CollapsibleSection title="Value" isOpen={showValue} onToggle={() => setShowValue(!showValue)}>
-        <div className="space-y-2">
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Value Char Limits</label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
-                <input
-                  type="number"
-                  value={config.value_min_chars}
-                  min={1}
-                  max={config.value_max_chars}
-                  onChange={(e) => updateConfig('value_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
-                <input
-                  type="number"
-                  value={config.value_max_chars}
-                  min={config.value_min_chars}
-                  max={20}
-                  onChange={(e) => updateConfig('value_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
-                />
-              </div>
-            </div>
-          </div>
-          <FontOverrideSection
-            label="Value Font"
-            prefix="value"
-            config={config as unknown as Record<string, unknown>}
-            onChange={updateConfig}
-            thirdToggle="allcaps"
-            colorPresets={fontColorPresets}
-          />
-        </div>
-      </CollapsibleSection>
-
-      {/* Section 4: Label */}
-      <CollapsibleSection title="Label" isOpen={showLabel} onToggle={() => setShowLabel(!showLabel)}>
-        <div className="space-y-2">
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Label Char Limits</label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
-                <input
-                  type="number"
-                  value={config.label_min_chars}
-                  min={1}
-                  max={config.label_max_chars}
-                  onChange={(e) => updateConfig('label_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
-                <input
-                  type="number"
-                  value={config.label_max_chars}
-                  min={config.label_min_chars}
-                  max={50}
-                  onChange={(e) => updateConfig('label_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
-                />
-              </div>
-            </div>
-          </div>
-          <FontOverrideSection
-            label="Label Font"
-            prefix="label"
-            config={config as unknown as Record<string, unknown>}
-            onChange={updateConfig}
-            thirdToggle="allcaps"
-            colorPresets={fontColorPresets}
-          />
-        </div>
-      </CollapsibleSection>
-
-      {/* Section 5: Description */}
-      <CollapsibleSection title="Description" isOpen={showDescription} onToggle={() => setShowDescription(!showDescription)}>
-        <div className="space-y-2">
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Description Char Limits</label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
-                <input
-                  type="number"
-                  value={config.description_min_chars}
-                  min={1}
-                  max={config.description_max_chars}
-                  onChange={(e) => updateConfig('description_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
-                <input
-                  type="number"
-                  value={config.description_max_chars}
-                  min={config.description_min_chars}
-                  max={200}
-                  onChange={(e) => updateConfig('description_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
-                />
-              </div>
-            </div>
-          </div>
-          <FontOverrideSection
-            label="Description Font"
-            prefix="desc"
-            config={config as unknown as Record<string, unknown>}
-            onChange={updateConfig}
-            thirdToggle="allcaps"
-            colorPresets={fontColorPresets}
-          />
-        </div>
-      </CollapsibleSection>
-
-      {/* Section 6: Positioning */}
-      <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(!showPositioning)}>
-        <div className="space-y-2.5">
-          <PositionPresets
-            positionConfig={positionConfig}
-            onChange={setPositionConfig}
-            elementType="METRICS"
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
-          <ZIndexInput
-            value={zIndex}
-            onChange={setZIndex}
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
-        </div>
-      </CollapsibleSection>
-
-      {/* Container Padding */}
-      <CollapsibleSection title="Container Padding" isOpen={showPadding} onToggle={() => setShowPadding(!showPadding)}>
-        <PaddingControl
-          paddingConfig={paddingConfig}
-          onChange={setPaddingConfig}
-          onAdvancedModified={() => setAdvancedModified(true)}
-        />
-      </CollapsibleSection>
-      </>)}
+          </CollapsibleSection>
+        </section>
+      )}
     </div>
   )
 }

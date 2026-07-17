@@ -17,6 +17,7 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   'insertTable',
   'insertShape',
   'upsertSemanticElement',
+  'upsertCitedElement',
 
   // Content updates (manual updates, not from AI)
   'updateImageSource',
