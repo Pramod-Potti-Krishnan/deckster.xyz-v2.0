@@ -325,7 +325,6 @@ export async function generateInfographic(
     slideContext?: Record<string, unknown> | null
     deckContext?: Record<string, unknown> | null
     generationContext?: ElementGenerationContext | null
-    research?: ElementResearchPolicy | null
   },
   signal?: AbortSignal,
 ): Promise<TextLabsResponse> {
@@ -344,7 +343,6 @@ export async function generateInfographic(
   if (options?.slideContext) formData.append('slide_context', JSON.stringify(options.slideContext))
   if (options?.deckContext) formData.append('deck_context', JSON.stringify(options.deckContext))
   if (options?.generationContext) formData.append('generation_context', JSON.stringify(options.generationContext))
-  if (options?.research) formData.append('research', JSON.stringify(options.research))
 
   if (config) {
     formData.append('infographic_config', JSON.stringify(config))
@@ -452,6 +450,13 @@ export function buildApiPayload(
     options.shapeConfig = formData.shapeConfig as Record<string, unknown>
   }
 
+  // Infographic mode selects two different backend paths and must travel even
+  // when every optional control is Automatic. The form builds this config
+  // sparsely, retaining only routing intent and authoritative live geometry.
+  if (formData.componentType === 'INFOGRAPHIC') {
+    options.infographicConfig = formData.infographicConfig as Record<string, unknown>
+  }
+
   if (formData.componentType === 'TEXT_BOX') {
     if (Object.keys(formData.textboxConfig).length > 0) {
       options.textboxConfig = formData.textboxConfig as Record<string, unknown>
@@ -519,7 +524,8 @@ export function buildApiPayload(
         options.shapeConfig = formData.shapeConfig as Record<string, unknown>
         break
       case 'INFOGRAPHIC':
-        options.infographicConfig = formData.infographicConfig as Record<string, unknown>
+        // Already attached above because mode is routing intent, not an
+        // Advanced visual override.
         break
       // Diagram subtypes
       case 'CODE_DISPLAY':

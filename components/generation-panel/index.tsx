@@ -99,6 +99,7 @@ export function GenerationPanel({
   mode,
   getTemplateSlotCatalog,
   existingTextTarget,
+  existingInfographicTarget,
   researchMode,
   researchWeb,
   researchUploadedDocs,
@@ -360,6 +361,8 @@ export function GenerationPanel({
             existingTextTarget={existingTextTarget}
             initialDraft={effectiveDraft}
             onDraftChange={onDraftChange}
+            existingInfographicTarget={existingInfographicTarget}
+            panelMode={mode}
           />
         </div>
       </div>
@@ -387,6 +390,8 @@ function FormRouter({
   existingTextTarget,
   initialDraft,
   onDraftChange,
+  existingInfographicTarget,
+  panelMode,
 }: {
   elementType: TextLabsComponentType
   onSubmit: (formData: TextLabsFormData) => Promise<void>
@@ -405,6 +410,8 @@ function FormRouter({
   existingTextTarget?: GenerationPanelProps['existingTextTarget']
   initialDraft?: GenerationPanelProps['draft']
   onDraftChange?: GenerationPanelProps['onDraftChange']
+  existingInfographicTarget?: GenerationPanelProps['existingInfographicTarget']
+  panelMode: GenerationPanelProps['mode']
 }) {
   const commonProps = {
     onSubmit,
@@ -433,7 +440,13 @@ function FormRouter({
     case 'SHAPE':
       return <ShapeForm {...commonProps} />
     case 'INFOGRAPHIC':
-      return <InfographicForm {...commonProps} />
+      return (
+        <InfographicForm
+          {...commonProps}
+          panelMode={panelMode}
+          existingTarget={existingInfographicTarget}
+        />
+      )
     case 'DIAGRAM':
       return <DiagramForm {...commonProps} />
     default:

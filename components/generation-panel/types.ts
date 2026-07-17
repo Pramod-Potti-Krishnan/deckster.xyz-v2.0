@@ -41,6 +41,13 @@ export interface GenerationPanelProps {
     accessoryType?: string | null
     generationConfig?: Record<string, unknown> | null
   } | null
+  existingInfographicTarget?: {
+    elementId: string
+    rendererType?: string | null
+    mode?: string | null
+    metadata?: Record<string, unknown> | null
+    content?: unknown
+  } | null
   researchMode: ElementResearchMode
   researchWeb: boolean
   researchUploadedDocs: boolean
