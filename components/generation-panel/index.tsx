@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useRef, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useRef, useCallback, useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { defaultElementResearchSelection } from '@/lib/element-research-policy'
 import { TemplateSlotCatalog, TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
@@ -15,13 +15,78 @@ import { IconLabelForm } from './forms/icon-label-form'
 import { ShapeForm } from './forms/shape-form'
 import { InfographicForm } from './forms/infographic-form'
 import { DiagramForm } from './forms/diagram-form'
-import { GenerationPanelProps, ElementContext, MandatoryConfig } from './types'
+import { GenerationPanelProps, ElementContext, GenerationPanelDraft, MandatoryConfig } from './types'
 import { parseTemplateSlotCatalog } from '@/lib/text-slot-catalog'
 import { ResearchControls } from './shared/research-controls'
+
+function readObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function useMemoFromSavedGenerationConfig(
+  savedConfig: Record<string, unknown> | null | undefined,
+  elementType: TextLabsComponentType,
+  mode: GenerationPanelProps['mode'],
+): GenerationPanelDraft | null {
+  return useMemo(() => {
+    if (!savedConfig || (mode !== 'edit' && mode !== 'refine')) return null
+    const savedFormData = readObject(savedConfig.formData)
+    if (savedFormData?.componentType) {
+      return {
+        prompt: typeof savedFormData.prompt === 'string'
+          ? savedFormData.prompt
+          : typeof savedConfig.prompt === 'string'
+            ? savedConfig.prompt
+            : '',
+        showAdvanced: Boolean(savedConfig.showAdvanced ?? savedFormData.advancedModified),
+        formData: savedFormData as unknown as TextLabsFormData,
+      }
+    }
+    const prompt = typeof savedConfig.prompt === 'string' ? savedConfig.prompt : ''
+    if (elementType !== 'TABLE') {
+      return prompt ? { prompt, showAdvanced: Boolean(savedConfig.showAdvanced) } : null
+    }
+    const tableConfig = readObject(savedConfig.tableConfig ?? savedConfig.table_config) ?? { structure_mode: 'AUTO' }
+    const positionConfig = readObject(savedConfig.positionConfig ?? savedConfig.position_config)
+    const paddingConfig = readObject(savedConfig.paddingConfig ?? savedConfig.padding_config)
+    const count = readNumber(savedConfig.count) ?? 1
+    const advancedModified = Boolean(
+      savedConfig.advancedModified
+      ?? savedConfig.advanced_modified
+      ?? savedConfig.showAdvanced
+      ?? Object.keys(tableConfig).some(key => key !== 'structure_mode'),
+    )
+    return {
+      prompt,
+      showAdvanced: Boolean(savedConfig.showAdvanced ?? advancedModified),
+      formData: {
+        componentType: 'TABLE',
+        prompt,
+        count,
+        layout: 'horizontal',
+        advancedModified,
+        z_index: readNumber(savedConfig.zIndex ?? savedConfig.z_index),
+        tableConfig,
+        positionConfig: positionConfig as unknown as TextLabsFormData['positionConfig'],
+        paddingConfig: paddingConfig as unknown as TextLabsFormData['paddingConfig'],
+        generationConfig: savedConfig,
+      } as TextLabsFormData,
+    }
+  }, [elementType, mode, savedConfig])
+}
 
 export function GenerationPanel({
   isOpen,
   activationId,
+  draftKey,
+  draft,
+  onDraftChange,
   elementType,
   onClose,
   onGenerate,
@@ -61,7 +126,14 @@ export function GenerationPanel({
     onResearchWebChange(defaults.web)
     onResearchUploadedDocsChange(defaults.uploadedDocuments)
     onResearchKnowledgeGraphChange(defaults.knowledgeGraph)
+    onDraftChange?.({
+      researchMode: enabled ? 'on' : 'off',
+      researchWeb: defaults.web,
+      researchUploadedDocs: defaults.uploadedDocuments,
+      researchKnowledgeGraph: defaults.knowledgeGraph,
+    })
   }, [
+    onDraftChange,
     onResearchKnowledgeGraphChange,
     onResearchModeChange,
     onResearchUploadedDocsChange,
@@ -76,6 +148,55 @@ export function GenerationPanel({
   const [slotCatalogLoading, setSlotCatalogLoading] = useState(false)
   const [slotCatalogError, setSlotCatalogError] = useState<string | null>(null)
 
+  const handlePromptChange = useCallback((value: string) => {
+    setPrompt(value)
+    onDraftChange?.({ prompt: value })
+  }, [onDraftChange])
+
+  const handleShowAdvancedToggle = useCallback(() => {
+    setShowAdvanced(previous => {
+      const next = !previous
+      onDraftChange?.({ showAdvanced: next })
+      return next
+    })
+  }, [onDraftChange])
+
+  const handleResearchWebChange = useCallback((enabled: boolean) => {
+    onResearchWebChange(enabled)
+    onDraftChange?.({ researchWeb: enabled })
+  }, [onDraftChange, onResearchWebChange])
+
+  const handleResearchUploadedDocsChange = useCallback((enabled: boolean) => {
+    onResearchUploadedDocsChange(enabled)
+    onDraftChange?.({ researchUploadedDocs: enabled })
+  }, [onDraftChange, onResearchUploadedDocsChange])
+
+  const handleResearchKnowledgeGraphChange = useCallback((enabled: boolean) => {
+    onResearchKnowledgeGraphChange(enabled)
+    onDraftChange?.({ researchKnowledgeGraph: enabled })
+  }, [onDraftChange, onResearchKnowledgeGraphChange])
+
+  const handleFormSubmit = useCallback(async (formData: TextLabsFormData) => {
+    onDraftChange?.({
+      prompt: formData.prompt,
+      showAdvanced,
+      formData,
+      researchMode,
+      researchWeb,
+      researchUploadedDocs,
+      researchKnowledgeGraph,
+    })
+    await onGenerate(formData)
+  }, [
+    onDraftChange,
+    onGenerate,
+    researchKnowledgeGraph,
+    researchMode,
+    researchUploadedDocs,
+    researchWeb,
+    showAdvanced,
+  ])
+
   // Mandatory config — registered by each form
   const mandatoryConfigRef = useRef<MandatoryConfig | null>(null)
   const [, forceUpdate] = useState(0)
@@ -85,22 +206,22 @@ export function GenerationPanel({
     forceUpdate(n => n + 1)
   }, [])
 
-  // Every valid element-panel activation is a fresh generation session.
-  // Remounting the form below clears all element-specific Auto/Manual state,
-  // while this reset closes Advanced and removes prompt/chip state.
+  const persistedGenerationDraft = useMemoFromSavedGenerationConfig(
+    existingTextTarget?.generationConfig,
+    elementType,
+    mode,
+  )
+  const effectiveDraft = draft ?? persistedGenerationDraft
+
+  // Every new target activation hydrates from its remembered draft when one
+  // exists. Same-target reopen keeps the mounted form state intact.
   useEffect(() => {
-    const savedConfig = existingTextTarget?.generationConfig
-    const savedPrompt = mode === 'refine'
-      && savedConfig
-      && typeof savedConfig.prompt === 'string'
-      ? savedConfig.prompt
-      : ''
-    setPrompt(savedPrompt)
-    setShowAdvanced(false)
+    setPrompt(effectiveDraft?.prompt ?? effectiveDraft?.formData?.prompt ?? '')
+    setShowAdvanced(Boolean(effectiveDraft?.showAdvanced ?? effectiveDraft?.formData?.advancedModified ?? false))
     submitFnRef.current = null
     mandatoryConfigRef.current = null
     forceUpdate(n => n + 1)
-  }, [activationId, elementType, existingTextTarget?.elementId, mode])
+  }, [activationId, draftKey, elementType, existingTextTarget?.elementId])
 
   useEffect(() => {
     if (!isOpen || elementType !== 'TEXT_BOX') return
@@ -145,9 +266,9 @@ export function GenerationPanel({
       researchKnowledgeGraph={researchKnowledgeGraph}
       researchCapabilities={researchCapabilities}
       onResearchEnabledChange={handleResearchEnabledChange}
-      onResearchWebChange={onResearchWebChange}
-      onResearchUploadedDocsChange={onResearchUploadedDocsChange}
-      onResearchKnowledgeGraphChange={onResearchKnowledgeGraphChange}
+      onResearchWebChange={handleResearchWebChange}
+      onResearchUploadedDocsChange={handleResearchUploadedDocsChange}
+      onResearchKnowledgeGraphChange={handleResearchKnowledgeGraphChange}
     />
   ) : null
 
@@ -199,10 +320,10 @@ export function GenerationPanel({
         {showGenerationInput && (
           <GenerationInput
             prompt={prompt}
-            onPromptChange={setPrompt}
+            onPromptChange={handlePromptChange}
             mandatoryConfig={mandatoryConfigRef.current}
             showAdvanced={showAdvanced}
-            onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
+            onToggleAdvanced={handleShowAdvancedToggle}
             onSubmit={handleFooterGenerate}
             isGenerating={isGenerating}
             error={error}
@@ -213,9 +334,9 @@ export function GenerationPanel({
 
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <FormRouter
-            key={`${activationId}:${elementType}`}
+            key={`${activationId}:${elementType}:${draftKey ?? 'new'}`}
             elementType={elementType}
-            onSubmit={onGenerate}
+            onSubmit={handleFormSubmit}
             registerSubmit={registerSubmit}
             isGenerating={isGenerating}
             slideIndex={slideIndex}
@@ -229,6 +350,8 @@ export function GenerationPanel({
             slotCatalogLoading={slotCatalogLoading}
             slotCatalogError={slotCatalogError}
             existingTextTarget={existingTextTarget}
+            initialDraft={effectiveDraft}
+            onDraftChange={onDraftChange}
           />
         </div>
       </div>
@@ -254,6 +377,8 @@ function FormRouter({
   slotCatalogLoading,
   slotCatalogError,
   existingTextTarget,
+  initialDraft,
+  onDraftChange,
 }: {
   elementType: TextLabsComponentType
   onSubmit: (formData: TextLabsFormData) => Promise<void>
@@ -270,6 +395,8 @@ function FormRouter({
   slotCatalogLoading: boolean
   slotCatalogError?: string | null
   existingTextTarget?: GenerationPanelProps['existingTextTarget']
+  initialDraft?: GenerationPanelProps['draft']
+  onDraftChange?: GenerationPanelProps['onDraftChange']
 }) {
   const commonProps = {
     onSubmit,
@@ -288,7 +415,7 @@ function FormRouter({
     case 'METRICS':
       return <MetricsForm {...commonProps} researchControls={researchControls} />
     case 'TABLE':
-      return <TableForm {...commonProps} researchControls={researchControls} />
+      return <TableForm {...commonProps} researchControls={researchControls} initialDraft={initialDraft} onDraftChange={onDraftChange} />
     case 'CHART':
       return <ChartForm {...commonProps} />
     case 'IMAGE':

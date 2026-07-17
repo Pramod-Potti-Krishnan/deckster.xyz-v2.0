@@ -3678,6 +3678,9 @@ function BuilderContent() {
                 <GenerationPanel
                   isOpen={generationPanel.isOpen}
                   activationId={generationPanel.activationId}
+                  draftKey={generationPanel.draftKey}
+                  draft={generationPanel.currentDraft}
+                  onDraftChange={generationPanel.updateCurrentDraft}
                   elementType={generationPanel.elementType}
                   onClose={() => {
                     generationPanel.closePanel()
@@ -4108,7 +4111,7 @@ function BuilderContent() {
             onTextBoxDeselected={() => {
               setSelectedTextBoxId(null)
               setSelectedTextBoxFormatting(null)
-              if (generationPanel.mode === 'edit' || generationPanel.mode === 'refine') {
+              if (!generationPanel.isGenerating && (generationPanel.mode === 'edit' || generationPanel.mode === 'refine')) {
                 generationPanel.closePanel()
               }
             }}
@@ -4135,7 +4138,7 @@ function BuilderContent() {
               setSelectedElementId(null)
               setSelectedElementType(null)
               setSelectedElementProperties(null)
-              if (generationPanel.mode === 'edit' || generationPanel.mode === 'refine') {
+              if (!generationPanel.isGenerating && (generationPanel.mode === 'edit' || generationPanel.mode === 'refine')) {
                 generationPanel.closePanel()
               }
             }}

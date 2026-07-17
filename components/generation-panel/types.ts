@@ -19,6 +19,9 @@ export interface ElementContext {
 export interface GenerationPanelProps {
   isOpen: boolean
   activationId: number
+  draftKey?: string | null
+  draft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
   elementType: TextLabsComponentType
   onClose: () => void
   onGenerate: (formData: TextLabsFormData) => Promise<void>
@@ -47,6 +50,16 @@ export interface GenerationPanelProps {
   onResearchWebChange: (enabled: boolean) => void
   onResearchUploadedDocsChange: (enabled: boolean) => void
   onResearchKnowledgeGraphChange: (enabled: boolean) => void
+}
+
+export interface GenerationPanelDraft {
+  prompt?: string
+  showAdvanced?: boolean
+  formData?: TextLabsFormData | null
+  researchMode?: ElementResearchMode
+  researchWeb?: boolean
+  researchUploadedDocs?: boolean
+  researchKnowledgeGraph?: boolean
 }
 
 export interface ElementFormProps {

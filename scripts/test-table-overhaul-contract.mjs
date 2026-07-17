@@ -138,6 +138,8 @@ await assert.rejects(
 const formSource = fs.readFileSync(new URL('../components/generation-panel/forms/table-form.tsx', import.meta.url), 'utf8')
 const panelSource = fs.readFileSync(new URL('../components/generation-panel/index.tsx', import.meta.url), 'utf8')
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
+const generationPanelHookSource = fs.readFileSync(new URL('../hooks/use-generation-panel.ts', import.meta.url), 'utf8')
+const builderSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
 const researchSource = fs.readFileSync(new URL('../components/generation-panel/shared/research-controls.tsx', import.meta.url), 'utf8')
 assert.doesNotMatch(formSource, /Header Style[\s\S]*mandatory|fieldLabel:\s*['"]Header Style/)
 assert.match(formSource, /registerMandatoryConfig\(null\)/)
@@ -185,6 +187,26 @@ assert.match(
   generationSource,
   /openPanelForElement\(currentBlankInfo\.componentType, restoredBlankElementId\)/,
   'failed generation reopens the restored placeholder panel before publishing the error',
+)
+assert.match(generationPanelHookSource, /draftsRef = useRef<Map<string, GenerationPanelDraft>>/)
+assert.match(generationPanelHookSource, /`blank:\$\{elementId\}`/)
+assert.match(generationPanelHookSource, /`element:\$\{elementId\}`/)
+assert.match(generationPanelHookSource, /rememberDraftForElement/)
+assert.match(panelSource, /draftKey=\{generationPanel\.draftKey\}|draftKey/)
+assert.match(panelSource, /onDraftChange\?\.\(\{\s*prompt: formData\.prompt/)
+assert.match(formSource, /initialDraft\?: GenerationPanelDraft/)
+assert.match(formSource, /initialTableFormData\?\.tableConfig/)
+assert.match(formSource, /onDraftChange\?\.\(\{\s*formData:/)
+assert.match(generationSource, /rememberDraftForElement\(insertedElementId, formData\)/)
+assert.doesNotMatch(
+  generationSource,
+  /generationPanel\.closePanel\(\)\s*generationPanel\.setIsGenerating\(false\)\s*\/\/ Grounded generation/,
+  'panel no longer closes before the Text Labs request starts',
+)
+assert.match(
+  builderSource,
+  /!generationPanel\.isGenerating && \(generationPanel\.mode === 'edit' \|\| generationPanel\.mode === 'refine'\)/,
+  'deselect does not auto-close the generation panel while generation is active',
 )
 assert.match(formSource, /z_index: zIndexModified \? zIndex : undefined/)
 assert.match(formSource, /positionConfig: positionModified \? positionConfig : undefined/)
