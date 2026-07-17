@@ -4,7 +4,6 @@ import { type ReactNode, useRef, useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { defaultElementResearchSelection } from '@/lib/element-research-policy'
 import { TemplateSlotCatalog, TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
-import { Switch } from '@/components/ui/switch'
 import { GenerationPanelHeader } from './header'
 import { GenerationInput } from './shared/generation-input'
 import { TextBoxForm } from './forms/text-box-form'
@@ -18,6 +17,7 @@ import { InfographicForm } from './forms/infographic-form'
 import { DiagramForm } from './forms/diagram-form'
 import { GenerationPanelProps, ElementContext, MandatoryConfig } from './types'
 import { parseTemplateSlotCatalog } from '@/lib/text-slot-catalog'
+import { ResearchControls } from './shared/research-controls'
 
 export function GenerationPanel({
   isOpen,
@@ -80,7 +80,7 @@ export function GenerationPanel({
   const mandatoryConfigRef = useRef<MandatoryConfig | null>(null)
   const [, forceUpdate] = useState(0)
 
-  const registerMandatoryConfig = useCallback((config: MandatoryConfig) => {
+  const registerMandatoryConfig = useCallback((config: MandatoryConfig | null) => {
     mandatoryConfigRef.current = config
     forceUpdate(n => n + 1)
   }, [])
@@ -88,6 +88,8 @@ export function GenerationPanel({
   // Reset prompt when element type changes
   useEffect(() => {
     setPrompt('')
+    mandatoryConfigRef.current = null
+    forceUpdate(n => n + 1)
   }, [elementType])
 
   useEffect(() => {
@@ -197,7 +199,7 @@ export function GenerationPanel({
           />
         )}
 
-        {elementType !== 'TEXT_BOX' && researchControls}
+        {elementType !== 'TEXT_BOX' && elementType !== 'METRICS' && researchControls}
 
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <FormRouter
@@ -211,7 +213,7 @@ export function GenerationPanel({
             prompt={prompt}
             showAdvanced={showAdvanced}
             registerMandatoryConfig={registerMandatoryConfig}
-            researchControls={elementType === 'TEXT_BOX' ? researchControls : null}
+            researchControls={elementType === 'TEXT_BOX' || elementType === 'METRICS' ? researchControls : null}
             slotCatalog={slotCatalog}
             slotCatalogLoading={slotCatalogLoading}
             slotCatalogError={slotCatalogError}
@@ -220,84 +222,6 @@ export function GenerationPanel({
         </div>
       </div>
 
-    </div>
-  )
-}
-
-function ResearchControls({
-  researchMode,
-  researchWeb,
-  researchUploadedDocs,
-  researchKnowledgeGraph,
-  researchCapabilities,
-  onResearchEnabledChange,
-  onResearchWebChange,
-  onResearchUploadedDocsChange,
-  onResearchKnowledgeGraphChange,
-}: Pick<GenerationPanelProps,
-  | 'researchMode'
-  | 'researchWeb'
-  | 'researchUploadedDocs'
-  | 'researchKnowledgeGraph'
-  | 'researchCapabilities'
-  | 'onResearchWebChange'
-  | 'onResearchUploadedDocsChange'
-  | 'onResearchKnowledgeGraphChange'
-> & { onResearchEnabledChange: (enabled: boolean) => void }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Research</div>
-          <div className="text-[10px] text-slate-500 dark:text-slate-400">Prompt first; selected sources support it.</div>
-        </div>
-        <Switch aria-label="Enable research" checked={researchMode === 'on'} onCheckedChange={onResearchEnabledChange} className="scale-90" />
-      </div>
-      <div className="mt-1.5 grid gap-1">
-        <ResearchSourceSwitch label="Web Search" checked={researchWeb} researchEnabled={researchMode === 'on'} capability={researchCapabilities.web} onCheckedChange={onResearchWebChange} />
-        <ResearchSourceSwitch label="Uploaded Documents" checked={researchUploadedDocs} researchEnabled={researchMode === 'on'} capability={researchCapabilities.uploaded_documents} onCheckedChange={onResearchUploadedDocsChange} />
-        <ResearchSourceSwitch label="Knowledge Graph" checked={researchKnowledgeGraph} researchEnabled={researchMode === 'on'} capability={researchCapabilities.knowledge_graph} onCheckedChange={onResearchKnowledgeGraphChange} />
-      </div>
-    </div>
-  )
-}
-
-function ResearchSourceSwitch({
-  label,
-  checked,
-  researchEnabled,
-  capability,
-  onCheckedChange,
-}: {
-  label: string
-  checked: boolean
-  researchEnabled: boolean
-  capability: { available: boolean; reason?: string | null }
-  onCheckedChange: (enabled: boolean) => void
-}) {
-  const disabled = !researchEnabled || !capability.available
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-md px-1 py-1">
-      <div className="min-w-0">
-        <div className={cn(
-          'text-[11px] font-medium',
-          disabled ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200',
-        )}>
-          {label}
-        </div>
-        {!capability.available && capability.reason && (
-          <div className="text-[10px] leading-4 text-amber-600 dark:text-amber-400">
-            {capability.reason}
-          </div>
-        )}
-      </div>
-      <Switch
-        aria-label={`Use ${label}`}
-        checked={researchEnabled && capability.available && checked}
-        disabled={disabled}
-        onCheckedChange={onCheckedChange}
-        className="scale-75"
-      />
     </div>
   )
 }
@@ -329,7 +253,7 @@ function FormRouter({
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
-  registerMandatoryConfig: (config: MandatoryConfig) => void
+  registerMandatoryConfig: (config: MandatoryConfig | null) => void
   researchControls?: ReactNode
   slotCatalog: TemplateSlotCatalog
   slotCatalogLoading: boolean
@@ -351,7 +275,7 @@ function FormRouter({
     case 'TEXT_BOX':
       return <TextBoxForm {...commonProps} researchControls={researchControls} slotCatalog={slotCatalog} slotCatalogLoading={slotCatalogLoading} slotCatalogError={slotCatalogError} existingTextTarget={existingTextTarget} />
     case 'METRICS':
-      return <MetricsForm {...commonProps} />
+      return <MetricsForm {...commonProps} researchControls={researchControls} />
     case 'TABLE':
       return <TableForm {...commonProps} />
     case 'CHART':
