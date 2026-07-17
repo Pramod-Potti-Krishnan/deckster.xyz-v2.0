@@ -18,6 +18,7 @@ export interface RefineContext {
   slotKind: TextSlotKind | null
   accessoryType: string | null
   citationsUsed: Array<Record<string, unknown>>
+  metricsColorVariant: string | null
   existingElement: Record<string, unknown>
   slideContext: Record<string, unknown> | null
   deckContext: Record<string, unknown> | null
@@ -96,6 +97,7 @@ export function useElementRefinement({
       slotKind: payload.slotKind ?? null,
       accessoryType: payload.accessoryType ?? null,
       citationsUsed: payload.citationsUsed ?? [],
+      metricsColorVariant: payload.metricsColorVariant ?? null,
       existingElement: {
         element_id: payload.elementId,
         component_type: elementType,
@@ -110,6 +112,7 @@ export function useElementRefinement({
         slot_kind: payload.slotKind ?? null,
         accessory_type: payload.accessoryType ?? null,
         citations_used: payload.citationsUsed ?? [],
+        metrics_color_variant: payload.metricsColorVariant ?? null,
         content: payload.content ?? null,
         formatting: payload.formatting ?? null,
         properties: payload.properties ?? null,
