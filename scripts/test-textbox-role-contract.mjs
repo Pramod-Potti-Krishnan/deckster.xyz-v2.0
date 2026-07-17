@@ -150,12 +150,20 @@ const manualPayload = clientModule.buildApiPayload('session-1', {
   ...baseForm,
   geometryMode: 'MANUAL',
   advancedModified: true,
-  manualGeometryOverrides: { item_max_chars: 72, line_height: 1.4 },
+  manualGeometryOverrides: { items_per_box: 3, item_max_chars: 72, line_height: 1.4 },
+  textboxConfig: {
+    list_style: 'numbered',
+    heading_indent: 2,
+    content_indent: 1,
+  },
 }).options
 assert.deepEqual(
   JSON.parse(JSON.stringify(manualPayload.manualGeometryOverrides)),
-  { item_max_chars: 72, line_height: 1.4 },
+  { items_per_box: 3, item_max_chars: 72, line_height: 1.4 },
 )
+assert.equal(manualPayload.textboxConfig.list_style, 'numbered')
+assert.equal(manualPayload.textboxConfig.heading_indent, 2)
+assert.equal(manualPayload.textboxConfig.content_indent, 1)
 
 const insertion = clientModule.buildInsertionParams('TEXT_BOX', {
   html: '<p>Supported claim<sup data-citation-key="market-report">1</sup></p>',
@@ -218,6 +226,19 @@ const typesSource = fs.readFileSync(new URL('../types/textlabs.ts', import.meta.
 assert.doesNotMatch(formSource, /theme_mode|ThemeSourceSelector|recalcTextBoxLimits/)
 assert.match(formSource, /componentType: 'IMAGE'/)
 assert.match(formSource, /style: 'brand_graphic'/)
+for (const section of ['Instances', 'Box Design', 'Heading', 'Content', 'Positioning', 'Container Padding']) {
+  assert.match(
+    formSource,
+    new RegExp(`CollapsibleSection title="${section}"`),
+    `Advanced retains the production ${section} section`,
+  )
+}
+assert.match(formSource, /Items \/ Box/)
+assert.match(formSource, /Auto — Platinum fit/)
+assert.match(formSource, /updateExplicitManualOverride\(\s*'items_per_box'/)
+assert.match(formSource, /Heading Font/)
+assert.match(formSource, /Content Font/)
+assert.match(formSource, /Deck theme/)
 assert.doesNotMatch(panelSource, /Regenerate|onRegenerateToggle|regenerateEnabled/)
 assert.doesNotMatch(typesSource, /function recalcTextBoxLimits/)
 assert.match(generationSource, /sendElementCommand\('upsertSemanticElement'/)
