@@ -289,6 +289,24 @@ export interface MetricsConfig {
   desc_allcaps: boolean | null
 }
 
+export type MetricsFitMode = 'AUTO' | 'MANUAL'
+
+/** Fields in this object are user-owned only when explicitly present. */
+export interface MetricsManualOverrides {
+  value_min_chars?: number
+  value_max_chars?: number
+  label_min_chars?: number
+  label_max_chars?: number
+  description_min_chars?: number
+  description_max_chars?: number
+  value_font_size?: string
+  label_font_size?: string
+  desc_font_size?: string
+  padding_px?: number
+  value_margin_bottom_px?: number
+  label_margin_bottom_px?: number
+}
+
 // ============================================================================
 // TABLE CONFIG
 // ============================================================================
@@ -570,6 +588,10 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
 export interface MetricsFormData extends TextLabsBaseFormData {
   componentType: 'METRICS'
   metricsConfig: Partial<MetricsConfig>
+  /** Panel-only intent used to re-resolve against preflight live geometry. */
+  metricsLayoutChoice?: 'auto' | 'horizontal' | 'vertical' | 'grid'
+  metricsFitMode: MetricsFitMode
+  manualMetricsOverrides?: MetricsManualOverrides
   compose?: boolean
   elements?: TextBoxFormData['elements']
 }
@@ -642,6 +664,7 @@ export interface TextLabsElement {
   accessory_type?: string | null
   resolved_geometry?: Record<string, unknown> | null
   platinum_profile?: Record<string, unknown> | string | null
+  resolved_metrics_profile?: Record<string, unknown> | null
   citations_used?: Array<Record<string, unknown>> | null
   metadata?: {
     theme_variant_id?: string | null
@@ -653,6 +676,7 @@ export interface TextLabsElement {
     accessory_type?: string | null
     resolved_geometry?: Record<string, unknown> | null
     platinum_profile?: Record<string, unknown> | string | null
+    resolved_metrics_profile?: Record<string, unknown> | null
     citations_used?: Array<Record<string, unknown>> | null
     [key: string]: unknown
   } | null
@@ -669,6 +693,7 @@ export interface TextLabsResponse {
   citations_used?: Array<Record<string, unknown>> | null
   resolved_geometry?: Record<string, unknown> | null
   platinum_profile?: Record<string, unknown> | string | null
+  resolved_metrics_profile?: Record<string, unknown> | null
 }
 
 export interface TextLabsSessionResponse {

@@ -23,6 +23,7 @@ import {
 import type { ThemeSyncState } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
+import { resolveMetricsLayout } from '@/lib/metrics-layout'
 
 const THEME_CHANGED_DURING_GENERATION =
   'The deck theme changed while this element was being generated. Wait for Applied, then generate again.'
@@ -356,11 +357,31 @@ export function useTextLabsGeneration({
           activeGenerationKeysRef.current.delete(generationKey)
           return
         }
-        formData.elements = remapElementGridPositions(
-          formElements,
-          formData.positionConfig,
-          livePosition,
-        )
+        if (formData.componentType === 'METRICS') {
+          // The geometry preflight is authoritative. Re-run only the structural
+          // 0.2-grid splitter here so Auto responds to a last-second resize;
+          // Text Service still owns every content-fit value.
+          const liveLayout = resolveMetricsLayout(
+            livePosition,
+            formData.count,
+            formData.metricsLayoutChoice ?? formData.layout,
+          )
+          if (!liveLayout.viable) {
+            generationPanel.setIsGenerating(false)
+            generationPanel.setError('The live placeholder is too small for the requested metric cards. Resize it and try again.')
+            activeGenerationKeysRef.current.delete(generationKey)
+            return
+          }
+          formData.layout = liveLayout.layout
+          formData.metricsConfig = { ...formData.metricsConfig, layout: liveLayout.layout }
+          formData.elements = liveLayout.boxes.map(grid_position => ({ grid_position }))
+        } else {
+          formData.elements = remapElementGridPositions(
+            formElements,
+            formData.positionConfig,
+            livePosition,
+          )
+        }
       }
       formData.themeVariantId = formData.useDeckTheme === true
         ? blankInfo.themeVariantId ?? null
@@ -373,6 +394,23 @@ export function useTextLabsGeneration({
           ...livePosition,
           auto_position: false,
         })
+      }
+    }
+
+    // Enforce minimum card geometry for every Metrics request, including a
+    // single card and requests without a tracked blank placeholder. The live
+    // blank bounds above have already replaced the form snapshot when present.
+    if (formData.componentType === 'METRICS' && formData.positionConfig) {
+      const metricsLayout = resolveMetricsLayout(
+        formData.positionConfig,
+        formData.count,
+        formData.metricsLayoutChoice ?? formData.layout,
+      )
+      if (!metricsLayout.viable) {
+        generationPanel.setIsGenerating(false)
+        generationPanel.setError('The live placeholder is too small for the requested metric cards. Resize it and try again.')
+        activeGenerationKeysRef.current.delete(generationKey)
+        return
       }
     }
 
@@ -649,13 +687,24 @@ export function useTextLabsGeneration({
         })
         let elementWithPosition: Parameters<typeof buildInsertionParams>[1] = {
           ...element,
-          semantic_role: element.semantic_role ?? (formData.componentType === 'TEXT_BOX' ? formData.semanticRole : null),
-          slot_name: element.slot_name ?? formData.slotName ?? null,
-          slot_kind: element.slot_kind ?? formData.slotKind ?? null,
-          accessory_type: element.accessory_type ?? formData.accessoryType ?? null,
-          citations_used: element.citations_used ?? response.citations_used ?? null,
+          semantic_role: formData.componentType === 'TEXT_BOX' && formData.slotKind === 'accessory'
+            ? null
+            : element.semantic_role ?? (formData.componentType === 'TEXT_BOX' ? formData.semanticRole : null),
+          slot_name: element.slot_name ?? (formData.componentType === 'TEXT_BOX' ? formData.slotName : null),
+          slot_kind: element.slot_kind ?? (formData.componentType === 'TEXT_BOX' ? formData.slotKind : null),
+          accessory_type: element.accessory_type ?? (formData.componentType === 'TEXT_BOX' ? formData.accessoryType : null),
+          // COMPOSE returns an aggregate compatibility list plus a per-box
+          // subset. Never attach the aggregate to every metric card.
+          citations_used: element.citations_used ?? (
+            formData.componentType === 'METRICS' && elements.length > 1
+              ? null
+              : response.citations_used ?? null
+          ),
           resolved_geometry: element.resolved_geometry ?? response.resolved_geometry ?? null,
           platinum_profile: element.platinum_profile ?? response.platinum_profile ?? null,
+          resolved_metrics_profile: element.resolved_metrics_profile ?? (
+            elements.length === 1 ? response.resolved_metrics_profile ?? null : null
+          ),
           theme_variant_id: resolvedTheme.themeVariantId,
           theme_bindings: resolvedTheme.themeBindings,
           // Ownership describes the newly returned HTML. Never carry the
@@ -692,13 +741,40 @@ export function useTextLabsGeneration({
           effectiveSlideIndex,
           refineContext?.elementId,
         )
-        const insertResponse = semanticUpsertParams
-          ? await layoutServiceApis?.sendElementCommand('upsertSemanticElement', semanticUpsertParams)
+        const citationsUsed = Array.isArray(params.citationsUsed) ? params.citationsUsed : []
+        const usesCitedUpsert = (insertionComponentType === 'METRICS' || insertionComponentType === 'TABLE') && (
+          citationsUsed.length > 0 || Boolean(refineContext)
+        )
+        const insertResponse = usesCitedUpsert
+          ? await layoutServiceApis?.sendElementCommand('upsertCitedElement', {
+              componentType: params.componentType,
+              elementId: params.elementId,
+              replacesElementId: index === 0 ? refineContext?.elementId : undefined,
+              slideIndex: effectiveSlideIndex,
+              content: params.content,
+              geometry: {
+                gridRow: params.gridRow,
+                gridColumn: params.gridColumn,
+                positionWidth: params.positionWidth,
+                positionHeight: params.positionHeight,
+              },
+              citationsUsed,
+              metadata: {
+                researchProvenance: params.researchProvenance,
+                styleOwner: params.styleOwner,
+                themeVariantId: params.themeVariantId,
+                themeBindings: params.themeBindings,
+                themeVariantSource: params.themeVariantSource,
+                resolvedMetricsProfile: params.resolvedMetricsProfile,
+              },
+            })
+          : semanticUpsertParams
+            ? await layoutServiceApis?.sendElementCommand('upsertSemanticElement', semanticUpsertParams)
           : await layoutServiceApis?.sendElementCommand(
               method === 'insertElement' ? 'insertTextBox' : method,
               params as Record<string, any>,
             )
-        if (semanticUpsertParams && refineContext) refineElementDeleted = true
+        if ((semanticUpsertParams || usesCitedUpsert) && refineContext && index === 0) refineElementDeleted = true
         const insertedElementId = typeof insertResponse?.elementId === 'string'
           ? insertResponse.elementId
           : typeof params.elementId === 'string'

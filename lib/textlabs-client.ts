@@ -30,6 +30,13 @@ import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-prove
 // Same service as Elementor - reuse the URL
 const TEXT_LABS_BASE_URL = process.env.NEXT_PUBLIC_ELEMENTOR_URL || 'https://web-production-3b42.up.railway.app'
 
+let elementIdSequence = 0
+
+function nextElementIdSequence(): number {
+  elementIdSequence = (elementIdSequence + 1) % Number.MAX_SAFE_INTEGER
+  return elementIdSequence
+}
+
 // ============================================================================
 // API KEY MAPPING (camelCase -> snake_case)
 // ============================================================================
@@ -73,6 +80,8 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   accessoryType: 'accessory_type',
   geometryMode: 'geometry_mode',
   manualGeometryOverrides: 'manual_geometry_overrides',
+  metricsFitMode: 'metrics_fit_mode',
+  manualMetricsOverrides: 'manual_metrics_overrides',
   slotMetadata: 'slot_metadata',
 }
 
@@ -136,6 +145,8 @@ interface SendMessageOptions {
   accessoryType?: string | null
   geometryMode?: 'AUTO' | 'MANUAL'
   manualGeometryOverrides?: Record<string, unknown>
+  metricsFitMode?: 'AUTO' | 'MANUAL'
+  manualMetricsOverrides?: Record<string, unknown>
   slotMetadata?: Record<string, unknown>
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
@@ -365,8 +376,14 @@ export function buildApiPayload(
     options.elements = formData.elements
   }
 
-  if (formData.componentType === 'METRICS' && (advancedModified || formData.compose)) {
-    options.metricsConfig = formData.metricsConfig as Record<string, unknown>
+  if (formData.componentType === 'METRICS') {
+    options.metricsFitMode = formData.metricsFitMode
+    if (formData.metricsFitMode === 'MANUAL') {
+      options.manualMetricsOverrides = (formData.manualMetricsOverrides ?? {}) as Record<string, unknown>
+    }
+    if (Object.keys(formData.metricsConfig).length > 0) {
+      options.metricsConfig = formData.metricsConfig as Record<string, unknown>
+    }
     options.compose = formData.compose
     options.elements = formData.elements
   }
@@ -377,7 +394,6 @@ export function buildApiPayload(
       case 'TEXT_BOX':
         break
       case 'METRICS':
-        options.metricsConfig = formData.metricsConfig as Record<string, unknown>
         break
       case 'TABLE':
         options.tableConfig = formData.tableConfig as Record<string, unknown>
@@ -481,6 +497,7 @@ export function buildInsertionParams(
     accessory_type?: string | null
     resolved_geometry?: Record<string, unknown> | null
     platinum_profile?: Record<string, unknown> | string | null
+    resolved_metrics_profile?: Record<string, unknown> | null
     citations_used?: Array<Record<string, unknown>> | null
     metadata?: Record<string, unknown> | null
   },
@@ -511,7 +528,7 @@ export function buildInsertionParams(
   const height = gridPosition?.position_height ?? gridPosition?.height ?? positionConfig?.position_height ?? defaults.height
   const elementZIndex = zIndex ?? defaults.zIndex
 
-  const elementId = `${baseType.toLowerCase()}_${Date.now()}`
+  const elementId = `${baseType.toLowerCase()}_${Date.now()}_${nextElementIdSequence()}`
   const gridRow = `${startRow}/${startRow + height}`
   const gridColumn = `${startCol}/${startCol + width}`
 
@@ -546,6 +563,7 @@ export function buildInsertionParams(
   const accessoryType = element.accessory_type ?? element.metadata?.accessory_type
   const resolvedGeometry = element.resolved_geometry ?? element.metadata?.resolved_geometry
   const platinumProfile = element.platinum_profile ?? element.metadata?.platinum_profile
+  const resolvedMetricsProfile = element.resolved_metrics_profile ?? element.metadata?.resolved_metrics_profile
   const citationsUsed = element.citations_used ?? element.metadata?.citations_used
   if (semanticRole) baseParams.semanticRole = semanticRole
   if (slotName) baseParams.slotName = slotName
@@ -553,6 +571,7 @@ export function buildInsertionParams(
   if (accessoryType) baseParams.accessoryType = accessoryType
   if (resolvedGeometry) baseParams.resolvedGeometry = resolvedGeometry
   if (platinumProfile) baseParams.platinumProfile = platinumProfile
+  if (resolvedMetricsProfile) baseParams.resolvedMetricsProfile = resolvedMetricsProfile
   if (citationsUsed) baseParams.citationsUsed = citationsUsed
 
   if (paddingConfig) {
