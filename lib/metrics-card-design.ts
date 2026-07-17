@@ -33,7 +33,7 @@ export function resolveMetricsCardColorPatch(
     }
   }
   return {
-    color_scheme: currentSurface ?? 'solid',
+    color_scheme: !currentSurface || currentSurface === 'transparent' ? 'solid' : currentSurface,
     color_variant: choice,
   }
 }
