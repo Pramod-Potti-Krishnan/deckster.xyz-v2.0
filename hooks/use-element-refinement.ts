@@ -17,6 +17,7 @@ export interface RefineContext {
   slotName: string | null
   slotKind: TextSlotKind | null
   accessoryType: string | null
+  generationConfig: Record<string, unknown> | null
   citationsUsed: Array<Record<string, unknown>>
   metricsColorVariant: string | null
   existingElement: Record<string, unknown>
@@ -96,6 +97,7 @@ export function useElementRefinement({
       slotName: payload.slotName ?? null,
       slotKind: payload.slotKind ?? null,
       accessoryType: payload.accessoryType ?? null,
+      generationConfig: payload.generationConfig ?? null,
       citationsUsed: payload.citationsUsed ?? [],
       metricsColorVariant: payload.metricsColorVariant ?? null,
       existingElement: {
@@ -111,6 +113,7 @@ export function useElementRefinement({
         slot_name: payload.slotName ?? null,
         slot_kind: payload.slotKind ?? null,
         accessory_type: payload.accessoryType ?? null,
+        generation_config: payload.generationConfig ?? null,
         citations_used: payload.citationsUsed ?? [],
         metrics_color_variant: payload.metricsColorVariant ?? null,
         content: payload.content ?? null,

@@ -219,6 +219,7 @@ const insertion = clientModule.buildInsertionParams('TEXT_BOX', {
   semantic_role: 'SLIDE_TITLE',
   slot_name: 'slide_title',
   slot_kind: 'structural',
+  generation_config: { version: 1, count: 4, multiBoxColorMode: 'THEME_SEQUENCE' },
   citations_used: [{ source_key: 'market-report', display_number: 1 }],
   resolved_geometry: { max_lines: 2 },
   platinum_profile: 'title-h1',
@@ -227,6 +228,14 @@ assert.equal(insertion.params.semanticRole, 'SLIDE_TITLE')
 assert.equal(insertion.params.slotName, 'slide_title')
 assert.equal(insertion.params.citationsUsed[0].source_key, 'market-report')
 assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.resolvedGeometry)), { max_lines: 2 })
+assert.deepEqual(
+  JSON.parse(JSON.stringify(insertion.params.generationConfig)),
+  { version: 1, count: 4, multiBoxColorMode: 'THEME_SEQUENCE' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(clientModule.buildSemanticUpsertParams(insertion.params, 1).metadata.generationConfig)),
+  { version: 1, count: 4, multiBoxColorMode: 'THEME_SEQUENCE' },
+)
 
 const footerFormPayload = clientModule.buildApiPayload('session-1', {
   ...baseForm,
@@ -277,7 +286,9 @@ assert.deepEqual(
 )
 
 const formLifecycleSource = fs.readFileSync(new URL('../components/generation-panel/forms/text-box-form.tsx', import.meta.url), 'utf8')
-assert.match(formLifecycleSource, /previousTargetIdentity\.current !== targetIdentity/)
+assert.match(formLifecycleSource, /readSavedTextBoxGenerationConfig/)
+assert.match(formLifecycleSource, /previousTargetIdentity\.current !== targetResetKey/)
+assert.match(formLifecycleSource, /generationConfig/)
 assert.match(formLifecycleSource, /\{\(isBodyText \|\| isSystemManaged\) && researchControls\}/)
 assert.match(formLifecycleSource, /\{isStructuralText && \(\s*<CollapsibleSection title="Template Text"/)
 const builderSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')

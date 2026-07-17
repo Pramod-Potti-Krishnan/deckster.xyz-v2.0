@@ -36,6 +36,7 @@ export interface GenerationPanelProps {
     slotName?: string | null
     slotKind?: TextSlotKind | null
     accessoryType?: string | null
+    generationConfig?: Record<string, unknown> | null
   } | null
   researchMode: ElementResearchMode
   researchWeb: boolean

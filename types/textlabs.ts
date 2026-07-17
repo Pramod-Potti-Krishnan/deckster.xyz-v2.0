@@ -605,6 +605,7 @@ export interface TextLabsBaseFormData {
   slotKind?: TextSlotKind | null
   accessoryType?: string | null
   slotMetadata?: TextSlotMetadata
+  generationConfig?: Record<string, unknown> | null
 }
 
 export interface TextBoxFormData extends TextLabsBaseFormData {
@@ -713,6 +714,8 @@ export interface TextLabsElement {
   metrics_color_variant?: string | null
   resolved_table_profile?: Record<string, unknown> | null
   citations_used?: Array<Record<string, unknown>> | null
+  generation_config?: Record<string, unknown> | null
+  generationConfig?: Record<string, unknown> | null
   metadata?: {
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
@@ -727,6 +730,8 @@ export interface TextLabsElement {
     metrics_color_variant?: string | null
     resolved_table_profile?: Record<string, unknown> | null
     citations_used?: Array<Record<string, unknown>> | null
+    generation_config?: Record<string, unknown> | null
+    generationConfig?: Record<string, unknown> | null
     [key: string]: unknown
   } | null
 }

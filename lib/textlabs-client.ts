@@ -588,6 +588,8 @@ export function buildInsertionParams(
     metrics_color_variant?: string | null
     resolved_table_profile?: Record<string, unknown> | null
     citations_used?: Array<Record<string, unknown>> | null
+    generation_config?: Record<string, unknown> | null
+    generationConfig?: Record<string, unknown> | null
     metadata?: Record<string, unknown> | null
   },
   positionConfig?: TextLabsPositionConfig,
@@ -658,6 +660,10 @@ export function buildInsertionParams(
     ?? element.metadata?.resolved_box_color
   const resolvedTableProfile = element.resolved_table_profile ?? element.metadata?.resolved_table_profile
   const citationsUsed = element.citations_used ?? element.metadata?.citations_used
+  const generationConfig = element.generation_config
+    ?? element.generationConfig
+    ?? element.metadata?.generation_config
+    ?? element.metadata?.generationConfig
   if (semanticRole) baseParams.semanticRole = semanticRole
   if (slotName) baseParams.slotName = slotName
   if (slotKind) baseParams.slotKind = slotKind
@@ -670,6 +676,7 @@ export function buildInsertionParams(
   }
   if (resolvedTableProfile) baseParams.resolvedTableProfile = resolvedTableProfile
   if (citationsUsed) baseParams.citationsUsed = citationsUsed
+  if (generationConfig) baseParams.generationConfig = generationConfig
 
   if (paddingConfig) {
     baseParams.style = {
@@ -743,6 +750,7 @@ export function buildSemanticUpsertParams(
       themeBindings: params.themeBindings,
       resolvedGeometry: params.resolvedGeometry,
       platinumProfile: params.platinumProfile,
+      generationConfig: params.generationConfig,
     },
   }
 }
