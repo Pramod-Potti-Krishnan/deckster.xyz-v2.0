@@ -759,8 +759,9 @@ export function useTextLabsGeneration({
           refineContext?.elementId,
         )
         const citationsUsed = Array.isArray(params.citationsUsed) ? params.citationsUsed : []
-        const usesCitedUpsert = (insertionComponentType === 'METRICS' || insertionComponentType === 'TABLE') && (
-          citationsUsed.length > 0 || Boolean(refineContext)
+        const usesCitedUpsert = insertionComponentType === 'TABLE' || (
+          insertionComponentType === 'METRICS'
+          && (citationsUsed.length > 0 || Boolean(refineContext))
         )
         const insertResponse = usesCitedUpsert
           ? await layoutServiceApis?.sendElementCommand('upsertCitedElement', {

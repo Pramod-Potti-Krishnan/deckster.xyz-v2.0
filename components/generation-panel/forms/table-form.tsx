@@ -147,6 +147,7 @@ export function TableForm({
   const [cellMarks, setCellMarks] = useState<TableCellMark[]>([])
   const [markDraft, setMarkDraft] = useState<TableCellMark>({ row: 1, col: 1, mark: 'highlight', style: 'chip' })
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const [zIndexModified, setZIndexModified] = useState(false)
   const [positionModified, setPositionModified] = useState(false)
   const [paddingModified, setPaddingModified] = useState(false)
   const [showSchema, setShowSchema] = useState(false)
@@ -246,21 +247,22 @@ export function TableForm({
       || cellMarks.length > 0
       || positionModified
       || paddingModified
+      || zIndexModified
     onSubmit({
       componentType: 'TABLE',
       prompt,
       count,
       layout: 'horizontal',
       advancedModified,
-      z_index: zIndex,
+      z_index: zIndexModified ? zIndex : undefined,
       presentationId,
       useDeckTheme,
       themeOverrides,
       tableConfig,
-      positionConfig: positionConfig.auto_position ? undefined : positionConfig,
+      positionConfig: positionModified ? positionConfig : undefined,
       paddingConfig: paddingModified ? paddingConfig : undefined,
     })
-  }, [cellMarks.length, columnBrief.length, count, onSubmit, paddingConfig, paddingModified, patch, positionConfig, positionModified, presentationId, prompt, structureMode, tableConfig, themeOverrides, useDeckTheme, zIndex])
+  }, [cellMarks.length, columnBrief.length, count, onSubmit, paddingConfig, paddingModified, patch, positionConfig, positionModified, presentationId, prompt, structureMode, tableConfig, themeOverrides, useDeckTheme, zIndex, zIndexModified])
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 
@@ -371,10 +373,10 @@ export function TableForm({
                 <OptionalTextInput label="Header size" value={patch.header_font_size} placeholder="Auto, e.g. 14px" onChange={value => updatePatch('header_font_size', value)} />
                 <OptionalTextInput label="Cell font" value={patch.cell_font_family} onChange={value => updatePatch('cell_font_family', value)} />
                 <OptionalTextInput label="Cell size" value={patch.cell_font_size} placeholder="Auto, e.g. 13px" onChange={value => updatePatch('cell_font_size', value)} />
-                <OptionalNumberInput label="Header min chars" value={patch.header_min_chars} min={1} max={60} onChange={value => updatePatch('header_min_chars', value)} />
-                <OptionalNumberInput label="Header max chars" value={patch.header_max_chars} min={1} max={80} onChange={value => updatePatch('header_max_chars', value)} />
-                <OptionalNumberInput label="Cell min chars" value={patch.cell_min_chars} min={1} max={200} onChange={value => updatePatch('cell_min_chars', value)} />
-                <OptionalNumberInput label="Cell max chars" value={patch.cell_max_chars} min={1} max={400} onChange={value => updatePatch('cell_max_chars', value)} />
+                <OptionalNumberInput label="Header min chars" value={patch.header_min_chars} min={5} max={60} onChange={value => updatePatch('header_min_chars', value)} />
+                <OptionalNumberInput label="Header max chars" value={patch.header_max_chars} min={5} max={80} onChange={value => updatePatch('header_max_chars', value)} />
+                <OptionalNumberInput label="Cell min chars" value={patch.cell_min_chars} min={5} max={200} onChange={value => updatePatch('cell_min_chars', value)} />
+                <OptionalNumberInput label="Cell max chars" value={patch.cell_max_chars} min={5} max={400} onChange={value => updatePatch('cell_max_chars', value)} />
                 <OptionalSelect label="Fit" value={patch.fit_mode ?? ''} onChange={value => updatePatch('fit_mode', value as TableConfig['fit_mode'])} options={[{ value: 'fill', label: 'Fill' }, { value: 'natural', label: 'Natural' }]} />
               </div>
             </div>
@@ -383,7 +385,7 @@ export function TableForm({
           <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(!showPositioning)}>
             <div className="space-y-2.5">
               <PositionPresets positionConfig={positionConfig} onChange={setPositionConfig} elementType="TABLE" onAdvancedModified={() => setPositionModified(true)} />
-              <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setPositionModified(true)} />
+              <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setZIndexModified(true)} />
             </div>
           </CollapsibleSection>
 

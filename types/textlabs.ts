@@ -583,7 +583,7 @@ export interface TextLabsBaseFormData {
   count: number
   layout: 'horizontal' | 'vertical' | 'grid'
   advancedModified: boolean
-  z_index: number
+  z_index?: number
   presentationId?: string | null
   useDeckTheme?: boolean
   themeOverrides?: ThemePalette | null
