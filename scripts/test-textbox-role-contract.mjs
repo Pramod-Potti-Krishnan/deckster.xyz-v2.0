@@ -119,6 +119,16 @@ assert.equal(structuralPayload.positionConfig, undefined)
 assert.equal(structuralPayload.slotMetadata.geometry.grid_width, 28)
 assert.equal(structuralPayload.slotMetadata.typography.line_height, 1.1)
 
+const logoPayload = clientModule.buildApiPayload('session-1', {
+  ...baseForm,
+  semanticRole: 'BODY_TEXT',
+  slotName: 'brand_logo',
+  slotKind: 'accessory',
+  accessoryType: 'LOGO',
+}).options
+assert.equal(logoPayload.semanticRole, undefined)
+assert.equal(logoPayload.accessoryType, 'LOGO')
+
 const manualPayload = clientModule.buildApiPayload('session-1', {
   ...baseForm,
   geometryMode: 'MANUAL',

@@ -645,7 +645,9 @@ export function useTextLabsGeneration({
         })
         let elementWithPosition: Parameters<typeof buildInsertionParams>[1] = {
           ...element,
-          semantic_role: element.semantic_role ?? (formData.componentType === 'TEXT_BOX' ? formData.semanticRole : null),
+          semantic_role: formData.componentType === 'TEXT_BOX' && formData.slotKind === 'accessory'
+            ? null
+            : element.semantic_role ?? (formData.componentType === 'TEXT_BOX' ? formData.semanticRole : null),
           slot_name: element.slot_name ?? (formData.componentType === 'TEXT_BOX' ? formData.slotName : null),
           slot_kind: element.slot_kind ?? (formData.componentType === 'TEXT_BOX' ? formData.slotKind : null),
           accessory_type: element.accessory_type ?? (formData.componentType === 'TEXT_BOX' ? formData.accessoryType : null),

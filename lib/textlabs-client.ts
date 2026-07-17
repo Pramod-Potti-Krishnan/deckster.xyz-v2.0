@@ -323,7 +323,12 @@ export function buildApiPayload(
     generationContext: formData.generationContext,
     research: formData.research,
     replaceElementId: formData.replaceElementId,
-    semanticRole: formData.componentType === 'TEXT_BOX' ? formData.semanticRole : undefined,
+    // Accessories (currently Logo) are structural slots, not semantic text
+    // roles. Text Labs remains backward compatible with its BODY_TEXT default,
+    // while Layout persists the accessory identity independently.
+    semanticRole: formData.componentType === 'TEXT_BOX' && formData.slotKind !== 'accessory'
+      ? formData.semanticRole
+      : undefined,
     slotName: formData.componentType === 'TEXT_BOX' ? formData.slotName : undefined,
     slotKind: formData.componentType === 'TEXT_BOX' ? formData.slotKind : undefined,
     accessoryType: formData.componentType === 'TEXT_BOX' ? formData.accessoryType : undefined,
