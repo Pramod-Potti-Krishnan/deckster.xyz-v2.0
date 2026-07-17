@@ -296,6 +296,18 @@ export function TextBoxForm({
       slotName: selectedSlot?.slot_name ?? null,
       slotKind,
       accessoryType: selectedSlot?.accessory_type ?? null,
+      slotMetadata: selectedSlot ? {
+        geometry: selectedSlot.geometry ? {
+          grid_width: selectedSlot.geometry.position_width,
+          grid_height: selectedSlot.geometry.position_height,
+          start_col: selectedSlot.geometry.start_col,
+          start_row: selectedSlot.geometry.start_row,
+        } : undefined,
+        typography: selectedSlot.typography ?? undefined,
+        single_instance: selectedSlot.single_instance,
+        system_managed: selectedSlot.system_managed,
+        kind: selectedSlot.kind,
+      } : undefined,
       geometryMode,
       manualGeometryOverrides: geometryMode === 'MANUAL' && Object.keys(manualGeometryOverrides).length
         ? manualGeometryOverrides

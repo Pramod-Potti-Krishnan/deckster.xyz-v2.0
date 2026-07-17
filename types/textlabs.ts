@@ -155,6 +155,19 @@ export interface TextManualGeometryOverrides {
   max_chars?: number
 }
 
+export interface TextSlotMetadata {
+  geometry?: {
+    grid_width?: number
+    grid_height?: number
+    start_col?: number
+    start_row?: number
+  }
+  typography?: Record<string, unknown>
+  single_instance?: boolean
+  system_managed?: boolean
+  kind?: TextSlotKind
+}
+
 export interface TemplateTextSlot {
   slot_name: string
   label: string
@@ -538,6 +551,7 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
   slotName?: string | null
   slotKind?: TextSlotKind | null
   accessoryType?: string | null
+  slotMetadata?: TextSlotMetadata
   geometryMode: TextGeometryMode
   manualGeometryOverrides?: TextManualGeometryOverrides
   compose?: boolean
