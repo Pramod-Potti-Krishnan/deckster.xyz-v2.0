@@ -490,6 +490,13 @@ export function buildApiPayload(
     options.tableConfig = formData.tableConfig as Record<string, unknown>
   }
 
+  // Source mode is an explicit chart contract even when all UI values are at
+  // their defaults. Text Labs must be able to distinguish Auto from an
+  // explicit illustrative/custom request before it resolves provenance.
+  if (formData.componentType === 'CHART') {
+    options.chartConfig = formData.chartConfig as Record<string, unknown>
+  }
+
   // Attach element-specific config when user modified advanced settings
   if (advancedModified) {
     switch (formData.componentType) {
@@ -500,7 +507,7 @@ export function buildApiPayload(
       case 'TABLE':
         break
       case 'CHART':
-        options.chartConfig = formData.chartConfig as Record<string, unknown>
+        // Always attached above because requested_data_source_mode is required.
         break
       case 'IMAGE':
         // Already handled above
@@ -580,6 +587,7 @@ function extractBodyContent(html: string): string {
 export function buildInsertionParams(
   componentType: TextLabsAllComponentType,
   element: {
+    element_id?: string | null
     html?: string
     image_url?: string
     image_data_url?: string
@@ -592,6 +600,9 @@ export function buildInsertionParams(
     theme_variant_source?: string | null
     themeVariantSource?: string | null
     research_provenance?: Record<string, unknown> | null
+    source_provenance?: string | null
+    source_citation?: unknown
+    requested_data_source_mode?: string | null
     semantic_role?: string | null
     slot_name?: string | null
     slot_kind?: string | null
@@ -633,7 +644,12 @@ export function buildInsertionParams(
   const height = gridPosition?.position_height ?? gridPosition?.height ?? positionConfig?.position_height ?? defaults.height
   const elementZIndex = zIndex ?? defaults.zIndex
 
-  const elementId = `${baseType.toLowerCase()}_${Date.now()}_${nextElementIdSequence()}`
+  // Analytics keys its persisted spreadsheet editor by the chart element ID.
+  // Reuse the ID returned through Text Labs so Layout's container, editor
+  // bridge, regeneration, and saved chart data all refer to the same chart.
+  const elementId = componentType === 'CHART' && element.element_id
+    ? element.element_id
+    : `${baseType.toLowerCase()}_${Date.now()}_${nextElementIdSequence()}`
   const gridRow = `${startRow}/${startRow + height}`
   const gridColumn = `${startCol}/${startCol + width}`
 
@@ -662,6 +678,12 @@ export function buildInsertionParams(
   baseParams.themeVariantSource = themeVariantSource
   const researchProvenance = element.research_provenance ?? element.metadata?.research_provenance
   if (researchProvenance) baseParams.researchProvenance = researchProvenance
+  const sourceProvenance = element.source_provenance ?? element.metadata?.source_provenance
+  const sourceCitation = element.source_citation ?? element.metadata?.source_citation
+  const requestedDataSourceMode = element.requested_data_source_mode ?? element.metadata?.requested_data_source_mode
+  if (sourceProvenance) baseParams.sourceProvenance = sourceProvenance
+  if (sourceCitation !== undefined && sourceCitation !== null) baseParams.sourceCitation = sourceCitation
+  if (requestedDataSourceMode) baseParams.requestedDataSourceMode = requestedDataSourceMode
   const semanticRole = element.semantic_role ?? element.metadata?.semantic_role
   const slotName = element.slot_name ?? element.metadata?.slot_name
   const slotKind = element.slot_kind ?? element.metadata?.slot_kind

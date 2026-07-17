@@ -25,6 +25,7 @@ import type { ThemeSyncState } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
+import { researchedChartRecoveryMessage } from '@/lib/chart-data-contract'
 
 const THEME_CHANGED_DURING_GENERATION =
   'The deck theme changed while this element was being generated. Wait for Applied, then generate again.'
@@ -706,6 +707,9 @@ export function useTextLabsGeneration({
     )
     const insertedElementIds: string[] = []
     let generatedRefineContext: RefineContext | null = null
+    const requiresGroundedChartData = formData.componentType === 'CHART'
+      && formData.chartConfig.requested_data_source_mode === 'auto'
+      && formData.research?.mode === 'on'
 
     try {
       const sessionId = await textLabsSession.ensureSession(controller.signal)
@@ -739,14 +743,22 @@ export function useTextLabsGeneration({
       }
 
       if (response.error) {
-        throw new Error(response.error)
+        throw new Error(
+          requiresGroundedChartData
+            ? researchedChartRecoveryMessage(response.error)
+            : response.error,
+        )
       }
       assertThemeIsStillAuthoritative()
 
       const elements = response.elements || (response.element ? [response.element] : [])
 
       if (elements.length === 0) {
-        throw new Error('No elements returned from API')
+        throw new Error(
+          requiresGroundedChartData
+            ? researchedChartRecoveryMessage(response.message || 'No valid source-backed dataset was returned.')
+            : 'No elements returned from API',
+        )
       }
 
       // Delete blank placeholder before inserting generated content
@@ -807,6 +819,12 @@ export function useTextLabsGeneration({
               ? null
               : response.citations_used ?? null
           ),
+          research_provenance: element.research_provenance ?? response.research_provenance ?? null,
+          source_provenance: element.source_provenance ?? response.source_provenance ?? null,
+          source_citation: element.source_citation ?? response.source_citation ?? null,
+          requested_data_source_mode: formData.componentType === 'CHART'
+            ? formData.chartConfig.requested_data_source_mode
+            : null,
           resolved_geometry: element.resolved_geometry ?? response.resolved_geometry ?? null,
           platinum_profile: element.platinum_profile ?? response.platinum_profile ?? null,
           resolved_metrics_profile: element.resolved_metrics_profile ?? (
@@ -893,6 +911,16 @@ export function useTextLabsGeneration({
           : typeof params.elementId === 'string'
             ? params.elementId
             : null
+        // Layout replaces charts in place when Analytics/Text Labs preserve
+        // the existing element ID. Do not run generic refinement cleanup on
+        // the newly replaced chart.
+        if (
+          refineContext &&
+          method === 'insertChart' &&
+          insertedElementId === refineContext.elementId
+        ) {
+          refineElementDeleted = true
+        }
         if (insertedElementId) {
           insertedElementIds.push(insertedElementId)
           generationPanel.rememberDraftForElement(insertedElementId, formData)
@@ -1025,6 +1053,13 @@ export function useTextLabsGeneration({
         errorMessage = 'Network error. Check your connection and try again.'
       } else if (err instanceof Error) {
         errorMessage = err.message
+      }
+      if (
+        requiresGroundedChartData &&
+        !errorMessage.includes('Data Source → Illustrative') &&
+        /research|chart data|valid data|source-backed|no elements/i.test(errorMessage)
+      ) {
+        errorMessage = researchedChartRecoveryMessage(errorMessage)
       }
       console.error('[TextLabs] Generation error:', err)
 

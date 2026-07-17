@@ -1,0 +1,194 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import vm from 'node:vm'
+import ts from 'typescript'
+
+const moduleCache = new Map()
+
+function moduleUrl(relativePath) {
+  return new URL(relativePath, import.meta.url)
+}
+
+function loadTypeScriptModule(url) {
+  const key = url.href
+  if (moduleCache.has(key)) return moduleCache.get(key)
+  const compiled = ts.transpileModule(fs.readFileSync(url, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
+  })
+  const mod = { exports: {} }
+  moduleCache.set(key, mod.exports)
+  vm.runInNewContext(compiled.outputText, {
+    module: mod,
+    exports: mod.exports,
+    process: { env: {} },
+    fetch: () => { throw new Error('Unexpected fetch') },
+    FormData,
+    require: id => {
+      const aliases = {
+        '@/types/textlabs': '../types/textlabs.ts',
+        '@/lib/element-semantic-type': '../lib/element-semantic-type.ts',
+        '@/lib/textlabs-theme-metadata': '../lib/textlabs-theme-metadata.ts',
+        '@/lib/element-provenance': '../lib/element-provenance.ts',
+        '@/lib/element-research-policy': '../lib/element-research-policy.ts',
+      }
+      if (!aliases[id]) throw new Error(`Unexpected test import: ${id}`)
+      return loadTypeScriptModule(moduleUrl(aliases[id]))
+    },
+  })
+  moduleCache.set(key, mod.exports)
+  return mod.exports
+}
+
+const {
+  chartDataTemplate,
+  parseChartDataJson,
+  researchedChartRecoveryMessage,
+  validateChartData,
+} = loadTypeScriptModule(moduleUrl('../lib/chart-data-contract.ts'))
+const { buildApiPayload, buildInsertionParams } = loadTypeScriptModule(moduleUrl('../lib/textlabs-client.ts'))
+
+const simple = [{ label: 'Q1', value: 100 }, { label: 'Q2', value: 125 }]
+const scatter = [{ label: 'A', x: 1, y: 2 }, { label: 'B', x: 3, y: 5 }]
+const bubble = [{ label: 'A', x: 1, y: 2, r: 4 }, { label: 'B', x: 3, y: 5, r: 7 }]
+const multiSeries = {
+  labels: ['Q1', 'Q2'],
+  datasets: [
+    { label: 'Revenue', data: [100, 125] },
+    { label: 'Costs', data: [60, 72] },
+  ],
+}
+
+for (const data of [simple, scatter, bubble, multiSeries]) {
+  const result = validateChartData(data)
+  assert.equal(result.valid, true, `canonical chart shape should validate: ${JSON.stringify(data)}`)
+}
+assert.equal(parseChartDataJson(JSON.stringify(multiSeries)).valid, true, 'labels/datasets JSON is accepted')
+assert.equal(validateChartData([{ x: 1, y: 2, r: 0 }]).valid, false, 'bubble radii must be positive')
+assert.equal(validateChartData([{ label: 'Only', value: 1 }]).valid, false, 'canonical charts require at least two points')
+assert.equal(validateChartData([{ x: 1, y: 2 }]).valid, false, 'scatter charts require at least two points')
+assert.equal(validateChartData({ labels: ['Q1'], datasets: [{ label: 'Revenue', data: [1, 2] }] }).valid, false)
+assert.equal(parseChartDataJson('{ broken').valid, false)
+assert.match(researchedChartRecoveryMessage('No comparable values found.'), /Data Source → Illustrative/)
+assert.match(chartDataTemplate('waterfall'), /"label"/)
+assert.doesNotMatch(chartDataTemplate('waterfall'), /"datasets"/)
+
+assert.doesNotMatch(
+  [chartDataTemplate('auto'), chartDataTemplate('doughnut')].join('\n'),
+  /\b(?:DMT|Slide|Title|Subtitle|IMAGE|Logo|Content|Footer)\b/i,
+  'frontend templates never seed slide-shell labels',
+)
+
+function chartForm(chartType, requestedDataSourceMode, data = null, researchMode = 'off') {
+  const needsAxes = Array.isArray(data) && data.every(point => point && typeof point === 'object' && 'x' in point && 'y' in point)
+  return {
+    componentType: 'CHART',
+    prompt: 'Show the requested comparison',
+    count: 1,
+    layout: 'horizontal',
+    advancedModified: false,
+    z_index: 10,
+    chartConfig: {
+      chart_type: chartType,
+      requested_data_source_mode: requestedDataSourceMode,
+      include_insights: false,
+      series_names: [],
+      placeholder_mode: false,
+      data,
+      x_axis_label: needsAxes ? 'Investment' : null,
+      y_axis_label: needsAxes ? 'Revenue' : null,
+    },
+    research: { mode: researchMode, web: researchMode === 'on' },
+    positionConfig: {
+      start_col: 2,
+      start_row: 4,
+      position_width: 20,
+      position_height: 10,
+      auto_position: false,
+    },
+  }
+}
+
+for (const [chartType, mode, data, research] of [
+  ['auto', 'auto', null, 'on'],
+  ['auto', 'auto', null, 'off'],
+  ['doughnut', 'auto', null, 'on'],
+  ['line', 'auto', null, 'off'],
+  ['bar_grouped', 'auto', null, 'off'],
+  ['bar_stacked', 'auto', null, 'off'],
+  ['scatter', 'custom', scatter, 'off'],
+  ['bubble', 'custom', bubble, 'off'],
+  ['pie', 'custom', simple, 'off'],
+  ['bar_grouped', 'custom', multiSeries, 'off'],
+  ['bar_vertical', 'illustrative', null, 'off'],
+]) {
+  const { options } = buildApiPayload('session-1', chartForm(chartType, mode, data, research))
+  assert.equal(options.chartConfig.chart_type, chartType)
+  assert.equal(options.chartConfig.requested_data_source_mode, mode)
+  assert.deepEqual(JSON.parse(JSON.stringify(options.chartConfig.data)), data)
+  if (['scatter', 'bubble'].includes(chartType)) {
+    assert.equal(options.chartConfig.x_axis_label, 'Investment')
+    assert.equal(options.chartConfig.y_axis_label, 'Revenue')
+  }
+  assert.equal(options.research.mode, research)
+}
+
+const citation = { source_key: 'source-1', title: 'Annual Report', url: 'https://example.com/report' }
+const insertion = buildInsertionParams('CHART', {
+  element_id: 'chart-persisted-id',
+  html: '<canvas id="chart"></canvas>',
+  grid_position: { start_col: 7.2, start_row: 5.4, position_width: 18.6, position_height: 9.2 },
+  requested_data_source_mode: 'auto',
+  source_provenance: 'research_sourced',
+  source_citation: citation,
+  research_provenance: { source_count: 1 },
+  citations_used: [citation],
+}, {
+  start_col: 2,
+  start_row: 4,
+  position_width: 20,
+  position_height: 10,
+  auto_position: false,
+}, undefined, 10, 3)
+
+assert.equal(insertion.method, 'insertChart')
+assert.equal(insertion.params.elementId, 'chart-persisted-id', 'Analytics chart ID remains authoritative for editing and persistence')
+assert.equal(insertion.params.gridColumn, '7.2/25.8', 'authoritative live element geometry wins over form defaults')
+assert.equal(insertion.params.gridRow, '5.4/14.6')
+assert.equal(insertion.params.sourceProvenance, 'research_sourced')
+assert.equal(insertion.params.requestedDataSourceMode, 'auto')
+assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.sourceCitation)), citation)
+assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.citationsUsed)), [citation])
+assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.researchProvenance)), { source_count: 1 })
+
+for (const provenance of ['illustrative', 'user_provided']) {
+  const ungrounded = buildInsertionParams('CHART', {
+    html: '<canvas></canvas>',
+    source_provenance: provenance,
+  })
+  assert.equal(ungrounded.params.sourceProvenance, provenance)
+  assert.equal(ungrounded.params.citationsUsed, undefined, `${provenance} data does not invent Sources entries`)
+}
+
+const chartFormSource = fs.readFileSync(moduleUrl('../components/generation-panel/forms/chart-form.tsx'), 'utf8')
+const generationSource = fs.readFileSync(moduleUrl('../hooks/use-textlabs-generation.ts'), 'utf8')
+assert.match(chartFormSource, /aria-label="Chart Type"/)
+assert.match(chartFormSource, /Comparison & composition/)
+assert.match(chartFormSource, /Relationships & profiles/)
+for (const chartType of [
+  'auto', 'line', 'bar_vertical', 'bar_horizontal', 'pie', 'doughnut',
+  'scatter', 'bubble', 'radar', 'polar_area', 'area', 'area_stacked',
+  'bar_grouped', 'bar_stacked', 'waterfall',
+]) assert.match(chartFormSource, new RegExp(`value: '${chartType}'`), `${chartType} is visible in the selector`)
+assert.doesNotMatch(chartFormSource, /Content Source/)
+assert.doesNotMatch(chartFormSource, /PositionPresets/)
+assert.match(chartFormSource, /X-axis label/)
+assert.match(chartFormSource, /Y-axis label/)
+assert.match(chartFormSource, /Scatter and bubble data require distinct X-axis and Y-axis labels/)
+assert.match(generationSource, /const authoritativeGridPosition = currentBlankInfo/)
+assert.match(generationSource, /source_provenance: element\.source_provenance \?\? response\.source_provenance/)
+assert.match(generationSource, /researchedChartRecoveryMessage/)
+assert.match(generationSource, /method === 'insertChart'/)
+assert.match(generationSource, /insertedElementId === refineContext\.elementId/)
+assert.match(generationSource, /refineElementDeleted = true/)
+
+console.log('chart generation contract tests passed')
