@@ -63,10 +63,32 @@ assert.equal(sparseAutoOptions.zIndex, undefined)
 const appearanceOptions = client.buildApiPayload('session-table', {
   ...baseTable,
   advancedModified: true,
-  tableConfig: { structure_mode: 'AUTO', stripe_rows: false, corners: 'square', border_style: 'none' },
+  tableConfig: {
+    structure_mode: 'AUTO',
+    stripe_rows: false,
+    corners: 'square',
+    border_style: 'none',
+    header_color: '#4F46E5',
+    header_font_color: '#FFFFFF',
+    cell_font_color: '#334155',
+    row_background: '#FFFFFF',
+    row_alt_background: '#F8FAFC',
+    first_column_bold: true,
+    show_mark_legend: true,
+  },
 }).options
 assert.deepEqual(JSON.parse(JSON.stringify(appearanceOptions.tableConfig)), {
-  structure_mode: 'AUTO', stripe_rows: false, corners: 'square', border_style: 'none',
+  structure_mode: 'AUTO',
+  stripe_rows: false,
+  corners: 'square',
+  border_style: 'none',
+  header_color: '#4F46E5',
+  header_font_color: '#FFFFFF',
+  cell_font_color: '#334155',
+  row_background: '#FFFFFF',
+  row_alt_background: '#F8FAFC',
+  first_column_bold: true,
+  show_mark_legend: true,
 })
 
 const manualOptions = client.buildApiPayload('session-table', {
@@ -106,9 +128,21 @@ assert.match(formSource, /Corners/)
 assert.match(formSource, /Border/)
 assert.match(formSource, /Table count/)
 assert.match(formSource, /Columns & semantics/)
+assert.match(formSource, /Column rendering/)
 assert.match(formSource, /Totals, alignment & cell marks/)
 assert.match(formSource, /Theme & typography/)
 assert.match(formSource, /Container padding/)
+assert.match(formSource, /Header color/)
+assert.match(formSource, /Header text/)
+assert.match(formSource, /Cell text/)
+assert.match(formSource, /Row bg/)
+assert.match(formSource, /Alt row bg/)
+assert.match(formSource, /Total fill/)
+assert.match(formSource, /Total rule/)
+assert.match(formSource, /First col bold/)
+assert.match(formSource, /Last col bold/)
+assert.match(formSource, /Mark legend/)
+assert.match(formSource, /Cell mark style/)
 assert.match(formSource, /\{researchControls\}/)
 assert.match(formSource, /grid grid-cols-2 gap-2/, 'compact controls retain a two-column responsive grid')
 assert.match(formSource, /min-w-0/, 'labels and column controls may shrink instead of overlapping')

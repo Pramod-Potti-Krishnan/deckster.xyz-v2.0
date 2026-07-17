@@ -367,6 +367,8 @@ export interface TableConfig {
   show_mark_legend?: boolean
   mark_legend_labels?: Record<string, string>
   dark_overrides?: Record<string, string> | null
+  row_background?: string | null
+  row_alt_background?: string | null
   placeholder_mode?: boolean
   header_min_chars?: number
   header_max_chars?: number
