@@ -13,7 +13,9 @@ export function CollapsibleSection({ title, isOpen, onToggle, children }: Collap
   return (
     <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
       <button
+        type="button"
         onClick={onToggle}
+        aria-expanded={isOpen}
         className="w-full flex items-center justify-between px-3 py-1.5 bg-primary/5 hover:bg-primary/10 transition-colors"
       >
         <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">{title}</span>
