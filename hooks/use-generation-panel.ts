@@ -21,7 +21,6 @@ export function useGenerationPanel() {
 
   // Edit mode state
   const [mode, setMode] = useState<'generate' | 'edit' | 'refine'>('generate')
-  const [regenerateEnabled, setRegenerateEnabled] = useState(false)
   const [editElementId, setEditElementId] = useState<string | null>(null)
   const [refineContext, setRefineContext] = useState<RefineContext | null>(null)
   const [researchMode, setResearchMode] = useState<ElementResearchMode>('off')
@@ -51,7 +50,6 @@ export function useGenerationPanel() {
     setMode('generate')
     setEditElementId(null)
     setRefineContext(null)
-    setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)
   }, [])
@@ -64,7 +62,6 @@ export function useGenerationPanel() {
     setMode('generate')
     setEditElementId(null)
     setRefineContext(null)
-    setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)
   }, [])
@@ -77,7 +74,6 @@ export function useGenerationPanel() {
     setMode('edit')
     setEditElementId(elementId)
     setRefineContext(null)
-    setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)
   }, [])
@@ -90,7 +86,6 @@ export function useGenerationPanel() {
     setMode('refine')
     setEditElementId(context.elementId)
     setRefineContext(context)
-    setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)
   }, [])
@@ -101,7 +96,6 @@ export function useGenerationPanel() {
     setMode('generate')
     setEditElementId(null)
     setRefineContext(null)
-    setRegenerateEnabled(false)
     setError(null)
   }, [])
 
@@ -118,7 +112,6 @@ export function useGenerationPanel() {
     setMode('generate')
     setEditElementId(null)
     setRefineContext(null)
-    setRegenerateEnabled(false)
     setIsOpen(true)
     setError(null)
   }, [])
@@ -132,7 +125,6 @@ export function useGenerationPanel() {
     error,
     blankElementId,
     mode,
-    regenerateEnabled,
     editElementId,
     refineContext,
     researchMode,
@@ -149,7 +141,6 @@ export function useGenerationPanel() {
     getSnapshot,
     setIsGenerating,
     setError,
-    setRegenerateEnabled,
     setResearchMode,
     setResearchWeb,
     setResearchUploadedDocs,

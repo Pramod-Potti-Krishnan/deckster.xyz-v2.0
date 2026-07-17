@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react'
 import type { RefineElementRequest } from '@/components/presentation-viewer'
-import type { TextLabsComponentType, TextLabsPositionConfig } from '@/types/textlabs'
+import type { TextLabsComponentType, TextLabsPositionConfig, TextSemanticRole, TextSlotKind } from '@/types/textlabs'
 
 export interface RefineContext {
   elementId: string
@@ -13,6 +13,11 @@ export interface RefineContext {
   themeBindings: Record<string, string> | null
   styleOwner: string | null
   themeVariantSource: string | null
+  semanticRole: TextSemanticRole | null
+  slotName: string | null
+  slotKind: TextSlotKind | null
+  accessoryType: string | null
+  citationsUsed: Array<Record<string, unknown>>
   existingElement: Record<string, unknown>
   slideContext: Record<string, unknown> | null
   deckContext: Record<string, unknown> | null
@@ -86,6 +91,11 @@ export function useElementRefinement({
       themeBindings: payload.themeBindings ?? null,
       styleOwner: payload.styleOwner ?? null,
       themeVariantSource: payload.themeVariantSource ?? null,
+      semanticRole: payload.semanticRole ?? null,
+      slotName: payload.slotName ?? null,
+      slotKind: payload.slotKind ?? null,
+      accessoryType: payload.accessoryType ?? null,
+      citationsUsed: payload.citationsUsed ?? [],
       existingElement: {
         element_id: payload.elementId,
         component_type: elementType,
@@ -95,6 +105,11 @@ export function useElementRefinement({
         style_owner: payload.styleOwner ?? null,
         theme_variant_source: payload.themeVariantSource ?? null,
         research_provenance: payload.researchProvenance ?? null,
+        semantic_role: payload.semanticRole ?? null,
+        slot_name: payload.slotName ?? null,
+        slot_kind: payload.slotKind ?? null,
+        accessory_type: payload.accessoryType ?? null,
+        citations_used: payload.citationsUsed ?? [],
         content: payload.content ?? null,
         formatting: payload.formatting ?? null,
         properties: payload.properties ?? null,

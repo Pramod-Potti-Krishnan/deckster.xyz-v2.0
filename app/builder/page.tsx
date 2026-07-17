@@ -2750,6 +2750,13 @@ function BuilderContent() {
     setShowFormatPanel(false)
   }, [blankElements, buildRefineContext, generationPanel, bringToFront])
 
+  const getTemplateSlotCatalog = useCallback(async (slideIndex: number) => {
+    if (!layoutServiceApis?.sendElementCommand) {
+      throw new Error('The presentation viewer is unavailable.')
+    }
+    return layoutServiceApis.sendElementCommand('getTemplateSlotCatalog', { slideIndex })
+  }, [layoutServiceApis])
+
   // File upload state
   const {
     files: uploadedFiles,
@@ -3683,8 +3690,13 @@ function BuilderContent() {
                   presentationId={effectivePresentationId}
                   elementContext={blankElements.activePosition}
                   mode={generationPanel.mode}
-                  regenerateEnabled={generationPanel.regenerateEnabled}
-                  onRegenerateToggle={generationPanel.setRegenerateEnabled}
+                  getTemplateSlotCatalog={getTemplateSlotCatalog}
+                  existingTextTarget={generationPanel.refineContext ? {
+                    semanticRole: generationPanel.refineContext.semanticRole,
+                    slotName: generationPanel.refineContext.slotName,
+                    slotKind: generationPanel.refineContext.slotKind,
+                    accessoryType: generationPanel.refineContext.accessoryType,
+                  } : null}
                   researchMode={generationPanel.researchMode}
                   researchWeb={generationPanel.researchWeb}
                   researchUploadedDocs={generationPanel.researchUploadedDocs}

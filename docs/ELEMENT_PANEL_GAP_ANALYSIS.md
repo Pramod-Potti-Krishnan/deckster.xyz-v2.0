@@ -32,7 +32,7 @@ Backend Reference vs Frontend Implementation — per-element checklist.
 - [x] Shadow
 - [x] Corners
 - [x] Border
-- [x] Theme (light/dark)
+- [x] Deck theme owns element theming; the Text Box panel no longer exposes Theme Light/Dark
 - [ ] Show Title — move into Section 3: Heading
 - [ ] Title Style — remove `bold-line` (only `plain` / `underline`)
 - [ ] Title Char Limits (min/max) — MISSING: add auto-calculated inputs in Section 3
@@ -49,7 +49,7 @@ Backend Reference vs Frontend Implementation — per-element checklist.
 - [ ] Position: Calculated Size — MISSING
 - [ ] Padding — MISSING: add padding section with uniform/axis/individual modes
 - [ ] Z-Index — MISSING (default 50)
-- [ ] recalcTextBoxLimits() — MISSING: implement full 10-step computed logic
+- [x] Frontend sizing formula removed; Text Service Platinum Geometry is authoritative in Auto
 
 ---
 
