@@ -214,6 +214,12 @@ export function detachMetricsOverrideBindings(
       names.forEach(name => detachedNames.add(name))
     }
   }
+  const surface = String(metricsConfig.color_scheme ?? '').toLowerCase()
+  if (surface === 'transparent' || surface === 'bordered' || surface === 'accent') {
+    for (const name of ['value_color', 'label_color', 'description_color', 'desc_font_color']) {
+      detachedNames.add(name)
+    }
+  }
   if (!detachedNames.size) return bindings
   return Object.fromEntries(
     Object.entries(bindings).filter(([name]) => (
@@ -579,6 +585,7 @@ export function buildInsertionParams(
     resolved_geometry?: Record<string, unknown> | null
     platinum_profile?: Record<string, unknown> | string | null
     resolved_metrics_profile?: Record<string, unknown> | null
+    metrics_color_variant?: string | null
     resolved_table_profile?: Record<string, unknown> | null
     citations_used?: Array<Record<string, unknown>> | null
     metadata?: Record<string, unknown> | null
@@ -646,6 +653,9 @@ export function buildInsertionParams(
   const resolvedGeometry = element.resolved_geometry ?? element.metadata?.resolved_geometry
   const platinumProfile = element.platinum_profile ?? element.metadata?.platinum_profile
   const resolvedMetricsProfile = element.resolved_metrics_profile ?? element.metadata?.resolved_metrics_profile
+  const metricsColorVariant = element.metrics_color_variant
+    ?? element.metadata?.metrics_color_variant
+    ?? element.metadata?.resolved_box_color
   const resolvedTableProfile = element.resolved_table_profile ?? element.metadata?.resolved_table_profile
   const citationsUsed = element.citations_used ?? element.metadata?.citations_used
   if (semanticRole) baseParams.semanticRole = semanticRole
@@ -655,6 +665,9 @@ export function buildInsertionParams(
   if (resolvedGeometry) baseParams.resolvedGeometry = resolvedGeometry
   if (platinumProfile) baseParams.platinumProfile = platinumProfile
   if (resolvedMetricsProfile) baseParams.resolvedMetricsProfile = resolvedMetricsProfile
+  if (typeof metricsColorVariant === 'string' && metricsColorVariant) {
+    baseParams.metricsColorVariant = metricsColorVariant
+  }
   if (resolvedTableProfile) baseParams.resolvedTableProfile = resolvedTableProfile
   if (citationsUsed) baseParams.citationsUsed = citationsUsed
 

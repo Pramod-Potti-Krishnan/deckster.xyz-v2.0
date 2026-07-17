@@ -67,6 +67,17 @@ export function useGenerationPanel() {
     resetResearch()
   }, [resetResearch])
 
+  /** Keep the current draft when Layout replaces the same placeholder identity. */
+  const resumePanelForElement = useCallback((type: TextLabsComponentType, elementId: string) => {
+    setElementType(type)
+    setBlankElementId(elementId)
+    setMode('generate')
+    setEditElementId(null)
+    setRefineContext(null)
+    setIsOpen(true)
+    setError(null)
+  }, [])
+
   /** Open panel in edit mode for an existing element */
   const openPanelForEdit = useCallback((type: TextLabsComponentType, elementId: string) => {
     setElementType(type)
@@ -134,6 +145,7 @@ export function useGenerationPanel() {
     researchUploadedDocs,
     researchKnowledgeGraph,
     openPanelForElement,
+    resumePanelForElement,
     openPanelForEdit,
     openPanelForRefine,
     closePanel,

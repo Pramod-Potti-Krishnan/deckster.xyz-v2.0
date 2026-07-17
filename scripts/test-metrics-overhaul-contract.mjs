@@ -189,7 +189,14 @@ assert.deepEqual(JSON.parse(JSON.stringify(appearanceOptions.elements[0].theme_b
 const surfaceOptions = client.buildApiPayload('session-1', {
   ...baseMetrics,
   advancedModified: true,
-  themeBindings: { background: 'accent_1_500', accent: 'accent_1_500', value_font: 'metric_value' },
+  themeBindings: {
+    background: 'accent_1_500',
+    accent: 'accent_1_500',
+    value_color: 'on_background',
+    label_color: 'on_background',
+    description_color: 'on_background',
+    value_font: 'metric_value',
+  },
   metricsConfig: { layout: 'grid', color_scheme: 'transparent' },
 }).options
 assert.deepEqual(JSON.parse(JSON.stringify(surfaceOptions.themeBindings)), {
@@ -248,6 +255,7 @@ const firstInsertion = client.buildInsertionParams('METRICS', {
   component_type: 'METRICS',
   citations_used: [{ source_key: 'source-a' }],
   resolved_metrics_profile: { tier: 'regular', padding_px: 14, layout: 'grid' },
+  metadata: { metrics_color_variant: '#547ea9' },
 })
 
 const emptyManualOptions = client.buildApiPayload('session-1', {
@@ -262,6 +270,7 @@ assert.notEqual(firstInsertion.params.elementId, secondInsertion.params.elementI
 assert.equal(firstInsertion.params.componentType, 'METRICS')
 assert.equal(firstInsertion.params.citationsUsed[0].source_key, 'source-a')
 assert.equal(firstInsertion.params.resolvedMetricsProfile.tier, 'regular')
+assert.equal(firstInsertion.params.metricsColorVariant, '#547ea9')
 
 const formSource = fs.readFileSync(new URL('../components/generation-panel/forms/metrics-form.tsx', import.meta.url), 'utf8')
 const researchSource = fs.readFileSync(new URL('../components/generation-panel/shared/research-controls.tsx', import.meta.url), 'utf8')
@@ -312,6 +321,8 @@ assert.doesNotMatch(researchSource, /ResearchSourceSwitch/)
 assert.match(generationSource, /sendElementCommand\('upsertCitedElement'/)
 assert.match(generationSource, /componentType: params\.componentType/)
 assert.match(generationSource, /resolvedMetricsProfile/)
+assert.match(generationSource, /metricsColorVariant: params\.metricsColorVariant/)
+assert.match(generationSource, /resumePanelForElement/)
 assert.match(generationSource, /resolveMetricsLayout\([\s\S]*livePosition/)
 assert.match(generationSource, /detachMetricsOverrideBindings/)
 assert.match(generationSource, /live placeholder is too small/)

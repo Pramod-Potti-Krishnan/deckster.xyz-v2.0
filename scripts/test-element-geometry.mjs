@@ -50,6 +50,7 @@ assert.deepEqual(
     themeBindings: { background: 'accent_2', ignored: 42 },
     style_owner: 'text_service',
     theme_variant_source: 'full_deck_generation',
+    metrics_color_variant: '#547ea9',
   }))),
   {
     componentType: 'METRICS',
@@ -57,6 +58,7 @@ assert.deepEqual(
     themeBindings: { background: 'accent_2' },
     styleOwner: 'text_service',
     themeVariantSource: 'full_deck_generation',
+    metricsColorVariant: '#547ea9',
   },
 )
 
@@ -223,6 +225,7 @@ assert.throws(
     themeBindings: { background: 'background' },
     styleOwner: null,
     themeVariantSource: null,
+    metricsColorVariant: null,
   })
   assert.deepEqual(calls.map(call => call.action), ['getElementGeometry', 'getElementGeometry', 'refreshElementThemeMetadata'])
   assert.equal(calls.at(-1).params.themeVariantSource, 'element_generation')
