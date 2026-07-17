@@ -34,6 +34,61 @@ const refineDeleteIndex = generationSource.indexOf(
 )
 assert.ok(assertIndex >= 0 && refineDeleteIndex > assertIndex)
 assert.match(generationSource, /!layoutCommandSucceeded\(result\.value\)/)
+assert.match(generationSource, /layoutMutationStateIsAmbiguous\(deleteError\)/)
+assert.match(generationSource, /activePresentationTargetRef/)
+assert.match(generationSource, /expectedPresentationTarget\.epoch/)
+assert.match(generationSource, /!presentationTargetChanged\s*&&\s*\(!refineContext \|\| !refineElementDeleted\)/)
+assert.match(generationSource, /presentationIsStillAuthoritative\(\)\s*&&\s*refineContext/)
 
-console.log('layout command receipt tests passed')
+const waitImmediately = async () => {}
+const insertCalls = []
+const insertResult = await mod.exports.sendLayoutMutationWithReconciliation(
+  async (action, params) => {
+    insertCalls.push({ action, params })
+    if (action === 'insertDiagram') throw new Error('Command timeout')
+    return {
+      success: true,
+      status: 'completed',
+      result: { success: true, elementId: 'diagram-new' },
+    }
+  },
+  'insertDiagram',
+  { elementId: 'diagram-new' },
+  'mutation-insert',
+  { attempts: 1, delayMs: 0, wait: waitImmediately },
+)
+assert.equal(insertResult.elementId, 'diagram-new')
+assert.equal(insertCalls[0].params.mutationId, 'mutation-insert')
+assert.equal(insertCalls[1].action, 'getElementMutationReceipt')
 
+const deleteResult = await mod.exports.sendLayoutMutationWithReconciliation(
+  async action => {
+    if (action === 'deleteElement') throw new Error('Command timeout')
+    return {
+      success: true,
+      status: 'completed',
+      result: { success: true, elementId: 'diagram-old' },
+    }
+  },
+  'deleteElement',
+  { elementId: 'diagram-old' },
+  'mutation-delete',
+  { attempts: 1, delayMs: 0, wait: waitImmediately },
+)
+assert.equal(deleteResult.success, true)
+
+await assert.rejects(
+  mod.exports.sendLayoutMutationWithReconciliation(
+    async action => {
+      if (action === 'insertDiagram') throw new Error('Command timeout')
+      return { success: true, status: 'pending' }
+    },
+    'insertDiagram',
+    { elementId: 'diagram-ambiguous' },
+    'mutation-ambiguous',
+    { attempts: 2, delayMs: 0, wait: waitImmediately },
+  ),
+  /no automatic rollback was attempted/,
+)
+
+console.log('layout command receipt and timeout reconciliation tests passed')

@@ -42,6 +42,13 @@ const { getCommandType } = loadTypeScriptModule(
 
 assert.equal(getCommandType('getElementGeometry'), 'layout-service')
 assert.equal(getCommandType('setElementGenerationState'), 'layout-service')
+assert.match(
+  fs.readFileSync(
+    new URL('../hooks/use-textlabs-generation.ts', import.meta.url),
+    'utf8',
+  ),
+  /formData\.z_index = snapshot\.zIndex/,
+)
 
 assert.deepEqual(
   JSON.parse(JSON.stringify(parseElementGenerationMetadata({

@@ -22,6 +22,8 @@ import {
   catalogType,
   DIAGRAM_CATALOG_FALLBACK,
   fetchDiagramCatalog,
+  normalizePersistedDiagramSubtype,
+  normalizePersistedDiagramSettings,
   type DiagramCatalog,
   type DiagramCatalogField,
 } from '@/lib/diagram-catalog'
@@ -67,6 +69,7 @@ const LABELS: Record<string, string> = {
 export interface ExistingDiagramTarget {
   subtype?: TextLabsDiagramSubtype | null
   generationConfig?: DiagramGenerationConfig | null
+  zIndex?: number | null
 }
 
 interface DiagramFormProps {
@@ -96,6 +99,33 @@ function numbers(field: DiagramCatalogField | undefined, fallback: number[]): nu
     return Array.from({ length: field.max - field.min + 1 }, (_, index) => field.min! + index)
   }
   return fallback
+}
+
+function hydratedCatalogString(
+  field: DiagramCatalogField | undefined,
+  value: unknown,
+  fallback: string,
+  aliases: Record<string, string> = {},
+): string {
+  if (typeof value !== 'string') return fallback
+  const mapped = aliases[value.trim().toLowerCase()] ?? value.trim().toLowerCase()
+  const allowed = strings(field, [])
+  return allowed.includes(mapped) ? mapped : fallback
+}
+
+function hydratedCatalogNumber(
+  field: DiagramCatalogField | undefined,
+  value: unknown,
+  fallback: number,
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  const allowed = numbers(field, [])
+  if (allowed.length) {
+    return allowed.reduce((closest, candidate) => (
+      Math.abs(candidate - value) < Math.abs(closest - value) ? candidate : closest
+    ), allowed[0])
+  }
+  return Math.round(Math.min(field?.max ?? value, Math.max(field?.min ?? value, value)))
 }
 
 function humanize(value: string): string {
@@ -179,59 +209,132 @@ export function DiagramForm({
 
   useEffect(() => {
     const generationConfig = existingDiagramTarget?.generationConfig
-    const hydratedSubtype = generationConfig?.diagram_type ?? existingDiagramTarget?.subtype
+    const requestedSubtype = generationConfig?.diagram_type ?? existingDiagramTarget?.subtype
+    const hydratedSubtype = normalizePersistedDiagramSubtype(requestedSubtype)
     if (hydratedSubtype) setSubtype(hydratedSubtype)
+    const hydratedType = hydratedSubtype ?? 'CODE_DISPLAY'
+    const hydratedCatalog = catalogType(catalog, hydratedType)
     const settings = generationConfig?.settings
-    if (generationConfig?.theme_source) {
-      updateThemeSource({
-        mode: generationConfig.theme_source,
-        overrides: generationConfig.theme_source === 'another' && generationConfig.theme_palette
-          ? {
-              primary: generationConfig.theme_palette.accents?.[0],
-              secondary: generationConfig.theme_palette.surface,
-              surface: generationConfig.theme_palette.surface,
-              border: generationConfig.theme_palette.border,
-              accents: generationConfig.theme_palette.accents,
-              text: generationConfig.theme_palette.text,
-              background: generationConfig.theme_palette.background,
-            }
-          : null,
-      })
-    }
-    if (!settings) return
+      ? normalizePersistedDiagramSettings(catalog, hydratedType, generationConfig.settings)
+      : null
 
-    if (typeof settings.language === 'string') setLanguage(settings.language)
-    if (typeof settings.color_theme === 'string') setColorTheme(settings.color_theme as CodeDisplayConfig['color_theme'])
-    if (typeof settings.text_size === 'string') setTextSize(settings.text_size as CodeDisplayConfig['text_size'])
-    if (typeof settings.show_line_numbers === 'boolean') setShowLineNumbers(settings.show_line_numbers)
-    if (typeof settings.show_copy_button === 'boolean') setShowCopyButton(settings.show_copy_button)
-    if (typeof settings.corner_style === 'string') setCornerStyle(settings.corner_style as CodeDisplayConfig['corner_style'])
-    if (typeof settings.column_count === 'number') setColumnCount(settings.column_count)
-    if (typeof settings.time_unit === 'string') {
-      if (hydratedSubtype === 'GANTT_CHART') setGanttTimeUnit(settings.time_unit as GanttConfig['time_unit'])
-      if (hydratedSubtype === 'CHEVRON_MATURITY') setChevronTimeUnit(settings.time_unit as ChevronConfig['time_unit'])
+    // Reset every persisted control before applying the next target. The panel
+    // remains mounted between diagram selections, so omission must mean the
+    // current catalog default rather than a value leaked from the prior target.
+    setLanguage('python')
+    setColorTheme('github_dark')
+    setTextSize('medium')
+    setShowLineNumbers(true)
+    setShowCopyButton(true)
+    setCornerStyle('rounded')
+    setColumnCount(4)
+    setGanttTimeUnit('weeks')
+    setNumStages(5)
+    setChevronTimeUnit('stages')
+    setAxisPreset('impact_urgency')
+    setShowLayers(true)
+    setShowDataTypes(true)
+    setShowNullable(true)
+    setLayoutHint('auto')
+    setLeafTheme('auto')
+    setPositionPreset('auto')
+    setZIndex(
+      typeof existingDiagramTarget?.zIndex === 'number'
+      && Number.isFinite(existingDiagramTarget.zIndex)
+        ? existingDiagramTarget.zIndex
+        : DEFAULTS.zIndex,
+    )
+    updateThemeSource({
+      mode: generationConfig?.theme_source ?? 'deck',
+      overrides: generationConfig?.theme_source === 'another' && generationConfig.theme_palette
+        ? {
+            primary: generationConfig.theme_palette.accents?.[0],
+            secondary: generationConfig.theme_palette.surface,
+            surface: generationConfig.theme_palette.surface,
+            border: generationConfig.theme_palette.border,
+            accents: generationConfig.theme_palette.accents,
+            text: generationConfig.theme_palette.text,
+            background: generationConfig.theme_palette.background,
+          }
+        : null,
+    })
+
+    if (settings) {
+      setLanguage(hydratedCatalogString(
+        hydratedCatalog.config.language, settings.language, 'python',
+      ))
+      setColorTheme(hydratedCatalogString(
+        hydratedCatalog.config.color_theme,
+        settings.color_theme,
+        'github_dark',
+      ) as CodeDisplayConfig['color_theme'])
+      if (['small', 'medium', 'large'].includes(String(settings.text_size))) {
+        setTextSize(settings.text_size as CodeDisplayConfig['text_size'])
+      }
+      if (typeof settings.show_line_numbers === 'boolean') setShowLineNumbers(settings.show_line_numbers)
+      if (typeof settings.show_copy_button === 'boolean') setShowCopyButton(settings.show_copy_button)
+      if (settings.corner_style === 'rounded' || settings.corner_style === 'square') {
+        setCornerStyle(settings.corner_style)
+      }
+      setColumnCount(hydratedCatalogNumber(
+        hydratedCatalog.config.column_count, settings.column_count, 4,
+      ))
+      if (hydratedType === 'GANTT_CHART') {
+        setGanttTimeUnit(hydratedCatalogString(
+          hydratedCatalog.config.time_unit,
+          settings.time_unit,
+          'weeks',
+        ) as GanttConfig['time_unit'])
+      }
+      if (hydratedType === 'CHEVRON_MATURITY') {
+        setChevronTimeUnit(hydratedCatalogString(
+          hydratedCatalog.config.time_unit, settings.time_unit, 'stages',
+        ) as ChevronConfig['time_unit'])
+      }
+      setNumStages(hydratedCatalogNumber(
+        hydratedCatalog.config.num_stages, settings.num_stages, 5,
+      ))
+      setAxisPreset(hydratedCatalogString(
+        hydratedCatalog.config.axis_preset,
+        settings.axis_preset,
+        'impact_urgency',
+      ) as IdeaBoardConfig['axis_preset'])
+      if (typeof settings.show_layers === 'boolean') setShowLayers(settings.show_layers)
+      if (typeof settings.show_data_types === 'boolean') setShowDataTypes(settings.show_data_types)
+      if (typeof settings.show_nullable === 'boolean') setShowNullable(settings.show_nullable)
+      setLayoutHint(hydratedCatalogString(
+        hydratedCatalog.config.layout_hint, settings.layout_hint, 'auto',
+      ) as NonNullable<CustomDiagramConfig['layout_hint']>)
+      setLeafTheme(hydratedCatalogString(
+        hydratedCatalog.config.theme, settings.theme, 'auto',
+      ) as LeafTheme)
+      setPositionPreset(hydratedCatalogString(
+        hydratedCatalog.config.position_preset, settings.position_preset, 'auto',
+      ))
     }
-    if (typeof settings.num_stages === 'number') setNumStages(settings.num_stages)
-    if (typeof settings.axis_preset === 'string') setAxisPreset(settings.axis_preset as IdeaBoardConfig['axis_preset'])
-    if (typeof settings.show_layers === 'boolean') setShowLayers(settings.show_layers)
-    if (typeof settings.show_data_types === 'boolean') setShowDataTypes(settings.show_data_types)
-    if (typeof settings.show_nullable === 'boolean') setShowNullable(settings.show_nullable)
-    if (typeof settings.layout_hint === 'string') setLayoutHint(settings.layout_hint as NonNullable<CustomDiagramConfig['layout_hint']>)
-    if (typeof settings.theme === 'string') setLeafTheme(settings.theme as LeafTheme)
-    if (typeof settings.position_preset === 'string') setPositionPreset(settings.position_preset)
 
     const providerSelection = generationConfig?.provider_selection
-    if (providerSelection?.mode === 'manual' && providerSelection.provider) {
-      setProvider(providerSelection.provider)
-      setProviderConflictConfirmed(providerSelection.conflict_confirmed === true)
+    const hydratedProvider = hydratedCatalogString(
+      hydratedCatalog.config.provider,
+      providerSelection?.provider ?? settings?.provider,
+      'auto',
+    ) as ProviderSelection
+    const providerWasManual = providerSelection
+      ? providerSelection.mode === 'manual'
+      : hydratedProvider !== 'auto'
+    if (providerWasManual && hydratedProvider !== 'auto') {
+      setProvider(hydratedProvider)
+      setProviderConflictConfirmed(providerSelection?.conflict_confirmed === true)
     } else {
       setProvider('auto')
       setProviderConflictConfirmed(false)
     }
     setAdvancedModified(false)
   }, [
+    catalog,
     existingDiagramTarget?.generationConfig,
     existingDiagramTarget?.subtype,
+    existingDiagramTarget?.zIndex,
     updateThemeSource,
   ])
 

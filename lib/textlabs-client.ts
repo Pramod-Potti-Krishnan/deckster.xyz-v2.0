@@ -143,7 +143,7 @@ interface SendMessageOptions {
   slideContext?: Record<string, unknown> | null
   deckContext?: Record<string, unknown> | null
   generationContext?: ElementGenerationContext | null
-  generationConfig?: import('@/types/textlabs').DiagramGenerationConfig | null
+  generationConfig?: Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null
   research?: ElementResearchPolicy | null
   replaceElementId?: string | null
   semanticRole?: string | null

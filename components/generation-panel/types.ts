@@ -53,6 +53,7 @@ export interface GenerationPanelProps {
   existingDiagramTarget?: {
     subtype?: TextLabsDiagramSubtype | null
     generationConfig?: DiagramGenerationConfig | null
+    zIndex?: number | null
   } | null
   researchMode: ElementResearchMode
   researchWeb: boolean

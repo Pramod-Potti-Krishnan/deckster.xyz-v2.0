@@ -80,6 +80,73 @@ assert.equal(
   true,
 )
 
+assert.deepEqual(
+  JSON.parse(JSON.stringify(catalogModule.normalizePersistedDiagramSettings(
+    catalog,
+    'CODE_DISPLAY',
+    { color_theme: 'solarized', language: 'python', theme: 'dark' },
+  ))),
+  {
+    language: 'python',
+    color_theme: 'solarized_dark',
+    text_size: 'medium',
+    show_line_numbers: true,
+    show_copy_button: true,
+    corner_style: 'rounded',
+  },
+)
+assert.equal(
+  catalogModule.normalizePersistedDiagramSettings(
+    catalog, 'CODE_DISPLAY', { color_theme: 'nord' },
+  ).color_theme,
+  'github_dark',
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(catalogModule.normalizePersistedDiagramSettings(
+    catalog,
+    'GANTT_CHART',
+    { time_unit: 'quarters', theme: 'dark' },
+  ))),
+  { time_unit: 'months' },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(catalogModule.normalizePersistedDiagramSettings(
+    catalog,
+    'IDEA_BOARD',
+    { axis_preset: 'impact_effort', theme: 'minimal' },
+  ))),
+  { axis_preset: 'effort_value' },
+)
+assert.equal(
+  catalogModule.normalizePersistedDiagramSettings(
+    catalog, 'CHEVRON_MATURITY', { num_stages: 9 },
+  ).num_stages,
+  6,
+)
+assert.equal(
+  catalogModule.normalizePersistedDiagramSettings(
+    catalog, 'KANBAN_BOARD', { column_count: 2 },
+  ).column_count,
+  3,
+)
+assert.equal(
+  catalogModule.normalizePersistedDiagramSubtype('cloud_architecture'),
+  'CLOUD_ARCHITECTURE',
+)
+assert.equal(
+  catalogModule.normalizePersistedDiagramSubtype('gantt-chart'),
+  'GANTT_CHART',
+)
+assert.equal(catalogModule.normalizePersistedDiagramSubtype('diagram'), null)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(catalogModule.normalizePersistedDiagramSettings(
+    catalog,
+    'CLOUD_ARCHITECTURE',
+    { provider: 'AWS', show_layers: false },
+  ))),
+  { show_layers: false, provider: 'aws' },
+)
+
 const source = fs.readFileSync(
   new URL('../components/generation-panel/forms/diagram-form.tsx', import.meta.url),
   'utf8',
@@ -118,6 +185,9 @@ const clientModule = loadTypeScriptModule(
     '@/lib/element-provenance': {
       parseThemeVariantSource: value => value ?? null,
       responseStyleOwner: () => 'diagram_generator',
+    },
+    '@/lib/element-research-policy': {
+      isNonResearchVisualElement: () => false,
     },
   },
 )

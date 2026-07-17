@@ -96,7 +96,12 @@ await assert.rejects(request, error => error?.name === 'AbortError')
 
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
 assert.match(generationSource, /ensureSession\(controller\.signal\)/)
-assert.match(generationSource, /insertedElementIds\.map\(elementId => layoutServiceApis\.sendElementCommand\('deleteElement'/)
+assert.match(
+  generationSource,
+  /insertedElementIds\.map\(\(elementId, index\) => sendLayoutMutationWithReconciliation\(/,
+)
+assert.match(generationSource, /`\$\{lifecycleMutationId\}:rollback-generation:\$\{index\}`/)
+assert.match(generationSource, /!layoutCommandSucceeded\(result\.value\)/)
 assert.match(generationSource, /generating: false/)
 
 console.log('Text Labs abort signal tests passed')

@@ -313,3 +313,122 @@ export function catalogType(
   return catalog.types.find(item => item.type === type)
     ?? DIAGRAM_CATALOG_FALLBACK.types.find(item => item.type === type)!
 }
+
+function normalizedCatalogString(
+  field: DiagramCatalogField | undefined,
+  value: unknown,
+  fallback: string | null,
+  aliases: Record<string, string> = {},
+): string | null {
+  if (typeof value !== 'string') return fallback
+  const mapped = aliases[value.trim().toLowerCase()] ?? value.trim().toLowerCase()
+  const allowed = (field?.enum ?? []).filter((item): item is string => typeof item === 'string')
+  return allowed.includes(mapped) ? mapped : fallback
+}
+
+function normalizedCatalogNumber(
+  field: DiagramCatalogField | undefined,
+  value: unknown,
+  fallback: number,
+): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  const allowed = (field?.enum ?? []).filter((item): item is number => typeof item === 'number')
+  if (allowed.length) {
+    return allowed.reduce((closest, candidate) => (
+      Math.abs(candidate - value) < Math.abs(closest - value) ? candidate : closest
+    ), allowed[0])
+  }
+  return Math.round(Math.min(field?.max ?? value, Math.max(field?.min ?? value, value)))
+}
+
+/**
+ * Translate persisted pre-catalog diagram settings into the current strict
+ * leaf contract. Unknown fields are intentionally dropped, Auto values are
+ * omitted, and only aliases with unambiguous semantics are migrated.
+ */
+export function normalizePersistedDiagramSettings(
+  catalog: DiagramCatalog,
+  type: TextLabsDiagramSubtype,
+  persisted: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const input = persisted ?? {}
+  const config = catalogType(catalog, type).config
+  const normalized: Record<string, unknown> = {}
+  const theme = normalizedCatalogString(config.theme, input.theme, null)
+  const position = normalizedCatalogString(config.position_preset, input.position_preset, null)
+  if (theme && theme !== 'auto') normalized.theme = theme
+  if (position && position !== 'auto') normalized.position_preset = position
+
+  switch (type) {
+    case 'CODE_DISPLAY':
+      normalized.language = normalizedCatalogString(config.language, input.language, 'python')
+      normalized.color_theme = normalizedCatalogString(
+        config.color_theme,
+        input.color_theme,
+        'github_dark',
+        { solarized: 'solarized_dark', nord: 'github_dark' },
+      )
+      normalized.text_size = ['small', 'medium', 'large'].includes(String(input.text_size))
+        ? input.text_size
+        : 'medium'
+      normalized.show_line_numbers = typeof input.show_line_numbers === 'boolean'
+        ? input.show_line_numbers
+        : true
+      normalized.show_copy_button = typeof input.show_copy_button === 'boolean'
+        ? input.show_copy_button
+        : true
+      normalized.corner_style = input.corner_style === 'square' ? 'square' : 'rounded'
+      break
+    case 'KANBAN_BOARD':
+      normalized.column_count = normalizedCatalogNumber(config.column_count, input.column_count, 4)
+      break
+    case 'GANTT_CHART':
+      normalized.time_unit = normalizedCatalogString(
+        config.time_unit, input.time_unit, 'weeks', { quarters: 'months' },
+      )
+      break
+    case 'CHEVRON_MATURITY':
+      normalized.num_stages = normalizedCatalogNumber(config.num_stages, input.num_stages, 5)
+      normalized.time_unit = normalizedCatalogString(config.time_unit, input.time_unit, 'stages')
+      break
+    case 'IDEA_BOARD':
+      normalized.axis_preset = normalizedCatalogString(
+        config.axis_preset,
+        input.axis_preset,
+        'impact_urgency',
+        { impact_effort: 'effort_value', custom: 'impact_urgency' },
+      )
+      break
+    case 'CLOUD_ARCHITECTURE':
+      normalized.show_layers = typeof input.show_layers === 'boolean' ? input.show_layers : true
+      {
+        const provider = normalizedCatalogString(config.provider, input.provider, null)
+        if (provider && provider !== 'auto') normalized.provider = provider
+      }
+      break
+    case 'DATA_ARCHITECTURE':
+      normalized.show_data_types = typeof input.show_data_types === 'boolean'
+        ? input.show_data_types
+        : true
+      normalized.show_nullable = typeof input.show_nullable === 'boolean'
+        ? input.show_nullable
+        : true
+      break
+    case 'CUSTOM': {
+      const layout = normalizedCatalogString(config.layout_hint, input.layout_hint, null)
+      if (layout && layout !== 'auto') normalized.layout_hint = layout
+      break
+    }
+    case 'LOGICAL_ARCHITECTURE':
+      break
+  }
+  return normalized
+}
+
+export function normalizePersistedDiagramSubtype(value: unknown): TextLabsDiagramSubtype | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toUpperCase().replace(/[-\s]+/g, '_')
+  return DIAGRAM_CATALOG_FALLBACK.types.some(item => item.type === normalized)
+    ? normalized as TextLabsDiagramSubtype
+    : null
+}

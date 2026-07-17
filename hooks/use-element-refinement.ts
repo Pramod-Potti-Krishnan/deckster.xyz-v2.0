@@ -29,6 +29,7 @@ export interface RefineContext {
   researchProvenance: Record<string, unknown> | null
   diagramSubtype: TextLabsDiagramSubtype | null
   generationConfig: Record<string, unknown> | DiagramGenerationConfig | null
+  zIndex: number | null
   existingElement: Record<string, unknown>
   slideContext: Record<string, unknown> | null
   deckContext: Record<string, unknown> | null
@@ -131,6 +132,9 @@ export function useElementRefinement({
       metricsColorVariant: payload.metricsColorVariant ?? null,
       researchProvenance: payload.researchProvenance ?? null,
       diagramSubtype,
+      zIndex: typeof payload.zIndex === 'number' && Number.isFinite(payload.zIndex)
+        ? payload.zIndex
+        : null,
       existingElement: {
         element_id: payload.elementId,
         component_type: elementType,
@@ -148,6 +152,9 @@ export function useElementRefinement({
         citations_used: payload.citationsUsed ?? [],
         metrics_color_variant: payload.metricsColorVariant ?? null,
         diagram_subtype: diagramSubtype,
+        z_index: typeof payload.zIndex === 'number' && Number.isFinite(payload.zIndex)
+          ? payload.zIndex
+          : null,
         content: payload.content ?? null,
         formatting: payload.formatting ?? null,
         properties: payload.properties ?? null,

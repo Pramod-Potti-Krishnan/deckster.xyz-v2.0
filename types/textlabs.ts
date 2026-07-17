@@ -80,7 +80,7 @@ export interface DiagramProviderSelection {
   conflict_confirmed?: boolean
 }
 
-export interface DiagramGenerationConfig {
+export interface DiagramGenerationConfig extends Record<string, unknown> {
   version: 'diagram_generation_config_v1'
   diagram_type: TextLabsDiagramSubtype
   settings: Record<string, unknown>
@@ -819,8 +819,7 @@ export interface TextLabsResponse {
   resolved_geometry?: Record<string, unknown> | null
   platinum_profile?: Record<string, unknown> | string | null
   resolved_metrics_profile?: Record<string, unknown> | null
-  research_provenance?: Record<string, unknown> | null
-  generation_config?: DiagramGenerationConfig | null
+  generation_config?: Record<string, unknown> | DiagramGenerationConfig | null
 }
 
 export interface TextLabsSessionResponse {

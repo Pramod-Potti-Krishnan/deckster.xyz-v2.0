@@ -3717,6 +3717,7 @@ function BuilderContent() {
                   existingDiagramTarget={generationPanel.refineContext ? {
                     subtype: generationPanel.refineContext.diagramSubtype,
                     generationConfig: generationPanel.refineContext.generationConfig as import('@/types/textlabs').DiagramGenerationConfig | null,
+                    zIndex: generationPanel.refineContext.zIndex,
                   } : null}
                   researchMode={generationPanel.researchMode}
                   researchWeb={generationPanel.researchWeb}

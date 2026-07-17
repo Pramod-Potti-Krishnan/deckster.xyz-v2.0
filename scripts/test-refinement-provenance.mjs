@@ -39,13 +39,20 @@ const context = buildRefineContext({
     mode: 'on',
     sources: [{ source_type: 'uploaded_docs', selected: true }],
   },
+  zIndex: 317,
+}, 'TEXT_BOX')
+
+const diagramContext = buildRefineContext({
+  elementId: 'gantt-1',
+  elementType: 'diagram',
+  componentType: 'DIAGRAM',
   diagramSubtype: 'code_display',
   generationConfig: {
     version: 'diagram_generation_config_v1',
     diagram_type: 'GANTT_CHART',
     settings: { time_unit: 'weeks' },
   },
-}, 'TEXT_BOX')
+}, 'DIAGRAM')
 
 assert.equal(context.styleOwner, 'text_service')
 assert.equal(context.themeVariantSource, 'full_deck_generation')
@@ -58,9 +65,11 @@ assert.equal(context.generationConfig.count, 3)
 assert.equal(context.existingElement.generation_config.multiBoxColorMode, 'ALTERNATING')
 assert.equal(context.existingElement.citations_used[0].source_key, 'market-report')
 assert.equal(context.researchProvenance.sources[0].source_type, 'uploaded_docs')
-assert.equal(context.diagramSubtype, 'GANTT_CHART')
-assert.equal(context.generationConfig.settings.time_unit, 'weeks')
-assert.equal(context.existingElement.generation_config.diagram_type, 'GANTT_CHART')
+assert.equal(context.zIndex, 317)
+assert.equal(context.existingElement.z_index, 317)
+assert.equal(diagramContext.diagramSubtype, 'GANTT_CHART')
+assert.equal(diagramContext.generationConfig.settings.time_unit, 'weeks')
+assert.equal(diagramContext.existingElement.generation_config.diagram_type, 'GANTT_CHART')
 
 const generationSource = fs.readFileSync(
   new URL('../hooks/use-textlabs-generation.ts', import.meta.url),
@@ -71,8 +80,8 @@ assert.doesNotMatch(generationSource, /\?\? refineContext\?\.styleOwner/)
 assert.match(generationSource, /parseThemeVariantSource\(refineContext\?\.themeVariantSource\)/)
 assert.match(
   generationSource,
-  /refineContext && refineOverlayActive && layoutServiceApis\?\.sendElementCommand/,
-  'regeneration overlay cleanup must not be gated by refineElementDeleted',
+  /!refineElementDeleted[\s\S]*insertedElementIds\.includes\(refineContext\.elementId\)/,
+  'regeneration overlay cleanup must run for in-place replacements while avoiding deleted targets',
 )
 
 const provenanceSource = fs.readFileSync(
