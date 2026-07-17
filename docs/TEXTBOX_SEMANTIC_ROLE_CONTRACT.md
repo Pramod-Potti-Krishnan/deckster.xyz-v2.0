@@ -12,6 +12,10 @@ The response owns `canvas_type` and `slots[]`. Each supported slot may include
 flags. The frontend must not duplicate template definitions. If the catalog is unavailable,
 only the backward-compatible Auto/Body Text option is shown.
 
+`FOOTER` is structural by default and becomes system-managed only when Layout explicitly
+returns `kind: system`; `SOURCES` is intrinsically system-managed. Slot metadata is forwarded
+only when the live slot contains a valid positive width and height.
+
 Text Labs generation sends `semantic_role`, `slot_name`, `slot_kind`,
 `accessory_type`, and `geometry_mode`. `AUTO` is the default. In Auto, the frontend omits
 character limits, item counts, typography sizes, line height, and padding. `MANUAL` sends only
@@ -28,6 +32,11 @@ Text Labs responses may return `resolved_geometry`, `platinum_profile`, and
 text through Layout's atomic `upsertSemanticElement` command. Layout owns structural slot
 geometry, single-instance replacement, citation numbering, source-registry persistence, and
 Sources rebuilding.
+
+Logo is not a text role. A live `accessory_type: LOGO` slot makes the contextual Logo option
+available; selecting it sends an `IMAGE`/`brand_graphic` generation request with the slot and
+accessory identity. The returned `image_url` becomes the content of the atomic accessory upsert,
+and no BODY_TEXT/Text Service insertion is attempted.
 
 The Layout refine event must include `semanticRole`, `slotName`, `slotKind`,
 `accessoryType`, and `citationsUsed` (snake_case aliases are accepted). Regenerate opens refine

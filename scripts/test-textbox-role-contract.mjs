@@ -36,6 +36,8 @@ assert.equal(catalog.slots[0].role, 'PRESENTATION_TITLE')
 assert.equal(catalog.slots[0].geometry.position_width, 20)
 assert.equal(catalog.slots[2].kind, 'accessory')
 assert.equal(catalog.slots[2].accessory_type, 'LOGO')
+assert.equal(catalogModule.slotMetadataForRequest(catalog.slots[0]).geometry.grid_width, 20)
+assert.equal(catalogModule.slotMetadataForRequest(catalog.slots[1]), undefined, 'slot metadata is omitted without valid geometry')
 assert.equal(
   catalogModule.selectionForExistingTarget(catalog, { semanticRole: 'PRESENTATION_TITLE', slotName: 'presentation_title' }),
   'slot:presentation_title',
@@ -46,7 +48,7 @@ for (const [canvasType, slots, expectedRoles, expectsLogo] of [
   ['C1', [
     { slot_name: 'slide_title', role: 'SLIDE_TITLE' },
     { slot_name: 'slide_subtitle', role: 'SLIDE_SUBTITLE' },
-    { slot_name: 'footer', role: 'FOOTER', kind: 'system' },
+    { slot_name: 'footer', role: 'FOOTER' },
     { slot_name: 'sources', role: 'SOURCES', kind: 'system', system_managed: true },
   ], ['SLIDE_TITLE', 'SLIDE_SUBTITLE', 'FOOTER', 'SOURCES'], false],
   ['H2', [
@@ -65,13 +67,25 @@ for (const [canvasType, slots, expectedRoles, expectsLogo] of [
   const parsed = catalogModule.parseTemplateSlotCatalog({ canvas_type: canvasType, slots })
   assert.deepEqual(parsed.slots.flatMap(slot => slot.role ? [slot.role] : []), expectedRoles)
   assert.equal(parsed.slots.some(slot => slot.accessory_type === 'LOGO'), expectsLogo)
+  if (canvasType === 'C1') {
+    assert.equal(parsed.slots.find(slot => slot.role === 'FOOTER').kind, 'structural')
+    assert.equal(parsed.slots.find(slot => slot.role === 'SOURCES').kind, 'system')
+  }
 }
+assert.equal(
+  catalogModule.parseTemplateSlotCatalog({ slots: [{ slot_name: 'system_footer', role: 'FOOTER', kind: 'system' }] }).slots[0].kind,
+  'system',
+  'an explicit catalog kind can make FOOTER system-managed',
+)
 assert.equal(catalogModule.parseTemplateSlotCatalog({ canvas_type: 'C4' }).slots.length, 0, 'legacy/unknown templates safely retain Body text fallback')
 
 const clientModule = compile(new URL('../lib/textlabs-client.ts', import.meta.url), id => {
   if (id === '@/types/textlabs') return {
-    INSERTION_METHOD_MAP: { TEXT_BOX: 'insertElement' },
-    TEXT_LABS_ELEMENT_DEFAULTS: { TEXT_BOX: { width: 10, height: 6, zIndex: 1000 } },
+    INSERTION_METHOD_MAP: { TEXT_BOX: 'insertElement', IMAGE: 'insertImage' },
+    TEXT_LABS_ELEMENT_DEFAULTS: {
+      TEXT_BOX: { width: 10, height: 6, zIndex: 1000 },
+      IMAGE: { width: 12, height: 7, zIndex: 1000 },
+    },
   }
   if (id === '@/lib/element-semantic-type') return { semanticTypeForInsertion: value => value }
   if (id === '@/lib/textlabs-theme-metadata') return { resolveElementThemeMetadata: () => ({ themeVariantId: null, themeBindings: null }) }
@@ -121,13 +135,16 @@ assert.equal(structuralPayload.slotMetadata.typography.line_height, 1.1)
 
 const logoPayload = clientModule.buildApiPayload('session-1', {
   ...baseForm,
-  semanticRole: 'BODY_TEXT',
+  componentType: 'IMAGE',
+  imageConfig: { style: 'brand_graphic', quality: 'high', auto_position: true },
   slotName: 'brand_logo',
   slotKind: 'accessory',
   accessoryType: 'LOGO',
 }).options
+assert.equal(logoPayload.componentType, 'IMAGE')
 assert.equal(logoPayload.semanticRole, undefined)
 assert.equal(logoPayload.accessoryType, 'LOGO')
+assert.equal(logoPayload.imageConfig.style, 'brand_graphic')
 
 const manualPayload = clientModule.buildApiPayload('session-1', {
   ...baseForm,
@@ -155,15 +172,57 @@ assert.equal(insertion.params.slotName, 'slide_title')
 assert.equal(insertion.params.citationsUsed[0].source_key, 'market-report')
 assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.resolvedGeometry)), { max_lines: 2 })
 
+const footerFormPayload = clientModule.buildApiPayload('session-1', {
+  ...baseForm,
+  semanticRole: 'FOOTER',
+  slotName: 'footer',
+  slotKind: 'structural',
+  slotMetadata: undefined,
+  positionConfig: undefined,
+}).options
+assert.equal(footerFormPayload.semanticRole, 'FOOTER')
+assert.equal(footerFormPayload.slotKind, 'structural')
+assert.equal(footerFormPayload.slotMetadata, undefined)
+const footerInsertion = clientModule.buildInsertionParams('TEXT_BOX', {
+  html: '<p>Confidential</p>',
+  component_type: 'TEXT_BOX',
+  semantic_role: footerFormPayload.semanticRole,
+  slot_name: footerFormPayload.slotName,
+  slot_kind: footerFormPayload.slotKind,
+})
+const footerUpsert = clientModule.buildSemanticUpsertParams(footerInsertion.params, 2)
+assert.equal(footerUpsert.content, '<p>Confidential</p>')
+assert.equal(footerUpsert.semanticRole, 'FOOTER')
+assert.equal(footerUpsert.slotKind, 'structural')
+assert.equal(footerUpsert.geometry, undefined)
+
+const logoInsertion = clientModule.buildInsertionParams('IMAGE', {
+  image_url: 'https://cdn.example.com/acme-logo.png',
+  component_type: 'IMAGE',
+  slot_name: logoPayload.slotName,
+  slot_kind: logoPayload.slotKind,
+  accessory_type: logoPayload.accessoryType,
+})
+assert.equal(logoInsertion.method, 'insertImage')
+const logoUpsert = clientModule.buildSemanticUpsertParams(logoInsertion.params, 0)
+assert.equal(logoUpsert.content, 'https://cdn.example.com/acme-logo.png')
+assert.equal(logoUpsert.semanticRole, undefined)
+assert.equal(logoUpsert.accessoryType, 'LOGO')
+assert.equal(logoUpsert.metadata.componentType, 'IMAGE')
+
 const formSource = fs.readFileSync(new URL('../components/generation-panel/forms/text-box-form.tsx', import.meta.url), 'utf8')
 const panelSource = fs.readFileSync(new URL('../components/generation-panel/header.tsx', import.meta.url), 'utf8')
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
+const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import.meta.url), 'utf8')
 const typesSource = fs.readFileSync(new URL('../types/textlabs.ts', import.meta.url), 'utf8')
 assert.doesNotMatch(formSource, /theme_mode|ThemeSourceSelector|recalcTextBoxLimits/)
+assert.match(formSource, /componentType: 'IMAGE'/)
+assert.match(formSource, /style: 'brand_graphic'/)
 assert.doesNotMatch(panelSource, /Regenerate|onRegenerateToggle|regenerateEnabled/)
 assert.doesNotMatch(typesSource, /function recalcTextBoxLimits/)
 assert.match(generationSource, /sendElementCommand\('upsertSemanticElement'/)
-assert.match(generationSource, /citationsUsed/)
+assert.match(generationSource, /buildSemanticUpsertParams/)
+assert.match(clientSource, /citationsUsed/)
 assert.match(generationSource, /slot_name:/)
 
 console.log('textbox role and Platinum geometry contract tests passed')

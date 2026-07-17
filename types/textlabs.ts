@@ -540,6 +540,10 @@ export interface TextLabsBaseFormData {
   generationContext?: ElementGenerationContext | null
   research?: ElementResearchPolicy | null
   replaceElementId?: string | null
+  slotName?: string | null
+  slotKind?: TextSlotKind | null
+  accessoryType?: string | null
+  slotMetadata?: TextSlotMetadata
 }
 
 export interface TextBoxFormData extends TextLabsBaseFormData {
@@ -548,10 +552,6 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
   textboxConfig: Partial<TextBoxConfig>
   structure?: TextBoxStructure
   semanticRole: TextSemanticRole
-  slotName?: string | null
-  slotKind?: TextSlotKind | null
-  accessoryType?: string | null
-  slotMetadata?: TextSlotMetadata
   geometryMode: TextGeometryMode
   manualGeometryOverrides?: TextManualGeometryOverrides
   compose?: boolean

@@ -3,6 +3,7 @@ import type {
   TemplateTextSlot,
   TextLabsPositionConfig,
   TextSemanticRole,
+  TextSlotMetadata,
   TextSlotKind,
 } from '@/types/textlabs'
 
@@ -51,7 +52,7 @@ function normalizeRole(value: unknown): TextSemanticRole | null {
 function normalizeKind(value: unknown, role: TextSemanticRole | null, accessoryType: string | null): TextSlotKind {
   const normalized = optionalString(value)?.toLowerCase()
   if (normalized === 'accessory' || accessoryType) return 'accessory'
-  if (normalized === 'system' || role === 'SOURCES' || role === 'FOOTER') return 'system'
+  if (normalized === 'system' || role === 'SOURCES') return 'system'
   if (normalized === 'body' || role === 'BODY_TEXT') return 'body'
   return 'structural'
 }
@@ -129,6 +130,33 @@ export function findSelectedSlot(catalog: TemplateSlotCatalog, value: string): T
   if (value === BODY_TEXT_AUTO_SLOT) return null
   const slotName = value.startsWith('slot:') ? value.slice(5) : value
   return catalog.slots.find(slot => slot.slot_name === slotName) ?? null
+}
+
+export function slotMetadataForRequest(slot: TemplateTextSlot | null): TextSlotMetadata | undefined {
+  const geometry = slot?.geometry
+  if (
+    !geometry ||
+    typeof geometry.position_width !== 'number' ||
+    !Number.isFinite(geometry.position_width) ||
+    geometry.position_width <= 0 ||
+    typeof geometry.position_height !== 'number' ||
+    !Number.isFinite(geometry.position_height) ||
+    geometry.position_height <= 0
+  ) {
+    return undefined
+  }
+  return {
+    geometry: {
+      grid_width: geometry.position_width,
+      grid_height: geometry.position_height,
+      ...(typeof geometry.start_col === 'number' ? { start_col: geometry.start_col } : {}),
+      ...(typeof geometry.start_row === 'number' ? { start_row: geometry.start_row } : {}),
+    },
+    typography: slot.typography ?? undefined,
+    single_instance: slot.single_instance,
+    system_managed: slot.system_managed,
+    kind: slot.kind,
+  }
 }
 
 export function selectionForExistingTarget(
