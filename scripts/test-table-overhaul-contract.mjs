@@ -180,6 +180,12 @@ assert.match(
 )
 assert.match(generationSource, /resolvedTableProfile/)
 assert.match(generationSource, /150_000/, 'researched table generation timeout allows Researcher bounded retries')
+assert.match(generationSource, /restoredBlankElementId = await restoreBlankElementAfterFailure/)
+assert.match(
+  generationSource,
+  /openPanelForElement\(currentBlankInfo\.componentType, restoredBlankElementId\)/,
+  'failed generation reopens the restored placeholder panel before publishing the error',
+)
 assert.match(formSource, /z_index: zIndexModified \? zIndex : undefined/)
 assert.match(formSource, /positionConfig: positionModified \? positionConfig : undefined/)
 assert.doesNotMatch(formSource, /chars"[^>]*min=\{1\}/, 'character-limit controls match the backend minimum')
