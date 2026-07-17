@@ -14,12 +14,18 @@ import type { ElementContext, MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { PositionPresets } from '../shared/position-presets'
+import { ToggleRow } from '../shared/toggle-row'
 import { ZIndexInput } from '../shared/z-index-input'
 import {
   isMetricsLayoutViable,
   resolveMetricsLayout,
   type MetricsLayoutChoice,
 } from '@/lib/metrics-layout'
+import {
+  METRICS_CARD_COLOR_PRESETS,
+  resolveMetricsCardColorPatch,
+  type MetricsCardColorChoice,
+} from '@/lib/metrics-card-design'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.METRICS
 const PRIMARY_SURFACES: Array<{ value: '' | MetricsConfig['color_scheme']; label: string }> = [
@@ -33,7 +39,6 @@ const ADVANCED_SURFACES: Array<{ value: '' | MetricsConfig['color_scheme']; labe
   ...PRIMARY_SURFACES,
   { value: 'gradient', label: 'Gradient' },
 ]
-const COLORS = ['', 'purple', 'blue', 'green', 'red', 'cyan', 'orange', 'pink', 'gold', 'teal', 'indigo']
 const FONT_SIZES = ['', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '40px', '48px']
 const FONT_FAMILIES = ['', 'Poppins', 'Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Lato', 'Source Sans Pro']
 const LIGHT_FONT_COLORS = [
@@ -237,6 +242,18 @@ export function MetricsForm({
   const borderValue = visualOverrides.border === undefined ? '' : visualOverrides.border ? 'on' : 'off'
   const fitIsManual = fitMode === 'MANUAL'
   const fontColorPresets = surfaceValue === 'accent' ? DARK_FONT_COLORS : LIGHT_FONT_COLORS
+  const cardColorIsAuto = !visualOverrides.color_variant && surfaceValue !== 'transparent'
+
+  const updateSurface = useCallback((value: '' | MetricsConfig['color_scheme']) => {
+    updateVisualOverride('color_scheme', value || undefined)
+    if (!value) updateVisualOverride('color_variant', undefined)
+  }, [updateVisualOverride])
+
+  const selectCardColor = useCallback((value: MetricsCardColorChoice) => {
+    const patch = resolveMetricsCardColorPatch(surfaceValue || undefined, value)
+    updateVisualOverride('color_scheme', patch.color_scheme)
+    updateVisualOverride('color_variant', patch.color_variant)
+  }, [surfaceValue, updateVisualOverride])
 
   const handleSubmit = useCallback(() => {
     const metricsConfig: Partial<MetricsConfig> = {
@@ -462,8 +479,7 @@ export function MetricsForm({
               value={primarySurfaceValue}
               onChange={event => {
                 const value = event.target.value as '' | MetricsConfig['color_scheme']
-                updateVisualOverride('color_scheme', value || undefined)
-                if (!value) updateVisualOverride('color_variant', undefined)
+                updateSurface(value)
               }}
               className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800"
             >
@@ -505,56 +521,111 @@ export function MetricsForm({
 
           <CollapsibleSection title="Card Design" isOpen={showCardDesign} onToggle={() => setShowCardDesign(value => !value)}>
             <div className="space-y-2">
-              <div className="grid grid-cols-3 gap-2">
-                <label className="space-y-1">
-                  <span className="text-[10px] text-slate-500">Surface</span>
-                  <select
-                    aria-label="Advanced metric surface"
-                    value={surfaceValue}
-                    onChange={event => {
-                      const value = event.target.value as '' | MetricsConfig['color_scheme']
-                      updateVisualOverride('color_scheme', value || undefined)
-                      if (!value) updateVisualOverride('color_variant', undefined)
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="metrics-advanced-surface" className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Surface</label>
+                <select
+                  id="metrics-advanced-surface"
+                  aria-label="Advanced metric surface"
+                  value={surfaceValue}
+                  onChange={event => updateSurface(event.target.value as '' | MetricsConfig['color_scheme'])}
+                  className="min-w-36 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                >
+                  {ADVANCED_SURFACES.map(option => <option key={option.value || 'auto'} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+              <ToggleRow
+                label="Corners"
+                field="corners"
+                value={cornersValue || 'auto'}
+                options={[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'rounded', label: 'Rnd' },
+                  { value: 'square', label: 'Sqr' },
+                ]}
+                onChange={(_field, value) => updateVisualOverride('corners', value === 'auto' ? undefined : value as MetricsConfig['corners'])}
+              />
+              <ToggleRow
+                label="Border"
+                field="border"
+                value={borderValue || 'auto'}
+                options={[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'on', label: 'On' },
+                  { value: 'off', label: 'Off' },
+                ]}
+                onChange={(_field, value) => updateVisualOverride('border', value === 'auto' ? undefined : value === 'on')}
+              />
+              <ToggleRow
+                label="Alignment"
+                field="alignment"
+                value={visualOverrides.alignment ?? 'auto'}
+                options={[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'left', label: 'L' },
+                  { value: 'center', label: 'C' },
+                  { value: 'right', label: 'R' },
+                ]}
+                onChange={(_field, value) => updateVisualOverride('alignment', value === 'auto' ? undefined : value as MetricsConfig['alignment'])}
+              />
+              <ToggleRow
+                label="Trend"
+                field="trend"
+                value={visualOverrides.trend ?? 'auto'}
+                options={[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'arrow', label: 'Arrow' },
+                  { value: 'pill', label: 'Pill' },
+                ]}
+                onChange={(_field, value) => updateVisualOverride('trend', value === 'auto' ? undefined : value as MetricsConfig['trend'])}
+              />
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Card Color</div>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Metric card color">
+                  <button
+                    type="button"
+                    aria-label="Card color: Auto"
+                    aria-pressed={cardColorIsAuto}
+                    onClick={() => selectCardColor('auto')}
+                    className={`h-6 w-6 rounded-full border border-gray-300 bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 transition-all dark:border-slate-600 ${
+                      cardColorIsAuto ? 'ring-2 ring-primary ring-offset-1' : 'hover:scale-110'
+                    }`}
+                    title="Auto"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Card color: Transparent"
+                    aria-pressed={surfaceValue === 'transparent'}
+                    onClick={() => selectCardColor('transparent')}
+                    className={`h-6 w-6 rounded-full border border-slate-400 transition-all dark:border-slate-500 ${
+                      surfaceValue === 'transparent' ? 'ring-2 ring-primary ring-offset-1' : 'hover:scale-110'
+                    }`}
+                    style={{
+                      backgroundColor: 'transparent',
+                      backgroundImage: 'linear-gradient(45deg, #cbd5e1 25%, transparent 25%), linear-gradient(-45deg, #cbd5e1 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #cbd5e1 75%), linear-gradient(-45deg, transparent 75%, #cbd5e1 75%)',
+                      backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0',
+                      backgroundSize: '8px 8px',
                     }}
-                    className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800"
-                  >
-                    {ADVANCED_SURFACES.map(option => <option key={option.value || 'auto'} value={option.value}>{option.label}</option>)}
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <span className="text-[10px] text-slate-500">Corners</span>
-                  <select aria-label="Advanced metric corners" value={cornersValue} onChange={event => updateVisualOverride('corners', event.target.value ? event.target.value as MetricsConfig['corners'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800">
-                    <option value="">Auto</option><option value="rounded">Rounded</option><option value="square">Square</option>
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <span className="text-[10px] text-slate-500">Border</span>
-                  <select aria-label="Advanced metric border" value={borderValue} onChange={event => updateVisualOverride('border', event.target.value === '' ? undefined : event.target.value === 'on')} className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800">
-                    <option value="">Auto</option><option value="on">On</option><option value="off">Off</option>
-                  </select>
-                </label>
+                    title="Transparent"
+                  />
+                  {METRICS_CARD_COLOR_PRESETS.map(preset => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      aria-label={`Card color: ${preset.label}`}
+                      aria-pressed={visualOverrides.color_variant === preset.name}
+                      onClick={() => selectCardColor(preset.name)}
+                      style={{ backgroundColor: surfaceValue === 'accent' ? preset.pastelHex : preset.hex }}
+                      className={`h-6 w-6 rounded-full border border-gray-200 transition-all dark:border-slate-700 ${
+                        visualOverrides.color_variant === preset.name
+                          ? 'ring-2 ring-primary ring-offset-1'
+                          : 'hover:scale-110'
+                      }`}
+                      title={preset.label}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="space-y-1">
-                  <span className="text-[10px] text-slate-500">Alignment</span>
-                  <select value={visualOverrides.alignment ?? ''} onChange={event => updateVisualOverride('alignment', event.target.value ? event.target.value as MetricsConfig['alignment'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800">
-                    <option value="">Auto</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <span className="text-[10px] text-slate-500">Trend</span>
-                  <select value={visualOverrides.trend ?? ''} onChange={event => updateVisualOverride('trend', event.target.value ? event.target.value as MetricsConfig['trend'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800">
-                    <option value="">Auto</option><option value="arrow">Arrow</option><option value="pill">Pill</option>
-                  </select>
-                </label>
-                <label className="space-y-1">
-                  <span className="text-[10px] text-slate-500">Card color</span>
-                  <select disabled={!surfaceValue} value={visualOverrides.color_variant ?? ''} onChange={event => updateVisualOverride('color_variant', event.target.value || undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:disabled:bg-slate-900">
-                    {COLORS.map(color => <option key={color || 'auto'} value={color}>{color ? color[0].toUpperCase() + color.slice(1) : 'Auto'}</option>)}
-                  </select>
-                </label>
-              </div>
-              <p className="text-[9px] leading-4 text-slate-400">Gradient is available here as an explicit override; it is no longer imposed as a prompt chip.</p>
+              <p className="text-[9px] leading-4 text-slate-400">Selecting a color makes the surface Filled when needed. Transparent creates a clear card. Gradient remains an explicit Advanced override.</p>
             </div>
           </CollapsibleSection>
 
