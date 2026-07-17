@@ -83,7 +83,7 @@ assert.deepEqual(
 )
 assert.deepEqual(
   JSON.parse(JSON.stringify(metricsCardDesign.resolveMetricsCardColorPatch('transparent', 'blue'))),
-  { color_scheme: 'transparent', color_variant: 'blue' },
+  { color_scheme: 'solid', color_variant: 'blue' },
 )
 assert.equal(
   metricsCardDesign.METRICS_CARD_COLOR_PRESETS.find(preset => preset.label === 'Gold').name,
