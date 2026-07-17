@@ -783,6 +783,7 @@ export function useTextLabsGeneration({
                 themeBindings: params.themeBindings,
                 themeVariantSource: params.themeVariantSource,
                 resolvedMetricsProfile: params.resolvedMetricsProfile,
+                resolvedTableProfile: params.resolvedTableProfile,
               },
             })
           : semanticUpsertParams
