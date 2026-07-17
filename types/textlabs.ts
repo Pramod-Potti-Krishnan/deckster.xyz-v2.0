@@ -729,6 +729,7 @@ export interface TextLabsElement {
 }
 
 export interface TextLabsResponse {
+  success?: boolean
   element?: TextLabsElement
   elements?: TextLabsElement[]
   error?: string
@@ -736,6 +737,7 @@ export interface TextLabsResponse {
   retryable?: boolean
   warnings?: string[]
   message?: string
+  response_text?: string
   citations_used?: Array<Record<string, unknown>> | null
   resolved_geometry?: Record<string, unknown> | null
   platinum_profile?: Record<string, unknown> | string | null
