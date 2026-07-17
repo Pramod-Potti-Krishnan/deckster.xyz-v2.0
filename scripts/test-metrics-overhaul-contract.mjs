@@ -100,10 +100,60 @@ assert.equal(autoOptions.paddingConfig, undefined)
 const appearanceOptions = client.buildApiPayload('session-1', {
   ...baseMetrics,
   advancedModified: true,
+  themeBindings: {
+    background: 'accent_1_500',
+    accent: 'accent_1_500',
+    corner_radius: 'corner_style',
+    border_color: 'border_subtle',
+    value_font: 'metric_value',
+    description_font: 'body',
+  },
   metricsConfig: { layout: 'grid', corners: 'square', border: false },
+  elements: baseMetrics.elements.map(element => ({
+    ...element,
+    theme_bindings: {
+      background: 'accent_1_500',
+      corner_radius: 'corner_style',
+      border_color: 'border_subtle',
+      value_font: 'metric_value',
+    },
+  })),
 }).options
 assert.deepEqual(JSON.parse(JSON.stringify(appearanceOptions.metricsConfig)), { layout: 'grid', corners: 'square', border: false })
 assert.equal(appearanceOptions.manualMetricsOverrides, undefined)
+assert.deepEqual(JSON.parse(JSON.stringify(appearanceOptions.themeBindings)), {
+  background: 'accent_1_500',
+  accent: 'accent_1_500',
+  value_font: 'metric_value',
+  description_font: 'body',
+})
+assert.deepEqual(JSON.parse(JSON.stringify(appearanceOptions.elements[0].theme_bindings)), {
+  background: 'accent_1_500',
+  value_font: 'metric_value',
+})
+
+const surfaceOptions = client.buildApiPayload('session-1', {
+  ...baseMetrics,
+  advancedModified: true,
+  themeBindings: { background: 'accent_1_500', accent: 'accent_1_500', value_font: 'metric_value' },
+  metricsConfig: { layout: 'grid', color_scheme: 'transparent' },
+}).options
+assert.deepEqual(JSON.parse(JSON.stringify(surfaceOptions.themeBindings)), {
+  accent: 'accent_1_500',
+  value_font: 'metric_value',
+})
+
+const typographyOptions = client.buildApiPayload('session-1', {
+  ...baseMetrics,
+  advancedModified: true,
+  metricsFitMode: 'MANUAL',
+  themeBindings: { background: 'accent_1_500', value_font: 'metric_value', label_font: 'slide_title' },
+  metricsConfig: { layout: 'grid', value_font_size: '52px' },
+}).options
+assert.deepEqual(JSON.parse(JSON.stringify(typographyOptions.themeBindings)), {
+  background: 'accent_1_500',
+  label_font: 'slide_title',
+})
 
 const manualOptions = client.buildApiPayload('session-1', {
   ...baseMetrics,
@@ -156,6 +206,7 @@ assert.match(generationSource, /sendElementCommand\('upsertCitedElement'/)
 assert.match(generationSource, /componentType: params\.componentType/)
 assert.match(generationSource, /resolvedMetricsProfile/)
 assert.match(generationSource, /resolveMetricsLayout\([\s\S]*livePosition/)
+assert.match(generationSource, /detachMetricsOverrideBindings/)
 assert.match(generationSource, /live placeholder is too small/)
 assert.match(generationSource, /including a[\s\S]*single card/)
 assert.match(routerSource, /'upsertCitedElement'/)

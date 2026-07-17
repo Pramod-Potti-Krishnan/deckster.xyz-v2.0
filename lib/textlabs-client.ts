@@ -184,6 +184,42 @@ type BackendValidationIssue = {
   message?: unknown
 }
 
+const METRICS_OVERRIDE_BINDINGS: Record<string, readonly string[]> = {
+  color_scheme: ['background', 'color_scheme'],
+  color_variant: ['accent', 'color_variant'],
+  corners: ['corners', 'corner_radius'],
+  border: ['border', 'border_color'],
+  value_font_color: ['value_color'],
+  value_font_size: ['value_font', 'value_font_size'],
+  value_font_family: ['value_font', 'value_font_family'],
+  label_font_color: ['label_color'],
+  label_font_size: ['label_font', 'label_font_size'],
+  label_font_family: ['label_font', 'label_font_family'],
+  desc_font_color: ['description_color', 'desc_font_color'],
+  desc_font_size: ['description_font', 'desc_font_size'],
+  desc_font_family: ['description_font', 'desc_font_family'],
+}
+
+/** Detach only caller-owned Metrics treatments from ThemeContract bindings. */
+export function detachMetricsOverrideBindings(
+  bindings: Record<string, string> | null | undefined,
+  metricsConfig: Record<string, unknown> | null | undefined,
+): Record<string, string> | null | undefined {
+  if (bindings == null || !metricsConfig) return bindings
+  const detachedNames = new Set<string>()
+  for (const [field, names] of Object.entries(METRICS_OVERRIDE_BINDINGS)) {
+    if (Object.prototype.hasOwnProperty.call(metricsConfig, field)) {
+      names.forEach(name => detachedNames.add(name))
+    }
+  }
+  if (!detachedNames.size) return bindings
+  return Object.fromEntries(
+    Object.entries(bindings).filter(([name]) => (
+      !detachedNames.has(name.trim().toLowerCase().replaceAll('-', '_'))
+    )),
+  )
+}
+
 /** Turn FastAPI/Pydantic validation payloads into an actionable UI message. */
 export function formatBackendError(errorData: unknown, fallback: string): string {
   if (!errorData || typeof errorData !== 'object') return fallback
@@ -319,6 +355,12 @@ export function buildApiPayload(
 ): { sessionId: string; message: string; options: SendMessageOptions } {
   const { prompt, count, layout, advancedModified, z_index, positionConfig, paddingConfig, componentType } = formData
 
+  const metricsThemeBindings = componentType === 'METRICS'
+    ? detachMetricsOverrideBindings(
+        formData.themeBindings,
+        formData.metricsConfig as Record<string, unknown> | undefined,
+      )
+    : formData.themeBindings
   const options: SendMessageOptions = {
     componentType,
     presentationId: formData.presentationId,
@@ -326,7 +368,7 @@ export function buildApiPayload(
     useDeckTheme: formData.useDeckTheme,
     themeOverrides: formData.themeOverrides as Record<string, unknown> | null | undefined,
     themeVariantId: formData.themeVariantId,
-    themeBindings: formData.themeBindings,
+    themeBindings: metricsThemeBindings,
     refine: formData.refine,
     existingElement: formData.existingElement,
     slideContext: formData.slideContext,
@@ -385,7 +427,16 @@ export function buildApiPayload(
       options.metricsConfig = formData.metricsConfig as Record<string, unknown>
     }
     options.compose = formData.compose
-    options.elements = formData.elements
+    options.elements = formData.elements?.map(element => {
+      const detachedBindings = detachMetricsOverrideBindings(
+        element.theme_bindings,
+        formData.metricsConfig as Record<string, unknown> | undefined,
+      )
+      return {
+        ...element,
+        theme_bindings: detachedBindings,
+      }
+    })
   }
 
   // Attach element-specific config when user modified advanced settings
