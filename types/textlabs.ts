@@ -119,6 +119,75 @@ export type TextBoxStructure =
   | 'BULLET_BOX'
   | 'NUMBERED_LIST'
 
+export type TextSemanticRole =
+  | 'BODY_TEXT'
+  | 'SLIDE_TITLE'
+  | 'SLIDE_SUBTITLE'
+  | 'PRESENTATION_TITLE'
+  | 'PRESENTATION_SUBTITLE'
+  | 'EYEBROW'
+  | 'AUTHOR_INFO'
+  | 'SECTION_NUMBER'
+  | 'SECTION_TITLE'
+  | 'SECTION_SUBTITLE'
+  | 'CLOSING_TITLE'
+  | 'CLOSING_SUBTITLE'
+  | 'CONTACT_INFO'
+  | 'QUOTE_ATTRIBUTION'
+  | 'FOOTER'
+  | 'SOURCES'
+
+export type TextGeometryMode = 'AUTO' | 'MANUAL'
+export type TextSlotKind = 'body' | 'structural' | 'system' | 'accessory'
+
+export interface TextManualGeometryOverrides {
+  title_min_chars?: number
+  title_max_chars?: number
+  item_min_chars?: number
+  item_max_chars?: number
+  items_per_box?: number
+  heading_font_size_px?: number
+  content_font_size_px?: number
+  line_height?: number
+  padding_px?: number | { top?: number; right?: number; bottom?: number; left?: number }
+  bullet_gap_px?: number
+  max_lines?: number
+  max_chars?: number
+}
+
+export interface TextSlotMetadata {
+  geometry?: {
+    grid_width?: number
+    grid_height?: number
+    start_col?: number
+    start_row?: number
+  }
+  typography?: Record<string, unknown>
+  single_instance?: boolean
+  system_managed?: boolean
+  kind?: TextSlotKind
+}
+
+export interface TemplateTextSlot {
+  slot_name: string
+  label: string
+  role?: TextSemanticRole | null
+  kind: TextSlotKind
+  accessory_type?: 'LOGO' | string | null
+  supported: boolean
+  optional?: boolean
+  single_instance?: boolean
+  system_managed?: boolean
+  geometry?: Partial<TextLabsPositionConfig> | null
+  typography?: Record<string, unknown> | null
+}
+
+export interface TemplateSlotCatalog {
+  canvas_type?: string | null
+  template_id?: string | null
+  slots: TemplateTextSlot[]
+}
+
 // ============================================================================
 // TEXT BOX CONFIG
 // ============================================================================
@@ -175,6 +244,7 @@ export interface TextBoxConfig {
   simple_subtype?: 'char' | 'word' | 'phrase' | null
   target_char_count?: number | null
   text?: string | null
+  opacity?: number | null
 }
 
 // ============================================================================
@@ -470,13 +540,20 @@ export interface TextLabsBaseFormData {
   generationContext?: ElementGenerationContext | null
   research?: ElementResearchPolicy | null
   replaceElementId?: string | null
+  slotName?: string | null
+  slotKind?: TextSlotKind | null
+  accessoryType?: string | null
+  slotMetadata?: TextSlotMetadata
 }
 
 export interface TextBoxFormData extends TextLabsBaseFormData {
   componentType: 'TEXT_BOX'
-  itemsPerInstance: number
+  itemsPerInstance?: number
   textboxConfig: Partial<TextBoxConfig>
   structure?: TextBoxStructure
+  semanticRole: TextSemanticRole
+  geometryMode: TextGeometryMode
+  manualGeometryOverrides?: TextManualGeometryOverrides
   compose?: boolean
   elements?: Array<{
     grid_position: {
@@ -559,10 +636,24 @@ export interface TextLabsElement {
   theme_variant_id?: string | null
   theme_bindings?: Record<string, string> | null
   research_provenance?: Record<string, unknown> | null
+  semantic_role?: TextSemanticRole | null
+  slot_name?: string | null
+  slot_kind?: TextSlotKind | null
+  accessory_type?: string | null
+  resolved_geometry?: Record<string, unknown> | null
+  platinum_profile?: Record<string, unknown> | string | null
+  citations_used?: Array<Record<string, unknown>> | null
   metadata?: {
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
     research_provenance?: Record<string, unknown> | null
+    semantic_role?: TextSemanticRole | null
+    slot_name?: string | null
+    slot_kind?: TextSlotKind | null
+    accessory_type?: string | null
+    resolved_geometry?: Record<string, unknown> | null
+    platinum_profile?: Record<string, unknown> | string | null
+    citations_used?: Array<Record<string, unknown>> | null
     [key: string]: unknown
   } | null
 }
@@ -575,6 +666,9 @@ export interface TextLabsResponse {
   retryable?: boolean
   warnings?: string[]
   message?: string
+  citations_used?: Array<Record<string, unknown>> | null
+  resolved_geometry?: Record<string, unknown> | null
+  platinum_profile?: Record<string, unknown> | string | null
 }
 
 export interface TextLabsSessionResponse {
@@ -682,133 +776,4 @@ export const COMPONENT_TYPE_INFO: Record<TextLabsComponentType, {
   SHAPE: { label: 'Shape', icon: 'Pentagon', description: 'SVG shapes with 8 types' },
   INFOGRAPHIC: { label: 'Infographic', icon: 'LayoutGrid', description: 'Visual data representation' },
   DIAGRAM: { label: 'Diagram', icon: 'GitBranch', description: '8 diagram types' },
-}
-
-// ============================================================================
-// TEXT BOX CALCULATION CONSTANTS
-// ============================================================================
-
-export const TEXTBOX_CALC = {
-  GRID_PX: 60,
-  TITLE_CHAR_W: 14,
-  BODY_CHAR_W: 12,
-  BOX_PAD_H: 80,
-  LIST_PAD_PX: 24,
-  VERT_PAD_PX: 100,
-  TITLE_HEIGHT_PX: 60,
-  BULLET_HEIGHT_PX: 37,
-  INSTANCE_GAP: 1,
-  MAX_FACTOR: 0.95,
-  MIN_FACTOR: 0.75,
-  MIN_CHARS: 5,
-  MAX_TITLE_CHARS: 200,
-  MAX_BODY_CHARS: 500,
-  MIN_BULLETS: 1,
-  MAX_BULLETS: 14,
-} as const
-
-export interface TextBoxCalcResult {
-  title_min_chars: number
-  title_max_chars: number
-  item_min_chars: number
-  item_max_chars: number
-  items_per_instance: number
-}
-
-/**
- * Recalculate text box char limits and items/instance based on position, count,
- * layout, padding, font size, indent, and line height.
- * Implements the 10-step chain from the backend reference.
- */
-export function recalcTextBoxLimits(params: {
-  position_width: number   // grid units
-  position_height: number  // grid units
-  count: number
-  layout: 'horizontal' | 'vertical' | 'grid'
-  grid_cols: number | null
-  padding_left: number     // px
-  padding_right: number    // px
-  padding_top: number      // px
-  padding_bottom: number   // px
-  heading_font_size: string | null  // e.g. '24px'
-  content_font_size: string | null  // e.g. '16px'
-  heading_indent: number   // 0-5
-  content_indent: number   // 0-5
-  content_line_height: string | null // e.g. '1.5' or 'auto'
-}): TextBoxCalcResult {
-  const C = TEXTBOX_CALC
-
-  // Step 1: Total pixel area
-  const totalW = params.position_width * C.GRID_PX
-  const totalH = params.position_height * C.GRID_PX
-
-  // Step 2: Usable area after padding
-  const usableW = totalW - params.padding_left - params.padding_right
-  const usableH = totalH - params.padding_top - params.padding_bottom
-
-  // Step 3: Instance count per row/col based on layout
-  let colsPerRow = params.count
-  let rowsOfInstances = 1
-  if (params.layout === 'vertical') {
-    colsPerRow = 1
-    rowsOfInstances = params.count
-  } else if (params.layout === 'grid' && params.grid_cols) {
-    colsPerRow = params.grid_cols
-    rowsOfInstances = Math.ceil(params.count / params.grid_cols)
-  }
-
-  // Step 4: Per-instance dimensions
-  const gapW = (colsPerRow - 1) * C.INSTANCE_GAP * C.GRID_PX
-  const gapH = (rowsOfInstances - 1) * C.INSTANCE_GAP * C.GRID_PX
-  const instanceW = Math.max(60, (usableW - gapW) / colsPerRow)
-  const instanceH = Math.max(60, (usableH - gapH) / rowsOfInstances)
-
-  // Step 5: Content area within each instance (subtract box padding)
-  const contentW = instanceW - C.BOX_PAD_H
-  const contentH = instanceH - C.VERT_PAD_PX
-
-  // Step 6: Parse font sizes
-  const headingFontPx = params.heading_font_size ? parseInt(params.heading_font_size) : 24
-  const contentFontPx = params.content_font_size ? parseInt(params.content_font_size) : 16
-
-  // Step 7: Derive char widths from font size ratio
-  const titleCharW = C.TITLE_CHAR_W * (headingFontPx / 24)
-  const bodyCharW = C.BODY_CHAR_W * (contentFontPx / 16)
-
-  // Step 8: Indent reduces usable width
-  const headingIndentPx = params.heading_indent * 20
-  const contentIndentPx = params.content_indent * 20
-  const titleLineW = Math.max(60, contentW - headingIndentPx - C.LIST_PAD_PX)
-  const bodyLineW = Math.max(60, contentW - contentIndentPx - C.LIST_PAD_PX)
-
-  // Step 9: Calculate char limits
-  const titleCharsPerLine = Math.floor(titleLineW / titleCharW)
-  const bodyCharsPerLine = Math.floor(bodyLineW / bodyCharW)
-
-  const title_max_chars = Math.min(C.MAX_TITLE_CHARS, Math.max(C.MIN_CHARS, Math.floor(titleCharsPerLine * C.MAX_FACTOR)))
-  const title_min_chars = Math.max(C.MIN_CHARS, Math.floor(titleCharsPerLine * C.MIN_FACTOR))
-
-  const item_max_chars = Math.min(C.MAX_BODY_CHARS, Math.max(C.MIN_CHARS, Math.floor(bodyCharsPerLine * C.MAX_FACTOR)))
-  const item_min_chars = Math.max(C.MIN_CHARS, Math.floor(bodyCharsPerLine * C.MIN_FACTOR))
-
-  // Step 10: Calculate items_per_instance from available height
-  const lineH = params.content_line_height && params.content_line_height !== 'auto'
-    ? contentFontPx * parseFloat(params.content_line_height)
-    : C.BULLET_HEIGHT_PX
-  const availableH = contentH - C.TITLE_HEIGHT_PX
-  const rawItems = Math.floor(availableH / lineH)
-  const items_per_instance = Math.max(C.MIN_BULLETS, Math.min(C.MAX_BULLETS, rawItems))
-
-  // Step 11: Tiered multi-line multiplier for body char limits
-  const multiplier = items_per_instance <= 7 ? 1 : items_per_instance <= 15 ? 2 : 3
-  const item_max_chars_scaled = Math.min(C.MAX_BODY_CHARS, item_max_chars * multiplier)
-  const item_min_chars_scaled = Math.max(C.MIN_CHARS, item_min_chars * multiplier)
-
-  return {
-    title_min_chars,
-    title_max_chars,
-    item_min_chars: item_min_chars_scaled,
-    item_max_chars: item_max_chars_scaled,
-    items_per_instance,
-  }
 }

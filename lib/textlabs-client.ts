@@ -67,6 +67,13 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   deckContext: 'deck_context',
   generationContext: 'generation_context',
   replaceElementId: 'replace_element_id',
+  semanticRole: 'semantic_role',
+  slotName: 'slot_name',
+  slotKind: 'slot_kind',
+  accessoryType: 'accessory_type',
+  geometryMode: 'geometry_mode',
+  manualGeometryOverrides: 'manual_geometry_overrides',
+  slotMetadata: 'slot_metadata',
 }
 
 // ============================================================================
@@ -123,6 +130,13 @@ interface SendMessageOptions {
   generationContext?: ElementGenerationContext | null
   research?: ElementResearchPolicy | null
   replaceElementId?: string | null
+  semanticRole?: string | null
+  slotName?: string | null
+  slotKind?: string | null
+  accessoryType?: string | null
+  geometryMode?: 'AUTO' | 'MANUAL'
+  manualGeometryOverrides?: Record<string, unknown>
+  slotMetadata?: Record<string, unknown>
   positionConfig?: TextLabsPositionConfig
   paddingConfig?: TextLabsPaddingConfig
   zIndex?: number
@@ -309,6 +323,20 @@ export function buildApiPayload(
     generationContext: formData.generationContext,
     research: formData.research,
     replaceElementId: formData.replaceElementId,
+    // Accessories (currently Logo) are structural slots, not semantic text
+    // roles. Text Labs remains backward compatible with its BODY_TEXT default,
+    // while Layout persists the accessory identity independently.
+    semanticRole: formData.componentType === 'TEXT_BOX' && formData.slotKind !== 'accessory'
+      ? formData.semanticRole
+      : undefined,
+    slotName: formData.slotName,
+    slotKind: formData.slotKind,
+    accessoryType: formData.accessoryType,
+    geometryMode: formData.componentType === 'TEXT_BOX' ? formData.geometryMode : undefined,
+    manualGeometryOverrides: formData.componentType === 'TEXT_BOX' && formData.geometryMode === 'MANUAL'
+      ? formData.manualGeometryOverrides as Record<string, unknown> | undefined
+      : undefined,
+    slotMetadata: formData.slotMetadata as Record<string, unknown> | undefined,
     textOnlyMode: !advancedModified,
     count,
     layout,
@@ -328,9 +356,10 @@ export function buildApiPayload(
     options.imageConfig = formData.imageConfig as Record<string, unknown>
   }
 
-  if (formData.componentType === 'TEXT_BOX' && (advancedModified || formData.structure || formData.compose)) {
-    options.textboxConfig = formData.textboxConfig as Record<string, unknown>
-    options.itemsPerInstance = formData.itemsPerInstance
+  if (formData.componentType === 'TEXT_BOX') {
+    if (Object.keys(formData.textboxConfig).length > 0) {
+      options.textboxConfig = formData.textboxConfig as Record<string, unknown>
+    }
     options.structure = formData.structure
     options.compose = formData.compose
     options.elements = formData.elements
@@ -446,6 +475,13 @@ export function buildInsertionParams(
     theme_variant_source?: string | null
     themeVariantSource?: string | null
     research_provenance?: Record<string, unknown> | null
+    semantic_role?: string | null
+    slot_name?: string | null
+    slot_kind?: string | null
+    accessory_type?: string | null
+    resolved_geometry?: Record<string, unknown> | null
+    platinum_profile?: Record<string, unknown> | string | null
+    citations_used?: Array<Record<string, unknown>> | null
     metadata?: Record<string, unknown> | null
   },
   positionConfig?: TextLabsPositionConfig,
@@ -504,6 +540,20 @@ export function buildInsertionParams(
   baseParams.themeVariantSource = themeVariantSource
   const researchProvenance = element.research_provenance ?? element.metadata?.research_provenance
   if (researchProvenance) baseParams.researchProvenance = researchProvenance
+  const semanticRole = element.semantic_role ?? element.metadata?.semantic_role
+  const slotName = element.slot_name ?? element.metadata?.slot_name
+  const slotKind = element.slot_kind ?? element.metadata?.slot_kind
+  const accessoryType = element.accessory_type ?? element.metadata?.accessory_type
+  const resolvedGeometry = element.resolved_geometry ?? element.metadata?.resolved_geometry
+  const platinumProfile = element.platinum_profile ?? element.metadata?.platinum_profile
+  const citationsUsed = element.citations_used ?? element.metadata?.citations_used
+  if (semanticRole) baseParams.semanticRole = semanticRole
+  if (slotName) baseParams.slotName = slotName
+  if (slotKind) baseParams.slotKind = slotKind
+  if (accessoryType) baseParams.accessoryType = accessoryType
+  if (resolvedGeometry) baseParams.resolvedGeometry = resolvedGeometry
+  if (platinumProfile) baseParams.platinumProfile = platinumProfile
+  if (citationsUsed) baseParams.citationsUsed = citationsUsed
 
   if (paddingConfig) {
     baseParams.style = {
@@ -537,6 +587,47 @@ export function buildInsertionParams(
         method: 'insertDiagram',
         params: { ...baseParams, htmlContent: extractBodyContent(element.html || '') },
       }
+  }
+}
+
+export function buildSemanticUpsertParams(
+  params: Record<string, unknown>,
+  slideIndex: number,
+  replacesElementId?: string | null,
+): Record<string, unknown> | null {
+  const citationsUsed = Array.isArray(params.citationsUsed) ? params.citationsUsed : []
+  const isLogoAccessory = params.slotKind === 'accessory' && params.accessoryType === 'LOGO'
+  const isSemanticText = params.componentType === 'TEXT_BOX' && (
+    Boolean(params.slotName) ||
+    params.semanticRole !== 'BODY_TEXT' ||
+    citationsUsed.length > 0 ||
+    Boolean(replacesElementId && params.slotName)
+  )
+  if (!isLogoAccessory && !isSemanticText) return null
+
+  return {
+    elementId: params.elementId,
+    ...(replacesElementId ? { replacesElementId } : {}),
+    slideIndex,
+    content: isLogoAccessory ? params.imageUrl : params.content,
+    semanticRole: isLogoAccessory ? undefined : params.semanticRole,
+    slotName: params.slotName,
+    slotKind: params.slotKind,
+    accessoryType: params.accessoryType,
+    geometry: params.slotKind === 'body' ? {
+      gridRow: params.gridRow,
+      gridColumn: params.gridColumn,
+    } : undefined,
+    citationsUsed,
+    metadata: {
+      componentType: params.componentType,
+      researchProvenance: params.researchProvenance,
+      styleOwner: params.styleOwner,
+      themeVariantId: params.themeVariantId,
+      themeBindings: params.themeBindings,
+      resolvedGeometry: params.resolvedGeometry,
+      platinumProfile: params.platinumProfile,
+    },
   }
 }
 

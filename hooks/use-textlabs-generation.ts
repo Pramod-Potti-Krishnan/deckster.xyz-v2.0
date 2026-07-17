@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from "react"
 import { TextLabsFormData, TextLabsComponentType } from '@/types/textlabs'
-import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
+import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, buildSemanticUpsertParams, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import {
@@ -289,7 +289,9 @@ export function useTextLabsGeneration({
           auto_position: false,
         }
 
-        applyPositionToFormData(formData, liveGridPosition)
+        if (formData.slotKind !== 'accessory') {
+          applyPositionToFormData(formData, liveGridPosition)
+        }
         const themeVariantId = formData.useDeckTheme === true
           ? snapshot.themeVariantId ?? refineContext.themeVariantId
           : null
@@ -366,10 +368,12 @@ export function useTextLabsGeneration({
       formData.themeBindings = formData.useDeckTheme === true
         ? blankInfo.themeBindings ?? null
         : null
-      applyPositionToFormData(formData, {
-        ...livePosition,
-        auto_position: false,
-      })
+      if (formData.slotKind !== 'accessory') {
+        applyPositionToFormData(formData, {
+          ...livePosition,
+          auto_position: false,
+        })
+      }
     }
 
     const generationSlideIndex = blankInfo?.slideIndex ?? refineContext?.slideIndex ?? currentSlideIndex
@@ -645,6 +649,13 @@ export function useTextLabsGeneration({
         })
         let elementWithPosition: Parameters<typeof buildInsertionParams>[1] = {
           ...element,
+          semantic_role: element.semantic_role ?? (formData.componentType === 'TEXT_BOX' ? formData.semanticRole : null),
+          slot_name: element.slot_name ?? formData.slotName ?? null,
+          slot_kind: element.slot_kind ?? formData.slotKind ?? null,
+          accessory_type: element.accessory_type ?? formData.accessoryType ?? null,
+          citations_used: element.citations_used ?? response.citations_used ?? null,
+          resolved_geometry: element.resolved_geometry ?? response.resolved_geometry ?? null,
+          platinum_profile: element.platinum_profile ?? response.platinum_profile ?? null,
           theme_variant_id: resolvedTheme.themeVariantId,
           theme_bindings: resolvedTheme.themeBindings,
           // Ownership describes the newly returned HTML. Never carry the
@@ -664,7 +675,9 @@ export function useTextLabsGeneration({
         } else if (fallbackGridPosition && !(element as any).grid_position) {
           elementWithPosition = { ...elementWithPosition, grid_position: fallbackGridPosition }
         }
-        const insertionComponentType = refineContext?.elementType ?? element.component_type
+        const insertionComponentType = formData.slotKind === 'accessory'
+          ? element.component_type
+          : refineContext?.elementType ?? element.component_type
         const { method, params } = buildInsertionParams(
           insertionComponentType,
           elementWithPosition,
@@ -674,8 +687,18 @@ export function useTextLabsGeneration({
           effectiveSlideIndex
         )
 
-        const command = method === 'insertElement' ? 'insertTextBox' : method
-        const insertResponse = await layoutServiceApis?.sendElementCommand(command, params as Record<string, any>)
+        const semanticUpsertParams = buildSemanticUpsertParams(
+          params,
+          effectiveSlideIndex,
+          refineContext?.elementId,
+        )
+        const insertResponse = semanticUpsertParams
+          ? await layoutServiceApis?.sendElementCommand('upsertSemanticElement', semanticUpsertParams)
+          : await layoutServiceApis?.sendElementCommand(
+              method === 'insertElement' ? 'insertTextBox' : method,
+              params as Record<string, any>,
+            )
+        if (semanticUpsertParams && refineContext) refineElementDeleted = true
         const insertedElementId = typeof insertResponse?.elementId === 'string'
           ? insertResponse.elementId
           : typeof params.elementId === 'string'
@@ -685,7 +708,7 @@ export function useTextLabsGeneration({
       }
       assertThemeIsStillAuthoritative()
 
-      if (refineContext && layoutServiceApis?.sendElementCommand) {
+      if (refineContext && !refineElementDeleted && layoutServiceApis?.sendElementCommand) {
         try {
           assertThemeIsStillAuthoritative()
           await layoutServiceApis.sendElementCommand('deleteElement', { elementId: refineContext.elementId })

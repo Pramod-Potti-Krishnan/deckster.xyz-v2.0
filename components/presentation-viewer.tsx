@@ -161,6 +161,11 @@ export interface RefineElementRequest {
   styleOwner?: string | null
   themeVariantSource?: string | null
   researchProvenance?: Record<string, unknown> | null
+  semanticRole?: import('@/types/textlabs').TextSemanticRole | null
+  slotName?: string | null
+  slotKind?: import('@/types/textlabs').TextSlotKind | null
+  accessoryType?: string | null
+  citationsUsed?: Array<Record<string, unknown>> | null
   content?: unknown
 }
 
@@ -2185,6 +2190,11 @@ export function PresentationViewer({
           styleOwner: event.data.styleOwner || event.data.style_owner || null,
           themeVariantSource: event.data.themeVariantSource || event.data.theme_variant_source || null,
           researchProvenance: event.data.researchProvenance || event.data.research_provenance || null,
+          semanticRole: event.data.semanticRole || event.data.semantic_role || null,
+          slotName: event.data.slotName || event.data.slot_name || null,
+          slotKind: event.data.slotKind || event.data.slot_kind || null,
+          accessoryType: event.data.accessoryType || event.data.accessory_type || null,
+          citationsUsed: event.data.citationsUsed || event.data.citations_used || null,
           content: event.data.content,
         })
       }

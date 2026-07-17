@@ -4,6 +4,8 @@ import {
   ElementResearchMode,
   TextLabsComponentType,
   TextLabsFormData,
+  TextSemanticRole,
+  TextSlotKind,
 } from '@/types/textlabs'
 
 export interface ElementContext {
@@ -26,8 +28,13 @@ export interface GenerationPanelProps {
   presentationId?: string | null
   elementContext?: ElementContext | null
   mode: 'generate' | 'edit' | 'refine'
-  regenerateEnabled: boolean
-  onRegenerateToggle: (enabled: boolean) => void
+  getTemplateSlotCatalog?: (slideIndex: number) => Promise<unknown>
+  existingTextTarget?: {
+    semanticRole?: TextSemanticRole | null
+    slotName?: string | null
+    slotKind?: TextSlotKind | null
+    accessoryType?: string | null
+  } | null
   researchMode: ElementResearchMode
   researchWeb: boolean
   researchUploadedDocs: boolean
