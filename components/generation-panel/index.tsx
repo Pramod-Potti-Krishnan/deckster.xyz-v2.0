@@ -21,9 +21,9 @@ import { ResearchControls } from './shared/research-controls'
 
 export function GenerationPanel({
   isOpen,
+  activationId,
   elementType,
   onClose,
-  onReopen,
   onGenerate,
   onElementTypeChange,
   isGenerating,
@@ -85,12 +85,16 @@ export function GenerationPanel({
     forceUpdate(n => n + 1)
   }, [])
 
-  // Reset prompt when element type changes
+  // Every valid element-panel activation is a fresh generation session.
+  // Remounting the form below clears all element-specific Auto/Manual state,
+  // while this reset closes Advanced and removes prompt/chip state.
   useEffect(() => {
     setPrompt('')
+    setShowAdvanced(false)
+    submitFnRef.current = null
     mandatoryConfigRef.current = null
     forceUpdate(n => n + 1)
-  }, [elementType])
+  }, [activationId, elementType])
 
   useEffect(() => {
     if (!isOpen || elementType !== 'TEXT_BOX') return
@@ -203,6 +207,7 @@ export function GenerationPanel({
 
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <FormRouter
+            key={`${activationId}:${elementType}`}
             elementType={elementType}
             onSubmit={onGenerate}
             registerSubmit={registerSubmit}

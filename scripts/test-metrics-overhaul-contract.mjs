@@ -116,6 +116,7 @@ const baseMetrics = {
   layout: 'grid',
   advancedModified: false,
   z_index: 1000,
+  multiBoxColorMode: 'SAME',
   metricsFitMode: 'AUTO',
   metricsConfig: { layout: 'grid' },
   compose: true,
@@ -130,6 +131,13 @@ assert.equal(autoOptions.elements.length, 4)
 assert.deepEqual(JSON.parse(JSON.stringify(autoOptions.metricsConfig)), { layout: 'grid' })
 assert.equal(autoOptions.manualMetricsOverrides, undefined)
 assert.equal(autoOptions.paddingConfig, undefined)
+assert.equal(autoOptions.multiBoxColorMode, 'SAME')
+
+const multiColorOptions = client.buildApiPayload('session-1', {
+  ...baseMetrics,
+  multiBoxColorMode: 'PRIMARY_ACCENTS',
+}).options
+assert.equal(multiColorOptions.multiBoxColorMode, 'PRIMARY_ACCENTS')
 
 const containerPaddingOptions = client.buildApiPayload('session-1', {
   ...baseMetrics,
@@ -261,6 +269,9 @@ const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generati
 const routerSource = fs.readFileSync(new URL('../lib/element-command-router.ts', import.meta.url), 'utf8')
 const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import.meta.url), 'utf8')
 const toggleRowSource = fs.readFileSync(new URL('../components/generation-panel/shared/toggle-row.tsx', import.meta.url), 'utf8')
+const panelSource = fs.readFileSync(new URL('../components/generation-panel/index.tsx', import.meta.url), 'utf8')
+const panelHookSource = fs.readFileSync(new URL('../hooks/use-generation-panel.ts', import.meta.url), 'utf8')
+const builderSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
 assert.doesNotMatch(formSource, /fieldLabel:\s*['"]Color Scheme/)
 assert.match(formSource, /registerMandatoryConfig\(null\)/)
 assert.match(formSource, /value: 'gradient', label: 'Gradient'/)
@@ -280,6 +291,10 @@ assert.match(toggleRowSource, /role="group"/)
 assert.match(toggleRowSource, /aria-label=\{label\}/)
 assert.match(formSource, /Metric count/)
 assert.match(formSource, /Metric layout/)
+assert.match(formSource, /Same color — default/)
+assert.match(formSource, /Alternating theme colors/)
+assert.match(formSource, /Primary color accents/)
+assert.match(formSource, /Different theme colors/)
 assert.match(formSource, /Auto fit/)
 assert.match(formSource, /disabled=\{!fitIsManual\}/)
 assert.match(formSource, /hasEffectiveVisualOverrides = Object\.keys\(metricsConfig\)/)
@@ -304,5 +319,13 @@ assert.match(generationSource, /including a[\s\S]*single card/)
 assert.match(routerSource, /'upsertCitedElement'/)
 assert.match(clientSource, /metricsFitMode: 'metrics_fit_mode'/)
 assert.match(clientSource, /manualMetricsOverrides: 'manual_metrics_overrides'/)
+assert.match(clientSource, /options\.multiBoxColorMode = formData\.multiBoxColorMode/)
+assert.match(panelSource, /setShowAdvanced\(false\)/)
+assert.match(panelSource, /key=\{`\$\{activationId\}:\$\{elementType\}`\}/)
+assert.match(panelHookSource, /setActivationId\(previous => previous \+ 1\)/)
+assert.doesNotMatch(panelHookSource, /reopenPanel|const openPanel =/)
+assert.match(builderSource, /features\.useTextLabsGeneration && generationPanel\.isOpen/)
+assert.doesNotMatch(builderSource, /generationPanel\.reopenPanel/)
+assert.doesNotMatch(generationSource, /falling back to direct panel|generationPanel\.openPanel\(/)
 
 console.log('metrics sparse fit, layout, research, and cited-upsert contract tests passed')
