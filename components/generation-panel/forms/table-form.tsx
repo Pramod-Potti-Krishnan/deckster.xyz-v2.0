@@ -13,7 +13,7 @@ import type {
   TextLabsPositionConfig,
 } from '@/types/textlabs'
 import { TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
-import type { ElementContext, MandatoryConfig } from '../types'
+import type { ElementContext, GenerationPanelDraft, MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PositionPresets } from '../shared/position-presets'
 import { PaddingControl } from '../shared/padding-control'
@@ -36,6 +36,8 @@ interface TableFormProps {
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | null) => void
   researchControls?: ReactNode
+  initialDraft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
 }
 
 function OptionalSelect({
@@ -165,19 +167,34 @@ export function TableForm({
   showAdvanced,
   registerMandatoryConfig,
   researchControls,
+  initialDraft,
+  onDraftChange,
 }: TableFormProps) {
-  const [structureMode, setStructureMode] = useState<TableStructureMode>('AUTO')
-  const [rows, setRows] = useState(5)
-  const [columns, setColumns] = useState(4)
-  const [count, setCount] = useState(1)
-  const [patch, setPatch] = useState<Partial<TableConfig>>({})
-  const [columnBrief, setColumnBrief] = useState<TableColumnBrief[]>([])
-  const [cellMarks, setCellMarks] = useState<TableCellMark[]>([])
+  const initialTableFormData = initialDraft?.formData?.componentType === 'TABLE' ? initialDraft.formData : null
+  const initialTableConfig: Partial<TableConfig> = initialTableFormData?.tableConfig ?? {}
+  const initialPatch = useMemo<Partial<TableConfig>>(() => {
+    const {
+      structure_mode: _structureMode,
+      rows: _rows,
+      columns: _columns,
+      column_brief: _columnBrief,
+      cell_marks: _cellMarks,
+      ...rest
+    } = initialTableConfig
+    return { ...rest }
+  }, [initialTableConfig])
+  const [structureMode, setStructureMode] = useState<TableStructureMode>(() => initialTableConfig.structure_mode ?? (initialTableConfig.rows || initialTableConfig.columns ? 'MANUAL' : 'AUTO'))
+  const [rows, setRows] = useState(() => initialTableConfig.rows ?? 5)
+  const [columns, setColumns] = useState(() => initialTableConfig.columns ?? 4)
+  const [count, setCount] = useState(() => initialTableFormData?.count ?? 1)
+  const [patch, setPatch] = useState<Partial<TableConfig>>(() => initialPatch)
+  const [columnBrief, setColumnBrief] = useState<TableColumnBrief[]>(() => initialTableConfig.column_brief ?? [])
+  const [cellMarks, setCellMarks] = useState<TableCellMark[]>(() => initialTableConfig.cell_marks ?? [])
   const [markDraft, setMarkDraft] = useState<TableCellMark>({ row: 1, col: 1, mark: 'highlight', style: 'chip' })
-  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-  const [zIndexModified, setZIndexModified] = useState(false)
-  const [positionModified, setPositionModified] = useState(false)
-  const [paddingModified, setPaddingModified] = useState(false)
+  const [zIndex, setZIndex] = useState(() => initialTableFormData?.z_index ?? DEFAULTS.zIndex)
+  const [zIndexModified, setZIndexModified] = useState(() => initialTableFormData?.z_index !== undefined)
+  const [positionModified, setPositionModified] = useState(() => Boolean(initialTableFormData?.positionConfig))
+  const [paddingModified, setPaddingModified] = useState(() => Boolean(initialTableFormData?.paddingConfig))
   const [showSchema, setShowSchema] = useState(false)
   const [showBehavior, setShowBehavior] = useState(false)
   const [showTypography, setShowTypography] = useState(false)
@@ -185,14 +202,14 @@ export function TableForm({
   const [showPadding, setShowPadding] = useState(false)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
-  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
+  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>(() => initialTableFormData?.positionConfig ?? {
     start_col: 2,
     start_row: 4,
     position_width: DEFAULTS.width,
     position_height: DEFAULTS.height,
     auto_position: false,
   })
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({ top: 0, right: 0, bottom: 0, left: 0 })
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(() => initialTableFormData?.paddingConfig ?? { top: 0, right: 0, bottom: 0, left: 0 })
 
   useEffect(() => registerMandatoryConfig(null), [registerMandatoryConfig])
 
@@ -254,6 +271,14 @@ export function TableForm({
   }, [columns, rows])
 
   const status = structureMode === 'AUTO' ? 'Auto' : `Manual · ${rows} rows × ${columns} columns`
+  const advancedModified = structureMode === 'MANUAL'
+    || count !== 1
+    || Object.keys(patch).length > 0
+    || columnBrief.length > 0
+    || cellMarks.length > 0
+    || positionModified
+    || paddingModified
+    || zIndexModified
   const tableConfig = useMemo<Partial<TableConfig>>(() => {
     const next: Partial<TableConfig> = { ...patch, structure_mode: structureMode }
     if (structureMode === 'MANUAL') {
@@ -287,16 +312,36 @@ export function TableForm({
     }
     return next
   }, [cellMarks, columnBrief, columns, patch, rows, structureMode])
+  const generationConfig = useMemo<Record<string, unknown>>(() => ({
+    version: 1,
+    componentType: 'TABLE',
+    prompt,
+    showAdvanced,
+    count,
+    advancedModified,
+    tableConfig,
+    positionConfig: positionModified ? positionConfig : undefined,
+    paddingConfig: paddingModified ? paddingConfig : undefined,
+    z_index: zIndexModified ? zIndex : undefined,
+    useDeckTheme,
+    themeOverrides,
+  }), [
+    advancedModified,
+    count,
+    paddingConfig,
+    paddingModified,
+    positionConfig,
+    positionModified,
+    prompt,
+    showAdvanced,
+    tableConfig,
+    themeOverrides,
+    useDeckTheme,
+    zIndex,
+    zIndexModified,
+  ])
 
   const handleSubmit = useCallback(() => {
-    const advancedModified = structureMode === 'MANUAL'
-      || count !== 1
-      || Object.keys(patch).length > 0
-      || columnBrief.length > 0
-      || cellMarks.length > 0
-      || positionModified
-      || paddingModified
-      || zIndexModified
     onSubmit({
       componentType: 'TABLE',
       prompt,
@@ -307,11 +352,32 @@ export function TableForm({
       presentationId,
       useDeckTheme,
       themeOverrides,
+      generationConfig,
       tableConfig,
       positionConfig: positionModified ? positionConfig : undefined,
       paddingConfig: paddingModified ? paddingConfig : undefined,
     })
-  }, [cellMarks.length, columnBrief.length, count, onSubmit, paddingConfig, paddingModified, patch, positionConfig, positionModified, presentationId, prompt, structureMode, tableConfig, themeOverrides, useDeckTheme, zIndex, zIndexModified])
+  }, [advancedModified, count, generationConfig, onSubmit, paddingConfig, paddingModified, positionConfig, positionModified, presentationId, prompt, tableConfig, themeOverrides, useDeckTheme, zIndex, zIndexModified])
+
+  useEffect(() => {
+    onDraftChange?.({
+      formData: {
+        componentType: 'TABLE',
+        prompt,
+        count,
+        layout: 'horizontal',
+        advancedModified,
+        z_index: zIndexModified ? zIndex : undefined,
+        presentationId,
+        useDeckTheme,
+        themeOverrides,
+        generationConfig,
+        tableConfig,
+        positionConfig: positionModified ? positionConfig : undefined,
+        paddingConfig: paddingModified ? paddingConfig : undefined,
+      },
+    })
+  }, [advancedModified, count, generationConfig, onDraftChange, paddingConfig, paddingModified, positionConfig, positionModified, presentationId, prompt, tableConfig, themeOverrides, useDeckTheme, zIndex, zIndexModified])
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 

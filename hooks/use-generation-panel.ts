@@ -1,9 +1,25 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { TextLabsComponentType } from '@/types/textlabs'
+import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { ElementResearchMode } from '@/types/textlabs'
+import type { GenerationPanelDraft } from '@/components/generation-panel/types'
+
+function cloneFormDataForDraft(formData: TextLabsFormData): TextLabsFormData {
+  const copy: Record<string, unknown> = {}
+  Object.entries(formData as unknown as Record<string, unknown>).forEach(([key, value]) => {
+    if (key === 'referenceImage') return
+    if (key === 'generationContext' || key === 'slideContext' || key === 'deckContext') return
+    if (key === 'existingElement') return
+    if (value !== undefined) copy[key] = value
+  })
+  try {
+    return JSON.parse(JSON.stringify(copy)) as unknown as TextLabsFormData
+  } catch (_error) {
+    return copy as unknown as TextLabsFormData
+  }
+}
 
 /**
  * Manages the GenerationPanel open/close state and selected element type.
@@ -27,6 +43,9 @@ export function useGenerationPanel() {
   const [researchWeb, setResearchWeb] = useState(false)
   const [researchUploadedDocs, setResearchUploadedDocs] = useState(false)
   const [researchKnowledgeGraph, setResearchKnowledgeGraph] = useState(false)
+  const [draftKey, setDraftKey] = useState<string | null>(null)
+  const [draftVersion, setDraftVersion] = useState(0)
+  const draftsRef = useRef<Map<string, GenerationPanelDraft>>(new Map())
   const snapshotRef = useRef({
     isOpen,
     blankElementId,
@@ -43,6 +62,62 @@ export function useGenerationPanel() {
     }
   }, [isOpen, blankElementId, editElementId, mode])
 
+  const applyDraftResearch = useCallback((key: string | null) => {
+    const draft = key ? draftsRef.current.get(key) : null
+    if (draft?.researchMode) {
+      setResearchMode(draft.researchMode)
+      setResearchWeb(Boolean(draft.researchWeb))
+      setResearchUploadedDocs(Boolean(draft.researchUploadedDocs))
+      setResearchKnowledgeGraph(Boolean(draft.researchKnowledgeGraph))
+      return
+    }
+    setResearchMode('off')
+    setResearchWeb(false)
+    setResearchUploadedDocs(false)
+    setResearchKnowledgeGraph(false)
+  }, [])
+
+  const activateDraftKey = useCallback((nextKey: string | null, shouldReset: boolean) => {
+    setDraftKey(nextKey)
+    if (shouldReset) {
+      setActivationId(previous => previous + 1)
+      applyDraftResearch(nextKey)
+    }
+  }, [applyDraftResearch])
+
+  const updateCurrentDraft = useCallback((patch: Partial<GenerationPanelDraft>) => {
+    const key = draftKey
+    if (!key) return
+    const previous = draftsRef.current.get(key) || {}
+    const next: GenerationPanelDraft = {
+      ...previous,
+      ...patch,
+      formData: patch.formData
+        ? cloneFormDataForDraft(patch.formData)
+        : patch.formData === null
+          ? null
+          : previous.formData,
+    }
+    draftsRef.current.set(key, next)
+    setDraftVersion(previousVersion => previousVersion + 1)
+  }, [draftKey])
+
+  const rememberDraftForElement = useCallback((elementId: string, formData?: TextLabsFormData | null) => {
+    const source = draftKey ? draftsRef.current.get(draftKey) : null
+    const next: GenerationPanelDraft = {
+      ...(source || {}),
+      prompt: formData?.prompt ?? source?.prompt,
+      showAdvanced: formData?.advancedModified ?? source?.showAdvanced,
+      formData: formData ? cloneFormDataForDraft(formData) : source?.formData ?? null,
+      researchMode,
+      researchWeb,
+      researchUploadedDocs,
+      researchKnowledgeGraph,
+    }
+    draftsRef.current.set(`element:${elementId}`, next)
+    setDraftVersion(previousVersion => previousVersion + 1)
+  }, [draftKey, researchKnowledgeGraph, researchMode, researchUploadedDocs, researchWeb])
+
   const resetResearch = useCallback(() => {
     setResearchMode('off')
     setResearchWeb(false)
@@ -52,24 +127,28 @@ export function useGenerationPanel() {
 
   /** Open panel for a specific blank element on the canvas */
   const openPanelForElement = useCallback((type: TextLabsComponentType, elementId: string) => {
+    const nextDraftKey = `blank:${elementId}`
+    const sameTarget = draftKey === nextDraftKey && elementType === type
     setElementType(type)
-    setActivationId(previous => previous + 1)
+    activateDraftKey(nextDraftKey, !sameTarget)
     setBlankElementId(elementId)
     setMode('generate')
     setEditElementId(null)
     setRefineContext(null)
-    setResearchMode('off')
-    setResearchWeb(false)
-    setResearchUploadedDocs(false)
-    setResearchKnowledgeGraph(false)
     setIsOpen(true)
     setError(null)
-    resetResearch()
-  }, [resetResearch])
+  }, [activateDraftKey, draftKey, elementType])
 
   /** Keep the current draft when Layout replaces the same placeholder identity. */
   const resumePanelForElement = useCallback((type: TextLabsComponentType, elementId: string) => {
+    const previousKey = draftKey
+    const nextDraftKey = `blank:${elementId}`
+    if (previousKey && previousKey !== nextDraftKey) {
+      const draft = draftsRef.current.get(previousKey)
+      if (draft) draftsRef.current.set(nextDraftKey, draft)
+    }
     setElementType(type)
+    setDraftKey(nextDraftKey)
     setBlankElementId(elementId)
     setMode('generate')
     setEditElementId(null)
@@ -80,49 +159,40 @@ export function useGenerationPanel() {
 
   /** Open panel in edit mode for an existing element */
   const openPanelForEdit = useCallback((type: TextLabsComponentType, elementId: string) => {
+    const nextDraftKey = `element:${elementId}`
+    const sameTarget = draftKey === nextDraftKey && elementType === type
     setElementType(type)
-    setActivationId(previous => previous + 1)
+    activateDraftKey(nextDraftKey, !sameTarget)
     setBlankElementId(null)
     setMode('edit')
     setEditElementId(elementId)
     setRefineContext(null)
-    setResearchMode('off')
-    setResearchWeb(false)
-    setResearchUploadedDocs(false)
-    setResearchKnowledgeGraph(false)
     setIsOpen(true)
     setError(null)
-    resetResearch()
-  }, [resetResearch])
+  }, [activateDraftKey, draftKey, elementType])
 
   /** Open panel in refine mode for an existing element. */
   const openPanelForRefine = useCallback((type: TextLabsComponentType, context: RefineContext) => {
+    const nextDraftKey = `element:${context.elementId}`
+    const sameTarget = draftKey === nextDraftKey && elementType === type
     setElementType(type)
-    setActivationId(previous => previous + 1)
+    activateDraftKey(nextDraftKey, !sameTarget)
     setBlankElementId(null)
     setMode('refine')
     setEditElementId(context.elementId)
     setRefineContext(context)
-    setResearchMode('off')
-    setResearchWeb(false)
-    setResearchUploadedDocs(false)
-    setResearchKnowledgeGraph(false)
     setIsOpen(true)
     setError(null)
-    resetResearch()
-  }, [resetResearch])
+  }, [activateDraftKey, draftKey, elementType])
 
   const closePanel = useCallback(() => {
     setIsOpen(false)
-    setBlankElementId(null)
-    setMode('generate')
-    setEditElementId(null)
-    setRefineContext(null)
     setError(null)
   }, [])
 
   const changeElementType = useCallback((type: TextLabsComponentType) => {
     setElementType(type)
+    setDraftKey(null)
     setActivationId(previous => previous + 1)
     setError(null)
     resetResearch()
@@ -133,6 +203,9 @@ export function useGenerationPanel() {
   return {
     isOpen,
     activationId,
+    draftKey,
+    currentDraft: draftKey ? draftsRef.current.get(draftKey) || null : null,
+    draftVersion,
     elementType,
     isGenerating,
     error,
@@ -151,6 +224,8 @@ export function useGenerationPanel() {
     closePanel,
     changeElementType,
     getSnapshot,
+    updateCurrentDraft,
+    rememberDraftForElement,
     setIsGenerating,
     setError,
     setResearchMode,

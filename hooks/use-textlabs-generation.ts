@@ -46,6 +46,7 @@ interface UseTextLabsGenerationParams {
     closePanel: () => void
     openPanelForElement: (type: TextLabsComponentType, elementId: string) => void
     resumePanelForElement: (type: TextLabsComponentType, elementId: string) => void
+    rememberDraftForElement: (elementId: string, formData?: TextLabsFormData | null) => void
     changeElementType: (type: TextLabsComponentType) => void
     getSnapshot: () => {
       isOpen: boolean
@@ -619,9 +620,6 @@ export function useTextLabsGeneration({
       }
     }
 
-    generationPanel.closePanel()
-    generationPanel.setIsGenerating(false)
-
     // Grounded generation may include one bounded Researcher round-trip.
     const controller = new AbortController()
     const generationTimeoutMs = generationPanel.researchMode === 'off' ? 30_000 : 150_000
@@ -817,7 +815,10 @@ export function useTextLabsGeneration({
           : typeof params.elementId === 'string'
             ? params.elementId
             : null
-        if (insertedElementId) insertedElementIds.push(insertedElementId)
+        if (insertedElementId) {
+          insertedElementIds.push(insertedElementId)
+          generationPanel.rememberDraftForElement(insertedElementId, formData)
+        }
       }
       assertThemeIsStillAuthoritative()
 
@@ -859,6 +860,7 @@ export function useTextLabsGeneration({
         }
       }
 
+      generationPanel.closePanel()
       toast({
         title: refineContext ? 'Element refined' : 'Element generated',
         description: refineContext
