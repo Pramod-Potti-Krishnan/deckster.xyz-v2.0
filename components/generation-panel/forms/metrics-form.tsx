@@ -6,11 +6,13 @@ import type {
   MetricsFitMode,
   MetricsFormData,
   MetricsManualOverrides,
+  TextLabsPaddingConfig,
   TextLabsPositionConfig,
 } from '@/types/textlabs'
 import { TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
 import type { ElementContext, MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
+import { PaddingControl } from '../shared/padding-control'
 import { PositionPresets } from '../shared/position-presets'
 import { ZIndexInput } from '../shared/z-index-input'
 import {
@@ -20,16 +22,38 @@ import {
 } from '@/lib/metrics-layout'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.METRICS
-const SURFACES: Array<{ value: '' | MetricsConfig['color_scheme']; label: string }> = [
+const PRIMARY_SURFACES: Array<{ value: '' | MetricsConfig['color_scheme']; label: string }> = [
   { value: '', label: 'Auto' },
   { value: 'solid', label: 'Filled' },
   { value: 'accent', label: 'Pastel' },
   { value: 'transparent', label: 'Clear' },
   { value: 'bordered', label: 'Outline' },
 ]
+const ADVANCED_SURFACES: Array<{ value: '' | MetricsConfig['color_scheme']; label: string }> = [
+  ...PRIMARY_SURFACES,
+  { value: 'gradient', label: 'Gradient' },
+]
 const COLORS = ['', 'purple', 'blue', 'green', 'red', 'cyan', 'orange', 'pink', 'gold', 'teal', 'indigo']
 const FONT_SIZES = ['', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '40px', '48px']
 const FONT_FAMILIES = ['', 'Poppins', 'Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Lato', 'Source Sans Pro']
+const LIGHT_FONT_COLORS = [
+  { value: undefined, label: 'Auto', hex: undefined },
+  { value: '#FFFFFF', label: 'White', hex: '#FFFFFF' },
+  { value: '#E5E7EB', label: 'Light Gray', hex: '#E5E7EB' },
+  { value: '#C4B5FD', label: 'Lavender', hex: '#C4B5FD' },
+  { value: '#93C5FD', label: 'Sky', hex: '#93C5FD' },
+  { value: '#FDE68A', label: 'Gold', hex: '#FDE68A' },
+  { value: '#FCA5A5', label: 'Rose', hex: '#FCA5A5' },
+] as const
+const DARK_FONT_COLORS = [
+  { value: undefined, label: 'Auto', hex: undefined },
+  { value: '#1F2937', label: 'Dark', hex: '#1F2937' },
+  { value: '#374151', label: 'Gray', hex: '#374151' },
+  { value: '#5B21B6', label: 'Purple', hex: '#5B21B6' },
+  { value: '#1D4ED8', label: 'Blue', hex: '#1D4ED8' },
+  { value: '#D97706', label: 'Amber', hex: '#D97706' },
+  { value: '#BE185D', label: 'Pink', hex: '#BE185D' },
+] as const
 
 const TYPOGRAPHY_VISUAL_FIELDS: Array<keyof MetricsConfig> = [
   'value_font_color', 'value_font_family', 'value_bold', 'value_italic', 'value_allcaps',
@@ -135,17 +159,28 @@ export function MetricsForm({
   const [fitMode, setFitMode] = useState<MetricsFitMode>('AUTO')
   const [manualOverrides, setManualOverrides] = useState<MetricsManualOverrides>({})
   const [positionModified, setPositionModified] = useState(false)
+  const [paddingModified, setPaddingModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-  const [showContentFit, setShowContentFit] = useState(false)
-  const [showTypography, setShowTypography] = useState(false)
+  const [showInstances, setShowInstances] = useState(false)
+  const [showCardDesign, setShowCardDesign] = useState(false)
+  const [showValue, setShowValue] = useState(false)
+  const [showLabel, setShowLabel] = useState(false)
+  const [showDescription, setShowDescription] = useState(false)
   const [showSpacing, setShowSpacing] = useState(false)
   const [showPositioning, setShowPositioning] = useState(false)
+  const [showPadding, setShowPadding] = useState(false)
   const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
     start_col: 2,
     start_row: 4,
     position_width: DEFAULTS.width,
     position_height: DEFAULTS.height,
     auto_position: false,
+  })
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   })
 
   useEffect(() => {
@@ -197,9 +232,11 @@ export function MetricsForm({
   }, [])
 
   const surfaceValue = visualOverrides.color_scheme ?? ''
+  const primarySurfaceValue = surfaceValue === 'gradient' ? '__advanced' : surfaceValue
   const cornersValue = visualOverrides.corners ?? ''
   const borderValue = visualOverrides.border === undefined ? '' : visualOverrides.border ? 'on' : 'off'
   const fitIsManual = fitMode === 'MANUAL'
+  const fontColorPresets = surfaceValue === 'accent' ? DARK_FONT_COLORS : LIGHT_FONT_COLORS
 
   const handleSubmit = useCallback(() => {
     const metricsConfig: Partial<MetricsConfig> = {
@@ -212,6 +249,8 @@ export function MetricsForm({
       for (const field of TYPOGRAPHY_VISUAL_FIELDS) delete metricsConfig[field]
     }
     if (!metricsConfig.color_scheme) delete metricsConfig.color_variant
+    const hasEffectiveVisualOverrides = Object.keys(metricsConfig).some(field => field !== 'layout')
+    const hasContainerPadding = Object.values(paddingConfig).some(value => value > 0)
 
     const formData: MetricsFormData = {
       componentType: 'METRICS',
@@ -221,7 +260,8 @@ export function MetricsForm({
       // panel decision, never a second content-fit formula.
       layout: resolvedLayout.layout,
       advancedModified: positionModified
-        || Object.keys(visualOverrides).length > 0
+        || (paddingModified && hasContainerPadding)
+        || hasEffectiveVisualOverrides
         || fitMode === 'MANUAL',
       z_index: zIndex,
       presentationId,
@@ -238,68 +278,176 @@ export function MetricsForm({
         ? resolvedLayout.boxes.map(grid_position => ({ grid_position }))
         : undefined,
       positionConfig,
+      paddingConfig,
     }
     onSubmit(formData)
-  }, [count, fitIsManual, fitMode, manualOverrides, onSubmit, positionConfig, positionModified, presentationId, prompt, resolvedLayout, visualOverrides, zIndex])
+  }, [count, fitIsManual, fitMode, layoutChoice, manualOverrides, onSubmit, paddingConfig, paddingModified, positionConfig, positionModified, presentationId, prompt, resolvedLayout, visualOverrides, zIndex])
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
+
+  const renderCountLayoutControls = (advanced = false) => (
+    <>
+      <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-2">
+        <label className="space-y-1">
+          <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Count</span>
+          <select
+            aria-label={advanced ? 'Advanced metric count' : 'Metric count'}
+            value={count}
+            disabled={isGenerating}
+            onChange={event => setCount(Number(event.target.value))}
+            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+          >
+            {[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <div className="min-w-0 space-y-1">
+          <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Layout</span>
+          <div className="grid grid-cols-4 gap-1" role="group" aria-label={advanced ? 'Advanced metric layout' : 'Metric layout'}>
+            {([
+              ['auto', 'Auto'],
+              ['horizontal', 'H'],
+              ['vertical', 'V'],
+              ['grid', 'Grid'],
+            ] as const).map(([value, label]) => {
+              const unavailable = value !== 'auto' && (
+                count === 1 || !isMetricsLayoutViable(area, count, value)
+              )
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  title={unavailable ? 'Resize the placeholder to make this layout viable.' : label}
+                  disabled={isGenerating || unavailable}
+                  aria-pressed={layoutChoice === value}
+                  onClick={() => setLayoutChoice(value)}
+                  className={`rounded-md border px-1 py-1.5 text-[10px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                    layoutChoice === value
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+      <p className={`mt-1.5 text-[9px] ${resolvedLayout.viable ? 'text-slate-400' : 'font-medium text-amber-600 dark:text-amber-400'}`}>
+        {count === 1
+          ? 'One card uses the full live placeholder.'
+          : resolvedLayout.viable
+            ? `${layoutChoice === 'auto' ? 'Auto resolves' : 'Layout resolves'} to ${resolvedLayout.layout} for this ${area.position_width}×${area.position_height} area.`
+            : 'This area is too small for viable metric cards. Resize the placeholder before generating.'}
+      </p>
+    </>
+  )
+
+  const renderMetricTextControls = (prefix: 'value' | 'label' | 'desc') => {
+    const title = prefix === 'desc' ? 'Description' : prefix[0].toUpperCase() + prefix.slice(1)
+    const minField = (prefix === 'desc' ? 'description_min_chars' : `${prefix}_min_chars`) as keyof MetricsManualOverrides
+    const maxField = (prefix === 'desc' ? 'description_max_chars' : `${prefix}_max_chars`) as keyof MetricsManualOverrides
+    const sizeField = `${prefix}_font_size` as keyof MetricsManualOverrides
+    const familyField = `${prefix}_font_family` as keyof MetricsConfig
+    const colorField = `${prefix}_font_color` as keyof MetricsConfig
+    const boldField = `${prefix}_bold` as keyof MetricsConfig
+    const italicField = `${prefix}_italic` as keyof MetricsConfig
+    const allcapsField = `${prefix}_allcaps` as keyof MetricsConfig
+
+    return (
+      <fieldset disabled={!fitIsManual} className="space-y-2 disabled:opacity-45">
+        <p className="text-[9px] leading-4 text-slate-400">
+          {fitIsManual ? `${title} overrides are sparse; blank fields remain service-owned.` : 'Select Manual fit above to override service-resolved content and typography.'}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <OptionalNumberInput
+            label={`${title} min chars`}
+            value={manualOverrides[minField] as number | undefined}
+            disabled={!fitIsManual}
+            min={1}
+            max={manualOverrides[maxField] as number | undefined}
+            onChange={value => updateManualOverride(minField, value)}
+          />
+          <OptionalNumberInput
+            label={`${title} max chars`}
+            value={manualOverrides[maxField] as number | undefined}
+            disabled={!fitIsManual}
+            min={(manualOverrides[minField] as number | undefined) ?? 1}
+            max={prefix === 'value' ? 20 : prefix === 'label' ? 50 : 200}
+            onChange={value => updateManualOverride(maxField, value)}
+          />
+        </div>
+        <div className="space-y-1.5 rounded-md border border-slate-200 p-1.5 dark:border-slate-700">
+          <div className="grid grid-cols-3 gap-1.5">
+            <label className="space-y-1">
+              <span className="text-[9px] text-slate-500">Size</span>
+              <select
+                disabled={!fitIsManual}
+                value={(manualOverrides[sizeField] as string | undefined) ?? ''}
+                onChange={event => updateManualOverride(sizeField, event.target.value || undefined)}
+                className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800"
+              >
+                {FONT_SIZES.map(size => <option key={size || 'auto'} value={size}>{size || 'Auto'}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-[9px] text-slate-500">Family</span>
+              <select
+                disabled={!fitIsManual}
+                value={(visualOverrides[familyField] as string | null | undefined) ?? ''}
+                onChange={event => updateVisualOverride(familyField, event.target.value || undefined)}
+                className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800"
+              >
+                {FONT_FAMILIES.map(family => <option key={family || 'auto'} value={family}>{family || 'Auto'}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-[9px] text-slate-500">Color</span>
+              <input
+                disabled={!fitIsManual}
+                type="text"
+                placeholder="Auto"
+                value={(visualOverrides[colorField] as string | null | undefined) ?? ''}
+                onChange={event => updateVisualOverride(colorField, event.target.value || undefined)}
+                className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800"
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="mr-1 text-[9px] text-slate-400">Color presets</span>
+            {fontColorPresets.map(preset => (
+              <button
+                key={preset.label}
+                type="button"
+                disabled={!fitIsManual}
+                aria-label={`${title} font color: ${preset.label}`}
+                aria-pressed={(visualOverrides[colorField] ?? undefined) === preset.value}
+                title={preset.label}
+                onClick={() => updateVisualOverride(colorField, preset.value)}
+                style={preset.hex ? { backgroundColor: preset.hex } : undefined}
+                className={`h-5 w-5 rounded-full border transition-transform disabled:cursor-not-allowed ${
+                  (visualOverrides[colorField] ?? undefined) === preset.value
+                    ? 'ring-2 ring-primary ring-offset-1'
+                    : 'hover:scale-110'
+                } ${preset.hex ? 'border-slate-300 dark:border-slate-600' : 'border-slate-300 bg-gradient-to-br from-purple-400 via-blue-400 to-green-400 dark:border-slate-600'}`}
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="mr-auto text-[9px] text-slate-400">{title} style</span>
+            <TriStateStyleButton label="B" fieldLabel={`${title} bold`} value={visualOverrides[boldField] as boolean | null | undefined} disabled={!fitIsManual} onChange={value => updateVisualOverride(boldField, value)} />
+            <TriStateStyleButton label="I" fieldLabel={`${title} italic`} value={visualOverrides[italicField] as boolean | null | undefined} disabled={!fitIsManual} onChange={value => updateVisualOverride(italicField, value)} />
+            <TriStateStyleButton label="AA" fieldLabel={`${title} uppercase`} value={visualOverrides[allcapsField] as boolean | null | undefined} disabled={!fitIsManual} onChange={value => updateVisualOverride(allcapsField, value)} />
+          </div>
+        </div>
+      </fieldset>
+    )
+  }
 
   return (
     <div className="space-y-3">
       <section className="rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
-        <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-2">
-          <label className="space-y-1">
-            <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Count</span>
-            <select
-              aria-label="Metric count"
-              value={count}
-              disabled={isGenerating}
-              onChange={event => setCount(Number(event.target.value))}
-              className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
-            >
-              {[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}
-            </select>
-          </label>
-          <div className="min-w-0 space-y-1">
-            <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Layout</span>
-            <div className="grid grid-cols-4 gap-1" role="group" aria-label="Metric layout">
-              {([
-                ['auto', 'Auto'],
-                ['horizontal', 'H'],
-                ['vertical', 'V'],
-                ['grid', 'Grid'],
-              ] as const).map(([value, label]) => {
-                const unavailable = value !== 'auto' && (
-                  count === 1 || !isMetricsLayoutViable(area, count, value)
-                )
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    title={unavailable ? 'Resize the placeholder to make this layout viable.' : label}
-                    disabled={isGenerating || unavailable}
-                    aria-pressed={layoutChoice === value}
-                    onClick={() => setLayoutChoice(value)}
-                    className={`rounded-md border px-1 py-1.5 text-[10px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
-                      layoutChoice === value
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-        <p className={`mt-1.5 text-[9px] ${resolvedLayout.viable ? 'text-slate-400' : 'font-medium text-amber-600 dark:text-amber-400'}`}>
-          {count === 1
-            ? 'One card uses the full live placeholder.'
-            : resolvedLayout.viable
-              ? `${layoutChoice === 'auto' ? 'Auto resolves' : 'Layout resolves'} to ${resolvedLayout.layout} for this ${area.position_width}×${area.position_height} area.`
-              : 'This area is too small for viable metric cards. Resize the placeholder before generating.'}
-        </p>
+        {renderCountLayoutControls()}
       </section>
 
       {researchControls}
@@ -311,7 +459,7 @@ export function MetricsForm({
             <span className="text-[10px] text-slate-500">Surface</span>
             <select
               aria-label="Metric surface"
-              value={surfaceValue}
+              value={primarySurfaceValue}
               onChange={event => {
                 const value = event.target.value as '' | MetricsConfig['color_scheme']
                 updateVisualOverride('color_scheme', value || undefined)
@@ -319,7 +467,8 @@ export function MetricsForm({
               }}
               className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800"
             >
-              {SURFACES.map(option => <option key={option.value || 'auto'} value={option.value}>{option.label}</option>)}
+              {primarySurfaceValue === '__advanced' && <option value="__advanced" disabled>Custom</option>}
+              {PRIMARY_SURFACES.map(option => <option key={option.value || 'auto'} value={option.value}>{option.label}</option>)}
             </select>
           </label>
           <label className="space-y-1">
@@ -350,70 +499,99 @@ export function MetricsForm({
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <label className="space-y-1">
-              <span className="text-[10px] text-slate-500">Alignment</span>
-              <select value={visualOverrides.alignment ?? ''} onChange={event => updateVisualOverride('alignment', event.target.value ? event.target.value as MetricsConfig['alignment'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800">
-                <option value="">Auto</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
-              </select>
-            </label>
-            <label className="space-y-1">
-              <span className="text-[10px] text-slate-500">Trend</span>
-              <select value={visualOverrides.trend ?? ''} onChange={event => updateVisualOverride('trend', event.target.value ? event.target.value as MetricsConfig['trend'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800">
-                <option value="">Auto</option><option value="arrow">Arrow</option><option value="pill">Pill</option>
-              </select>
-            </label>
-            <label className="space-y-1">
-              <span className="text-[10px] text-slate-500">Surface color</span>
-              <select disabled={!surfaceValue} value={visualOverrides.color_variant ?? ''} onChange={event => updateVisualOverride('color_variant', event.target.value || undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:disabled:bg-slate-900">
-                {COLORS.map(color => <option key={color || 'auto'} value={color}>{color ? color[0].toUpperCase() + color.slice(1) : 'Auto'}</option>)}
-              </select>
-            </label>
-          </div>
-
-          <CollapsibleSection title="Content fit" isOpen={showContentFit} onToggle={() => setShowContentFit(value => !value)}>
-            <fieldset disabled={!fitIsManual} className="grid grid-cols-2 gap-2 disabled:opacity-45">
-              <OptionalNumberInput label="Value min chars" value={manualOverrides.value_min_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('value_min_chars', value)} />
-              <OptionalNumberInput label="Value max chars" value={manualOverrides.value_max_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('value_max_chars', value)} />
-              <OptionalNumberInput label="Label min chars" value={manualOverrides.label_min_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('label_min_chars', value)} />
-              <OptionalNumberInput label="Label max chars" value={manualOverrides.label_max_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('label_max_chars', value)} />
-              <OptionalNumberInput label="Description min" value={manualOverrides.description_min_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('description_min_chars', value)} />
-              <OptionalNumberInput label="Description max" value={manualOverrides.description_max_chars} disabled={!fitIsManual} min={1} onChange={value => updateManualOverride('description_max_chars', value)} />
-            </fieldset>
+          <CollapsibleSection title="Instances" isOpen={showInstances} onToggle={() => setShowInstances(value => !value)}>
+            {renderCountLayoutControls(true)}
           </CollapsibleSection>
 
-          <CollapsibleSection title="Typography" isOpen={showTypography} onToggle={() => setShowTypography(value => !value)}>
-            <fieldset disabled={!fitIsManual} className="space-y-2 disabled:opacity-45">
-              {(['value', 'label', 'desc'] as const).map(prefix => (
-                <div key={prefix} className="space-y-1.5 rounded-md border border-slate-200 p-1.5 dark:border-slate-700">
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <label className="space-y-1"><span className="text-[9px] capitalize text-slate-500">{prefix === 'desc' ? 'Description' : prefix} size</span><select disabled={!fitIsManual} value={manualOverrides[`${prefix}_font_size`]} onChange={event => updateManualOverride(`${prefix}_font_size`, event.target.value || undefined)} className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">{FONT_SIZES.map(size => <option key={size || 'auto'} value={size}>{size || 'Auto'}</option>)}</select></label>
-                    <label className="space-y-1"><span className="text-[9px] text-slate-500">Family</span><select disabled={!fitIsManual} value={(visualOverrides[`${prefix}_font_family`] as string | null | undefined) ?? ''} onChange={event => updateVisualOverride(`${prefix}_font_family`, event.target.value || undefined)} className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">{FONT_FAMILIES.map(family => <option key={family || 'auto'} value={family}>{family || 'Auto'}</option>)}</select></label>
-                    <label className="space-y-1"><span className="text-[9px] text-slate-500">Color</span><input disabled={!fitIsManual} type="text" placeholder="Auto" value={(visualOverrides[`${prefix}_font_color`] as string | null | undefined) ?? ''} onChange={event => updateVisualOverride(`${prefix}_font_color`, event.target.value || undefined)} className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800" /></label>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="mr-auto text-[9px] capitalize text-slate-400">{prefix === 'desc' ? 'Description' : prefix} style</span>
-                    <TriStateStyleButton label="B" fieldLabel={`${prefix} bold`} value={visualOverrides[`${prefix}_bold`] as boolean | null | undefined} disabled={!fitIsManual} onChange={value => updateVisualOverride(`${prefix}_bold`, value)} />
-                    <TriStateStyleButton label="I" fieldLabel={`${prefix} italic`} value={visualOverrides[`${prefix}_italic`] as boolean | null | undefined} disabled={!fitIsManual} onChange={value => updateVisualOverride(`${prefix}_italic`, value)} />
-                    <TriStateStyleButton label="AA" fieldLabel={`${prefix} uppercase`} value={visualOverrides[`${prefix}_allcaps`] as boolean | null | undefined} disabled={!fitIsManual} onChange={value => updateVisualOverride(`${prefix}_allcaps`, value)} />
-                  </div>
-                </div>
-              ))}
-            </fieldset>
+          <CollapsibleSection title="Card Design" isOpen={showCardDesign} onToggle={() => setShowCardDesign(value => !value)}>
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                <label className="space-y-1">
+                  <span className="text-[10px] text-slate-500">Surface</span>
+                  <select
+                    aria-label="Advanced metric surface"
+                    value={surfaceValue}
+                    onChange={event => {
+                      const value = event.target.value as '' | MetricsConfig['color_scheme']
+                      updateVisualOverride('color_scheme', value || undefined)
+                      if (!value) updateVisualOverride('color_variant', undefined)
+                    }}
+                    className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800"
+                  >
+                    {ADVANCED_SURFACES.map(option => <option key={option.value || 'auto'} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] text-slate-500">Corners</span>
+                  <select aria-label="Advanced metric corners" value={cornersValue} onChange={event => updateVisualOverride('corners', event.target.value ? event.target.value as MetricsConfig['corners'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800">
+                    <option value="">Auto</option><option value="rounded">Rounded</option><option value="square">Square</option>
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] text-slate-500">Border</span>
+                  <select aria-label="Advanced metric border" value={borderValue} onChange={event => updateVisualOverride('border', event.target.value === '' ? undefined : event.target.value === 'on')} className="w-full rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-[10px] dark:border-slate-600 dark:bg-slate-800">
+                    <option value="">Auto</option><option value="on">On</option><option value="off">Off</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="space-y-1">
+                  <span className="text-[10px] text-slate-500">Alignment</span>
+                  <select value={visualOverrides.alignment ?? ''} onChange={event => updateVisualOverride('alignment', event.target.value ? event.target.value as MetricsConfig['alignment'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800">
+                    <option value="">Auto</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] text-slate-500">Trend</span>
+                  <select value={visualOverrides.trend ?? ''} onChange={event => updateVisualOverride('trend', event.target.value ? event.target.value as MetricsConfig['trend'] : undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800">
+                    <option value="">Auto</option><option value="arrow">Arrow</option><option value="pill">Pill</option>
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] text-slate-500">Card color</span>
+                  <select disabled={!surfaceValue} value={visualOverrides.color_variant ?? ''} onChange={event => updateVisualOverride('color_variant', event.target.value || undefined)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:disabled:bg-slate-900">
+                    {COLORS.map(color => <option key={color || 'auto'} value={color}>{color ? color[0].toUpperCase() + color.slice(1) : 'Auto'}</option>)}
+                  </select>
+                </label>
+              </div>
+              <p className="text-[9px] leading-4 text-slate-400">Gradient is available here as an explicit override; it is no longer imposed as a prompt chip.</p>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Value" isOpen={showValue} onToggle={() => setShowValue(value => !value)}>
+            {renderMetricTextControls('value')}
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Label" isOpen={showLabel} onToggle={() => setShowLabel(value => !value)}>
+            {renderMetricTextControls('label')}
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Description" isOpen={showDescription} onToggle={() => setShowDescription(value => !value)}>
+            {renderMetricTextControls('desc')}
           </CollapsibleSection>
 
           <CollapsibleSection title="Spacing & padding" isOpen={showSpacing} onToggle={() => setShowSpacing(value => !value)}>
-            <fieldset disabled={!fitIsManual} className="grid grid-cols-3 gap-2 disabled:opacity-45">
-              <OptionalNumberInput label="Padding (px)" value={manualOverrides.padding_px} disabled={!fitIsManual} onChange={value => updateManualOverride('padding_px', value)} />
-              <OptionalNumberInput label="Value gap (px)" value={manualOverrides.value_margin_bottom_px} disabled={!fitIsManual} onChange={value => updateManualOverride('value_margin_bottom_px', value)} />
-              <OptionalNumberInput label="Label gap (px)" value={manualOverrides.label_margin_bottom_px} disabled={!fitIsManual} onChange={value => updateManualOverride('label_margin_bottom_px', value)} />
-            </fieldset>
+            <div className="space-y-1.5">
+              <p className="text-[9px] leading-4 text-slate-400">Per-card spacing is owned by Auto fit until Manual fit is selected.</p>
+              <fieldset disabled={!fitIsManual} className="grid grid-cols-3 gap-2 disabled:opacity-45">
+                <OptionalNumberInput label="Card padding (px)" value={manualOverrides.padding_px} disabled={!fitIsManual} onChange={value => updateManualOverride('padding_px', value)} />
+                <OptionalNumberInput label="Value gap (px)" value={manualOverrides.value_margin_bottom_px} disabled={!fitIsManual} onChange={value => updateManualOverride('value_margin_bottom_px', value)} />
+                <OptionalNumberInput label="Label gap (px)" value={manualOverrides.label_margin_bottom_px} disabled={!fitIsManual} onChange={value => updateManualOverride('label_margin_bottom_px', value)} />
+              </fieldset>
+            </div>
           </CollapsibleSection>
 
           <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(value => !value)}>
             <div className="space-y-2">
               <PositionPresets positionConfig={positionConfig} onChange={setPositionConfig} elementType="METRICS" onAdvancedModified={() => setPositionModified(true)} />
               <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setPositionModified(true)} />
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Container Padding" isOpen={showPadding} onToggle={() => setShowPadding(value => !value)}>
+            <div className="space-y-1.5">
+              <p className="text-[9px] leading-4 text-slate-400">Adds outer padding around the generated Metrics element, independently of per-card fit.</p>
+              <PaddingControl paddingConfig={paddingConfig} onChange={setPaddingConfig} onAdvancedModified={() => setPaddingModified(true)} />
             </div>
           </CollapsibleSection>
         </section>
