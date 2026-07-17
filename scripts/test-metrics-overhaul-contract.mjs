@@ -97,6 +97,18 @@ assert.deepEqual(JSON.parse(JSON.stringify(autoOptions.metricsConfig)), { layout
 assert.equal(autoOptions.manualMetricsOverrides, undefined)
 assert.equal(autoOptions.paddingConfig, undefined)
 
+const containerPaddingOptions = client.buildApiPayload('session-1', {
+  ...baseMetrics,
+  advancedModified: true,
+  paddingConfig: { top: 8, right: 12, bottom: 8, left: 12 },
+}).options
+assert.deepEqual(JSON.parse(JSON.stringify(containerPaddingOptions.paddingConfig)), {
+  top: 8,
+  right: 12,
+  bottom: 8,
+  left: 12,
+})
+
 const appearanceOptions = client.buildApiPayload('session-1', {
   ...baseMetrics,
   advancedModified: true,
@@ -192,11 +204,25 @@ const researchSource = fs.readFileSync(new URL('../components/generation-panel/s
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
 const routerSource = fs.readFileSync(new URL('../lib/element-command-router.ts', import.meta.url), 'utf8')
 const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import.meta.url), 'utf8')
-assert.doesNotMatch(formSource, /gradient|Color Scheme/)
+assert.doesNotMatch(formSource, /fieldLabel:\s*['"]Color Scheme/)
+assert.match(formSource, /registerMandatoryConfig\(null\)/)
+assert.match(formSource, /value: 'gradient', label: 'Gradient'/)
+assert.match(formSource, /PRIMARY_SURFACES\.map/)
+assert.match(formSource, /ADVANCED_SURFACES\.map/)
+assert.match(formSource, /const LIGHT_FONT_COLORS/)
+assert.match(formSource, /const DARK_FONT_COLORS/)
+assert.match(formSource, /Color presets/)
 assert.match(formSource, /Metric count/)
 assert.match(formSource, /Metric layout/)
 assert.match(formSource, /Auto fit/)
 assert.match(formSource, /disabled=\{!fitIsManual\}/)
+assert.match(formSource, /hasEffectiveVisualOverrides = Object\.keys\(metricsConfig\)/)
+assert.match(formSource, /paddingModified && hasContainerPadding/)
+assert.match(formSource, /showAdvanced &&/)
+for (const section of ['Instances', 'Card Design', 'Value', 'Label', 'Description', 'Spacing & padding', 'Positioning', 'Container Padding']) {
+  assert.match(formSource, new RegExp(`title="${section}"`), `restores the ${section} advanced section`)
+}
+assert.match(formSource, /<PaddingControl/)
 assert.match(researchSource, /<Checkbox/)
 assert.match(researchSource, /How research context is used/)
 assert.match(researchSource, /current slide, then deck context/)

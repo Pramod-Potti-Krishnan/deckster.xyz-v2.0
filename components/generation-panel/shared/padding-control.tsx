@@ -45,7 +45,9 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
           ].map(opt => (
             <button
               key={opt.value}
+              type="button"
               onClick={() => setMode(opt.value)}
+              aria-pressed={mode === opt.value}
               className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
                 mode === opt.value
                   ? 'bg-primary text-white border border-primary'
