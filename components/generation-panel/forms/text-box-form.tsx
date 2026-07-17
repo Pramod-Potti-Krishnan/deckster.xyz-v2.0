@@ -9,6 +9,7 @@ import {
   type TextBoxStructure,
   type TextBoxTitleStyle,
   type TextLabsPositionConfig,
+  type TextLabsPaddingConfig,
   type TextLabsFormData,
   type TextManualGeometryOverrides,
   type TextSemanticRole,
@@ -19,6 +20,9 @@ import { type ElementContext, type MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PositionPresets } from '../shared/position-presets'
 import { ZIndexInput } from '../shared/z-index-input'
+import { FontOverrideSection } from '../shared/font-override-section'
+import { PaddingControl } from '../shared/padding-control'
+import { ToggleRow } from '../shared/toggle-row'
 import { splitGridArea } from '@/lib/grid-splitter'
 import {
   BODY_TEXT_AUTO_SLOT,
@@ -167,11 +171,19 @@ export function TextBoxForm({
   const [manualGeometryOverrides, setManualGeometryOverrides] = useState<TextManualGeometryOverrides>({})
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
   const [positionModified, setPositionModified] = useState(false)
+  const [paddingModified, setPaddingModified] = useState(false)
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  })
   const [showInstances, setShowInstances] = useState(false)
-  const [showTypography, setShowTypography] = useState(false)
-  const [showSpacing, setShowSpacing] = useState(false)
-  const [showPosition, setShowPosition] = useState(false)
-  const [showEffects, setShowEffects] = useState(false)
+  const [showBoxDesign, setShowBoxDesign] = useState(false)
+  const [showHeading, setShowHeading] = useState(false)
+  const [showContent, setShowContent] = useState(false)
+  const [showPositioning, setShowPositioning] = useState(false)
+  const [showPadding, setShowPadding] = useState(false)
   const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
     start_col: 2,
     start_row: 4,
@@ -253,6 +265,39 @@ export function TextBoxForm({
     })
   }, [])
 
+  const updateExplicitManualOverride = useCallback(<K extends keyof TextManualGeometryOverrides>(
+    field: K,
+    value: TextManualGeometryOverrides[K] | undefined,
+  ) => {
+    if (value !== undefined) setGeometryMode('MANUAL')
+    updateManualOverride(field, value)
+  }, [updateManualOverride])
+
+  const updateDetailedTextboxOverride = useCallback((field: string, value: unknown) => {
+    if (field === 'heading_font_size' || field === 'content_font_size') {
+      const parsed = typeof value === 'string' ? Number.parseFloat(value) : undefined
+      updateExplicitManualOverride(
+        field === 'heading_font_size' ? 'heading_font_size_px' : 'content_font_size_px',
+        Number.isFinite(parsed) ? parsed : undefined,
+      )
+      return
+    }
+    updateTextboxOverride(
+      field as keyof TextBoxConfig,
+      (value === null ? undefined : value) as TextBoxConfig[keyof TextBoxConfig] | undefined,
+    )
+  }, [updateExplicitManualOverride, updateTextboxOverride])
+
+  const detailedFontConfig = useMemo<Record<string, unknown>>(() => ({
+    ...textboxOverrides,
+    heading_font_size: manualGeometryOverrides.heading_font_size_px
+      ? `${manualGeometryOverrides.heading_font_size_px}px`
+      : null,
+    content_font_size: manualGeometryOverrides.content_font_size_px
+      ? `${manualGeometryOverrides.content_font_size_px}px`
+      : null,
+  }), [manualGeometryOverrides.content_font_size_px, manualGeometryOverrides.heading_font_size_px, textboxOverrides])
+
   const roleOptions = useMemo(() => [
     { value: BODY_TEXT_AUTO_SLOT, label: 'Auto (Body text)' },
     ...effectiveCatalog.slots.map(slot => ({
@@ -279,6 +324,7 @@ export function TextBoxForm({
   }, [isAccessory, isSystemManaged, registerMandatoryConfig, roleOptions, targetValue])
 
   const advancedModified = positionModified
+    || paddingModified
     || structure !== 'auto'
     || Object.keys(textboxOverrides).length > 0
     || geometryMode === 'MANUAL'
@@ -546,20 +592,9 @@ export function TextBoxForm({
 
           {geometryMode === 'MANUAL' && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/20">
-              <p className="mb-2 text-[10px] leading-4 text-amber-700 dark:text-amber-300">
-                Only fields you set are sent. Blank fields continue to use the resolved profile.
+              <p className="text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+                Only controls with an explicit value are sent. Every control still showing Auto continues to use the resolved Platinum profile.
               </p>
-              <div className="grid grid-cols-2 gap-2">
-                {isBodyText && (
-                  <OptionalNumberInput label="Items per box" min={1} max={14} value={manualGeometryOverrides.items_per_box} onChange={value => updateManualOverride('items_per_box', value)} />
-                )}
-                <OptionalNumberInput label="Title min chars" value={manualGeometryOverrides.title_min_chars} onChange={value => updateManualOverride('title_min_chars', value)} />
-                <OptionalNumberInput label="Title max chars" value={manualGeometryOverrides.title_max_chars} onChange={value => updateManualOverride('title_max_chars', value)} />
-                {isBodyText && <OptionalNumberInput label="Item min chars" value={manualGeometryOverrides.item_min_chars} onChange={value => updateManualOverride('item_min_chars', value)} />}
-                {isBodyText && <OptionalNumberInput label="Item max chars" value={manualGeometryOverrides.item_max_chars} onChange={value => updateManualOverride('item_max_chars', value)} />}
-                <OptionalNumberInput label="Max lines" min={1} value={manualGeometryOverrides.max_lines} onChange={value => updateManualOverride('max_lines', value)} />
-                <OptionalNumberInput label="Max chars" min={1} value={manualGeometryOverrides.max_chars} onChange={value => updateManualOverride('max_chars', value)} />
-              </div>
             </div>
           )}
 
@@ -580,49 +615,401 @@ export function TextBoxForm({
             </CollapsibleSection>
           )}
 
-          {geometryMode === 'MANUAL' && (<>
-            <CollapsibleSection title="Typography" isOpen={showTypography} onToggle={() => setShowTypography(value => !value)}>
-              <div className="grid grid-cols-2 gap-2">
-                <OptionalNumberInput label="Heading size (px)" min={1} value={manualGeometryOverrides.heading_font_size_px} onChange={value => updateManualOverride('heading_font_size_px', value)} />
-                <OptionalNumberInput label="Content size (px)" min={1} value={manualGeometryOverrides.content_font_size_px} onChange={value => updateManualOverride('content_font_size_px', value)} />
-              </div>
-            </CollapsibleSection>
+          {isBodyText && !isSystemManaged && (
+            <CollapsibleSection title="Box Design" isOpen={showBoxDesign} onToggle={() => setShowBoxDesign(value => !value)}>
+              <div className="space-y-2.5">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Structure</span>
+                  <select
+                    value={structure}
+                    onChange={event => setStructure(event.target.value as 'auto' | TextBoxStructure)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                  >
+                    <option value="auto">Auto</option>
+                    {STRUCTURE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
 
-            <CollapsibleSection title="Spacing" isOpen={showSpacing} onToggle={() => setShowSpacing(value => !value)}>
-              <div className="grid grid-cols-2 gap-2">
-                <OptionalNumberInput label="Line height" min={0.5} step={0.1} value={manualGeometryOverrides.line_height} onChange={value => updateManualOverride('line_height', value)} />
-                <OptionalNumberInput label="Bullet gap (px)" value={manualGeometryOverrides.bullet_gap_px} onChange={value => updateManualOverride('bullet_gap_px', value)} />
-                <OptionalNumberInput label="Padding (px)" value={typeof manualGeometryOverrides.padding_px === 'number' ? manualGeometryOverrides.padding_px : undefined} onChange={value => updateManualOverride('padding_px', value)} />
-              </div>
-            </CollapsibleSection>
-          </>)}
+                {structure === 'simple' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="space-y-1">
+                      <span className="text-[10px] text-slate-500">Simple Type</span>
+                      <select
+                        value={textboxOverrides.simple_subtype ?? 'auto'}
+                        onChange={event => updateTextboxOverride(
+                          'simple_subtype',
+                          event.target.value === 'auto'
+                            ? undefined
+                            : event.target.value as NonNullable<TextBoxConfig['simple_subtype']>,
+                        )}
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                      >
+                        <option value="auto">Auto</option>
+                        <option value="char">Char</option>
+                        <option value="word">Word</option>
+                        <option value="phrase">Phrase</option>
+                      </select>
+                    </label>
+                    <OptionalNumberInput
+                      label="Target Chars"
+                      min={1}
+                      max={240}
+                      value={textboxOverrides.target_char_count ?? undefined}
+                      onChange={value => updateTextboxOverride('target_char_count', value)}
+                    />
+                  </div>
+                )}
 
-          {!isSystemManaged && (
-            <CollapsibleSection title="Border & shadow" isOpen={showEffects} onToggle={() => setShowEffects(value => !value)}>
-              <div className="grid grid-cols-2 gap-2">
-                {(['border', 'shadow'] as const).map(field => (
-                  <label key={field} className="space-y-1">
-                    <span className="text-[10px] capitalize text-slate-500">{field}</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-slate-500">Box</span>
                     <select
-                      value={textboxOverrides[field] === undefined ? 'auto' : textboxOverrides[field] ? 'on' : 'off'}
-                      onChange={event => updateTextboxOverride(field, event.target.value === 'auto' ? undefined : event.target.value === 'on')}
+                      value={backgroundValue}
+                      onChange={event => updateTextboxOverride(
+                        'background',
+                        event.target.value === 'auto' ? undefined : event.target.value as TextBoxConfig['background'],
+                      )}
                       className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
                     >
                       <option value="auto">Auto</option>
-                      <option value="on">On</option>
-                      <option value="off">Off</option>
+                      <option value="colored">Color</option>
+                      <option value="transparent">Transparent</option>
                     </select>
                   </label>
-                ))}
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-slate-500">Corners</span>
+                    <select
+                      value={cornersValue}
+                      onChange={event => updateTextboxOverride(
+                        'corners',
+                        event.target.value === 'auto' ? undefined : event.target.value as TextBoxConfig['corners'],
+                      )}
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="rounded">Rounded</option>
+                      <option value="square">Square</option>
+                    </select>
+                  </label>
+                </div>
+
+                {backgroundValue === 'colored' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="space-y-1">
+                      <span className="text-[10px] text-slate-500">Box Color</span>
+                      <select
+                        value={textboxOverrides.color_variant ?? 'auto'}
+                        onChange={event => updateTextboxOverride('color_variant', event.target.value === 'auto' ? undefined : event.target.value)}
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                      >
+                        <option value="auto">Auto</option>
+                        {COLOR_VARIANTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-[10px] text-slate-500">Opacity</span>
+                      <select
+                        value={textboxOverrides.opacity ?? 'auto'}
+                        onChange={event => updateTextboxOverride('opacity', event.target.value === 'auto' ? undefined : Number(event.target.value))}
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                      >
+                        <option value="auto">Auto</option>
+                        <option value="1">100%</option>
+                        <option value="0.8">80%</option>
+                        <option value="0.6">60%</option>
+                        <option value="0.4">40%</option>
+                        <option value="0.2">20%</option>
+                      </select>
+                    </label>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  {(['shadow', 'border'] as const).map(field => (
+                    <label key={field} className="space-y-1">
+                      <span className="text-[10px] capitalize text-slate-500">{field}</span>
+                      <select
+                        value={textboxOverrides[field] === undefined ? 'auto' : textboxOverrides[field] ? 'on' : 'off'}
+                        onChange={event => updateTextboxOverride(field, event.target.value === 'auto' ? undefined : event.target.value === 'on')}
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                      >
+                        <option value="auto">Auto</option>
+                        <option value="on">On</option>
+                        <option value="off">Off</option>
+                      </select>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Theme</span>
+                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-500 dark:border-slate-700 dark:bg-slate-900">
+                    Deck theme
+                  </span>
+                </div>
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {!isSystemManaged && (
+            <CollapsibleSection title="Heading" isOpen={showHeading} onToggle={() => setShowHeading(value => !value)}>
+              <div className="space-y-2.5">
+                <ToggleRow
+                  label="Show Title"
+                  field="show_title"
+                  value={showTitleValue}
+                  options={[
+                    { value: 'auto', label: 'Auto' },
+                    { value: 'show', label: 'Yes' },
+                    { value: 'hide', label: 'No' },
+                  ]}
+                  onChange={(_, value) => updateTextboxOverride(
+                    'show_title',
+                    value === 'auto' ? undefined : value === 'show',
+                  )}
+                />
+                <label className="space-y-1">
+                  <span className="text-[10px] text-slate-500">Title Style</span>
+                  <select
+                    value={textboxOverrides.title_style ?? 'auto'}
+                    onChange={event => updateTextboxOverride(
+                      'title_style',
+                      event.target.value === 'auto' ? undefined : event.target.value as TextBoxTitleStyle,
+                    )}
+                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                  >
+                    <option value="auto">Auto</option>
+                    {TITLE_STYLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <ToggleRow
+                  label="Title Rule"
+                  field="title_underline"
+                  value={textboxOverrides.title_underline === undefined ? 'auto' : textboxOverrides.title_underline ? 'on' : 'off'}
+                  options={[
+                    { value: 'auto', label: 'Auto' },
+                    { value: 'off', label: 'Off' },
+                    { value: 'on', label: 'On' },
+                  ]}
+                  onChange={(_, value) => updateTextboxOverride('title_underline', value === 'auto' ? undefined : value === 'on')}
+                />
+                <ToggleRow
+                  label="Heading Align"
+                  field="heading_align"
+                  value={textboxOverrides.heading_align ?? 'auto'}
+                  options={[
+                    { value: 'auto', label: 'Auto' },
+                    { value: 'left', label: 'L' },
+                    { value: 'center', label: 'C' },
+                    { value: 'right', label: 'R' },
+                  ]}
+                  onChange={(_, value) => updateTextboxOverride(
+                    'heading_align',
+                    value === 'auto' ? undefined : value as TextBoxConfig['heading_align'],
+                  )}
+                />
+                <ToggleRow
+                  label="Head Indent"
+                  field="heading_indent"
+                  value={textboxOverrides.heading_indent === undefined ? 'auto' : String(textboxOverrides.heading_indent)}
+                  options={[
+                    { value: 'auto', label: 'Auto' },
+                    { value: '0', label: '0' },
+                    { value: '1', label: '1' },
+                    { value: '2', label: '2' },
+                    { value: '3', label: '3' },
+                  ]}
+                  onChange={(_, value) => updateTextboxOverride('heading_indent', value === 'auto' ? undefined : Number(value))}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <OptionalNumberInput
+                    label="Title min chars"
+                    value={geometryMode === 'MANUAL' ? manualGeometryOverrides.title_min_chars : undefined}
+                    onChange={value => updateExplicitManualOverride('title_min_chars', value)}
+                  />
+                  <OptionalNumberInput
+                    label="Title max chars"
+                    value={geometryMode === 'MANUAL' ? manualGeometryOverrides.title_max_chars : undefined}
+                    onChange={value => updateExplicitManualOverride('title_max_chars', value)}
+                  />
+                </div>
+                <FontOverrideSection
+                  label="Heading Font"
+                  prefix="heading"
+                  config={detailedFontConfig}
+                  onChange={updateDetailedTextboxOverride}
+                  thirdToggle="underline"
+                />
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {isBodyText && !isSystemManaged && (
+            <CollapsibleSection title="Content" isOpen={showContent} onToggle={() => setShowContent(value => !value)}>
+              <div className="space-y-2.5">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Items / Box</span>
+                  <select
+                    aria-label="Items per box"
+                    value={geometryMode === 'MANUAL' && manualGeometryOverrides.items_per_box
+                      ? String(manualGeometryOverrides.items_per_box)
+                      : 'auto'}
+                    onChange={event => updateExplicitManualOverride(
+                      'items_per_box',
+                      event.target.value === 'auto' ? undefined : Number(event.target.value),
+                    )}
+                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                  >
+                    <option value="auto">Auto — Platinum fit</option>
+                    {Array.from({ length: 14 }, (_, index) => index + 1).map(value => (
+                      <option key={value} value={value}>{value}</option>
+                    ))}
+                  </select>
+                </label>
+                <ToggleRow
+                  label="List Style"
+                  field="list_style"
+                  value={textboxOverrides.list_style ?? 'auto'}
+                  options={[
+                    { value: 'auto', label: 'Auto' },
+                    { value: 'bullets', label: 'Bullets' },
+                    { value: 'numbered', label: 'Numbers' },
+                    { value: 'plain', label: 'Plain' },
+                  ]}
+                  onChange={(_, value) => updateTextboxOverride(
+                    'list_style',
+                    value === 'auto' ? undefined : value as TextBoxConfig['list_style'],
+                  )}
+                />
+                <ToggleRow
+                  label="Content Align"
+                  field="content_align"
+                  value={textboxOverrides.content_align ?? 'auto'}
+                  options={[
+                    { value: 'auto', label: 'Auto' },
+                    { value: 'left', label: 'L' },
+                    { value: 'center', label: 'C' },
+                    { value: 'right', label: 'R' },
+                  ]}
+                  onChange={(_, value) => updateTextboxOverride(
+                    'content_align',
+                    value === 'auto' ? undefined : value as TextBoxConfig['content_align'],
+                  )}
+                />
+                <ToggleRow
+                  label="Content Indent"
+                  field="content_indent"
+                  value={textboxOverrides.content_indent === undefined ? 'auto' : String(textboxOverrides.content_indent)}
+                  options={[
+                    { value: 'auto', label: 'Auto' },
+                    { value: '0', label: '0' },
+                    { value: '1', label: '1' },
+                    { value: '2', label: '2' },
+                    { value: '3', label: '3' },
+                  ]}
+                  onChange={(_, value) => updateTextboxOverride('content_indent', value === 'auto' ? undefined : Number(value))}
+                />
+                <label className="space-y-1">
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Line Spacing</span>
+                  <select
+                    value={geometryMode === 'MANUAL' && manualGeometryOverrides.line_height !== undefined
+                      ? String(manualGeometryOverrides.line_height)
+                      : 'auto'}
+                    onChange={event => updateExplicitManualOverride(
+                      'line_height',
+                      event.target.value === 'auto' ? undefined : Number(event.target.value),
+                    )}
+                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                  >
+                    <option value="auto">Auto</option>
+                    {['1.0', '1.2', '1.4', '1.5', '1.6', '1.8', '2.0', '2.2', '2.5'].map(value => (
+                      <option key={value} value={value}>{value}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <OptionalNumberInput
+                    label="Item min chars"
+                    value={geometryMode === 'MANUAL' ? manualGeometryOverrides.item_min_chars : undefined}
+                    onChange={value => updateExplicitManualOverride('item_min_chars', value)}
+                  />
+                  <OptionalNumberInput
+                    label="Item max chars"
+                    value={geometryMode === 'MANUAL' ? manualGeometryOverrides.item_max_chars : undefined}
+                    onChange={value => updateExplicitManualOverride('item_max_chars', value)}
+                  />
+                  <OptionalNumberInput
+                    label="Max lines"
+                    min={1}
+                    value={geometryMode === 'MANUAL' ? manualGeometryOverrides.max_lines : undefined}
+                    onChange={value => updateExplicitManualOverride('max_lines', value)}
+                  />
+                  <OptionalNumberInput
+                    label="Max chars"
+                    min={1}
+                    value={geometryMode === 'MANUAL' ? manualGeometryOverrides.max_chars : undefined}
+                    onChange={value => updateExplicitManualOverride('max_chars', value)}
+                  />
+                  <OptionalNumberInput
+                    label="Bullet gap (px)"
+                    value={geometryMode === 'MANUAL' ? manualGeometryOverrides.bullet_gap_px : undefined}
+                    onChange={value => updateExplicitManualOverride('bullet_gap_px', value)}
+                  />
+                </div>
+                <FontOverrideSection
+                  label="Content Font"
+                  prefix="content"
+                  config={detailedFontConfig}
+                  onChange={updateDetailedTextboxOverride}
+                  thirdToggle="underline"
+                />
               </div>
             </CollapsibleSection>
           )}
 
           {isBodyText && (
-            <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(value => !value)}>
+            <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(value => !value)}>
               <div className="space-y-2">
                 <PositionPresets positionConfig={positionConfig} onChange={setPositionConfig} elementType="TEXT_BOX" onAdvancedModified={() => setPositionModified(true)} />
                 <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setPositionModified(true)} />
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {isBodyText && (
+            <CollapsibleSection title="Container Padding" isOpen={showPadding} onToggle={() => setShowPadding(value => !value)}>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-slate-500">
+                    {paddingModified ? 'Explicit manual padding' : 'Auto padding'}
+                  </span>
+                  {paddingModified && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaddingModified(false)
+                        setPaddingConfig({ top: 0, right: 0, bottom: 0, left: 0 })
+                        updateManualOverride('padding_px', undefined)
+                      }}
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-medium text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300"
+                    >
+                      Use Auto
+                    </button>
+                  )}
+                </div>
+                <PaddingControl
+                  paddingConfig={paddingConfig}
+                  onChange={(value) => {
+                    setPaddingConfig(value)
+                    setPaddingModified(true)
+                    setGeometryMode('MANUAL')
+                    updateManualOverride('padding_px', value)
+                  }}
+                  onAdvancedModified={() => {
+                    setPaddingModified(true)
+                    setGeometryMode('MANUAL')
+                  }}
+                />
               </div>
             </CollapsibleSection>
           )}
