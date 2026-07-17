@@ -49,6 +49,17 @@ assert.equal(autoOptions.tableConfig.column_widths, undefined)
 assert.equal(autoOptions.tableConfig.cell_max_chars, undefined)
 assert.equal(autoOptions.tableConfig.header_font_size, undefined)
 
+const sparseAutoOptions = client.buildApiPayload('session-table', {
+  componentType: 'TABLE',
+  prompt: 'Compare cloud providers',
+  count: 1,
+  layout: 'horizontal',
+  advancedModified: false,
+  tableConfig: { structure_mode: 'AUTO' },
+}).options
+assert.equal(sparseAutoOptions.positionConfig, undefined)
+assert.equal(sparseAutoOptions.zIndex, undefined)
+
 const appearanceOptions = client.buildApiPayload('session-table', {
   ...baseTable,
   advancedModified: true,
@@ -106,6 +117,14 @@ assert.match(researchSource, /<Checkbox/, 'compact source controls use checkboxe
 assert.match(panelSource, /elementType !== 'TABLE'/)
 assert.match(panelSource, /elementType === 'TABLE'/)
 assert.match(generationSource, /insertionComponentType === 'TABLE'/)
+assert.match(
+  generationSource,
+  /usesCitedUpsert = insertionComponentType === 'TABLE'/,
+  'every TABLE insert uses the generalized atomic cited-element path',
+)
 assert.match(generationSource, /resolvedTableProfile/)
+assert.match(formSource, /z_index: zIndexModified \? zIndex : undefined/)
+assert.match(formSource, /positionConfig: positionModified \? positionConfig : undefined/)
+assert.doesNotMatch(formSource, /chars"[^>]*min=\{1\}/, 'character-limit controls match the backend minimum')
 
 console.log('table sparse Auto/Manual, compact panel, research, and cited-upsert contract tests passed')
