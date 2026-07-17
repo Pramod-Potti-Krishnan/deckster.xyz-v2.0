@@ -2,12 +2,35 @@ import type {
   ElementResearchCapabilities,
   ElementResearchMode,
   ElementResearchPolicy,
+  TextLabsAllComponentType,
+  TextSlotKind,
 } from '@/types/textlabs'
 
 export interface ElementResearchSelection {
   web: boolean
   uploadedDocuments: boolean
   knowledgeGraph: boolean
+}
+
+const NON_RESEARCH_VISUAL_COMPONENTS = new Set<TextLabsAllComponentType>([
+  'IMAGE',
+  'ICON_LABEL',
+  'SHAPE',
+])
+
+/**
+ * Images, icons/labels, shapes, and template logo accessories are visual leaf
+ * generation. Research context cannot improve their content and older saved
+ * panel state must never re-enable Researcher for them.
+ */
+export function isNonResearchVisualElement(
+  componentType: TextLabsAllComponentType,
+  slotKind?: TextSlotKind | null,
+  accessoryType?: string | null,
+): boolean {
+  return NON_RESEARCH_VISUAL_COMPONENTS.has(componentType)
+    || slotKind === 'accessory'
+    || accessoryType?.toUpperCase() === 'LOGO'
 }
 
 export function defaultElementResearchSelection(

@@ -5,6 +5,8 @@ import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { ElementResearchMode } from '@/types/textlabs'
 import type { GenerationPanelDraft } from '@/components/generation-panel/types'
+import { isNonResearchVisualElement } from '@/lib/element-research-policy'
+import { resolveBlankReplacementPanelState } from '@/lib/blank-element-replacement'
 
 function cloneFormDataForDraft(formData: TextLabsFormData): TextLabsFormData {
   const copy: Record<string, unknown> = {}
@@ -131,19 +133,24 @@ export function useGenerationPanel() {
     setResearchKnowledgeGraph(false)
   }, [])
 
+  const normalizeResearchForType = useCallback((type: TextLabsComponentType) => {
+    if (isNonResearchVisualElement(type)) resetResearch()
+  }, [resetResearch])
+
   /** Open panel for a specific blank element on the canvas */
   const openPanelForElement = useCallback((type: TextLabsComponentType, elementId: string) => {
     const nextDraftKey = `blank:${elementId}`
     const sameTarget = draftKey === nextDraftKey && elementType === type
     setElementType(type)
     activateDraftKey(nextDraftKey, !sameTarget)
+    normalizeResearchForType(type)
     setBlankElementId(elementId)
     setMode('generate')
     setEditElementId(null)
     setRefineContext(null)
     setIsOpen(true)
     setError(null)
-  }, [activateDraftKey, draftKey, elementType])
+  }, [activateDraftKey, draftKey, elementType, normalizeResearchForType])
 
   /** Keep the current draft when Layout replaces the same placeholder identity. */
   const resumePanelForElement = useCallback((type: TextLabsComponentType, elementId: string) => {
@@ -155,13 +162,14 @@ export function useGenerationPanel() {
     }
     setElementType(type)
     setDraftKey(nextDraftKey)
+    normalizeResearchForType(type)
     setBlankElementId(elementId)
     setMode('generate')
     setEditElementId(null)
     setRefineContext(null)
     setIsOpen(true)
     setError(null)
-  }, [])
+  }, [draftKey, normalizeResearchForType])
 
   /** Open panel in edit mode for an existing element */
   const openPanelForEdit = useCallback((type: TextLabsComponentType, elementId: string) => {
@@ -169,13 +177,14 @@ export function useGenerationPanel() {
     const sameTarget = draftKey === nextDraftKey && elementType === type
     setElementType(type)
     activateDraftKey(nextDraftKey, !sameTarget)
+    normalizeResearchForType(type)
     setBlankElementId(null)
     setMode('edit')
     setEditElementId(elementId)
     setRefineContext(null)
     setIsOpen(true)
     setError(null)
-  }, [activateDraftKey, draftKey, elementType])
+  }, [activateDraftKey, draftKey, elementType, normalizeResearchForType])
 
   /** Open panel in refine mode for an existing element. */
   const openPanelForRefine = useCallback((type: TextLabsComponentType, context: RefineContext) => {
@@ -183,13 +192,14 @@ export function useGenerationPanel() {
     const sameTarget = draftKey === nextDraftKey && elementType === type
     setElementType(type)
     activateDraftKey(nextDraftKey, !sameTarget)
+    normalizeResearchForType(type)
     setBlankElementId(null)
     setMode('refine')
     setEditElementId(context.elementId)
     setRefineContext(context)
     setIsOpen(true)
     setError(null)
-  }, [activateDraftKey, draftKey, elementType])
+  }, [activateDraftKey, draftKey, elementType, normalizeResearchForType])
 
   const closePanel = useCallback(() => {
     setIsOpen(false)
@@ -203,6 +213,43 @@ export function useGenerationPanel() {
     setError(null)
     resetResearch()
   }, [resetResearch])
+
+  const completeBlankReplacement = useCallback((
+    type: TextLabsComponentType,
+    replacedPlaceholderId: string,
+    nextRefineContext: RefineContext,
+  ) => {
+    const next = resolveBlankReplacementPanelState(
+      snapshotRef.current,
+      replacedPlaceholderId,
+      nextRefineContext,
+    )
+    if (!next) return
+
+    const nextDraftKey = `element:${nextRefineContext.elementId}`
+    const previousDraftKey = `blank:${replacedPlaceholderId}`
+    const previousDraft = draftsRef.current.get(previousDraftKey)
+    if (previousDraft && !draftsRef.current.has(nextDraftKey)) {
+      draftsRef.current.set(nextDraftKey, previousDraft)
+      setDraftVersion(previousVersion => previousVersion + 1)
+    }
+
+    snapshotRef.current = {
+      isOpen: next.isOpen,
+      blankElementId: next.blankElementId,
+      editElementId: next.editElementId,
+      mode: next.mode,
+    }
+    setElementType(type)
+    activateDraftKey(nextDraftKey, true)
+    normalizeResearchForType(type)
+    setBlankElementId(null)
+    setMode('refine')
+    setEditElementId(nextRefineContext.elementId)
+    setRefineContext(nextRefineContext)
+    setIsOpen(true)
+    setError(null)
+  }, [activateDraftKey, normalizeResearchForType])
 
   const getSnapshot = useCallback(() => snapshotRef.current, [])
 
@@ -232,6 +279,7 @@ export function useGenerationPanel() {
     getSnapshot,
     updateCurrentDraft,
     rememberDraftForElement,
+    completeBlankReplacement,
     setIsGenerating,
     setError,
     setResearchMode,

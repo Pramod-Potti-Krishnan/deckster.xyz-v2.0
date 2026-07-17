@@ -33,9 +33,10 @@ assert.match(
 )
 assert.match(
   builderSource,
-  /normalizeTextLabsElementType\(selectedComponentType\) \?\? 'TEXT_BOX'/,
-  'metrics and tables must route by semantic type, with TEXT_BOX only as a legacy fallback',
+  /const componentType = normalizeTextLabsElementType\(payload\.componentType \?\? payload\.elementType\)/,
+  'metrics and tables must route refine requests by their semantic component type',
 )
+assert.match(builderSource, /openPanelForRefine\(componentType, refineContext\)/)
 assert.doesNotMatch(
   builderSource,
   /onTextBoxSelected=\{\(elementId, formatting\) => \{[\s\S]{0,250}openPanelForEdit\('TEXT_BOX'/,

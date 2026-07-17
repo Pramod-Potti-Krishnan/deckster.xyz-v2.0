@@ -19,6 +19,7 @@ import type { ElementResearchCapabilities, ElementResearchMode } from '@/types/t
 import {
   buildElementResearchPolicy,
   hasSelectedElementResearchSource,
+  isNonResearchVisualElement,
 } from '@/lib/element-research-policy'
 import type { ThemeSyncState } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
@@ -48,6 +49,11 @@ interface UseTextLabsGenerationParams {
     resumePanelForElement: (type: TextLabsComponentType, elementId: string) => void
     openPanelForRefine: (type: TextLabsComponentType, context: RefineContext) => void
     rememberDraftForElement: (elementId: string, formData?: TextLabsFormData | null) => void
+    completeBlankReplacement: (
+      type: TextLabsComponentType,
+      replacedPlaceholderId: string,
+      refineContext: RefineContext,
+    ) => void
     changeElementType: (type: TextLabsComponentType) => void
     getSnapshot: () => {
       isOpen: boolean
@@ -85,8 +91,16 @@ interface UseTextLabsGenerationParams {
   toast: (opts: { title: string; description: string }) => void
 }
 
-function applyPositionToFormData(formData: TextLabsFormData, positionConfig: NonNullable<TextLabsFormData['positionConfig']>) {
-  formData.positionConfig = positionConfig
+function greatestCommonDivisor(a: number, b: number): number {
+  return b === 0 ? a : greatestCommonDivisor(b, a % b)
+}
+
+function applyPositionToFormData(
+  formData: TextLabsFormData,
+  positionConfig: NonNullable<TextLabsFormData['positionConfig']>,
+  includeTopLevelPosition = true,
+) {
+  if (includeTopLevelPosition) formData.positionConfig = positionConfig
   const fd = formData as any
   if (fd.imageConfig) {
     fd.imageConfig.start_col = positionConfig.start_col
@@ -95,6 +109,15 @@ function applyPositionToFormData(formData: TextLabsFormData, positionConfig: Non
     fd.imageConfig.height = positionConfig.position_height
     fd.imageConfig.position_width = positionConfig.position_width
     fd.imageConfig.position_height = positionConfig.position_height
+    fd.imageConfig.grid_row = `${positionConfig.start_row}/${positionConfig.start_row + positionConfig.position_height}`
+    fd.imageConfig.grid_column = `${positionConfig.start_col}/${positionConfig.start_col + positionConfig.position_width}`
+    if (Object.prototype.hasOwnProperty.call(fd.imageConfig, 'aspect_ratio')) {
+      const scaledWidth = Math.round(positionConfig.position_width * 1000)
+      const scaledHeight = Math.round(positionConfig.position_height * 1000)
+      const divisor = greatestCommonDivisor(scaledWidth, scaledHeight)
+      fd.imageConfig.aspect_ratio =
+        `${scaledWidth / divisor}:${scaledHeight / divisor}`
+    }
   }
   if (fd.infographicConfig) {
     fd.infographicConfig.start_col = positionConfig.start_col
@@ -277,6 +300,7 @@ export function useTextLabsGeneration({
             ? snapshot.themeBindings ?? trackedBlankInfo.themeBindings ?? null
             : null,
         }
+        if (snapshot.zIndex !== null) formData.z_index = snapshot.zIndex
         blankElements.updatePosition(
           blankId,
           snapshot.startCol,
@@ -306,6 +330,14 @@ export function useTextLabsGeneration({
         return
       }
 
+      // Contextual accessories (currently template Logo) render through the
+      // IMAGE form, whose generic fields do not know about template identity.
+      // Carry the persisted slot metadata forward before geometry preflight so
+      // Layout remains the owner of accessory geometry and atomic replacement.
+      formData.slotName = formData.slotName ?? refineContext.slotName
+      formData.slotKind = formData.slotKind ?? refineContext.slotKind
+      formData.accessoryType = formData.accessoryType ?? refineContext.accessoryType
+
       try {
         const snapshot = await readElementGenerationSnapshot({
           sendCommand: layoutServiceApis.sendElementCommand,
@@ -325,9 +357,12 @@ export function useTextLabsGeneration({
           auto_position: false,
         }
 
-        if (formData.slotKind !== 'accessory') {
-          applyPositionToFormData(formData, liveGridPosition)
-        }
+        applyPositionToFormData(
+          formData,
+          liveGridPosition,
+          formData.slotKind !== 'accessory',
+        )
+        if (snapshot.zIndex !== null) formData.z_index = snapshot.zIndex
         const themeVariantId = formData.useDeckTheme === true
           ? snapshot.themeVariantId ?? refineContext.themeVariantId
           : null
@@ -437,12 +472,14 @@ export function useTextLabsGeneration({
       formData.themeBindings = formData.useDeckTheme === true
         ? blankInfo.themeBindings ?? null
         : null
-      if (formData.slotKind !== 'accessory') {
-        applyPositionToFormData(formData, {
+      applyPositionToFormData(
+        formData,
+        {
           ...livePosition,
           auto_position: false,
-        })
-      }
+        },
+        formData.slotKind !== 'accessory',
+      )
     }
 
     // Enforce minimum card geometry for every Metrics request, including a
@@ -465,14 +502,20 @@ export function useTextLabsGeneration({
     const generationSlideIndex = blankInfo?.slideIndex ?? refineContext?.slideIndex ?? currentSlideIndex
     formData.slideIndex = generationSlideIndex
 
+    const nonResearchVisual = isNonResearchVisualElement(
+      formData.componentType,
+      formData.slotKind,
+      formData.accessoryType,
+    )
     const effectiveResearchSessionId = researchSessionId
       ?? refineContext?.research.session_id
       ?? null
     const effectiveResearchStoreName = researchStoreName
       ?? refineContext?.research.store_name
       ?? null
+    const effectiveResearchMode = nonResearchVisual ? 'off' : generationPanel.researchMode
     const researchPolicy = buildElementResearchPolicy({
-      mode: generationPanel.researchMode,
+      mode: effectiveResearchMode,
       selection: {
         web: generationPanel.researchWeb,
         uploadedDocuments: generationPanel.researchUploadedDocs,
@@ -483,7 +526,7 @@ export function useTextLabsGeneration({
       sessionId: effectiveResearchSessionId,
       userId: researchUserId,
     })
-    if (generationPanel.researchMode === 'on' && !hasSelectedElementResearchSource(researchPolicy)) {
+    if (!nonResearchVisual && effectiveResearchMode === 'on' && !hasSelectedElementResearchSource(researchPolicy)) {
       generationPanel.setIsGenerating(false)
       generationPanel.setError(
         'Research is on, but no available source is selected. Enable Web Search or configure Uploaded Documents or Knowledge Graph.',
@@ -491,7 +534,7 @@ export function useTextLabsGeneration({
       activeGenerationKeysRef.current.delete(generationKey)
       return
     }
-    formData.research = researchPolicy
+    formData.research = nonResearchVisual ? undefined : researchPolicy
 
     if (!layoutServiceApis?.sendElementCommand) {
       generationPanel.setIsGenerating(false)
@@ -656,7 +699,7 @@ export function useTextLabsGeneration({
 
     // Grounded generation may include one bounded Researcher round-trip.
     const controller = new AbortController()
-    const generationTimeoutMs = generationPanel.researchMode === 'off' ? 30_000 : 150_000
+    const generationTimeoutMs = effectiveResearchMode === 'off' ? 30_000 : 150_000
     const timeoutId = setTimeout(
       () => controller.abort(),
       generationTimeoutMs,
@@ -910,8 +953,8 @@ export function useTextLabsGeneration({
                 ? formData.deckContext as Record<string, unknown>
                 : deckContext ?? null,
               research: {
-                store_name: researchStoreName,
-                session_id: researchSessionId,
+                store_name: nonResearchVisual ? null : effectiveResearchStoreName,
+                session_id: nonResearchVisual ? null : effectiveResearchSessionId,
               },
             }
           }
@@ -957,7 +1000,13 @@ export function useTextLabsGeneration({
         }
       }
 
-      if (generatedRefineContext && generationPanel.getSnapshot().isOpen) {
+      if (currentBlankId && generatedRefineContext && elements.length === 1) {
+        generationPanel.completeBlankReplacement(
+          generatedRefineContext.elementType,
+          currentBlankId,
+          generatedRefineContext,
+        )
+      } else if (generatedRefineContext && generationPanel.getSnapshot().isOpen) {
         generationPanel.openPanelForRefine(generatedRefineContext.elementType, generatedRefineContext)
       }
       toast({

@@ -51,6 +51,7 @@ assert.deepEqual(
     style_owner: 'text_service',
     theme_variant_source: 'full_deck_generation',
     metrics_color_variant: '#547ea9',
+    z_index: 137,
   }))),
   {
     componentType: 'METRICS',
@@ -59,6 +60,7 @@ assert.deepEqual(
     styleOwner: 'text_service',
     themeVariantSource: 'full_deck_generation',
     metricsColorVariant: '#547ea9',
+    zIndex: 137,
   },
 )
 
@@ -202,6 +204,7 @@ assert.throws(
           elementId: 'placeholder-retry',
           position: { gridRow: '4/14', gridColumn: '4.4/26.2' },
           component_type: 'TEXT_BOX',
+          z_index: 222,
         }
       }
       return {
@@ -226,6 +229,7 @@ assert.throws(
     styleOwner: null,
     themeVariantSource: null,
     metricsColorVariant: null,
+    zIndex: 222,
   })
   assert.deepEqual(calls.map(call => call.action), ['getElementGeometry', 'getElementGeometry', 'refreshElementThemeMetadata'])
   assert.equal(calls.at(-1).params.themeVariantSource, 'element_generation')
@@ -249,6 +253,7 @@ assert.throws(
         component_type: 'TEXT_BOX',
         style_owner: 'text_service',
         theme_variant_source: 'full_deck_generation',
+        z_index: 88,
       }
     },
   })
@@ -256,6 +261,7 @@ assert.throws(
   assert.equal(snapshot.themeVariantId, null)
   assert.equal(snapshot.styleOwner, 'text_service')
   assert.equal(snapshot.themeVariantSource, 'full_deck_generation')
+  assert.equal(snapshot.zIndex, 88)
 }
 
 {

@@ -27,6 +27,8 @@ export interface GetElementGeometryResponse {
   theme_variant_source?: string | null
   metricsColorVariant?: string | null
   metrics_color_variant?: string | null
+  zIndex?: number | string | null
+  z_index?: number | string | null
 }
 
 export interface ElementGenerationMetadata {
@@ -36,6 +38,7 @@ export interface ElementGenerationMetadata {
   styleOwner: string | null
   themeVariantSource: string | null
   metricsColorVariant: string | null
+  zIndex: number | null
 }
 
 export type ElementGenerationPreflightStage = 'geometry' | 'theme_metadata'
@@ -148,7 +151,7 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
   if (!isRecord(response)) {
     return {
       componentType: null, themeVariantId: null, themeBindings: null,
-      styleOwner: null, themeVariantSource: null, metricsColorVariant: null,
+      styleOwner: null, themeVariantSource: null, metricsColorVariant: null, zIndex: null,
     }
   }
   const rawBindings = response.themeBindings ?? response.theme_bindings
@@ -157,6 +160,10 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
         Object.entries(rawBindings).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
       )
     : null
+  const rawZIndex = response.zIndex ?? response.z_index
+  const parsedZIndex = typeof rawZIndex === 'number' || typeof rawZIndex === 'string'
+    ? Number(rawZIndex)
+    : Number.NaN
   return {
     componentType: typeof (response.componentType ?? response.component_type) === 'string'
       ? String(response.componentType ?? response.component_type)
@@ -172,6 +179,7 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
     metricsColorVariant: typeof (response.metricsColorVariant ?? response.metrics_color_variant) === 'string'
       ? String(response.metricsColorVariant ?? response.metrics_color_variant)
       : null,
+    zIndex: Number.isFinite(parsedZIndex) ? parsedZIndex : null,
   }
 }
 
@@ -244,7 +252,11 @@ export async function readElementGenerationSnapshot({
         retries,
         retryDelayMs,
       )
-      metadata = parseElementGenerationMetadata(refreshed)
+      const refreshedMetadata = parseElementGenerationMetadata(refreshed)
+      metadata = {
+        ...refreshedMetadata,
+        zIndex: refreshedMetadata.zIndex ?? metadata.zIndex,
+      }
       if (!metadata.themeBindings || (requiresThemeVariant && !metadata.themeVariantId)) {
         throw new Error('The placeholder theme treatment is incomplete')
       }

@@ -10,6 +10,17 @@ import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.SHAPE
+type ShapeOverrideField =
+  | 'sides'
+  | 'fill'
+  | 'stroke'
+  | 'strokeWidth'
+  | 'opacity'
+  | 'rotation'
+  | 'size'
+  | 'background'
+  | 'position'
+  | 'padding'
 
 // Backend-aligned: Illustrator currently exposes 24 direct shape types plus custom.
 const SHAPE_TYPE_GROUPS: { group: string; types: { value: TextLabsShapeType; label: string }[] }[] = [
@@ -83,6 +94,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium')
   const [targetBackground, setTargetBackground] = useState('light')
   const [advancedModified, setAdvancedModified] = useState(false)
+  const [explicitFields, setExplicitFields] = useState<Set<ShapeOverrideField>>(() => new Set())
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
@@ -110,6 +122,36 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [showPosition, setShowPosition] = useState(false)
   const [showPadding, setShowPadding] = useState(false)
 
+  const markExplicit = useCallback((...fields: ShapeOverrideField[]) => {
+    setExplicitFields(previous => {
+      const next = new Set(previous)
+      fields.forEach(field => next.add(field))
+      return next
+    })
+    setAdvancedModified(true)
+  }, [])
+
+  const resetToAuto = useCallback(() => {
+    setCount(1)
+    setSides(6)
+    setFillColor('#3B82F6')
+    setStrokeColor('#1E40AF')
+    setStrokeWidth(2)
+    setOpacity(1)
+    setRotation(0)
+    setSize('medium')
+    setTargetBackground('light')
+    setX(elementContext ? (elementContext.startCol - 1) * GRID_CELL_SIZE : 60)
+    setY(elementContext ? (elementContext.startRow - 1) * GRID_CELL_SIZE : 180)
+    setWidthPx(gridToPx(elementContext?.width ?? DEFAULTS.width))
+    setHeightPx(gridToPx(elementContext?.height ?? DEFAULTS.height))
+    setPaddingConfig({ top: 0, right: 0, bottom: 0, left: 0 })
+    setZIndex(DEFAULTS.zIndex)
+    updateThemeSource({ mode: presentationId ? 'deck' : 'none', overrides: null })
+    setExplicitFields(new Set())
+    setAdvancedModified(false)
+  }, [elementContext, presentationId, updateThemeSource])
+
   // Derived grid values (for display and API)
   const gridW = pxToGrid(widthPx)
   const gridH = pxToGrid(heightPx)
@@ -127,7 +169,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
         group: group.group,
         options: group.types.map(t => ({ value: t.value, label: t.label })),
       })),
-      onChange: (v) => { setShapeType(v as TextLabsShapeType); setAdvancedModified(true) },
+      onChange: (v) => { setShapeType(v as TextLabsShapeType) },
       promptPlaceholder: shapeType === 'custom' ? 'e.g., three concentric circles' : 'e.g., a red star',
     })
   }, [shapeType, shapeLabel, registerMandatoryConfig])
@@ -139,14 +181,14 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
     const shapeConfig: Partial<ShapeConfig> = {
       shape_type: isCustom ? null : shapeType,
       prompt: isCustom ? (prompt || null) : null,
-      sides: shapeType === 'polygon' ? sides : null,
-      fill_color: fillColor,
-      stroke_color: strokeColor,
-      stroke_width: strokeWidth,
-      opacity,
-      rotation,
-      size,
-      target_background: targetBackground,
+      ...(shapeType === 'polygon' && explicitFields.has('sides') ? { sides } : {}),
+      ...(explicitFields.has('fill') ? { fill_color: fillColor } : {}),
+      ...(explicitFields.has('stroke') ? { stroke_color: strokeColor } : {}),
+      ...(explicitFields.has('strokeWidth') ? { stroke_width: strokeWidth } : {}),
+      ...(explicitFields.has('opacity') ? { opacity } : {}),
+      ...(explicitFields.has('rotation') ? { rotation } : {}),
+      ...(explicitFields.has('size') ? { size } : {}),
+      ...(explicitFields.has('background') ? { target_background: targetBackground } : {}),
       x,
       y,
       width_px: widthPx,
@@ -178,7 +220,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation, size, targetBackground, x, y, widthPx, heightPx, startCol, startRow, gridW, gridH, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
+  }, [prompt, count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation, size, targetBackground, x, y, widthPx, heightPx, startCol, startRow, gridW, gridH, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -187,13 +229,26 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
   return (
     <div className="space-y-2.5">
       {showAdvanced && (<>
+      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+        <div>
+          <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Automatic details</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400">Only changed fields override Illustrator defaults.</div>
+        </div>
+        <button type="button" onClick={resetToAuto} disabled={explicitFields.size === 0 && !advancedModified}
+          className="rounded-md border border-slate-300 px-2 py-1 text-[10px] text-slate-600 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300">
+          Reset to Auto
+        </button>
+      </div>
       {/* Section 1: Styling */}
       <CollapsibleSection title="Styling" isOpen={showStyling} onToggle={() => setShowStyling(!showStyling)}>
         <div className="space-y-2">
           <ThemeSourceSelector
             presentationId={presentationId}
             value={themeSource}
-            onChange={updateThemeSource}
+            onChange={selection => {
+              updateThemeSource(selection)
+              setAdvancedModified(true)
+            }}
           />
 
           <div className="grid grid-cols-2 gap-2">
@@ -202,7 +257,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <input
                 type="color"
                 value={fillColor}
-                onChange={(e) => { setFillColor(e.target.value); setAdvancedModified(true) }}
+                onChange={(e) => { setFillColor(e.target.value); markExplicit('fill') }}
                 className="h-7 w-full rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
               />
             </div>
@@ -211,7 +266,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <input
                 type="color"
                 value={strokeColor}
-                onChange={(e) => { setStrokeColor(e.target.value); setAdvancedModified(true) }}
+                onChange={(e) => { setStrokeColor(e.target.value); markExplicit('stroke') }}
                 className="h-7 w-full rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
               />
             </div>
@@ -225,7 +280,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 min={0}
                 max={10}
                 value={strokeWidth}
-                onChange={(e) => { setStrokeWidth(Number(e.target.value)); setAdvancedModified(true) }}
+                onChange={(e) => { setStrokeWidth(Number(e.target.value)); markExplicit('strokeWidth') }}
                 className="flex-1"
                 style={{ accentColor: 'hsl(var(--primary))' }}
               />
@@ -237,7 +292,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
             <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Target Background</label>
             <select
               value={targetBackground}
-              onChange={(e) => { setTargetBackground(e.target.value); setAdvancedModified(true) }}
+              onChange={(e) => { setTargetBackground(e.target.value); markExplicit('background') }}
               className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="light">Light</option>
@@ -253,7 +308,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 min={0}
                 max={100}
                 value={Math.round(opacity * 100)}
-                onChange={(e) => { setOpacity(Number(e.target.value) / 100); setAdvancedModified(true) }}
+                onChange={(e) => { setOpacity(Number(e.target.value) / 100); markExplicit('opacity') }}
                 className="flex-1"
                 style={{ accentColor: 'hsl(var(--primary))' }}
               />
@@ -269,7 +324,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 min={0}
                 max={359}
                 value={rotation}
-                onChange={(e) => { setRotation(Number(e.target.value)); setAdvancedModified(true) }}
+                onChange={(e) => { setRotation(Number(e.target.value)); markExplicit('rotation') }}
                 className="flex-1"
                 style={{ accentColor: 'hsl(var(--primary))' }}
               />
@@ -289,7 +344,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                     const cells = s === 'small' ? 3 : s === 'large' ? 8 : 5
                     setWidthPx(gridToPx(cells))
                     setHeightPx(gridToPx(cells))
-                    setAdvancedModified(true)
+                    markExplicit('size', 'position')
                   }}
                   className={`flex-1 px-2 py-1 rounded text-xs font-medium capitalize transition-colors ${
                     size === s
@@ -308,7 +363,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
             <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
             <select
               value={count}
-              onChange={(e) => setCount(Number(e.target.value))}
+              onChange={(e) => { setCount(Number(e.target.value)); setAdvancedModified(true) }}
               className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {[1, 2, 3, 4, 5, 6].map(n => (
@@ -323,7 +378,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Number of Sides</label>
               <select
                 value={sides}
-                onChange={(e) => { setSides(Number(e.target.value)); setAdvancedModified(true) }}
+                onChange={(e) => { setSides(Number(e.target.value)); markExplicit('sides') }}
                 className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {Array.from({ length: 10 }, (_, i) => i + 3).map(n => (
@@ -346,7 +401,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 value={x}
                 min={0}
                 max={1919}
-                onChange={(e) => { setX(Number(e.target.value)); setAdvancedModified(true) }}
+                onChange={(e) => { setX(Number(e.target.value)); markExplicit('position') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
@@ -357,7 +412,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 value={y}
                 min={0}
                 max={1079}
-                onChange={(e) => { setY(Number(e.target.value)); setAdvancedModified(true) }}
+                onChange={(e) => { setY(Number(e.target.value)); markExplicit('position') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
@@ -368,7 +423,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 value={widthPx}
                 min={1}
                 max={1920}
-                onChange={(e) => { setWidthPx(Number(e.target.value)); setAdvancedModified(true) }}
+                onChange={(e) => { setWidthPx(Number(e.target.value)); markExplicit('position') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
@@ -379,7 +434,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 value={heightPx}
                 min={1}
                 max={1080}
-                onChange={(e) => { setHeightPx(Number(e.target.value)); setAdvancedModified(true) }}
+                onChange={(e) => { setHeightPx(Number(e.target.value)); markExplicit('position') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
@@ -395,7 +450,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 min={1}
                 max={32}
                 step={0.2}
-                onChange={(e) => { setX((Number(e.target.value) - 1) * GRID_CELL_SIZE); setAdvancedModified(true) }}
+                onChange={(e) => { setX((Number(e.target.value) - 1) * GRID_CELL_SIZE); markExplicit('position') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
@@ -407,7 +462,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 min={1}
                 max={18}
                 step={0.2}
-                onChange={(e) => { setY((Number(e.target.value) - 1) * GRID_CELL_SIZE); setAdvancedModified(true) }}
+                onChange={(e) => { setY((Number(e.target.value) - 1) * GRID_CELL_SIZE); markExplicit('position') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
@@ -419,7 +474,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 min={0.2}
                 max={32}
                 step={0.2}
-                onChange={(e) => { setWidthPx(Number(e.target.value) * GRID_CELL_SIZE); setAdvancedModified(true) }}
+                onChange={(e) => { setWidthPx(Number(e.target.value) * GRID_CELL_SIZE); markExplicit('position') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
@@ -431,7 +486,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 min={0.2}
                 max={18}
                 step={0.2}
-                onChange={(e) => { setHeightPx(Number(e.target.value) * GRID_CELL_SIZE); setAdvancedModified(true) }}
+                onChange={(e) => { setHeightPx(Number(e.target.value) * GRID_CELL_SIZE); markExplicit('position') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
               />
             </div>
@@ -450,7 +505,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
         <PaddingControl
           paddingConfig={paddingConfig}
           onChange={setPaddingConfig}
-          onAdvancedModified={() => setAdvancedModified(true)}
+          onAdvancedModified={() => markExplicit('padding')}
         />
       </CollapsibleSection>
       </>)}

@@ -28,6 +28,7 @@
     "test:textlabs-abort-signal": "node scripts/test-textlabs-abort-signal.mjs",
     "test:textlabs-session-ownership": "node scripts/test-textlabs-session-ownership.mjs",
     "test:blank-element-recovery": "node scripts/test-blank-element-recovery.mjs",
+    "test:visual-element-contract": "node scripts/test-visual-element-contract.mjs",
     "test:textbox-role-contract": "node scripts/test-textbox-role-contract.mjs",
     "test:metrics-overhaul-contract": "node scripts/test-metrics-overhaul-contract.mjs",
     "test:table-overhaul-contract": "node scripts/test-table-overhaul-contract.mjs",
