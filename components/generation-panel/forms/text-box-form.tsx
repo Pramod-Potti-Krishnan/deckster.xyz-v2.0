@@ -194,11 +194,7 @@ export function TextBoxForm({
     ?? (existingTextTarget?.slotName ? `slot:${existingTextTarget.slotName}` : null)
 
   useEffect(() => {
-    if (
-      previousTargetIdentity.current !== null
-      && targetIdentity !== null
-      && previousTargetIdentity.current !== targetIdentity
-    ) {
+    if (previousTargetIdentity.current !== targetIdentity) {
       setStructure('auto')
       setCount(1)
       setLayoutChoice('auto')
@@ -211,6 +207,12 @@ export function TextBoxForm({
       setPositionModified(false)
       setPaddingModified(false)
       setPaddingConfig({ top: 0, right: 0, bottom: 0, left: 0 })
+      setShowInstances(false)
+      setShowBoxDesign(false)
+      setShowHeading(false)
+      setShowContent(false)
+      setShowPositioning(false)
+      setShowPadding(false)
     }
     previousTargetIdentity.current = targetIdentity
   }, [targetIdentity])
@@ -311,6 +313,7 @@ export function TextBoxForm({
   const isBodyText = semanticRole === 'BODY_TEXT' && slotKind === 'body'
   const isSystemManaged = Boolean(selectedSlot?.system_managed || slotKind === 'system')
   const isAccessory = slotKind === 'accessory'
+  const isStructuralText = !isBodyText && !isSystemManaged && !isAccessory
 
   const updateTextboxOverride = useCallback(<K extends keyof TextBoxConfig>(field: K, value: TextBoxConfig[K] | undefined) => {
     setTextboxOverrides(previous => {
@@ -565,7 +568,7 @@ export function TextBoxForm({
         </section>
       )}
 
-      {!isAccessory && !isSystemManaged && (
+      {isBodyText && (
         <section className="space-y-2 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
           <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Title</div>
           <div className="grid grid-cols-2 gap-2">
@@ -602,9 +605,9 @@ export function TextBoxForm({
         </section>
       )}
 
-      {researchControls}
+      {(isBodyText || isSystemManaged) && researchControls}
 
-      {!isSystemManaged && !isAccessory && (
+      {isBodyText && (
         <section className="space-y-2 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
           <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Surface</div>
           <div className="grid grid-cols-2 gap-2">
@@ -672,7 +675,7 @@ export function TextBoxForm({
         </section>
       )}
 
-      {showAdvanced && !isAccessory && (
+      {showAdvanced && !isAccessory && !isSystemManaged && (
         <section className="space-y-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-700 dark:bg-slate-800/40">
           <div className="flex items-center justify-between gap-2">
             <div>
@@ -704,6 +707,37 @@ export function TextBoxForm({
                 Only controls with an explicit value are sent. Every control still showing Auto continues to use the resolved Platinum profile.
               </p>
             </div>
+          )}
+
+          {isStructuralText && (
+            <CollapsibleSection title="Template Text" isOpen={showHeading} onToggle={() => setShowHeading(value => !value)}>
+              <div className="space-y-2.5">
+                <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+                  Font, weight, color, case, and spacing use the active template and deck theme in Auto.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <OptionalNumberInput
+                    label="Max chars"
+                    min={1}
+                    value={geometryMode === 'MANUAL' ? manualGeometryOverrides.max_chars : undefined}
+                    onChange={value => updateExplicitManualOverride('max_chars', value)}
+                  />
+                  <OptionalNumberInput
+                    label="Max lines"
+                    min={1}
+                    value={geometryMode === 'MANUAL' ? manualGeometryOverrides.max_lines : undefined}
+                    onChange={value => updateExplicitManualOverride('max_lines', value)}
+                  />
+                </div>
+                <FontOverrideSection
+                  label="Text Font"
+                  prefix="content"
+                  config={detailedFontConfig}
+                  onChange={updateDetailedTextboxOverride}
+                  thirdToggle="underline"
+                />
+              </div>
+            </CollapsibleSection>
           )}
 
           {isBodyText && (
@@ -971,7 +1005,7 @@ export function TextBoxForm({
             </CollapsibleSection>
           )}
 
-          {!isSystemManaged && (
+          {isBodyText && (
             <CollapsibleSection title="Heading" isOpen={showHeading} onToggle={() => setShowHeading(value => !value)}>
               <div className="space-y-2.5">
                 <ToggleRow

@@ -961,7 +961,10 @@ export function useTextLabsGeneration({
     const startRow = 4
 
     if (!layoutServiceApis?.sendElementCommand) {
-      generationPanel.openPanel(componentType)
+      toast({
+        title: 'Canvas is still loading',
+        description: 'Wait a moment, then add the element again.',
+      })
       return
     }
 
@@ -987,6 +990,9 @@ export function useTextLabsGeneration({
         componentType,
         themeVariantSource: 'element_generation',
       })
+      if (response?.success === false) {
+        throw new Error(response.error || 'Layout rejected the blank placeholder')
+      }
 
       const layoutElementId = response?.elementId || tempId
       const metadata = parseElementGenerationMetadata(response)
@@ -1005,10 +1011,13 @@ export function useTextLabsGeneration({
       })
       generationPanel.openPanelForElement(componentType, layoutElementId)
     } catch (err) {
-      console.warn('[TextLabs] Failed to insert blank placeholder, falling back to direct panel:', err)
-      generationPanel.openPanel(componentType)
+      console.warn('[TextLabs] Failed to insert blank placeholder:', err)
+      toast({
+        title: 'Element was not added',
+        description: 'The panel opens only after the canvas placeholder is ready. Try again.',
+      })
     }
-  }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex])
+  }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, toast])
 
   return { handleGenerate, handleOpenPanel }
 }
