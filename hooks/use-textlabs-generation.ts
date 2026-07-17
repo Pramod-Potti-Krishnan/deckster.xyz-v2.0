@@ -857,13 +857,14 @@ export function useTextLabsGeneration({
         insertedElementIds.length = 0
       }
       // Restore placeholder on failure
+      let restoredBlankElementId: string | null = currentBlankId
       if (currentBlankId && currentBlankInfo && layoutServiceApis?.sendElementCommand) {
         blankElements.setStatus(currentBlankId, 'blank')
         const placeholderHtml = buildPlaceholderHtml(currentBlankId, formData.componentType)
         const gridRow = `${currentBlankInfo.startRow}/${currentBlankInfo.startRow + currentBlankInfo.height}`
         const gridColumn = `${currentBlankInfo.startCol}/${currentBlankInfo.startCol + currentBlankInfo.width}`
         try {
-          await restoreBlankElementAfterFailure({
+          restoredBlankElementId = await restoreBlankElementAfterFailure({
             elementId: currentBlankId,
             trackingWasRemoved: blankTrackingWasRemoved,
             deleteElement: () => layoutServiceApis.sendElementCommand('deleteElement', {
@@ -903,6 +904,10 @@ export function useTextLabsGeneration({
               console.warn('[TextLabs] Spinner was already absent during placeholder recovery:', deleteError)
             },
           })
+          const latestPanel = generationPanel.getSnapshot()
+          if (restoredBlankElementId && (!latestPanel.isOpen || latestPanel.blankElementId === currentBlankId)) {
+            generationPanel.openPanelForElement(currentBlankInfo.componentType, restoredBlankElementId)
+          }
         } catch (restoreErr) {
           console.warn('[TextLabs] Failed to restore placeholder after error:', restoreErr)
         }
@@ -911,11 +916,13 @@ export function useTextLabsGeneration({
       // failure only after any placeholder/tracking recovery has completed.
       const latestPanel = generationPanel.getSnapshot()
       const ownsCurrentPanel = currentBlankId
-        ? latestPanel.blankElementId === currentBlankId
+        ? latestPanel.blankElementId === currentBlankId || latestPanel.blankElementId === restoredBlankElementId
         : refineContext
           ? latestPanel.editElementId === refineContext.elementId
           : !latestPanel.isOpen
-      if (ownsCurrentPanel || !latestPanel.isOpen) {
+      if (currentBlankId && currentBlankInfo && (!latestPanel.isOpen || ownsCurrentPanel)) {
+        generationPanel.setError(errorMessage)
+      } else if (ownsCurrentPanel || !latestPanel.isOpen) {
         generationPanel.setError(errorMessage)
       } else {
         toast({
