@@ -616,6 +616,7 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
   geometryMode: TextGeometryMode
   manualGeometryOverrides?: TextManualGeometryOverrides
   compose?: boolean
+  multiBoxColorMode?: 'SAME' | 'ALTERNATING' | 'PRIMARY_ACCENTS' | 'THEME_SEQUENCE'
   elements?: Array<{
     grid_position: {
       start_col: number
