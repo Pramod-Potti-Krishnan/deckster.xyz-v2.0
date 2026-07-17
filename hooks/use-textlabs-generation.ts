@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from "react"
 import { TextLabsFormData, TextLabsComponentType } from '@/types/textlabs'
-import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, buildSemanticUpsertParams, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
+import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, buildSemanticUpsertParams, detachMetricsOverrideBindings, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import {
@@ -525,6 +525,23 @@ export function useTextLabsGeneration({
         activeGenerationKeysRef.current.delete(generationKey)
         return
       }
+    }
+
+    if (formData.componentType === 'METRICS') {
+      // Persist the same sparse ownership metadata that is sent over the wire.
+      // Otherwise a response without bindings metadata could fall back to the
+      // pre-request ThemeContract map and silently reattach a manual override.
+      formData.themeBindings = detachMetricsOverrideBindings(
+        formData.themeBindings,
+        formData.metricsConfig,
+      )
+      formData.elements = formData.elements?.map(element => ({
+        ...element,
+        theme_bindings: detachMetricsOverrideBindings(
+          element.theme_bindings,
+          formData.metricsConfig,
+        ),
+      }))
     }
 
     if (!themeIsStillAuthoritative()) {
