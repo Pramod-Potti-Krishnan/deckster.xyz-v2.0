@@ -443,6 +443,7 @@ export function buildApiPayload(
   }
 
   if (formData.componentType === 'METRICS') {
+    options.multiBoxColorMode = formData.multiBoxColorMode
     options.metricsFitMode = formData.metricsFitMode
     if (formData.metricsFitMode === 'MANUAL') {
       options.manualMetricsOverrides = (formData.manualMetricsOverrides ?? {}) as Record<string, unknown>

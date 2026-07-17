@@ -160,6 +160,7 @@ export function MetricsForm({
 }: MetricsFormProps) {
   const [count, setCount] = useState(1)
   const [layoutChoice, setLayoutChoice] = useState<MetricsLayoutChoice>('auto')
+  const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<MetricsFormData['multiBoxColorMode']>>('SAME')
   const [visualOverrides, setVisualOverrides] = useState<Partial<MetricsConfig>>({})
   const [fitMode, setFitMode] = useState<MetricsFitMode>('AUTO')
   const [manualOverrides, setManualOverrides] = useState<MetricsManualOverrides>({})
@@ -285,6 +286,7 @@ export function MetricsForm({
       useDeckTheme: Boolean(presentationId),
       themeOverrides: null,
       metricsFitMode: fitMode,
+      multiBoxColorMode: count > 1 ? multiBoxColorMode : undefined,
       metricsLayoutChoice: layoutChoice,
       // MANUAL is an explicit ownership handoff. An empty object is meaningful
       // when the user changed only visual typography fields.
@@ -298,7 +300,7 @@ export function MetricsForm({
       paddingConfig,
     }
     onSubmit(formData)
-  }, [count, fitIsManual, fitMode, layoutChoice, manualOverrides, onSubmit, paddingConfig, paddingModified, positionConfig, positionModified, presentationId, prompt, resolvedLayout, visualOverrides, zIndex])
+  }, [count, fitIsManual, fitMode, layoutChoice, manualOverrides, multiBoxColorMode, onSubmit, paddingConfig, paddingModified, positionConfig, positionModified, presentationId, prompt, resolvedLayout, visualOverrides, zIndex])
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 
@@ -350,6 +352,23 @@ export function MetricsForm({
           </div>
         </div>
       </div>
+      {count > 1 && (
+        <label className="mt-2 block space-y-1">
+          <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Card colors</span>
+          <select
+            aria-label={advanced ? 'Advanced metric card color pattern' : 'Metric card color pattern'}
+            value={multiBoxColorMode}
+            disabled={isGenerating}
+            onChange={event => setMultiBoxColorMode(event.target.value as NonNullable<MetricsFormData['multiBoxColorMode']>)}
+            className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+          >
+            <option value="SAME">Same color — default</option>
+            <option value="ALTERNATING">Alternating theme colors</option>
+            <option value="PRIMARY_ACCENTS">Primary color accents</option>
+            <option value="THEME_SEQUENCE">Different theme colors</option>
+          </select>
+        </label>
+      )}
       <p className={`mt-1.5 text-[9px] ${resolvedLayout.viable ? 'text-slate-400' : 'font-medium text-amber-600 dark:text-amber-400'}`}>
         {count === 1
           ? 'One card uses the full live placeholder.'

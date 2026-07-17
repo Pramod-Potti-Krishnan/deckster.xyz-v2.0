@@ -632,6 +632,7 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
 export interface MetricsFormData extends TextLabsBaseFormData {
   componentType: 'METRICS'
   metricsConfig: Partial<MetricsConfig>
+  multiBoxColorMode?: 'SAME' | 'ALTERNATING' | 'PRIMARY_ACCENTS' | 'THEME_SEQUENCE'
   /** Panel-only intent used to re-resolve against preflight live geometry. */
   metricsLayoutChoice?: 'auto' | 'horizontal' | 'vertical' | 'grid'
   metricsFitMode: MetricsFitMode
