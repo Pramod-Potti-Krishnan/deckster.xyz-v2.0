@@ -329,16 +329,14 @@ export function buildApiPayload(
     semanticRole: formData.componentType === 'TEXT_BOX' && formData.slotKind !== 'accessory'
       ? formData.semanticRole
       : undefined,
-    slotName: formData.componentType === 'TEXT_BOX' ? formData.slotName : undefined,
-    slotKind: formData.componentType === 'TEXT_BOX' ? formData.slotKind : undefined,
-    accessoryType: formData.componentType === 'TEXT_BOX' ? formData.accessoryType : undefined,
+    slotName: formData.slotName,
+    slotKind: formData.slotKind,
+    accessoryType: formData.accessoryType,
     geometryMode: formData.componentType === 'TEXT_BOX' ? formData.geometryMode : undefined,
     manualGeometryOverrides: formData.componentType === 'TEXT_BOX' && formData.geometryMode === 'MANUAL'
       ? formData.manualGeometryOverrides as Record<string, unknown> | undefined
       : undefined,
-    slotMetadata: formData.componentType === 'TEXT_BOX'
-      ? formData.slotMetadata as Record<string, unknown> | undefined
-      : undefined,
+    slotMetadata: formData.slotMetadata as Record<string, unknown> | undefined,
     textOnlyMode: !advancedModified,
     count,
     layout,
@@ -589,6 +587,47 @@ export function buildInsertionParams(
         method: 'insertDiagram',
         params: { ...baseParams, htmlContent: extractBodyContent(element.html || '') },
       }
+  }
+}
+
+export function buildSemanticUpsertParams(
+  params: Record<string, unknown>,
+  slideIndex: number,
+  replacesElementId?: string | null,
+): Record<string, unknown> | null {
+  const citationsUsed = Array.isArray(params.citationsUsed) ? params.citationsUsed : []
+  const isLogoAccessory = params.slotKind === 'accessory' && params.accessoryType === 'LOGO'
+  const isSemanticText = params.componentType === 'TEXT_BOX' && (
+    Boolean(params.slotName) ||
+    params.semanticRole !== 'BODY_TEXT' ||
+    citationsUsed.length > 0 ||
+    Boolean(replacesElementId && params.slotName)
+  )
+  if (!isLogoAccessory && !isSemanticText) return null
+
+  return {
+    elementId: params.elementId,
+    ...(replacesElementId ? { replacesElementId } : {}),
+    slideIndex,
+    content: isLogoAccessory ? params.imageUrl : params.content,
+    semanticRole: isLogoAccessory ? undefined : params.semanticRole,
+    slotName: params.slotName,
+    slotKind: params.slotKind,
+    accessoryType: params.accessoryType,
+    geometry: params.slotKind === 'body' ? {
+      gridRow: params.gridRow,
+      gridColumn: params.gridColumn,
+    } : undefined,
+    citationsUsed,
+    metadata: {
+      componentType: params.componentType,
+      researchProvenance: params.researchProvenance,
+      styleOwner: params.styleOwner,
+      themeVariantId: params.themeVariantId,
+      themeBindings: params.themeBindings,
+      resolvedGeometry: params.resolvedGeometry,
+      platinumProfile: params.platinumProfile,
+    },
   }
 }
 

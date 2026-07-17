@@ -3,11 +3,13 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   type TemplateSlotCatalog,
+  type ImageFormData,
   type TextBoxConfig,
   type TextBoxFormData,
   type TextBoxStructure,
   type TextBoxTitleStyle,
   type TextLabsPositionConfig,
+  type TextLabsFormData,
   type TextManualGeometryOverrides,
   type TextSemanticRole,
   type TextSlotKind,
@@ -22,6 +24,7 @@ import {
   BODY_TEXT_AUTO_SLOT,
   findSelectedSlot,
   selectionForExistingTarget,
+  slotMetadataForRequest,
   slotSelectionValue,
 } from '@/lib/text-slot-catalog'
 
@@ -73,7 +76,7 @@ interface ExistingTextTarget {
 }
 
 interface TextBoxFormProps {
-  onSubmit: (formData: TextBoxFormData) => void
+  onSubmit: (formData: TextLabsFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   presentationId?: string | null
@@ -282,6 +285,34 @@ export function TextBoxForm({
 
   const handleSubmit = useCallback(() => {
     const bodyCount = isBodyText ? count : 1
+    const slotMetadata = slotMetadataForRequest(selectedSlot)
+    if (isAccessory && selectedSlot?.accessory_type === 'LOGO') {
+      const logoFormData: ImageFormData = {
+        componentType: 'IMAGE',
+        prompt,
+        count: 1,
+        layout: 'horizontal',
+        advancedModified: false,
+        z_index: zIndex,
+        presentationId,
+        useDeckTheme: Boolean(presentationId),
+        themeOverrides: null,
+        slotName: selectedSlot.slot_name,
+        slotKind: 'accessory',
+        accessoryType: 'LOGO',
+        slotMetadata,
+        imageConfig: {
+          style: 'brand_graphic',
+          quality: 'high',
+          corners: 'square',
+          border: false,
+          placeholder_mode: false,
+          auto_position: true,
+        },
+      }
+      onSubmit(logoFormData)
+      return
+    }
     const formData: TextBoxFormData = {
       componentType: 'TEXT_BOX',
       prompt,
@@ -296,18 +327,7 @@ export function TextBoxForm({
       slotName: selectedSlot?.slot_name ?? null,
       slotKind,
       accessoryType: selectedSlot?.accessory_type ?? null,
-      slotMetadata: selectedSlot ? {
-        geometry: selectedSlot.geometry ? {
-          grid_width: selectedSlot.geometry.position_width,
-          grid_height: selectedSlot.geometry.position_height,
-          start_col: selectedSlot.geometry.start_col,
-          start_row: selectedSlot.geometry.start_row,
-        } : undefined,
-        typography: selectedSlot.typography ?? undefined,
-        single_instance: selectedSlot.single_instance,
-        system_managed: selectedSlot.system_managed,
-        kind: selectedSlot.kind,
-      } : undefined,
+      slotMetadata,
       geometryMode,
       manualGeometryOverrides: geometryMode === 'MANUAL' && Object.keys(manualGeometryOverrides).length
         ? manualGeometryOverrides
@@ -329,6 +349,7 @@ export function TextBoxForm({
     geometryMode,
     gridCols,
     isBodyText,
+    isAccessory,
     layout,
     manualGeometryOverrides,
     onSubmit,
@@ -437,7 +458,7 @@ export function TextBoxForm({
 
       {researchControls}
 
-      {!isSystemManaged && (
+      {!isSystemManaged && !isAccessory && (
         <section className="space-y-2 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
           <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Surface</div>
           <div className="grid grid-cols-2 gap-2">
@@ -505,7 +526,7 @@ export function TextBoxForm({
         </section>
       )}
 
-      {showAdvanced && (
+      {showAdvanced && !isAccessory && (
         <section className="space-y-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-700 dark:bg-slate-800/40">
           <div className="flex items-center justify-between gap-2">
             <div>
