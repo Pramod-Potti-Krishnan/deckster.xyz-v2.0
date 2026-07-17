@@ -1,11 +1,19 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
-import { TableFormData, TableConfig, TextLabsPositionConfig, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
-import { ElementContext, MandatoryConfig } from '../types'
-import { ToggleRow } from '../shared/toggle-row'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import type {
+  TableCellMark,
+  TableColumnBrief,
+  TableColumnKind,
+  TableConfig,
+  TableFormData,
+  TableStructureMode,
+  TextLabsPaddingConfig,
+  TextLabsPositionConfig,
+} from '@/types/textlabs'
+import { TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
+import type { ElementContext, MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
-import { FontOverrideSection } from '../shared/font-override-section'
 import { PositionPresets } from '../shared/position-presets'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
@@ -13,70 +21,9 @@ import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TABLE
-
-const DEFAULT_TABLE_CONFIG: TableConfig = {
-  columns: 4,
-  rows: 5,
-  stripe_rows: true,
-  corners: 'square',
-  header_style: 'solid',
-  alignment: 'left',
-  border_style: 'light',
-  header_color: null,
-  first_column_bold: false,
-  last_column_bold: false,
-  show_total_row: false,
-  col_balance: 'descriptive',
-  column_widths: [],
-  placeholder_mode: false,
-  header_min_chars: 5,
-  header_max_chars: 25,
-  cell_min_chars: 10,
-  cell_max_chars: 50,
-  header_font_color: null,
-  header_font_size: null,
-  header_font_family: null,
-  header_bold: null,
-  header_italic: null,
-  header_allcaps: null,
-  cell_font_color: null,
-  cell_font_size: null,
-  cell_font_family: null,
-  cell_bold: null,
-  cell_italic: null,
-  cell_allcaps: null,
-}
-
-/**
- * Rebuild column width inputs: distribute available width among columns.
- * descriptive = first col gets more, data = equal distribution.
- */
-function rebuildColumnWidths(
-  columns: number,
-  positionWidth: number,
-  colBalance: 'descriptive' | 'data'
-): number[] {
-  const totalPx = positionWidth * GRID_CELL_SIZE
-  if (colBalance === 'data') {
-    const minFirstPct = Math.max(10, Math.floor(100 / (columns * 2)))
-    const restPct = Math.floor((100 - minFirstPct) / Math.max(1, columns - 1))
-    const widths = [minFirstPct]
-    for (let i = 1; i < columns; i++) widths.push(restPct)
-    widths[widths.length - 1] += 100 - widths.reduce((a, b) => a + b, 0)
-    return widths
-  }
-  // descriptive: first column gets 40%, rest split evenly
-  const firstPct = Math.min(40, Math.floor(100 * 0.4))
-  const restPct = Math.floor((100 - firstPct) / Math.max(1, columns - 1))
-  const widths = [firstPct]
-  for (let i = 1; i < columns; i++) {
-    widths.push(restPct)
-  }
-  // absorb remainder into last column
-  const sum = widths.reduce((a, b) => a + b, 0)
-  widths[widths.length - 1] += 100 - sum
-  return widths
-}
+const COLUMN_KINDS: TableColumnKind[] = [
+  'label', 'tag', 'numeric', 'currency', 'percent', 'status', 'single_line', 'multi_line', 'bullets',
+]
 
 interface TableFormProps {
   onSubmit: (formData: TableFormData) => void
@@ -86,26 +33,130 @@ interface TableFormProps {
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
-  registerMandatoryConfig: (config: MandatoryConfig) => void
+  registerMandatoryConfig: (config: MandatoryConfig | null) => void
+  researchControls?: ReactNode
 }
 
-export function TableForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: TableFormProps) {
-  const [count, setCount] = useState(1)
-  const [columns, setColumns] = useState(4)
+function OptionalSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: Array<{ value: string; label: string }>
+  onChange: (value: string | undefined) => void
+}) {
+  return (
+    <label className="min-w-0 space-y-1">
+      <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <select
+        aria-label={label}
+        value={value}
+        onChange={event => onChange(event.target.value || undefined)}
+        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+      >
+        <option value="">Auto</option>
+        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </label>
+  )
+}
+
+function OptionalTextInput({
+  label,
+  value,
+  placeholder = 'Auto',
+  onChange,
+}: {
+  label: string
+  value?: string | null
+  placeholder?: string
+  onChange: (value: string | undefined) => void
+}) {
+  return (
+    <label className="min-w-0 space-y-1">
+      <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <input
+        value={value ?? ''}
+        placeholder={placeholder}
+        onChange={event => onChange(event.target.value || undefined)}
+        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+      />
+    </label>
+  )
+}
+
+function OptionalNumberInput({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string
+  value?: number
+  min: number
+  max: number
+  onChange: (value: number | undefined) => void
+}) {
+  return (
+    <label className="min-w-0 space-y-1">
+      <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <input
+        type="number"
+        value={value ?? ''}
+        min={min}
+        max={max}
+        placeholder="Auto"
+        onChange={event => onChange(event.target.value ? Number(event.target.value) : undefined)}
+        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+      />
+    </label>
+  )
+}
+
+function makeColumnBrief(index: number): TableColumnBrief {
+  return {
+    index,
+    name: `Column ${index}`,
+    kind: index === 1 ? 'label' : 'single_line',
+    detail: index === 1 ? 'Concise row label' : 'One grounded value per row',
+    target_len: index === 1 ? 'short' : 'medium',
+  }
+}
+
+export function TableForm({
+  onSubmit,
+  registerSubmit,
+  isGenerating,
+  presentationId,
+  elementContext,
+  prompt,
+  showAdvanced,
+  registerMandatoryConfig,
+  researchControls,
+}: TableFormProps) {
+  const [structureMode, setStructureMode] = useState<TableStructureMode>('AUTO')
   const [rows, setRows] = useState(5)
-
-  const [config, setConfig] = useState<TableConfig>({ ...DEFAULT_TABLE_CONFIG })
-  const [advancedModified, setAdvancedModified] = useState(false)
+  const [columns, setColumns] = useState(4)
+  const [count, setCount] = useState(1)
+  const [patch, setPatch] = useState<Partial<TableConfig>>({})
+  const [columnBrief, setColumnBrief] = useState<TableColumnBrief[]>([])
+  const [cellMarks, setCellMarks] = useState<TableCellMark[]>([])
+  const [markDraft, setMarkDraft] = useState<TableCellMark>({ row: 1, col: 1, mark: 'highlight', style: 'chip' })
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
-
-  // Section visibility
-  const [showStructure, setShowStructure] = useState(false)
-  const [showStyling, setShowStyling] = useState(false)
+  const [zIndexModified, setZIndexModified] = useState(false)
+  const [positionModified, setPositionModified] = useState(false)
+  const [paddingModified, setPaddingModified] = useState(false)
+  const [showSchema, setShowSchema] = useState(false)
+  const [showBehavior, setShowBehavior] = useState(false)
+  const [showTypography, setShowTypography] = useState(false)
   const [showPositioning, setShowPositioning] = useState(false)
   const [showPadding, setShowPadding] = useState(false)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
-  // Position
   const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
     start_col: 2,
     start_row: 4,
@@ -113,353 +164,236 @@ export function TableForm({ onSubmit, registerSubmit, isGenerating, presentation
     position_height: DEFAULTS.height,
     auto_position: false,
   })
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({ top: 0, right: 0, bottom: 0, left: 0 })
 
-  // Padding
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
-    top: 0, right: 0, bottom: 0, left: 0,
-  })
-
-  // Column widths (auto-distributed)
-  const [columnWidths, setColumnWidths] = useState<number[]>(() =>
-    rebuildColumnWidths(4, DEFAULTS.width, 'descriptive')
-  )
-
-  // Recalculate column widths when columns/position/balance changes
-  const autoWidths = useMemo(() =>
-    rebuildColumnWidths(columns, positionConfig.position_width, config.col_balance as 'descriptive' | 'data'),
-    [columns, positionConfig.position_width, config.col_balance]
-  )
+  useEffect(() => registerMandatoryConfig(null), [registerMandatoryConfig])
 
   useEffect(() => {
-    setColumnWidths(autoWidths)
-  }, [autoWidths])
-
-  // Initialize position from canvas context
-  useEffect(() => {
-    if (elementContext) {
-      setPositionConfig(prev => ({
-        ...prev,
-        start_col: elementContext.startCol,
-        start_row: elementContext.startRow,
-        position_width: elementContext.width,
-        position_height: elementContext.height,
-      }))
-    }
+    if (!elementContext) return
+    setPositionConfig(previous => ({
+      ...previous,
+      start_col: elementContext.startCol,
+      start_row: elementContext.startRow,
+      position_width: elementContext.width,
+      position_height: elementContext.height,
+    }))
   }, [elementContext])
 
-  const updateConfig = useCallback((field: string, value: unknown) => {
-    setConfig(prev => ({ ...prev, [field]: value }))
-    setAdvancedModified(true)
+  const updatePatch = useCallback(<K extends keyof TableConfig>(field: K, value: TableConfig[K] | undefined) => {
+    setPatch(previous => {
+      const next = { ...previous }
+      if (value === undefined || value === null || value === '') delete next[field]
+      else next[field] = value
+      return next
+    })
   }, [])
 
-  // Register mandatory config — Header Style
-  const headerStyleLabel = { solid: 'Solid', minimal: 'Minimal', accent: 'Accent', pastel: 'Pastel' }[config.header_style] || 'Solid'
+  const updateBrief = useCallback((index: number, updates: Partial<TableColumnBrief>) => {
+    setColumnBrief(previous => previous.map(column => column.index === index ? { ...column, ...updates } : column))
+  }, [])
+
+  const ensureBrief = useCallback(() => {
+    setColumnBrief(previous => previous.length
+      ? previous.slice(0, columns)
+      : Array.from({ length: columns }, (_, index) => makeColumnBrief(index + 1)))
+  }, [columns])
 
   useEffect(() => {
-    registerMandatoryConfig({
-      fieldLabel: 'Header Style',
-      displayLabel: headerStyleLabel,
-      options: [
-        { value: 'solid', label: 'Solid' },
-        { value: 'minimal', label: 'Minimal' },
-        { value: 'accent', label: 'Accent' },
-        { value: 'pastel', label: 'Pastel' },
-      ],
-      onChange: (v) => updateConfig('header_style', v),
-      promptPlaceholder: 'e.g., Comparison table of cloud providers AWS, Azure, GCP across pricing, features, and support',
-    })
-  }, [config.header_style, headerStyleLabel, registerMandatoryConfig, updateConfig])
+    setColumnBrief(previous => previous.filter(column => column.index <= columns))
+    setCellMarks(previous => previous.filter(mark => mark.row <= rows && mark.col <= columns))
+    setMarkDraft(previous => ({ ...previous, row: Math.min(previous.row, rows), col: Math.min(previous.col, columns) }))
+  }, [columns, rows])
+
+  const status = structureMode === 'AUTO' ? 'Auto' : `Manual · ${rows} rows × ${columns} columns`
+  const tableConfig = useMemo<Partial<TableConfig>>(() => {
+    const next: Partial<TableConfig> = { ...patch, structure_mode: structureMode }
+    if (structureMode === 'MANUAL') {
+      next.rows = rows
+      next.columns = columns
+      if (columnBrief.length) next.column_brief = columnBrief
+      if (cellMarks.length) next.cell_marks = cellMarks
+    } else {
+      delete next.rows
+      delete next.columns
+      delete next.column_widths
+      delete next.header_min_chars
+      delete next.header_max_chars
+      delete next.cell_min_chars
+      delete next.cell_max_chars
+      delete next.header_font_color
+      delete next.header_font_size
+      delete next.header_font_family
+      delete next.header_bold
+      delete next.header_italic
+      delete next.header_allcaps
+      delete next.cell_font_color
+      delete next.cell_font_size
+      delete next.cell_font_family
+      delete next.cell_bold
+      delete next.cell_italic
+      delete next.cell_allcaps
+      if (columnBrief.length) {
+        next.column_brief = columnBrief.map(({ width_share: _widthShare, ...column }) => column)
+      }
+    }
+    return next
+  }, [cellMarks, columnBrief, columns, patch, rows, structureMode])
 
   const handleSubmit = useCallback(() => {
-    const formData: TableFormData = {
+    const advancedModified = structureMode === 'MANUAL'
+      || count !== 1
+      || Object.keys(patch).length > 0
+      || columnBrief.length > 0
+      || cellMarks.length > 0
+      || positionModified
+      || paddingModified
+      || zIndexModified
+    onSubmit({
       componentType: 'TABLE',
       prompt,
       count,
       layout: 'horizontal',
       advancedModified,
-      z_index: zIndex,
+      z_index: zIndexModified ? zIndex : undefined,
       presentationId,
       useDeckTheme,
       themeOverrides,
-      tableConfig: {
-        ...config,
-        columns,
-        rows,
-        column_widths: columnWidths,
-        placeholder_mode: false,
-      },
-      positionConfig: positionConfig.auto_position ? undefined : positionConfig,
-      paddingConfig,
-    }
-    onSubmit(formData)
-  }, [prompt, count, columns, rows, config, columnWidths, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
+      tableConfig,
+      positionConfig: positionModified ? positionConfig : undefined,
+      paddingConfig: paddingModified ? paddingConfig : undefined,
+    })
+  }, [cellMarks.length, columnBrief.length, count, onSubmit, paddingConfig, paddingModified, patch, positionConfig, positionModified, presentationId, prompt, structureMode, tableConfig, themeOverrides, useDeckTheme, zIndex, zIndexModified])
 
-  useEffect(() => {
-    registerSubmit(handleSubmit)
-  }, [registerSubmit, handleSubmit])
+  useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 
   return (
     <div className="space-y-2.5">
-      {showAdvanced && (<>
-      {/* Section 1: Structure */}
-      <CollapsibleSection title="Structure" isOpen={showStructure} onToggle={() => setShowStructure(!showStructure)}>
-        <div className="space-y-2">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Columns</label>
-              <select
-                value={columns}
-                onChange={(e) => { setColumns(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {[2, 3, 4, 5, 6].map(n => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Rows</label>
-              <select
-                value={rows}
-                onChange={(e) => { setRows(Number(e.target.value)); setAdvancedModified(true) }}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
-              <select
-                value={count}
-                onChange={(e) => setCount(Number(e.target.value))}
-                className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {[1, 2].map(n => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
+      <section aria-labelledby="table-structure-heading" className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div id="table-structure-heading" className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Table structure</div>
+            <div data-testid="table-structure-status" className="truncate text-[10px] text-slate-500 dark:text-slate-400">{status}</div>
           </div>
+          <div className="inline-flex rounded-md border border-slate-300 p-0.5 dark:border-slate-600" role="group" aria-label="Table structure mode">
+            {(['AUTO', 'MANUAL'] as const).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={structureMode === mode}
+                disabled={isGenerating}
+                onClick={() => setStructureMode(mode)}
+                className={`rounded px-2 py-1 text-[10px] font-semibold ${structureMode === mode ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+              >
+                {mode === 'AUTO' ? 'Auto' : 'Manual'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {structureMode === 'MANUAL' && (
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <label className="space-y-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+              Rows
+              <select aria-label="Manual table rows" value={rows} onChange={event => setRows(Number(event.target.value))} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                {Array.from({ length: 10 }, (_, index) => index + 1).map(value => <option key={value}>{value}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+              Columns
+              <select aria-label="Manual table columns" value={columns} onChange={event => setColumns(Number(event.target.value))} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                {Array.from({ length: 5 }, (_, index) => index + 2).map(value => <option key={value}>{value}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
+      </section>
 
-          <ToggleRow
-            label="Column Balance"
-            field="col_balance"
-            value={config.col_balance}
-            options={[
-              { value: 'descriptive', label: 'Descriptive' },
-              { value: 'data', label: 'Data' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
+      <div className="grid grid-cols-2 gap-2" aria-label="Table appearance controls">
+        <OptionalSelect label="Header" value={patch.header_style ?? ''} onChange={value => updatePatch('header_style', value as TableConfig['header_style'])} options={[{ value: 'solid', label: 'Solid' }, { value: 'pastel', label: 'Pastel' }, { value: 'minimal', label: 'Minimal' }]} />
+        <OptionalSelect label="Stripe" value={patch.stripe_rows === undefined ? '' : patch.stripe_rows ? 'on' : 'off'} onChange={value => updatePatch('stripe_rows', value === undefined ? undefined : value === 'on')} options={[{ value: 'on', label: 'On' }, { value: 'off', label: 'Off' }]} />
+        <OptionalSelect label="Corners" value={patch.corners ?? ''} onChange={value => updatePatch('corners', value as TableConfig['corners'])} options={[{ value: 'rounded', label: 'Rounded' }, { value: 'square', label: 'Square' }]} />
+        <OptionalSelect label="Border" value={patch.border_style ?? ''} onChange={value => updatePatch('border_style', value as TableConfig['border_style'])} options={[{ value: 'light', label: 'Light' }, { value: 'medium', label: 'Medium' }, { value: 'heavy', label: 'Heavy' }, { value: 'none', label: 'None' }]} />
+      </div>
 
-          {/* Column Widths */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Column Widths (%)</label>
-            <div className="grid grid-cols-3 gap-1">
-              {columnWidths.map((w, i) => (
-                <div key={i} className="space-y-0.5">
-                  <label className="text-[9px] text-gray-600 dark:text-slate-300">Col {i + 1}</label>
-                  <input
-                    type="number"
-                    value={w}
-                    min={5}
-                    max={80}
-                    onChange={(e) => {
-                      const newWidths = [...columnWidths]
-                      newWidths[i] = Number(e.target.value)
-                      setColumnWidths(newWidths)
-                      setAdvancedModified(true)
-                    }}
-                    className="w-full px-1.5 py-0.5 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-[10px] text-gray-900 dark:text-slate-100"
-                  />
+      {researchControls}
+
+      {showAdvanced && (
+        <div className="space-y-2">
+          <label className="block space-y-1 rounded-lg border border-slate-200 px-2.5 py-2 dark:border-slate-700">
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Table count</span>
+            <select aria-label="Table count" value={count} onChange={event => setCount(Number(event.target.value))} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+              <option value={1}>1</option>
+              <option value={2}>2</option>
+            </select>
+          </label>
+
+          <CollapsibleSection title="Columns & semantics" isOpen={showSchema} onToggle={() => setShowSchema(!showSchema)}>
+            <div className="space-y-2">
+              <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">Optional grounded column instructions. Widths remain Auto unless Manual structure is selected.</p>
+              {!columnBrief.length && <button type="button" onClick={ensureBrief} className="rounded-md border border-slate-300 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">Define column semantics</button>}
+              {columnBrief.map(column => (
+                <div key={column.index} className="grid grid-cols-12 gap-1.5 rounded-md border border-slate-200 p-2 dark:border-slate-700">
+                  <input aria-label={`Column ${column.index} name`} value={column.name} onChange={event => updateBrief(column.index, { name: event.target.value })} className="col-span-5 rounded border border-slate-300 px-1.5 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800" />
+                  <select aria-label={`Column ${column.index} kind`} value={column.kind} onChange={event => updateBrief(column.index, { kind: event.target.value as TableColumnKind })} className="col-span-4 rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">
+                    {COLUMN_KINDS.map(kind => <option key={kind} value={kind}>{kind.replace('_', ' ')}</option>)}
+                  </select>
+                  <select aria-label={`Column ${column.index} target length`} value={column.target_len} onChange={event => updateBrief(column.index, { target_len: event.target.value as TableColumnBrief['target_len'] })} className="col-span-3 rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">
+                    <option value="short">Short</option><option value="medium">Medium</option><option value="long">Long</option>
+                  </select>
+                  <input aria-label={`Column ${column.index} detail`} value={column.detail} maxLength={120} onChange={event => updateBrief(column.index, { detail: event.target.value })} className="col-span-9 rounded border border-slate-300 px-1.5 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800" />
+                  <input aria-label={`Column ${column.index} width share`} type="number" min={0.05} max={1} step={0.05} disabled={structureMode !== 'MANUAL'} value={column.width_share ?? ''} placeholder="Auto" onChange={event => updateBrief(column.index, { width_share: event.target.value ? Number(event.target.value) : undefined })} className="col-span-3 rounded border border-slate-300 px-1 py-1 text-[10px] disabled:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:disabled:bg-slate-900" />
                 </div>
               ))}
+              {columnBrief.length > 0 && <button type="button" onClick={() => setColumnBrief([])} className="text-[10px] font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400">Reset semantics to Auto</button>}
             </div>
-            <div className="text-[10px] text-gray-400 dark:text-slate-500">
-              Total: {columnWidths.reduce((a, b) => a + b, 0)}% / {positionConfig.position_width} grids
-            </div>
-          </div>
+          </CollapsibleSection>
 
-          <div className="grid grid-cols-2 gap-2">
-            <ToggleRow
-              label="First Col Bold"
-              field="first_column_bold"
-              value={config.first_column_bold ? 'true' : 'false'}
-              options={[
-                { value: 'true', label: 'On' },
-                { value: 'false', label: 'Off' },
-              ]}
-              onChange={(f, v) => updateConfig(f, v === 'true')}
-            />
-            <ToggleRow
-              label="Last Col Bold"
-              field="last_column_bold"
-              value={config.last_column_bold ? 'true' : 'false'}
-              options={[
-                { value: 'true', label: 'On' },
-                { value: 'false', label: 'Off' },
-              ]}
-              onChange={(f, v) => updateConfig(f, v === 'true')}
-            />
-          </div>
-          <ToggleRow
-            label="Total Row"
-            field="show_total_row"
-            value={config.show_total_row ? 'true' : 'false'}
-            options={[
-              { value: 'true', label: 'Show' },
-              { value: 'false', label: 'Hide' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v === 'true')}
-          />
+          <CollapsibleSection title="Totals, alignment & cell marks" isOpen={showBehavior} onToggle={() => setShowBehavior(!showBehavior)}>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <OptionalSelect label="Totals" value={patch.show_total_row === undefined ? '' : patch.show_total_row ? 'on' : 'off'} onChange={value => updatePatch('show_total_row', value === undefined ? undefined : value === 'on')} options={[{ value: 'on', label: 'Show' }, { value: 'off', label: 'Hide' }]} />
+                <OptionalSelect label="Total style" value={patch.total_row_style ?? ''} onChange={value => updatePatch('total_row_style', value as TableConfig['total_row_style'])} options={[{ value: 'bold', label: 'Bold' }, { value: 'filled', label: 'Filled' }]} />
+                <OptionalSelect label="Alignment" value={patch.alignment ?? ''} onChange={value => updatePatch('alignment', value as TableConfig['alignment'])} options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }]} />
+                <OptionalSelect label="Density" value={patch.density ?? ''} onChange={value => updatePatch('density', value as TableConfig['density'])} options={[{ value: 'compact', label: 'Compact' }, { value: 'regular', label: 'Regular' }, { value: 'spacious', label: 'Spacious' }]} />
+              </div>
+              <div className="grid grid-cols-4 gap-1.5 rounded-md border border-slate-200 p-2 dark:border-slate-700">
+                <select aria-label="Cell mark row" disabled={structureMode !== 'MANUAL'} value={markDraft.row} onChange={event => setMarkDraft(previous => ({ ...previous, row: Number(event.target.value) }))} className="rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">{Array.from({ length: rows }, (_, i) => <option key={i + 1}>{i + 1}</option>)}</select>
+                <select aria-label="Cell mark column" disabled={structureMode !== 'MANUAL'} value={markDraft.col} onChange={event => setMarkDraft(previous => ({ ...previous, col: Number(event.target.value) }))} className="rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">{Array.from({ length: columns }, (_, i) => <option key={i + 1}>{i + 1}</option>)}</select>
+                <select aria-label="Cell mark" disabled={structureMode !== 'MANUAL'} value={markDraft.mark} onChange={event => setMarkDraft(previous => ({ ...previous, mark: event.target.value as TableCellMark['mark'] }))} className="rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800"><option value="highlight">Highlight</option><option value="good">Good</option><option value="bad">Bad</option><option value="warn">Warn</option><option value="trend_up">Up</option><option value="trend_down">Down</option><option value="flat">Flat</option></select>
+                <button type="button" disabled={structureMode !== 'MANUAL'} onClick={() => setCellMarks(previous => [...previous.filter(mark => mark.row !== markDraft.row || mark.col !== markDraft.col), markDraft])} className="rounded bg-slate-800 px-1 py-1 text-[10px] font-semibold text-white disabled:bg-slate-300 dark:bg-slate-200 dark:text-slate-900">Add mark</button>
+              </div>
+              {cellMarks.length > 0 && <div className="flex flex-wrap gap-1">{cellMarks.map(mark => <button type="button" key={`${mark.row}-${mark.col}`} title="Remove mark" onClick={() => setCellMarks(previous => previous.filter(item => item !== mark))} className="rounded bg-slate-100 px-1.5 py-1 text-[9px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">R{mark.row} C{mark.col}: {mark.mark} ×</button>)}</div>}
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Theme & typography" isOpen={showTypography} onToggle={() => setShowTypography(!showTypography)}>
+            <div className="space-y-2">
+              <ThemeSourceSelector presentationId={presentationId} value={themeSource} onChange={updateThemeSource} />
+              <div className="grid grid-cols-2 gap-2">
+                <OptionalTextInput label="Header font" value={patch.header_font_family} onChange={value => updatePatch('header_font_family', value)} />
+                <OptionalTextInput label="Header size" value={patch.header_font_size} placeholder="Auto, e.g. 14px" onChange={value => updatePatch('header_font_size', value)} />
+                <OptionalTextInput label="Cell font" value={patch.cell_font_family} onChange={value => updatePatch('cell_font_family', value)} />
+                <OptionalTextInput label="Cell size" value={patch.cell_font_size} placeholder="Auto, e.g. 13px" onChange={value => updatePatch('cell_font_size', value)} />
+                <OptionalNumberInput label="Header min chars" value={patch.header_min_chars} min={5} max={60} onChange={value => updatePatch('header_min_chars', value)} />
+                <OptionalNumberInput label="Header max chars" value={patch.header_max_chars} min={5} max={80} onChange={value => updatePatch('header_max_chars', value)} />
+                <OptionalNumberInput label="Cell min chars" value={patch.cell_min_chars} min={5} max={200} onChange={value => updatePatch('cell_min_chars', value)} />
+                <OptionalNumberInput label="Cell max chars" value={patch.cell_max_chars} min={5} max={400} onChange={value => updatePatch('cell_max_chars', value)} />
+                <OptionalSelect label="Fit" value={patch.fit_mode ?? ''} onChange={value => updatePatch('fit_mode', value as TableConfig['fit_mode'])} options={[{ value: 'fill', label: 'Fill' }, { value: 'natural', label: 'Natural' }]} />
+              </div>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(!showPositioning)}>
+            <div className="space-y-2.5">
+              <PositionPresets positionConfig={positionConfig} onChange={setPositionConfig} elementType="TABLE" onAdvancedModified={() => setPositionModified(true)} />
+              <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setZIndexModified(true)} />
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Container padding" isOpen={showPadding} onToggle={() => setShowPadding(!showPadding)}>
+            <PaddingControl paddingConfig={paddingConfig} onChange={setPaddingConfig} onAdvancedModified={() => setPaddingModified(true)} />
+          </CollapsibleSection>
         </div>
-      </CollapsibleSection>
-
-      {/* Section 2: Styling */}
-      <CollapsibleSection title="Styling" isOpen={showStyling} onToggle={() => setShowStyling(!showStyling)}>
-        <div className="space-y-2">
-          <ThemeSourceSelector
-            presentationId={presentationId}
-            value={themeSource}
-            onChange={updateThemeSource}
-          />
-
-          <ToggleRow
-            label="Stripe Rows"
-            field="stripe_rows"
-            value={config.stripe_rows ? 'true' : 'false'}
-            options={[
-              { value: 'true', label: 'On' },
-              { value: 'false', label: 'Off' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v === 'true')}
-          />
-          <ToggleRow
-            label="Corners"
-            field="corners"
-            value={config.corners}
-            options={[
-              { value: 'rounded', label: 'Rounded' },
-              { value: 'square', label: 'Square' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
-          <ToggleRow
-            label="Alignment"
-            field="alignment"
-            value={config.alignment}
-            options={[
-              { value: 'left', label: 'Left' },
-              { value: 'center', label: 'Center' },
-              { value: 'right', label: 'Right' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
-          <ToggleRow
-            label="Border Style"
-            field="border_style"
-            value={config.border_style}
-            options={[
-              { value: 'light', label: 'Light' },
-              { value: 'medium', label: 'Medium' },
-              { value: 'heavy', label: 'Heavy' },
-              { value: 'none', label: 'None' },
-            ]}
-            onChange={(f, v) => updateConfig(f, v)}
-          />
-
-          {/* Header Color */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Header Color</label>
-            <div className="flex gap-2 items-center">
-              <input
-                type="color"
-                value={config.header_color || '#4A5568'}
-                onChange={(e) => updateConfig('header_color', e.target.value)}
-                className="h-6 w-6 rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
-              />
-              <span className="text-[10px] text-gray-400 dark:text-slate-500">{config.header_color || 'Auto'}</span>
-              {config.header_color && (
-                <button
-                  onClick={() => updateConfig('header_color', null)}
-                  className="text-[10px] text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:text-slate-200"
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Header char limits + font */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Header Char Limits</label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
-                <input type="number" value={config.header_min_chars} min={1} max={config.header_max_chars}
-                  onChange={(e) => updateConfig('header_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
-                <input type="number" value={config.header_max_chars} min={config.header_min_chars} max={60}
-                  onChange={(e) => updateConfig('header_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
-              </div>
-            </div>
-          </div>
-          <FontOverrideSection label="Header Font" prefix="header" config={config as unknown as Record<string, unknown>} onChange={updateConfig} thirdToggle="allcaps" />
-
-          {/* Cell char limits + font */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 dark:text-slate-500 font-medium">Cell Char Limits</label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Min</label>
-                <input type="number" value={config.cell_min_chars} min={1} max={config.cell_max_chars}
-                  onChange={(e) => updateConfig('cell_min_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">Max</label>
-                <input type="number" value={config.cell_max_chars} min={config.cell_min_chars} max={100}
-                  onChange={(e) => updateConfig('cell_max_chars', Number(e.target.value))}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
-              </div>
-            </div>
-          </div>
-          <FontOverrideSection label="Cell Font" prefix="cell" config={config as unknown as Record<string, unknown>} onChange={updateConfig} thirdToggle="allcaps" />
-        </div>
-      </CollapsibleSection>
-
-      {/* Section 3: Positioning */}
-      <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(!showPositioning)}>
-        <div className="space-y-2.5">
-          <PositionPresets
-            positionConfig={positionConfig}
-            onChange={setPositionConfig}
-            elementType="TABLE"
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
-          <ZIndexInput
-            value={zIndex}
-            onChange={setZIndex}
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
-        </div>
-      </CollapsibleSection>
-
-      {/* Container Padding */}
-      <CollapsibleSection title="Container Padding" isOpen={showPadding} onToggle={() => setShowPadding(!showPadding)}>
-        <PaddingControl
-          paddingConfig={paddingConfig}
-          onChange={setPaddingConfig}
-          onAdvancedModified={() => setAdvancedModified(true)}
-        />
-      </CollapsibleSection>
-      </>)}
+      )}
     </div>
   )
 }

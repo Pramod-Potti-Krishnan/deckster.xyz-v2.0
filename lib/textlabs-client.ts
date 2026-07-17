@@ -439,6 +439,12 @@ export function buildApiPayload(
     })
   }
 
+  if (formData.componentType === 'TABLE') {
+    // structure_mode is always explicit; all other table fields are a sparse
+    // user-owned patch. AUTO intentionally carries no dimensions or fit knobs.
+    options.tableConfig = formData.tableConfig as Record<string, unknown>
+  }
+
   // Attach element-specific config when user modified advanced settings
   if (advancedModified) {
     switch (formData.componentType) {
@@ -447,7 +453,6 @@ export function buildApiPayload(
       case 'METRICS':
         break
       case 'TABLE':
-        options.tableConfig = formData.tableConfig as Record<string, unknown>
         break
       case 'CHART':
         options.chartConfig = formData.chartConfig as Record<string, unknown>
@@ -549,6 +554,7 @@ export function buildInsertionParams(
     resolved_geometry?: Record<string, unknown> | null
     platinum_profile?: Record<string, unknown> | string | null
     resolved_metrics_profile?: Record<string, unknown> | null
+    resolved_table_profile?: Record<string, unknown> | null
     citations_used?: Array<Record<string, unknown>> | null
     metadata?: Record<string, unknown> | null
   },
@@ -615,6 +621,7 @@ export function buildInsertionParams(
   const resolvedGeometry = element.resolved_geometry ?? element.metadata?.resolved_geometry
   const platinumProfile = element.platinum_profile ?? element.metadata?.platinum_profile
   const resolvedMetricsProfile = element.resolved_metrics_profile ?? element.metadata?.resolved_metrics_profile
+  const resolvedTableProfile = element.resolved_table_profile ?? element.metadata?.resolved_table_profile
   const citationsUsed = element.citations_used ?? element.metadata?.citations_used
   if (semanticRole) baseParams.semanticRole = semanticRole
   if (slotName) baseParams.slotName = slotName
@@ -623,6 +630,7 @@ export function buildInsertionParams(
   if (resolvedGeometry) baseParams.resolvedGeometry = resolvedGeometry
   if (platinumProfile) baseParams.platinumProfile = platinumProfile
   if (resolvedMetricsProfile) baseParams.resolvedMetricsProfile = resolvedMetricsProfile
+  if (resolvedTableProfile) baseParams.resolvedTableProfile = resolvedTableProfile
   if (citationsUsed) baseParams.citationsUsed = citationsUsed
 
   if (paddingConfig) {

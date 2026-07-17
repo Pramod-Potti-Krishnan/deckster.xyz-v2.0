@@ -311,40 +311,81 @@ export interface MetricsManualOverrides {
 // TABLE CONFIG
 // ============================================================================
 
+export type TableStructureMode = 'AUTO' | 'MANUAL'
+export type TableColumnKind = 'label' | 'tag' | 'numeric' | 'currency' | 'percent' | 'status' | 'single_line' | 'multi_line' | 'bullets'
+export type TableTargetLength = 'short' | 'medium' | 'long'
+
+export interface TableColumnBrief {
+  index: number
+  name: string
+  kind: TableColumnKind
+  detail: string
+  target_len: TableTargetLength
+  width_share?: number
+}
+
+export interface TableColumnConfig {
+  col: number
+  alignment?: 'left' | 'center' | 'right'
+  emphasis?: 'normal' | 'bold'
+  format?: 'text' | 'number' | 'percent' | 'currency' | 'boolean'
+  content_kind?: 'label' | 'tag' | 'numeric' | 'single_line' | 'multi_line' | 'bullets'
+  cell_max_chars?: number
+}
+
+export interface TableCellMark {
+  row: number
+  col: number
+  mark: 'trend_up' | 'trend_down' | 'flat' | 'good' | 'bad' | 'warn' | 'highlight'
+  style: 'arrow' | 'pill' | 'tint' | 'chip'
+}
+
+/** Every field except structure_mode is caller-owned only when explicitly present. */
 export interface TableConfig {
-  columns: number       // 2-6
-  rows: number          // 2-10
-  stripe_rows: boolean
-  corners: 'rounded' | 'square'
-  header_style: 'solid' | 'minimal' | 'accent' | 'pastel'
-  alignment: 'left' | 'center' | 'right'
-  border_style: 'light' | 'medium' | 'heavy' | 'none'
-  header_color: string | null
-  first_column_bold: boolean
-  last_column_bold: boolean
-  show_total_row: boolean
-  col_balance: 'descriptive' | 'data'
-  column_widths: number[]   // per-column width percentages
+  structure_mode: TableStructureMode
+  columns?: number       // 2-6; MANUAL only
+  rows?: number          // 1-10; MANUAL only
+  stripe_rows?: boolean
+  corners?: 'rounded' | 'square'
+  header_style?: 'solid' | 'minimal' | 'accent' | 'pastel'
+  alignment?: 'left' | 'center' | 'right'
+  border_style?: 'light' | 'medium' | 'heavy' | 'none'
+  header_color?: string | null
+  first_column_bold?: boolean
+  last_column_bold?: boolean
+  show_total_row?: boolean
+  col_balance?: 'descriptive' | 'data'
+  column_widths?: number[]
+  column_brief?: TableColumnBrief[]
+  column_config?: TableColumnConfig[]
+  cell_marks?: TableCellMark[]
+  total_row_style?: 'bold' | 'filled'
+  total_row_fill?: string
+  total_row_rule_color?: string
+  density?: 'compact' | 'regular' | 'spacious'
+  fit_mode?: 'fill' | 'natural'
+  show_mark_legend?: boolean
+  mark_legend_labels?: Record<string, string>
   dark_overrides?: Record<string, string> | null
-  placeholder_mode: boolean
-  header_min_chars: number
-  header_max_chars: number
-  cell_min_chars: number
-  cell_max_chars: number
+  placeholder_mode?: boolean
+  header_min_chars?: number
+  header_max_chars?: number
+  cell_min_chars?: number
+  cell_max_chars?: number
   // Header font overrides
-  header_font_color: string | null
-  header_font_size: string | null
-  header_font_family: string | null
-  header_bold: boolean | null
-  header_italic: boolean | null
-  header_allcaps: boolean | null
+  header_font_color?: string | null
+  header_font_size?: string | null
+  header_font_family?: string | null
+  header_bold?: boolean | null
+  header_italic?: boolean | null
+  header_allcaps?: boolean | null
   // Cell font overrides
-  cell_font_color: string | null
-  cell_font_size: string | null
-  cell_font_family: string | null
-  cell_bold: boolean | null
-  cell_italic: boolean | null
-  cell_allcaps: boolean | null
+  cell_font_color?: string | null
+  cell_font_size?: string | null
+  cell_font_family?: string | null
+  cell_bold?: boolean | null
+  cell_italic?: boolean | null
+  cell_allcaps?: boolean | null
 }
 
 // ============================================================================
@@ -542,7 +583,7 @@ export interface TextLabsBaseFormData {
   count: number
   layout: 'horizontal' | 'vertical' | 'grid'
   advancedModified: boolean
-  z_index: number
+  z_index?: number
   presentationId?: string | null
   useDeckTheme?: boolean
   themeOverrides?: ThemePalette | null
@@ -665,6 +706,7 @@ export interface TextLabsElement {
   resolved_geometry?: Record<string, unknown> | null
   platinum_profile?: Record<string, unknown> | string | null
   resolved_metrics_profile?: Record<string, unknown> | null
+  resolved_table_profile?: Record<string, unknown> | null
   citations_used?: Array<Record<string, unknown>> | null
   metadata?: {
     theme_variant_id?: string | null
@@ -677,6 +719,7 @@ export interface TextLabsElement {
     resolved_geometry?: Record<string, unknown> | null
     platinum_profile?: Record<string, unknown> | string | null
     resolved_metrics_profile?: Record<string, unknown> | null
+    resolved_table_profile?: Record<string, unknown> | null
     citations_used?: Array<Record<string, unknown>> | null
     [key: string]: unknown
   } | null

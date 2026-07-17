@@ -199,7 +199,7 @@ export function GenerationPanel({
           />
         )}
 
-        {elementType !== 'TEXT_BOX' && elementType !== 'METRICS' && researchControls}
+        {elementType !== 'TEXT_BOX' && elementType !== 'METRICS' && elementType !== 'TABLE' && researchControls}
 
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <FormRouter
@@ -213,7 +213,7 @@ export function GenerationPanel({
             prompt={prompt}
             showAdvanced={showAdvanced}
             registerMandatoryConfig={registerMandatoryConfig}
-            researchControls={elementType === 'TEXT_BOX' || elementType === 'METRICS' ? researchControls : null}
+            researchControls={elementType === 'TEXT_BOX' || elementType === 'METRICS' || elementType === 'TABLE' ? researchControls : null}
             slotCatalog={slotCatalog}
             slotCatalogLoading={slotCatalogLoading}
             slotCatalogError={slotCatalogError}
@@ -277,7 +277,7 @@ function FormRouter({
     case 'METRICS':
       return <MetricsForm {...commonProps} researchControls={researchControls} />
     case 'TABLE':
-      return <TableForm {...commonProps} />
+      return <TableForm {...commonProps} researchControls={researchControls} />
     case 'CHART':
       return <ChartForm {...commonProps} />
     case 'IMAGE':
