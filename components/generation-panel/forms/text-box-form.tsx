@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   type TemplateSlotCatalog,
   type ImageFormData,
@@ -23,7 +23,15 @@ import { ZIndexInput } from '../shared/z-index-input'
 import { FontOverrideSection } from '../shared/font-override-section'
 import { PaddingControl } from '../shared/padding-control'
 import { ToggleRow } from '../shared/toggle-row'
-import { splitGridArea } from '@/lib/grid-splitter'
+import { useDeckThemePalette } from '@/hooks/use-deck-theme-palette'
+import { effectiveTextGeometry } from '@/lib/textbox-geometry-mode'
+import {
+  isTextBoxCountViable,
+  isTextBoxLayoutViable,
+  resolveTextBoxLayout,
+  textBoxGridDimensions,
+  type TextBoxLayoutChoice,
+} from '@/lib/textbox-layout'
 import {
   BODY_TEXT_AUTO_SLOT,
   findSelectedSlot,
@@ -73,6 +81,7 @@ const COLOR_VARIANTS = [
 ]
 
 interface ExistingTextTarget {
+  elementId?: string | null
   semanticRole?: TextSemanticRole | null
   slotName?: string | null
   slotKind?: TextSlotKind | null
@@ -93,21 +102,6 @@ interface TextBoxFormProps {
   slotCatalogLoading: boolean
   slotCatalogError?: string | null
   existingTextTarget?: ExistingTextTarget | null
-}
-
-function buildComposeElements(
-  positionConfig: TextLabsPositionConfig,
-  count: number,
-  layout: 'horizontal' | 'vertical' | 'grid',
-  gridCols: number,
-): TextBoxFormData['elements'] {
-  if (count <= 1) return undefined
-  return splitGridArea({
-    start_col: positionConfig.start_col,
-    start_row: positionConfig.start_row,
-    position_width: positionConfig.position_width,
-    position_height: positionConfig.position_height,
-  }, count, layout, gridCols).map(grid_position => ({ grid_position }))
 }
 
 function roleLabel(role?: TextSemanticRole | null): string {
@@ -164,8 +158,9 @@ export function TextBoxForm({
   const [targetValue, setTargetValue] = useState(BODY_TEXT_AUTO_SLOT)
   const [structure, setStructure] = useState<'auto' | TextBoxStructure>('auto')
   const [count, setCount] = useState(1)
-  const [layout, setLayout] = useState<'horizontal' | 'vertical' | 'grid'>('horizontal')
+  const [layoutChoice, setLayoutChoice] = useState<TextBoxLayoutChoice>('auto')
   const [gridCols, setGridCols] = useState(2)
+  const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<TextBoxFormData['multiBoxColorMode']>>('SAME')
   const [textboxOverrides, setTextboxOverrides] = useState<Partial<TextBoxConfig>>({})
   const [geometryMode, setGeometryMode] = useState<'AUTO' | 'MANUAL'>('AUTO')
   const [manualGeometryOverrides, setManualGeometryOverrides] = useState<TextManualGeometryOverrides>({})
@@ -191,6 +186,34 @@ export function TextBoxForm({
     position_height: DEFAULTS.height,
     auto_position: false,
   })
+  const previousTargetIdentity = useRef<string | null>(null)
+  const { tokens: themeTokens, loading: themeLoading, error: themeError } = useDeckThemePalette(presentationId)
+
+  const targetIdentity = elementContext?.elementId
+    ?? existingTextTarget?.elementId
+    ?? (existingTextTarget?.slotName ? `slot:${existingTextTarget.slotName}` : null)
+
+  useEffect(() => {
+    if (
+      previousTargetIdentity.current !== null
+      && targetIdentity !== null
+      && previousTargetIdentity.current !== targetIdentity
+    ) {
+      setStructure('auto')
+      setCount(1)
+      setLayoutChoice('auto')
+      setGridCols(2)
+      setMultiBoxColorMode('SAME')
+      setTextboxOverrides({})
+      setGeometryMode('AUTO')
+      setManualGeometryOverrides({})
+      setZIndex(DEFAULTS.zIndex)
+      setPositionModified(false)
+      setPaddingModified(false)
+      setPaddingConfig({ top: 0, right: 0, bottom: 0, left: 0 })
+    }
+    previousTargetIdentity.current = targetIdentity
+  }, [targetIdentity])
 
   useEffect(() => {
     if (!elementContext) return
@@ -202,6 +225,51 @@ export function TextBoxForm({
       position_height: elementContext.height,
     }))
   }, [elementContext])
+
+  const area = useMemo(() => ({
+    start_col: positionConfig.start_col,
+    start_row: positionConfig.start_row,
+    position_width: positionConfig.position_width,
+    position_height: positionConfig.position_height,
+  }), [positionConfig])
+  const resolvedLayout = useMemo(
+    () => resolveTextBoxLayout(area, count, layoutChoice, gridCols),
+    [area, count, gridCols, layoutChoice],
+  )
+  const gridDimensions = useMemo(() => textBoxGridDimensions(count), [count])
+  const feasibleCounts = useMemo(
+    () => Array.from({ length: 6 }, (_, index) => index + 1)
+      .filter(value => value === 1 || isTextBoxCountViable(area, value)),
+    [area],
+  )
+  const viableGridDimensions = useMemo(
+    () => gridDimensions.filter(item => isTextBoxLayoutViable(area, count, 'grid', item.columns)),
+    [area, count, gridDimensions],
+  )
+
+  useEffect(() => {
+    if (count > 1 && !feasibleCounts.includes(count)) {
+      setCount(feasibleCounts[feasibleCounts.length - 1] ?? 1)
+      setLayoutChoice('auto')
+    }
+  }, [count, feasibleCounts])
+
+  useEffect(() => {
+    if (layoutChoice === 'grid' && !gridDimensions.some(item => item.columns === gridCols)) {
+      setGridCols(gridDimensions[0]?.columns ?? 2)
+      if (gridDimensions.length === 0) setLayoutChoice('auto')
+    }
+  }, [gridCols, gridDimensions, layoutChoice])
+
+  useEffect(() => {
+    if (
+      geometryMode === 'MANUAL'
+      && Object.keys(manualGeometryOverrides).length === 0
+      && !paddingModified
+    ) {
+      setGeometryMode('AUTO')
+    }
+  }, [geometryMode, manualGeometryOverrides, paddingModified])
 
   const effectiveCatalog = useMemo<TemplateSlotCatalog>(() => {
     if (!existingTextTarget?.slotName || slotCatalog.slots.some(slot => slot.slot_name === existingTextTarget.slotName)) {
@@ -323,11 +391,16 @@ export function TextBoxForm({
     })
   }, [isAccessory, isSystemManaged, registerMandatoryConfig, roleOptions, targetValue])
 
+  const effectiveGeometry = useMemo(
+    () => effectiveTextGeometry(geometryMode, manualGeometryOverrides),
+    [geometryMode, manualGeometryOverrides],
+  )
+
   const advancedModified = positionModified
     || paddingModified
     || structure !== 'auto'
     || Object.keys(textboxOverrides).length > 0
-    || geometryMode === 'MANUAL'
+    || effectiveGeometry.geometryMode === 'MANUAL'
 
   const handleSubmit = useCallback(() => {
     const bodyCount = isBodyText ? count : 1
@@ -363,7 +436,7 @@ export function TextBoxForm({
       componentType: 'TEXT_BOX',
       prompt,
       count: bodyCount,
-      layout,
+      layout: resolvedLayout.layout,
       advancedModified,
       z_index: zIndex,
       presentationId,
@@ -374,14 +447,13 @@ export function TextBoxForm({
       slotKind,
       accessoryType: selectedSlot?.accessory_type ?? null,
       slotMetadata,
-      geometryMode,
-      manualGeometryOverrides: geometryMode === 'MANUAL' && Object.keys(manualGeometryOverrides).length
-        ? manualGeometryOverrides
-        : undefined,
+      geometryMode: effectiveGeometry.geometryMode,
+      manualGeometryOverrides: effectiveGeometry.manualGeometryOverrides,
       structure: isBodyText && structure !== 'auto' ? structure : undefined,
       compose: isBodyText && bodyCount > 1,
+      multiBoxColorMode: isBodyText && bodyCount > 1 ? multiBoxColorMode : undefined,
       elements: isBodyText && bodyCount > 1
-        ? buildComposeElements(positionConfig, bodyCount, layout, gridCols)
+        ? resolvedLayout.boxes.map(grid_position => ({ grid_position }))
         : undefined,
       textboxConfig: textboxOverrides,
       // Layout owns fixed template-slot geometry. BODY_TEXT keeps its live canvas
@@ -392,16 +464,15 @@ export function TextBoxForm({
   }, [
     advancedModified,
     count,
-    geometryMode,
-    gridCols,
+    effectiveGeometry,
     isBodyText,
     isAccessory,
-    layout,
-    manualGeometryOverrides,
+    multiBoxColorMode,
     onSubmit,
     positionConfig,
     presentationId,
     prompt,
+    resolvedLayout,
     selectedSlot,
     semanticRole,
     slotKind,
@@ -462,6 +533,35 @@ export function TextBoxForm({
             <option value="auto">Auto</option>
             {STRUCTURE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
+          {structure === 'simple' && (
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1">
+                <span className="text-[10px] text-slate-500">Simple Type</span>
+                <select
+                  value={textboxOverrides.simple_subtype ?? 'auto'}
+                  onChange={event => updateTextboxOverride(
+                    'simple_subtype',
+                    event.target.value === 'auto'
+                      ? undefined
+                      : event.target.value as NonNullable<TextBoxConfig['simple_subtype']>,
+                  )}
+                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                >
+                  <option value="auto">Auto</option>
+                  <option value="char">Char</option>
+                  <option value="word">Word</option>
+                  <option value="phrase">Phrase</option>
+                </select>
+              </label>
+              <OptionalNumberInput
+                label="Target Chars"
+                min={1}
+                max={240}
+                value={textboxOverrides.target_char_count ?? undefined}
+                onChange={value => updateTextboxOverride('target_char_count', value)}
+              />
+            </div>
+          )}
         </section>
       )}
 
@@ -582,7 +682,15 @@ export function TextBoxForm({
             <select
               aria-label="Geometry mode"
               value={geometryMode}
-              onChange={event => setGeometryMode(event.target.value as 'AUTO' | 'MANUAL')}
+              onChange={event => {
+                const nextMode = event.target.value as 'AUTO' | 'MANUAL'
+                setGeometryMode(nextMode)
+                if (nextMode === 'AUTO') {
+                  setManualGeometryOverrides({})
+                  setPaddingModified(false)
+                  setPaddingConfig({ top: 0, right: 0, bottom: 0, left: 0 })
+                }
+              }}
               className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-semibold dark:border-slate-600 dark:bg-slate-800"
             >
               <option value="AUTO">Auto</option>
@@ -600,17 +708,105 @@ export function TextBoxForm({
 
           {isBodyText && (
             <CollapsibleSection title="Instances" isOpen={showInstances} onToggle={() => setShowInstances(value => !value)}>
-              <div className="grid grid-cols-2 gap-2">
-                <OptionalNumberInput label="Count" min={1} max={6} value={count} onChange={value => setCount(value ?? 1)} />
-                <label className="space-y-1">
-                  <span className="text-[10px] text-slate-500">Arrangement</span>
-                  <select value={layout} onChange={event => setLayout(event.target.value as typeof layout)} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800">
-                    <option value="horizontal">Horizontal</option>
-                    <option value="vertical">Vertical</option>
-                    <option value="grid">Grid</option>
-                  </select>
-                </label>
-                {layout === 'grid' && <OptionalNumberInput label="Grid columns" min={2} max={6} value={gridCols} onChange={value => setGridCols(value ?? 2)} />}
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-slate-500">Count</span>
+                    <select
+                      aria-label="Text box count"
+                      value={count}
+                      onChange={event => {
+                        setCount(Number(event.target.value))
+                        setLayoutChoice('auto')
+                      }}
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                    >
+                      {Array.from({ length: 6 }, (_, index) => index + 1).map(value => (
+                        <option key={value} value={value} disabled={!feasibleCounts.includes(value)}>
+                          {value}{!feasibleCounts.includes(value) ? ' — resize needed' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-slate-500">Arrangement</span>
+                    <select
+                      value={layoutChoice}
+                      onChange={event => setLayoutChoice(event.target.value as TextBoxLayoutChoice)}
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                    >
+                      <option value="auto">Auto — best fit</option>
+                      <option
+                        value="horizontal"
+                        disabled={count === 1 || !isTextBoxLayoutViable(area, count, 'horizontal')}
+                      >
+                        Horizontal
+                      </option>
+                      <option
+                        value="vertical"
+                        disabled={count === 1 || !isTextBoxLayoutViable(area, count, 'vertical')}
+                      >
+                        Vertical
+                      </option>
+                      <option value="grid" disabled={count === 1 || viableGridDimensions.length === 0}>
+                        Grid
+                      </option>
+                    </select>
+                  </label>
+                </div>
+
+                {layoutChoice === 'grid' && viableGridDimensions.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="space-y-1">
+                      <span className="text-[10px] text-slate-500">Grid columns</span>
+                      <select
+                        value={gridCols}
+                        onChange={event => setGridCols(Number(event.target.value))}
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                      >
+                        {viableGridDimensions.map(item => (
+                          <option key={`${item.columns}x${item.rows}`} value={item.columns}>{item.columns}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-[10px] text-slate-500">Grid rows</span>
+                      <select
+                        value={viableGridDimensions.find(item => item.columns === gridCols)?.rows ?? viableGridDimensions[0].rows}
+                        onChange={event => {
+                          const selected = viableGridDimensions.find(item => item.rows === Number(event.target.value))
+                          if (selected) setGridCols(selected.columns)
+                        }}
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                      >
+                        {viableGridDimensions.map(item => (
+                          <option key={`${item.rows}x${item.columns}`} value={item.rows}>{item.rows}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+
+                {count > 1 && (
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-slate-500">Multi-box color style</span>
+                    <select
+                      value={multiBoxColorMode}
+                      onChange={event => setMultiBoxColorMode(event.target.value as NonNullable<TextBoxFormData['multiBoxColorMode']>)}
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                    >
+                      <option value="SAME">Same color</option>
+                      <option value="ALTERNATING">Alternating theme colors</option>
+                      <option value="PRIMARY_ACCENTS">Primary color accents</option>
+                      <option value="THEME_SEQUENCE">Different theme colors</option>
+                    </select>
+                  </label>
+                )}
+
+                <p className="text-[9px] leading-4 text-slate-400">
+                  Feasible choices use the live {area.position_width}×{area.position_height} container. Auto resolves to {resolvedLayout.layout}
+                  {resolvedLayout.layout === 'grid' ? ` (${resolvedLayout.gridColumns}×${resolvedLayout.gridRows})` : ''}.
+                </p>
               </div>
             </CollapsibleSection>
           )}
@@ -618,64 +814,110 @@ export function TextBoxForm({
           {isBodyText && !isSystemManaged && (
             <CollapsibleSection title="Box Design" isOpen={showBoxDesign} onToggle={() => setShowBoxDesign(value => !value)}>
               <div className="space-y-2.5">
-                <label className="space-y-1">
-                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Structure</span>
-                  <select
-                    value={structure}
-                    onChange={event => setStructure(event.target.value as 'auto' | TextBoxStructure)}
-                    className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
-                  >
-                    <option value="auto">Auto</option>
-                    {STRUCTURE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </label>
-
-                {structure === 'simple' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="space-y-1">
-                      <span className="text-[10px] text-slate-500">Simple Type</span>
-                      <select
-                        value={textboxOverrides.simple_subtype ?? 'auto'}
-                        onChange={event => updateTextboxOverride(
-                          'simple_subtype',
-                          event.target.value === 'auto'
-                            ? undefined
-                            : event.target.value as NonNullable<TextBoxConfig['simple_subtype']>,
-                        )}
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
-                      >
-                        <option value="auto">Auto</option>
-                        <option value="char">Char</option>
-                        <option value="word">Word</option>
-                        <option value="phrase">Phrase</option>
-                      </select>
-                    </label>
-                    <OptionalNumberInput
-                      label="Target Chars"
-                      min={1}
-                      max={240}
-                      value={textboxOverrides.target_char_count ?? undefined}
-                      onChange={value => updateTextboxOverride('target_char_count', value)}
-                    />
+                <div className="rounded-md border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Deck theme</div>
+                      <div className="text-[9px] text-slate-400">
+                        {themeLoading ? 'Loading palette…' : themeError ? 'Palette temporarily unavailable' : 'Applied to Auto controls'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1" aria-label="Applied deck theme colors">
+                      {themeTokens.slice(0, 5).map(token => (
+                        <span
+                          key={token.id}
+                          title={`${token.label}: ${token.color}`}
+                          className="h-4 w-4 rounded-full border border-white shadow-sm ring-1 ring-slate-200"
+                          style={{ backgroundColor: token.color }}
+                        />
+                      ))}
+                    </div>
                   </div>
-                )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Box Color</span>
+                  <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Box color">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateTextboxOverride('background', undefined)
+                        updateTextboxOverride('color_variant', undefined)
+                      }}
+                      aria-pressed={backgroundValue === 'auto'}
+                      className={`rounded-md border px-2 py-1 text-[10px] font-semibold ${
+                        backgroundValue === 'auto'
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-slate-300 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      Auto
+                    </button>
+                    {themeTokens.slice(0, 5).map(token => (
+                      <button
+                        type="button"
+                        key={`box-${token.id}`}
+                        title={`${token.label}: ${token.color}`}
+                        aria-label={`Use ${token.label} for box color`}
+                        aria-pressed={textboxOverrides.color_variant === token.color}
+                        onClick={() => {
+                          updateTextboxOverride('background', 'colored')
+                          updateTextboxOverride('color_variant', token.color)
+                        }}
+                        className={`h-7 w-7 rounded-full border-2 ${
+                          textboxOverrides.color_variant === token.color ? 'border-primary ring-2 ring-primary/20' : 'border-white ring-1 ring-slate-300'
+                        }`}
+                        style={{ backgroundColor: token.color }}
+                      />
+                    ))}
+                    {themeTokens.length === 0 && COLOR_VARIANTS.slice(0, 6).map(option => (
+                      <button
+                        type="button"
+                        key={`box-${option.value}`}
+                        title={option.label}
+                        aria-label={`Use ${option.label} for box color`}
+                        aria-pressed={textboxOverrides.color_variant === option.value}
+                        onClick={() => {
+                          updateTextboxOverride('background', 'colored')
+                          updateTextboxOverride('color_variant', option.value)
+                        }}
+                        className={`h-7 w-7 rounded-full border-2 ${
+                          textboxOverrides.color_variant === option.value ? 'border-primary ring-2 ring-primary/20' : 'border-white ring-1 ring-slate-300'
+                        }`}
+                        style={{ backgroundColor: option.value }}
+                      />
+                    ))}
+                    <button
+                      type="button"
+                      title="Transparent"
+                      aria-label="Use transparent box color"
+                      aria-pressed={backgroundValue === 'transparent'}
+                      onClick={() => {
+                        updateTextboxOverride('background', 'transparent')
+                        updateTextboxOverride('color_variant', undefined)
+                      }}
+                      className={`h-7 w-7 rounded-full border-2 bg-[linear-gradient(45deg,#d1d5db_25%,transparent_25%),linear-gradient(-45deg,#d1d5db_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#d1d5db_75%),linear-gradient(-45deg,transparent_75%,#d1d5db_75%)] bg-[length:8px_8px] bg-[position:0_0,0_4px,4px_-4px,-4px_0px] ${
+                        backgroundValue === 'transparent' ? 'border-primary ring-2 ring-primary/20' : 'border-white ring-1 ring-slate-300'
+                      }`}
+                    />
+                    <label className="relative h-7 w-7 cursor-pointer rounded-full border border-slate-300 bg-[conic-gradient(red,yellow,lime,aqua,blue,magenta,red)]" title="Custom color">
+                      <span className="sr-only">Custom box color</span>
+                      <input
+                        type="color"
+                        value={typeof textboxOverrides.color_variant === 'string' && textboxOverrides.color_variant.startsWith('#')
+                          ? textboxOverrides.color_variant
+                          : '#7c3aed'}
+                        onChange={event => {
+                          updateTextboxOverride('background', 'colored')
+                          updateTextboxOverride('color_variant', event.target.value)
+                        }}
+                        className="absolute inset-0 cursor-pointer opacity-0"
+                      />
+                    </label>
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="space-y-1">
-                    <span className="text-[10px] text-slate-500">Box</span>
-                    <select
-                      value={backgroundValue}
-                      onChange={event => updateTextboxOverride(
-                        'background',
-                        event.target.value === 'auto' ? undefined : event.target.value as TextBoxConfig['background'],
-                      )}
-                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
-                    >
-                      <option value="auto">Auto</option>
-                      <option value="colored">Color</option>
-                      <option value="transparent">Transparent</option>
-                    </select>
-                  </label>
                   <label className="space-y-1">
                     <span className="text-[10px] text-slate-500">Corners</span>
                     <select
@@ -691,38 +933,23 @@ export function TextBoxForm({
                       <option value="square">Square</option>
                     </select>
                   </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-slate-500">Opacity</span>
+                    <select
+                      value={textboxOverrides.opacity ?? 'auto'}
+                      disabled={backgroundValue !== 'colored'}
+                      onChange={event => updateTextboxOverride('opacity', event.target.value === 'auto' ? undefined : Number(event.target.value))}
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:disabled:bg-slate-900"
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="1">100%</option>
+                      <option value="0.8">80%</option>
+                      <option value="0.6">60%</option>
+                      <option value="0.4">40%</option>
+                      <option value="0.2">20%</option>
+                    </select>
+                  </label>
                 </div>
-
-                {backgroundValue === 'colored' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="space-y-1">
-                      <span className="text-[10px] text-slate-500">Box Color</span>
-                      <select
-                        value={textboxOverrides.color_variant ?? 'auto'}
-                        onChange={event => updateTextboxOverride('color_variant', event.target.value === 'auto' ? undefined : event.target.value)}
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
-                      >
-                        <option value="auto">Auto</option>
-                        {COLOR_VARIANTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                      </select>
-                    </label>
-                    <label className="space-y-1">
-                      <span className="text-[10px] text-slate-500">Opacity</span>
-                      <select
-                        value={textboxOverrides.opacity ?? 'auto'}
-                        onChange={event => updateTextboxOverride('opacity', event.target.value === 'auto' ? undefined : Number(event.target.value))}
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
-                      >
-                        <option value="auto">Auto</option>
-                        <option value="1">100%</option>
-                        <option value="0.8">80%</option>
-                        <option value="0.6">60%</option>
-                        <option value="0.4">40%</option>
-                        <option value="0.2">20%</option>
-                      </select>
-                    </label>
-                  </div>
-                )}
 
                 <div className="grid grid-cols-2 gap-2">
                   {(['shadow', 'border'] as const).map(field => (
@@ -739,13 +966,6 @@ export function TextBoxForm({
                       </select>
                     </label>
                   ))}
-                </div>
-
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Theme</span>
-                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-500 dark:border-slate-700 dark:bg-slate-900">
-                    Deck theme
-                  </span>
                 </div>
               </div>
             </CollapsibleSection>

@@ -92,6 +92,12 @@ const clientModule = compile(new URL('../lib/textlabs-client.ts', import.meta.ur
   if (id === '@/lib/element-provenance') return { parseThemeVariantSource: () => null, responseStyleOwner: () => null }
   throw new Error(`Unexpected dependency: ${id}`)
 })
+const geometryModule = compile(new URL('../lib/textbox-geometry-mode.ts', import.meta.url))
+const gridModule = compile(new URL('../lib/grid-splitter.ts', import.meta.url))
+const layoutModule = compile(new URL('../lib/textbox-layout.ts', import.meta.url), id => {
+  if (id === '@/lib/grid-splitter') return gridModule
+  throw new Error(`Unexpected layout dependency: ${id}`)
+})
 
 const baseForm = {
   componentType: 'TEXT_BOX',
@@ -113,6 +119,18 @@ assert.equal(autoPayload.textboxConfig, undefined)
 assert.equal(autoPayload.itemsPerInstance, undefined)
 assert.equal(autoPayload.paddingConfig, undefined)
 assert.equal(autoPayload.manualGeometryOverrides, undefined)
+
+const staleManualPayload = clientModule.buildApiPayload('session-1', {
+  ...baseForm,
+  geometryMode: 'MANUAL',
+  manualGeometryOverrides: {},
+}).options
+assert.equal(staleManualPayload.geometryMode, 'AUTO', 'empty manual state cannot escape as an invalid request')
+assert.equal(staleManualPayload.manualGeometryOverrides, undefined)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(geometryModule.effectiveTextGeometry('MANUAL', {}))),
+  { geometryMode: 'AUTO' },
+)
 
 const structuralPayload = clientModule.buildApiPayload('session-1', {
   ...baseForm,
@@ -164,6 +182,31 @@ assert.deepEqual(
 assert.equal(manualPayload.textboxConfig.list_style, 'numbered')
 assert.equal(manualPayload.textboxConfig.heading_indent, 2)
 assert.equal(manualPayload.textboxConfig.content_indent, 1)
+assert.equal(manualPayload.geometryMode, 'MANUAL')
+
+const mediumArea = { start_col: 2, start_row: 4, position_width: 10, position_height: 6 }
+assert.equal(layoutModule.isTextBoxLayoutViable(mediumArea, 3, 'horizontal'), false)
+assert.equal(layoutModule.isTextBoxLayoutViable(mediumArea, 3, 'vertical'), false)
+assert.equal(layoutModule.isTextBoxLayoutViable(mediumArea, 4, 'grid', 2), true)
+assert.equal(layoutModule.isTextBoxCountViable(mediumArea, 6), false)
+const automaticGrid = layoutModule.resolveTextBoxLayout(mediumArea, 4, 'auto')
+assert.equal(automaticGrid.layout, 'grid')
+assert.equal(automaticGrid.gridColumns, 2)
+assert.equal(automaticGrid.gridRows, 2)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(layoutModule.textBoxGridDimensions(6))),
+  [{ columns: 2, rows: 3 }, { columns: 3, rows: 2 }],
+)
+const wideArea = { start_col: 2, start_row: 4, position_width: 18, position_height: 6 }
+assert.equal(layoutModule.isTextBoxLayoutViable(wideArea, 3, 'horizontal'), true)
+assert.equal(layoutModule.isTextBoxLayoutViable(wideArea, 3, 'vertical'), false)
+
+const multiColorPayload = clientModule.buildApiPayload('session-1', {
+  ...baseForm,
+  count: 4,
+  multiBoxColorMode: 'THEME_SEQUENCE',
+}).options
+assert.equal(multiColorPayload.multiBoxColorMode, 'THEME_SEQUENCE')
 
 const insertion = clientModule.buildInsertionParams('TEXT_BOX', {
   html: '<p>Supported claim<sup data-citation-key="market-report">1</sup></p>',
@@ -239,6 +282,11 @@ assert.match(formSource, /updateExplicitManualOverride\(\s*'items_per_box'/)
 assert.match(formSource, /Heading Font/)
 assert.match(formSource, /Content Font/)
 assert.match(formSource, /Deck theme/)
+assert.match(formSource, /Grid rows/)
+assert.match(formSource, /Multi-box color style/)
+assert.match(formSource, /Transparent/)
+assert.match(formSource, /effectiveTextGeometry/)
+assert.doesNotMatch(formSource, />Structure</)
 assert.doesNotMatch(panelSource, /Regenerate|onRegenerateToggle|regenerateEnabled/)
 assert.doesNotMatch(typesSource, /function recalcTextBoxLimits/)
 assert.match(generationSource, /sendElementCommand\('upsertSemanticElement'/)

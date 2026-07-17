@@ -3692,6 +3692,7 @@ function BuilderContent() {
                   mode={generationPanel.mode}
                   getTemplateSlotCatalog={getTemplateSlotCatalog}
                   existingTextTarget={generationPanel.refineContext ? {
+                    elementId: generationPanel.refineContext.elementId,
                     semanticRole: generationPanel.refineContext.semanticRole,
                     slotName: generationPanel.refineContext.slotName,
                     slotKind: generationPanel.refineContext.slotKind,

@@ -83,6 +83,7 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   metricsFitMode: 'metrics_fit_mode',
   manualMetricsOverrides: 'manual_metrics_overrides',
   slotMetadata: 'slot_metadata',
+  multiBoxColorMode: 'multi_box_color_mode',
 }
 
 // ============================================================================
@@ -157,6 +158,7 @@ interface SendMessageOptions {
   itemsPerInstance?: number
   structure?: string
   compose?: boolean
+  multiBoxColorMode?: 'SAME' | 'ALTERNATING' | 'PRIMARY_ACCENTS' | 'THEME_SEQUENCE'
   elements?: Array<Record<string, unknown>>
   // Element-specific configs (only one should be set)
   textboxConfig?: Record<string, unknown>
@@ -354,6 +356,17 @@ export function buildApiPayload(
   formData: TextLabsFormData
 ): { sessionId: string; message: string; options: SendMessageOptions } {
   const { prompt, count, layout, advancedModified, z_index, positionConfig, paddingConfig, componentType } = formData
+  const manualGeometryOverrides = formData.componentType === 'TEXT_BOX'
+    ? formData.manualGeometryOverrides as Record<string, unknown> | undefined
+    : undefined
+  const effectiveGeometryMode = formData.componentType === 'TEXT_BOX'
+    && formData.geometryMode === 'MANUAL'
+    && manualGeometryOverrides
+    && Object.keys(manualGeometryOverrides).length > 0
+      ? 'MANUAL'
+      : formData.componentType === 'TEXT_BOX'
+        ? 'AUTO'
+        : undefined
 
   const metricsThemeBindings = componentType === 'METRICS'
     ? detachMetricsOverrideBindings(
@@ -385,9 +398,9 @@ export function buildApiPayload(
     slotName: formData.slotName,
     slotKind: formData.slotKind,
     accessoryType: formData.accessoryType,
-    geometryMode: formData.componentType === 'TEXT_BOX' ? formData.geometryMode : undefined,
-    manualGeometryOverrides: formData.componentType === 'TEXT_BOX' && formData.geometryMode === 'MANUAL'
-      ? formData.manualGeometryOverrides as Record<string, unknown> | undefined
+    geometryMode: effectiveGeometryMode,
+    manualGeometryOverrides: effectiveGeometryMode === 'MANUAL'
+      ? manualGeometryOverrides
       : undefined,
     slotMetadata: formData.slotMetadata as Record<string, unknown> | undefined,
     textOnlyMode: !advancedModified,
@@ -415,6 +428,7 @@ export function buildApiPayload(
     }
     options.structure = formData.structure
     options.compose = formData.compose
+    options.multiBoxColorMode = formData.multiBoxColorMode
     options.elements = formData.elements
   }
 
