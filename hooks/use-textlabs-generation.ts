@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useRef } from "react"
-import { TextLabsFormData, TextLabsComponentType } from '@/types/textlabs'
+import { TextLabsFormData, TextLabsComponentType, TextLabsPositionConfig } from '@/types/textlabs'
 import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, buildSemanticUpsertParams, detachMetricsOverrideBindings, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
@@ -46,6 +46,7 @@ interface UseTextLabsGenerationParams {
     closePanel: () => void
     openPanelForElement: (type: TextLabsComponentType, elementId: string) => void
     resumePanelForElement: (type: TextLabsComponentType, elementId: string) => void
+    openPanelForRefine: (type: TextLabsComponentType, context: RefineContext) => void
     rememberDraftForElement: (elementId: string, formData?: TextLabsFormData | null) => void
     changeElementType: (type: TextLabsComponentType) => void
     getSnapshot: () => {
@@ -125,6 +126,39 @@ function buildPlaceholderHtml(elementId: string, componentType: string): string 
 function buildSpinnerHtml(elementId: string, componentType: string): string {
   const label = componentType.replace(/_/g, ' ')
   return `<div data-blank-element="${elementId}" data-element-type="${componentType}" style="display:flex;align-items:center;justify-content:center;height:100%;border:2px solid #a5b4fc;border-radius:8px;background:rgba(238,241,247,0.8);"><div style="text-align:center;color:#6366f1;"><div style="width:24px;height:24px;border:3px solid #c7d2fe;border-top-color:#6366f1;border-radius:50%;margin:0 auto;animation:spin 1s linear infinite;"></div><div style="font-size:12px;font-weight:500;margin-top:8px;">Generating ${label}...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style></div>`
+}
+
+function parseGridSpan(value: unknown): [number, number] | null {
+  if (typeof value !== 'string') return null
+  const parts = value.split('/').map(part => Number(part.trim()))
+  if (parts.length !== 2 || parts.some(part => !Number.isFinite(part))) return null
+  return [parts[0], parts[1]]
+}
+
+function gridPositionFromInsertionParams(params: Record<string, unknown>): TextLabsPositionConfig | null {
+  const rowSpan = parseGridSpan(params.gridRow)
+  const columnSpan = parseGridSpan(params.gridColumn)
+  const startRow = rowSpan?.[0]
+  const startCol = columnSpan?.[0]
+  const positionHeight = typeof params.positionHeight === 'number'
+    ? params.positionHeight
+    : rowSpan ? rowSpan[1] - rowSpan[0] : undefined
+  const positionWidth = typeof params.positionWidth === 'number'
+    ? params.positionWidth
+    : columnSpan ? columnSpan[1] - columnSpan[0] : undefined
+  if (
+    typeof startCol !== 'number' ||
+    typeof startRow !== 'number' ||
+    typeof positionWidth !== 'number' ||
+    typeof positionHeight !== 'number'
+  ) return null
+  return {
+    start_col: startCol,
+    start_row: startRow,
+    position_width: positionWidth,
+    position_height: positionHeight,
+    auto_position: false,
+  }
 }
 
 export function useTextLabsGeneration({
@@ -628,6 +662,7 @@ export function useTextLabsGeneration({
       generationTimeoutMs,
     )
     const insertedElementIds: string[] = []
+    let generatedRefineContext: RefineContext | null = null
 
     try {
       const sessionId = await textLabsSession.ensureSession(controller.signal)
@@ -818,6 +853,68 @@ export function useTextLabsGeneration({
         if (insertedElementId) {
           insertedElementIds.push(insertedElementId)
           generationPanel.rememberDraftForElement(insertedElementId, formData)
+          if (!generatedRefineContext) {
+            const generatedContent = (
+              params.content
+              ?? params.htmlContent
+              ?? params.chartHtml
+              ?? params.imageUrl
+              ?? ''
+            )
+            const generatedConfig = (formData.generationConfig ?? params.generationConfig ?? null) as Record<string, unknown> | null
+            const generatedGridPosition = gridPositionFromInsertionParams(params)
+            const generatedComponentType = normalizeSemanticComponentType(formData.componentType)
+              ?? (formData.componentType as TextLabsComponentType)
+            generatedRefineContext = {
+              elementId: insertedElementId,
+              elementType: generatedComponentType,
+              slideIndex: effectiveSlideIndex,
+              gridPosition: generatedGridPosition,
+              themeVariantId: typeof params.themeVariantId === 'string' ? params.themeVariantId : null,
+              themeBindings: params.themeBindings && typeof params.themeBindings === 'object'
+                ? params.themeBindings as Record<string, string>
+                : null,
+              styleOwner: typeof params.styleOwner === 'string' ? params.styleOwner : null,
+              themeVariantSource: typeof params.themeVariantSource === 'string' ? params.themeVariantSource : null,
+              semanticRole: typeof params.semanticRole === 'string' ? params.semanticRole as RefineContext['semanticRole'] : null,
+              slotName: typeof params.slotName === 'string' ? params.slotName : null,
+              slotKind: typeof params.slotKind === 'string' ? params.slotKind as RefineContext['slotKind'] : null,
+              accessoryType: typeof params.accessoryType === 'string' ? params.accessoryType : null,
+              generationConfig: generatedConfig,
+              citationsUsed,
+              metricsColorVariant: typeof params.metricsColorVariant === 'string' ? params.metricsColorVariant : null,
+              existingElement: {
+                element_id: insertedElementId,
+                component_type: generatedComponentType,
+                renderer_type: params.componentType,
+                theme_variant_id: typeof params.themeVariantId === 'string' ? params.themeVariantId : null,
+                theme_bindings: params.themeBindings && typeof params.themeBindings === 'object'
+                  ? params.themeBindings as Record<string, string>
+                  : null,
+                style_owner: typeof params.styleOwner === 'string' ? params.styleOwner : null,
+                theme_variant_source: typeof params.themeVariantSource === 'string' ? params.themeVariantSource : null,
+                semantic_role: typeof params.semanticRole === 'string' ? params.semanticRole : null,
+                slot_name: typeof params.slotName === 'string' ? params.slotName : null,
+                slot_kind: typeof params.slotKind === 'string' ? params.slotKind : null,
+                accessory_type: typeof params.accessoryType === 'string' ? params.accessoryType : null,
+                generation_config: generatedConfig,
+                citations_used: citationsUsed,
+                metrics_color_variant: typeof params.metricsColorVariant === 'string' ? params.metricsColorVariant : null,
+                content: generatedContent,
+                grid_position: generatedGridPosition,
+              },
+              slideContext: formData.slideContext && typeof formData.slideContext === 'object'
+                ? formData.slideContext as Record<string, unknown>
+                : null,
+              deckContext: formData.deckContext && typeof formData.deckContext === 'object'
+                ? formData.deckContext as Record<string, unknown>
+                : deckContext ?? null,
+              research: {
+                store_name: researchStoreName,
+                session_id: researchSessionId,
+              },
+            }
+          }
         }
       }
       assertThemeIsStillAuthoritative()
@@ -860,7 +957,9 @@ export function useTextLabsGeneration({
         }
       }
 
-      generationPanel.closePanel()
+      if (generatedRefineContext && generationPanel.getSnapshot().isOpen) {
+        generationPanel.openPanelForRefine(generatedRefineContext.elementType, generatedRefineContext)
+      }
       toast({
         title: refineContext ? 'Element refined' : 'Element generated',
         description: refineContext
