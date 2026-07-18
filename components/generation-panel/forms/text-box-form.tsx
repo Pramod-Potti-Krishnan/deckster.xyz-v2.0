@@ -507,12 +507,7 @@ export function TextBoxForm({
         accessoryType: 'LOGO',
         slotMetadata,
         imageConfig: {
-          style: 'brand_graphic',
-          quality: 'high',
-          corners: 'square',
-          border: false,
           placeholder_mode: false,
-          auto_position: true,
         },
       }
       onSubmit(logoFormData)

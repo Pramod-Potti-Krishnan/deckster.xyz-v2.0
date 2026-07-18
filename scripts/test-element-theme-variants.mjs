@@ -85,6 +85,9 @@ vm.runInNewContext(clientCompiled.outputText, {
     if (id === '@/lib/element-semantic-type') return semanticMod.exports
     if (id === '@/lib/textlabs-theme-metadata') return metadataMod.exports
     if (id === '@/lib/element-provenance') return provenanceMod.exports
+    if (id === '@/lib/element-research-policy') return {
+      isNonResearchVisualElement: componentType => ['IMAGE', 'ICON_LABEL', 'SHAPE'].includes(componentType),
+    }
     if (id === '@/types/textlabs') return {
       INSERTION_METHOD_MAP: { TEXT_BOX: 'insertElement', METRICS: 'insertElement' },
       TEXT_LABS_ELEMENT_DEFAULTS: {

@@ -2,7 +2,7 @@
 
 import { type ReactNode, useRef, useCallback, useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { defaultElementResearchSelection } from '@/lib/element-research-policy'
+import { defaultElementResearchSelection, isNonResearchVisualElement } from '@/lib/element-research-policy'
 import { TemplateSlotCatalog, TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import { GenerationPanelHeader } from './header'
 import { GenerationInput } from './shared/generation-input'
@@ -263,8 +263,9 @@ export function GenerationPanel({
 
   // Visibility logic
   const showGenerationInput = mode === 'generate' || mode === 'refine'
+  const supportsResearch = !isNonResearchVisualElement(elementType)
 
-  const researchControls = showGenerationInput ? (
+  const researchControls = showGenerationInput && supportsResearch ? (
     <ResearchControls
       researchMode={researchMode}
       researchWeb={researchWeb}
@@ -427,7 +428,7 @@ function FormRouter({
     case 'IMAGE':
       return <ImageForm {...commonProps} />
     case 'ICON_LABEL':
-      return <IconLabelForm onSubmit={onSubmit} registerSubmit={registerSubmit} isGenerating={isGenerating} presentationId={presentationId} prompt={prompt} showAdvanced={showAdvanced} registerMandatoryConfig={registerMandatoryConfig} />
+      return <IconLabelForm {...commonProps} />
     case 'SHAPE':
       return <ShapeForm {...commonProps} />
     case 'INFOGRAPHIC':

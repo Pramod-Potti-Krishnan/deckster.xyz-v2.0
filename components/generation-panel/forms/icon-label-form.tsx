@@ -1,14 +1,17 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { IconLabelFormData, IconLabelConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
-import { MandatoryConfig } from '../types'
+import { IconLabelFormData, IconLabelConfig, TextLabsPaddingConfig, TextLabsPositionConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
+import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
+import { PaddingControl } from '../shared/padding-control'
+import { CollapsibleSection } from '../shared/collapsible-section'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.ICON_LABEL
+type IconOverrideField = 'size' | 'style' | 'font' | 'color' | 'background' | 'exclusions' | 'position' | 'padding'
 
 // Backend-aligned icon styles
 const ICON_STYLES: { value: IconLabelConfig['style']; label: string }[] = [
@@ -38,12 +41,13 @@ interface IconLabelFormProps {
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   presentationId?: string | null
+  elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
 }
 
-export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presentationId, prompt, showAdvanced, registerMandatoryConfig }: IconLabelFormProps) {
+export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: IconLabelFormProps) {
   const [count, setCount] = useState(1)
   const [mode, setMode] = useState<'icon' | 'label'>('icon')
   const [size, setSize] = useState<IconLabelConfig['size']>('medium')
@@ -53,8 +57,59 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
   const [targetBackground, setTargetBackground] = useState('light')
   const [excludeIconsInput, setExcludeIconsInput] = useState('')
   const [advancedModified, setAdvancedModified] = useState(false)
+  const [explicitFields, setExplicitFields] = useState<Set<IconOverrideField>>(() => new Set())
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const [showPosition, setShowPosition] = useState(false)
+  const [showPadding, setShowPadding] = useState(false)
+  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
+    start_col: 2,
+    start_row: 4,
+    position_width: DEFAULTS.width,
+    position_height: DEFAULTS.height,
+    auto_position: false,
+  })
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
+    top: 0, right: 0, bottom: 0, left: 0,
+  })
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
+
+  useEffect(() => {
+    if (!elementContext) return
+    setPositionConfig({
+      start_col: elementContext.startCol,
+      start_row: elementContext.startRow,
+      position_width: elementContext.width,
+      position_height: elementContext.height,
+      auto_position: false,
+    })
+  }, [elementContext])
+
+  const markExplicit = useCallback((field: IconOverrideField) => {
+    setExplicitFields(previous => new Set(previous).add(field))
+    setAdvancedModified(true)
+  }, [])
+
+  const resetToAuto = useCallback(() => {
+    setCount(1)
+    setSize('medium')
+    setStyle('circle')
+    setFont('poppins')
+    setColor(null)
+    setTargetBackground('light')
+    setExcludeIconsInput('')
+    setPositionConfig({
+      start_col: elementContext?.startCol ?? 2,
+      start_row: elementContext?.startRow ?? 4,
+      position_width: elementContext?.width ?? DEFAULTS.width,
+      position_height: elementContext?.height ?? DEFAULTS.height,
+      auto_position: false,
+    })
+    setPaddingConfig({ top: 0, right: 0, bottom: 0, left: 0 })
+    setZIndex(DEFAULTS.zIndex)
+    updateThemeSource({ mode: presentationId ? 'deck' : 'none', overrides: null })
+    setExplicitFields(new Set())
+    setAdvancedModified(false)
+  }, [elementContext, presentationId, updateThemeSource])
 
   // Register mandatory config — Mode
   useEffect(() => {
@@ -65,7 +120,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         { value: 'icon', label: 'Icon' },
         { value: 'label', label: 'Label' },
       ],
-      onChange: (v) => { setMode(v as 'icon' | 'label'); setAdvancedModified(true) },
+      onChange: (v) => { setMode(v as 'icon' | 'label') },
       promptPlaceholder: mode === 'icon' ? 'e.g., shopping cart icon, checkmark' : "e.g., Label 'IV', 'A+', 'Step 1'",
     })
   }, [mode, registerMandatoryConfig])
@@ -85,16 +140,20 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
       themeOverrides,
       iconLabelConfig: {
         mode,
-        size,
-        style,
-        font,
-        color,
-        target_background: targetBackground,
-        exclude_icons: excludeIconsInput.split(',').map(item => item.trim()).filter(Boolean),
+        ...(explicitFields.has('size') ? { size } : {}),
+        ...(explicitFields.has('style') ? { style } : {}),
+        ...(explicitFields.has('font') ? { font } : {}),
+        ...(explicitFields.has('color') ? { color } : {}),
+        ...(explicitFields.has('background') ? { target_background: targetBackground } : {}),
+        ...(explicitFields.has('exclusions') ? {
+          exclude_icons: excludeIconsInput.split(',').map(item => item.trim()).filter(Boolean),
+        } : {}),
       },
+      positionConfig,
+      paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, mode, size, style, font, color, targetBackground, excludeIconsInput, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, onSubmit])
+  }, [prompt, count, mode, size, style, font, color, targetBackground, excludeIconsInput, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -103,10 +162,23 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
   return (
     <div className="space-y-2.5">
       {showAdvanced && (<>
+      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+        <div>
+          <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Automatic details</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400">Only changed fields override Illustrator defaults.</div>
+        </div>
+        <button type="button" onClick={resetToAuto} disabled={explicitFields.size === 0 && !advancedModified}
+          className="rounded-md border border-slate-300 px-2 py-1 text-[10px] text-slate-600 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300">
+          Reset to Auto
+        </button>
+      </div>
       <ThemeSourceSelector
         presentationId={presentationId}
         value={themeSource}
-        onChange={updateThemeSource}
+        onChange={selection => {
+          updateThemeSource(selection)
+          setAdvancedModified(true)
+        }}
       />
 
       {/* Count */}
@@ -114,7 +186,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
         <select
           value={count}
-          onChange={(e) => setCount(Number(e.target.value))}
+          onChange={(e) => { setCount(Number(e.target.value)); setAdvancedModified(true) }}
           className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
         >
           {[1, 2, 3, 4, 5, 6].map(n => (
@@ -136,7 +208,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         ]}
         onChange={(_, v) => {
           setSize(v as IconLabelConfig['size'])
-          setAdvancedModified(true)
+          markExplicit('size')
         }}
       />
 
@@ -148,7 +220,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
             value={style}
             onChange={(e) => {
               setStyle(e.target.value as IconLabelConfig['style'])
-              setAdvancedModified(true)
+              markExplicit('style')
             }}
             className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
           >
@@ -167,7 +239,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
             value={font}
             onChange={(e) => {
               setFont(e.target.value as IconLabelConfig['font'])
-              setAdvancedModified(true)
+              markExplicit('font')
             }}
             className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
           >
@@ -187,14 +259,21 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
             value={color || getDefaultColor(mode, style)}
             onChange={(e) => {
               setColor(e.target.value)
-              setAdvancedModified(true)
+              markExplicit('color')
             }}
             className="h-6 w-6 rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
           />
           <span className="text-[10px] text-gray-400 dark:text-slate-500">{color || 'Auto'}</span>
           {color && (
             <button
-              onClick={() => { setColor(null); setAdvancedModified(true) }}
+              onClick={() => {
+                setColor(null)
+                setExplicitFields(previous => {
+                  const next = new Set(previous)
+                  next.delete('color')
+                  return next
+                })
+              }}
               className="text-[10px] text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:text-slate-200"
             >
               Reset
@@ -213,7 +292,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         ]}
         onChange={(_, v) => {
           setTargetBackground(v)
-          setAdvancedModified(true)
+          markExplicit('background')
         }}
       />
 
@@ -224,7 +303,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
           value={excludeIconsInput}
           onChange={(e) => {
             setExcludeIconsInput(e.target.value)
-            setAdvancedModified(true)
+            markExplicit('exclusions')
           }}
           placeholder="e.g., star, circle-dot"
           className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -237,6 +316,35 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         onChange={setZIndex}
         onAdvancedModified={() => setAdvancedModified(true)}
       />
+
+      <CollapsibleSection title="Position & Size" isOpen={showPosition} onToggle={() => setShowPosition(!showPosition)}>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            ['Col', 'start_col', 1, 32],
+            ['Row', 'start_row', 1, 18],
+            ['Width', 'position_width', 1, 32],
+            ['Height', 'position_height', 1, 18],
+          ] as const).map(([label, field, min, max]) => (
+            <label key={field} className="space-y-1">
+              <span className="text-[10px] text-gray-500 dark:text-slate-400">{label}</span>
+              <input type="number" min={min} max={max} value={positionConfig[field]}
+                onChange={event => {
+                  setPositionConfig(previous => ({ ...previous, [field]: Number(event.target.value) }))
+                  markExplicit('position')
+                }}
+                className="w-full rounded border border-gray-300 bg-gray-50 px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800" />
+            </label>
+          ))}
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Container Padding" isOpen={showPadding} onToggle={() => setShowPadding(!showPadding)}>
+        <PaddingControl
+          paddingConfig={paddingConfig}
+          onChange={setPaddingConfig}
+          onAdvancedModified={() => markExplicit('padding')}
+        />
+      </CollapsibleSection>
       </>)}
     </div>
   )

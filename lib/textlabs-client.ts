@@ -26,6 +26,7 @@ import {
 import { semanticTypeForInsertion } from '@/lib/element-semantic-type'
 import { resolveElementThemeMetadata } from '@/lib/textlabs-theme-metadata'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
+import { isNonResearchVisualElement } from '@/lib/element-research-policy'
 
 // Same service as Elementor - reuse the URL
 const TEXT_LABS_BASE_URL = process.env.NEXT_PUBLIC_ELEMENTOR_URL || 'https://web-production-3b42.up.railway.app'
@@ -403,7 +404,11 @@ export function buildApiPayload(
     slideContext: formData.slideContext,
     deckContext: formData.deckContext,
     generationContext: formData.generationContext,
-    research: formData.research,
+    research: isNonResearchVisualElement(
+      formData.componentType,
+      formData.slotKind,
+      formData.accessoryType,
+    ) ? undefined : formData.research,
     replaceElementId: formData.replaceElementId,
     // Accessories (currently Logo) are structural slots, not semantic text
     // roles. Text Labs remains backward compatible with its BODY_TEXT default,
@@ -436,6 +441,15 @@ export function buildApiPayload(
   // IMAGE always sends its config (position is embedded in imageConfig, not separate)
   if (formData.componentType === 'IMAGE') {
     options.imageConfig = formData.imageConfig as Record<string, unknown>
+  }
+
+  // Mode/shape type are routing intent rather than visual overrides, so these
+  // sparse configs must travel even while every optional field remains Auto.
+  if (formData.componentType === 'ICON_LABEL') {
+    options.iconLabelConfig = formData.iconLabelConfig as Record<string, unknown>
+  }
+  if (formData.componentType === 'SHAPE') {
+    options.shapeConfig = formData.shapeConfig as Record<string, unknown>
   }
 
   if (formData.componentType === 'TEXT_BOX') {
@@ -737,6 +751,7 @@ export function buildSemanticUpsertParams(
     slotName: params.slotName,
     slotKind: params.slotKind,
     accessoryType: params.accessoryType,
+    zIndex: params.zIndex,
     geometry: params.slotKind === 'body' ? {
       gridRow: params.gridRow,
       gridColumn: params.gridColumn,
@@ -748,6 +763,7 @@ export function buildSemanticUpsertParams(
       styleOwner: params.styleOwner,
       themeVariantId: params.themeVariantId,
       themeBindings: params.themeBindings,
+      themeVariantSource: params.themeVariantSource,
       resolvedGeometry: params.resolvedGeometry,
       platinumProfile: params.platinumProfile,
       generationConfig: params.generationConfig,

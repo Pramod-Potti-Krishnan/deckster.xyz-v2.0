@@ -45,6 +45,11 @@ vm.runInNewContext(compiled.outputText, {
         responseStyleOwner: () => null,
       }
     }
+    if (id === '@/lib/element-research-policy') {
+      return {
+        isNonResearchVisualElement: componentType => ['IMAGE', 'ICON_LABEL', 'SHAPE'].includes(componentType),
+      }
+    }
     throw new Error(`Unexpected dependency: ${id}`)
   },
 })

@@ -11,6 +11,7 @@ import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.IMAGE
+type ImageOverrideField = 'style' | 'quality' | 'corners' | 'border' | 'position' | 'aspectRatio'
 
 // Backend-aligned image styles (8 values matching ImageStyle Literal)
 const IMAGE_STYLE_GROUPS: { category: string; styles: { value: TextLabsImageStyle; label: string }[] }[] = [
@@ -56,6 +57,13 @@ function calculateGCD(a: number, b: number): number {
   return b === 0 ? a : calculateGCD(b, a % b)
 }
 
+function reducedRatio(width: number, height: number): string {
+  const scaledWidth = Math.round(width * 1000)
+  const scaledHeight = Math.round(height * 1000)
+  const gcd = calculateGCD(scaledWidth, scaledHeight)
+  return `${scaledWidth / gcd}:${scaledHeight / gcd}`
+}
+
 /** Scale-to-fit: maximize dimensions within maxW x maxH while preserving aspect ratio, then center */
 function scaleToFitAndCenter(ratioW: number, ratioH: number): { width: number; height: number; startCol: number; startRow: number } {
   // Scale up to fill max area while keeping ratio
@@ -87,7 +95,6 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [quality, setQuality] = useState<ImageConfig['quality']>('standard')
   const [corners, setCorners] = useState<'square' | 'rounded'>('square')
   const [border, setBorder] = useState(false)
-  const [autoPosition, setAutoPosition] = useState(false)
   const [startCol, setStartCol] = useState(2)
   const [startRow, setStartRow] = useState(4)
   const [width, setWidth] = useState(DEFAULTS.width)
@@ -95,6 +102,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [selectedAspectRatio, setSelectedAspectRatio] = useState('16:9')
   const [selectedPositionPreset, setSelectedPositionPreset] = useState<string | null>(null)
   const [advancedModified, setAdvancedModified] = useState(false)
+  const [explicitFields, setExplicitFields] = useState<Set<ImageOverrideField>>(() => new Set())
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
@@ -107,6 +115,33 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
     top: 0, right: 0, bottom: 0, left: 0,
   })
+
+  const markExplicit = useCallback((...fields: ImageOverrideField[]) => {
+    setExplicitFields(previous => {
+      const next = new Set(previous)
+      fields.forEach(field => next.add(field))
+      return next
+    })
+    setAdvancedModified(true)
+  }, [])
+
+  const resetToAuto = useCallback(() => {
+    setStyle('realistic')
+    setQuality('standard')
+    setCorners('square')
+    setBorder(false)
+    setStartCol(elementContext?.startCol ?? 2)
+    setStartRow(elementContext?.startRow ?? 4)
+    setWidth(elementContext?.width ?? DEFAULTS.width)
+    setHeight(elementContext?.height ?? DEFAULTS.height)
+    setSelectedAspectRatio(elementContext ? 'custom' : '16:9')
+    setSelectedPositionPreset(null)
+    setPaddingConfig({ top: 0, right: 0, bottom: 0, left: 0 })
+    setZIndex(DEFAULTS.zIndex)
+    updateThemeSource({ mode: presentationId ? 'deck' : 'none', overrides: null })
+    setExplicitFields(new Set())
+    setAdvancedModified(false)
+  }, [elementContext, presentationId, updateThemeSource])
 
   // Initialize position from canvas context
   useEffect(() => {
@@ -128,8 +163,8 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
     setStartRow(fit.startRow)
     setSelectedAspectRatio(preset.label)
     setSelectedPositionPreset(null) // Clear position preset when aspect ratio changes
-    setAdvancedModified(true)
-  }, [])
+    markExplicit('position', 'aspectRatio')
+  }, [markExplicit])
 
   const applyPositionPreset = useCallback((key: string) => {
     const preset = IMAGE_POSITION_PRESETS[key]
@@ -140,46 +175,37 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
     setHeight(preset.height)
     setSelectedPositionPreset(key)
     setSelectedAspectRatio('custom') // Position preset dimensions may not match any ratio
-    setAutoPosition(false)
-    setAdvancedModified(true)
-  }, [])
-
-  // Register mandatory config — Image Style
-  const styleLabel = IMAGE_STYLE_GROUPS.flatMap(g => g.styles).find(s => s.value === style)?.label || 'Realistic'
+    markExplicit('position', 'aspectRatio')
+  }, [markExplicit])
 
   useEffect(() => {
     registerMandatoryConfig({
-      fieldLabel: 'Style',
-      displayLabel: styleLabel,
-      optionGroups: IMAGE_STYLE_GROUPS.map(g => ({
-        group: g.category,
-        options: g.styles.map(s => ({ value: s.value, label: s.label })),
-      })),
-      onChange: (v) => { setStyle(v as TextLabsImageStyle); setAdvancedModified(true) },
+      fieldLabel: 'Mode',
+      displayLabel: explicitFields.size === 0 && !advancedModified ? 'Auto' : 'Custom',
+      onChange: () => undefined,
       promptPlaceholder: 'e.g., Modern office space with team collaboration',
     })
-  }, [style, styleLabel, registerMandatoryConfig])
+  }, [advancedModified, explicitFields, registerMandatoryConfig])
 
   const handleSubmit = useCallback(() => {
-    const gcd = calculateGCD(width, height)
-    const aspectRatio = `${width / gcd}:${height / gcd}`
+    const aspectRatio = reducedRatio(width, height)
     const gridRow = `${startRow}/${startRow + height}`
     const gridColumn = `${startCol}/${startCol + width}`
 
     const imageConfig: Partial<ImageConfig> = {
-      style,
-      quality,
-      corners,
-      border,
       placeholder_mode: false,
-      auto_position: autoPosition,
       start_col: startCol,
       start_row: startRow,
       width,
       height,
       grid_row: gridRow,
       grid_column: gridColumn,
-      aspect_ratio: aspectRatio,
+      ...(explicitFields.has('style') ? { style } : {}),
+      ...(explicitFields.has('quality') ? { quality } : {}),
+      ...(explicitFields.has('corners') ? { corners } : {}),
+      ...(explicitFields.has('border') ? { border } : {}),
+      ...(explicitFields.has('position') ? { auto_position: false } : {}),
+      ...(explicitFields.has('aspectRatio') ? { aspect_ratio: aspectRatio } : {}),
     }
 
     const formData: ImageFormData = {
@@ -196,7 +222,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, style, quality, corners, border, autoPosition, startCol, startRow, width, height, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
+  }, [prompt, style, quality, corners, border, startCol, startRow, width, height, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -205,32 +231,82 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   // Pixel + aspect ratio display
   const pixelWidth = width * GRID_CELL_SIZE
   const pixelHeight = height * GRID_CELL_SIZE
-  const gcd = calculateGCD(pixelWidth, pixelHeight)
-  const displayAspect = `${pixelWidth / gcd}:${pixelHeight / gcd}`
+  const displayAspect = reducedRatio(pixelWidth, pixelHeight)
 
   return (
     <div className="space-y-2.5">
       {showAdvanced && (<>
+      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+        <div>
+          <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Automatic</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400">Uses the live canvas geometry and service defaults.</div>
+        </div>
+        <button
+          type="button"
+          onClick={resetToAuto}
+          disabled={explicitFields.size === 0 && !advancedModified}
+          className="rounded-md border border-slate-300 px-2 py-1 text-[10px] text-slate-600 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300"
+        >
+          Reset to Auto
+        </button>
+      </div>
       {/* Style Options */}
       <CollapsibleSection title="Style" isOpen={showStyle} onToggle={() => setShowStyle(!showStyle)}>
         <div className="space-y-2">
           <ThemeSourceSelector
             presentationId={presentationId}
             value={themeSource}
-            onChange={updateThemeSource}
+            onChange={selection => {
+              updateThemeSource(selection)
+              setAdvancedModified(true)
+            }}
           />
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Image Style</label>
+            <select
+              value={explicitFields.has('style') ? style : ''}
+              onChange={(event) => {
+                if (!event.target.value) {
+                  setExplicitFields(previous => {
+                    const next = new Set(previous)
+                    next.delete('style')
+                    return next
+                  })
+                  return
+                }
+                setStyle(event.target.value as TextLabsImageStyle)
+                markExplicit('style')
+              }}
+              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
+            >
+              <option value="">Auto</option>
+              {IMAGE_STYLE_GROUPS.flatMap(group => group.styles).map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Quality */}
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Quality</label>
             <select
-              value={quality}
+              value={explicitFields.has('quality') ? quality : ''}
               onChange={(e) => {
+                if (!e.target.value) {
+                  setExplicitFields(previous => {
+                    const next = new Set(previous)
+                    next.delete('quality')
+                    return next
+                  })
+                  return
+                }
                 setQuality(e.target.value as ImageConfig['quality'])
-                setAdvancedModified(true)
+                markExplicit('quality')
               }}
               className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
             >
+              <option value="">Auto</option>
               <option value="draft">Draft</option>
               <option value="standard">Standard</option>
               <option value="high">High</option>
@@ -249,7 +325,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
             ]}
             onChange={(_, v) => {
               setCorners(v as 'square' | 'rounded')
-              setAdvancedModified(true)
+              markExplicit('corners')
             }}
           />
 
@@ -264,7 +340,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
             ]}
             onChange={(_, v) => {
               setBorder(v === 'true')
-              setAdvancedModified(true)
+              markExplicit('border')
             }}
           />
         </div>
@@ -293,7 +369,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
               <button
                 onClick={() => {
                   setSelectedAspectRatio('custom')
-                  setAdvancedModified(true)
+                  markExplicit('aspectRatio')
                 }}
                 className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                   selectedAspectRatio === 'custom'
@@ -315,18 +391,32 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
           <ToggleRow
             label="Positioning"
             field="auto_position"
-            value={autoPosition ? 'auto' : 'manual'}
+            value={explicitFields.has('position') ? 'manual' : 'auto'}
             options={[
               { value: 'auto', label: 'Auto' },
               { value: 'manual', label: 'Manual' },
             ]}
             onChange={(_, v) => {
-              setAutoPosition(v === 'auto')
-              setAdvancedModified(true)
+              if (v === 'auto') {
+                setStartCol(elementContext?.startCol ?? 2)
+                setStartRow(elementContext?.startRow ?? 4)
+                setWidth(elementContext?.width ?? DEFAULTS.width)
+                setHeight(elementContext?.height ?? DEFAULTS.height)
+                setSelectedAspectRatio(elementContext ? 'custom' : '16:9')
+                setSelectedPositionPreset(null)
+                setExplicitFields(previous => {
+                  const next = new Set(previous)
+                  next.delete('position')
+                  next.delete('aspectRatio')
+                  return next
+                })
+              } else {
+                markExplicit('position')
+              }
             }}
           />
 
-          {!autoPosition && (
+          {explicitFields.has('position') && (
             <>
               {/* Position Presets */}
               <div className="space-y-1">
@@ -353,13 +443,13 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
                 <div className="space-y-1">
                   <label className="text-[10px] text-gray-400 dark:text-slate-500">Col</label>
                   <input type="number" value={startCol} min={1} max={32} step={0.2}
-                    onChange={(e) => { setStartCol(Number(e.target.value)); setSelectedPositionPreset(null); setAdvancedModified(true) }}
+                    onChange={(e) => { setStartCol(Number(e.target.value)); setSelectedPositionPreset(null); markExplicit('position') }}
                     className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] text-gray-400 dark:text-slate-500">Row</label>
                   <input type="number" value={startRow} min={1} max={18} step={0.2}
-                    onChange={(e) => { setStartRow(Number(e.target.value)); setSelectedPositionPreset(null); setAdvancedModified(true) }}
+                    onChange={(e) => { setStartRow(Number(e.target.value)); setSelectedPositionPreset(null); markExplicit('position') }}
                     className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
                 </div>
               </div>
@@ -371,13 +461,13 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
             <div className="space-y-1">
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Width</label>
               <input type="number" value={width} min={0.2} max={32} step={0.2}
-                onChange={(e) => { setWidth(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); setAdvancedModified(true) }}
+                onChange={(e) => { setWidth(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); markExplicit('position', 'aspectRatio') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Height</label>
               <input type="number" value={height} min={0.2} max={18} step={0.2}
-                onChange={(e) => { setHeight(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); setAdvancedModified(true) }}
+                onChange={(e) => { setHeight(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); markExplicit('position', 'aspectRatio') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
             </div>
           </div>

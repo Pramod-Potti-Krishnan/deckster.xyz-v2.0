@@ -23,6 +23,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { GenerationPanel } from '@/components/generation-panel'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { useElementRefinement } from '@/hooks/use-element-refinement'
+import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
@@ -2733,7 +2734,7 @@ function BuilderContent() {
     }
 
     const blankInfo = blankElements.getElement(payload.elementId)
-    if (payload.isBlank || blankInfo) {
+    if (shouldOpenAsBlankPlaceholder(payload, blankInfo?.componentType)) {
       generationPanel.openPanelForElement(componentType, payload.elementId)
       bringToFront('element')
       setShowElementPanel(false)

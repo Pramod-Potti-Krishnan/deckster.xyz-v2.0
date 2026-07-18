@@ -90,6 +90,9 @@ const clientModule = compile(new URL('../lib/textlabs-client.ts', import.meta.ur
   if (id === '@/lib/element-semantic-type') return { semanticTypeForInsertion: value => value }
   if (id === '@/lib/textlabs-theme-metadata') return { resolveElementThemeMetadata: () => ({ themeVariantId: null, themeBindings: null }) }
   if (id === '@/lib/element-provenance') return { parseThemeVariantSource: () => null, responseStyleOwner: () => null }
+  if (id === '@/lib/element-research-policy') return {
+    isNonResearchVisualElement: componentType => ['IMAGE', 'ICON_LABEL', 'SHAPE'].includes(componentType),
+  }
   throw new Error(`Unexpected dependency: ${id}`)
 })
 const geometryModule = compile(new URL('../lib/textbox-geometry-mode.ts', import.meta.url))
@@ -352,7 +355,7 @@ const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import
 const typesSource = fs.readFileSync(new URL('../types/textlabs.ts', import.meta.url), 'utf8')
 assert.doesNotMatch(formSource, /theme_mode|ThemeSourceSelector|recalcTextBoxLimits/)
 assert.match(formSource, /componentType: 'IMAGE'/)
-assert.match(formSource, /style: 'brand_graphic'/)
+assert.match(formSource, /componentType: 'IMAGE'[\s\S]{0,500}placeholder_mode: false/)
 for (const section of ['Instances', 'Box Design', 'Heading', 'Content', 'Positioning', 'Container Padding']) {
   assert.match(
     formSource,
