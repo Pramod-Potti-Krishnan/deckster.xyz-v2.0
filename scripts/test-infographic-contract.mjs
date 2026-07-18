@@ -276,7 +276,17 @@ assert.match(researchPolicySource, /'INFOGRAPHIC'/)
 assert.match(generationSource, /const nonResearchVisual = isNonResearchVisualElement\(/)
 assert.match(generationSource, /delete formData\.research/)
 assert.match(generationSource, /infographicConfig\.grid_row/)
-assert.match(generationSource, /formData\.componentType === 'INFOGRAPHIC'\s*\n\s*\? 300_000/)
+assert.match(generationSource, /resolveElementGenerationTimeoutMs\(/)
 assert.match(generationSource, /properties: params\.structuredPlan/)
+assert.doesNotMatch(
+  formSource,
+  /const advancedModified = mode === 'v2'/,
+  'Structured is a primary Design choice and must not mark Advanced as modified',
+)
+assert.match(
+  generationSource,
+  /expectedThemeSource === 'director'/,
+  'theme authority distinguishes Director acknowledgement from persisted Layout readiness',
+)
 
 console.log('infographic frontend contract tests passed')

@@ -329,8 +329,7 @@ export function InfographicForm({
       manualSegments: mode === 'v2' && contentMode === 'manual' ? segmentRows : undefined,
       overrides: sparseOverrides,
     })
-    const advancedModified = mode === 'v2'
-      || segmentCount !== undefined
+    const advancedModified = segmentCount !== undefined
       || contentMode === 'manual'
       || Object.keys(sparseOverrides).some(key => sparseOverrides[key as keyof InfographicOverrides] !== undefined)
       || positionModified
