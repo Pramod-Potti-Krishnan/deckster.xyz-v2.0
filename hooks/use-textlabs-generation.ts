@@ -840,7 +840,14 @@ export function useTextLabsGeneration({
       // Insert each element into the canvas
       const effectiveSlideIndex = generationSlideIndex
       const formElements = 'elements' in formData ? formData.elements : undefined
-      const authoritativeGridPosition = currentBlankInfo && formData.count <= 1 ? {
+      const manuallyPositionedChart = formData.componentType === 'CHART'
+        && formData.positionConfig?.auto_position === false
+      const authoritativeGridPosition = manuallyPositionedChart && formData.positionConfig ? {
+        start_col: formData.positionConfig.start_col,
+        start_row: formData.positionConfig.start_row,
+        position_width: formData.positionConfig.position_width,
+        position_height: formData.positionConfig.position_height,
+      } : currentBlankInfo && formData.count <= 1 ? {
         start_col: currentBlankInfo.startCol,
         start_row: currentBlankInfo.startRow,
         position_width: currentBlankInfo.width,

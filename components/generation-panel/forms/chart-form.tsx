@@ -13,6 +13,7 @@ import { chartDataTemplate, parseChartDataJson } from '@/lib/chart-data-contract
 import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
+import { PositionPresets } from '../shared/position-presets'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
@@ -22,32 +23,47 @@ const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.CHART
 export const CHART_TYPE_GROUPS: { group: string; types: { value: TextLabsChartType; label: string }[] }[] = [
   { group: 'Recommended', types: [{ value: 'auto', label: 'Auto' }] },
   {
-    group: 'Comparison & composition',
+    group: 'Basic',
     types: [
+      { value: 'line', label: 'Line Chart' },
       { value: 'bar_vertical', label: 'Vertical Bar' },
       { value: 'bar_horizontal', label: 'Horizontal Bar' },
-      { value: 'bar_grouped', label: 'Grouped Bar' },
-      { value: 'bar_stacked', label: 'Stacked Bar' },
-      { value: 'waterfall', label: 'Waterfall' },
-      { value: 'pie', label: 'Pie' },
-      { value: 'doughnut', label: 'Doughnut' },
+      { value: 'pie', label: 'Pie Chart' },
+      { value: 'doughnut', label: 'Doughnut Chart' },
     ],
   },
   {
-    group: 'Trends',
+    group: 'Correlation',
     types: [
-      { value: 'line', label: 'Line' },
-      { value: 'area', label: 'Area' },
+      { value: 'scatter', label: 'Scatter Plot' },
+      { value: 'bubble', label: 'Bubble Chart' },
+    ],
+  },
+  {
+    group: 'Radial',
+    types: [
+      { value: 'polar_area', label: 'Polar Area' },
+      { value: 'radar', label: 'Radar Chart' },
+    ],
+  },
+  {
+    group: 'Time Series',
+    types: [
+      { value: 'area', label: 'Area Chart' },
       { value: 'area_stacked', label: 'Stacked Area' },
     ],
   },
   {
-    group: 'Relationships & profiles',
+    group: 'Comparison',
     types: [
-      { value: 'scatter', label: 'Scatter' },
-      { value: 'bubble', label: 'Bubble' },
-      { value: 'radar', label: 'Radar' },
-      { value: 'polar_area', label: 'Polar Area' },
+      { value: 'bar_grouped', label: 'Grouped Bar' },
+      { value: 'bar_stacked', label: 'Stacked Bar' },
+    ],
+  },
+  {
+    group: 'Financial',
+    types: [
+      { value: 'waterfall', label: 'Waterfall Chart' },
     ],
   },
 ]
@@ -86,33 +102,89 @@ export function ChartForm({
   const [advancedModified, setAdvancedModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
   const [showOptions, setShowOptions] = useState(false)
+  const [showPosition, setShowPosition] = useState(false)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
-  // This is a transport fallback only. For dropped placeholders the generation
-  // hook replaces it with a fresh Layout geometry snapshot immediately before
-  // generation, so the canvas remains the sole positioning authority.
+  // Auto follows the live placeholder geometry. Manual is an explicit user
+  // override and is honored by the generation hook when selected.
   const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
     start_col: 2,
     start_row: 4,
     position_width: DEFAULTS.width,
     position_height: DEFAULTS.height,
-    auto_position: false,
+    auto_position: true,
   })
 
   useEffect(() => {
     if (!elementContext) return
-    setPositionConfig({
+    setPositionConfig(previous => previous.auto_position ? {
       start_col: elementContext.startCol,
       start_row: elementContext.startRow,
       position_width: elementContext.width,
       position_height: elementContext.height,
-      auto_position: false,
-    })
+      auto_position: true,
+    } : previous)
   }, [elementContext])
 
-  // Chart type now has a visible native selector. Explicitly remove the
-  // generic prompt-chip selector that failed to open in UAT.
-  useEffect(() => registerMandatoryConfig(null), [registerMandatoryConfig])
+  const updatePositionConfig = useCallback((next: TextLabsPositionConfig) => {
+    if (next.auto_position && elementContext) {
+      setPositionConfig({
+        start_col: elementContext.startCol,
+        start_row: elementContext.startRow,
+        position_width: elementContext.width,
+        position_height: elementContext.height,
+        auto_position: true,
+      })
+      return
+    }
+    setPositionConfig(next)
+  }, [elementContext])
+
+  const chartTypeLabel = CHART_TYPE_GROUPS
+    .flatMap(group => group.types)
+    .find(type => type.value === chartType)?.label ?? 'Auto'
+
+  // Keep chart choice in the chat toolbar, as in the production interaction
+  // model. A native grouped select is used deliberately: it remains reliable
+  // in the panel/iframe stack where the generic popover previously failed.
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Chart Type',
+      displayLabel: chartTypeLabel,
+      selectedValue: chartType,
+      promptPlaceholder: 'e.g., Show quarterly revenue growth for 2024',
+      onChange: value => {
+        setChartType(value as TextLabsChartType)
+        setAdvancedModified(true)
+      },
+      customRender: (
+        <label className="relative block min-w-0 max-w-[150px]">
+          <span className="sr-only">Chart Type</span>
+          <select
+            aria-label="Chart Type"
+            value={chartType}
+            disabled={isGenerating}
+            onChange={event => {
+              setChartType(event.target.value as TextLabsChartType)
+              setAdvancedModified(true)
+            }}
+            className="h-7 max-w-[150px] appearance-none rounded-lg border-0 bg-gray-100 py-1 pl-7 pr-7 text-xs font-medium text-gray-700 outline-none transition-colors hover:bg-gray-200 focus:ring-1 focus:ring-primary disabled:opacity-50 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+          >
+            {CHART_TYPE_GROUPS.map(group => (
+              <optgroup key={group.group} label={group.group}>
+                {group.types.map(type => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 dark:text-slate-400">
+            ▾
+          </span>
+        </label>
+      ),
+    })
+  }, [chartType, chartTypeLabel, isGenerating, registerMandatoryConfig])
 
   const handleSubmit = useCallback(() => {
     let data: ChartConfig['data'] = null
@@ -192,32 +264,6 @@ export function ChartForm({
 
   return (
     <div className="space-y-3">
-      <div className="space-y-1">
-        <label htmlFor="chart-type" className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
-          Chart Type
-        </label>
-        <select
-          id="chart-type"
-          aria-label="Chart Type"
-          value={chartType}
-          disabled={isGenerating}
-          onChange={event => {
-            setChartType(event.target.value as TextLabsChartType)
-            setAdvancedModified(true)
-          }}
-          className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-        >
-          {CHART_TYPE_GROUPS.map(group => (
-            <optgroup key={group.group} label={group.group}>
-              {group.types.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
-            </optgroup>
-          ))}
-        </select>
-        <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
-          Auto chooses after evaluating the data shape and meaning.
-        </p>
-      </div>
-
       <div className="space-y-1.5">
         <ToggleRow
           label="Data Source"
@@ -326,6 +372,19 @@ export function ChartForm({
                 />
               </div>
             )}
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {showAdvanced && (
+        <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(value => !value)}>
+          <div className="space-y-2.5">
+            <PositionPresets
+              positionConfig={positionConfig}
+              onChange={updatePositionConfig}
+              elementType="CHART"
+              onAdvancedModified={() => setAdvancedModified(true)}
+            />
             <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setAdvancedModified(true)} />
           </div>
         </CollapsibleSection>
