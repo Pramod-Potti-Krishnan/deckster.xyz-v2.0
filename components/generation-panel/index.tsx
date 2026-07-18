@@ -217,7 +217,13 @@ export function GenerationPanel({
   // exists. Same-target reopen keeps the mounted form state intact.
   useEffect(() => {
     setPrompt(effectiveDraft?.prompt ?? effectiveDraft?.formData?.prompt ?? '')
-    setShowAdvanced(Boolean(effectiveDraft?.showAdvanced ?? effectiveDraft?.formData?.advancedModified ?? false))
+    const savedFormGenerationConfig = readObject(effectiveDraft?.formData?.generationConfig)
+    setShowAdvanced(Boolean(
+      effectiveDraft?.showAdvanced
+        ?? savedFormGenerationConfig?.showAdvanced
+        ?? effectiveDraft?.formData?.advancedModified
+        ?? false,
+    ))
     submitFnRef.current = null
     mandatoryConfigRef.current = null
     forceUpdate(n => n + 1)
@@ -413,7 +419,7 @@ function FormRouter({
     case 'TEXT_BOX':
       return <TextBoxForm {...commonProps} researchControls={researchControls} slotCatalog={slotCatalog} slotCatalogLoading={slotCatalogLoading} slotCatalogError={slotCatalogError} existingTextTarget={existingTextTarget} />
     case 'METRICS':
-      return <MetricsForm {...commonProps} researchControls={researchControls} />
+      return <MetricsForm {...commonProps} researchControls={researchControls} existingTextTarget={existingTextTarget} />
     case 'TABLE':
       return <TableForm {...commonProps} researchControls={researchControls} initialDraft={initialDraft} onDraftChange={onDraftChange} />
     case 'CHART':
