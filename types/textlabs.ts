@@ -32,8 +32,14 @@ export type TextLabsDiagramSubtype =
   | 'DATA_ARCHITECTURE'
   | 'CUSTOM'
 
+/**
+ * Orchestration-only diagram request. Text Labs resolves this to one of the
+ * strict leaf subtypes above; Diagram Generator never receives DIAGRAM_AUTO.
+ */
+export type TextLabsDiagramRequestType = TextLabsDiagramSubtype | 'DIAGRAM_AUTO'
+
 // All component types including diagram subtypes
-export type TextLabsAllComponentType = TextLabsComponentType | TextLabsDiagramSubtype
+export type TextLabsAllComponentType = TextLabsComponentType | TextLabsDiagramRequestType
 
 // ============================================================================
 // SHARED CONFIGS
@@ -78,12 +84,33 @@ export interface DiagramProviderSelection {
   mode: 'auto' | 'manual'
   provider?: 'aws' | 'gcp' | 'azure' | 'generic'
   conflict_confirmed?: boolean
+  /** Manual provider covered by the confirmation. Bare legacy booleans are not trusted. */
+  confirmed_manual_provider?: 'aws' | 'gcp' | 'azure' | 'generic'
+  /** Prompt provider covered by the confirmation. */
+  confirmed_prompt_provider?: 'aws' | 'gcp' | 'azure'
+}
+
+export interface DiagramSelection {
+  mode: 'auto' | 'manual'
+  requested_type?: TextLabsDiagramSubtype
+  resolved_type?: TextLabsDiagramSubtype
+}
+
+export interface DiagramLanguageSelection {
+  mode: 'auto' | 'manual'
+  language?: string
 }
 
 export interface DiagramGenerationConfig extends Record<string, unknown> {
   version: 'diagram_generation_config_v1'
-  diagram_type: TextLabsDiagramSubtype
+  diagram_type: TextLabsDiagramRequestType
   settings: Record<string, unknown>
+  selection_mode?: 'auto' | 'manual'
+  resolved_type?: TextLabsDiagramSubtype
+  routing_confidence?: number
+  routing_source?: string
+  language_selection?: DiagramLanguageSelection
+  resolved_language?: string
   /** Explicitly remove persisted overrides when a refine control returns to Auto. */
   cleared_settings?: string[]
   theme_source?: ThemeSourceMode
@@ -668,6 +695,9 @@ export interface TextLabsBaseFormData {
   accessoryType?: string | null
   slotMetadata?: TextSlotMetadata
   generationConfig?: Record<string, unknown> | DiagramGenerationConfig | null
+  generationAttemptId?: string
+  diagramSelection?: DiagramSelection
+  languageSelection?: DiagramLanguageSelection
 }
 
 export interface TextBoxFormData extends TextLabsBaseFormData {
@@ -736,7 +766,7 @@ export interface InfographicFormData extends TextLabsBaseFormData {
 }
 
 export interface DiagramFormData extends TextLabsBaseFormData {
-  componentType: TextLabsDiagramSubtype
+  componentType: TextLabsDiagramRequestType
   diagramConfig: Partial<
     CodeDisplayConfig | KanbanConfig | GanttConfig | ChevronConfig |
     IdeaBoardConfig | CloudArchitectureConfig | LogicalArchitectureConfig | DataArchitectureConfig |
@@ -811,6 +841,7 @@ export interface TextLabsResponse {
   error?: string
   error_code?: string
   retryable?: boolean
+  ambiguous_completion?: boolean
   warnings?: string[]
   message?: string
   response_text?: string
@@ -911,6 +942,7 @@ export const INSERTION_METHOD_MAP: Record<TextLabsAllComponentType, InsertionMet
   LOGICAL_ARCHITECTURE: 'insertDiagram',
   DATA_ARCHITECTURE: 'insertDiagram',
   CUSTOM: 'insertDiagram',
+  DIAGRAM_AUTO: 'insertDiagram',
   // DIAGRAM is a generic fallback
   DIAGRAM: 'insertDiagram',
 }

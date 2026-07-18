@@ -2,7 +2,16 @@
 
 import { useCallback, useEffect, useRef } from "react"
 import { TextLabsFormData, TextLabsComponentType, TextLabsPositionConfig } from '@/types/textlabs'
-import { sendMessage as sendTextLabsMessage, buildApiPayload, buildInsertionParams, buildSemanticUpsertParams, detachMetricsOverrideBindings, generateInfographic, getDefaultSize } from '@/lib/textlabs-client'
+import {
+  TextLabsRequestError,
+  sendMessage as sendTextLabsMessage,
+  buildApiPayload,
+  buildInsertionParams,
+  buildSemanticUpsertParams,
+  detachMetricsOverrideBindings,
+  generateInfographic,
+  getDefaultSize,
+} from '@/lib/textlabs-client'
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import {
@@ -12,6 +21,7 @@ import {
   remapElementGridPositions,
 } from '@/lib/element-geometry'
 import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
+import { mergeLiveDiagramRendererConfig } from '@/lib/diagram-renderer-state'
 import { componentSupportsThemeVariants, parseElementThemeAssignments } from '@/lib/element-theme-variants'
 import { resolveElementThemeMetadata } from '@/lib/textlabs-theme-metadata'
 import { buildElementGenerationContext, parseSlideGenerationContext } from '@/lib/element-generation-context'
@@ -23,6 +33,7 @@ import {
 } from '@/lib/element-research-policy'
 import {
   isSameAppliedThemeAuthority,
+  hasSameThemeSyncIdentity,
   type ThemeReadinessResult,
   type ThemeSyncState,
 } from '@/lib/theme-sync'
@@ -37,18 +48,40 @@ import {
   layoutMutationStateIsAmbiguous,
   sendLayoutMutationWithReconciliation,
 } from '@/lib/layout-command-result'
-import { resolveElementGenerationTimeoutMs } from '@/lib/element-generation-timeout'
+import {
+  isDiagramGenerationType,
+  resolveElementGenerationTimeoutMs,
+} from '@/lib/element-generation-timeout'
 import {
   CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH,
   elementPromptLengthState,
 } from '@/lib/element-prompt-limit'
 import { resolveRefineGenerationConfig } from '@/lib/refine-generation-config'
+import { normalizePersistedDiagramSubtype } from '@/lib/diagram-catalog'
+import {
+  diagramRetryCandidateForPreDispatch,
+  diagramGenerationRequestFingerprint,
+  isAmbiguousDiagramRequestFailure,
+  remainingDiagramBackendDeadlineMs,
+  resolveDiagramGenerationAttemptId,
+  type DiagramRetryCandidate,
+  type ElementGenerationSubmitIntent,
+} from '@/lib/element-generation-retry'
 
 const THEME_CHANGED_DURING_GENERATION =
   'The deck theme changed while this element was being generated. Wait for Applied, then generate again.'
 const PRESENTATION_CHANGED_DURING_GENERATION =
   'The active presentation changed while this element was being generated. Reload the original presentation before retrying.'
 const snapGridLine = (value: number) => Number((Math.round(value * 5) / 5).toFixed(1))
+const NEUTRAL_THEME_FALLBACK = {
+  primary: '#4F46E5',
+  secondary: '#64748B',
+  surface: '#F8FAFC',
+  border: '#CBD5E1',
+  accents: ['#4F46E5', '#0284C7', '#059669', '#D97706', '#DC2626'] as string[],
+  text: '#0F172A',
+  background: '#FFFFFF',
+}
 
 interface UseTextLabsGenerationParams {
   generationPanel: {
@@ -221,6 +254,7 @@ export function useTextLabsGeneration({
   toast,
 }: UseTextLabsGenerationParams) {
   const activeGenerationKeysRef = useRef<Set<string>>(new Set())
+  const retryCandidateRef = useRef<DiagramRetryCandidate | null>(null)
   const generationHookMountedRef = useRef(true)
   useEffect(() => {
     generationHookMountedRef.current = true
@@ -240,7 +274,18 @@ export function useTextLabsGeneration({
   }
   const renderPresentationTarget = activePresentationTargetRef.current
 
-  const handleGenerate = useCallback(async (formData: TextLabsFormData) => {
+  const handleGenerate = useCallback(async (
+    formData: TextLabsFormData,
+    submitIntent: ElementGenerationSubmitIntent = 'generate',
+  ) => {
+    const retryCandidate = diagramRetryCandidateForPreDispatch(
+      submitIntent,
+      retryCandidateRef.current,
+    )
+    // A normal Generate action is a deliberate new request. An explicit Retry
+    // keeps its ambiguous identity through browser-only preflight and consumes
+    // it exactly once immediately before the prepared request is dispatched.
+    if (submitIntent !== 'retry') retryCandidateRef.current = null
     if (
       formData.componentType === 'CUSTOM'
       && elementPromptLengthState(
@@ -265,9 +310,14 @@ export function useTextLabsGeneration({
     // double-click cannot start two concurrent swaps for the same placeholder.
     generationPanel.setIsGenerating(true)
     generationPanel.setError(null)
+    const freshGenerationAttemptId = crypto.randomUUID()
+    let generationAttemptId = freshGenerationAttemptId
+    formData.generationAttemptId = generationAttemptId
     let refineOverlayActive = false
     let blankOverlayActive = false
     let refineElementDeleted = false
+    let dispatchedDiagramRequestFingerprint: string | null = null
+    let diagramRequestWasDispatched = false
 
     // The displayed presentation owned by the hook is authoritative. Form
     // callbacks can remain mounted across deck transitions and must not revive
@@ -290,10 +340,17 @@ export function useTextLabsGeneration({
       activeGenerationKeysRef.current.delete(generationKey)
       return
     }
-    const requestedThemePresentationId = formData.useDeckTheme === true
+    const requestedThemePresentationId = (
+      formData.useDeckTheme === true
+      && formData.componentType !== 'CODE_DISPLAY'
+    )
       ? formData.presentationId
       : null
     let expectedThemeSync: ThemeSyncState | null = null
+    let expectedThemeSource: 'director' | 'layout' | 'neutral' | null = null
+    const themeSyncBeforeReadiness = requestedThemePresentationId
+      ? getThemeSyncSnapshot()
+      : null
     if (requestedThemePresentationId) {
       let readiness: ThemeReadinessResult
       try {
@@ -323,21 +380,66 @@ export function useTextLabsGeneration({
         activeGenerationKeysRef.current.delete(generationKey)
         return
       }
-      expectedThemeSync = readiness.sync
-      if (
-        expectedThemeSync.status !== 'applied' ||
-        !expectedThemeSync.requestId ||
-        expectedThemeSync.presentationId !== requestedThemePresentationId
-      ) {
-        generationPanel.setIsGenerating(false)
-        generationPanel.setError('The selected deck theme acknowledgement did not match this presentation. Generate again.')
-        activeGenerationKeysRef.current.delete(generationKey)
-        return
+      if (readiness.notice) {
+        toast({
+          title: 'Using a neutral element theme',
+          description: readiness.notice,
+        })
+      }
+      expectedThemeSource = readiness.source
+      const themeSyncAfterReadiness = getThemeSyncSnapshot()
+      if (readiness.source === 'neutral') {
+        formData.useDeckTheme = false
+        formData.themeOverrides = { ...NEUTRAL_THEME_FALLBACK }
+        if (formData.generationConfig) {
+          formData.generationConfig = {
+            ...formData.generationConfig,
+            theme_resolution: 'neutral_fallback',
+          }
+        }
+      }
+      if (readiness.source === 'director') {
+        expectedThemeSync = readiness.sync
+        if (
+          expectedThemeSync.status !== 'applied' ||
+          !expectedThemeSync.requestId ||
+          expectedThemeSync.presentationId !== requestedThemePresentationId
+        ) {
+          generationPanel.setIsGenerating(false)
+          generationPanel.setError('The selected deck theme acknowledgement did not match this presentation. Generate again.')
+          activeGenerationKeysRef.current.delete(generationKey)
+          return
+        }
+      } else {
+        // Layout/neutral readiness has no Director acknowledgement of its own.
+        // Pin the live mutation identity surrounding the persisted-theme probe
+        // so a theme that starts or finishes during/after generation cannot
+        // silently insert HTML rendered from the previous palette.
+        if (
+          !themeSyncBeforeReadiness
+          || !hasSameThemeSyncIdentity(
+            themeSyncBeforeReadiness,
+            themeSyncAfterReadiness,
+          )
+        ) {
+          generationPanel.setIsGenerating(false)
+          generationPanel.setError(THEME_CHANGED_DURING_GENERATION)
+          activeGenerationKeysRef.current.delete(generationKey)
+          return
+        }
+        expectedThemeSync = themeSyncAfterReadiness
       }
     }
     const themeIsStillAuthoritative = () => {
-      if (!expectedThemeSync) return true
-      return isSameAppliedThemeAuthority(expectedThemeSync, getThemeSyncSnapshot())
+      if (!requestedThemePresentationId) return true
+      if (!expectedThemeSync) return false
+      const current = getThemeSyncSnapshot()
+      return expectedThemeSource === 'director'
+        ? isSameAppliedThemeAuthority(expectedThemeSync, current)
+        : hasSameThemeSyncIdentity(
+            current,
+            expectedThemeSync,
+          )
     }
     const generationTargetError = () => {
       if (!presentationIsStillAuthoritative()) return PRESENTATION_CHANGED_DURING_GENERATION
@@ -465,6 +567,19 @@ export function useTextLabsGeneration({
         const themeBindings = formData.useDeckTheme === true
           ? snapshot.themeBindings ?? refineContext.themeBindings
           : null
+        const mergedRendererConfig = mergeLiveDiagramRendererConfig(
+          formData.generationConfig as Record<string, unknown> | null | undefined,
+          'diagramConfig' in formData
+            ? formData.diagramConfig as Record<string, unknown>
+            : null,
+          snapshot.generationConfig,
+        )
+        if ('diagramConfig' in formData) {
+          formData.diagramConfig = mergedRendererConfig.diagramConfig
+        }
+        if (mergedRendererConfig.generationConfig) {
+          formData.generationConfig = mergedRendererConfig.generationConfig
+        }
         formData.existingElement = {
           ...refineContext.existingElement,
           component_type: liveComponentType,
@@ -475,6 +590,9 @@ export function useTextLabsGeneration({
           style_owner: snapshot.styleOwner ?? refineContext.styleOwner,
           theme_variant_source: snapshot.themeVariantSource ?? refineContext.themeVariantSource,
           metrics_color_variant: snapshot.metricsColorVariant ?? refineContext.metricsColorVariant,
+          generation_config: mergedRendererConfig.generationConfig
+            ?? snapshot.generationConfig
+            ?? refineContext.existingElement?.generation_config,
         }
         formData.themeVariantId = themeVariantId
         formData.themeBindings = themeBindings
@@ -817,6 +935,7 @@ export function useTextLabsGeneration({
       effectiveResearchMode,
     )
     const controller = new AbortController()
+    const browserDeadlineAtMs = Date.now() + generationTimeoutMs
     const timeoutId = setTimeout(
       () => controller.abort(),
       generationTimeoutMs,
@@ -857,6 +976,46 @@ export function useTextLabsGeneration({
         )
       } else {
         const { message, options } = buildApiPayload(sessionId, formData)
+        if (isDiagramGenerationType(formData.componentType)) {
+          dispatchedDiagramRequestFingerprint = diagramGenerationRequestFingerprint({
+            sessionId,
+            message,
+            options: { ...options },
+          })
+          const resolvedAttempt = resolveDiagramGenerationAttemptId({
+            submitIntent,
+            freshAttemptId: freshGenerationAttemptId,
+            requestFingerprint: dispatchedDiagramRequestFingerprint,
+            retryCandidate,
+          })
+          generationAttemptId = resolvedAttempt.attemptId
+          formData.generationAttemptId = generationAttemptId
+          options.generationAttemptId = generationAttemptId
+
+          // Session creation consumes part of the browser's absolute budget.
+          // Propagate only the real remainder and keep a cleanup window in
+          // which Text Labs can return/cancel before the browser aborts.
+          const backendDeadlineMs = remainingDiagramBackendDeadlineMs(
+            browserDeadlineAtMs,
+            Date.now(),
+          )
+          if (backendDeadlineMs === null) {
+            controller.abort()
+            throw new DOMException(
+              'Insufficient remaining time for diagram generation',
+              'AbortError',
+            )
+          }
+          options.deadlineMs = backendDeadlineMs
+          // All fallible browser-only preflight has completed and the exact
+          // request fingerprint is now frozen. Consume the candidate at the
+          // dispatch boundary; an ambiguous failure below republishes it.
+          retryCandidateRef.current = null
+        }
+        // Do not replay /api/chat/message automatically: Auto routing,
+        // Researcher, and prompt construction all happen before leaf
+        // singleflight. A transport error is correlated for an explicit retry.
+        diagramRequestWasDispatched = isDiagramGenerationType(formData.componentType)
         response = await sendTextLabsMessage(sessionId, message, options, controller.signal)
       }
 
@@ -1078,11 +1237,15 @@ export function useTextLabsGeneration({
             const generatedGridPosition = gridPositionFromInsertionParams(params)
             const generatedComponentType = normalizeSemanticComponentType(formData.componentType)
               ?? (formData.componentType as TextLabsComponentType)
-            const generatedDiagramSubtype = typeof generatedConfig?.diagram_type === 'string'
-              ? generatedConfig.diagram_type as RefineContext['diagramSubtype']
-              : typeof params.diagramSubtype === 'string'
-                ? params.diagramSubtype as RefineContext['diagramSubtype']
+            const generatedDiagramSubtype = normalizePersistedDiagramSubtype(
+              generatedConfig?.resolved_type,
+            ) ?? normalizePersistedDiagramSubtype(
+              generatedConfig?.diagram_type,
+            ) ?? (
+              typeof params.diagramSubtype === 'string'
+                ? normalizePersistedDiagramSubtype(params.diagramSubtype)
                 : null
+            )
             const generatedResearchProvenance = params.researchProvenance
               && typeof params.researchProvenance === 'object'
               && !Array.isArray(params.researchProvenance)
@@ -1238,12 +1401,34 @@ export function useTextLabsGeneration({
       })
       console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
     } catch (err) {
+      if (
+        diagramRequestWasDispatched
+        && dispatchedDiagramRequestFingerprint
+        && isAmbiguousDiagramRequestFailure(err)
+      ) {
+        retryCandidateRef.current = {
+          attemptId: generationAttemptId,
+          requestFingerprint: dispatchedDiagramRequestFingerprint,
+        }
+      }
       let errorMessage = 'Generation failed'
-      if (err instanceof DOMException && err.name === 'AbortError') {
+      if (
+        controller.signal.aborted
+        || (err instanceof Error && err.name === 'AbortError')
+      ) {
         const timeoutSeconds = generationTimeoutMs / 1000
         errorMessage = `Generation timed out after ${timeoutSeconds} seconds. Try again or simplify your prompt.`
-      } else if (err instanceof TypeError && err.message.includes('fetch')) {
-        errorMessage = 'Network error. Check your connection and try again.'
+      } else if (err instanceof TextLabsRequestError) {
+        const reference = err.requestId
+          ? ` Request reference: ${err.requestId.slice(0, 12)}.`
+          : ` Request reference: ${generationAttemptId.slice(0, 12)}.`
+        if (err.kind === 'transport') {
+          errorMessage = `The generation service could not be reached.${reference}`
+        } else {
+          errorMessage = `${err.message}${reference}`
+        }
+      } else if (err instanceof TypeError && /fetch|network/i.test(err.message)) {
+        errorMessage = `The generation service could not be reached. Request reference: ${generationAttemptId.slice(0, 12)}.`
       } else if (err instanceof Error) {
         errorMessage = err.message
       }
@@ -1341,7 +1526,7 @@ export function useTextLabsGeneration({
           })
           const latestPanel = generationPanel.getSnapshot()
           if (restoredBlankElementId && (!latestPanel.isOpen || latestPanel.blankElementId === currentBlankId)) {
-            generationPanel.openPanelForElement(currentBlankInfo.componentType, restoredBlankElementId)
+            generationPanel.resumePanelForElement(currentBlankInfo.componentType, restoredBlankElementId)
           }
         } catch (restoreErr) {
           console.warn('[TextLabs] Failed to restore placeholder after error:', restoreErr)

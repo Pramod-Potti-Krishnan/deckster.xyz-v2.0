@@ -226,6 +226,8 @@ const cloudHydration = diagramFormModule.resolveDiagramFormHydration(
         mode: 'manual',
         provider: 'gcp',
         conflict_confirmed: true,
+        confirmed_manual_provider: 'gcp',
+        confirmed_prompt_provider: 'aws',
       },
     },
     zIndex: 812,
@@ -236,8 +238,47 @@ assert.equal(cloudHydration.hasSource, true)
 assert.equal(cloudHydration.subtype, 'CLOUD_ARCHITECTURE')
 assert.equal(cloudHydration.provider, 'gcp')
 assert.equal(cloudHydration.providerConflictConfirmed, true)
+assert.equal(cloudHydration.providerConflictConfirmationKey, 'gcp:aws')
 assert.equal(cloudHydration.showLayers, false)
 assert.equal(cloudHydration.zIndex, 812)
+
+const legacyBareConfirmationHydration = diagramFormModule.resolveDiagramFormHydration(
+  catalogModule.DIAGRAM_CATALOG_FALLBACK,
+  {
+    subtype: 'CLOUD_ARCHITECTURE',
+    generationConfig: {
+      version: 'diagram_generation_config_v1',
+      diagram_type: 'CLOUD_ARCHITECTURE',
+      settings: {},
+      provider_selection: {
+        mode: 'manual',
+        provider: 'gcp',
+        conflict_confirmed: true,
+      },
+    },
+  },
+  null,
+)
+assert.equal(
+  legacyBareConfirmationHydration.providerConflictConfirmed,
+  false,
+  'a legacy bare confirmation boolean must not authorize a future prompt conflict',
+)
+assert.equal(legacyBareConfirmationHydration.providerConflictConfirmationKey, null)
+assert.equal(
+  diagramFormModule.isProviderConflictConfirmationCurrent('gcp:aws', 'gcp', 'aws'),
+  true,
+)
+assert.equal(
+  diagramFormModule.isProviderConflictConfirmationCurrent('gcp:aws', 'gcp', 'azure'),
+  false,
+  'editing the prompt to name a different provider must invalidate confirmation synchronously',
+)
+assert.equal(
+  diagramFormModule.isProviderConflictConfirmationCurrent('gcp:aws', 'azure', 'aws'),
+  false,
+  'changing the manual provider must invalidate confirmation synchronously',
+)
 
 const customHydration = diagramFormModule.resolveDiagramFormHydration(
   catalogModule.DIAGRAM_CATALOG_FALLBACK,
@@ -272,6 +313,59 @@ const freshHydration = diagramFormModule.resolveDiagramFormHydration(
 )
 assert.equal(freshHydration.hasSource, false)
 assert.equal(freshHydration.subtype, 'CODE_DISPLAY')
+assert.equal(freshHydration.selectionMode, 'auto')
+assert.equal(freshHydration.resolvedType, null)
+assert.equal(freshHydration.languageSelectionMode, 'auto')
+
+const autoCodeHydration = diagramFormModule.resolveDiagramFormHydration(
+  catalogModule.DIAGRAM_CATALOG_FALLBACK,
+  null,
+  {
+    formData: {
+      componentType: 'DIAGRAM_AUTO',
+      prompt: 'Show a TypeScript retry helper',
+      count: 1,
+      layout: 'auto',
+      generationConfig: {
+        version: 'diagram_generation_config_v1',
+        diagram_type: 'CODE_DISPLAY',
+        selection_mode: 'auto',
+        resolved_type: 'CODE_DISPLAY',
+        settings: { color_theme: 'github_dark' },
+        language_selection: { mode: 'auto' },
+        resolved_language: 'typescript',
+      },
+    },
+  },
+)
+assert.equal(autoCodeHydration.selectionMode, 'auto')
+assert.equal(autoCodeHydration.resolvedType, 'CODE_DISPLAY')
+assert.equal(autoCodeHydration.languageSelectionMode, 'auto')
+assert.equal(autoCodeHydration.resolvedLanguage, 'typescript')
+
+const explicitManualHydration = diagramFormModule.resolveDiagramFormHydration(
+  catalogModule.DIAGRAM_CATALOG_FALLBACK,
+  {
+    subtype: 'GANTT_CHART',
+    generationConfig: {
+      version: 'diagram_generation_config_v1',
+      diagram_type: 'GANTT_CHART',
+      selection_mode: 'manual',
+      settings: { time_unit: 'weeks' },
+    },
+  },
+  {
+    formData: {
+      componentType: 'DIAGRAM_AUTO',
+      prompt: 'stale draft',
+      count: 1,
+      layout: 'auto',
+      generationConfig: null,
+    },
+  },
+)
+assert.equal(explicitManualHydration.selectionMode, 'manual')
+assert.equal(explicitManualHydration.subtype, 'GANTT_CHART')
 
 const panelSource = fs.readFileSync(
   new URL('../components/generation-panel/index.tsx', import.meta.url),
@@ -296,7 +390,17 @@ assert.match(
 )
 assert.match(
   diagramSource,
-  /subtype === 'CUSTOM' \? CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH : undefined/,
+  /selectionMode === 'manual' && subtype === 'CUSTOM'[\s\S]*CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH/,
+)
+assert.match(
+  diagramSource,
+  /controlsSubtype !== 'CODE_DISPLAY'[\s\S]*<ThemeSourceSelector/,
+  'Code Display uses its named code theme and must not expose deck-theme ownership',
+)
+assert.match(
+  diagramSource,
+  /language_selection: languageSelectionMode === 'auto'\s*\?\s*\{ mode: 'auto' \}/,
+  'Auto language selection must not echo resolved_language into the strict selection object',
 )
 assert.match(
   diagramSource,
@@ -324,6 +428,14 @@ const generationHookSource = fs.readFileSync(
   'utf8',
 )
 assert.match(generationHookSource, /resolveElementGenerationTimeoutMs\(/)
+assert.match(generationHookSource, /crypto\.randomUUID\(\)/)
+assert.doesNotMatch(generationHookSource, /isRetryableTextLabsRequestError\(/)
+assert.match(generationHookSource, /Do not replay \/api\/chat\/message automatically/)
+assert.match(
+  generationHookSource,
+  /resumePanelForElement\(/,
+  'a failed request must preserve the in-flight subtype and controls',
+)
 assert.match(
   generationHookSource,
   /formData\.componentType === 'CUSTOM'[\s\S]*elementPromptLengthState\([\s\S]*CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH/,

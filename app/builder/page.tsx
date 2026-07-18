@@ -21,6 +21,7 @@ import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties, SlideLayoutType } from '@/types/elements'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { GenerationPanel } from '@/components/generation-panel'
+import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'
@@ -92,6 +93,8 @@ import {
   applyThemeSyncResponse,
   isThemeAppliedToPresentation,
   isThemeSyncTerminal,
+  persistedThemeSync,
+  probePersistedPresentationTheme,
   syncingTheme,
   waitForAuthoritativeTheme,
   type ThemeSyncRequestResult,
@@ -2203,22 +2206,67 @@ function BuilderContent() {
   }, [clearThemeSyncTimeout, commitThemeSync, sendThemeSelection])
 
   const ensureThemeReady = useCallback(async (targetPresentationId: string) => {
-    // Start or reuse the request for the exact current presentation + theme
-    // selection before entering the bounded wait. A semantically identical
-    // applied lease remains authoritative across a Director reconnect.
-    const requested = requestThemeSyncForPresentation(targetPresentationId)
-    if (!requested.ok) {
-      return { ready: false, code: requested.code, error: requested.error } as const
+    const current = getThemeSyncSnapshot()
+    const desiredFingerprint = themeSelectionFingerprint(
+      themeSyncTargetRef.current.selection,
+    )
+    if (
+      isThemeAppliedToPresentation(
+        current,
+        targetPresentationId,
+        desiredFingerprint,
+      )
+      && current.requestId
+    ) {
+      return { ready: true, sync: current, source: 'director' } as const
     }
 
-    return waitForAuthoritativeTheme({
+    // A theme mutation already accepted by Director must finish (or fail)
+    // before generation. When Director is connected, idle or stale applied
+    // state is also advanced to the exact selected theme. A disconnected or
+    // failed Director is not authoritative: Layout's persisted theme remains
+    // usable and the renderer can fall back to a neutral palette.
+    const shouldWaitForDirector = (
+      (
+        current.status === 'syncing'
+        && current.presentationId === targetPresentationId
+        && current.requestId
+      )
+      || (
+        themeSyncTargetRef.current.isReady
+        && (
+          current.status === 'idle'
+          || (
+            current.status === 'applied'
+            && (
+              current.presentationId !== targetPresentationId
+              || current.themeFingerprint !== desiredFingerprint
+            )
+          )
+        )
+      )
+    )
+    if (shouldWaitForDirector) {
+      return waitForAuthoritativeTheme({
+        presentationId: targetPresentationId,
+        themeFingerprint: desiredFingerprint,
+        getSyncState: getThemeSyncSnapshot,
+        isConnected: () => themeSyncTargetRef.current.isReady,
+        requestSync: requestThemeSyncForPresentation,
+        timeoutMs: THEME_SYNC_TIMEOUT_MS,
+      })
+    }
+
+    const persisted = await probePersistedPresentationTheme({
       presentationId: targetPresentationId,
-      themeFingerprint: requested.themeFingerprint,
-      getSyncState: getThemeSyncSnapshot,
-      isConnected: () => themeSyncTargetRef.current.isReady,
-      requestSync: requestThemeSyncForPresentation,
-      timeoutMs: THEME_SYNC_TIMEOUT_MS,
+      layoutServiceUrl: LAYOUT_SERVICE_URL,
     })
+    return {
+      ready: true,
+      source: persisted.source,
+      sync: persistedThemeSync(targetPresentationId, persisted.source),
+      ...(persisted.notice ? { notice: persisted.notice } : {}),
+    } as const
   }, [getThemeSyncSnapshot, requestThemeSyncForPresentation])
 
   useEffect(() => {
@@ -2818,7 +2866,10 @@ function BuilderContent() {
     toast,
   })
 
-  const handleApprovedTextLabsGenerate = useCallback(async (formData: TextLabsFormData) => {
+  const handleApprovedTextLabsGenerate = useCallback(async (
+    formData: TextLabsFormData,
+    submitIntent: ElementGenerationSubmitIntent,
+  ) => {
     if (!layoutServiceApis?.sendElementCommand) {
       generationPanel.setError('The presentation viewer is unavailable. Reload the presentation and try again.')
       toast({
@@ -2829,7 +2880,7 @@ function BuilderContent() {
       return
     }
 
-    await handleTextLabsGenerate(formData)
+    await handleTextLabsGenerate(formData, submitIntent)
   }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast])
 
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {

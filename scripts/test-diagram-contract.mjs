@@ -29,8 +29,17 @@ const catalogModule = loadTypeScriptModule(
 )
 const catalog = catalogModule.DIAGRAM_CATALOG_FALLBACK
 
-assert.equal(catalog.catalog_version, '2.0.0')
-assert.equal(catalog.endpoint_version, '1.10.0')
+assert.equal(catalog.catalog_version, '2.1.0')
+assert.equal(catalog.endpoint_version, '1.11.0')
+assert.equal(catalogModule.isCompatibleDiagramCatalog(catalog), true)
+assert.equal(catalogModule.isCompatibleDiagramCatalogVersion('2.1.0'), true)
+assert.equal(catalogModule.isCompatibleDiagramCatalogVersion('2.9.4'), true)
+assert.equal(catalogModule.isCompatibleDiagramCatalogVersion('2.0.99'), false)
+assert.equal(catalogModule.isCompatibleDiagramCatalogVersion('3.0.0'), false)
+assert.equal(catalogModule.isCompatibleDiagramCatalog({
+  ...catalog,
+  orchestration: undefined,
+}), false)
 assert.deepEqual(
   JSON.parse(JSON.stringify(catalog.geometry)),
   {
@@ -64,12 +73,48 @@ assert.deepEqual(
   ['github_light', 'github_dark', 'monokai', 'solarized_dark', 'dracula'],
 )
 assert.deepEqual(
+  JSON.parse(JSON.stringify(catalog.types.find(item => item.type === 'CODE_DISPLAY').config.language_mode)),
+  {
+    type: 'enum',
+    enum: ['auto', 'manual', 'legacy'],
+    default: 'auto',
+    primary: true,
+    advanced: false,
+  },
+)
+assert.equal(
+  catalog.types.find(item => item.type === 'CODE_DISPLAY').config.language.advanced,
+  true,
+)
+assert.deepEqual(
   JSON.parse(JSON.stringify(catalog.types.find(item => item.type === 'KANBAN_BOARD').config.column_count.enum)),
   [3, 4, 5],
 )
 assert.deepEqual(
   JSON.parse(JSON.stringify(catalog.types.find(item => item.type === 'GANTT_CHART').config.time_unit.enum)),
   ['days', 'weeks', 'months'],
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(catalog.types.find(item => item.type === 'GANTT_CHART').config.task_column_width_px)),
+  {
+    type: 'integer',
+    min: 270,
+    max: 405,
+    default: 270,
+    advanced: true,
+    primary: false,
+  },
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(catalog.types.find(item => item.type === 'CHEVRON_MATURITY').config.row_label_width_px)),
+  {
+    type: 'integer',
+    min: 180,
+    max: 270,
+    default: 180,
+    advanced: true,
+    primary: false,
+  },
 )
 assert.deepEqual(
   JSON.parse(JSON.stringify(catalog.types.find(item => item.type === 'CLOUD_ARCHITECTURE').config.provider.enum)),
@@ -153,6 +198,9 @@ const source = fs.readFileSync(
 )
 assert.match(source, /provider !== 'auto' \? \{ provider \} : \{\}/)
 assert.match(source, /providerConflictConfirmed/)
+assert.match(source, /confirmed_manual_provider: provider/)
+assert.match(source, /confirmed_prompt_provider: detectedProvider/)
+assert.match(source, /confirmedKey === currentKey/)
 assert.match(source, /diagram_generation_config_v1/)
 assert.match(source, /const border = palette\.border/)
 assert.match(source, /theme_palette: completeDiagramPalette\(themeOverrides\)/)

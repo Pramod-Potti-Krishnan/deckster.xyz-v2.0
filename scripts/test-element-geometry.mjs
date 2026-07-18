@@ -59,6 +59,11 @@ assert.deepEqual(
     theme_variant_source: 'full_deck_generation',
     metrics_color_variant: '#547ea9',
     z_index: 137,
+    generation_config: {
+      diagram_type: 'GANTT_CHART',
+      settings: { task_column_width_px: 378 },
+      renderer_states: { gantt: { task_column_width_px: 378 } },
+    },
   }))),
   {
     componentType: 'METRICS',
@@ -68,6 +73,11 @@ assert.deepEqual(
     themeVariantSource: 'full_deck_generation',
     metricsColorVariant: '#547ea9',
     zIndex: 137,
+    generationConfig: {
+      diagram_type: 'GANTT_CHART',
+      settings: { task_column_width_px: 378 },
+      renderer_states: { gantt: { task_column_width_px: 378 } },
+    },
   },
 )
 
@@ -182,11 +192,16 @@ assert.throws(
         position: { gridRow: '4/14', gridColumn: '2/30' },
         component_type: 'DIAGRAM',
         theme_bindings: {},
+        generation_config: {
+          diagram_type: 'GANTT_CHART',
+          settings: { task_column_width_px: 390 },
+        },
       }
     },
   })
   assert.deepEqual(calls, ['getElementGeometry'], 'leaf generation keeps geometry preflight but skips Layout theme refresh')
   assert.deepEqual(JSON.parse(JSON.stringify(snapshot.themeBindings)), {})
+  assert.equal(snapshot.generationConfig.settings.task_column_width_px, 390)
 }
 
 {
@@ -237,6 +252,7 @@ assert.throws(
     themeVariantSource: null,
     metricsColorVariant: null,
     zIndex: 222,
+    generationConfig: null,
   })
   assert.deepEqual(calls.map(call => call.action), ['getElementGeometry', 'getElementGeometry', 'refreshElementThemeMetadata'])
   assert.equal(calls.at(-1).params.themeVariantSource, 'element_generation')

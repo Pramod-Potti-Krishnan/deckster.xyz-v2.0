@@ -101,6 +101,11 @@ import {
 import { SlideBuildingLoader } from './slide-building-loader'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 import { IDLE_THEME_SYNC, type ThemeSyncState } from '@/lib/theme-sync'
+import {
+  isDiagramRendererStateEvent,
+  parseDiagramRendererStateUpdate,
+  type DiagramRendererStateUpdate,
+} from '@/lib/diagram-renderer-state'
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
@@ -513,6 +518,8 @@ export function PresentationViewer({
   const [loadedApprovedNavigationUrl, setLoadedApprovedNavigationUrl] = useState<string | null>(null)
   const [pollingFailureCount, setPollingFailureCount] = useState(0)
   const lastSlideInfoRef = useRef<{ slide: number; total: number; visualTotal: number } | null>(null)
+  const diagramStateTimersRef = useRef<Map<string, number>>(new Map())
+  const pendingDiagramStatesRef = useRef<Map<string, DiagramRendererStateUpdate>>(new Map())
   const onSlideChangeRef = useRef(onSlideChange)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   // Delete dialog state
@@ -2189,6 +2196,31 @@ export function PresentationViewer({
       const type = event.data?.type
       if (typeof type !== 'string' || !isLayoutViewerEvent(type)) return
 
+      if (isDiagramRendererStateEvent(type)) {
+        const update = parseDiagramRendererStateUpdate(event.data)
+        if (!update) return
+        pendingDiagramStatesRef.current.set(update.elementId, update)
+        const previousTimer = diagramStateTimersRef.current.get(update.elementId)
+        if (previousTimer !== undefined) window.clearTimeout(previousTimer)
+        if (update.action === 'taskColumnResize' || update.action === 'rowLabelResize') {
+          // Resize-end is an explicit terminal renderer event. Persist it
+          // immediately so a fast Regenerate preflight cannot beat debounce.
+          diagramStateTimersRef.current.delete(update.elementId)
+          pendingDiagramStatesRef.current.delete(update.elementId)
+          postCommand(iframeRef.current, 'updateDiagramRendererState', update)
+          return
+        }
+        const timer = window.setTimeout(() => {
+          diagramStateTimersRef.current.delete(update.elementId)
+          const pending = pendingDiagramStatesRef.current.get(update.elementId)
+          pendingDiagramStatesRef.current.delete(update.elementId)
+          if (!pending) return
+          postCommand(iframeRef.current, 'updateDiagramRendererState', pending)
+        }, 250)
+        diagramStateTimersRef.current.set(update.elementId, timer)
+        return
+      }
+
       // Handle save status updates from auto-save system
       if (type === 'save_status' || type === 'saveStatusChanged') {
         const status = event.data.status as SaveStatus
@@ -2237,7 +2269,12 @@ export function PresentationViewer({
     }
 
     window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
+    return () => {
+      window.removeEventListener('message', handleMessage)
+      diagramStateTimersRef.current.forEach(timer => window.clearTimeout(timer))
+      diagramStateTimersRef.current.clear()
+      pendingDiagramStatesRef.current.clear()
+    }
   }, [onRefineElementRequested])
 
   // Listen for text box selection events from iframe

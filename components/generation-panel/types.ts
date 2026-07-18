@@ -9,6 +9,7 @@ import {
   TextSemanticRole,
   TextSlotKind,
 } from '@/types/textlabs'
+import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
 
 export interface ElementContext {
   elementId?: string
@@ -26,7 +27,10 @@ export interface GenerationPanelProps {
   onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
   elementType: TextLabsComponentType
   onClose: () => void
-  onGenerate: (formData: TextLabsFormData) => Promise<void>
+  onGenerate: (
+    formData: TextLabsFormData,
+    submitIntent: ElementGenerationSubmitIntent,
+  ) => Promise<void>
   onElementTypeChange: (type: TextLabsComponentType) => void
   isGenerating: boolean
   error: string | null

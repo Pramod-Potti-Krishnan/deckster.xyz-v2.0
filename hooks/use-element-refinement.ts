@@ -111,7 +111,8 @@ export function useElementRefinement({
     const slideIndex = payload.slideIndex ?? currentSlideIndex
     const gridPosition = normalizeGridPosition(payload.gridPosition)
     const slideContext = slideContextByIndex?.[slideIndex]
-    const diagramSubtype = normalizeDiagramSubtype(payload.generationConfig?.diagram_type)
+    const diagramSubtype = normalizeDiagramSubtype(payload.generationConfig?.resolved_type)
+      ?? normalizeDiagramSubtype(payload.generationConfig?.diagram_type)
       ?? normalizeDiagramSubtype(payload.diagramSubtype)
 
     return {

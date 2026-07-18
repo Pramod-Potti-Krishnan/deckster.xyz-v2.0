@@ -39,6 +39,7 @@
     "test:diagram-contract": "node scripts/test-diagram-contract.mjs",
     "test:diagram-catalog-drift": "node scripts/test-diagram-catalog-drift.mjs",
     "test:diagram-uat-fidelity": "node scripts/test-diagram-uat-fidelity.mjs",
+    "test:diagram-reliability": "node scripts/test-diagram-reliability.mjs",
     "test:layout-command-result": "node scripts/test-layout-command-result.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "start": "next start",

@@ -54,7 +54,14 @@ vm.runInNewContext(compiled.outputText, {
   },
 })
 
-const { buildInsertionParams, formatBackendError, generateInfographic, sendMessage } = mod.exports
+const {
+  buildInsertionParams,
+  formatBackendError,
+  generateInfographic,
+  isRetryableTextLabsRequestError,
+  sendMessage,
+  TextLabsRequestError,
+} = mod.exports
 
 assert.equal(
   formatBackendError({ detail: [{ loc: ['body', 'chart_config', 'data'], msg: 'Explicit chart data is invalid' }] }, 'API error: 422'),
@@ -67,14 +74,97 @@ assert.equal(iconInsertion.params.componentType, 'ICON_LABEL')
 assert.equal(iconInsertion.params.content, '<div>Priority</div>')
 
 let capturedSignal
+let capturedHeaders
+let capturedBody
+fetchImplementation = async (_url, init) => {
+  capturedSignal = init.signal
+  capturedHeaders = init.headers
+  capturedBody = JSON.parse(init.body)
+  return { ok: true, json: async () => ({ elements: [] }) }
+}
+const messageController = new AbortController()
+await sendMessage(
+  'session-1',
+  'hello',
+  {
+    componentType: 'CODE_DISPLAY',
+    generationAttemptId: 'attempt-123',
+    deadlineMs: 140_000,
+    languageSelection: { mode: 'auto' },
+  },
+  messageController.signal,
+)
+assert.equal(capturedSignal, messageController.signal, 'chat fetch receives the generation signal')
+assert.equal(capturedHeaders['X-Generation-Attempt-ID'], 'attempt-123')
+assert.equal(capturedBody.generation_attempt_id, 'attempt-123')
+assert.equal(capturedBody.deadline_ms, 140_000)
+assert.equal(capturedBody.language_selection.mode, 'auto')
+
+fetchImplementation = async () => ({
+  ok: false,
+  status: 503,
+  headers: { get: name => name.toLowerCase() === 'x-request-id' ? 'request-503' : null },
+  json: async () => ({ detail: 'Service warming up' }),
+})
+await assert.rejects(
+  sendMessage('session-1', 'retry me', { componentType: 'TEXT_BOX' }),
+  error => {
+    assert.equal(error.name, 'TextLabsRequestError')
+    assert.equal(error.status, 503)
+    assert.equal(error.requestId, 'request-503')
+    assert.equal(
+      isRetryableTextLabsRequestError(error),
+      false,
+      'application failures must not trigger a second paid request',
+    )
+    return true
+  },
+)
+
+fetchImplementation = async () => ({
+  ok: true,
+  status: 200,
+  headers: { get: () => null },
+  json: async () => ({
+    success: false,
+    error: 'The diagram service may have completed before its response was lost.',
+    error_code: 'DIAGRAM_SERVICE_HTTP_503',
+    retryable: true,
+    ambiguous_completion: true,
+    generation_attempt_id: 'attempt-ambiguous',
+  }),
+})
+await assert.rejects(
+  sendMessage(
+    'session-1',
+    'retry the same diagram attempt',
+    {
+      componentType: 'CLOUD_ARCHITECTURE',
+      generationAttemptId: 'attempt-ambiguous',
+    },
+  ),
+  error => {
+    assert.equal(error.name, 'TextLabsRequestError')
+    assert.equal(error.kind, 'application')
+    assert.equal(error.retryable, true)
+    assert.equal(error.ambiguousCompletion, true)
+    assert.equal(error.requestId, 'attempt-ambiguous')
+    return true
+  },
+)
+
+assert.equal(
+  isRetryableTextLabsRequestError(new TextLabsRequestError(
+    'transport failed before a response',
+    { kind: 'transport', retryable: true },
+  )),
+  true,
+)
+
 fetchImplementation = async (_url, init) => {
   capturedSignal = init.signal
   return { ok: true, json: async () => ({ elements: [] }) }
 }
-const messageController = new AbortController()
-await sendMessage('session-1', 'hello', { componentType: 'TEXT_BOX' }, messageController.signal)
-assert.equal(capturedSignal, messageController.signal, 'chat fetch receives the generation signal')
-
 const infographicController = new AbortController()
 await generateInfographic(
   'session-1',
@@ -93,6 +183,23 @@ const timeoutController = new AbortController()
 const request = sendMessage('session-1', 'slow request', { componentType: 'TEXT_BOX' }, timeoutController.signal)
 timeoutController.abort()
 await assert.rejects(request, error => error?.name === 'AbortError')
+
+fetchImplementation = (_url, init) => new Promise((_resolve, reject) => {
+  init.signal.addEventListener(
+    'abort',
+    () => reject(new TypeError('fetch aborted by browser')),
+    { once: true },
+  )
+})
+const typeErrorAbortController = new AbortController()
+const typeErrorAbortRequest = sendMessage(
+  'session-1',
+  'slow browser request',
+  { componentType: 'TEXT_BOX' },
+  typeErrorAbortController.signal,
+)
+typeErrorAbortController.abort()
+await assert.rejects(typeErrorAbortRequest, error => error?.name === 'AbortError')
 
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
 assert.match(generationSource, /ensureSession\(controller\.signal\)/)

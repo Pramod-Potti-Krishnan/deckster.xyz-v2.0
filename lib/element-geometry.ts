@@ -29,6 +29,8 @@ export interface GetElementGeometryResponse {
   metrics_color_variant?: string | null
   zIndex?: number | string | null
   z_index?: number | string | null
+  generationConfig?: Record<string, unknown> | null
+  generation_config?: Record<string, unknown> | null
 }
 
 export interface ElementGenerationMetadata {
@@ -39,6 +41,7 @@ export interface ElementGenerationMetadata {
   themeVariantSource: string | null
   metricsColorVariant: string | null
   zIndex: number | null
+  generationConfig: Record<string, unknown> | null
 }
 
 export type ElementGenerationPreflightStage = 'geometry' | 'theme_metadata'
@@ -79,7 +82,25 @@ const MINOR_GRID_SCALE = 5
 const GRID_TOLERANCE = 1e-8
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const MAX_GENERATION_CONFIG_CHARS = 512 * 1024
+
+function cloneBoundedGenerationConfig(value: unknown): Record<string, unknown> | null {
+  if (!isRecord(value)) return null
+  try {
+    const serialized = JSON.stringify(value)
+    if (!serialized || serialized.length > MAX_GENERATION_CONFIG_CHARS) return null
+    const cloned = JSON.parse(serialized, (key, nested) => (
+      key === '__proto__' || key === 'prototype' || key === 'constructor'
+        ? undefined
+        : nested
+    ))
+    return isRecord(cloned) ? cloned : null
+  } catch {
+    return null
+  }
 }
 
 function isMinorGridLine(value: number): boolean {
@@ -152,6 +173,7 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
     return {
       componentType: null, themeVariantId: null, themeBindings: null,
       styleOwner: null, themeVariantSource: null, metricsColorVariant: null, zIndex: null,
+      generationConfig: null,
     }
   }
   const rawBindings = response.themeBindings ?? response.theme_bindings
@@ -180,6 +202,9 @@ export function parseElementGenerationMetadata(response: unknown): ElementGenera
       ? String(response.metricsColorVariant ?? response.metrics_color_variant)
       : null,
     zIndex: Number.isFinite(parsedZIndex) ? parsedZIndex : null,
+    generationConfig: cloneBoundedGenerationConfig(
+      response.generationConfig ?? response.generation_config,
+    ),
   }
 }
 
@@ -256,6 +281,7 @@ export async function readElementGenerationSnapshot({
       metadata = {
         ...refreshedMetadata,
         zIndex: refreshedMetadata.zIndex ?? metadata.zIndex,
+        generationConfig: refreshedMetadata.generationConfig ?? metadata.generationConfig,
       }
       if (!metadata.themeBindings || (requiresThemeVariant && !metadata.themeVariantId)) {
         throw new Error('The placeholder theme treatment is incomplete')

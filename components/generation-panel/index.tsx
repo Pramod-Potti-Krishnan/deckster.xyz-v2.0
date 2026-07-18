@@ -18,6 +18,7 @@ import { DiagramForm } from './forms/diagram-form'
 import { GenerationPanelProps, ElementContext, GenerationPanelDraft, MandatoryConfig } from './types'
 import { parseTemplateSlotCatalog } from '@/lib/text-slot-catalog'
 import { ResearchControls } from './shared/research-controls'
+import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
 
 function readObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -115,14 +116,28 @@ export function GenerationPanel({
 
   // Form registers its submit function here
   const submitFnRef = useRef<{ key: string; submit: () => void } | null>(null)
+  const submitIntentRef = useRef<{
+    key: string
+    intent: ElementGenerationSubmitIntent
+  } | null>(null)
 
   const registerSubmit = useCallback((fn: () => void) => {
     submitFnRef.current = { key: panelTargetKey, submit: fn }
   }, [panelTargetKey])
 
-  const handleFooterGenerate = useCallback(() => {
+  const handleFooterGenerate = useCallback((
+    intent: ElementGenerationSubmitIntent = 'generate',
+  ) => {
     const registration = submitFnRef.current
-    if (registration?.key === panelTargetKey) registration.submit()
+    if (registration?.key !== panelTargetKey) return
+    submitIntentRef.current = { key: panelTargetKey, intent }
+    try {
+      registration.submit()
+    } finally {
+      // Form submit handlers synchronously hand their immutable snapshot to
+      // handleFormSubmit before their async generation work begins.
+      submitIntentRef.current = null
+    }
   }, [panelTargetKey])
 
   const handleResearchEnabledChange = useCallback((enabled: boolean) => {
@@ -182,6 +197,9 @@ export function GenerationPanel({
   }, [onDraftChange, onResearchKnowledgeGraphChange])
 
   const handleFormSubmit = useCallback(async (formData: TextLabsFormData) => {
+    const submitIntent = submitIntentRef.current?.key === panelTargetKey
+      ? submitIntentRef.current.intent
+      : 'generate'
     onDraftChange?.({
       prompt: formData.prompt,
       showAdvanced,
@@ -191,10 +209,11 @@ export function GenerationPanel({
       researchUploadedDocs,
       researchKnowledgeGraph,
     })
-    await onGenerate(formData)
+    await onGenerate(formData, submitIntent)
   }, [
     onDraftChange,
     onGenerate,
+    panelTargetKey,
     researchKnowledgeGraph,
     researchMode,
     researchUploadedDocs,
