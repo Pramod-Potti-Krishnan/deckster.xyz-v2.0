@@ -39,6 +39,29 @@ function nextElementIdSequence(): number {
   return elementIdSequence
 }
 
+function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  return Boolean(
+    signal?.aborted ||
+    (
+      error &&
+      typeof error === 'object' &&
+      (error as { name?: unknown }).name === 'AbortError'
+    )
+  )
+}
+
+async function readErrorResponse(response: Response, signal?: AbortSignal): Promise<unknown> {
+  try {
+    return await response.json()
+  } catch (error) {
+    // A fetch can resolve after headers and still be aborted while its body is
+    // being read. Preserve cancellation instead of converting it into a
+    // misleading generic API error.
+    if (isAbortError(error, signal)) throw error
+    return {}
+  }
+}
+
 // ============================================================================
 // API KEY MAPPING (camelCase -> snake_case)
 // ============================================================================
@@ -297,7 +320,7 @@ export async function sendMessage(
   })
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
+    const errorData = await readErrorResponse(response, signal)
     throw new Error(formatBackendError(errorData, `API error: ${response.status}`))
   }
 
@@ -305,7 +328,6 @@ export async function sendMessage(
   if (data && typeof data === 'object' && (data as Record<string, unknown>).success === false) {
     throw new Error(formatBackendError(data, 'Element generation failed'))
   }
-
   return data
 }
 

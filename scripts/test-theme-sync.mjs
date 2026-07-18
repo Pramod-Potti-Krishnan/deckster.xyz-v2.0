@@ -16,6 +16,7 @@ const {
   IDLE_THEME_SYNC,
   applyThemeSyncResponse,
   isThemeAppliedToPresentation,
+  isSameAppliedThemeAuthority,
   isThemeSyncTerminal,
   syncingTheme,
   waitForAuthoritativeTheme,
@@ -40,6 +41,41 @@ const applied = applyThemeSyncResponse(current, {
 assert.equal(applied.status, 'applied')
 assert.equal(isThemeAppliedToPresentation(applied, 'deck-2'), true)
 assert.equal(isThemeAppliedToPresentation(applied, 'deck-1'), false)
+
+const semanticApplied = applyThemeSyncResponse(
+  syncingTheme('semantic-request-1', 'deck-2', 'theme-fingerprint-a'),
+  {
+    request_id: 'semantic-request-1',
+    status: 'applied',
+    presentation_id: 'deck-2',
+  },
+)
+const replacementSemanticApplied = applyThemeSyncResponse(
+  syncingTheme('semantic-request-2', 'deck-2', 'theme-fingerprint-a'),
+  {
+    request_id: 'semantic-request-2',
+    status: 'applied',
+    presentation_id: 'deck-2',
+  },
+)
+const differentSemanticApplied = applyThemeSyncResponse(
+  syncingTheme('semantic-request-3', 'deck-2', 'theme-fingerprint-b'),
+  {
+    request_id: 'semantic-request-3',
+    status: 'applied',
+    presentation_id: 'deck-2',
+  },
+)
+assert.equal(
+  isSameAppliedThemeAuthority(semanticApplied, replacementSemanticApplied),
+  true,
+  'replacement transport request IDs retain the same semantic theme authority',
+)
+assert.equal(
+  isSameAppliedThemeAuthority(semanticApplied, differentSemanticApplied),
+  false,
+  'a genuinely different theme fingerprint invalidates semantic authority',
+)
 
 const failed = applyThemeSyncResponse(current, {
   request_id: 'new-request', status: 'failed', error: 'Theme Builder unavailable',
@@ -171,6 +207,89 @@ const superseded = await waitForAuthoritativeTheme({
 assert.equal(superseded.ready, false)
 assert.equal(superseded.code, 'request_superseded')
 
+let redundantState = syncingTheme('redundant-original', 'deck-2', 'theme-fingerprint-a')
+const redundantAcknowledgement = await waitForAuthoritativeTheme({
+  presentationId: 'deck-2',
+  themeFingerprint: 'theme-fingerprint-a',
+  getSyncState: () => redundantState,
+  isConnected: () => true,
+  requestSync: () => {
+    throw new Error('a matching in-flight request must be reused')
+  },
+  delay: async () => {
+    redundantState = applyThemeSyncResponse(
+      syncingTheme('redundant-replacement', 'deck-2', 'theme-fingerprint-a'),
+      {
+        request_id: 'redundant-replacement',
+        status: 'applied',
+        presentation_id: 'deck-2',
+      },
+    )
+  },
+})
+assert.equal(redundantAcknowledgement.ready, true)
+assert.equal(redundantAcknowledgement.sync.requestId, 'redundant-replacement')
+
+const disconnectedAppliedLease = await waitForAuthoritativeTheme({
+  presentationId: 'deck-2',
+  themeFingerprint: 'theme-fingerprint-a',
+  getSyncState: () => replacementSemanticApplied,
+  isConnected: () => false,
+  requestSync: () => {
+    throw new Error('an applied semantic lease must not require Director connectivity')
+  },
+})
+assert.equal(disconnectedAppliedLease.ready, true)
+
+let mismatchedSyncRequestCalls = 0
+let mismatchedSyncState = syncingTheme(
+  'stale-fingerprint-request',
+  'deck-2',
+  'theme-fingerprint-b',
+)
+const mismatchedSyncRecovery = await waitForAuthoritativeTheme({
+  presentationId: 'deck-2',
+  themeFingerprint: 'theme-fingerprint-a',
+  getSyncState: () => mismatchedSyncState,
+  isConnected: () => true,
+  requestSync: () => {
+    mismatchedSyncRequestCalls += 1
+    mismatchedSyncState = applyThemeSyncResponse(
+      syncingTheme('fresh-fingerprint-request', 'deck-2', 'theme-fingerprint-a'),
+      {
+        request_id: 'fresh-fingerprint-request',
+        status: 'applied',
+        presentation_id: 'deck-2',
+      },
+    )
+    return {
+      ok: true,
+      requestId: 'fresh-fingerprint-request',
+      themeFingerprint: 'theme-fingerprint-a',
+    }
+  },
+})
+assert.equal(mismatchedSyncRecovery.ready, true)
+assert.equal(mismatchedSyncRequestCalls, 1, 'a syncing request for another theme is never reused')
+
+const mismatchedApplied = await waitForAuthoritativeTheme({
+  presentationId: 'deck-2',
+  themeFingerprint: 'theme-fingerprint-a',
+  getSyncState: () => differentSemanticApplied,
+  isConnected: () => true,
+  requestSync: () => ({
+    ok: true,
+    requestId: 'semantic-request-3',
+    themeFingerprint: 'theme-fingerprint-a',
+  }),
+})
+assert.equal(mismatchedApplied.ready, false)
+assert.equal(
+  mismatchedApplied.code,
+  'request_superseded',
+  'an applied acknowledgement with the expected request ID but wrong fingerprint is rejected',
+)
+
 let connected = true
 let disconnectState = syncingTheme('disconnect-request', 'deck-2')
 const disconnected = await waitForAuthoritativeTheme({
@@ -232,6 +351,21 @@ assert.ok(
 )
 
 const builderSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
+assert.ok(
+  builderSource.indexOf('isThemeAppliedToPresentation(current, targetPresentationId, themeFingerprint)') <
+    builderSource.indexOf('if (!target.isReady)'),
+  'an exact applied semantic lease is reusable before the Director connection gate',
+)
+assert.match(
+  builderSource,
+  /isThemeAppliedToPresentation\(current, effectivePresentationId, currentFingerprint\)/,
+  'disconnect cleanup preserves the applied semantic lease for the active presentation',
+)
+assert.match(
+  builderSource,
+  /buildThemeSelectionRef\.current\.mode === 'auto' &&[\s\S]{0,300}themeSyncRef\.current\.status === 'idle'/,
+  'late standard-theme hydration cannot supersede an in-flight or applied Auto selection',
+)
 const approvedHandler = builderSource.slice(
   builderSource.indexOf('const handleApprovedTextLabsGenerate'),
   builderSource.indexOf('const handleRefineElementRequested'),

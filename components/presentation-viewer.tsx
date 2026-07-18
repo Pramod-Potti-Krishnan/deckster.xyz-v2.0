@@ -417,6 +417,7 @@ const LAYOUT_ELEMENT_COMMAND_TIMEOUTS: Record<string, number> = {
   getTemplateSlotCatalog: READ_LAYOUT_COMMAND_TIMEOUT_MS,
   getElementThemeVariants: READ_LAYOUT_COMMAND_TIMEOUT_MS,
   refreshElementThemeMetadata: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+  setElementGenerationState: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
 
   insertTextBox: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
   insertTable: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,

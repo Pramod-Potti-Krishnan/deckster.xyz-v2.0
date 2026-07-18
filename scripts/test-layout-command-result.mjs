@@ -77,6 +77,25 @@ const deleteResult = await mod.exports.sendLayoutMutationWithReconciliation(
 )
 assert.equal(deleteResult.success, true)
 
+let negativeDeleteCalls = 0
+await assert.rejects(
+  mod.exports.sendLayoutMutationWithReconciliation(
+    async () => {
+      negativeDeleteCalls += 1
+      return { success: false, error: 'Element not found' }
+    },
+    'deleteElement',
+    { elementId: 'missing-placeholder' },
+    'mutation-negative-delete',
+  ),
+  /deleteElement failed: Element not found/,
+)
+assert.equal(
+  negativeDeleteCalls,
+  1,
+  'an explicit negative deletion receipt is not treated as success or retried as a timeout',
+)
+
 await assert.rejects(
   mod.exports.sendLayoutMutationWithReconciliation(
     async action => {

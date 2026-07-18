@@ -41,8 +41,10 @@ function loadTypeScriptModule(url) {
 
 const {
   chartDataTemplate,
+  chartDataRequiresAxes,
   parseChartDataJson,
   researchedChartRecoveryMessage,
+  resolveCustomChartAxisLabels,
   validateChartData,
 } = loadTypeScriptModule(moduleUrl('../lib/chart-data-contract.ts'))
 const { buildApiPayload, buildInsertionParams } = loadTypeScriptModule(moduleUrl('../lib/textlabs-client.ts'))
@@ -63,6 +65,32 @@ for (const data of [simple, scatter, bubble, multiSeries]) {
   assert.equal(result.valid, true, `canonical chart shape should validate: ${JSON.stringify(data)}`)
 }
 assert.equal(parseChartDataJson(JSON.stringify(multiSeries)).valid, true, 'labels/datasets JSON is accepted')
+assert.equal(chartDataRequiresAxes(scatter), true)
+assert.equal(chartDataRequiresAxes(simple), false)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(resolveCustomChartAxisLabels(scatter, '', ''))),
+  {
+    requiresAxes: true,
+    xAxisLabel: 'X value',
+    yAxisLabel: 'Y value',
+    error: null,
+  },
+  'canonical custom x/y data receives neutral axis semantics without fabricating values',
+)
+assert.equal(
+  resolveCustomChartAxisLabels(scatter, 'Revenue', 'Revenue').error,
+  'Scatter and bubble data require distinct X-axis and Y-axis labels.',
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(resolveCustomChartAxisLabels(simple, '', ''))),
+  {
+    requiresAxes: false,
+    xAxisLabel: null,
+    yAxisLabel: null,
+    error: null,
+  },
+  'neutral axis defaults are limited to custom x/y data',
+)
 assert.equal(validateChartData([{ x: 1, y: 2, r: 0 }]).valid, false, 'bubble radii must be positive')
 assert.equal(validateChartData([{ label: 'Only', value: 1 }]).valid, false, 'canonical charts require at least two points')
 assert.equal(validateChartData([{ x: 1, y: 2 }]).valid, false, 'scatter charts require at least two points')
@@ -200,7 +228,9 @@ assert.match(chartFormSource, /if \(next\.auto_position && elementContext\)/, 'r
 assert.match(panelSource, /elementContext && elementType !== 'CHART'/, 'the redundant chart position banner does not displace the chat controls')
 assert.match(chartFormSource, /X-axis label/)
 assert.match(chartFormSource, /Y-axis label/)
-assert.match(chartFormSource, /Scatter and bubble data require distinct X-axis and Y-axis labels/)
+assert.match(chartFormSource, /resolveCustomChartAxisLabels/)
+assert.match(chartFormSource, /current\.trim\(\) \|\| 'X value'/)
+assert.match(chartFormSource, /current\.trim\(\) \|\| 'Y value'/)
 assert.match(generationSource, /const manuallyPositionedChart = formData\.componentType === 'CHART'/)
 assert.match(generationSource, /manuallyPositionedChart && formData\.positionConfig \? \{/)
 assert.match(generationSource, /\} : currentBlankInfo && formData\.count <= 1 \? \{/, 'Auto still preserves dragged placeholder geometry')

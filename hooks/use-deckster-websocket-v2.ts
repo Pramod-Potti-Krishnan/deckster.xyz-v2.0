@@ -474,25 +474,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }
 
-  // FIXED: Allow session ID updates only when creating a new database session
-  // Prevents session ID from changing once a session is loaded from URL/database
-  if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
-    debugLog('🔄 [WEBSOCKET-SESSION] Session ID update requested', {
-      old: sessionIdRef.current,
-      new: options.existingSessionId,
-      source: 'builder page (existingSessionId prop)'
-    });
-
-    // Always update to the existingSessionId from the builder page
-    // The builder page is responsible for maintaining session continuity
-    // This allows: initial connection with URL session ID or upgrading unsaved → saved
-    sessionIdRef.current = options.existingSessionId;
-
-    debugLog('✅ [WEBSOCKET-SESSION] Session ID updated', {
-      sessionId: sessionIdRef.current
-    });
-  }
-
   // FIXED: Initialize user ID ONLY with authenticated user (no temporary IDs)
   // This prevents user ID from changing during session and breaking continuity
   if (!userIdRef.current && (user?.id || user?.email)) {
@@ -708,6 +689,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectAttemptsRef = useRef(0);
+  const pendingSessionReconnectRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
   const hasConnectedRef = useRef(false);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -716,17 +698,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
   const reconnectDelay = options.reconnectDelay ?? 3000;
 
-  // Reconnect when session ID changes (e.g., after database session creation)
-  useEffect(() => {
-    if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
-      debugLog('🔄 Reconnecting with new session ID:', options.existingSessionId);
-      sessionIdRef.current = options.existingSessionId;
-      if (wsRef.current) {
-        wsRef.current.close();
-        // Will auto-reconnect via existing reconnection logic
-      }
-    }
-  }, [options.existingSessionId]);
   const HEARTBEAT_INTERVAL = 15000; // Send ping every 15 seconds
 
   // Start heartbeat to keep connection alive during long operations
@@ -1436,9 +1407,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
         wsRef.current = null;
 
-        // Attempt reconnection if enabled and we had previously connected successfully
+        // Attempt a bounded reconnect for both established connections and
+        // first-connect failures. Requiring a prior successful connection
+        // leaves a reloaded/resumed Builder permanently disconnected after one
+        // transient Director failure.
         if (options.reconnectOnError &&
-            hasConnectedRef.current &&
             reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current++;
           const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current - 1);
@@ -1468,6 +1441,68 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, [options, reconnectDelay, maxReconnectAttempts, startHeartbeat, stopHeartbeat]);
 
+  // Reconnect when the Builder adopts a persisted/new database session ID.
+  // Session IDs must not be assigned during render: doing that before this
+  // effect made the old comparison permanently false and left the socket bound
+  // to the previous session.
+  useEffect(() => {
+    const nextSessionId = options.existingSessionId;
+    if (!nextSessionId || nextSessionId === sessionIdRef.current) return;
+
+    const previousSessionId = sessionIdRef.current;
+    const previousSocket = wsRef.current;
+    const shouldReconnect = Boolean(
+      previousSocket
+      || isConnectingRef.current
+      || hasConnectedRef.current,
+    );
+    debugLog('🔄 [WEBSOCKET-SESSION] Adopting Builder session ID', {
+      old: previousSessionId,
+      new: nextSessionId,
+      reconnecting: shouldReconnect,
+    });
+
+    sessionIdRef.current = nextSessionId;
+    reconnectAttemptsRef.current = 0;
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = undefined;
+    }
+    stopHeartbeat();
+
+    // Detach before close so late events from the old socket are ignored and
+    // cannot schedule a second reconnect for the newly adopted session.
+    wsRef.current = null;
+    if (previousSocket) previousSocket.close();
+    isConnectingRef.current = false;
+    setState(prev => ({
+      ...prev,
+      sessionId: nextSessionId,
+      connected: false,
+      connecting: shouldReconnect,
+      connectionState: shouldReconnect ? 'connecting' : 'disconnected',
+      currentStatus: null,
+    }));
+
+    pendingSessionReconnectRef.current = shouldReconnect ? nextSessionId : null;
+  }, [options.existingSessionId, stopHeartbeat]);
+
+  // Connect on the render after session adoption. This gives useSessionCache
+  // the new key before connect() computes skip_history/message_count, avoiding
+  // an old session's cache metadata on the replacement Director socket.
+  useEffect(() => {
+    const pendingSessionId = pendingSessionReconnectRef.current;
+    if (
+      !pendingSessionId ||
+      state.sessionId !== pendingSessionId ||
+      sessionIdRef.current !== pendingSessionId
+    ) {
+      return;
+    }
+    pendingSessionReconnectRef.current = null;
+    connect();
+  }, [connect, state.sessionId]);
+
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
     debugLog('🔌 Disconnecting WebSocket');
@@ -1487,6 +1522,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     isConnectingRef.current = false;
     hasConnectedRef.current = false;
     reconnectAttemptsRef.current = 0;
+    pendingSessionReconnectRef.current = null;
 
     setState(prev => ({
       ...prev,
