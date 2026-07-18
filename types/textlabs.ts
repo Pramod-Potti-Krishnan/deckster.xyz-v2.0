@@ -90,6 +90,8 @@ export interface DiagramGenerationConfig extends Record<string, unknown> {
   theme_palette?: DiagramThemePalette
   structured_data?: Record<string, unknown>
   provider_selection?: DiagramProviderSelection
+  /** Provider used by the last successful Auto generation; not a manual override. */
+  resolved_provider?: 'aws' | 'gcp' | 'azure' | 'generic'
 }
 
 export type ThemeSourceMode = 'deck' | 'none' | 'another'
@@ -927,5 +929,5 @@ export const COMPONENT_TYPE_INFO: Record<TextLabsComponentType, {
   ICON_LABEL: { label: 'Icon/Label', icon: 'Tag', description: 'Icon or text label element' },
   SHAPE: { label: 'Shape', icon: 'Pentagon', description: 'SVG shapes with 8 types' },
   INFOGRAPHIC: { label: 'Infographic', icon: 'LayoutGrid', description: 'Visual data representation' },
-  DIAGRAM: { label: 'Diagram', icon: 'GitBranch', description: '8 diagram types' },
+  DIAGRAM: { label: 'Diagram', icon: 'GitBranch', description: '9 diagram types' },
 }

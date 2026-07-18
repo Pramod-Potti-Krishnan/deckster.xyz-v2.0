@@ -352,7 +352,10 @@ export function GenerationPanel({
 
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <FormRouter
-            key={`${activationId}:${elementType}:${draftKey ?? 'new'}`}
+            // activationId changes for a genuinely new target. draftKey may
+            // change when Layout reissues the same placeholder under a new ID,
+            // which must not remount the form and discard its in-flight state.
+            key={`${activationId}:${elementType}`}
             elementType={elementType}
             onSubmit={handleFormSubmit}
             registerSubmit={registerSubmit}
@@ -468,7 +471,14 @@ function FormRouter({
         />
       )
     case 'DIAGRAM':
-      return <DiagramForm {...commonProps} researchControls={researchControls} existingDiagramTarget={existingDiagramTarget} />
+      return (
+        <DiagramForm
+          {...commonProps}
+          researchControls={researchControls}
+          existingDiagramTarget={existingDiagramTarget}
+          initialDraft={initialDraft}
+        />
+      )
     default:
       return null
   }

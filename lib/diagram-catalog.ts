@@ -21,6 +21,8 @@ export interface DiagramCatalogType {
   research_capable: boolean
   path: string
   config: Record<string, DiagramCatalogField>
+  features?: Record<string, unknown>
+  limits?: Record<string, number>
 }
 
 export interface DiagramCatalog {
@@ -241,6 +243,20 @@ const DIAGRAM_CATALOG_RAW: DiagramCatalog = {
         },
         theme_mode: { type: 'enum', enum: ['light', 'dark'], default: 'light', advanced: true },
         position_preset: { type: 'enum', enum: ['full_content', 'left_four_fifths'], advanced: true },
+      },
+      features: {
+        existing_ir_refinement: true,
+        node_detail_popups: true,
+        semantic_edge_kinds: [
+          'default', 'power', 'process', 'signal', 'control', 'safety',
+        ],
+      },
+      limits: {
+        prompt_max_chars: 1200,
+        nodes_max: 36,
+        edges_max: 64,
+        groups_max: 8,
+        annotations_max: 16,
       },
     },
   ],
