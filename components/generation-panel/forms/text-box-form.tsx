@@ -322,16 +322,6 @@ export function TextBoxForm({
     }
   }, [gridCols, gridDimensions, layoutChoice])
 
-  useEffect(() => {
-    if (
-      geometryMode === 'MANUAL'
-      && Object.keys(manualGeometryOverrides).length === 0
-      && !paddingModified
-    ) {
-      setGeometryMode('AUTO')
-    }
-  }, [geometryMode, manualGeometryOverrides, paddingModified])
-
   const effectiveCatalog = useMemo<TemplateSlotCatalog>(() => {
     if (!existingTextTarget?.slotName || slotCatalog.slots.some(slot => slot.slot_name === existingTextTarget.slotName)) {
       return slotCatalog
@@ -474,17 +464,18 @@ export function TextBoxForm({
     gridCols,
     multiBoxColorMode,
     textboxOverrides,
-    geometryMode: effectiveGeometry.geometryMode,
-    manualGeometryOverrides: effectiveGeometry.manualGeometryOverrides,
+    geometryMode,
+    manualGeometryOverrides: geometryMode === 'MANUAL' ? manualGeometryOverrides : undefined,
     zIndex,
     positionModified,
     paddingModified,
     paddingConfig,
   }), [
     count,
-    effectiveGeometry,
+    geometryMode,
     gridCols,
     layoutChoice,
+    manualGeometryOverrides,
     multiBoxColorMode,
     paddingConfig,
     paddingModified,

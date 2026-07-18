@@ -132,6 +132,34 @@ assert.deepEqual(
   { geometryMode: 'AUTO' },
 )
 
+const textBoxFormSource = fs.readFileSync(
+  new URL('../components/generation-panel/forms/text-box-form.tsx', import.meta.url),
+  'utf8',
+)
+assert.match(
+  textBoxFormSource,
+  /geometryMode,\s*\n\s*manualGeometryOverrides: geometryMode === 'MANUAL' \? manualGeometryOverrides : undefined/,
+  'saved generation config must preserve the user-selected UI geometry mode, not just the backend-effective request mode',
+)
+assert.doesNotMatch(
+  textBoxFormSource,
+  /geometryMode === 'MANUAL'[\s\S]{0,160}setGeometryMode\('AUTO'\)/,
+  'selecting Manual with no overrides must not snap back to Auto before the user can choose fields',
+)
+for (const restoredField of [
+  'setCount(saved?.count ?? 1)',
+  "setLayoutChoice(saved?.layoutChoice ?? 'auto')",
+  "setMultiBoxColorMode(saved?.multiBoxColorMode ?? 'SAME')",
+  'setTextboxOverrides(saved?.textboxOverrides ?? {})',
+  "setGeometryMode(saved?.geometryMode ?? 'AUTO')",
+  'setManualGeometryOverrides(saved?.manualGeometryOverrides ?? {})',
+]) {
+  assert.ok(
+    textBoxFormSource.includes(restoredField),
+    `same-element regenerate should restore ${restoredField}`,
+  )
+}
+
 const structuralPayload = clientModule.buildApiPayload('session-1', {
   ...baseForm,
   semanticRole: 'SLIDE_TITLE',
