@@ -111,16 +111,19 @@ export function GenerationPanel({
   onResearchUploadedDocsChange,
   onResearchKnowledgeGraphChange,
 }: GenerationPanelProps) {
+  const panelTargetKey = `${activationId}:${draftKey ?? 'new'}:${elementType}:${existingTextTarget?.elementId ?? 'none'}`
+
   // Form registers its submit function here
-  const submitFnRef = useRef<(() => void) | null>(null)
+  const submitFnRef = useRef<{ key: string; submit: () => void } | null>(null)
 
   const registerSubmit = useCallback((fn: () => void) => {
-    submitFnRef.current = fn
-  }, [])
+    submitFnRef.current = { key: panelTargetKey, submit: fn }
+  }, [panelTargetKey])
 
   const handleFooterGenerate = useCallback(() => {
-    submitFnRef.current?.()
-  }, [])
+    const registration = submitFnRef.current
+    if (registration?.key === panelTargetKey) registration.submit()
+  }, [panelTargetKey])
 
   const handleResearchEnabledChange = useCallback((enabled: boolean) => {
     onResearchModeChange(enabled ? 'on' : 'off')
@@ -199,14 +202,22 @@ export function GenerationPanel({
     showAdvanced,
   ])
 
-  // Mandatory config — registered by each form
-  const mandatoryConfigRef = useRef<MandatoryConfig | MandatoryConfig[] | null>(null)
-  const [, forceUpdate] = useState(0)
+  // Mandatory controls are registered by the mounted form. Scope the
+  // registration to the current activation so a previous element's controls
+  // can never flash in a newly opened panel. Keeping this in state also avoids
+  // the parent hydration effect clearing a control after the child's
+  // registration effect has run.
+  const [mandatoryConfigState, setMandatoryConfigState] = useState<{
+    key: string
+    config: MandatoryConfig | MandatoryConfig[] | null
+  }>({ key: panelTargetKey, config: null })
 
   const registerMandatoryConfig = useCallback((config: MandatoryConfig | MandatoryConfig[] | null) => {
-    mandatoryConfigRef.current = config
-    forceUpdate(n => n + 1)
-  }, [])
+    setMandatoryConfigState({ key: panelTargetKey, config })
+  }, [panelTargetKey])
+  const mandatoryConfig = mandatoryConfigState.key === panelTargetKey
+    ? mandatoryConfigState.config
+    : null
 
   const persistedGenerationDraft = useMemoFromSavedGenerationConfig(
     existingTextTarget?.generationConfig,
@@ -226,9 +237,6 @@ export function GenerationPanel({
         ?? effectiveDraft?.formData?.advancedModified
         ?? false,
     ))
-    submitFnRef.current = null
-    mandatoryConfigRef.current = null
-    forceUpdate(n => n + 1)
   }, [activationId, draftKey, elementType, existingTextTarget?.elementId])
 
   useEffect(() => {
@@ -292,13 +300,13 @@ export function GenerationPanel({
       }
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !isGenerating && showGenerationInput) {
         e.preventDefault()
-        submitFnRef.current?.()
+        handleFooterGenerate()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, isGenerating, onClose, showGenerationInput])
+  }, [handleFooterGenerate, isOpen, isGenerating, onClose, showGenerationInput])
 
   return (
     <div className="absolute inset-0 z-20 flex pointer-events-none">
@@ -330,7 +338,7 @@ export function GenerationPanel({
           <GenerationInput
             prompt={prompt}
             onPromptChange={handlePromptChange}
-            mandatoryConfig={mandatoryConfigRef.current}
+            mandatoryConfig={mandatoryConfig}
             showAdvanced={showAdvanced}
             onToggleAdvanced={handleShowAdvancedToggle}
             onSubmit={handleFooterGenerate}
