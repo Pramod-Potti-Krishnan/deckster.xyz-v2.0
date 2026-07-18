@@ -334,6 +334,7 @@ export function GenerationPanel({
             onSubmit={handleFooterGenerate}
             isGenerating={isGenerating}
             error={error}
+            placeholder={elementType === 'CHART' ? 'e.g., Show quarterly revenue growth for 2024' : undefined}
           />
         )}
 

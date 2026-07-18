@@ -28,6 +28,7 @@ const clientDependencies = id => {
   if (id === '@/lib/element-semantic-type') return { semanticTypeForInsertion: value => value }
   if (id === '@/lib/textlabs-theme-metadata') return { resolveElementThemeMetadata: () => ({ themeVariantId: null, themeBindings: null }) }
   if (id === '@/lib/element-provenance') return { parseThemeVariantSource: () => null, responseStyleOwner: () => 'text_service' }
+  if (id === '@/lib/element-research-policy') return { isNonResearchVisualElement: () => false }
   throw new Error(`Unexpected client dependency: ${id}`)
 }
 

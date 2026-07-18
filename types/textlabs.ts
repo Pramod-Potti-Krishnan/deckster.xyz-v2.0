@@ -399,12 +399,31 @@ export type TextLabsChartType =
   | 'scatter' | 'bubble' | 'radar' | 'polar_area' | 'area'
   | 'area_stacked' | 'bar_grouped' | 'bar_stacked' | 'waterfall'
 
+export type ChartDataSourceMode = 'auto' | 'illustrative' | 'custom'
+
+export type ChartSourceProvenance =
+  | 'research_sourced'
+  | 'illustrative'
+  | 'user_provided'
+  | 'none'
+
+export type SimpleChartData = Array<{ label: string; value: number }>
+export type ScatterBubbleChartData = Array<{ x: number; y: number; r?: number; label?: string }>
+export interface MultiSeriesChartData {
+  labels: string[]
+  datasets: Array<{ label: string; data: number[] }>
+}
+export type ChartData = SimpleChartData | ScatterBubbleChartData | MultiSeriesChartData
+
 export interface ChartConfig {
   chart_type: TextLabsChartType
+  requested_data_source_mode: ChartDataSourceMode
   include_insights: boolean
   series_names: string[]          // parsed from comma-separated input
   placeholder_mode: boolean
-  data: unknown[] | null          // null = AI generates, array = custom JSON data
+  data: ChartData | null          // null = backend resolves Auto/Illustrative; object/array = custom JSON
+  x_axis_label?: string | null
+  y_axis_label?: string | null
   colors?: string[] | null
   color_mode?: 'multi' | 'same' | 'transparency' | null
   chart_font?: string | null
@@ -704,6 +723,8 @@ export interface TextLabsElement {
   theme_variant_id?: string | null
   theme_bindings?: Record<string, string> | null
   research_provenance?: Record<string, unknown> | null
+  source_provenance?: ChartSourceProvenance | null
+  source_citation?: unknown
   semantic_role?: TextSemanticRole | null
   slot_name?: string | null
   slot_kind?: TextSlotKind | null
@@ -720,6 +741,8 @@ export interface TextLabsElement {
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
     research_provenance?: Record<string, unknown> | null
+    source_provenance?: ChartSourceProvenance | null
+    source_citation?: unknown
     semantic_role?: TextSemanticRole | null
     slot_name?: string | null
     slot_kind?: TextSlotKind | null
@@ -747,6 +770,9 @@ export interface TextLabsResponse {
   message?: string
   response_text?: string
   citations_used?: Array<Record<string, unknown>> | null
+  research_provenance?: Record<string, unknown> | null
+  source_provenance?: ChartSourceProvenance | null
+  source_citation?: unknown
   resolved_geometry?: Record<string, unknown> | null
   platinum_profile?: Record<string, unknown> | string | null
   resolved_metrics_profile?: Record<string, unknown> | null
