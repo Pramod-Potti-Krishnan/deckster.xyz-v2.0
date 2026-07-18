@@ -21,7 +21,11 @@ import {
   hasSelectedElementResearchSource,
   isNonResearchVisualElement,
 } from '@/lib/element-research-policy'
-import type { ThemeReadinessResult, ThemeSyncState } from '@/lib/theme-sync'
+import {
+  isSameAppliedThemeAuthority,
+  type ThemeReadinessResult,
+  type ThemeSyncState,
+} from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
@@ -167,12 +171,6 @@ function buildPlaceholderHtml(elementId: string, componentType: string): string 
   return `<div data-blank-element="${elementId}" data-element-type="${componentType}" style="display:flex;align-items:center;justify-content:center;height:100%;border:2px dashed #c7d2fe;border-radius:8px;background:rgba(238,241,247,0.6);cursor:pointer;"><div style="text-align:center;color:#6366f1;"><div style="font-size:28px;line-height:1;">${icon}</div><div style="font-size:13px;font-weight:600;margin-top:6px;">${label}</div><div style="font-size:11px;margin-top:2px;opacity:0.7;">Click to configure</div></div></div>`
 }
 
-// Spinner HTML for generating state
-function buildSpinnerHtml(elementId: string, componentType: string): string {
-  const label = componentType.replace(/_/g, ' ')
-  return `<div data-blank-element="${elementId}" data-element-type="${componentType}" style="display:flex;align-items:center;justify-content:center;height:100%;border:2px solid #a5b4fc;border-radius:8px;background:rgba(238,241,247,0.8);"><div style="text-align:center;color:#6366f1;"><div style="width:24px;height:24px;border:3px solid #c7d2fe;border-top-color:#6366f1;border-radius:50%;margin:0 auto;animation:spin 1s linear infinite;"></div><div style="font-size:12px;font-weight:500;margin-top:8px;">Generating ${label}...</div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style></div>`
-}
-
 function parseGridSpan(value: unknown): [number, number] | null {
   if (typeof value !== 'string') return null
   const parts = value.split('/').map(part => Number(part.trim()))
@@ -268,6 +266,7 @@ export function useTextLabsGeneration({
     generationPanel.setIsGenerating(true)
     generationPanel.setError(null)
     let refineOverlayActive = false
+    let blankOverlayActive = false
     let refineElementDeleted = false
 
     // The displayed presentation owned by the hook is authoritative. Form
@@ -338,10 +337,7 @@ export function useTextLabsGeneration({
     }
     const themeIsStillAuthoritative = () => {
       if (!expectedThemeSync) return true
-      const current = getThemeSyncSnapshot()
-      return current.status === 'applied'
-        && current.requestId === expectedThemeSync.requestId
-        && current.presentationId === expectedThemeSync.presentationId
+      return isSameAppliedThemeAuthority(expectedThemeSync, getThemeSyncSnapshot())
     }
     const generationTargetError = () => {
       if (!presentationIsStillAuthoritative()) return PRESENTATION_CHANGED_DURING_GENERATION
@@ -754,54 +750,63 @@ export function useTextLabsGeneration({
     // From this point onward, the generation try/finally always clears it.
     if (refineContext && layoutServiceApis?.sendElementCommand) {
       try {
-        await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+        const overlayResponse = await layoutServiceApis.sendElementCommand('setElementGenerationState', {
           elementId: refineContext.elementId,
           generating: true,
           label: 'Regenerating…',
         })
+        assertLayoutCommandSucceeded(overlayResponse, 'Regeneration overlay')
         refineOverlayActive = true
       } catch (error) {
-        // Layout deployments before the transient overlay command remain usable;
-        // geometry and safe replacement are still enforced.
-        console.warn('[TextLabs] Regeneration overlay is unavailable:', error)
+        try {
+          await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+            elementId: refineContext.elementId,
+            generating: false,
+          })
+        } catch {
+          // The recoverable error below asks the user to reload when the
+          // command's final viewer state cannot be confirmed.
+        }
+        const message = error instanceof Error
+          ? `The presentation viewer could not show regeneration progress: ${error.message}`
+          : 'The presentation viewer could not show regeneration progress.'
+        generationPanel.setError(`${message} Reload the slide and try again.`)
+        generationPanel.setIsGenerating(false)
+        activeGenerationKeysRef.current.delete(generationKey)
+        return
       }
     }
 
-    // Set status to generating and update canvas to spinner
+    // Keep the authoritative placeholder intact while generation runs. Layout's
+    // transient overlay is visual-only and cannot leak into persisted content.
     if (blankId && blankInfo && layoutServiceApis?.sendElementCommand) {
       blankElements.setStatus(blankId, 'generating')
-      const spinnerHtml = buildSpinnerHtml(blankId, formData.componentType)
-      const gridRow = `${snapGridLine(blankInfo.startRow)}/${snapGridLine(blankInfo.startRow + blankInfo.height)}`
-      const gridColumn = `${snapGridLine(blankInfo.startCol)}/${snapGridLine(blankInfo.startCol + blankInfo.width)}`
       try {
-        await layoutServiceApis.sendElementCommand('deleteElement', { elementId: blankId })
-        const reinsertResponse = await layoutServiceApis.sendElementCommand('insertTextBox', {
+        const overlayResponse = await layoutServiceApis.sendElementCommand('setElementGenerationState', {
           elementId: blankId,
-          slideIndex: blankInfo.slideIndex,
-          content: spinnerHtml,
-          gridRow,
-          gridColumn,
-          positionWidth: blankInfo.width,
-          positionHeight: blankInfo.height,
-          zIndex: 10,
-          draggable: false,
-          resizable: false,
-          skipAutoSize: true,
-          componentType: normalizeSemanticComponentType(formData.componentType) ?? blankInfo.componentType,
-          themeVariantId: blankInfo.themeVariantId,
-          themeBindings: blankInfo.themeBindings,
-          themeVariantSource: 'element_generation',
+          generating: true,
+          label: 'Generating…',
         })
-        const newId = reinsertResponse?.elementId
-        if (newId && newId !== blankId) {
-          blankElements.removeElement(blankId)
-          blankElements.addElement({ ...blankInfo, elementId: newId, status: 'generating' })
-          generationPanel.resumePanelForElement(blankInfo.componentType, newId)
-          currentBlankId = newId
-          currentBlankInfo = { ...blankInfo, elementId: newId }
-        }
+        assertLayoutCommandSucceeded(overlayResponse, 'Generation overlay')
+        blankOverlayActive = true
       } catch (err) {
-        console.warn('[TextLabs] Failed to update blank to spinner:', err)
+        blankElements.setStatus(blankId, 'blank')
+        try {
+          await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+            elementId: blankId,
+            generating: false,
+          })
+        } catch {
+          // A lost acknowledgement can leave the viewer state ambiguous. The
+          // recoverable panel error below asks the user to reload before retry.
+        }
+        const message = err instanceof Error
+          ? `The presentation viewer could not show generation progress: ${err.message}`
+          : 'The presentation viewer could not show generation progress.'
+        generationPanel.setError(`${message} Reload the slide and try again.`)
+        generationPanel.setIsGenerating(false)
+        activeGenerationKeysRef.current.delete(generationKey)
+        return
       }
     }
 
@@ -876,13 +881,15 @@ export function useTextLabsGeneration({
 
       // Delete blank placeholder before inserting generated content
       if (currentBlankId && currentBlankInfo && layoutServiceApis?.sendElementCommand) {
-        try {
-          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: currentBlankId })
-        } catch (err) {
-          console.warn('[TextLabs] Failed to delete blank placeholder:', err)
-        }
+        await sendLayoutMutationWithReconciliation(
+          layoutServiceApis.sendElementCommand,
+          'deleteElement',
+          { elementId: currentBlankId },
+          `${lifecycleMutationId}:delete-placeholder`,
+        )
         blankElements.removeElement(currentBlankId)
         blankTrackingWasRemoved = true
+        blankOverlayActive = false
       }
 
       // Insert each element into the canvas
@@ -1284,6 +1291,7 @@ export function useTextLabsGeneration({
         !presentationTargetChanged &&
         currentBlankId &&
         currentBlankInfo &&
+        blankTrackingWasRemoved &&
         layoutServiceApis?.sendElementCommand
       ) {
         blankElements.setStatus(currentBlankId, 'blank')
@@ -1338,6 +1346,9 @@ export function useTextLabsGeneration({
         } catch (restoreErr) {
           console.warn('[TextLabs] Failed to restore placeholder after error:', restoreErr)
         }
+      } else if (!presentationTargetChanged && currentBlankId && currentBlankInfo) {
+        // Pre-insertion failures leave the original placeholder in place.
+        blankElements.setStatus(currentBlankId, 'blank')
       }
       // openPanelForElement clears prior panel errors, so publish the final
       // failure only after any placeholder/tracking recovery has completed.
@@ -1361,6 +1372,23 @@ export function useTextLabsGeneration({
       clearTimeout(timeoutId)
       const refineOverlayTargetSurvived = !refineElementDeleted
         || Boolean(refineContext && insertedElementIds.includes(refineContext.elementId))
+      if (
+        presentationIsStillAuthoritative() &&
+        currentBlankId &&
+        blankOverlayActive &&
+        !blankTrackingWasRemoved &&
+        layoutServiceApis?.sendElementCommand
+      ) {
+        try {
+          const overlayResponse = await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+            elementId: currentBlankId,
+            generating: false,
+          })
+          assertLayoutCommandSucceeded(overlayResponse, 'Generation overlay cleanup')
+        } catch (error) {
+          console.warn('[TextLabs] Failed to clear generation overlay:', error)
+        }
+      }
       if (
         presentationIsStillAuthoritative() &&
         refineContext &&

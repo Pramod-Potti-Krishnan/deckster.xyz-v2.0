@@ -144,6 +144,44 @@ assert.ok(
     hookSource.indexOf("sendElementCommand('getSlideGenerationContext'"),
   'the regeneration overlay must start only after live-context preflight succeeds',
 )
+const refineOverlaySource = hookSource.slice(
+  hookSource.indexOf('// Only mutate the live refine UI after every fallible preflight has passed.'),
+  hookSource.indexOf('// Keep the authoritative placeholder intact while generation runs.'),
+)
+assert.match(
+  refineOverlaySource,
+  /assertLayoutCommandSucceeded\(overlayResponse, 'Regeneration overlay'\)/,
+  'refinement never proceeds when Layout negatively acknowledges the visible progress overlay',
+)
+assert.match(refineOverlaySource, /generationPanel\.setError/)
+assert.match(refineOverlaySource, /return/)
+const blankOverlaySource = hookSource.slice(
+  hookSource.indexOf('// Keep the authoritative placeholder intact while generation runs.'),
+  hookSource.indexOf('// Structured planning and creative rendering are internal Text Labs work'),
+)
+assert.match(blankOverlaySource, /setElementGenerationState/)
+assert.match(blankOverlaySource, /assertLayoutCommandSucceeded\(overlayResponse, 'Generation overlay'\)/)
+assert.doesNotMatch(
+  blankOverlaySource,
+  /deleteElement|insertTextBox/,
+  'starting blank generation must not replace the authoritative placeholder',
+)
+assert.doesNotMatch(hookSource, /function buildSpinnerHtml/)
+const blankDeleteSource = hookSource.slice(
+  hookSource.indexOf('// Delete blank placeholder before inserting generated content'),
+  hookSource.indexOf('// Insert each element into the canvas'),
+)
+assert.match(blankDeleteSource, /sendLayoutMutationWithReconciliation/)
+assert.ok(
+  blankDeleteSource.indexOf('sendLayoutMutationWithReconciliation') <
+    blankDeleteSource.indexOf('blankElements.removeElement(currentBlankId)'),
+  'placeholder tracking changes only after a confirmed successful Layout deletion receipt',
+)
+assert.match(
+  hookSource,
+  /currentBlankInfo &&\s+blankTrackingWasRemoved &&\s+layoutServiceApis/,
+  'placeholder reconstruction is reserved for failures after the original was removed',
+)
 
 const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import.meta.url), 'utf8')
 assert.match(clientSource, /slideIndex: 'slide_index'/)
@@ -159,6 +197,16 @@ const websocketSource = fs.readFileSync(
   'utf8',
 )
 assert.match(websocketSource, /presentation_id: presentationId/)
+
+const viewerSource = fs.readFileSync(
+  new URL('../components/presentation-viewer.tsx', import.meta.url),
+  'utf8',
+)
+assert.match(
+  viewerSource,
+  /setElementGenerationState: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS/,
+  'generation overlay acknowledgements use the bounded mutating-command timeout',
+)
 
 const builderSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
 assert.match(

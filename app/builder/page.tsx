@@ -90,6 +90,7 @@ import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
 import {
   IDLE_THEME_SYNC,
   applyThemeSyncResponse,
+  isThemeAppliedToPresentation,
   isThemeSyncTerminal,
   syncingTheme,
   waitForAuthoritativeTheme,
@@ -542,7 +543,11 @@ function BuilderContent() {
         if (
           profile?.theme_payload &&
           profile.theme_payload.mode !== 'auto' &&
-          buildThemeSelectionRef.current.mode === 'auto'
+          buildThemeSelectionRef.current.mode === 'auto' &&
+          // Auto already resolves the account's standard theme in Director.
+          // Never replace its semantic selection after theme sync has started:
+          // doing so invalidates an in-flight element for a display-only label.
+          themeSyncRef.current.status === 'idle'
         ) {
           setBuildThemeSelection(profile.theme_payload)
           setActiveBuildThemeProfile({
@@ -1532,9 +1537,9 @@ function BuilderContent() {
     // preventing Director's blank state from flashing before restored content.
     autoConnect: features.immediateConnection && !currentSessionId,
     existingSessionId: currentSessionId || undefined,
-    reconnectOnError: false,
-    maxReconnectAttempts: 0,
-    reconnectDelay: 5000,
+    reconnectOnError: true,
+    maxReconnectAttempts: 4,
+    reconnectDelay: 1500,
     onSessionStateChange: (state) => {
       console.log('CALLBACK INVOKED!', {
         currentSessionId: currentSessionIdRef.current,
@@ -2117,13 +2122,6 @@ function BuilderContent() {
     targetPresentationId: string,
   ): ThemeSyncRequestResult => {
     const target = themeSyncTargetRef.current
-    if (!target.isReady) {
-      return {
-        ok: false,
-        code: 'disconnected',
-        error: 'Director is disconnected. Reconnect, then generate this element again.',
-      }
-    }
     if (target.templateModeOn) {
       return {
         ok: false,
@@ -2139,22 +2137,43 @@ function BuilderContent() {
       }
     }
 
-    const requestKey = `${targetPresentationId}:${themeSelectionFingerprint(target.selection)}`
+    const themeFingerprint = themeSelectionFingerprint(target.selection)
+    const requestKey = `${targetPresentationId}:${themeFingerprint}`
     const current = themeSyncRef.current
+    if (
+      current.requestId &&
+      isThemeAppliedToPresentation(current, targetPresentationId, themeFingerprint)
+    ) {
+      latestThemeSyncRequestRef.current = current.requestId
+      latestThemeSyncKeyRef.current = requestKey
+      return {
+        ok: true,
+        requestId: current.requestId,
+        themeFingerprint,
+      }
+    }
+    if (!target.isReady) {
+      return {
+        ok: false,
+        code: 'disconnected',
+        error: 'Director is disconnected. Reconnect, then generate this element again.',
+      }
+    }
     if (
       latestThemeSyncKeyRef.current === requestKey &&
       current.requestId &&
       current.presentationId === targetPresentationId &&
+      current.themeFingerprint === themeFingerprint &&
       (current.status === 'syncing' || current.status === 'applied')
     ) {
-      return { ok: true, requestId: current.requestId }
+      return { ok: true, requestId: current.requestId, themeFingerprint }
     }
 
     clearThemeSyncTimeout()
     const requestId = crypto.randomUUID()
     latestThemeSyncRequestRef.current = requestId
     latestThemeSyncKeyRef.current = requestKey
-    commitThemeSync(syncingTheme(requestId, targetPresentationId))
+    commitThemeSync(syncingTheme(requestId, targetPresentationId, themeFingerprint))
 
     if (!sendThemeSelection(target.selection, requestId, targetPresentationId)) {
       const error = 'Director disconnected before it could apply the deck theme. Reconnect, then generate this element again.'
@@ -2162,6 +2181,7 @@ function BuilderContent() {
         status: 'failed',
         requestId,
         presentationId: targetPresentationId,
+        themeFingerprint,
         error,
       })
       return { ok: false, code: 'disconnected', error }
@@ -2173,18 +2193,19 @@ function BuilderContent() {
         status: 'failed',
         requestId,
         presentationId: targetPresentationId,
+        themeFingerprint,
         error: 'Theme application timed out. Reapply the deck theme or reconnect, then generate again.',
       })
       themeSyncTimeoutRef.current = null
     }, THEME_SYNC_TIMEOUT_MS)
 
-    return { ok: true, requestId }
+    return { ok: true, requestId, themeFingerprint }
   }, [clearThemeSyncTimeout, commitThemeSync, sendThemeSelection])
 
   const ensureThemeReady = useCallback(async (targetPresentationId: string) => {
     // Start or reuse the request for the exact current presentation + theme
-    // selection before entering the bounded wait. This call also performs the
-    // live connection/presentation checks, even if an old state says Applied.
+    // selection before entering the bounded wait. A semantically identical
+    // applied lease remains authoritative across a Director reconnect.
     const requested = requestThemeSyncForPresentation(targetPresentationId)
     if (!requested.ok) {
       return { ready: false, code: requested.code, error: requested.error } as const
@@ -2192,6 +2213,7 @@ function BuilderContent() {
 
     return waitForAuthoritativeTheme({
       presentationId: targetPresentationId,
+      themeFingerprint: requested.themeFingerprint,
       getSyncState: getThemeSyncSnapshot,
       isConnected: () => themeSyncTargetRef.current.isReady,
       requestSync: requestThemeSyncForPresentation,
@@ -2201,6 +2223,18 @@ function BuilderContent() {
 
   useEffect(() => {
     if (!isReady || !effectivePresentationId || templateModeOn) {
+      const current = themeSyncRef.current
+      const currentFingerprint = themeSelectionFingerprint(buildThemeSelection)
+      if (
+        !templateModeOn &&
+        effectivePresentationId &&
+        isThemeAppliedToPresentation(current, effectivePresentationId, currentFingerprint)
+      ) {
+        clearThemeSyncTimeout()
+        latestThemeSyncRequestRef.current = current.requestId
+        latestThemeSyncKeyRef.current = `${effectivePresentationId}:${currentFingerprint}`
+        return
+      }
       latestThemeSyncRequestRef.current = null
       latestThemeSyncKeyRef.current = null
       clearThemeSyncTimeout()

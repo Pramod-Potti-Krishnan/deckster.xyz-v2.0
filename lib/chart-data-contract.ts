@@ -4,6 +4,13 @@ export type ChartDataValidationResult =
   | { valid: true; data: ChartData }
   | { valid: false; error: string }
 
+export type CustomChartAxisLabels = {
+  requiresAxes: boolean
+  xAxisLabel: string | null
+  yAxisLabel: string | null
+  error: string | null
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -82,6 +89,44 @@ export function parseChartDataJson(json: string): ChartDataValidationResult {
     return validateChartData(JSON.parse(json))
   } catch {
     return { valid: false, error: 'Custom data is not valid JSON.' }
+  }
+}
+
+export function chartDataRequiresAxes(data: ChartData | null): boolean {
+  return Boolean(
+    Array.isArray(data) &&
+    data.length > 0 &&
+    data.every(point => (
+      typeof point === 'object' &&
+      point !== null &&
+      'x' in point &&
+      'y' in point
+    )),
+  )
+}
+
+/**
+ * Canonical user-provided x/y data is already meaningful data. Give its axes
+ * neutral labels when the user did not name them; researched charts do not use
+ * this custom-data helper and must still supply source-derived semantics.
+ */
+export function resolveCustomChartAxisLabels(
+  data: ChartData | null,
+  xAxisLabel: string,
+  yAxisLabel: string,
+): CustomChartAxisLabels {
+  const requiresAxes = chartDataRequiresAxes(data)
+  const resolvedX = xAxisLabel.trim() || (requiresAxes ? 'X value' : null)
+  const resolvedY = yAxisLabel.trim() || (requiresAxes ? 'Y value' : null)
+  const duplicates = requiresAxes &&
+    resolvedX?.toLowerCase() === resolvedY?.toLowerCase()
+  return {
+    requiresAxes,
+    xAxisLabel: resolvedX,
+    yAxisLabel: resolvedY,
+    error: duplicates
+      ? 'Scatter and bubble data require distinct X-axis and Y-axis labels.'
+      : null,
   }
 }
 

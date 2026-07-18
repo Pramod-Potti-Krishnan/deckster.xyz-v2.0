@@ -9,7 +9,12 @@ import {
   TextLabsPositionConfig,
   TEXT_LABS_ELEMENT_DEFAULTS,
 } from '@/types/textlabs'
-import { chartDataTemplate, parseChartDataJson } from '@/lib/chart-data-contract'
+import {
+  chartDataRequiresAxes,
+  chartDataTemplate,
+  parseChartDataJson,
+  resolveCustomChartAxisLabels,
+} from '@/lib/chart-data-contract'
 import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
@@ -195,19 +200,19 @@ export function ChartForm({
         return
       }
       data = validation.data
-      const requiresAxes = Array.isArray(data) && data.every(point => (
-        typeof point === 'object' && point !== null && 'x' in point && 'y' in point
-      ))
-      if (requiresAxes && (
-        !xAxisLabel.trim() ||
-        !yAxisLabel.trim() ||
-        xAxisLabel.trim().toLowerCase() === yAxisLabel.trim().toLowerCase()
-      )) {
-        setDataError('Scatter and bubble data require distinct X-axis and Y-axis labels.')
+      const axes = resolveCustomChartAxisLabels(data, xAxisLabel, yAxisLabel)
+      if (axes.error) {
+        setDataError(axes.error)
         return
       }
       setDataError(null)
     }
+    const axes = dataSource === 'custom'
+      ? resolveCustomChartAxisLabels(data, xAxisLabel, yAxisLabel)
+      : {
+          xAxisLabel: xAxisLabel.trim() || null,
+          yAxisLabel: yAxisLabel.trim() || null,
+        }
 
     const seriesNames = seriesNamesInput.split(',').map(value => value.trim()).filter(Boolean)
     onSubmit({
@@ -227,8 +232,8 @@ export function ChartForm({
         series_names: seriesNames,
         placeholder_mode: false,
         data,
-        x_axis_label: xAxisLabel.trim() || null,
-        y_axis_label: yAxisLabel.trim() || null,
+        x_axis_label: axes.xAxisLabel,
+        y_axis_label: axes.yAxisLabel,
       },
       positionConfig,
     })
@@ -260,6 +265,13 @@ export function ChartForm({
     }
     const validation = parseChartDataJson(value)
     setDataError(validation.valid ? null : validation.error)
+    if (
+      validation.valid &&
+      chartDataRequiresAxes(validation.data)
+    ) {
+      setXAxisLabel(current => current.trim() || 'X value')
+      setYAxisLabel(current => current.trim() || 'Y value')
+    }
   }, [])
 
   return (
@@ -321,7 +333,7 @@ export function ChartForm({
                 id="chart-x-axis"
                 value={xAxisLabel}
                 onChange={event => setXAxisLabel(event.target.value)}
-                placeholder="e.g., Investment"
+                placeholder="X value"
                 className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               />
             </div>
@@ -333,7 +345,7 @@ export function ChartForm({
                 id="chart-y-axis"
                 value={yAxisLabel}
                 onChange={event => setYAxisLabel(event.target.value)}
-                placeholder="e.g., Revenue"
+                placeholder="Y value"
                 className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               />
             </div>
