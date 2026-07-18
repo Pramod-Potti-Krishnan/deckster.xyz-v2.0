@@ -1,20 +1,59 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { Upload } from 'lucide-react'
-import { InfographicFormData, InfographicConfig, InfographicSegmentCount, InfographicV2Segment, TEXT_LABS_ELEMENT_DEFAULTS, POSITION_PRESETS, GRID_CELL_SIZE } from '@/types/textlabs'
-import { ElementContext, MandatoryConfig } from '../types'
-import { ToggleRow } from '../shared/toggle-row'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Plus, RotateCcw, Trash2, Upload } from 'lucide-react'
+import type {
+  InfographicConfig,
+  InfographicFormData,
+  InfographicMode,
+  InfographicSegmentCount,
+  InfographicV2Segment,
+} from '@/types/textlabs'
+import {
+  GRID_CELL_SIZE,
+  POSITION_PRESETS,
+  TEXT_LABS_ELEMENT_DEFAULTS,
+} from '@/types/textlabs'
+import {
+  buildSparseInfographicConfig,
+  inferExistingInfographicMode,
+  validateManualInfographicSegments,
+} from '@/lib/infographic-config'
+import type {
+  ElementContext,
+  GenerationPanelDraft,
+  GenerationPanelProps,
+  MandatoryConfig,
+} from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.INFOGRAPHIC
+const INFOGRAPHIC_OVERRIDE_KEYS = [
+  'aspect_ratio',
+  'crop_mode',
+  'target_background',
+  'fill_internal',
+  'layout_family',
+  'template_id',
+  'text_mode',
+  'show_icons',
+] as const
 
-function calculateGCD(a: number, b: number): number {
-  return b === 0 ? a : calculateGCD(b, a % b)
-}
+type InfographicOverrides = Partial<Pick<
+  InfographicConfig,
+  | 'aspect_ratio'
+  | 'crop_mode'
+  | 'target_background'
+  | 'fill_internal'
+  | 'layout_family'
+  | 'template_id'
+  | 'segment_colors'
+  | 'text_mode'
+  | 'show_icons'
+>>
 
 interface InfographicFormProps {
   onSubmit: (formData: InfographicFormData) => void
@@ -25,53 +64,237 @@ interface InfographicFormProps {
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
+  initialDraft?: GenerationPanelDraft | null
+  panelMode: GenerationPanelProps['mode']
+  existingTarget?: GenerationPanelProps['existingInfographicTarget']
 }
 
-export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: InfographicFormProps) {
+function calculateGCD(a: number, b: number): number {
+  return b === 0 ? a : calculateGCD(b, a % b)
+}
+
+function emptySegment(): InfographicV2Segment {
+  return { label: '', sublabel: '', description: '', icon_hint: '' }
+}
+
+export function InfographicForm({
+  onSubmit,
+  registerSubmit,
+  isGenerating,
+  presentationId,
+  elementContext,
+  prompt,
+  showAdvanced,
+  registerMandatoryConfig,
+  initialDraft,
+  panelMode,
+  existingTarget,
+}: InfographicFormProps) {
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [advancedModified, setAdvancedModified] = useState(false)
+  const hydratedTargetRef = useRef(false)
+  const [mode, setMode] = useState<InfographicMode>('v1')
+  const [segmentCount, setSegmentCount] = useState<InfographicSegmentCount | undefined>()
+  const [contentMode, setContentMode] = useState<'automatic' | 'manual'>('automatic')
+  const [segmentRows, setSegmentRows] = useState<InfographicV2Segment[]>([])
+  const [manualContentError, setManualContentError] = useState<string | null>(null)
+  const [overrides, setOverrides] = useState<InfographicOverrides>({})
+  const [segmentColorsInput, setSegmentColorsInput] = useState('')
+  const [positionModified, setPositionModified] = useState(false)
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
-  // Config
-  const [mode, setMode] = useState<InfographicConfig['mode']>('v1')
-  const [aspectRatio, setAspectRatio] = useState<InfographicConfig['aspect_ratio']>('auto')
-  const [segments, setSegments] = useState<InfographicSegmentCount>('auto')
-  const [cropMode, setCropMode] = useState<InfographicConfig['crop_mode']>('shape')
-  const [targetBackground, setTargetBackground] = useState<InfographicConfig['target_background']>('light')
-  const [fillInternal, setFillInternal] = useState(false)
-  const [layoutFamily, setLayoutFamily] = useState<NonNullable<InfographicConfig['layout_family']>>('horizontal_center')
-  const [templateId, setTemplateId] = useState('')
-  const [segmentRows, setSegmentRows] = useState<InfographicV2Segment[]>([
-    { label: 'Segment 1', sublabel: '', description: '', icon_hint: '', color: '' },
-    { label: 'Segment 2', sublabel: '', description: '', icon_hint: '', color: '' },
-    { label: 'Segment 3', sublabel: '', description: '', icon_hint: '', color: '' },
-  ])
-  const [segmentColorsInput, setSegmentColorsInput] = useState('')
-  const [textMode, setTextMode] = useState<NonNullable<InfographicConfig['text_mode']>>('heading_sublabel')
-  const [showIcons, setShowIcons] = useState(true)
-
-  // Position (with preset support)
-  const [positionPreset, setPositionPreset] = useState('full')
+  const [positionPreset, setPositionPreset] = useState('custom')
   const [startCol, setStartCol] = useState(2)
   const [startRow, setStartRow] = useState(4)
   const [width, setWidth] = useState(DEFAULTS.width)
   const [height, setHeight] = useState(DEFAULTS.height)
+  const [showPosition, setShowPosition] = useState(false)
+  const existingMode = inferExistingInfographicMode(existingTarget)
+  const draftFormData = initialDraft?.formData?.componentType === 'INFOGRAPHIC'
+    ? initialDraft.formData
+    : null
 
-  // Initialize position from canvas context
   useEffect(() => {
-    if (elementContext) {
-      setStartCol(elementContext.startCol)
-      setStartRow(elementContext.startRow)
-      setWidth(elementContext.width)
-      setHeight(elementContext.height)
-      setPositionPreset('custom')
-    }
+    if (!elementContext) return
+    setStartCol(elementContext.startCol)
+    setStartRow(elementContext.startRow)
+    setWidth(elementContext.width)
+    setHeight(elementContext.height)
+    setPositionPreset('custom')
   }, [elementContext])
 
-  const [showOptions, setShowOptions] = useState(false)
-  const [showPosition, setShowPosition] = useState(false)
+  // A refine target can be a raster V1 image or V2 HTML persisted through the
+  // diagram renderer. Preserve that path instead of silently reverting V2 to V1.
+  // New target activations remount the form through FormRouter's activation
+  // key; a same-target close/reopen intentionally retains the live UAT draft.
+  useEffect(() => {
+    if (hydratedTargetRef.current) return
+    hydratedTargetRef.current = true
+
+    const draftConfig = draftFormData?.infographicConfig
+    if (draftFormData && draftConfig) {
+      const draftMode = draftConfig.mode === 'v2' ? 'v2' : 'v1'
+      const draftSegments = Array.isArray(draftConfig.segments)
+        ? draftConfig.segments.map(segment => ({ ...segment }))
+        : []
+      const draftOverrides: InfographicOverrides = {}
+      for (const key of INFOGRAPHIC_OVERRIDE_KEYS) {
+        const value = draftConfig[key]
+        if (value !== undefined && value !== null) {
+          ;(draftOverrides as Record<string, unknown>)[key] = value
+        }
+      }
+
+      setMode(draftMode)
+      setReferenceImage(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      setSegmentCount(
+        typeof draftConfig.segment_count === 'number'
+          ? draftConfig.segment_count
+          : undefined,
+      )
+      setContentMode(
+        draftConfig.content_mode === 'manual' || draftSegments.length > 0
+          ? 'manual'
+          : 'automatic',
+      )
+      setSegmentRows(draftSegments)
+      setManualContentError(null)
+      setOverrides(draftOverrides)
+      setSegmentColorsInput(
+        Array.isArray(draftConfig.segment_colors)
+          ? draftConfig.segment_colors.join(', ')
+          : '',
+      )
+      setStartCol(draftConfig.start_col ?? elementContext?.startCol ?? 2)
+      setStartRow(draftConfig.start_row ?? elementContext?.startRow ?? 4)
+      setWidth(draftConfig.width ?? elementContext?.width ?? DEFAULTS.width)
+      setHeight(draftConfig.height ?? elementContext?.height ?? DEFAULTS.height)
+      setPositionPreset('custom')
+      setPositionModified(Boolean(draftFormData.advancedModified))
+      setZIndex(draftFormData.z_index ?? DEFAULTS.zIndex)
+      setShowPosition(false)
+      updateThemeSource(
+        draftFormData.useDeckTheme
+          ? { mode: 'deck', overrides: null }
+          : draftFormData.themeOverrides
+            ? { mode: 'another', overrides: draftFormData.themeOverrides }
+            : { mode: 'none', overrides: null },
+      )
+      return
+    }
+
+    if (panelMode === 'refine') {
+      setMode(existingMode)
+    } else {
+      setMode('v1')
+    }
+    setReferenceImage(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    setSegmentCount(undefined)
+    setContentMode('automatic')
+    setSegmentRows([])
+    setManualContentError(null)
+    setOverrides({})
+    setSegmentColorsInput('')
+    setPositionModified(false)
+    setZIndex(DEFAULTS.zIndex)
+    setShowPosition(false)
+  }, [
+    draftFormData,
+    elementContext?.height,
+    elementContext?.startCol,
+    elementContext?.startRow,
+    elementContext?.width,
+    existingMode,
+    panelMode,
+    updateThemeSource,
+  ])
+
+  const clearReferenceImage = useCallback(() => {
+    setReferenceImage(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [])
+
+  const selectDesign = useCallback((nextMode: InfographicMode) => {
+    setMode(nextMode)
+    setManualContentError(null)
+    if (nextMode === 'v2') clearReferenceImage()
+  }, [clearReferenceImage])
+
+  useEffect(() => {
+    registerMandatoryConfig({
+      fieldLabel: 'Reference',
+      displayLabel: referenceImage ? referenceImage.name : 'No image',
+      onChange: () => {},
+      promptPlaceholder: 'e.g., A five-stage process from hypothesis to publication',
+      customRender: (
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isGenerating}
+            title="Reference images use Creative design"
+            className="flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-xs text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-200"
+          >
+            <Upload className="h-3 w-3 text-gray-400 dark:text-slate-500" />
+            <span className="max-w-[100px] truncate">
+              {referenceImage ? referenceImage.name : 'Ref. Image'}
+            </span>
+          </button>
+          {referenceImage && (
+            <button
+              type="button"
+              onClick={clearReferenceImage}
+              className="text-[10px] text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+      ),
+    })
+  }, [clearReferenceImage, isGenerating, referenceImage, registerMandatoryConfig])
+
+  const updateOverride = useCallback(<K extends keyof InfographicOverrides>(
+    field: K,
+    value: InfographicOverrides[K] | undefined,
+  ) => {
+    setOverrides(previous => {
+      const next = { ...previous }
+      if (value === undefined || value === null || value === '') delete next[field]
+      else next[field] = value
+      return next
+    })
+  }, [])
+
+  const resetOptionsToAuto = useCallback(() => {
+    setSegmentCount(undefined)
+    setContentMode('automatic')
+    setSegmentRows([])
+    setManualContentError(null)
+    setOverrides({})
+    setSegmentColorsInput('')
+  }, [])
+
+  const setManualMode = useCallback(() => {
+    setSegmentCount(undefined)
+    setContentMode('manual')
+    setSegmentRows(previous => previous.length >= 2 ? previous : [emptySegment(), emptySegment()])
+    setManualContentError(null)
+  }, [])
+
+  const updateSegment = useCallback((
+    index: number,
+    field: keyof InfographicV2Segment,
+    value: string,
+  ) => {
+    setSegmentRows(previous => previous.map((segment, rowIndex) => (
+      rowIndex === index ? { ...segment, [field]: value } : segment
+    )))
+    setManualContentError(null)
+  }, [])
 
   const applyPositionPreset = useCallback((key: string) => {
     const preset = POSITION_PRESETS[key]
@@ -81,110 +304,44 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presen
     setStartRow(preset.start_row)
     setWidth(preset.width)
     setHeight(preset.height)
-    setAdvancedModified(true)
+    setPositionModified(true)
   }, [])
-
-  const updateSegment = useCallback((index: number, field: keyof InfographicV2Segment, value: string) => {
-    setSegmentRows(prev => prev.map((segment, idx) => idx === index ? { ...segment, [field]: value } : segment))
-    setAdvancedModified(true)
-  }, [])
-
-  const addSegment = useCallback(() => {
-    setSegmentRows(prev => prev.length >= 8 ? prev : [
-      ...prev,
-      { label: `Segment ${prev.length + 1}`, sublabel: '', description: '', icon_hint: '', color: '' },
-    ])
-    setAdvancedModified(true)
-  }, [])
-
-  const removeSegment = useCallback((index: number) => {
-    setSegmentRows(prev => prev.length <= 2 ? prev : prev.filter((_, idx) => idx !== index))
-    setAdvancedModified(true)
-  }, [])
-
-  // Register mandatory config — Reference Image upload chip
-  useEffect(() => {
-    registerMandatoryConfig({
-      fieldLabel: 'Reference',
-      displayLabel: referenceImage ? referenceImage.name : 'No image',
-      onChange: () => {},
-      promptPlaceholder: 'e.g., A 5-step sales funnel showing leads to conversion',
-      customRender: (
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 text-xs text-gray-700 dark:text-slate-200 transition-colors"
-          >
-            <Upload className="h-3 w-3 text-gray-400 dark:text-slate-500" />
-            {referenceImage ? (
-              <span className="truncate max-w-[100px]">{referenceImage.name}</span>
-            ) : (
-              <span>Ref. Image</span>
-            )}
-          </button>
-          {referenceImage && (
-            <button
-              type="button"
-              onClick={() => setReferenceImage(null)}
-              className="text-[10px] text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:text-slate-300"
-            >
-              &times;
-            </button>
-          )}
-        </div>
-      ),
-    })
-  }, [referenceImage, registerMandatoryConfig])
 
   const handleSubmit = useCallback(() => {
-    const gridRow = `${startRow}/${startRow + height}`
-    const gridColumn = `${startCol}/${startCol + width}`
-
-    let defaultPrompt = 'Generate an infographic'
-    if (referenceImage) defaultPrompt = 'Recreate infographic from reference image'
-
-    const normalizedV2Segments = segmentRows
-      .map(segment => ({
-        label: segment.label.trim(),
-        sublabel: segment.sublabel?.trim() || undefined,
-        description: segment.description?.trim() || undefined,
-        icon_hint: segment.icon_hint?.trim() || undefined,
-        color: segment.color?.trim() || undefined,
-      }))
-      .filter(segment => segment.label)
-      .slice(0, 8)
-    const safeV2Segments = normalizedV2Segments.length >= 2
-      ? normalizedV2Segments
-      : [{ label: 'Segment 1' }, { label: 'Segment 2' }]
-
-    const infographicConfig: Partial<InfographicConfig> = {
-      mode,
-      aspect_ratio: aspectRatio,
-      segments: mode === 'v2' ? safeV2Segments : segments,
-      crop_mode: cropMode,
-      target_background: targetBackground,
-      fill_internal: fillInternal,
-      placeholder_mode: false,
-      grid_row: gridRow,
-      grid_column: gridColumn,
-      start_col: startCol,
-      start_row: startRow,
-      width,
-      height,
-      layout_family: mode === 'v2' ? layoutFamily : undefined,
-      template_id: mode === 'v2' && templateId.trim() ? templateId.trim() : undefined,
-      segment_colors: mode === 'v2'
-        ? segmentColorsInput.split(',').map(item => item.trim()).filter(Boolean)
-        : undefined,
-      text_mode: mode === 'v2' ? textMode : undefined,
-      show_icons: mode === 'v2' ? showIcons : undefined,
+    if (mode === 'v2' && contentMode === 'manual') {
+      const error = validateManualInfographicSegments(segmentRows)
+      if (error) {
+        setManualContentError(error)
+        return
+      }
     }
 
-    const formData: InfographicFormData = {
+    const segmentColors = segmentColorsInput.split(',').map(value => value.trim()).filter(Boolean)
+    const sparseOverrides: InfographicOverrides = {
+      ...overrides,
+      segment_colors: segmentColors.length ? segmentColors : undefined,
+    }
+    const infographicConfig = buildSparseInfographicConfig({
+      mode,
+      geometry: { start_col: startCol, start_row: startRow, width, height },
+      segmentCount,
+      contentMode: mode === 'v2' ? contentMode : 'automatic',
+      manualSegments: mode === 'v2' && contentMode === 'manual' ? segmentRows : undefined,
+      overrides: sparseOverrides,
+    })
+    const advancedModified = mode === 'v2'
+      || segmentCount !== undefined
+      || contentMode === 'manual'
+      || Object.keys(sparseOverrides).some(key => sparseOverrides[key as keyof InfographicOverrides] !== undefined)
+      || positionModified
+      || zIndex !== DEFAULTS.zIndex
+
+    onSubmit({
       componentType: 'INFOGRAPHIC',
-      prompt: prompt || defaultPrompt,
-      count: 1, // Backend hides count for INFOGRAPHIC
+      prompt: prompt.trim() || (referenceImage
+        ? 'Recreate infographic from reference image'
+        : 'Generate an infographic'),
+      count: 1,
       layout: 'horizontal',
       advancedModified,
       z_index: zIndex,
@@ -192,299 +349,447 @@ export function InfographicForm({ onSubmit, registerSubmit, isGenerating, presen
       useDeckTheme,
       themeOverrides,
       infographicConfig,
-      referenceImage,
-    }
-    onSubmit(formData)
-  }, [prompt, referenceImage, mode, aspectRatio, segments, cropMode, targetBackground, fillInternal, layoutFamily, templateId, segmentRows, segmentColorsInput, textMode, showIcons, startCol, startRow, width, height, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, onSubmit])
+      referenceImage: mode === 'v1' ? referenceImage : null,
+    })
+  }, [
+    contentMode,
+    height,
+    mode,
+    onSubmit,
+    overrides,
+    positionModified,
+    presentationId,
+    prompt,
+    referenceImage,
+    segmentColorsInput,
+    segmentCount,
+    segmentRows,
+    startCol,
+    startRow,
+    themeOverrides,
+    useDeckTheme,
+    width,
+    zIndex,
+  ])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
-  }, [registerSubmit, handleSubmit])
+  }, [handleSubmit, registerSubmit])
 
-  // Pixel + aspect ratio display
   const pixelW = width * GRID_CELL_SIZE
   const pixelH = height * GRID_CELL_SIZE
-  const gcd = calculateGCD(pixelW, pixelH)
-  const displayAspect = `${pixelW / gcd}:${pixelH / gcd}`
+  const gcd = calculateGCD(Math.round(pixelW * 10), Math.round(pixelH * 10))
+  const displayAspect = `${Math.round(pixelW * 10) / gcd}:${Math.round(pixelH * 10) / gcd}`
 
   return (
-    <div className="space-y-2.5">
-      {/* Hidden file input for reference image */}
+    <div className="space-y-3">
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        onChange={(e) => setReferenceImage(e.target.files?.[0] || null)}
+        onChange={event => {
+          const file = event.target.files?.[0] ?? null
+          setReferenceImage(file)
+          if (file) {
+            setMode('v1')
+            setContentMode('automatic')
+            setSegmentRows([])
+            setManualContentError(null)
+          }
+        }}
         className="hidden"
       />
 
-      {showAdvanced && (<>
-      {/* Options */}
-      <CollapsibleSection title="Options" isOpen={showOptions} onToggle={() => setShowOptions(!showOptions)}>
-        <div className="space-y-2">
-          <ThemeSourceSelector
-            presentationId={presentationId}
-            value={themeSource}
-            onChange={updateThemeSource}
-          />
-
-          <ToggleRow
-            label="Design"
-            field="mode"
-            value={mode}
-            options={[
-              { value: 'v1', label: 'Creative design' },
-              { value: 'v2', label: 'Structured design' },
-            ]}
-            onChange={(_, v) => { setMode(v as InfographicConfig['mode']); setAdvancedModified(true) }}
-          />
-
-          {/* Aspect Ratio (with 9:16) */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Aspect Ratio</label>
-            <select
-              value={aspectRatio}
-              onChange={(e) => { setAspectRatio(e.target.value as InfographicConfig['aspect_ratio']); setAdvancedModified(true) }}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="auto">Auto</option>
-              <option value="16:9">16:9</option>
-              <option value="4:3">4:3</option>
-              <option value="1:1">1:1</option>
-              <option value="3:2">3:2</option>
-              <option value="9:16">9:16</option>
-            </select>
+      <section className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/60">
+        <div className="mb-2">
+          <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Design</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400">
+            Choose the generation path. Creative is the default.
           </div>
-
-          {/* Segments (1-8) */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Segments</label>
-            <select
-              value={segments}
-              onChange={(e) => { setSegments(e.target.value as InfographicSegmentCount); setAdvancedModified(true) }}
-              className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
+        </div>
+        <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Infographic design">
+          {([
+            ['v1', 'Creative', 'AI-designed image; supports a reference image.'],
+            ['v2', 'Structured', 'Ordered, editable process content with deterministic layout.'],
+          ] as const).map(([value, label, description]) => (
+            <button
+              key={value}
+              type="button"
+              disabled={isGenerating}
+              aria-pressed={mode === value}
+              onClick={() => selectDesign(value)}
+              className={`rounded-md border px-2 py-2 text-left transition-colors disabled:opacity-50 ${
+                mode === value
+                  ? 'border-primary bg-primary text-white'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+              }`}
             >
-              <option value="auto">Auto</option>
-              {['1', '2', '3', '4', '5', '6', '7', '8'].map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
+              <span className="block text-[11px] font-semibold">{label}</span>
+              <span className={`mt-0.5 block text-[9px] leading-3.5 ${
+                mode === value ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
+              }`}>
+                {description}
+              </span>
+            </button>
+          ))}
+        </div>
+        {referenceImage && (
+          <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400">
+            The attached reference keeps Creative selected. Choosing Structured removes it.
+          </p>
+        )}
+      </section>
 
-          {/* Crop Mode (shape/rectangle) */}
-          <ToggleRow
-            label="Crop Mode"
-            field="crop_mode"
-            value={cropMode}
-            options={[
-              { value: 'shape', label: 'Shape' },
-              { value: 'rectangle', label: 'Rectangle' },
-            ]}
-            onChange={(_, v) => { setCropMode(v as InfographicConfig['crop_mode']); setAdvancedModified(true) }}
-          />
-
-          {/* Target Background */}
-          <ToggleRow
-            label="Background"
-            field="target_background"
-            value={targetBackground}
-            options={[
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
-            ]}
-            onChange={(_, v) => { setTargetBackground(v as InfographicConfig['target_background']); setAdvancedModified(true) }}
-          />
-
-          {/* Fill Internal */}
-          <ToggleRow
-            label="Fill Internal"
-            field="fill_internal"
-            value={fillInternal ? 'true' : 'false'}
-            options={[
-              { value: 'true', label: 'Yes' },
-              { value: 'false', label: 'No' },
-            ]}
-            onChange={(_, v) => { setFillInternal(v === 'true'); setAdvancedModified(true) }}
-          />
-
-          {mode === 'v2' && (
-            <div className="space-y-2 rounded-md border border-gray-200 dark:border-slate-700 p-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Layout</label>
-                  <select
-                    value={layoutFamily}
-                    onChange={(e) => { setLayoutFamily(e.target.value as NonNullable<InfographicConfig['layout_family']>); setAdvancedModified(true) }}
-                    className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="horizontal_top">Horizontal Top</option>
-                    <option value="horizontal_center">Horizontal Center</option>
-                    <option value="vertical_left">Vertical Left</option>
-                    <option value="vertical_center">Vertical Center</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Text</label>
-                  <select
-                    value={textMode}
-                    onChange={(e) => { setTextMode(e.target.value as NonNullable<InfographicConfig['text_mode']>); setAdvancedModified(true) }}
-                    className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="none">None</option>
-                    <option value="heading">Heading</option>
-                    <option value="heading_sublabel">Heading + Sublabel</option>
-                  </select>
+      {showAdvanced && (
+        <>
+          <section className="space-y-2.5 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Advanced</div>
+                <div className="text-[9px] text-slate-500 dark:text-slate-400">
+                  Automatic unless you explicitly override a field.
                 </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Template ID</label>
-                <input
-                  value={templateId}
-                  onChange={(e) => { setTemplateId(e.target.value); setAdvancedModified(true) }}
-                  placeholder="optional"
-                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Segments</label>
-                <div className="space-y-2">
-                  {segmentRows.map((segment, index) => (
-                    <div key={index} className="space-y-1 rounded border border-gray-200 p-2 dark:border-slate-700">
-                      <div className="grid grid-cols-2 gap-1">
+              <button
+                type="button"
+                onClick={resetOptionsToAuto}
+                className="flex items-center gap-1 text-[10px] font-medium text-primary hover:text-primary/80"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Reset to Auto
+              </button>
+            </div>
+
+            <ThemeSourceSelector
+              presentationId={presentationId}
+              value={themeSource}
+              onChange={updateThemeSource}
+            />
+
+            <div className="grid grid-cols-2 gap-2">
+              <label className="space-y-1">
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Aspect Ratio</span>
+                <select
+                  value={overrides.aspect_ratio ?? ''}
+                  onChange={event => updateOverride(
+                    'aspect_ratio',
+                    event.target.value
+                      ? event.target.value as NonNullable<InfographicConfig['aspect_ratio']>
+                      : undefined,
+                  )}
+                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                >
+                  <option value="">Auto</option>
+                  {['16:9', '4:3', '1:1', '3:2', '9:16'].map(value => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Segment Count</span>
+                <select
+                  value={segmentCount ?? ''}
+                  disabled={mode === 'v2' && contentMode === 'manual'}
+                  onChange={event => setSegmentCount(
+                    event.target.value
+                      ? Number(event.target.value) as InfographicSegmentCount
+                      : undefined,
+                  )}
+                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-600 dark:bg-slate-800"
+                >
+                  <option value="">Auto</option>
+                  {[2, 3, 4, 5, 6, 7, 8].map(value => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Crop</span>
+                <select
+                  value={overrides.crop_mode ?? ''}
+                  onChange={event => updateOverride(
+                    'crop_mode',
+                    event.target.value
+                      ? event.target.value as NonNullable<InfographicConfig['crop_mode']>
+                      : undefined,
+                  )}
+                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                >
+                  <option value="">Auto</option>
+                  <option value="shape">Shape</option>
+                  <option value="content">Content</option>
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Background</span>
+                <select
+                  value={overrides.target_background ?? ''}
+                  onChange={event => updateOverride(
+                    'target_background',
+                    event.target.value
+                      ? event.target.value as NonNullable<InfographicConfig['target_background']>
+                      : undefined,
+                  )}
+                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                >
+                  <option value="">Auto</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Fill Internal</span>
+                <select
+                  value={overrides.fill_internal === undefined ? '' : String(overrides.fill_internal)}
+                  onChange={event => updateOverride(
+                    'fill_internal',
+                    event.target.value === '' ? undefined : event.target.value === 'true',
+                  )}
+                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+                >
+                  <option value="">Auto</option>
+                  <option value="true">On</option>
+                  <option value="false">Off</option>
+                </select>
+              </label>
+            </div>
+
+            {mode === 'v2' && (
+              <div className="space-y-2.5 rounded-md border border-slate-200 p-2 dark:border-slate-700">
+                <div className="space-y-1">
+                  <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Content</div>
+                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Structured content mode">
+                    <button
+                      type="button"
+                      aria-pressed={contentMode === 'automatic'}
+                      onClick={() => {
+                        setContentMode('automatic')
+                        setSegmentRows([])
+                        setManualContentError(null)
+                      }}
+                      className={`rounded border px-2 py-1 text-[10px] font-medium ${
+                        contentMode === 'automatic'
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-slate-300 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      Automatic
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={contentMode === 'manual'}
+                      onClick={setManualMode}
+                      className={`rounded border px-2 py-1 text-[10px] font-medium ${
+                        contentMode === 'manual'
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-slate-300 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      Manual rows
+                    </button>
+                  </div>
+                  <p className="text-[9px] leading-3.5 text-slate-500 dark:text-slate-400">
+                    Automatic plans meaningful rows from your prompt and slide context. Manual rows are authoritative.
+                  </p>
+                </div>
+
+                {contentMode === 'manual' && (
+                  <div className="space-y-2">
+                    {segmentRows.map((segment, index) => (
+                      <div key={index} className="space-y-1.5 rounded border border-slate-200 p-2 dark:border-slate-700">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                            Row {index + 1}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={segmentRows.length <= 2}
+                            onClick={() => setSegmentRows(previous => previous.filter((_, row) => row !== index))}
+                            aria-label={`Remove row ${index + 1}`}
+                            className="text-slate-400 hover:text-red-500 disabled:opacity-30"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <input
+                            value={segment.label}
+                            onChange={event => updateSegment(index, 'label', event.target.value)}
+                            placeholder="Heading"
+                            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                          />
+                          <input
+                            value={segment.sublabel ?? ''}
+                            onChange={event => updateSegment(index, 'sublabel', event.target.value)}
+                            placeholder="Short explanatory line"
+                            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                          />
+                        </div>
                         <input
-                          value={segment.label}
-                          onChange={(e) => updateSegment(index, 'label', e.target.value)}
-                          placeholder="Label"
-                          className="px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
+                          value={segment.icon_hint ?? ''}
+                          onChange={event => updateSegment(index, 'icon_hint', event.target.value)}
+                          placeholder="Relevant icon hint"
+                          className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
                         />
-                        <input
-                          value={segment.sublabel || ''}
-                          onChange={(e) => updateSegment(index, 'sublabel', e.target.value)}
-                          placeholder="Sublabel"
-                          className="px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
-                        />
-                        <input
-                          value={segment.icon_hint || ''}
-                          onChange={(e) => updateSegment(index, 'icon_hint', e.target.value)}
-                          placeholder="Icon hint"
-                          className="px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
-                        />
-                        <input
-                          value={segment.color || ''}
-                          onChange={(e) => updateSegment(index, 'color', e.target.value)}
-                          placeholder="#2563eb"
-                          className="px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
+                        <textarea
+                          value={segment.description ?? ''}
+                          onChange={event => updateSegment(index, 'description', event.target.value)}
+                          rows={2}
+                            placeholder="Supporting description"
+                          className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
                         />
                       </div>
-                      <textarea
-                        value={segment.description || ''}
-                        onChange={(e) => updateSegment(index, 'description', e.target.value)}
-                        rows={2}
-                        placeholder="Description"
-                        className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeSegment(index)}
-                        disabled={segmentRows.length <= 2}
-                        className="text-[10px] text-gray-500 hover:text-gray-700 disabled:opacity-40 dark:text-slate-400 dark:hover:text-slate-200"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addSegment}
-                    disabled={segmentRows.length >= 8}
-                    className="px-2 py-1 rounded border border-gray-300 text-[11px] text-gray-700 hover:bg-gray-100 disabled:opacity-40 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
-                  >
-                    Add Segment
-                  </button>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={segmentRows.length >= 8}
+                      onClick={() => setSegmentRows(previous => [...previous, emptySegment()])}
+                      className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-[10px] text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add row
+                    </button>
+                    {manualContentError && (
+                      <p className="text-[10px] leading-4 text-red-500">{manualContentError}</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-slate-500">Layout</span>
+                    <select
+                      value={overrides.layout_family ?? ''}
+                      onChange={event => updateOverride(
+                        'layout_family',
+                        event.target.value
+                          ? event.target.value as NonNullable<InfographicConfig['layout_family']>
+                          : undefined,
+                      )}
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                    >
+                      <option value="">Auto</option>
+                      <option value="horizontal_top">Horizontal Top</option>
+                      <option value="horizontal_center">Horizontal Center</option>
+                      <option value="vertical_left">Vertical Left</option>
+                      <option value="vertical_center">Vertical Center</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-slate-500">Text</span>
+                    <select
+                      value={overrides.text_mode ?? ''}
+                      onChange={event => updateOverride(
+                        'text_mode',
+                        event.target.value
+                          ? event.target.value as NonNullable<InfographicConfig['text_mode']>
+                          : undefined,
+                      )}
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                    >
+                      <option value="">Auto</option>
+                      <option value="none">None</option>
+                      <option value="heading">Heading</option>
+                      <option value="heading_sublabel">Heading + Sublabel</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-slate-500">Icons</span>
+                    <select
+                      value={overrides.show_icons === undefined ? '' : String(overrides.show_icons)}
+                      onChange={event => updateOverride(
+                        'show_icons',
+                        event.target.value === '' ? undefined : event.target.value === 'true',
+                      )}
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                    >
+                      <option value="">Auto</option>
+                      <option value="true">On</option>
+                      <option value="false">Off</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] text-slate-500">Template ID</span>
+                    <input
+                      value={overrides.template_id ?? ''}
+                      onChange={event => updateOverride('template_id', event.target.value || undefined)}
+                      placeholder="Auto"
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                    />
+                  </label>
                 </div>
+                <label className="block space-y-1">
+                  <span className="text-[10px] text-slate-500">Segment Colors</span>
+                  <input
+                    value={segmentColorsInput}
+                    onChange={event => setSegmentColorsInput(event.target.value)}
+                    placeholder="Auto, or #2563eb, #14b8a6"
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                  />
+                </label>
               </div>
-              <div className="space-y-1">
-                <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Segment Colors</label>
-                <input
-                  value={segmentColorsInput}
-                  onChange={(e) => { setSegmentColorsInput(e.target.value); setAdvancedModified(true) }}
-                  placeholder="#2563eb, #14b8a6"
-                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+            )}
+          </section>
+
+          <CollapsibleSection
+            title="Position"
+            isOpen={showPosition}
+            onToggle={() => setShowPosition(previous => !previous)}
+          >
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-1">
+                {Object.entries(POSITION_PRESETS).map(([key, preset]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => applyPositionPreset(key)}
+                    className={`rounded border px-1.5 py-1 text-[10px] transition-colors ${
+                      positionPreset === key
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
               </div>
-              <ToggleRow
-                label="Icons"
-                field="show_icons"
-                value={showIcons ? 'true' : 'false'}
-                options={[
-                  { value: 'true', label: 'On' },
-                  { value: 'false', label: 'Off' },
-                ]}
-                onChange={(_, v) => { setShowIcons(v === 'true'); setAdvancedModified(true) }}
+              <div className="text-[10px] text-slate-400 dark:text-slate-500">
+                Size: {width} × {height} grid ({pixelW} × {pixelH}px) — Aspect: {displayAspect}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Col', value: startCol, setter: setStartCol, min: 1, max: 32 },
+                  { label: 'Row', value: startRow, setter: setStartRow, min: 1, max: 18 },
+                  { label: 'Width', value: width, setter: setWidth, min: 0.2, max: 32 },
+                  { label: 'Height', value: height, setter: setHeight, min: 0.2, max: 18 },
+                ].map(({ label, value, setter, min, max }) => (
+                  <label key={label} className="space-y-1">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">{label}</span>
+                    <input
+                      type="number"
+                      value={value}
+                      min={min}
+                      max={max}
+                      step={0.2}
+                      onChange={event => {
+                        setter(Number(event.target.value))
+                        setPositionPreset('custom')
+                        setPositionModified(true)
+                      }}
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                    />
+                  </label>
+                ))}
+              </div>
+              <ZIndexInput
+                value={zIndex}
+                onChange={setZIndex}
+                onAdvancedModified={() => setPositionModified(true)}
               />
             </div>
-          )}
-        </div>
-      </CollapsibleSection>
-
-      {/* Position */}
-      <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(!showPosition)}>
-        <div className="space-y-2">
-          {/* 9 Position Presets */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-400 dark:text-slate-500">Presets</label>
-            <div className="grid grid-cols-3 gap-1">
-              {Object.entries(POSITION_PRESETS).map(([key, preset]) => (
-                <button
-                  key={key}
-                  onClick={() => applyPositionPreset(key)}
-                  className={`px-1.5 py-1 rounded text-[10px] transition-colors ${
-                    positionPreset === key
-                      ? 'bg-primary text-white border border-primary'
-                      : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 border border-gray-300 dark:border-slate-600 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Size display */}
-          <div className="text-[10px] text-gray-400 dark:text-slate-500">
-            Size: {width} x {height} grid ({pixelW} x {pixelH}px) &mdash; Aspect: {displayAspect}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: 'Col', value: startCol, setter: setStartCol, min: 1, max: 32 },
-              { label: 'Row', value: startRow, setter: setStartRow, min: 1, max: 18 },
-              { label: 'Width', value: width, setter: setWidth, min: 0.2, max: 32 },
-              { label: 'Height', value: height, setter: setHeight, min: 0.2, max: 18 },
-            ].map(({ label, value, setter, min, max }) => (
-              <div key={label} className="space-y-1">
-                <label className="text-[10px] text-gray-400 dark:text-slate-500">{label}</label>
-                <input
-                  type="number"
-                  value={value}
-                  min={min}
-                  max={max}
-                  step={0.2}
-                  onChange={(e) => { setter(Number(e.target.value)); setPositionPreset('custom'); setAdvancedModified(true) }}
-                  className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
-                />
-              </div>
-            ))}
-          </div>
-
-          <ZIndexInput
-            value={zIndex}
-            onChange={setZIndex}
-            onAdvancedModified={() => setAdvancedModified(true)}
-          />
-        </div>
-      </CollapsibleSection>
-      </>)}
+          </CollapsibleSection>
+        </>
+      )}
     </div>
   )
 }

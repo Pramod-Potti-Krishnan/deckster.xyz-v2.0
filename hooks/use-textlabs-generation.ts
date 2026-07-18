@@ -125,6 +125,10 @@ function applyPositionToFormData(
     fd.infographicConfig.start_row = positionConfig.start_row
     fd.infographicConfig.width = positionConfig.position_width
     fd.infographicConfig.height = positionConfig.position_height
+    fd.infographicConfig.grid_row =
+      `${positionConfig.start_row}/${positionConfig.start_row + positionConfig.position_height}`
+    fd.infographicConfig.grid_column =
+      `${positionConfig.start_col}/${positionConfig.start_col + positionConfig.position_width}`
   }
   if (fd.shapeConfig) {
     fd.shapeConfig.start_col = positionConfig.start_col
@@ -514,20 +518,24 @@ export function useTextLabsGeneration({
     const effectiveResearchStoreName = researchStoreName
       ?? refineContext?.research.store_name
       ?? null
-    const effectiveResearchMode = nonResearchVisual ? 'off' : generationPanel.researchMode
-    const researchPolicy = buildElementResearchPolicy({
-      mode: effectiveResearchMode,
-      selection: {
-        web: generationPanel.researchWeb,
-        uploadedDocuments: generationPanel.researchUploadedDocs,
-        knowledgeGraph: generationPanel.researchKnowledgeGraph,
-      },
-      capabilities: researchCapabilities,
-      storeName: effectiveResearchStoreName,
-      sessionId: effectiveResearchSessionId,
-      userId: researchUserId,
-    })
-    if (!nonResearchVisual && effectiveResearchMode === 'on' && !hasSelectedElementResearchSource(researchPolicy)) {
+    const effectiveResearchMode: ElementResearchMode = nonResearchVisual
+      ? 'off'
+      : generationPanel.researchMode
+    const researchPolicy = nonResearchVisual
+      ? null
+      : buildElementResearchPolicy({
+          mode: effectiveResearchMode,
+          selection: {
+            web: generationPanel.researchWeb,
+            uploadedDocuments: generationPanel.researchUploadedDocs,
+            knowledgeGraph: generationPanel.researchKnowledgeGraph,
+          },
+          capabilities: researchCapabilities,
+          storeName: effectiveResearchStoreName,
+          sessionId: effectiveResearchSessionId,
+          userId: researchUserId,
+        })
+    if (!nonResearchVisual && effectiveResearchMode === 'on' && researchPolicy && !hasSelectedElementResearchSource(researchPolicy)) {
       generationPanel.setIsGenerating(false)
       generationPanel.setError(
         'Research is on, but no available source is selected. Enable Web Search or configure Uploaded Documents or Knowledge Graph.',
@@ -535,7 +543,8 @@ export function useTextLabsGeneration({
       activeGenerationKeysRef.current.delete(generationKey)
       return
     }
-    formData.research = nonResearchVisual ? undefined : researchPolicy
+    if (researchPolicy) formData.research = researchPolicy
+    else delete formData.research
 
     if (!layoutServiceApis?.sendElementCommand) {
       generationPanel.setIsGenerating(false)
@@ -698,9 +707,14 @@ export function useTextLabsGeneration({
       }
     }
 
-    // Grounded generation may include one bounded Researcher round-trip.
+    // Structured planning and creative rendering are internal Text Labs work
+    // and can exceed the short no-research timeout without invoking Researcher.
+    const generationTimeoutMs = formData.componentType === 'INFOGRAPHIC'
+      ? 300_000
+      : effectiveResearchMode === 'off'
+        ? 30_000
+        : 150_000
     const controller = new AbortController()
-    const generationTimeoutMs = effectiveResearchMode === 'off' ? 30_000 : 150_000
     const timeoutId = setTimeout(
       () => controller.abort(),
       generationTimeoutMs,
@@ -733,7 +747,6 @@ export function useTextLabsGeneration({
             slideContext: formData.slideContext,
             deckContext: formData.deckContext,
             generationContext: formData.generationContext,
-            research: formData.research,
           },
           controller.signal,
         )
@@ -971,6 +984,9 @@ export function useTextLabsGeneration({
                 generation_config: generatedConfig,
                 citations_used: citationsUsed,
                 metrics_color_variant: typeof params.metricsColorVariant === 'string' ? params.metricsColorVariant : null,
+                properties: params.structuredPlan
+                  ? { structuredPlan: params.structuredPlan }
+                  : undefined,
                 content: generatedContent,
                 grid_position: generatedGridPosition,
               },

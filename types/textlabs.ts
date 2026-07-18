@@ -516,23 +516,29 @@ export interface InfographicV2Segment {
   connector_side?: 'left' | 'right' | 'top' | 'bottom' | null
 }
 
-export type InfographicSegmentCount = 'auto' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8'
+export type InfographicMode = 'v1' | 'v2'
+export type InfographicSegmentCount = 2 | 3 | 4 | 5 | 6 | 7 | 8
+export type LegacyInfographicSegmentCount = 'auto' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8'
 
 export interface InfographicConfig {
-  mode: 'v1' | 'v2'
-  aspect_ratio: 'auto' | '16:9' | '4:3' | '1:1' | '3:2' | '9:16'
-  segments: InfographicSegmentCount | InfographicV2Segment[]
-  crop_mode: 'shape' | 'rectangle'
-  target_background: 'light' | 'dark'
-  fill_internal: boolean
-  placeholder_mode: boolean
+  mode: InfographicMode
+  aspect_ratio?: '16:9' | '4:3' | '1:1' | '3:2' | '9:16'
+  segment_count?: InfographicSegmentCount
+  content_mode?: 'automatic' | 'manual'
+  // New clients send structured rows only in explicit manual-content mode.
+  // Legacy string counts remain accepted by Text Labs for backward compatibility.
+  segments?: LegacyInfographicSegmentCount | InfographicV2Segment[]
+  crop_mode?: 'shape' | 'content'
+  target_background?: 'light' | 'dark'
+  fill_internal?: boolean
+  placeholder_mode?: boolean
   // Position (embedded like IMAGE)
-  grid_row: string
-  grid_column: string
-  start_col: number
-  start_row: number
-  width: number
-  height: number
+  grid_row?: string
+  grid_column?: string
+  start_col?: number
+  start_row?: number
+  width?: number
+  height?: number
   layout_family?: 'horizontal_top' | 'horizontal_center' | 'vertical_left' | 'vertical_center' | null
   template_id?: string | null
   segment_colors?: string[]

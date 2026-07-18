@@ -325,7 +325,6 @@ export async function generateInfographic(
     slideContext?: Record<string, unknown> | null
     deckContext?: Record<string, unknown> | null
     generationContext?: ElementGenerationContext | null
-    research?: ElementResearchPolicy | null
   },
   signal?: AbortSignal,
 ): Promise<TextLabsResponse> {
@@ -344,7 +343,6 @@ export async function generateInfographic(
   if (options?.slideContext) formData.append('slide_context', JSON.stringify(options.slideContext))
   if (options?.deckContext) formData.append('deck_context', JSON.stringify(options.deckContext))
   if (options?.generationContext) formData.append('generation_context', JSON.stringify(options.generationContext))
-  if (options?.research) formData.append('research', JSON.stringify(options.research))
 
   if (config) {
     formData.append('infographic_config', JSON.stringify(config))
@@ -452,6 +450,13 @@ export function buildApiPayload(
     options.shapeConfig = formData.shapeConfig as Record<string, unknown>
   }
 
+  // Infographic mode selects two different backend paths and must travel even
+  // when every optional control is Automatic. The form builds this config
+  // sparsely, retaining only routing intent and authoritative live geometry.
+  if (formData.componentType === 'INFOGRAPHIC') {
+    options.infographicConfig = formData.infographicConfig as Record<string, unknown>
+  }
+
   if (formData.componentType === 'TEXT_BOX') {
     if (Object.keys(formData.textboxConfig).length > 0) {
       options.textboxConfig = formData.textboxConfig as Record<string, unknown>
@@ -519,7 +524,8 @@ export function buildApiPayload(
         options.shapeConfig = formData.shapeConfig as Record<string, unknown>
         break
       case 'INFOGRAPHIC':
-        options.infographicConfig = formData.infographicConfig as Record<string, unknown>
+        // Already attached above because mode is routing intent, not an
+        // Advanced visual override.
         break
       // Diagram subtypes
       case 'CODE_DISPLAY':
@@ -581,6 +587,11 @@ function extractBodyContent(html: string): string {
   return html
 }
 
+function extractImageSource(value: string): string {
+  const match = value.match(/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i)
+  return match?.[1] || value
+}
+
 /**
  * Build postMessage params for canvas insertion based on element type and API response
  */
@@ -592,6 +603,7 @@ export function buildInsertionParams(
     image_url?: string
     image_data_url?: string
     mode?: string
+    renderer_type?: string | null
     grid_position?: Partial<TextLabsPositionConfig> & { width?: number; height?: number }
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
@@ -628,9 +640,37 @@ export function buildInsertionParams(
   // V2 (structured/deterministic) infographics return self-contained HTML (no raster
   // image); route them through the HTML insert path instead of insertImage, which would
   // feed the HTML string in as an <img src> and render nothing.
+  const infographicMode = element.mode
+    ?? element.metadata?.mode
+    ?? element.metadata?.generation_mode
+    ?? element.metadata?.renderer
+  const normalizedInfographicMode = typeof infographicMode === 'string'
+    ? infographicMode.toLocaleLowerCase()
+    : ''
+  const rendererValue = element.renderer_type
+    ?? element.metadata?.renderer_type
+    ?? element.metadata?.rendererType
+  const rendererType = typeof rendererValue === 'string'
+    ? rendererValue.toLocaleLowerCase()
+    : ''
+  const isExplicitV1Infographic =
+    componentType === 'INFOGRAPHIC' &&
+    (
+      normalizedInfographicMode === 'v1' ||
+      normalizedInfographicMode.includes('image_v1') ||
+      normalizedInfographicMode.includes('raster') ||
+      rendererType.includes('image')
+    )
   const isV2Infographic =
     componentType === 'INFOGRAPHIC' &&
-    (element.mode === 'v2' || (!!element.html && !element.image_url && !element.image_data_url))
+    !isExplicitV1Infographic &&
+    (
+      normalizedInfographicMode === 'v2' ||
+      normalizedInfographicMode.includes('html_v2') ||
+      normalizedInfographicMode.includes('structured') ||
+      rendererType.includes('diagram') ||
+      (!!element.html && !element.image_url && !element.image_data_url)
+    )
   const method: InsertionMethod = isV2Infographic ? 'insertDiagram' : getInsertionMethod(componentType)
   const baseType = isDiagramSubtype(componentType) ? 'DIAGRAM' : componentType as TextLabsComponentType
   const semanticComponentType = semanticTypeForInsertion(componentType)
@@ -700,6 +740,8 @@ export function buildInsertionParams(
     ?? element.generationConfig
     ?? element.metadata?.generation_config
     ?? element.metadata?.generationConfig
+  const structuredPlan = element.metadata?.structured_plan
+    ?? element.metadata?.structuredPlan
   if (semanticRole) baseParams.semanticRole = semanticRole
   if (slotName) baseParams.slotName = slotName
   if (slotKind) baseParams.slotKind = slotKind
@@ -713,6 +755,7 @@ export function buildInsertionParams(
   if (resolvedTableProfile) baseParams.resolvedTableProfile = resolvedTableProfile
   if (citationsUsed) baseParams.citationsUsed = citationsUsed
   if (generationConfig) baseParams.generationConfig = generationConfig
+  if (structuredPlan) baseParams.structuredPlan = structuredPlan
 
   if (paddingConfig) {
     baseParams.style = {
@@ -739,7 +782,12 @@ export function buildInsertionParams(
     case 'insertImage':
       return {
         method: 'insertImage',
-        params: { ...baseParams, imageUrl: element.image_url || element.image_data_url || element.html || '' },
+        params: {
+          ...baseParams,
+          imageUrl: extractImageSource(
+            element.image_url || element.image_data_url || element.html || '',
+          ),
+        },
       }
     case 'insertDiagram':
       return {

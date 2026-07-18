@@ -16,6 +16,7 @@ const NON_RESEARCH_VISUAL_COMPONENTS = new Set<TextLabsAllComponentType>([
   'IMAGE',
   'ICON_LABEL',
   'SHAPE',
+  'INFOGRAPHIC',
 ])
 
 /**

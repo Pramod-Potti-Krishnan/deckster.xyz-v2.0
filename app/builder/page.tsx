@@ -3703,6 +3703,17 @@ function BuilderContent() {
                     accessoryType: generationPanel.refineContext.accessoryType,
                     generationConfig: generationPanel.refineContext.generationConfig,
                   } : null}
+                  existingInfographicTarget={
+                    generationPanel.refineContext && generationPanel.elementType === 'INFOGRAPHIC'
+                      ? {
+                          elementId: generationPanel.refineContext.elementId,
+                          rendererType: generationPanel.refineContext.existingElement.renderer_type as string | null,
+                          mode: generationPanel.refineContext.existingElement.mode as string | null,
+                          metadata: generationPanel.refineContext.existingElement.properties as Record<string, unknown> | null,
+                          content: generationPanel.refineContext.existingElement.content,
+                        }
+                      : null
+                  }
                   researchMode={generationPanel.researchMode}
                   researchWeb={generationPanel.researchWeb}
                   researchUploadedDocs={generationPanel.researchUploadedDocs}
