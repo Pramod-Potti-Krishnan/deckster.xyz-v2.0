@@ -2,7 +2,7 @@
  * Text Labs Type Definitions
  *
  * Types for the Text Labs unified element generation API.
- * All 9 element types + 8 diagram subtypes.
+ * All 9 element types + 9 diagram subtypes.
  */
 
 // ============================================================================
@@ -30,6 +30,7 @@ export type TextLabsDiagramSubtype =
   | 'CLOUD_ARCHITECTURE'
   | 'LOGICAL_ARCHITECTURE'
   | 'DATA_ARCHITECTURE'
+  | 'CUSTOM'
 
 // All component types including diagram subtypes
 export type TextLabsAllComponentType = TextLabsComponentType | TextLabsDiagramSubtype
@@ -56,10 +57,39 @@ export interface TextLabsPaddingConfig {
 export interface ThemePalette {
   primary?: string
   secondary?: string
+  surface?: string
+  border?: string
   accents?: string[]
   text?: string
   background?: string
   mode?: 'light' | 'dark'
+}
+
+/** Semantic palette shared by Text Labs and every Diagram Generator renderer. */
+export interface DiagramThemePalette {
+  background: string
+  surface: string
+  text: string
+  border: string
+  accents: string[]
+}
+
+export interface DiagramProviderSelection {
+  mode: 'auto' | 'manual'
+  provider?: 'aws' | 'gcp' | 'azure' | 'generic'
+  conflict_confirmed?: boolean
+}
+
+export interface DiagramGenerationConfig extends Record<string, unknown> {
+  version: 'diagram_generation_config_v1'
+  diagram_type: TextLabsDiagramSubtype
+  settings: Record<string, unknown>
+  /** Explicitly remove persisted overrides when a refine control returns to Auto. */
+  cleared_settings?: string[]
+  theme_source?: ThemeSourceMode
+  theme_palette?: DiagramThemePalette
+  structured_data?: Record<string, unknown>
+  provider_selection?: DiagramProviderSelection
 }
 
 export type ThemeSourceMode = 'deck' | 'none' | 'another'
@@ -552,7 +582,7 @@ export interface InfographicConfig {
 
 export interface CodeDisplayConfig {
   language: string
-  color_theme: 'github_dark' | 'github_light' | 'monokai' | 'dracula' | 'solarized' | 'nord'
+  color_theme: 'github_dark' | 'github_light' | 'monokai' | 'dracula' | 'solarized_dark'
   text_size: 'small' | 'medium' | 'large'
   show_line_numbers: boolean
   show_copy_button: boolean
@@ -561,32 +591,32 @@ export interface CodeDisplayConfig {
 }
 
 export interface KanbanConfig {
-  column_count: number    // 2-6
+  column_count: number    // 3-5
   theme: 'default' | 'dark' | 'minimal'
   position_preset: string
 }
 
 export interface GanttConfig {
-  time_unit: 'days' | 'weeks' | 'months' | 'quarters'
-  theme: 'default' | 'dark' | 'minimal'
+  time_unit: 'days' | 'weeks' | 'months'
+  theme: 'default' | 'ocean' | 'forest'
   position_preset: string
 }
 
 export interface ChevronConfig {
-  num_stages: number      // 3-8
-  theme: 'default' | 'dark' | 'minimal'
-  time_unit: 'months' | 'quarters' | 'years'
+  num_stages: number      // 3-6
+  theme: 'default' | 'emerald' | 'purple'
+  time_unit: 'months' | 'quarters' | 'years' | 'stages'
   position_preset: string
 }
 
 export interface IdeaBoardConfig {
-  axis_preset: 'impact_urgency' | 'impact_effort' | 'risk_reward' | 'custom'
-  theme: 'default' | 'dark' | 'minimal'
+  axis_preset: 'impact_urgency' | 'effort_value' | 'risk_reward' | 'cost_benefit' | 'feasibility_desirability'
+  theme: 'default' | 'emerald' | 'purple' | 'ocean'
   position_preset: string
 }
 
 export interface CloudArchitectureConfig {
-  provider: 'aws' | 'azure' | 'gcp'
+  provider?: 'aws' | 'azure' | 'gcp' | 'generic'
   show_layers: boolean
   position_preset: string
 }
@@ -598,6 +628,11 @@ export interface LogicalArchitectureConfig {
 export interface DataArchitectureConfig {
   show_data_types: boolean
   show_nullable: boolean
+  position_preset: string
+}
+
+export interface CustomDiagramConfig {
+  layout_hint?: 'auto' | 'flow' | 'hierarchy' | 'radial' | 'matrix' | 'network'
   position_preset: string
 }
 
@@ -630,7 +665,7 @@ export interface TextLabsBaseFormData {
   slotKind?: TextSlotKind | null
   accessoryType?: string | null
   slotMetadata?: TextSlotMetadata
-  generationConfig?: Record<string, unknown> | null
+  generationConfig?: Record<string, unknown> | DiagramGenerationConfig | null
 }
 
 export interface TextBoxFormData extends TextLabsBaseFormData {
@@ -702,8 +737,10 @@ export interface DiagramFormData extends TextLabsBaseFormData {
   componentType: TextLabsDiagramSubtype
   diagramConfig: Partial<
     CodeDisplayConfig | KanbanConfig | GanttConfig | ChevronConfig |
-    IdeaBoardConfig | CloudArchitectureConfig | LogicalArchitectureConfig | DataArchitectureConfig
+    IdeaBoardConfig | CloudArchitectureConfig | LogicalArchitectureConfig | DataArchitectureConfig |
+    CustomDiagramConfig
   >
+  generationConfig: DiagramGenerationConfig
 }
 
 export type TextLabsFormData =
@@ -741,8 +778,8 @@ export interface TextLabsElement {
   metrics_color_variant?: string | null
   resolved_table_profile?: Record<string, unknown> | null
   citations_used?: Array<Record<string, unknown>> | null
-  generation_config?: Record<string, unknown> | null
-  generationConfig?: Record<string, unknown> | null
+  generation_config?: Record<string, unknown> | DiagramGenerationConfig | null
+  generationConfig?: Record<string, unknown> | DiagramGenerationConfig | null
   metadata?: {
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
@@ -759,8 +796,8 @@ export interface TextLabsElement {
     metrics_color_variant?: string | null
     resolved_table_profile?: Record<string, unknown> | null
     citations_used?: Array<Record<string, unknown>> | null
-    generation_config?: Record<string, unknown> | null
-    generationConfig?: Record<string, unknown> | null
+    generation_config?: Record<string, unknown> | DiagramGenerationConfig | null
+    generationConfig?: Record<string, unknown> | DiagramGenerationConfig | null
     [key: string]: unknown
   } | null
 }
@@ -782,6 +819,7 @@ export interface TextLabsResponse {
   resolved_geometry?: Record<string, unknown> | null
   platinum_profile?: Record<string, unknown> | string | null
   resolved_metrics_profile?: Record<string, unknown> | null
+  generation_config?: Record<string, unknown> | DiagramGenerationConfig | null
 }
 
 export interface TextLabsSessionResponse {
@@ -870,6 +908,7 @@ export const INSERTION_METHOD_MAP: Record<TextLabsAllComponentType, InsertionMet
   CLOUD_ARCHITECTURE: 'insertDiagram',
   LOGICAL_ARCHITECTURE: 'insertDiagram',
   DATA_ARCHITECTURE: 'insertDiagram',
+  CUSTOM: 'insertDiagram',
   // DIAGRAM is a generic fallback
   DIAGRAM: 'insertDiagram',
 }

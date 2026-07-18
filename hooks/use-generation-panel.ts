@@ -29,6 +29,20 @@ function showAdvancedFromGenerationConfig(formData?: TextLabsFormData | null): b
   return typeof generationConfig.showAdvanced === 'boolean' ? generationConfig.showAdvanced : undefined
 }
 
+function selectedResearchSource(
+  provenance: Record<string, unknown> | null,
+  sourceType: 'web' | 'uploaded_docs' | 'knowledge_graph',
+): boolean {
+  const sources = provenance?.sources
+  if (!Array.isArray(sources)) return false
+  return sources.some(source => (
+    source
+    && typeof source === 'object'
+    && (source as Record<string, unknown>).source_type === sourceType
+    && (source as Record<string, unknown>).selected === true
+  ))
+}
+
 /**
  * Manages the GenerationPanel open/close state and selected element type.
  * Remembers the last-used element type within the session.
@@ -197,6 +211,14 @@ export function useGenerationPanel() {
     setMode('refine')
     setEditElementId(context.elementId)
     setRefineContext(context)
+    const researchEnabled = context.researchProvenance?.mode === 'on'
+      || selectedResearchSource(context.researchProvenance, 'web')
+      || selectedResearchSource(context.researchProvenance, 'uploaded_docs')
+      || selectedResearchSource(context.researchProvenance, 'knowledge_graph')
+    setResearchMode(researchEnabled ? 'on' : 'off')
+    setResearchWeb(selectedResearchSource(context.researchProvenance, 'web'))
+    setResearchUploadedDocs(selectedResearchSource(context.researchProvenance, 'uploaded_docs'))
+    setResearchKnowledgeGraph(selectedResearchSource(context.researchProvenance, 'knowledge_graph'))
     setIsOpen(true)
     setError(null)
   }, [activateDraftKey, draftKey, elementType, normalizeResearchForType])

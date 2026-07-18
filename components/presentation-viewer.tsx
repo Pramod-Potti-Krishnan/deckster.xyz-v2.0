@@ -165,9 +165,11 @@ export interface RefineElementRequest {
   slotName?: string | null
   slotKind?: import('@/types/textlabs').TextSlotKind | null
   accessoryType?: string | null
-  generationConfig?: Record<string, unknown> | null
+  generationConfig?: Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null
   citationsUsed?: Array<Record<string, unknown>> | null
   metricsColorVariant?: string | null
+  diagramSubtype?: import('@/types/textlabs').TextLabsDiagramSubtype | null
+  zIndex?: number | null
   content?: unknown
 }
 
@@ -2223,6 +2225,11 @@ export function PresentationViewer({
           generationConfig: event.data.generationConfig || event.data.generation_config || null,
           citationsUsed: event.data.citationsUsed || event.data.citations_used || null,
           metricsColorVariant: event.data.metricsColorVariant || event.data.metrics_color_variant || null,
+          diagramSubtype: event.data.diagramSubtype || event.data.diagram_subtype
+            || event.data.diagramType || event.data.diagram_type || null,
+          zIndex: typeof (event.data.zIndex ?? event.data.z_index) === 'number'
+            ? Number(event.data.zIndex ?? event.data.z_index)
+            : null,
           content: event.data.content,
         })
       }
