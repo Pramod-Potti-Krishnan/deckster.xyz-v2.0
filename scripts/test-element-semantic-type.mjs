@@ -52,7 +52,7 @@ assert.match(viewerSource, /label: 'Icon \/ Label',[\s\S]{0,180}onOpenGeneration
 assert.match(viewerSource, /label: 'Shape',[\s\S]{0,180}onOpenGenerationPanel\?\.\('SHAPE'\)/)
 
 const chartFormSource = fs.readFileSync(new URL('../components/generation-panel/forms/chart-form.tsx', import.meta.url), 'utf8')
-assert.match(chartFormSource, /chart_type: 'auto'/, 'new charts default to semantic Auto routing')
+assert.match(chartFormSource, /chart_type: chartType/, 'chart submissions preserve the selected semantic type')
 assert.match(chartFormSource, /useState<TextLabsChartType>\('auto'\)/)
 
 const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import.meta.url), 'utf8')

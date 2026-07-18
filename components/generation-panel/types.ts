@@ -77,6 +77,7 @@ export interface FormRef {
 export interface MandatoryFieldOption {
   value: string
   label: string
+  color?: string
 }
 
 export interface MandatoryFieldOptionGroup {
@@ -87,6 +88,7 @@ export interface MandatoryFieldOptionGroup {
 export interface MandatoryConfig {
   fieldLabel: string
   displayLabel: string
+  selectedValue?: string
   options?: MandatoryFieldOption[]
   optionGroups?: MandatoryFieldOptionGroup[]
   onChange: (value: string) => void

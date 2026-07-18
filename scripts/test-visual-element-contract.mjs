@@ -174,6 +174,14 @@ const iconAuto = client.buildApiPayload('session', {
 assert.equal(iconAuto.research, undefined)
 assert.deepEqual(JSON.parse(JSON.stringify(iconAuto.iconLabelConfig)), { mode: 'icon' })
 
+const iconManualStyle = client.buildApiPayload('session', {
+  ...common,
+  componentType: 'ICON_LABEL',
+  advancedModified: true,
+  iconLabelConfig: { mode: 'icon', style: 'circle-outline' },
+}).options
+assert.equal(iconManualStyle.iconLabelConfig.style, 'circle-outline')
+
 const shapeAuto = client.buildApiPayload('session', {
   ...common,
   componentType: 'SHAPE',
@@ -193,6 +201,19 @@ const shapeAuto = client.buildApiPayload('session', {
 assert.equal(shapeAuto.research, undefined)
 assert.equal(shapeAuto.shapeConfig.prompt, 'three concentric circles')
 assert.equal(shapeAuto.shapeConfig.fill_color, undefined)
+
+const shapeManualColors = client.buildApiPayload('session', {
+  ...common,
+  componentType: 'SHAPE',
+  advancedModified: true,
+  shapeConfig: {
+    ...shapeAuto.shapeConfig,
+    fill_color: '#3B82F6',
+    stroke_color: '#334155',
+  },
+}).options
+assert.equal(shapeManualColors.shapeConfig.fill_color, '#3B82F6')
+assert.equal(shapeManualColors.shapeConfig.stroke_color, '#334155')
 
 const logo = client.buildApiPayload('session', {
   ...common,
@@ -221,9 +242,22 @@ assert.equal(semanticLogo.zIndex, 137, 'semantic Logo replacement preserves live
 assert.equal(semanticLogo.metadata.themeVariantSource, 'element_generation')
 
 const panelSource = fs.readFileSync(new URL('../components/generation-panel/index.tsx', import.meta.url), 'utf8')
+const inputSource = fs.readFileSync(new URL('../components/generation-panel/shared/generation-input.tsx', import.meta.url), 'utf8')
+const imageFormSource = fs.readFileSync(new URL('../components/generation-panel/forms/image-form.tsx', import.meta.url), 'utf8')
+const iconFormSource = fs.readFileSync(new URL('../components/generation-panel/forms/icon-label-form.tsx', import.meta.url), 'utf8')
+const shapeFormSource = fs.readFileSync(new URL('../components/generation-panel/forms/shape-form.tsx', import.meta.url), 'utf8')
 const textFormSource = fs.readFileSync(new URL('../components/generation-panel/forms/text-box-form.tsx', import.meta.url), 'utf8')
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
 assert.match(panelSource, /const supportsResearch = !isNonResearchVisualElement\(elementType\)/)
+assert.match(inputSource, /Array\.isArray\(mandatoryConfig\)/, 'the prompt toolbar supports multiple primary controls')
+assert.match(inputSource, /selectedOption\?\.color/, 'palette choices expose their swatches in the prompt toolbar')
+assert.match(imageFormSource, /fieldLabel: 'Image style'/)
+assert.match(imageFormSource, /group: 'Automatic'[\s\S]{0,100}value: 'auto'/)
+assert.match(iconFormSource, /registerMandatoryConfig\(configs\)/)
+assert.match(iconFormSource, /fieldLabel: 'Style'[\s\S]{0,220}value: 'auto'/)
+assert.match(shapeFormSource, /colorConfig\('fill', 'Fill'/)
+assert.match(shapeFormSource, /colorConfig\('stroke', 'Border'/)
+assert.match(shapeFormSource, /selectedValue: explicitFields\.has\(field\) \? color : 'theme'/)
 assert.match(textFormSource, /\{\(isBodyText \|\| isSystemManaged\) && researchControls\}/)
 assert.match(generationSource, /formData\.research = nonResearchVisual \? undefined : researchPolicy/)
 assert.match(generationSource, /generationPanel\.completeBlankReplacement\([\s\S]{0,180}currentBlankId/)

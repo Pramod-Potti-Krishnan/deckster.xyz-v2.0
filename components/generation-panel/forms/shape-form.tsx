@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { ShapeFormData, ShapeConfig, TextLabsShapeType, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
-import { ElementContext, MandatoryConfig } from '../types'
+import { ElementContext, MandatoryConfig, MandatoryFieldOption } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
+import { useDeckThemePalette } from '@/hooks/use-deck-theme-palette'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.SHAPE
 type ShapeOverrideField =
@@ -61,6 +62,15 @@ const SHAPE_TYPE_GROUPS: { group: string; types: { value: TextLabsShapeType; lab
   ] },
 ]
 
+const SHAPE_COLOR_PRESETS: MandatoryFieldOption[] = [
+  { value: '#3B82F6', label: 'Blue', color: '#3B82F6' },
+  { value: '#7C3AED', label: 'Purple', color: '#7C3AED' },
+  { value: '#0D9488', label: 'Teal', color: '#0D9488' },
+  { value: '#16A34A', label: 'Green', color: '#16A34A' },
+  { value: '#EA580C', label: 'Orange', color: '#EA580C' },
+  { value: '#334155', label: 'Slate', color: '#334155' },
+]
+
 /** Pixel to grid conversion */
 function pxToGrid(px: number): number {
   return Math.max(1, Math.round(px / GRID_CELL_SIZE))
@@ -79,7 +89,7 @@ interface ShapeFormProps {
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
-  registerMandatoryConfig: (config: MandatoryConfig) => void
+  registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
 }
 
 export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ShapeFormProps) {
@@ -97,6 +107,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [explicitFields, setExplicitFields] = useState<Set<ShapeOverrideField>>(() => new Set())
   const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
+  const { tokens: themeTokens } = useDeckThemePalette(presentationId)
 
   // Pixel-based position (primary)
   const [x, setX] = useState(60)       // px, 0-1919
@@ -131,6 +142,14 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
     setAdvancedModified(true)
   }, [])
 
+  const clearExplicit = useCallback((field: ShapeOverrideField) => {
+    setExplicitFields(previous => {
+      const next = new Set(previous)
+      next.delete(field)
+      return next
+    })
+  }, [])
+
   const resetToAuto = useCallback(() => {
     setCount(1)
     setSides(6)
@@ -160,19 +179,79 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
 
   // Register mandatory config — Shape Type
   const shapeLabel = SHAPE_TYPE_GROUPS.flatMap(group => group.types).find(t => t.value === shapeType)?.label || 'Custom'
+  const colorOptions = useMemo(() => {
+    const options: MandatoryFieldOption[] = [
+      { value: 'theme', label: 'Theme', color: 'hsl(var(--primary))' },
+      ...themeTokens.map(token => ({
+        value: token.color,
+        label: token.label,
+        color: token.color,
+      })),
+      ...SHAPE_COLOR_PRESETS,
+    ]
+    const seen = new Set<string>()
+    return options.filter(option => {
+      const key = option.value.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [themeTokens])
 
   useEffect(() => {
-    registerMandatoryConfig({
-      fieldLabel: 'Shape',
-      displayLabel: shapeLabel,
-      optionGroups: SHAPE_TYPE_GROUPS.map(group => ({
-        group: group.group,
-        options: group.types.map(t => ({ value: t.value, label: t.label })),
-      })),
-      onChange: (v) => { setShapeType(v as TextLabsShapeType) },
-      promptPlaceholder: shapeType === 'custom' ? 'e.g., three concentric circles' : 'e.g., a red star',
-    })
-  }, [shapeType, shapeLabel, registerMandatoryConfig])
+    const colorLabel = (field: 'fill' | 'stroke', color: string) => {
+      if (!explicitFields.has(field)) return 'Theme'
+      return colorOptions.find(option => option.value.toLowerCase() === color.toLowerCase())?.label || 'Custom'
+    }
+    const colorConfig = (
+      field: 'fill' | 'stroke',
+      label: 'Fill' | 'Border',
+      color: string,
+      setColor: (value: string) => void,
+    ): MandatoryConfig => {
+      const selectedLabel = colorLabel(field, color)
+      return {
+        fieldLabel: `${label} color`,
+        displayLabel: `${label}: ${selectedLabel}`,
+        selectedValue: explicitFields.has(field) ? color : 'theme',
+        options: colorOptions,
+        onChange: (value) => {
+          if (value === 'theme') {
+            clearExplicit(field)
+            return
+          }
+          setColor(value)
+          markExplicit(field)
+        },
+      }
+    }
+
+    registerMandatoryConfig([
+      {
+        fieldLabel: 'Shape',
+        displayLabel: shapeLabel,
+        selectedValue: shapeType,
+        optionGroups: SHAPE_TYPE_GROUPS.map(group => ({
+          group: group.group,
+          options: group.types.map(t => ({ value: t.value, label: t.label })),
+        })),
+        onChange: (value) => { setShapeType(value as TextLabsShapeType) },
+        promptPlaceholder: shapeType === 'custom' ? 'e.g., three concentric circles' : 'e.g., a red star',
+      },
+      colorConfig('fill', 'Fill', fillColor, setFillColor),
+      colorConfig('stroke', 'Border', strokeColor, setStrokeColor),
+    ])
+  }, [
+    clearExplicit,
+    colorOptions,
+    explicitFields,
+    fillColor,
+    markExplicit,
+    registerMandatoryConfig,
+    shapeLabel,
+    shapeType,
+    strokeColor,
+  ])
 
   const handleSubmit = useCallback(() => {
     const isCustom = shapeType === 'custom'
@@ -262,7 +341,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Stroke</label>
+              <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Border Color</label>
               <input
                 type="color"
                 value={strokeColor}

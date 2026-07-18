@@ -44,7 +44,7 @@ interface IconLabelFormProps {
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
-  registerMandatoryConfig: (config: MandatoryConfig) => void
+  registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
 }
 
 export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: IconLabelFormProps) {
@@ -89,6 +89,14 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
     setAdvancedModified(true)
   }, [])
 
+  const clearExplicit = useCallback((field: IconOverrideField) => {
+    setExplicitFields(previous => {
+      const next = new Set(previous)
+      next.delete(field)
+      return next
+    })
+  }, [])
+
   const resetToAuto = useCallback(() => {
     setCount(1)
     setSize('medium')
@@ -113,17 +121,45 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
 
   // Register mandatory config — Mode
   useEffect(() => {
-    registerMandatoryConfig({
+    const configs: MandatoryConfig[] = [{
       fieldLabel: 'Mode',
       displayLabel: mode === 'icon' ? 'Icon' : 'Label',
+      selectedValue: mode,
       options: [
         { value: 'icon', label: 'Icon' },
         { value: 'label', label: 'Label' },
       ],
-      onChange: (v) => { setMode(v as 'icon' | 'label') },
+      onChange: (value) => {
+        const nextMode = value as 'icon' | 'label'
+        setMode(nextMode)
+        if (nextMode === 'label') clearExplicit('style')
+      },
       promptPlaceholder: mode === 'icon' ? 'e.g., shopping cart icon, checkmark' : "e.g., Label 'IV', 'A+', 'Step 1'",
-    })
-  }, [mode, registerMandatoryConfig])
+    }]
+
+    if (mode === 'icon') {
+      const selectedStyle = ICON_STYLES.find(option => option.value === style)
+      configs.push({
+        fieldLabel: 'Style',
+        displayLabel: explicitFields.has('style') ? selectedStyle?.label || 'Custom' : 'Auto',
+        selectedValue: explicitFields.has('style') ? style : 'auto',
+        options: [
+          { value: 'auto', label: 'Auto' },
+          ...ICON_STYLES,
+        ],
+        onChange: (value) => {
+          if (value === 'auto') {
+            clearExplicit('style')
+            return
+          }
+          setStyle(value as IconLabelConfig['style'])
+          markExplicit('style')
+        },
+      })
+    }
+
+    registerMandatoryConfig(configs)
+  }, [clearExplicit, explicitFields, markExplicit, mode, registerMandatoryConfig, style])
 
   const handleSubmit = useCallback(() => {
     const defaultPrompt = mode === 'icon' ? 'shopping cart icon' : 'Label I'
@@ -217,13 +253,18 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         <div className="space-y-1">
           <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Style</label>
           <select
-            value={style}
+            value={explicitFields.has('style') ? style : ''}
             onChange={(e) => {
+              if (!e.target.value) {
+                clearExplicit('style')
+                return
+              }
               setStyle(e.target.value as IconLabelConfig['style'])
               markExplicit('style')
             }}
             className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
           >
+            <option value="">Auto</option>
             {ICON_STYLES.map(s => (
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}

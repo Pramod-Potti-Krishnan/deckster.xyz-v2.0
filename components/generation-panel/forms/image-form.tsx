@@ -125,6 +125,14 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
     setAdvancedModified(true)
   }, [])
 
+  const clearExplicit = useCallback((field: ImageOverrideField) => {
+    setExplicitFields(previous => {
+      const next = new Set(previous)
+      next.delete(field)
+      return next
+    })
+  }, [])
+
   const resetToAuto = useCallback(() => {
     setStyle('realistic')
     setQuality('standard')
@@ -179,13 +187,34 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   }, [markExplicit])
 
   useEffect(() => {
+    const selectedStyle = IMAGE_STYLE_GROUPS
+      .flatMap(group => group.styles)
+      .find(option => option.value === style)
     registerMandatoryConfig({
-      fieldLabel: 'Mode',
-      displayLabel: explicitFields.size === 0 && !advancedModified ? 'Auto' : 'Custom',
-      onChange: () => undefined,
+      fieldLabel: 'Image style',
+      displayLabel: explicitFields.has('style') ? selectedStyle?.label || 'Custom' : 'Auto',
+      selectedValue: explicitFields.has('style') ? style : 'auto',
+      optionGroups: [
+        {
+          group: 'Automatic',
+          options: [{ value: 'auto', label: 'Auto' }],
+        },
+        ...IMAGE_STYLE_GROUPS.map(group => ({
+          group: group.category,
+          options: group.styles,
+        })),
+      ],
+      onChange: (value) => {
+        if (value === 'auto') {
+          clearExplicit('style')
+          return
+        }
+        setStyle(value as TextLabsImageStyle)
+        markExplicit('style')
+      },
       promptPlaceholder: 'e.g., Modern office space with team collaboration',
     })
-  }, [advancedModified, explicitFields, registerMandatoryConfig])
+  }, [clearExplicit, explicitFields, markExplicit, registerMandatoryConfig, style])
 
   const handleSubmit = useCallback(() => {
     const aspectRatio = reducedRatio(width, height)
@@ -268,11 +297,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
               value={explicitFields.has('style') ? style : ''}
               onChange={(event) => {
                 if (!event.target.value) {
-                  setExplicitFields(previous => {
-                    const next = new Set(previous)
-                    next.delete('style')
-                    return next
-                  })
+                  clearExplicit('style')
                   return
                 }
                 setStyle(event.target.value as TextLabsImageStyle)
