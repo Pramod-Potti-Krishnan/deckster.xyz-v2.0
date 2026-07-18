@@ -4,6 +4,7 @@ import { useRef, useEffect } from 'react'
 import { SlidersHorizontal, ArrowUp, Loader2, ChevronDown, AlertCircle, RotateCcw, Check } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { MandatoryConfig } from '../types'
+import { elementPromptLengthState } from '@/lib/element-prompt-limit'
 
 interface GenerationInputProps {
   prompt: string
@@ -34,6 +35,17 @@ export function GenerationInput({
     : mandatoryConfig
       ? [mandatoryConfig]
       : []
+  const promptLimitConfig = mandatoryConfigs.find(config => (
+    typeof config.promptMaxLength === 'number' && config.promptMaxLength > 0
+  ))
+  const promptMaxLength = promptLimitConfig?.promptMaxLength
+  const promptLengthState = elementPromptLengthState(prompt, promptMaxLength)
+  const promptOverLimit = promptLengthState.overLimit
+  const promptOverflow = promptLengthState.overflow
+  const submitDisabled = isGenerating || promptOverLimit
+  const handleSubmit = () => {
+    if (!submitDisabled) onSubmit()
+  }
 
   // Auto-expand textarea as user types
   useEffect(() => {
@@ -56,8 +68,9 @@ export function GenerationInput({
           <div className="flex-1 min-w-0">
             <p className="text-xs text-red-600 break-words">{error}</p>
             <button
-              onClick={onSubmit}
-              className="mt-1.5 flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 transition-colors"
+              onClick={handleSubmit}
+              disabled={submitDisabled}
+              className="mt-1.5 flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RotateCcw className="h-3 w-3" />
               Try again
@@ -76,6 +89,8 @@ export function GenerationInput({
             onChange={(e) => onPromptChange(e.target.value)}
             placeholder={placeholder}
             disabled={isGenerating}
+            aria-invalid={promptOverLimit}
+            aria-describedby={promptMaxLength ? 'generation-prompt-limit' : undefined}
             className="w-full resize-y border-0 bg-transparent focus:ring-0 focus:outline-none px-3 pt-3 pb-12 min-h-[60px] max-h-[160px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto text-gray-900 dark:text-slate-100 disabled:opacity-50"
             rows={2}
           />
@@ -127,14 +142,14 @@ export function GenerationInput({
             </svg>
             <button
               type="button"
-              onClick={onSubmit}
-              disabled={isGenerating}
+              onClick={handleSubmit}
+              disabled={submitDisabled}
               className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
-                isGenerating
+                submitDisabled
                   ? 'bg-gray-200 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed'
                   : 'bg-purple-600 hover:bg-purple-700 text-white'
               }`}
-              title="Generate (⌘↵)"
+              title={promptOverLimit ? 'Shorten the prompt before generating' : 'Generate (⌘↵)'}
             >
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -145,6 +160,26 @@ export function GenerationInput({
           </div>
         </div>
       </div>
+      {promptMaxLength && (
+        <div
+          id="generation-prompt-limit"
+          className={`flex items-start justify-between gap-2 px-1 text-[10px] ${
+            promptOverLimit
+              ? 'font-medium text-red-600 dark:text-red-400'
+              : 'text-gray-500 dark:text-slate-400'
+          }`}
+          aria-live="polite"
+        >
+          <span>
+            {promptOverLimit
+              ? `${promptLimitConfig?.promptLimitLabel ?? 'Prompt'} is ${promptOverflow.toLocaleString()} character${promptOverflow === 1 ? '' : 's'} too long.`
+              : `${promptLimitConfig?.promptLimitLabel ?? 'Prompt'} limit`}
+          </span>
+          <span className="whitespace-nowrap">
+            {promptLengthState.length.toLocaleString()} / {promptMaxLength.toLocaleString()}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

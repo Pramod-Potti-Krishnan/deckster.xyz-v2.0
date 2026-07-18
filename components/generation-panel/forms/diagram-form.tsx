@@ -1,7 +1,7 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { MandatoryConfig } from '../types'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { GenerationPanelDraft, MandatoryConfig } from '../types'
 import {
   type ChevronConfig,
   type CloudArchitectureConfig,
@@ -31,6 +31,10 @@ import { ToggleRow } from '../shared/toggle-row'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
+import {
+  CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH,
+  elementPromptLengthState,
+} from '@/lib/element-prompt-limit'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.DIAGRAM
 
@@ -82,6 +86,7 @@ interface DiagramFormProps {
   registerMandatoryConfig: (config: MandatoryConfig) => void
   researchControls?: ReactNode
   existingDiagramTarget?: ExistingDiagramTarget | null
+  initialDraft?: GenerationPanelDraft | null
 }
 
 type ProviderSelection = 'auto' | NonNullable<CloudArchitectureConfig['provider']>
@@ -163,6 +168,165 @@ function completeDiagramPalette(
   return { background, surface, text, border, accents }
 }
 
+interface DiagramFormHydration {
+  hasSource: boolean
+  generationConfig: DiagramGenerationConfig | null
+  subtype: TextLabsDiagramSubtype
+  advancedModified: boolean
+  zIndex: number
+  language: string
+  colorTheme: CodeDisplayConfig['color_theme']
+  textSize: CodeDisplayConfig['text_size']
+  showLineNumbers: boolean
+  showCopyButton: boolean
+  cornerStyle: CodeDisplayConfig['corner_style']
+  columnCount: number
+  ganttTimeUnit: GanttConfig['time_unit']
+  numStages: number
+  chevronTimeUnit: ChevronConfig['time_unit']
+  axisPreset: IdeaBoardConfig['axis_preset']
+  provider: ProviderSelection
+  providerConflictConfirmed: boolean
+  showLayers: boolean
+  showDataTypes: boolean
+  showNullable: boolean
+  layoutHint: NonNullable<CustomDiagramConfig['layout_hint']>
+  leafTheme: LeafTheme
+  positionPreset: string
+}
+
+function draftDiagramFormData(draft: GenerationPanelDraft | null | undefined): DiagramFormData | null {
+  const formData = draft?.formData
+  return formData && normalizePersistedDiagramSubtype(formData.componentType)
+    ? formData as DiagramFormData
+    : null
+}
+
+export function resolveDiagramFormHydration(
+  catalog: DiagramCatalog,
+  existingDiagramTarget: ExistingDiagramTarget | null | undefined,
+  initialDraft: GenerationPanelDraft | null | undefined,
+): DiagramFormHydration {
+  const draftFormData = draftDiagramFormData(initialDraft)
+  const generationConfig = existingDiagramTarget?.generationConfig
+    ?? draftFormData?.generationConfig
+    ?? null
+  const requestedSubtype = generationConfig?.diagram_type
+    ?? existingDiagramTarget?.subtype
+    ?? draftFormData?.componentType
+  const hydratedSubtype = normalizePersistedDiagramSubtype(requestedSubtype) ?? 'CODE_DISPLAY'
+  const hydratedCatalog = catalogType(catalog, hydratedSubtype)
+  const rawSettings = generationConfig?.settings ?? draftFormData?.diagramConfig
+  const settings = rawSettings
+    ? normalizePersistedDiagramSettings(catalog, hydratedSubtype, rawSettings)
+    : {}
+
+  const providerSelection = generationConfig?.provider_selection
+  const settingsProvider = hydratedCatalogString(
+    hydratedCatalog.config.provider,
+    providerSelection?.provider ?? settings.provider,
+    'auto',
+  ) as ProviderSelection
+  const providerWasManual = providerSelection
+    ? providerSelection.mode === 'manual'
+    : settingsProvider !== 'auto'
+  const provider = providerWasManual && settingsProvider !== 'auto'
+    ? settingsProvider
+    : 'auto'
+
+  return {
+    hasSource: Boolean(
+      generationConfig
+      || existingDiagramTarget?.subtype
+      || draftFormData,
+    ),
+    generationConfig,
+    subtype: hydratedSubtype,
+    advancedModified: Boolean(draftFormData?.advancedModified),
+    zIndex: (
+      typeof existingDiagramTarget?.zIndex === 'number'
+      && Number.isFinite(existingDiagramTarget.zIndex)
+    )
+      ? existingDiagramTarget.zIndex
+      : (
+        typeof draftFormData?.z_index === 'number'
+        && Number.isFinite(draftFormData.z_index)
+      )
+        ? draftFormData.z_index
+        : DEFAULTS.zIndex,
+    language: hydratedCatalogString(
+      hydratedCatalog.config.language,
+      settings.language,
+      'python',
+    ),
+    colorTheme: hydratedCatalogString(
+      hydratedCatalog.config.color_theme,
+      settings.color_theme,
+      'github_dark',
+    ) as CodeDisplayConfig['color_theme'],
+    textSize: ['small', 'medium', 'large'].includes(String(settings.text_size))
+      ? settings.text_size as CodeDisplayConfig['text_size']
+      : 'medium',
+    showLineNumbers: typeof settings.show_line_numbers === 'boolean'
+      ? settings.show_line_numbers
+      : true,
+    showCopyButton: typeof settings.show_copy_button === 'boolean'
+      ? settings.show_copy_button
+      : true,
+    cornerStyle: settings.corner_style === 'square' ? 'square' : 'rounded',
+    columnCount: hydratedCatalogNumber(
+      hydratedCatalog.config.column_count,
+      settings.column_count,
+      4,
+    ),
+    ganttTimeUnit: hydratedSubtype === 'GANTT_CHART'
+      ? hydratedCatalogString(
+          hydratedCatalog.config.time_unit,
+          settings.time_unit,
+          'weeks',
+        ) as GanttConfig['time_unit']
+      : 'weeks',
+    numStages: hydratedCatalogNumber(
+      hydratedCatalog.config.num_stages,
+      settings.num_stages,
+      5,
+    ),
+    chevronTimeUnit: hydratedSubtype === 'CHEVRON_MATURITY'
+      ? hydratedCatalogString(
+          hydratedCatalog.config.time_unit,
+          settings.time_unit,
+          'stages',
+        ) as ChevronConfig['time_unit']
+      : 'stages',
+    axisPreset: hydratedCatalogString(
+      hydratedCatalog.config.axis_preset,
+      settings.axis_preset,
+      'impact_urgency',
+    ) as IdeaBoardConfig['axis_preset'],
+    provider,
+    providerConflictConfirmed: provider !== 'auto'
+      && providerSelection?.conflict_confirmed === true,
+    showLayers: typeof settings.show_layers === 'boolean' ? settings.show_layers : true,
+    showDataTypes: typeof settings.show_data_types === 'boolean' ? settings.show_data_types : true,
+    showNullable: typeof settings.show_nullable === 'boolean' ? settings.show_nullable : true,
+    layoutHint: hydratedCatalogString(
+      hydratedCatalog.config.layout_hint,
+      settings.layout_hint,
+      'auto',
+    ) as NonNullable<CustomDiagramConfig['layout_hint']>,
+    leafTheme: hydratedCatalogString(
+      hydratedCatalog.config.theme,
+      settings.theme,
+      'auto',
+    ) as LeafTheme,
+    positionPreset: hydratedCatalogString(
+      hydratedCatalog.config.position_preset,
+      settings.position_preset,
+      'auto',
+    ),
+  }
+}
+
 export function DiagramForm({
   onSubmit,
   registerSubmit,
@@ -173,33 +337,55 @@ export function DiagramForm({
   registerMandatoryConfig,
   researchControls,
   existingDiagramTarget,
+  initialDraft,
 }: DiagramFormProps) {
+  // A draft is an activation snapshot. Keep it stable while the parent updates
+  // the prompt draft on every keystroke, otherwise catalog hydration could
+  // replay stale settings over the user's current controls.
+  const initialDraftRef = useRef(initialDraft)
+  const initialHydrationRef = useRef(
+    resolveDiagramFormHydration(
+      DIAGRAM_CATALOG_FALLBACK,
+      existingDiagramTarget,
+      initialDraftRef.current,
+    ),
+  )
+  const initialHydration = initialHydrationRef.current
   const [catalog, setCatalog] = useState<DiagramCatalog>(DIAGRAM_CATALOG_FALLBACK)
-  const [subtype, setSubtype] = useState<TextLabsDiagramSubtype>('CODE_DISPLAY')
-  const [advancedModified, setAdvancedModified] = useState(false)
-  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const [subtype, setSubtype] = useState<TextLabsDiagramSubtype>(initialHydration.subtype)
+  const [advancedModified, setAdvancedModified] = useState(initialHydration.advancedModified)
+  const [zIndex, setZIndex] = useState(initialHydration.zIndex)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
 
-  const [language, setLanguage] = useState('python')
-  const [colorTheme, setColorTheme] = useState<CodeDisplayConfig['color_theme']>('github_dark')
-  const [textSize, setTextSize] = useState<CodeDisplayConfig['text_size']>('medium')
-  const [showLineNumbers, setShowLineNumbers] = useState(true)
-  const [showCopyButton, setShowCopyButton] = useState(true)
-  const [cornerStyle, setCornerStyle] = useState<CodeDisplayConfig['corner_style']>('rounded')
+  const [language, setLanguage] = useState(initialHydration.language)
+  const [colorTheme, setColorTheme] = useState<CodeDisplayConfig['color_theme']>(initialHydration.colorTheme)
+  const [textSize, setTextSize] = useState<CodeDisplayConfig['text_size']>(initialHydration.textSize)
+  const [showLineNumbers, setShowLineNumbers] = useState(initialHydration.showLineNumbers)
+  const [showCopyButton, setShowCopyButton] = useState(initialHydration.showCopyButton)
+  const [cornerStyle, setCornerStyle] = useState<CodeDisplayConfig['corner_style']>(initialHydration.cornerStyle)
 
-  const [columnCount, setColumnCount] = useState(4)
-  const [ganttTimeUnit, setGanttTimeUnit] = useState<GanttConfig['time_unit']>('weeks')
-  const [numStages, setNumStages] = useState(5)
-  const [chevronTimeUnit, setChevronTimeUnit] = useState<ChevronConfig['time_unit']>('stages')
-  const [axisPreset, setAxisPreset] = useState<IdeaBoardConfig['axis_preset']>('impact_urgency')
-  const [provider, setProvider] = useState<ProviderSelection>('auto')
-  const [providerConflictConfirmed, setProviderConflictConfirmed] = useState(false)
-  const [showLayers, setShowLayers] = useState(true)
-  const [showDataTypes, setShowDataTypes] = useState(true)
-  const [showNullable, setShowNullable] = useState(true)
-  const [layoutHint, setLayoutHint] = useState<NonNullable<CustomDiagramConfig['layout_hint']>>('auto')
-  const [leafTheme, setLeafTheme] = useState<LeafTheme>('auto')
-  const [positionPreset, setPositionPreset] = useState('auto')
+  const [columnCount, setColumnCount] = useState(initialHydration.columnCount)
+  const [ganttTimeUnit, setGanttTimeUnit] = useState<GanttConfig['time_unit']>(initialHydration.ganttTimeUnit)
+  const [numStages, setNumStages] = useState(initialHydration.numStages)
+  const [chevronTimeUnit, setChevronTimeUnit] = useState<ChevronConfig['time_unit']>(initialHydration.chevronTimeUnit)
+  const [axisPreset, setAxisPreset] = useState<IdeaBoardConfig['axis_preset']>(initialHydration.axisPreset)
+  const [provider, setProvider] = useState<ProviderSelection>(initialHydration.provider)
+  const [providerConflictConfirmed, setProviderConflictConfirmed] = useState(
+    initialHydration.providerConflictConfirmed,
+  )
+  const [showLayers, setShowLayers] = useState(initialHydration.showLayers)
+  const [showDataTypes, setShowDataTypes] = useState(initialHydration.showDataTypes)
+  const [showNullable, setShowNullable] = useState(initialHydration.showNullable)
+  const [layoutHint, setLayoutHint] = useState<NonNullable<CustomDiagramConfig['layout_hint']>>(
+    initialHydration.layoutHint,
+  )
+  const [leafTheme, setLeafTheme] = useState<LeafTheme>(initialHydration.leafTheme)
+  const [positionPreset, setPositionPreset] = useState(initialHydration.positionPreset)
+  const controlsTouchedRef = useRef(false)
+  const markControlsModified = useCallback(() => {
+    controlsTouchedRef.current = true
+    setAdvancedModified(true)
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -208,42 +394,39 @@ export function DiagramForm({
   }, [])
 
   useEffect(() => {
-    const generationConfig = existingDiagramTarget?.generationConfig
-    const requestedSubtype = generationConfig?.diagram_type ?? existingDiagramTarget?.subtype
-    const hydratedSubtype = normalizePersistedDiagramSubtype(requestedSubtype)
-    if (hydratedSubtype) setSubtype(hydratedSubtype)
-    const hydratedType = hydratedSubtype ?? 'CODE_DISPLAY'
-    const hydratedCatalog = catalogType(catalog, hydratedType)
-    const settings = generationConfig?.settings
-      ? normalizePersistedDiagramSettings(catalog, hydratedType, generationConfig.settings)
-      : null
-
-    // Reset every persisted control before applying the next target. The panel
-    // remains mounted between diagram selections, so omission must mean the
-    // current catalog default rather than a value leaked from the prior target.
-    setLanguage('python')
-    setColorTheme('github_dark')
-    setTextSize('medium')
-    setShowLineNumbers(true)
-    setShowCopyButton(true)
-    setCornerStyle('rounded')
-    setColumnCount(4)
-    setGanttTimeUnit('weeks')
-    setNumStages(5)
-    setChevronTimeUnit('stages')
-    setAxisPreset('impact_urgency')
-    setShowLayers(true)
-    setShowDataTypes(true)
-    setShowNullable(true)
-    setLayoutHint('auto')
-    setLeafTheme('auto')
-    setPositionPreset('auto')
-    setZIndex(
-      typeof existingDiagramTarget?.zIndex === 'number'
-      && Number.isFinite(existingDiagramTarget.zIndex)
-        ? existingDiagramTarget.zIndex
-        : DEFAULTS.zIndex,
+    const hydration = resolveDiagramFormHydration(
+      catalog,
+      existingDiagramTarget,
+      initialDraftRef.current,
     )
+    // Fresh generation has no persisted target to hydrate. In particular, a
+    // late catalog response must not reset an already selected subtype.
+    if (!hydration.hasSource || controlsTouchedRef.current) return
+
+    setSubtype(hydration.subtype)
+    setLanguage(hydration.language)
+    setColorTheme(hydration.colorTheme)
+    setTextSize(hydration.textSize)
+    setShowLineNumbers(hydration.showLineNumbers)
+    setShowCopyButton(hydration.showCopyButton)
+    setCornerStyle(hydration.cornerStyle)
+    setColumnCount(hydration.columnCount)
+    setGanttTimeUnit(hydration.ganttTimeUnit)
+    setNumStages(hydration.numStages)
+    setChevronTimeUnit(hydration.chevronTimeUnit)
+    setAxisPreset(hydration.axisPreset)
+    setShowLayers(hydration.showLayers)
+    setShowDataTypes(hydration.showDataTypes)
+    setShowNullable(hydration.showNullable)
+    setLayoutHint(hydration.layoutHint)
+    setLeafTheme(hydration.leafTheme)
+    setPositionPreset(hydration.positionPreset)
+    setZIndex(hydration.zIndex)
+    setProvider(hydration.provider)
+    setProviderConflictConfirmed(hydration.providerConflictConfirmed)
+    setAdvancedModified(hydration.advancedModified)
+
+    const generationConfig = hydration.generationConfig
     updateThemeSource({
       mode: generationConfig?.theme_source ?? 'deck',
       overrides: generationConfig?.theme_source === 'another' && generationConfig.theme_palette
@@ -258,78 +441,6 @@ export function DiagramForm({
           }
         : null,
     })
-
-    if (settings) {
-      setLanguage(hydratedCatalogString(
-        hydratedCatalog.config.language, settings.language, 'python',
-      ))
-      setColorTheme(hydratedCatalogString(
-        hydratedCatalog.config.color_theme,
-        settings.color_theme,
-        'github_dark',
-      ) as CodeDisplayConfig['color_theme'])
-      if (['small', 'medium', 'large'].includes(String(settings.text_size))) {
-        setTextSize(settings.text_size as CodeDisplayConfig['text_size'])
-      }
-      if (typeof settings.show_line_numbers === 'boolean') setShowLineNumbers(settings.show_line_numbers)
-      if (typeof settings.show_copy_button === 'boolean') setShowCopyButton(settings.show_copy_button)
-      if (settings.corner_style === 'rounded' || settings.corner_style === 'square') {
-        setCornerStyle(settings.corner_style)
-      }
-      setColumnCount(hydratedCatalogNumber(
-        hydratedCatalog.config.column_count, settings.column_count, 4,
-      ))
-      if (hydratedType === 'GANTT_CHART') {
-        setGanttTimeUnit(hydratedCatalogString(
-          hydratedCatalog.config.time_unit,
-          settings.time_unit,
-          'weeks',
-        ) as GanttConfig['time_unit'])
-      }
-      if (hydratedType === 'CHEVRON_MATURITY') {
-        setChevronTimeUnit(hydratedCatalogString(
-          hydratedCatalog.config.time_unit, settings.time_unit, 'stages',
-        ) as ChevronConfig['time_unit'])
-      }
-      setNumStages(hydratedCatalogNumber(
-        hydratedCatalog.config.num_stages, settings.num_stages, 5,
-      ))
-      setAxisPreset(hydratedCatalogString(
-        hydratedCatalog.config.axis_preset,
-        settings.axis_preset,
-        'impact_urgency',
-      ) as IdeaBoardConfig['axis_preset'])
-      if (typeof settings.show_layers === 'boolean') setShowLayers(settings.show_layers)
-      if (typeof settings.show_data_types === 'boolean') setShowDataTypes(settings.show_data_types)
-      if (typeof settings.show_nullable === 'boolean') setShowNullable(settings.show_nullable)
-      setLayoutHint(hydratedCatalogString(
-        hydratedCatalog.config.layout_hint, settings.layout_hint, 'auto',
-      ) as NonNullable<CustomDiagramConfig['layout_hint']>)
-      setLeafTheme(hydratedCatalogString(
-        hydratedCatalog.config.theme, settings.theme, 'auto',
-      ) as LeafTheme)
-      setPositionPreset(hydratedCatalogString(
-        hydratedCatalog.config.position_preset, settings.position_preset, 'auto',
-      ))
-    }
-
-    const providerSelection = generationConfig?.provider_selection
-    const hydratedProvider = hydratedCatalogString(
-      hydratedCatalog.config.provider,
-      providerSelection?.provider ?? settings?.provider,
-      'auto',
-    ) as ProviderSelection
-    const providerWasManual = providerSelection
-      ? providerSelection.mode === 'manual'
-      : hydratedProvider !== 'auto'
-    if (providerWasManual && hydratedProvider !== 'auto') {
-      setProvider(hydratedProvider)
-      setProviderConflictConfirmed(providerSelection?.conflict_confirmed === true)
-    } else {
-      setProvider('auto')
-      setProviderConflictConfirmed(false)
-    }
-    setAdvancedModified(false)
   }, [
     catalog,
     existingDiagramTarget?.generationConfig,
@@ -345,8 +456,8 @@ export function DiagramForm({
     setLeafTheme('auto')
     setPositionPreset('auto')
     setProviderConflictConfirmed(false)
-    setAdvancedModified(true)
-  }, [])
+    markControlsModified()
+  }, [markControlsModified])
 
   useEffect(() => {
     registerMandatoryConfig({
@@ -358,6 +469,8 @@ export function DiagramForm({
       })),
       onChange: value => selectSubtype(value as TextLabsDiagramSubtype),
       promptPlaceholder: PROMPT_PLACEHOLDERS[subtype],
+      promptMaxLength: subtype === 'CUSTOM' ? CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH : undefined,
+      promptLimitLabel: subtype === 'CUSTOM' ? 'CUSTOM prompt' : undefined,
       customRender: (
         <select
           aria-label="Diagram type"
@@ -424,6 +537,13 @@ export function DiagramForm({
 
   const handleSubmit = useCallback(() => {
     if (providerConflict && !providerConflictConfirmed) return
+    if (
+      subtype === 'CUSTOM'
+      && elementPromptLengthState(
+        prompt,
+        CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH,
+      ).overLimit
+    ) return
     const settings = buildDiagramConfig()
     const clearedSettings = [
       ...(leafTheme === 'auto' && subtypeCatalog.config.theme ? ['theme'] : []),
@@ -475,7 +595,7 @@ export function DiagramForm({
     ['python', 'javascript', 'typescript', 'java', 'go', 'rust', 'sql', 'bash'],
   )
 
-  const markPrimaryModified = () => setAdvancedModified(true)
+  const markPrimaryModified = markControlsModified
 
   return (
     <div className="space-y-2.5">
@@ -586,7 +706,10 @@ export function DiagramForm({
           <ThemeSourceSelector
             presentationId={presentationId}
             value={themeSource}
-            onChange={updateThemeSource}
+            onChange={value => {
+              markControlsModified()
+              updateThemeSource(value)
+            }}
           />
 
           {subtype === 'CODE_DISPLAY' && (
@@ -596,7 +719,7 @@ export function DiagramForm({
                 field="text_size"
                 value={textSize}
                 options={['small', 'medium', 'large'].map(value => ({ value, label: humanize(value) }))}
-                onChange={(_, value) => { setTextSize(value as CodeDisplayConfig['text_size']); setAdvancedModified(true) }}
+                onChange={(_, value) => { setTextSize(value as CodeDisplayConfig['text_size']); markControlsModified() }}
               />
               <div className="grid grid-cols-2 gap-2">
                 <ToggleRow
@@ -604,14 +727,14 @@ export function DiagramForm({
                   field="show_line_numbers"
                   value={showLineNumbers ? 'true' : 'false'}
                   options={[{ value: 'true', label: 'Show' }, { value: 'false', label: 'Hide' }]}
-                  onChange={(_, value) => { setShowLineNumbers(value === 'true'); setAdvancedModified(true) }}
+                  onChange={(_, value) => { setShowLineNumbers(value === 'true'); markControlsModified() }}
                 />
                 <ToggleRow
                   label="Copy Button"
                   field="show_copy_button"
                   value={showCopyButton ? 'true' : 'false'}
                   options={[{ value: 'true', label: 'Show' }, { value: 'false', label: 'Hide' }]}
-                  onChange={(_, value) => { setShowCopyButton(value === 'true'); setAdvancedModified(true) }}
+                  onChange={(_, value) => { setShowCopyButton(value === 'true'); markControlsModified() }}
                 />
               </div>
               <ToggleRow
@@ -619,7 +742,7 @@ export function DiagramForm({
                 field="corner_style"
                 value={cornerStyle}
                 options={[{ value: 'rounded', label: 'Rounded' }, { value: 'square', label: 'Square' }]}
-                onChange={(_, value) => { setCornerStyle(value as CodeDisplayConfig['corner_style']); setAdvancedModified(true) }}
+                onChange={(_, value) => { setCornerStyle(value as CodeDisplayConfig['corner_style']); markControlsModified() }}
               />
             </>
           )}
@@ -629,7 +752,7 @@ export function DiagramForm({
               label="Named renderer theme"
               value={leafTheme}
               options={Array.from(new Set(['auto', ...strings(subtypeCatalog.config.theme, [])]))}
-              onChange={value => { setLeafTheme(value as LeafTheme); setAdvancedModified(true) }}
+              onChange={value => { setLeafTheme(value as LeafTheme); markControlsModified() }}
               autoLabel="Auto (Deck Theme)"
             />
           )}
@@ -640,7 +763,7 @@ export function DiagramForm({
               field="show_layers"
               value={showLayers ? 'true' : 'false'}
               options={[{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]}
-              onChange={(_, value) => { setShowLayers(value === 'true'); setAdvancedModified(true) }}
+              onChange={(_, value) => { setShowLayers(value === 'true'); markControlsModified() }}
             />
           )}
           {subtype === 'DATA_ARCHITECTURE' && (
@@ -650,14 +773,14 @@ export function DiagramForm({
                 field="show_data_types"
                 value={showDataTypes ? 'true' : 'false'}
                 options={[{ value: 'true', label: 'Show' }, { value: 'false', label: 'Hide' }]}
-                onChange={(_, value) => { setShowDataTypes(value === 'true'); setAdvancedModified(true) }}
+                onChange={(_, value) => { setShowDataTypes(value === 'true'); markControlsModified() }}
               />
               <ToggleRow
                 label="Nullable"
                 field="show_nullable"
                 value={showNullable ? 'true' : 'false'}
                 options={[{ value: 'true', label: 'Show' }, { value: 'false', label: 'Hide' }]}
-                onChange={(_, value) => { setShowNullable(value === 'true'); setAdvancedModified(true) }}
+                onChange={(_, value) => { setShowNullable(value === 'true'); markControlsModified() }}
               />
             </div>
           )}
@@ -669,12 +792,12 @@ export function DiagramForm({
               'auto',
               ...strings(subtypeCatalog.config.position_preset, []),
             ]))}
-            onChange={value => { setPositionPreset(value); setAdvancedModified(true) }}
+            onChange={value => { setPositionPreset(value); markControlsModified() }}
           />
           <ZIndexInput
             value={zIndex}
             onChange={setZIndex}
-            onAdvancedModified={() => setAdvancedModified(true)}
+            onAdvancedModified={markControlsModified}
           />
         </div>
       )}

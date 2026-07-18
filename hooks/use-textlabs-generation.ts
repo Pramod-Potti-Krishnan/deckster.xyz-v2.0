@@ -33,6 +33,12 @@ import {
   layoutMutationStateIsAmbiguous,
   sendLayoutMutationWithReconciliation,
 } from '@/lib/layout-command-result'
+import { resolveElementGenerationTimeoutMs } from '@/lib/element-generation-timeout'
+import {
+  CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH,
+  elementPromptLengthState,
+} from '@/lib/element-prompt-limit'
+import { resolveRefineGenerationConfig } from '@/lib/refine-generation-config'
 
 const THEME_CHANGED_DURING_GENERATION =
   'The deck theme changed while this element was being generated. Wait for Applied, then generate again.'
@@ -237,6 +243,18 @@ export function useTextLabsGeneration({
   const renderPresentationTarget = activePresentationTargetRef.current
 
   const handleGenerate = useCallback(async (formData: TextLabsFormData) => {
+    if (
+      formData.componentType === 'CUSTOM'
+      && elementPromptLengthState(
+        formData.prompt,
+        CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH,
+      ).overLimit
+    ) {
+      generationPanel.setError(
+        `CUSTOM prompts support up to ${CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH.toLocaleString()} characters. Shorten the prompt and try again.`,
+      )
+      return
+    }
     const expectedPresentationTarget = renderPresentationTarget
     const refineContext = generationPanel.mode === 'refine' ? generationPanel.refineContext : null
     const generationKey = refineContext
@@ -789,11 +807,10 @@ export function useTextLabsGeneration({
 
     // Structured planning and creative rendering are internal Text Labs work
     // and can exceed the short no-research timeout without invoking Researcher.
-    const generationTimeoutMs = formData.componentType === 'INFOGRAPHIC'
-      ? 300_000
-      : effectiveResearchMode === 'off'
-        ? 30_000
-        : 150_000
+    const generationTimeoutMs = resolveElementGenerationTimeoutMs(
+      formData.componentType,
+      effectiveResearchMode,
+    )
     const controller = new AbortController()
     const timeoutId = setTimeout(
       () => controller.abort(),
@@ -1047,7 +1064,10 @@ export function useTextLabsGeneration({
               ?? params.imageUrl
               ?? ''
             )
-            const generatedConfig = (formData.generationConfig ?? params.generationConfig ?? null) as RefineContext['generationConfig']
+            const generatedConfig = resolveRefineGenerationConfig(
+              params.generationConfig,
+              formData.generationConfig,
+            )
             const generatedGridPosition = gridPositionFromInsertionParams(params)
             const generatedComponentType = normalizeSemanticComponentType(formData.componentType)
               ?? (formData.componentType as TextLabsComponentType)

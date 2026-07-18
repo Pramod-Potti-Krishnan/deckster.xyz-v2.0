@@ -107,5 +107,7 @@ export interface MandatoryConfig {
   optionGroups?: MandatoryFieldOptionGroup[]
   onChange: (value: string) => void
   promptPlaceholder?: string
+  promptMaxLength?: number
+  promptLimitLabel?: string
   customRender?: React.ReactNode
 }
