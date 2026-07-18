@@ -19,13 +19,28 @@ import {
   inferExistingInfographicMode,
   validateManualInfographicSegments,
 } from '@/lib/infographic-config'
-import type { ElementContext, GenerationPanelProps, MandatoryConfig } from '../types'
+import type {
+  ElementContext,
+  GenerationPanelDraft,
+  GenerationPanelProps,
+  MandatoryConfig,
+} from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.INFOGRAPHIC
+const INFOGRAPHIC_OVERRIDE_KEYS = [
+  'aspect_ratio',
+  'crop_mode',
+  'target_background',
+  'fill_internal',
+  'layout_family',
+  'template_id',
+  'text_mode',
+  'show_icons',
+] as const
 
 type InfographicOverrides = Partial<Pick<
   InfographicConfig,
@@ -49,6 +64,7 @@ interface InfographicFormProps {
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
+  initialDraft?: GenerationPanelDraft | null
   panelMode: GenerationPanelProps['mode']
   existingTarget?: GenerationPanelProps['existingInfographicTarget']
 }
@@ -70,11 +86,13 @@ export function InfographicForm({
   prompt,
   showAdvanced,
   registerMandatoryConfig,
+  initialDraft,
   panelMode,
   existingTarget,
 }: InfographicFormProps) {
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const hydratedTargetRef = useRef(false)
   const [mode, setMode] = useState<InfographicMode>('v1')
   const [segmentCount, setSegmentCount] = useState<InfographicSegmentCount | undefined>()
   const [contentMode, setContentMode] = useState<'automatic' | 'manual'>('automatic')
@@ -93,6 +111,9 @@ export function InfographicForm({
   const [height, setHeight] = useState(DEFAULTS.height)
   const [showPosition, setShowPosition] = useState(false)
   const existingMode = inferExistingInfographicMode(existingTarget)
+  const draftFormData = initialDraft?.formData?.componentType === 'INFOGRAPHIC'
+    ? initialDraft.formData
+    : null
 
   useEffect(() => {
     if (!elementContext) return
@@ -108,6 +129,62 @@ export function InfographicForm({
   // New target activations remount the form through FormRouter's activation
   // key; a same-target close/reopen intentionally retains the live UAT draft.
   useEffect(() => {
+    if (hydratedTargetRef.current) return
+    hydratedTargetRef.current = true
+
+    const draftConfig = draftFormData?.infographicConfig
+    if (draftFormData && draftConfig) {
+      const draftMode = draftConfig.mode === 'v2' ? 'v2' : 'v1'
+      const draftSegments = Array.isArray(draftConfig.segments)
+        ? draftConfig.segments.map(segment => ({ ...segment }))
+        : []
+      const draftOverrides: InfographicOverrides = {}
+      for (const key of INFOGRAPHIC_OVERRIDE_KEYS) {
+        const value = draftConfig[key]
+        if (value !== undefined && value !== null) {
+          ;(draftOverrides as Record<string, unknown>)[key] = value
+        }
+      }
+
+      setMode(draftMode)
+      setReferenceImage(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      setSegmentCount(
+        typeof draftConfig.segment_count === 'number'
+          ? draftConfig.segment_count
+          : undefined,
+      )
+      setContentMode(
+        draftConfig.content_mode === 'manual' || draftSegments.length > 0
+          ? 'manual'
+          : 'automatic',
+      )
+      setSegmentRows(draftSegments)
+      setManualContentError(null)
+      setOverrides(draftOverrides)
+      setSegmentColorsInput(
+        Array.isArray(draftConfig.segment_colors)
+          ? draftConfig.segment_colors.join(', ')
+          : '',
+      )
+      setStartCol(draftConfig.start_col ?? elementContext?.startCol ?? 2)
+      setStartRow(draftConfig.start_row ?? elementContext?.startRow ?? 4)
+      setWidth(draftConfig.width ?? elementContext?.width ?? DEFAULTS.width)
+      setHeight(draftConfig.height ?? elementContext?.height ?? DEFAULTS.height)
+      setPositionPreset('custom')
+      setPositionModified(Boolean(draftFormData.advancedModified))
+      setZIndex(draftFormData.z_index ?? DEFAULTS.zIndex)
+      setShowPosition(false)
+      updateThemeSource(
+        draftFormData.useDeckTheme
+          ? { mode: 'deck', overrides: null }
+          : draftFormData.themeOverrides
+            ? { mode: 'another', overrides: draftFormData.themeOverrides }
+            : { mode: 'none', overrides: null },
+      )
+      return
+    }
+
     if (panelMode === 'refine') {
       setMode(existingMode)
     } else {
@@ -125,8 +202,14 @@ export function InfographicForm({
     setZIndex(DEFAULTS.zIndex)
     setShowPosition(false)
   }, [
+    draftFormData,
+    elementContext?.height,
+    elementContext?.startCol,
+    elementContext?.startRow,
+    elementContext?.width,
     existingMode,
     panelMode,
+    updateThemeSource,
   ])
 
   const clearReferenceImage = useCallback(() => {

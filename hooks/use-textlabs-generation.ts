@@ -984,6 +984,9 @@ export function useTextLabsGeneration({
                 generation_config: generatedConfig,
                 citations_used: citationsUsed,
                 metrics_color_variant: typeof params.metricsColorVariant === 'string' ? params.metricsColorVariant : null,
+                properties: params.structuredPlan
+                  ? { structuredPlan: params.structuredPlan }
+                  : undefined,
                 content: generatedContent,
                 grid_position: generatedGridPosition,
               },

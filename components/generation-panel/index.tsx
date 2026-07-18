@@ -443,6 +443,7 @@ function FormRouter({
       return (
         <InfographicForm
           {...commonProps}
+          initialDraft={initialDraft}
           panelMode={panelMode}
           existingTarget={existingInfographicTarget}
         />

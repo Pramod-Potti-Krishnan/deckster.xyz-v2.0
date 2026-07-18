@@ -203,9 +203,16 @@ const structuredInsertion = clientModule.buildInsertionParams('INFOGRAPHIC', {
   component_type: 'INFOGRAPHIC',
   mode: 'v2',
   html: '<section>Structured</section>',
+  metadata: {
+    structured_plan: { segment_count: 5 },
+  },
 })
 assert.equal(structuredInsertion.method, 'insertDiagram')
 assert.equal(structuredInsertion.params.htmlContent, '<section>Structured</section>')
+assert.deepEqual(
+  JSON.parse(JSON.stringify(structuredInsertion.params.structuredPlan)),
+  { segment_count: 5 },
+)
 const creativeInsertion = clientModule.buildInsertionParams('INFOGRAPHIC', {
   component_type: 'INFOGRAPHIC',
   mode: 'v1',
@@ -254,6 +261,10 @@ assert.doesNotMatch(formSource, /label:\s*['"`]Step \d/)
 assert.match(formSource, /Choose the generation path\. Creative is the default\./)
 assert.match(formSource, /Reset to Auto/)
 assert.match(formSource, /Manual rows are authoritative/)
+assert.match(formSource, /draftFormData\?\.infographicConfig/)
+assert.match(formSource, /setSegmentRows\(draftSegments\)/)
+assert.match(formSource, /hydratedTargetRef\.current/)
+assert.match(formSource, /mode: 'another', overrides: draftFormData\.themeOverrides/)
 assert.match(formSource, /setMode\('v1'\)/)
 assert.match(formSource, /option value="content">Content/)
 assert.doesNotMatch(formSource, /option value="rectangle"/)
@@ -266,5 +277,6 @@ assert.match(generationSource, /const nonResearchVisual = isNonResearchVisualEle
 assert.match(generationSource, /delete formData\.research/)
 assert.match(generationSource, /infographicConfig\.grid_row/)
 assert.match(generationSource, /formData\.componentType === 'INFOGRAPHIC'\s*\n\s*\? 300_000/)
+assert.match(generationSource, /properties: params\.structuredPlan/)
 
 console.log('infographic frontend contract tests passed')

@@ -740,6 +740,8 @@ export function buildInsertionParams(
     ?? element.generationConfig
     ?? element.metadata?.generation_config
     ?? element.metadata?.generationConfig
+  const structuredPlan = element.metadata?.structured_plan
+    ?? element.metadata?.structuredPlan
   if (semanticRole) baseParams.semanticRole = semanticRole
   if (slotName) baseParams.slotName = slotName
   if (slotKind) baseParams.slotKind = slotKind
@@ -753,6 +755,7 @@ export function buildInsertionParams(
   if (resolvedTableProfile) baseParams.resolvedTableProfile = resolvedTableProfile
   if (citationsUsed) baseParams.citationsUsed = citationsUsed
   if (generationConfig) baseParams.generationConfig = generationConfig
+  if (structuredPlan) baseParams.structuredPlan = structuredPlan
 
   if (paddingConfig) {
     baseParams.style = {
