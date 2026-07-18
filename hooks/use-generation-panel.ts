@@ -21,6 +21,12 @@ function cloneFormDataForDraft(formData: TextLabsFormData): TextLabsFormData {
   }
 }
 
+function showAdvancedFromGenerationConfig(formData?: TextLabsFormData | null): boolean | undefined {
+  const generationConfig = formData?.generationConfig
+  if (!generationConfig || typeof generationConfig !== 'object' || Array.isArray(generationConfig)) return undefined
+  return typeof generationConfig.showAdvanced === 'boolean' ? generationConfig.showAdvanced : undefined
+}
+
 /**
  * Manages the GenerationPanel open/close state and selected element type.
  * Remembers the last-used element type within the session.
@@ -107,7 +113,7 @@ export function useGenerationPanel() {
     const next: GenerationPanelDraft = {
       ...(source || {}),
       prompt: formData?.prompt ?? source?.prompt,
-      showAdvanced: formData?.advancedModified ?? source?.showAdvanced,
+      showAdvanced: showAdvancedFromGenerationConfig(formData) ?? formData?.advancedModified ?? source?.showAdvanced,
       formData: formData ? cloneFormDataForDraft(formData) : source?.formData ?? null,
       researchMode,
       researchWeb,
