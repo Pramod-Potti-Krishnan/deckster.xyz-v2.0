@@ -171,20 +171,39 @@ for (const provenance of ['illustrative', 'user_provided']) {
 
 const chartFormSource = fs.readFileSync(moduleUrl('../components/generation-panel/forms/chart-form.tsx'), 'utf8')
 const generationSource = fs.readFileSync(moduleUrl('../hooks/use-textlabs-generation.ts'), 'utf8')
+const panelSource = fs.readFileSync(moduleUrl('../components/generation-panel/index.tsx'), 'utf8')
+const chartFormCompilation = ts.transpileModule(chartFormSource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
+  reportDiagnostics: true,
+})
+assert.deepEqual(
+  chartFormCompilation.diagnostics?.filter(diagnostic => diagnostic.category === ts.DiagnosticCategory.Error) ?? [],
+  [],
+  'chart form remains syntactically valid TSX',
+)
 assert.match(chartFormSource, /aria-label="Chart Type"/)
-assert.match(chartFormSource, /Comparison & composition/)
-assert.match(chartFormSource, /Relationships & profiles/)
+for (const group of [
+  'Recommended', 'Basic', 'Correlation', 'Radial', 'Time Series', 'Comparison', 'Financial',
+]) assert.match(chartFormSource, new RegExp(`group: '${group}'`), `${group} chart group is visible`)
 for (const chartType of [
   'auto', 'line', 'bar_vertical', 'bar_horizontal', 'pie', 'doughnut',
   'scatter', 'bubble', 'radar', 'polar_area', 'area', 'area_stacked',
   'bar_grouped', 'bar_stacked', 'waterfall',
 ]) assert.match(chartFormSource, new RegExp(`value: '${chartType}'`), `${chartType} is visible in the selector`)
 assert.doesNotMatch(chartFormSource, /Content Source/)
-assert.doesNotMatch(chartFormSource, /PositionPresets/)
+assert.match(chartFormSource, /customRender:/, 'the grouped chart selector renders in the chat toolbar')
+assert.match(chartFormSource, /<PositionPresets/, 'advanced chart settings restore full position controls')
+assert.match(chartFormSource, /CollapsibleSection title="Position"/)
+assert.match(chartFormSource, /auto_position: true/, 'chart positioning defaults to the live canvas')
+assert.match(chartFormSource, /previous => previous\.auto_position \? \{/, 'canvas refreshes cannot reset an explicit Manual position')
+assert.match(chartFormSource, /if \(next\.auto_position && elementContext\)/, 'returning to Auto restores live canvas geometry in the controls')
+assert.match(panelSource, /elementContext && elementType !== 'CHART'/, 'the redundant chart position banner does not displace the chat controls')
 assert.match(chartFormSource, /X-axis label/)
 assert.match(chartFormSource, /Y-axis label/)
 assert.match(chartFormSource, /Scatter and bubble data require distinct X-axis and Y-axis labels/)
-assert.match(generationSource, /const authoritativeGridPosition = currentBlankInfo/)
+assert.match(generationSource, /const manuallyPositionedChart = formData\.componentType === 'CHART'/)
+assert.match(generationSource, /manuallyPositionedChart && formData\.positionConfig \? \{/)
+assert.match(generationSource, /\} : currentBlankInfo && formData\.count <= 1 \? \{/, 'Auto still preserves dragged placeholder geometry')
 assert.match(generationSource, /source_provenance: element\.source_provenance \?\? response\.source_provenance/)
 assert.match(generationSource, /researchedChartRecoveryMessage/)
 assert.match(generationSource, /method === 'insertChart'/)

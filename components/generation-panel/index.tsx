@@ -326,7 +326,7 @@ export function GenerationPanel({
         />
 
         {/* Canvas position indicator */}
-        {elementContext && (
+        {elementContext && elementType !== 'CHART' && (
           <div className="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
             Position from canvas ({elementContext.width}&times;{elementContext.height} cells)
