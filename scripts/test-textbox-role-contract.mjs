@@ -146,6 +146,11 @@ assert.doesNotMatch(
   /geometryMode === 'MANUAL'[\s\S]{0,160}setGeometryMode\('AUTO'\)/,
   'selecting Manual with no overrides must not snap back to Auto before the user can choose fields',
 )
+assert.doesNotMatch(
+  textBoxFormSource,
+  /aria-label="Geometry mode"|<option value="MANUAL">Manual<\/option>/,
+  'Advanced no longer exposes a global Auto/Manual geometry selector',
+)
 for (const restoredField of [
   'setCount(saved?.count ?? 1)',
   "setLayoutChoice(saved?.layoutChoice ?? 'auto')",
@@ -365,6 +370,7 @@ assert.match(formSource, /Grid rows/)
 assert.match(formSource, /Multi-box color style/)
 assert.match(formSource, /Transparent/)
 assert.match(formSource, /effectiveTextGeometry/)
+assert.match(formSource, /Explicit values below become sparse overrides/)
 assert.doesNotMatch(formSource, />Structure</)
 assert.doesNotMatch(panelSource, /Regenerate|onRegenerateToggle|regenerateEnabled/)
 assert.doesNotMatch(typesSource, /function recalcTextBoxLimits/)
