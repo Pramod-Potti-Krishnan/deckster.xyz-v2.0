@@ -171,6 +171,32 @@ assert.doesNotMatch(
   'ordinary element selection must not open the Text Labs drawer; only explicit Regenerate should',
 )
 
+const presentationViewerSource = fs.readFileSync(
+  new URL('../components/presentation-viewer.tsx', import.meta.url),
+  'utf8',
+)
+assert.match(presentationViewerSource, /LAYOUT_ELEMENT_COMMAND_TIMEOUTS/)
+assert.match(
+  presentationViewerSource,
+  /upsertSemanticElement:\s*CITED_UPSERT_LAYOUT_COMMAND_TIMEOUT_MS/,
+  'semantic text upserts must not use the generic 5s postMessage timeout',
+)
+assert.match(
+  presentationViewerSource,
+  /upsertCitedElement:\s*CITED_UPSERT_LAYOUT_COMMAND_TIMEOUT_MS/,
+  'cited text/table/metrics upserts must allow source-registry rebuild and save',
+)
+assert.match(
+  presentationViewerSource,
+  /insertTextBox:\s*MUTATING_LAYOUT_COMMAND_TIMEOUT_MS/,
+  'blank placeholder replacement must allow Layout insertion acknowledgement beyond 5s',
+)
+assert.match(
+  presentationViewerSource,
+  /deleteElement:\s*MUTATING_LAYOUT_COMMAND_TIMEOUT_MS/,
+  'blank placeholder cleanup must allow Layout deletion acknowledgement beyond 5s',
+)
+
 const generationPanelSource = fs.readFileSync(
   new URL('../components/generation-panel/shared/research-controls.tsx', import.meta.url),
   'utf8',
