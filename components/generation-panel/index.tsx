@@ -475,11 +475,11 @@ function FormRouter({
     case 'CHART':
       return <ChartForm {...commonProps} />
     case 'IMAGE':
-      return <ImageForm {...commonProps} />
+      return <ImageForm {...commonProps} initialDraft={initialDraft} />
     case 'ICON_LABEL':
-      return <IconLabelForm {...commonProps} />
+      return <IconLabelForm {...commonProps} initialDraft={initialDraft} />
     case 'SHAPE':
-      return <ShapeForm {...commonProps} />
+      return <ShapeForm {...commonProps} initialDraft={initialDraft} />
     case 'INFOGRAPHIC':
       return (
         <InfographicForm

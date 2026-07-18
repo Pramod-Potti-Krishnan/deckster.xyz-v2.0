@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { ShapeFormData, ShapeConfig, TextLabsShapeType, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
-import { ElementContext, MandatoryConfig, MandatoryFieldOption } from '../types'
+import { ElementContext, GenerationPanelDraft, MandatoryConfig, MandatoryFieldOption } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 import { useDeckThemePalette } from '@/hooks/use-deck-theme-palette'
+import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.SHAPE
 type ShapeOverrideField =
@@ -90,30 +91,48 @@ interface ShapeFormProps {
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
+  initialDraft?: GenerationPanelDraft | null
 }
 
-export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ShapeFormProps) {
-  const [count, setCount] = useState(1)
-  const [shapeType, setShapeType] = useState<TextLabsShapeType>('custom')
-  const [sides, setSides] = useState(6)
-  const [fillColor, setFillColor] = useState('#3B82F6')
-  const [strokeColor, setStrokeColor] = useState('#1E40AF')
-  const [strokeWidth, setStrokeWidth] = useState(2)
-  const [opacity, setOpacity] = useState(1.0)
-  const [rotation, setRotation] = useState(0)
-  const [size, setSize] = useState<'small' | 'medium' | 'large'>('medium')
-  const [targetBackground, setTargetBackground] = useState('light')
-  const [advancedModified, setAdvancedModified] = useState(false)
-  const [explicitFields, setExplicitFields] = useState<Set<ShapeOverrideField>>(() => new Set())
-  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
+export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft }: ShapeFormProps) {
+  const initialFormData = initialDraft?.formData?.componentType === 'SHAPE'
+    ? initialDraft.formData
+    : null
+  const initialConfig = initialFormData?.shapeConfig || {}
+  const initialExplicitFields = new Set<ShapeOverrideField>([
+    ...('sides' in initialConfig ? ['sides' as const] : []),
+    ...('fill_color' in initialConfig ? ['fill' as const] : []),
+    ...('stroke_color' in initialConfig ? ['stroke' as const] : []),
+    ...('stroke_width' in initialConfig ? ['strokeWidth' as const] : []),
+    ...('opacity' in initialConfig ? ['opacity' as const] : []),
+    ...('rotation' in initialConfig ? ['rotation' as const] : []),
+    ...('size' in initialConfig ? ['size' as const] : []),
+    ...('target_background' in initialConfig ? ['background' as const] : []),
+  ])
+  const [count, setCount] = useState(initialFormData?.count ?? 1)
+  const [shapeType, setShapeType] = useState<TextLabsShapeType>(initialConfig.shape_type || 'custom')
+  const [sides, setSides] = useState(initialConfig.sides || 6)
+  const [fillColor, setFillColor] = useState(initialConfig.fill_color || '#3B82F6')
+  const [strokeColor, setStrokeColor] = useState(initialConfig.stroke_color || '#1E40AF')
+  const [strokeWidth, setStrokeWidth] = useState(initialConfig.stroke_width ?? 2)
+  const [opacity, setOpacity] = useState(initialConfig.opacity ?? 1.0)
+  const [rotation, setRotation] = useState(initialConfig.rotation ?? 0)
+  const [size, setSize] = useState<'small' | 'medium' | 'large'>(initialConfig.size || 'medium')
+  const [targetBackground, setTargetBackground] = useState(initialConfig.target_background || 'light')
+  const [advancedModified, setAdvancedModified] = useState(Boolean(initialFormData?.advancedModified))
+  const [explicitFields, setExplicitFields] = useState<Set<ShapeOverrideField>>(() => initialExplicitFields)
+  const [zIndex, setZIndex] = useState(initialFormData?.z_index ?? DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(
+    presentationId,
+    initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null,
+  )
   const { tokens: themeTokens } = useDeckThemePalette(presentationId)
 
   // Pixel-based position (primary)
-  const [x, setX] = useState(60)       // px, 0-1919
-  const [y, setY] = useState(180)      // px, 0-1079
-  const [widthPx, setWidthPx] = useState(gridToPx(DEFAULTS.width))  // px, 1-1920
-  const [heightPx, setHeightPx] = useState(gridToPx(DEFAULTS.height)) // px, 1-1080
+  const [x, setX] = useState(initialConfig.x ?? 60)       // px, 0-1919
+  const [y, setY] = useState(initialConfig.y ?? 180)      // px, 0-1079
+  const [widthPx, setWidthPx] = useState(initialConfig.width_px ?? gridToPx(DEFAULTS.width))  // px, 1-1920
+  const [heightPx, setHeightPx] = useState(initialConfig.height_px ?? gridToPx(DEFAULTS.height)) // px, 1-1080
 
   // Initialize from canvas context (grid→pixel)
   useEffect(() => {
@@ -126,7 +145,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
   }, [elementContext])
 
   // Padding
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(initialFormData?.paddingConfig || {
     top: 0, right: 0, bottom: 0, left: 0,
   })
   const [showStyling, setShowStyling] = useState(false)

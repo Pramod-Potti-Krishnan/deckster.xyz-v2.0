@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { ImageFormData, ImageConfig, TextLabsImageStyle, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE, IMAGE_POSITION_PRESETS } from '@/types/textlabs'
-import { ElementContext, MandatoryConfig } from '../types'
+import { ElementContext, GenerationPanelDraft, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
+import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.IMAGE
 type ImageOverrideField = 'style' | 'quality' | 'corners' | 'border' | 'position' | 'aspectRatio'
@@ -87,24 +88,40 @@ interface ImageFormProps {
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig) => void
+  initialDraft?: GenerationPanelDraft | null
 }
 
-export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: ImageFormProps) {
+export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft }: ImageFormProps) {
+  const initialFormData = initialDraft?.formData?.componentType === 'IMAGE'
+    ? initialDraft.formData
+    : null
+  const initialConfig = initialFormData?.imageConfig || {}
+  const initialExplicitFields = new Set<ImageOverrideField>([
+    ...('style' in initialConfig ? ['style' as const] : []),
+    ...('quality' in initialConfig ? ['quality' as const] : []),
+    ...('corners' in initialConfig ? ['corners' as const] : []),
+    ...('border' in initialConfig ? ['border' as const] : []),
+    ...('auto_position' in initialConfig ? ['position' as const] : []),
+    ...('aspect_ratio' in initialConfig ? ['aspectRatio' as const] : []),
+  ])
   // Image config
-  const [style, setStyle] = useState<TextLabsImageStyle>('realistic')
-  const [quality, setQuality] = useState<ImageConfig['quality']>('standard')
-  const [corners, setCorners] = useState<'square' | 'rounded'>('square')
-  const [border, setBorder] = useState(false)
-  const [startCol, setStartCol] = useState(2)
-  const [startRow, setStartRow] = useState(4)
-  const [width, setWidth] = useState(DEFAULTS.width)
-  const [height, setHeight] = useState(DEFAULTS.height)
-  const [selectedAspectRatio, setSelectedAspectRatio] = useState('16:9')
+  const [style, setStyle] = useState<TextLabsImageStyle>(initialConfig.style || 'realistic')
+  const [quality, setQuality] = useState<ImageConfig['quality']>(initialConfig.quality || 'standard')
+  const [corners, setCorners] = useState<'square' | 'rounded'>(initialConfig.corners || 'square')
+  const [border, setBorder] = useState(initialConfig.border || false)
+  const [startCol, setStartCol] = useState(initialConfig.start_col || 2)
+  const [startRow, setStartRow] = useState(initialConfig.start_row || 4)
+  const [width, setWidth] = useState(initialConfig.width || DEFAULTS.width)
+  const [height, setHeight] = useState(initialConfig.height || DEFAULTS.height)
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState(initialConfig.aspect_ratio || '16:9')
   const [selectedPositionPreset, setSelectedPositionPreset] = useState<string | null>(null)
-  const [advancedModified, setAdvancedModified] = useState(false)
-  const [explicitFields, setExplicitFields] = useState<Set<ImageOverrideField>>(() => new Set())
-  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
+  const [advancedModified, setAdvancedModified] = useState(Boolean(initialFormData?.advancedModified))
+  const [explicitFields, setExplicitFields] = useState<Set<ImageOverrideField>>(() => initialExplicitFields)
+  const [zIndex, setZIndex] = useState(initialFormData?.z_index ?? DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(
+    presentationId,
+    initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null,
+  )
 
   // Section visibility
   const [showStyle, setShowStyle] = useState(false)
@@ -112,9 +129,9 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [showPadding, setShowPadding] = useState(false)
 
   // Padding
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
-    top: 0, right: 0, bottom: 0, left: 0,
-  })
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(
+    initialFormData?.paddingConfig || { top: 0, right: 0, bottom: 0, left: 0 },
+  )
 
   const markExplicit = useCallback((...fields: ImageOverrideField[]) => {
     setExplicitFields(previous => {

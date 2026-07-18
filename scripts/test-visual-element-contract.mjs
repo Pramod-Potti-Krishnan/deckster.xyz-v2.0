@@ -26,6 +26,30 @@ assert.equal(researchPolicy.isNonResearchVisualElement('INFOGRAPHIC'), true)
 assert.equal(researchPolicy.isNonResearchVisualElement('TEXT_BOX', 'accessory', 'LOGO'), true)
 assert.equal(researchPolicy.isNonResearchVisualElement('TEXT_BOX', 'body', null), false)
 
+const visualDraft = compile(new URL('../lib/visual-form-draft.ts', import.meta.url))
+assert.deepEqual(
+  JSON.parse(JSON.stringify(visualDraft.resolveDraftThemeSource('deck-1', {
+    useDeckTheme: false,
+    themeOverrides: null,
+  }))),
+  { mode: 'none', overrides: null },
+  'a successful replacement remount preserves an explicit No theme selection',
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(visualDraft.resolveDraftThemeSource('deck-1', {
+    useDeckTheme: false,
+    themeOverrides: { primary: '#112233' },
+  }))),
+  { mode: 'another', overrides: { primary: '#112233' } },
+  'a successful replacement remount preserves another-theme overrides',
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(visualDraft.resolveDraftThemeSource('deck-1', {
+    useDeckTheme: true,
+  }))),
+  { mode: 'deck', overrides: null },
+)
+
 const staleResearchProvenance = {
   mode: 'on',
   sources: [
@@ -297,7 +321,7 @@ assert.doesNotMatch(
 )
 assert.match(
   panelSource,
-  /registration\?\.key === panelTargetKey\) registration\.submit\(\)/,
+  /if \(registration\?\.key !== panelTargetKey\) return[\s\S]{0,250}registration\.submit\(\)/,
   'the submit callback is scoped to the active panel target',
 )
 assert.doesNotMatch(
@@ -308,6 +332,12 @@ assert.doesNotMatch(
 assert.match(inputSource, /Array\.isArray\(mandatoryConfig\)/, 'the prompt toolbar supports multiple primary controls')
 assert.match(inputSource, /selectedOption\?\.color/, 'palette choices expose their swatches in the prompt toolbar')
 assert.match(imageFormSource, /fieldLabel: 'Image style'/)
+assert.match(panelSource, /<ImageForm \{\.\.\.commonProps\} initialDraft=\{initialDraft\}/)
+assert.match(panelSource, /<IconLabelForm \{\.\.\.commonProps\} initialDraft=\{initialDraft\}/)
+assert.match(panelSource, /<ShapeForm \{\.\.\.commonProps\} initialDraft=\{initialDraft\}/)
+for (const source of [imageFormSource, iconFormSource, shapeFormSource]) {
+  assert.match(source, /resolveDraftThemeSource\(presentationId, initialFormData\)/)
+}
 assert.match(imageFormSource, /group: 'Automatic'[\s\S]{0,100}value: 'auto'/)
 for (const [value, label] of [
   ['realistic', 'Realistic'],

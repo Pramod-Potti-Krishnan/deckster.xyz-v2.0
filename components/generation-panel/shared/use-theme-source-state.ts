@@ -2,17 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { ThemeSourceSelection } from '@/types/textlabs'
+import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
 
-export function useThemeSourceState(presentationId?: string | null) {
-  const [touched, setTouched] = useState(false)
-  const [themeSource, setThemeSource] = useState<ThemeSourceSelection>({
-    mode: presentationId ? 'deck' : 'none',
-    overrides: null,
-  })
+export function useThemeSourceState(
+  presentationId?: string | null,
+  initialSelection?: ThemeSourceSelection | null,
+) {
+  const [touched, setTouched] = useState(Boolean(initialSelection))
+  const [themeSource, setThemeSource] = useState<ThemeSourceSelection>(() =>
+    initialSelection || resolveDraftThemeSource(presentationId),
+  )
 
   useEffect(() => {
     if (touched) return
-    setThemeSource({ mode: presentationId ? 'deck' : 'none', overrides: null })
+    setThemeSource(resolveDraftThemeSource(presentationId))
   }, [presentationId, touched])
 
   const updateThemeSource = useCallback((selection: ThemeSourceSelection) => {
