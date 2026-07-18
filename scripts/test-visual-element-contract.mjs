@@ -26,6 +26,41 @@ assert.equal(researchPolicy.isNonResearchVisualElement('INFOGRAPHIC'), true)
 assert.equal(researchPolicy.isNonResearchVisualElement('TEXT_BOX', 'accessory', 'LOGO'), true)
 assert.equal(researchPolicy.isNonResearchVisualElement('TEXT_BOX', 'body', null), false)
 
+const staleResearchProvenance = {
+  mode: 'on',
+  sources: [
+    { source_type: 'web', selected: true },
+    { source_type: 'uploaded_docs', selected: true },
+    { source_type: 'knowledge_graph', selected: true },
+  ],
+}
+const restoredInfographicResearch = researchPolicy.restoreElementResearchSelection(
+  'INFOGRAPHIC',
+  staleResearchProvenance,
+)
+assert.equal(restoredInfographicResearch.mode, 'off')
+assert.equal(restoredInfographicResearch.web, false)
+assert.equal(restoredInfographicResearch.uploadedDocuments, false)
+assert.equal(restoredInfographicResearch.knowledgeGraph, false)
+
+const restoredLogoResearch = researchPolicy.restoreElementResearchSelection(
+  'TEXT_BOX',
+  staleResearchProvenance,
+  'accessory',
+  'LOGO',
+)
+assert.equal(restoredLogoResearch.mode, 'off')
+assert.equal(restoredLogoResearch.web, false)
+
+const restoredDiagramResearch = researchPolicy.restoreElementResearchSelection(
+  'DIAGRAM',
+  staleResearchProvenance,
+)
+assert.equal(restoredDiagramResearch.mode, 'on')
+assert.equal(restoredDiagramResearch.web, true)
+assert.equal(restoredDiagramResearch.uploadedDocuments, true)
+assert.equal(restoredDiagramResearch.knowledgeGraph, true)
+
 const blankPolicy = compile(new URL('../lib/element-blank-policy.ts', import.meta.url))
 assert.equal(
   blankPolicy.shouldOpenAsBlankPlaceholder({
