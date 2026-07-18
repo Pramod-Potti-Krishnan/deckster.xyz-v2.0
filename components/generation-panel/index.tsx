@@ -419,7 +419,7 @@ function FormRouter({
     case 'TEXT_BOX':
       return <TextBoxForm {...commonProps} researchControls={researchControls} slotCatalog={slotCatalog} slotCatalogLoading={slotCatalogLoading} slotCatalogError={slotCatalogError} existingTextTarget={existingTextTarget} />
     case 'METRICS':
-      return <MetricsForm {...commonProps} researchControls={researchControls} existingTextTarget={existingTextTarget} />
+      return <MetricsForm {...commonProps} researchControls={researchControls} existingTextTarget={existingTextTarget} initialDraft={initialDraft} />
     case 'TABLE':
       return <TableForm {...commonProps} researchControls={researchControls} initialDraft={initialDraft} onDraftChange={onDraftChange} />
     case 'CHART':

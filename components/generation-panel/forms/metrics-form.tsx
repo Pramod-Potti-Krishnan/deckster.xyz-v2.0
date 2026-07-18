@@ -10,7 +10,7 @@ import type {
   TextLabsPositionConfig,
 } from '@/types/textlabs'
 import { TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
-import type { ElementContext, MandatoryConfig } from '../types'
+import type { ElementContext, GenerationPanelDraft, MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { PositionPresets } from '../shared/position-presets'
@@ -87,6 +87,7 @@ interface MetricsFormProps {
     elementId?: string | null
     generationConfig?: Record<string, unknown> | null
   } | null
+  initialDraft?: GenerationPanelDraft | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -130,8 +131,9 @@ function sanitizeSavedMetricsConfig(
 }
 
 function readSavedMetricsGenerationConfig(value: unknown) {
-  const source = asRecord(value)
-  if (!source) return null
+  const root = asRecord(value)
+  if (!root) return null
+  const source = asRecord(root.formData) ?? root
   const fitMode = stringValue(source.metricsFitMode ?? source.metrics_fit_mode, ['AUTO', 'MANUAL'] as const, 'AUTO')
   return {
     count: Math.max(1, Math.min(4, Math.round(numberValue(source.count, 1)))),
@@ -235,6 +237,7 @@ export function MetricsForm({
   registerMandatoryConfig,
   researchControls,
   existingTextTarget,
+  initialDraft,
 }: MetricsFormProps) {
   const [count, setCount] = useState(1)
   const [layoutChoice, setLayoutChoice] = useState<MetricsLayoutChoice>('auto')
@@ -268,8 +271,12 @@ export function MetricsForm({
   })
   const previousTargetIdentity = useRef<string | null>(null)
 
+  const draftGenerationConfig = asRecord(initialDraft?.formData?.generationConfig)
+    ?? asRecord(initialDraft?.formData)
+    ?? null
+  const savedGenerationConfig = draftGenerationConfig ?? existingTextTarget?.generationConfig ?? null
   const targetIdentity = elementContext?.elementId ?? existingTextTarget?.elementId ?? null
-  const targetResetKey = `${targetIdentity ?? 'new'}:${existingTextTarget?.generationConfig ? 'saved' : 'auto'}`
+  const targetResetKey = `${targetIdentity ?? 'new'}:${savedGenerationConfig ? 'saved' : 'auto'}`
 
   useEffect(() => {
     registerMandatoryConfig(null)
@@ -277,7 +284,7 @@ export function MetricsForm({
 
   useEffect(() => {
     if (previousTargetIdentity.current !== targetResetKey) {
-      const saved = readSavedMetricsGenerationConfig(existingTextTarget?.generationConfig)
+      const saved = readSavedMetricsGenerationConfig(savedGenerationConfig)
       setCount(saved?.count ?? 1)
       setLayoutChoice(saved?.layoutChoice ?? 'auto')
       setMultiBoxColorMode(saved?.multiBoxColorMode ?? 'SAME')
@@ -298,7 +305,7 @@ export function MetricsForm({
       setShowPadding(false)
     }
     previousTargetIdentity.current = targetResetKey
-  }, [existingTextTarget?.generationConfig, targetResetKey])
+  }, [savedGenerationConfig, targetResetKey])
 
   useEffect(() => {
     if (!elementContext) return
