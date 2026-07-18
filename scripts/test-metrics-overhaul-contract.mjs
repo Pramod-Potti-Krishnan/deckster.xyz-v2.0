@@ -271,6 +271,24 @@ assert.equal(firstInsertion.params.componentType, 'METRICS')
 assert.equal(firstInsertion.params.citationsUsed[0].source_key, 'source-a')
 assert.equal(firstInsertion.params.resolvedMetricsProfile.tier, 'regular')
 assert.equal(firstInsertion.params.metricsColorVariant, '#547ea9')
+const metricsGenerationConfig = {
+  version: 1,
+  componentType: 'METRICS',
+  prompt: 'Revenue and margin',
+  count: 4,
+  metricsLayoutChoice: 'grid',
+  layout: 'grid',
+  multiBoxColorMode: 'PRIMARY_ACCENTS',
+  metricsFitMode: 'AUTO',
+  metricsConfig: { layout: 'grid' },
+  showAdvanced: true,
+}
+const cachedInsertion = client.buildInsertionParams('METRICS', {
+  html: '<div>42%</div>',
+  component_type: 'METRICS',
+  generation_config: metricsGenerationConfig,
+})
+assert.deepEqual(JSON.parse(JSON.stringify(cachedInsertion.params.generationConfig)), metricsGenerationConfig)
 
 const formSource = fs.readFileSync(new URL('../components/generation-panel/forms/metrics-form.tsx', import.meta.url), 'utf8')
 const researchSource = fs.readFileSync(new URL('../components/generation-panel/shared/research-controls.tsx', import.meta.url), 'utf8')
@@ -306,7 +324,16 @@ assert.match(formSource, /Primary color accents/)
 assert.match(formSource, /Different theme colors/)
 assert.match(formSource, /Auto fit/)
 assert.match(formSource, /disabled=\{!fitIsManual\}/)
-assert.match(formSource, /hasEffectiveVisualOverrides = Object\.keys\(metricsConfig\)/)
+assert.match(formSource, /readSavedMetricsGenerationConfig/)
+assert.match(formSource, /asRecord\(root\.formData\) \?\? root/)
+assert.match(formSource, /draftGenerationConfig/)
+assert.match(formSource, /savedGenerationConfig/)
+assert.match(formSource, /setCount\(saved\?\.count \?\? 1\)/)
+assert.match(formSource, /setMultiBoxColorMode\(saved\?\.multiBoxColorMode \?\? 'SAME'\)/)
+assert.match(formSource, /sanitizeSavedMetricsConfig/)
+assert.match(formSource, /const generationConfig = useMemo/)
+assert.match(formSource, /generationConfig,/)
+assert.match(formSource, /hasEffectiveVisualOverrides = useMemo/)
 assert.match(formSource, /paddingModified && hasContainerPadding/)
 assert.match(formSource, /showAdvanced &&/)
 for (const section of ['Instances', 'Card Design', 'Value', 'Label', 'Description', 'Spacing & padding', 'Positioning', 'Container Padding']) {
@@ -331,9 +358,12 @@ assert.match(routerSource, /'upsertCitedElement'/)
 assert.match(clientSource, /metricsFitMode: 'metrics_fit_mode'/)
 assert.match(clientSource, /manualMetricsOverrides: 'manual_metrics_overrides'/)
 assert.match(clientSource, /options\.multiBoxColorMode = formData\.multiBoxColorMode/)
-assert.match(panelSource, /setShowAdvanced\(false\)/)
-assert.match(panelSource, /key=\{`\$\{activationId\}:\$\{elementType\}`\}/)
+assert.match(panelSource, /persistedGenerationDraft/)
+assert.match(panelSource, /existingTextTarget\?\.generationConfig/)
+assert.match(panelSource, /savedFormGenerationConfig\?\.showAdvanced/)
+assert.match(panelSource, /<MetricsForm \{\.\.\.commonProps\} researchControls=\{researchControls\} existingTextTarget=\{existingTextTarget\} initialDraft=\{initialDraft\}/)
 assert.match(panelHookSource, /setActivationId\(previous => previous \+ 1\)/)
+assert.match(panelHookSource, /showAdvancedFromGenerationConfig/)
 assert.doesNotMatch(panelHookSource, /reopenPanel|const openPanel =/)
 assert.match(builderSource, /features\.useTextLabsGeneration && generationPanel\.isOpen/)
 assert.doesNotMatch(builderSource, /generationPanel\.reopenPanel/)

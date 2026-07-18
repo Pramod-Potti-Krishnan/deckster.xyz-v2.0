@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   MetricsConfig,
   MetricsFitMode,
@@ -10,7 +10,7 @@ import type {
   TextLabsPositionConfig,
 } from '@/types/textlabs'
 import { TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
-import type { ElementContext, MandatoryConfig } from '../types'
+import type { ElementContext, GenerationPanelDraft, MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PaddingControl } from '../shared/padding-control'
 import { PositionPresets } from '../shared/position-presets'
@@ -65,6 +65,13 @@ const TYPOGRAPHY_VISUAL_FIELDS: Array<keyof MetricsConfig> = [
   'label_font_color', 'label_font_family', 'label_bold', 'label_italic', 'label_allcaps',
   'desc_font_color', 'desc_font_family', 'desc_bold', 'desc_italic', 'desc_allcaps',
 ]
+const LAYOUT_CHOICE_VALUES: MetricsLayoutChoice[] = ['auto', 'horizontal', 'vertical', 'grid']
+const MULTI_BOX_COLOR_VALUES: Array<NonNullable<MetricsFormData['multiBoxColorMode']>> = [
+  'SAME',
+  'ALTERNATING',
+  'PRIMARY_ACCENTS',
+  'THEME_SEQUENCE',
+]
 
 interface MetricsFormProps {
   onSubmit: (formData: MetricsFormData) => void
@@ -76,6 +83,78 @@ interface MetricsFormProps {
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | null) => void
   researchControls?: ReactNode
+  existingTextTarget?: {
+    elementId?: string | null
+    generationConfig?: Record<string, unknown> | null
+  } | null
+  initialDraft?: GenerationPanelDraft | null
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function stringValue<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? value as T : fallback
+}
+
+function numberValue(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function booleanValue(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function compactRecord(value: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!value) return null
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
+  )
+}
+
+function sanitizeSavedMetricsConfig(
+  value: unknown,
+  fitMode: MetricsFitMode,
+): Partial<MetricsConfig> {
+  const source = asRecord(value)
+  if (!source) return {}
+  const next: Record<string, unknown> = { ...source }
+  delete next.layout
+  if (fitMode === 'AUTO') {
+    for (const field of TYPOGRAPHY_VISUAL_FIELDS) delete next[field]
+  }
+  if (!next.color_scheme) delete next.color_variant
+  return next as Partial<MetricsConfig>
+}
+
+function readSavedMetricsGenerationConfig(value: unknown) {
+  const root = asRecord(value)
+  if (!root) return null
+  const source = asRecord(root.formData) ?? root
+  const fitMode = stringValue(source.metricsFitMode ?? source.metrics_fit_mode, ['AUTO', 'MANUAL'] as const, 'AUTO')
+  return {
+    count: Math.max(1, Math.min(4, Math.round(numberValue(source.count, 1)))),
+    layoutChoice: stringValue(
+      source.metricsLayoutChoice ?? source.metrics_layout_choice ?? source.layoutChoice,
+      LAYOUT_CHOICE_VALUES,
+      'auto',
+    ),
+    multiBoxColorMode: stringValue(
+      source.multiBoxColorMode ?? source.multi_box_color_mode,
+      MULTI_BOX_COLOR_VALUES,
+      'SAME',
+    ),
+    visualOverrides: sanitizeSavedMetricsConfig(source.metricsConfig ?? source.metrics_config, fitMode),
+    fitMode,
+    manualOverrides: asRecord(source.manualMetricsOverrides ?? source.manual_metrics_overrides) as MetricsManualOverrides | null,
+    zIndex: Math.round(numberValue(source.zIndex ?? source.z_index, DEFAULTS.zIndex)),
+    positionModified: booleanValue(source.positionModified ?? source.position_modified, false),
+    paddingModified: booleanValue(source.paddingModified ?? source.padding_modified, false),
+    paddingConfig: asRecord(source.paddingConfig ?? source.padding_config) as TextLabsPaddingConfig | null,
+  }
 }
 
 function OptionalNumberInput({
@@ -157,6 +236,8 @@ export function MetricsForm({
   showAdvanced,
   registerMandatoryConfig,
   researchControls,
+  existingTextTarget,
+  initialDraft,
 }: MetricsFormProps) {
   const [count, setCount] = useState(1)
   const [layoutChoice, setLayoutChoice] = useState<MetricsLayoutChoice>('auto')
@@ -188,10 +269,43 @@ export function MetricsForm({
     bottom: 0,
     left: 0,
   })
+  const previousTargetIdentity = useRef<string | null>(null)
+
+  const draftGenerationConfig = asRecord(initialDraft?.formData?.generationConfig)
+    ?? asRecord(initialDraft?.formData)
+    ?? null
+  const savedGenerationConfig = draftGenerationConfig ?? existingTextTarget?.generationConfig ?? null
+  const targetIdentity = elementContext?.elementId ?? existingTextTarget?.elementId ?? null
+  const targetResetKey = `${targetIdentity ?? 'new'}:${savedGenerationConfig ? 'saved' : 'auto'}`
 
   useEffect(() => {
     registerMandatoryConfig(null)
   }, [registerMandatoryConfig])
+
+  useEffect(() => {
+    if (previousTargetIdentity.current !== targetResetKey) {
+      const saved = readSavedMetricsGenerationConfig(savedGenerationConfig)
+      setCount(saved?.count ?? 1)
+      setLayoutChoice(saved?.layoutChoice ?? 'auto')
+      setMultiBoxColorMode(saved?.multiBoxColorMode ?? 'SAME')
+      setVisualOverrides(saved?.visualOverrides ?? {})
+      setFitMode(saved?.fitMode ?? 'AUTO')
+      setManualOverrides(saved?.manualOverrides ?? {})
+      setZIndex(saved?.zIndex ?? DEFAULTS.zIndex)
+      setPositionModified(saved?.positionModified ?? false)
+      setPaddingModified(saved?.paddingModified ?? false)
+      setPaddingConfig(saved?.paddingConfig ?? { top: 0, right: 0, bottom: 0, left: 0 })
+      setShowInstances(false)
+      setShowCardDesign(false)
+      setShowValue(false)
+      setShowLabel(false)
+      setShowDescription(false)
+      setShowSpacing(false)
+      setShowPositioning(false)
+      setShowPadding(false)
+    }
+    previousTargetIdentity.current = targetResetKey
+  }, [savedGenerationConfig, targetResetKey])
 
   useEffect(() => {
     if (!elementContext) return
@@ -256,7 +370,7 @@ export function MetricsForm({
     updateVisualOverride('color_variant', patch.color_variant)
   }, [surfaceValue, updateVisualOverride])
 
-  const handleSubmit = useCallback(() => {
+  const sparseMetricsConfig = useMemo<Partial<MetricsConfig>>(() => {
     const metricsConfig: Partial<MetricsConfig> = {
       ...visualOverrides,
       // Text Labs owns no parallel layout resolver; its compose geometry reads
@@ -267,8 +381,59 @@ export function MetricsForm({
       for (const field of TYPOGRAPHY_VISUAL_FIELDS) delete metricsConfig[field]
     }
     if (!metricsConfig.color_scheme) delete metricsConfig.color_variant
-    const hasEffectiveVisualOverrides = Object.keys(metricsConfig).some(field => field !== 'layout')
-    const hasContainerPadding = Object.values(paddingConfig).some(value => value > 0)
+    return metricsConfig
+  }, [fitMode, resolvedLayout.layout, visualOverrides])
+
+  const hasEffectiveVisualOverrides = useMemo(
+    () => Object.keys(sparseMetricsConfig).some(field => field !== 'layout'),
+    [sparseMetricsConfig],
+  )
+  const hasContainerPadding = useMemo(
+    () => Object.values(paddingConfig).some(value => value > 0),
+    [paddingConfig],
+  )
+  const advancedModified = positionModified
+    || (paddingModified && hasContainerPadding)
+    || hasEffectiveVisualOverrides
+    || fitMode === 'MANUAL'
+
+  const generationConfig = useMemo(() => compactRecord({
+    version: 1,
+    componentType: 'METRICS',
+    prompt,
+    count,
+    metricsLayoutChoice: layoutChoice,
+    layout: resolvedLayout.layout,
+    multiBoxColorMode,
+    metricsFitMode: fitMode,
+    metricsConfig: sparseMetricsConfig,
+    manualMetricsOverrides: fitIsManual ? manualOverrides : undefined,
+    showAdvanced,
+    advancedModified,
+    zIndex,
+    positionModified,
+    paddingModified,
+    paddingConfig,
+  }), [
+    advancedModified,
+    count,
+    fitIsManual,
+    fitMode,
+    layoutChoice,
+    manualOverrides,
+    multiBoxColorMode,
+    paddingConfig,
+    paddingModified,
+    positionModified,
+    prompt,
+    resolvedLayout.layout,
+    showAdvanced,
+    sparseMetricsConfig,
+    zIndex,
+  ])
+
+  const handleSubmit = useCallback(() => {
+    const metricsConfig: Partial<MetricsConfig> = { ...sparseMetricsConfig }
 
     const formData: MetricsFormData = {
       componentType: 'METRICS',
@@ -285,6 +450,7 @@ export function MetricsForm({
       presentationId,
       useDeckTheme: Boolean(presentationId),
       themeOverrides: null,
+      generationConfig,
       metricsFitMode: fitMode,
       multiBoxColorMode: count > 1 ? multiBoxColorMode : undefined,
       metricsLayoutChoice: layoutChoice,
@@ -300,7 +466,7 @@ export function MetricsForm({
       paddingConfig,
     }
     onSubmit(formData)
-  }, [count, fitIsManual, fitMode, layoutChoice, manualOverrides, multiBoxColorMode, onSubmit, paddingConfig, paddingModified, positionConfig, positionModified, presentationId, prompt, resolvedLayout, visualOverrides, zIndex])
+  }, [advancedModified, count, fitIsManual, fitMode, generationConfig, layoutChoice, manualOverrides, multiBoxColorMode, onSubmit, paddingConfig, positionConfig, presentationId, prompt, resolvedLayout, sparseMetricsConfig, zIndex])
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 
