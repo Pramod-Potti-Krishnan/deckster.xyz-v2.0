@@ -230,13 +230,6 @@ export function GenerationPanel({
     forceUpdate(n => n + 1)
   }, [activationId, draftKey, elementType, existingTextTarget?.elementId])
 
-  // Every panel session starts with optional controls collapsed. In particular,
-  // reopening INFOGRAPHIC must not expose stale Advanced choices from the
-  // previous element.
-  useEffect(() => {
-    if (isOpen) setShowAdvanced(false)
-  }, [elementType, isOpen])
-
   useEffect(() => {
     if (!isOpen || elementType !== 'TEXT_BOX') return
     let cancelled = false
@@ -370,7 +363,6 @@ export function GenerationPanel({
             onDraftChange={onDraftChange}
             existingInfographicTarget={existingInfographicTarget}
             panelMode={mode}
-            isOpen={isOpen}
           />
         </div>
       </div>
@@ -400,7 +392,6 @@ function FormRouter({
   onDraftChange,
   existingInfographicTarget,
   panelMode,
-  isOpen,
 }: {
   elementType: TextLabsComponentType
   onSubmit: (formData: TextLabsFormData) => Promise<void>
@@ -421,7 +412,6 @@ function FormRouter({
   onDraftChange?: GenerationPanelProps['onDraftChange']
   existingInfographicTarget?: GenerationPanelProps['existingInfographicTarget']
   panelMode: GenerationPanelProps['mode']
-  isOpen: boolean
 }) {
   const commonProps = {
     onSubmit,
@@ -453,7 +443,6 @@ function FormRouter({
       return (
         <InfographicForm
           {...commonProps}
-          isOpen={isOpen}
           panelMode={panelMode}
           existingTarget={existingInfographicTarget}
         />

@@ -43,7 +43,6 @@ type InfographicOverrides = Partial<Pick<
 interface InfographicFormProps {
   onSubmit: (formData: InfographicFormData) => void
   registerSubmit: (fn: () => void) => void
-  isOpen: boolean
   isGenerating: boolean
   presentationId?: string | null
   elementContext?: ElementContext | null
@@ -65,7 +64,6 @@ function emptySegment(): InfographicV2Segment {
 export function InfographicForm({
   onSubmit,
   registerSubmit,
-  isOpen,
   isGenerating,
   presentationId,
   elementContext,
@@ -95,9 +93,6 @@ export function InfographicForm({
   const [height, setHeight] = useState(DEFAULTS.height)
   const [showPosition, setShowPosition] = useState(false)
   const existingMode = inferExistingInfographicMode(existingTarget)
-  const panelSessionKey = isOpen
-    ? `${panelMode}:${existingTarget?.elementId ?? 'new'}`
-    : 'closed'
 
   useEffect(() => {
     if (!elementContext) return
@@ -110,8 +105,9 @@ export function InfographicForm({
 
   // A refine target can be a raster V1 image or V2 HTML persisted through the
   // diagram renderer. Preserve that path instead of silently reverting V2 to V1.
+  // New target activations remount the form through FormRouter's activation
+  // key; a same-target close/reopen intentionally retains the live UAT draft.
   useEffect(() => {
-    if (panelSessionKey === 'closed') return
     if (panelMode === 'refine') {
       setMode(existingMode)
     } else {
@@ -130,7 +126,6 @@ export function InfographicForm({
     setShowPosition(false)
   }, [
     existingMode,
-    panelSessionKey,
     panelMode,
   ])
 

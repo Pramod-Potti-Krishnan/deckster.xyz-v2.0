@@ -152,6 +152,9 @@ const clientModule = compile(
       parseThemeVariantSource: () => null,
       responseStyleOwner: () => null,
     }
+    if (id === '@/lib/element-research-policy') return {
+      isNonResearchVisualElement: componentType => componentType === 'INFOGRAPHIC',
+    }
     throw new Error(`Unexpected dependency: ${id}`)
   },
   {
@@ -238,6 +241,10 @@ const stateSource = fs.readFileSync(
   new URL('../hooks/use-generation-panel.ts', import.meta.url),
   'utf8',
 )
+const researchPolicySource = fs.readFileSync(
+  new URL('../lib/element-research-policy.ts', import.meta.url),
+  'utf8',
+)
 const generationSource = fs.readFileSync(
   new URL('../hooks/use-textlabs-generation.ts', import.meta.url),
   'utf8',
@@ -247,17 +254,17 @@ assert.doesNotMatch(formSource, /label:\s*['"`]Step \d/)
 assert.match(formSource, /Choose the generation path\. Creative is the default\./)
 assert.match(formSource, /Reset to Auto/)
 assert.match(formSource, /Manual rows are authoritative/)
-assert.match(formSource, /panelSessionKey === 'closed'/)
 assert.match(formSource, /setMode\('v1'\)/)
 assert.match(formSource, /option value="content">Content/)
 assert.doesNotMatch(formSource, /option value="rectangle"/)
-assert.match(panelSource, /elementType !== 'INFOGRAPHIC'/)
-assert.match(panelSource, /if \(isOpen\) setShowAdvanced\(false\)/)
-assert.match(stateSource, /type !== 'INFOGRAPHIC'/)
+assert.match(panelSource, /supportsResearch = !isNonResearchVisualElement\(elementType\)/)
+assert.doesNotMatch(panelSource, /if \(isOpen\) setShowAdvanced\(false\)/)
+assert.match(stateSource, /isNonResearchVisualElement\(type\)/)
 assert.match(stateSource, /setResearchMode\('off'\)/)
-assert.match(generationSource, /infographicResearchDisabled/)
+assert.match(researchPolicySource, /'INFOGRAPHIC'/)
+assert.match(generationSource, /const nonResearchVisual = isNonResearchVisualElement\(/)
 assert.match(generationSource, /delete formData\.research/)
 assert.match(generationSource, /infographicConfig\.grid_row/)
-assert.match(generationSource, /infographicResearchDisabled\s*\? 300_000/)
+assert.match(generationSource, /formData\.componentType === 'INFOGRAPHIC'\s*\n\s*\? 300_000/)
 
 console.log('infographic frontend contract tests passed')
