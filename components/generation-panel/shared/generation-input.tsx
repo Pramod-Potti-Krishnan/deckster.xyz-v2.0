@@ -8,7 +8,7 @@ import { MandatoryConfig } from '../types'
 interface GenerationInputProps {
   prompt: string
   onPromptChange: (value: string) => void
-  mandatoryConfig: MandatoryConfig | null
+  mandatoryConfig: MandatoryConfig | MandatoryConfig[] | null
   showAdvanced: boolean
   onToggleAdvanced: () => void
   onSubmit: () => void
@@ -29,6 +29,11 @@ export function GenerationInput({
   placeholder: placeholderOverride,
 }: GenerationInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const mandatoryConfigs = Array.isArray(mandatoryConfig)
+    ? mandatoryConfig
+    : mandatoryConfig
+      ? [mandatoryConfig]
+      : []
 
   // Auto-expand textarea as user types
   useEffect(() => {
@@ -38,7 +43,9 @@ export function GenerationInput({
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`
   }, [prompt])
 
-  const placeholder = placeholderOverride || mandatoryConfig?.promptPlaceholder || 'Describe what you want to generate...'
+  const placeholder = placeholderOverride
+    || mandatoryConfigs.find(config => config.promptPlaceholder)?.promptPlaceholder
+    || 'Describe what you want to generate...'
 
   return (
     <div className="px-3 pt-3 pb-2 space-y-2">
@@ -84,15 +91,15 @@ export function GenerationInput({
         {/* Bottom toolbar */}
         <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-2 py-1.5 bg-gray-50 dark:bg-slate-800 rounded-b-xl">
           {/* Left: Mandatory chip + Advanced toggle */}
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1">
             {/* Mandatory config chip (or custom render) */}
-            {mandatoryConfig && (
-              mandatoryConfig.customRender ? (
-                <>{mandatoryConfig.customRender}</>
+            {mandatoryConfigs.map((config, index) => (
+              config.customRender ? (
+                <div key={`${config.fieldLabel}:${index}`}>{config.customRender}</div>
               ) : (
-                <MandatoryChip config={mandatoryConfig} />
+                <MandatoryChip key={`${config.fieldLabel}:${index}`} config={config} />
               )
-            )}
+            ))}
 
             {/* Advanced toggle */}
             <button
@@ -110,7 +117,7 @@ export function GenerationInput({
           </div>
 
           {/* Right: Send button with decorative stars */}
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             {/* Decorative stars */}
             <svg className="absolute -top-1 -right-1 w-2 h-2 text-purple-300 pointer-events-none" viewBox="0 0 8 8">
               <path d="M4 0L4.5 3.5L8 4L4.5 4.5L4 8L3.5 4.5L0 4L3.5 3.5Z" fill="currentColor" />
@@ -145,6 +152,17 @@ export function GenerationInput({
 function MandatoryChip({ config }: { config: MandatoryConfig }) {
   const hasGroups = config.optionGroups && config.optionGroups.length > 0
   const hasOptions = config.options && config.options.length > 0
+  const allOptions = hasGroups
+    ? config.optionGroups!.flatMap(group => group.options)
+    : config.options || []
+  const selectedOption = allOptions.find(option => (
+    config.selectedValue
+      ? option.value === config.selectedValue
+      : option.label === config.displayLabel
+  ))
+  const isSelected = (value: string, label: string) => (
+    config.selectedValue ? config.selectedValue === value : config.displayLabel === label
+  )
 
   if (!hasGroups && !hasOptions) {
     // No options — just show a static chip
@@ -160,9 +178,16 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
       <PopoverTrigger asChild>
         <button
           type="button"
+          aria-label={config.fieldLabel}
           className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700 text-xs text-gray-700 dark:text-slate-200 transition-colors"
         >
           <ChevronDown className="h-3 w-3 text-gray-400 dark:text-slate-500" />
+          {selectedOption?.color && (
+            <span
+              className="h-2.5 w-2.5 flex-shrink-0 rounded-full border border-black/10"
+              style={{ backgroundColor: selectedOption.color }}
+            />
+          )}
           <span className="truncate max-w-[120px]">{config.displayLabel}</span>
         </button>
       </PopoverTrigger>
@@ -180,17 +205,21 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
                     key={option.value}
                     onClick={() => config.onChange(option.value)}
                     className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
-                      config.displayLabel === option.label
+                      isSelected(option.value, option.label)
                         ? 'bg-primary/10 text-primary font-medium'
                         : 'text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700'
                     }`}
                   >
-                    {config.displayLabel === option.label && (
-                      <Check className="h-3 w-3 flex-shrink-0" />
-                    )}
-                    <span className={config.displayLabel === option.label ? '' : 'pl-5'}>
-                      {option.label}
+                    <span className="h-3 w-3 flex-shrink-0">
+                      {isSelected(option.value, option.label) && <Check className="h-3 w-3" />}
                     </span>
+                    {option.color && (
+                      <span
+                        className="h-3 w-3 flex-shrink-0 rounded-full border border-black/10"
+                        style={{ backgroundColor: option.color }}
+                      />
+                    )}
+                    <span>{option.label}</span>
                   </button>
                 ))}
               </div>
@@ -204,17 +233,21 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
                 key={option.value}
                 onClick={() => config.onChange(option.value)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
-                  config.displayLabel === option.label
+                  isSelected(option.value, option.label)
                     ? 'bg-primary/10 text-primary font-medium'
                     : 'text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700'
                 }`}
               >
-                {config.displayLabel === option.label && (
-                  <Check className="h-3 w-3 flex-shrink-0" />
-                )}
-                <span className={config.displayLabel === option.label ? '' : 'pl-5'}>
-                  {option.label}
+                <span className="h-3 w-3 flex-shrink-0">
+                  {isSelected(option.value, option.label) && <Check className="h-3 w-3" />}
                 </span>
+                {option.color && (
+                  <span
+                    className="h-3 w-3 flex-shrink-0 rounded-full border border-black/10"
+                    style={{ backgroundColor: option.color }}
+                  />
+                )}
+                <span>{option.label}</span>
               </button>
             ))}
           </div>

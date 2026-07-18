@@ -198,10 +198,10 @@ export function GenerationPanel({
   ])
 
   // Mandatory config — registered by each form
-  const mandatoryConfigRef = useRef<MandatoryConfig | null>(null)
+  const mandatoryConfigRef = useRef<MandatoryConfig | MandatoryConfig[] | null>(null)
   const [, forceUpdate] = useState(0)
 
-  const registerMandatoryConfig = useCallback((config: MandatoryConfig | null) => {
+  const registerMandatoryConfig = useCallback((config: MandatoryConfig | MandatoryConfig[] | null) => {
     mandatoryConfigRef.current = config
     forceUpdate(n => n + 1)
   }, [])
@@ -397,7 +397,7 @@ function FormRouter({
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
-  registerMandatoryConfig: (config: MandatoryConfig | null) => void
+  registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[] | null) => void
   researchControls?: ReactNode
   slotCatalog: TemplateSlotCatalog
   slotCatalogLoading: boolean
