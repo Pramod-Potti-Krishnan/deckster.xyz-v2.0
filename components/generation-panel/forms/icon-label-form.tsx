@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { IconLabelFormData, IconLabelConfig, TextLabsPaddingConfig, TextLabsPositionConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
-import { ElementContext, MandatoryConfig } from '../types'
+import { ElementContext, GenerationPanelDraft, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 import { PaddingControl } from '../shared/padding-control'
 import { CollapsibleSection } from '../shared/collapsible-section'
+import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.ICON_LABEL
 type IconOverrideField = 'size' | 'style' | 'font' | 'color' | 'background' | 'exclusions' | 'position' | 'padding'
@@ -45,33 +46,49 @@ interface IconLabelFormProps {
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
+  initialDraft?: GenerationPanelDraft | null
 }
 
-export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig }: IconLabelFormProps) {
-  const [count, setCount] = useState(1)
-  const [mode, setMode] = useState<'icon' | 'label'>('icon')
-  const [size, setSize] = useState<IconLabelConfig['size']>('medium')
-  const [style, setStyle] = useState<IconLabelConfig['style']>('circle')
-  const [font, setFont] = useState<IconLabelConfig['font']>('poppins')
-  const [color, setColor] = useState<string | null>(null)
-  const [targetBackground, setTargetBackground] = useState('light')
-  const [excludeIconsInput, setExcludeIconsInput] = useState('')
-  const [advancedModified, setAdvancedModified] = useState(false)
-  const [explicitFields, setExplicitFields] = useState<Set<IconOverrideField>>(() => new Set())
-  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft }: IconLabelFormProps) {
+  const initialFormData = initialDraft?.formData?.componentType === 'ICON_LABEL'
+    ? initialDraft.formData
+    : null
+  const initialConfig = initialFormData?.iconLabelConfig || {}
+  const initialExplicitFields = new Set<IconOverrideField>([
+    ...('size' in initialConfig ? ['size' as const] : []),
+    ...('style' in initialConfig ? ['style' as const] : []),
+    ...('font' in initialConfig ? ['font' as const] : []),
+    ...('color' in initialConfig ? ['color' as const] : []),
+    ...('target_background' in initialConfig ? ['background' as const] : []),
+    ...('exclude_icons' in initialConfig ? ['exclusions' as const] : []),
+  ])
+  const [count, setCount] = useState(initialFormData?.count ?? 1)
+  const [mode, setMode] = useState<'icon' | 'label'>(initialConfig.mode || 'icon')
+  const [size, setSize] = useState<IconLabelConfig['size']>(initialConfig.size || 'medium')
+  const [style, setStyle] = useState<IconLabelConfig['style']>(initialConfig.style || 'circle')
+  const [font, setFont] = useState<IconLabelConfig['font']>(initialConfig.font || 'poppins')
+  const [color, setColor] = useState<string | null>(initialConfig.color ?? null)
+  const [targetBackground, setTargetBackground] = useState(initialConfig.target_background || 'light')
+  const [excludeIconsInput, setExcludeIconsInput] = useState((initialConfig.exclude_icons || []).join(', '))
+  const [advancedModified, setAdvancedModified] = useState(Boolean(initialFormData?.advancedModified))
+  const [explicitFields, setExplicitFields] = useState<Set<IconOverrideField>>(() => initialExplicitFields)
+  const [zIndex, setZIndex] = useState(initialFormData?.z_index ?? DEFAULTS.zIndex)
   const [showPosition, setShowPosition] = useState(false)
   const [showPadding, setShowPadding] = useState(false)
-  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
+  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>(initialFormData?.positionConfig || {
     start_col: 2,
     start_row: 4,
     position_width: DEFAULTS.width,
     position_height: DEFAULTS.height,
     auto_position: false,
   })
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(initialFormData?.paddingConfig || {
     top: 0, right: 0, bottom: 0, left: 0,
   })
-  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(
+    presentationId,
+    initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null,
+  )
 
   useEffect(() => {
     if (!elementContext) return
