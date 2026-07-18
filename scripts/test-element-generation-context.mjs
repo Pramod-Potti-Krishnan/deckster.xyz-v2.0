@@ -163,8 +163,9 @@ assert.match(websocketSource, /presentation_id: presentationId/)
 const builderSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
 assert.match(
   builderSource,
-  /sendThemeSelection\(buildThemeSelection, requestId, effectivePresentationId\)/,
+  /sendThemeSelection\(target\.selection, requestId, targetPresentationId\)/,
 )
+assert.match(builderSource, /waitForAuthoritativeTheme/)
 assert.doesNotMatch(
   builderSource,
   /generationPanel\.openPanelForEdit/,

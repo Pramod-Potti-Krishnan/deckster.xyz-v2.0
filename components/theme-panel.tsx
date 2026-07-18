@@ -21,6 +21,7 @@ import {
   normalizeThemePanelSelection,
   normalizeThemePresetId,
   selectCanonicalThemePreset,
+  themeSelectionFingerprint,
   type BuildThemeSelection,
   type CanonicalThemePresetId,
 } from '@/lib/theme-builder'
@@ -115,14 +116,6 @@ interface ThemePanelProps {
   themeSync: ThemeSyncState
   selectionLocked?: boolean
   onBuildThemeChange?: (selection: BuildThemeSelection) => void
-}
-
-function selectionFingerprint(selection: BuildThemeSelection): string {
-  const normalized = normalizeThemePanelSelection(selection)
-  const overrides = normalized.color_overrides
-    ? Object.fromEntries(Object.entries(normalized.color_overrides).sort(([a], [b]) => a.localeCompare(b)))
-    : undefined
-  return JSON.stringify({ ...normalized, color_overrides: overrides })
 }
 
 function resolvedPresetId(selection: BuildThemeSelection): CanonicalThemePresetId {
@@ -248,7 +241,7 @@ export function ThemePanel({
   const mode: ThemeMode = draft.mode === 'custom' ? 'custom' : 'preset'
   const selectedPresetId = resolvedPresetId(draft)
   const selectedPreview = PREVIEW_PALETTES[selectedPresetId]
-  const hasChanges = selectionFingerprint(draft) !== selectionFingerprint(buildThemeSelection)
+  const hasChanges = themeSelectionFingerprint(draft) !== themeSelectionFingerprint(buildThemeSelection)
   const syncBelongsToPresentation = !themeSync.presentationId
     || !presentationId
     || themeSync.presentationId === presentationId

@@ -74,7 +74,10 @@ import {
   type TemplateSelection,
   type TemplateSnapshot,
 } from '@/hooks/use-templates'
-import type { BuildThemeSelection } from '@/lib/theme-builder'
+import {
+  themeSelectionFingerprint,
+  type BuildThemeSelection,
+} from '@/lib/theme-builder'
 import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
@@ -87,9 +90,10 @@ import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
 import {
   IDLE_THEME_SYNC,
   applyThemeSyncResponse,
-  isThemeAppliedToPresentation,
   isThemeSyncTerminal,
   syncingTheme,
+  waitForAuthoritativeTheme,
+  type ThemeSyncRequestResult,
   type ThemeSyncState,
 } from '@/lib/theme-sync'
 import {
@@ -111,6 +115,7 @@ const DEFAULT_DRAWER_WIDTH = 420
 const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 1
+const THEME_SYNC_TIMEOUT_MS = 20_000
 function normalizeTextLabsElementType(value: unknown): TextLabsComponentType | null {
   return normalizeSemanticComponentType(value)
 }
@@ -447,7 +452,17 @@ function BuilderContent() {
   themeSyncRef.current = themeSync
   const getThemeSyncSnapshot = useCallback(() => themeSyncRef.current, [])
   const latestThemeSyncRequestRef = useRef<string | null>(null)
+  const latestThemeSyncKeyRef = useRef<string | null>(null)
   const themeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const commitThemeSync = useCallback((next: ThemeSyncState) => {
+    themeSyncRef.current = next
+    setThemeSync(next)
+  }, [])
+  const clearThemeSyncTimeout = useCallback(() => {
+    if (!themeSyncTimeoutRef.current) return
+    clearTimeout(themeSyncTimeoutRef.current)
+    themeSyncTimeoutRef.current = null
+  }, [])
   const standardThemeLoadedRef = useRef(false)
   const buildThemeSelectionRef = useRef(buildThemeSelection)
   const { getStandardTheme } = useThemeProfiles()
@@ -1579,11 +1594,10 @@ function BuilderContent() {
       if (message.type === 'theme_sync') {
         if (message.payload.request_id !== latestThemeSyncRequestRef.current) return
         const terminal = isThemeSyncTerminal(message.payload.status)
-        if (terminal && themeSyncTimeoutRef.current) {
-          clearTimeout(themeSyncTimeoutRef.current)
-          themeSyncTimeoutRef.current = null
-        }
-        setThemeSync(current => applyThemeSyncResponse(current, message.payload))
+        if (terminal) clearThemeSyncTimeout()
+        const current = themeSyncRef.current
+        const next = applyThemeSyncResponse(current, message.payload)
+        if (next !== current) commitThemeSync(next)
         return
       }
 
@@ -2086,51 +2100,126 @@ function BuilderContent() {
     [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl],
   )
 
-  useEffect(() => {
-    if (!isReady || !effectivePresentationId || templateModeOn) {
-      latestThemeSyncRequestRef.current = null
-      setThemeSync(IDLE_THEME_SYNC)
-      return
+  const themeSyncTargetRef = useRef({
+    isReady,
+    presentationId: effectivePresentationId,
+    templateModeOn,
+    selection: buildThemeSelection,
+  })
+  themeSyncTargetRef.current = {
+    isReady,
+    presentationId: effectivePresentationId,
+    templateModeOn,
+    selection: buildThemeSelection,
+  }
+
+  const requestThemeSyncForPresentation = useCallback((
+    targetPresentationId: string,
+  ): ThemeSyncRequestResult => {
+    const target = themeSyncTargetRef.current
+    if (!target.isReady) {
+      return {
+        ok: false,
+        code: 'disconnected',
+        error: 'Director is disconnected. Reconnect, then generate this element again.',
+      }
+    }
+    if (target.templateModeOn) {
+      return {
+        ok: false,
+        code: 'failed',
+        error: 'Deck-theme element generation is unavailable while Template Mode owns the presentation.',
+      }
+    }
+    if (!target.presentationId || target.presentationId !== targetPresentationId) {
+      return {
+        ok: false,
+        code: 'presentation_changed',
+        error: 'The active presentation changed before its deck theme could be prepared. Generate again in the current presentation.',
+      }
     }
 
+    const requestKey = `${targetPresentationId}:${themeSelectionFingerprint(target.selection)}`
+    const current = themeSyncRef.current
+    if (
+      latestThemeSyncKeyRef.current === requestKey &&
+      current.requestId &&
+      current.presentationId === targetPresentationId &&
+      (current.status === 'syncing' || current.status === 'applied')
+    ) {
+      return { ok: true, requestId: current.requestId }
+    }
+
+    clearThemeSyncTimeout()
     const requestId = crypto.randomUUID()
     latestThemeSyncRequestRef.current = requestId
-    setThemeSync(syncingTheme(requestId, effectivePresentationId))
+    latestThemeSyncKeyRef.current = requestKey
+    commitThemeSync(syncingTheme(requestId, targetPresentationId))
 
-    if (!sendThemeSelection(buildThemeSelection, requestId, effectivePresentationId)) {
-      setThemeSync({
+    if (!sendThemeSelection(target.selection, requestId, targetPresentationId)) {
+      const error = 'Director disconnected before it could apply the deck theme. Reconnect, then generate this element again.'
+      commitThemeSync({
         status: 'failed',
         requestId,
-        presentationId: effectivePresentationId,
-        error: 'Director is not connected. Reconnect before generating with the deck theme.',
+        presentationId: targetPresentationId,
+        error,
       })
-      return
+      return { ok: false, code: 'disconnected', error }
     }
 
     themeSyncTimeoutRef.current = setTimeout(() => {
       if (latestThemeSyncRequestRef.current !== requestId) return
-      setThemeSync({
+      commitThemeSync({
         status: 'failed',
         requestId,
-        presentationId: effectivePresentationId,
-        error: 'Theme application timed out. Retry the theme selection before generating an element.',
+        presentationId: targetPresentationId,
+        error: 'Theme application timed out. Reapply the deck theme or reconnect, then generate again.',
       })
-    }, 20_000)
+      themeSyncTimeoutRef.current = null
+    }, THEME_SYNC_TIMEOUT_MS)
 
-    return () => {
-      if (themeSyncTimeoutRef.current) {
-        clearTimeout(themeSyncTimeoutRef.current)
-        themeSyncTimeoutRef.current = null
-      }
+    return { ok: true, requestId }
+  }, [clearThemeSyncTimeout, commitThemeSync, sendThemeSelection])
+
+  const ensureThemeReady = useCallback(async (targetPresentationId: string) => {
+    // Start or reuse the request for the exact current presentation + theme
+    // selection before entering the bounded wait. This call also performs the
+    // live connection/presentation checks, even if an old state says Applied.
+    const requested = requestThemeSyncForPresentation(targetPresentationId)
+    if (!requested.ok) {
+      return { ready: false, code: requested.code, error: requested.error } as const
     }
+
+    return waitForAuthoritativeTheme({
+      presentationId: targetPresentationId,
+      getSyncState: getThemeSyncSnapshot,
+      isConnected: () => themeSyncTargetRef.current.isReady,
+      requestSync: requestThemeSyncForPresentation,
+      timeoutMs: THEME_SYNC_TIMEOUT_MS,
+    })
+  }, [getThemeSyncSnapshot, requestThemeSyncForPresentation])
+
+  useEffect(() => {
+    if (!isReady || !effectivePresentationId || templateModeOn) {
+      latestThemeSyncRequestRef.current = null
+      latestThemeSyncKeyRef.current = null
+      clearThemeSyncTimeout()
+      commitThemeSync(IDLE_THEME_SYNC)
+      return
+    }
+
+    requestThemeSyncForPresentation(effectivePresentationId)
   }, [
     buildThemeSelection,
+    clearThemeSyncTimeout,
+    commitThemeSync,
     effectivePresentationId,
     isReady,
-    presentationId,
-    sendThemeSelection,
+    requestThemeSyncForPresentation,
     templateModeOn,
   ])
+
+  useEffect(() => clearThemeSyncTimeout, [clearThemeSyncTimeout])
 
   useEffect(() => {
     if (!slideComposerOverride || directorOwnedPresentation.usesOverride) return
@@ -2691,6 +2780,7 @@ function BuilderContent() {
     researchUserId: user?.id ?? null,
     researchCapabilities: elementResearchCapabilities,
     getThemeSyncSnapshot,
+    ensureThemeReady,
     toast,
   })
 
@@ -2705,24 +2795,8 @@ function BuilderContent() {
       return
     }
 
-    if (
-      formData.useDeckTheme &&
-      !isThemeAppliedToPresentation(themeSync, effectivePresentationId)
-    ) {
-      const description = themeSync.status === 'syncing'
-        ? 'The selected theme is still being applied. Wait for the Applied status and try again.'
-        : themeSync.error || 'Apply the selected deck theme before generating this element.'
-      generationPanel.setError(description)
-      toast({
-        title: 'Deck theme not ready',
-        description,
-        variant: 'destructive',
-      })
-      return
-    }
-
     await handleTextLabsGenerate(formData)
-  }, [effectivePresentationId, generationPanel, handleTextLabsGenerate, layoutServiceApis, themeSync, toast])
+  }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast])
 
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
     if (!features.useTextLabsGeneration) return

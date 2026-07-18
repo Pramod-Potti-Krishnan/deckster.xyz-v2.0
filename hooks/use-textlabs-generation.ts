@@ -21,7 +21,7 @@ import {
   hasSelectedElementResearchSource,
   isNonResearchVisualElement,
 } from '@/lib/element-research-policy'
-import type { ThemeSyncState } from '@/lib/theme-sync'
+import type { ThemeReadinessResult, ThemeSyncState } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
@@ -99,6 +99,7 @@ interface UseTextLabsGenerationParams {
   researchUserId?: string | null
   researchCapabilities: ElementResearchCapabilities
   getThemeSyncSnapshot: () => ThemeSyncState
+  ensureThemeReady: (presentationId: string) => Promise<ThemeReadinessResult>
   toast: (opts: { title: string; description: string }) => void
 }
 
@@ -212,6 +213,7 @@ export function useTextLabsGeneration({
   researchUserId,
   researchCapabilities,
   getThemeSyncSnapshot,
+  ensureThemeReady,
   toast,
 }: UseTextLabsGenerationParams) {
   const activeGenerationKeysRef = useRef<Set<string>>(new Set())
@@ -271,21 +273,50 @@ export function useTextLabsGeneration({
       activeGenerationKeysRef.current.delete(generationKey)
       return
     }
-    const expectedThemeSync = formData.useDeckTheme === true
-      ? getThemeSyncSnapshot()
+    const requestedThemePresentationId = formData.useDeckTheme === true
+      ? formData.presentationId
       : null
-    if (
-      formData.useDeckTheme === true &&
-      (
-        expectedThemeSync?.status !== 'applied' ||
+    let expectedThemeSync: ThemeSyncState | null = null
+    if (requestedThemePresentationId) {
+      let readiness: ThemeReadinessResult
+      try {
+        readiness = await ensureThemeReady(requestedThemePresentationId)
+      } catch (error) {
+        readiness = {
+          ready: false,
+          code: 'failed',
+          error: error instanceof Error
+            ? error.message
+            : 'The selected deck theme could not be prepared. Reapply it, then generate again.',
+        }
+      }
+      if (!presentationIsStillAuthoritative()) {
+        generationPanel.setIsGenerating(false)
+        generationPanel.setError(PRESENTATION_CHANGED_DURING_GENERATION)
+        activeGenerationKeysRef.current.delete(generationKey)
+        return
+      }
+      if (!readiness.ready) {
+        generationPanel.setIsGenerating(false)
+        generationPanel.setError(readiness.error)
+        toast({
+          title: 'Deck theme not ready',
+          description: readiness.error,
+        })
+        activeGenerationKeysRef.current.delete(generationKey)
+        return
+      }
+      expectedThemeSync = readiness.sync
+      if (
+        expectedThemeSync.status !== 'applied' ||
         !expectedThemeSync.requestId ||
-        expectedThemeSync.presentationId !== formData.presentationId
-      )
-    ) {
-      generationPanel.setIsGenerating(false)
-      generationPanel.setError('The selected deck theme is not Applied to this presentation yet.')
-      activeGenerationKeysRef.current.delete(generationKey)
-      return
+        expectedThemeSync.presentationId !== requestedThemePresentationId
+      ) {
+        generationPanel.setIsGenerating(false)
+        generationPanel.setError('The selected deck theme acknowledgement did not match this presentation. Generate again.')
+        activeGenerationKeysRef.current.delete(generationKey)
+        return
+      }
     }
     const themeIsStillAuthoritative = () => {
       if (!expectedThemeSync) return true
@@ -1343,6 +1374,7 @@ export function useTextLabsGeneration({
     researchUserId,
     researchCapabilities,
     getThemeSyncSnapshot,
+    ensureThemeReady,
   ])
 
   const handleOpenPanel = useCallback(async (type: string) => {
