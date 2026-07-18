@@ -250,10 +250,74 @@ const shapeFormSource = fs.readFileSync(new URL('../components/generation-panel/
 const textFormSource = fs.readFileSync(new URL('../components/generation-panel/forms/text-box-form.tsx', import.meta.url), 'utf8')
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
 assert.match(panelSource, /const supportsResearch = !isNonResearchVisualElement\(elementType\)/)
+assert.match(
+  panelSource,
+  /mandatoryConfigState\.key === panelTargetKey[\s\S]{0,100}\? mandatoryConfigState\.config/,
+  'prompt controls are scoped to the active panel target',
+)
+assert.doesNotMatch(
+  panelSource,
+  /mandatoryConfigRef\.current = null/,
+  'panel hydration cannot erase a form control after the form registers it',
+)
+assert.match(
+  panelSource,
+  /registration\?\.key === panelTargetKey\) registration\.submit\(\)/,
+  'the submit callback is scoped to the active panel target',
+)
+assert.doesNotMatch(
+  panelSource,
+  /submitFnRef\.current = null/,
+  'panel hydration cannot erase the active form submit callback',
+)
 assert.match(inputSource, /Array\.isArray\(mandatoryConfig\)/, 'the prompt toolbar supports multiple primary controls')
 assert.match(inputSource, /selectedOption\?\.color/, 'palette choices expose their swatches in the prompt toolbar')
 assert.match(imageFormSource, /fieldLabel: 'Image style'/)
 assert.match(imageFormSource, /group: 'Automatic'[\s\S]{0,100}value: 'auto'/)
+for (const [value, label] of [
+  ['realistic', 'Realistic'],
+  ['photo', 'Corporate Photo'],
+  ['illustration', 'Digital Illustration'],
+  ['brand_graphic', 'Brand Graphic'],
+  ['flat_vector', 'Flat Vector'],
+  ['isometric', 'Isometric'],
+  ['minimal', 'Minimalist'],
+  ['abstract', 'Abstract'],
+]) {
+  assert.match(
+    imageFormSource,
+    new RegExp(`value: '${value}', label: '${label}'`),
+    `the prompt-level image style selector retains ${label}`,
+  )
+}
+for (const section of ['Style', 'Position & Size', 'Container Padding']) {
+  assert.match(
+    imageFormSource,
+    new RegExp(`CollapsibleSection title="${section.replace(/[&]/g, '\\&')}"`),
+    `the Image Advanced panel retains the ${section} section`,
+  )
+}
+for (const control of [
+  'ThemeSourceSelector',
+  'Image Style',
+  'Quality',
+  'Corners',
+  'Border',
+  'Aspect Ratio',
+  'Positioning',
+  'Position Presets',
+  'Col',
+  'Row',
+  'Width',
+  'Height',
+  'ZIndexInput',
+  'PaddingControl',
+]) {
+  assert.match(imageFormSource, new RegExp(control), `the Image Advanced panel retains ${control}`)
+}
+for (const quality of ['draft', 'standard', 'high', 'ultra']) {
+  assert.match(imageFormSource, new RegExp(`<option value="${quality}">`), `Image quality retains ${quality}`)
+}
 assert.match(iconFormSource, /registerMandatoryConfig\(configs\)/)
 assert.match(iconFormSource, /fieldLabel: 'Style'[\s\S]{0,220}value: 'auto'/)
 assert.match(shapeFormSource, /colorConfig\('fill', 'Fill'/)
