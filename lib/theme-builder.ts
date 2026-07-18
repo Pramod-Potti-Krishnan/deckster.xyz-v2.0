@@ -119,6 +119,16 @@ export function normalizeThemePanelSelection(
   }
 }
 
+export function themeSelectionFingerprint(selection: BuildThemeSelection): string {
+  const normalized = normalizeThemePanelSelection(selection)
+  const overrides = normalized.color_overrides
+    ? Object.fromEntries(
+      Object.entries(normalized.color_overrides).sort(([a], [b]) => a.localeCompare(b)),
+    )
+    : undefined
+  return JSON.stringify({ ...normalized, color_overrides: overrides })
+}
+
 /**
  * Switch the named base theme while retaining explicit literals. Custom-theme
  * brand colors are promoted into token overrides so changing the base does not
