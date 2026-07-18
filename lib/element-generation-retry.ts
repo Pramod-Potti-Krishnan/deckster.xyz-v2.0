@@ -1,3 +1,5 @@
+import type { TextLabsRetryStrategy } from '@/lib/textlabs-client'
+
 export type ElementGenerationSubmitIntent = 'generate' | 'retry'
 
 export interface DiagramRetryCandidate {
@@ -126,6 +128,54 @@ export function isAmbiguousDiagramRequestFailure(input: unknown): boolean {
     && failure.status !== null
     && failure.status !== undefined
     && [502, 503, 504].includes(failure.status)
+}
+
+/**
+ * Resolve the panel action from the additive Text Labs contract. Older
+ * deployments are mapped from ambiguous_completion/retryable without ever
+ * reusing an attempt for an ordinary retryable model failure.
+ */
+export function diagramRetryStrategyForFailure(
+  input: unknown,
+): TextLabsRetryStrategy | null {
+  if (!input || typeof input !== 'object') return null
+  const failure = input as {
+    kind?: string
+    retryable?: boolean
+    retryStrategy?: unknown
+    retry_strategy?: unknown
+  }
+  const explicit = failure.retryStrategy ?? failure.retry_strategy
+  if (
+    explicit === 'resume_same_attempt'
+    || explicit === 'start_fresh_attempt'
+    || explicit === 'do_not_retry'
+  ) {
+    return explicit
+  }
+  if (isAmbiguousDiagramRequestFailure(input)) return 'resume_same_attempt'
+  if (failure.retryable === true) return 'start_fresh_attempt'
+  if (failure.kind === 'http' || failure.kind === 'application') {
+    return 'do_not_retry'
+  }
+  return null
+}
+
+/**
+ * A reused ambiguous attempt has already reached a terminal response when it
+ * explicitly asks for a fresh model run. Exactly one new request is then safe:
+ * this helper deliberately rejects initial Generate actions and repeat loops.
+ */
+export function shouldAutoStartFreshDiagramAttempt(input: {
+  submitIntent: ElementGenerationSubmitIntent
+  reusedAttempt: boolean
+  retryStrategy: TextLabsRetryStrategy | null
+  freshAttemptAlreadyStarted: boolean
+}): boolean {
+  return input.submitIntent === 'retry'
+    && input.reusedAttempt
+    && input.retryStrategy === 'start_fresh_attempt'
+    && !input.freshAttemptAlreadyStarted
 }
 
 /**
