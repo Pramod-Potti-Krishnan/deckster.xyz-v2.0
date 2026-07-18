@@ -1,6 +1,6 @@
 import type { TextLabsDiagramSubtype } from '@/types/textlabs'
 
-export const DIAGRAM_CATALOG_VERSION = '2.0.0'
+export const DIAGRAM_CATALOG_VERSION = '2.1.0'
 
 export interface DiagramCatalogField {
   type: 'enum' | 'string' | 'integer' | 'number' | 'boolean' | 'array' | 'object'
@@ -38,13 +38,29 @@ export interface DiagramCatalog {
     end_rule: string
   }
   types: DiagramCatalogType[]
+  orchestration: {
+    component_type: 'DIAGRAM_AUTO'
+    selection_modes: string[]
+    auto_routing: {
+      leaf_types: TextLabsDiagramSubtype[]
+      fallback_type: TextLabsDiagramSubtype
+      strategy: string
+      persists: string[]
+    }
+    code_language_selection: {
+      modes: string[]
+      auto_omit_leaf_language: boolean
+      legacy_omission: string
+      persists: string[]
+    }
+  }
 }
 
 const pathFor = (type: TextLabsDiagramSubtype) => `/v1.2/atomic/${type}`
 
 const DIAGRAM_CATALOG_RAW: DiagramCatalog = {
   catalog_version: DIAGRAM_CATALOG_VERSION,
-  endpoint_version: '1.10.0',
+  endpoint_version: '1.11.0',
   geometry: {
     columns: 32,
     rows: 18,
@@ -63,6 +79,12 @@ const DIAGRAM_CATALOG_RAW: DiagramCatalog = {
       research_capable: false,
       path: pathFor('CODE_DISPLAY'),
       config: {
+        language_mode: {
+          type: 'enum',
+          enum: ['auto', 'manual', 'legacy'],
+          default: 'auto',
+          primary: true,
+        },
         color_theme: {
           type: 'enum',
           enum: ['github_light', 'github_dark', 'monokai', 'solarized_dark', 'dracula'],
@@ -76,7 +98,7 @@ const DIAGRAM_CATALOG_RAW: DiagramCatalog = {
             'bash', 'ruby', 'kotlin', 'swift', 'scala', 'php',
           ],
           default: 'python',
-          primary: true,
+          advanced: true,
         },
         position_preset: {
           type: 'enum',
@@ -121,6 +143,13 @@ const DIAGRAM_CATALOG_RAW: DiagramCatalog = {
       path: pathFor('GANTT_CHART'),
       config: {
         time_unit: { type: 'enum', enum: ['days', 'weeks', 'months'], default: 'weeks', primary: true },
+        task_column_width_px: {
+          type: 'integer',
+          min: 270,
+          max: 405,
+          default: 270,
+          advanced: true,
+        },
         theme: {
           type: 'enum',
           enum: ['auto', 'default', 'ocean', 'forest'],
@@ -146,6 +175,13 @@ const DIAGRAM_CATALOG_RAW: DiagramCatalog = {
           enum: ['quarters', 'months', 'years', 'stages'],
           default: 'stages',
           primary: true,
+        },
+        row_label_width_px: {
+          type: 'integer',
+          min: 180,
+          max: 270,
+          default: 180,
+          advanced: true,
         },
         theme: {
           type: 'enum',
@@ -260,6 +296,37 @@ const DIAGRAM_CATALOG_RAW: DiagramCatalog = {
       },
     },
   ],
+  orchestration: {
+    component_type: 'DIAGRAM_AUTO',
+    selection_modes: ['auto', 'manual'],
+    auto_routing: {
+      leaf_types: [
+        'CODE_DISPLAY',
+        'KANBAN_BOARD',
+        'GANTT_CHART',
+        'CHEVRON_MATURITY',
+        'IDEA_BOARD',
+        'CLOUD_ARCHITECTURE',
+        'LOGICAL_ARCHITECTURE',
+        'DATA_ARCHITECTURE',
+        'CUSTOM',
+      ],
+      fallback_type: 'CUSTOM',
+      strategy: 'lexical_then_intent_classifier',
+      persists: [
+        'selection_mode',
+        'resolved_type',
+        'routing_confidence',
+        'routing_source',
+      ],
+    },
+    code_language_selection: {
+      modes: ['auto', 'manual'],
+      auto_omit_leaf_language: true,
+      legacy_omission: 'python',
+      persists: ['language_selection', 'resolved_language'],
+    },
+  },
 }
 
 export const DIAGRAM_CATALOG_FALLBACK: DiagramCatalog = {
@@ -281,13 +348,46 @@ export const DIAGRAM_CATALOG_FALLBACK: DiagramCatalog = {
 
 let cachedCatalog: { value: DiagramCatalog; expiresAt: number } | null = null
 
-function isCatalog(value: unknown): value is DiagramCatalog {
+const REQUIRED_DIAGRAM_TYPES: TextLabsDiagramSubtype[] = [
+  'CODE_DISPLAY',
+  'KANBAN_BOARD',
+  'GANTT_CHART',
+  'CHEVRON_MATURITY',
+  'IDEA_BOARD',
+  'CLOUD_ARCHITECTURE',
+  'LOGICAL_ARCHITECTURE',
+  'DATA_ARCHITECTURE',
+  'CUSTOM',
+]
+
+function stringArrayIncludesEvery(value: unknown, required: readonly string[]): boolean {
+  return Array.isArray(value)
+    && required.every(item => value.includes(item))
+}
+
+function parseSemver(version: unknown): [number, number, number] | null {
+  if (typeof version !== 'string') return null
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(version.trim())
+  return match
+    ? [Number(match[1]), Number(match[2]), Number(match[3])]
+    : null
+}
+
+export function isCompatibleDiagramCatalogVersion(version: unknown): boolean {
+  const parsed = parseSemver(version)
+  if (!parsed) return false
+  const [major, minor] = parsed
+  return major === 2 && minor >= 1
+}
+
+export function isCompatibleDiagramCatalog(value: unknown): value is DiagramCatalog {
   if (!value || typeof value !== 'object') return false
   const catalog = value as Partial<DiagramCatalog>
-  return typeof catalog.catalog_version === 'string'
-    && Array.isArray(catalog.types)
-    && catalog.types.length > 0
-    && catalog.types.every(item => (
+  if (!isCompatibleDiagramCatalogVersion(catalog.catalog_version)) return false
+  if (
+    !Array.isArray(catalog.types)
+    || !catalog.types.length
+    || !catalog.types.every(item => (
       item
       && typeof item === 'object'
       && typeof item.type === 'string'
@@ -295,6 +395,25 @@ function isCatalog(value: unknown): value is DiagramCatalog {
       && item.config
       && typeof item.config === 'object'
     ))
+  ) return false
+  if (!stringArrayIncludesEvery(
+    catalog.types.map(item => item.type),
+    REQUIRED_DIAGRAM_TYPES,
+  )) return false
+
+  const orchestration = catalog.orchestration as DiagramCatalog['orchestration'] | undefined
+  return orchestration?.component_type === 'DIAGRAM_AUTO'
+    && stringArrayIncludesEvery(orchestration.selection_modes, ['auto', 'manual'])
+    && stringArrayIncludesEvery(
+      orchestration.auto_routing?.leaf_types,
+      REQUIRED_DIAGRAM_TYPES,
+    )
+    && orchestration.auto_routing?.fallback_type === 'CUSTOM'
+    && stringArrayIncludesEvery(
+      orchestration.code_language_selection?.modes,
+      ['auto', 'manual'],
+    )
+    && orchestration.code_language_selection?.auto_omit_leaf_language === true
 }
 
 export async function fetchDiagramCatalog(
@@ -311,7 +430,9 @@ export async function fetchDiagramCatalog(
     })
     if (!response.ok) throw new Error(`Diagram catalog request failed: ${response.status}`)
     const payload: unknown = await response.json()
-    if (!isCatalog(payload)) throw new Error('Diagram catalog response is invalid')
+    if (!isCompatibleDiagramCatalog(payload)) {
+      throw new Error('Diagram catalog is missing the required v2.1 orchestration capabilities')
+    }
     cachedCatalog = { value: payload, expiresAt: now + 5 * 60_000 }
     return payload
   } catch (error) {

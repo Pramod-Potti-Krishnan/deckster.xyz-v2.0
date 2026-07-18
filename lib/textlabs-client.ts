@@ -100,6 +100,10 @@ const CONFIG_KEY_MAP: Record<string, string> = {
   deckContext: 'deck_context',
   generationContext: 'generation_context',
   generationConfig: 'generation_config',
+  generationAttemptId: 'generation_attempt_id',
+  deadlineMs: 'deadline_ms',
+  diagramSelection: 'diagram_selection',
+  languageSelection: 'language_selection',
   replaceElementId: 'replace_element_id',
   semanticRole: 'semantic_role',
   slotName: 'slot_name',
@@ -152,7 +156,7 @@ export async function healthCheck(): Promise<boolean> {
 // MESSAGE SENDING
 // ============================================================================
 
-interface SendMessageOptions {
+export interface SendMessageOptions {
   componentType: TextLabsAllComponentType
   presentationId?: string | null
   serverSideInsert?: boolean
@@ -167,6 +171,10 @@ interface SendMessageOptions {
   deckContext?: Record<string, unknown> | null
   generationContext?: ElementGenerationContext | null
   generationConfig?: Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null
+  generationAttemptId?: string
+  deadlineMs?: number
+  diagramSelection?: import('@/types/textlabs').DiagramSelection
+  languageSelection?: import('@/types/textlabs').DiagramLanguageSelection
   research?: ElementResearchPolicy | null
   replaceElementId?: string | null
   semanticRole?: string | null
@@ -213,6 +221,76 @@ type BackendValidationIssue = {
   loc?: unknown
   msg?: unknown
   message?: unknown
+}
+
+export type TextLabsRequestFailureKind = 'transport' | 'http' | 'application'
+
+/**
+ * Preserve request identity and retry semantics across the browser boundary so
+ * the panel can distinguish a connection reset from a validation failure.
+ */
+export class TextLabsRequestError extends Error {
+  readonly kind: TextLabsRequestFailureKind
+  readonly status: number | null
+  readonly requestId: string | null
+  readonly retryable: boolean
+  readonly ambiguousCompletion: boolean
+
+  constructor(
+    message: string,
+    options: {
+      kind: TextLabsRequestFailureKind
+      status?: number | null
+      requestId?: string | null
+      retryable?: boolean
+      ambiguousCompletion?: boolean
+      cause?: unknown
+    },
+  ) {
+    super(message, options.cause === undefined ? undefined : { cause: options.cause })
+    this.name = 'TextLabsRequestError'
+    this.kind = options.kind
+    this.status = options.status ?? null
+    this.requestId = options.requestId ?? null
+    this.retryable = options.retryable ?? false
+    this.ambiguousCompletion = options.ambiguousCompletion ?? false
+  }
+}
+
+function responseRequestId(response: Response, payload?: unknown): string | null {
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    const body = payload as Record<string, unknown>
+    const candidates = [body]
+    if (
+      body.detail
+      && typeof body.detail === 'object'
+      && !Array.isArray(body.detail)
+    ) {
+      candidates.push(body.detail as Record<string, unknown>)
+    }
+    for (const candidate of candidates) {
+      for (const key of ['request_id', 'generation_attempt_id', 'trace_id']) {
+        if (
+          typeof candidate[key] === 'string'
+          && candidate[key].trim()
+        ) {
+          return candidate[key].trim()
+        }
+      }
+    }
+  }
+  return response.headers?.get('x-request-id')
+    ?? response.headers?.get('x-correlation-id')
+    ?? null
+}
+
+export function isRetryableTextLabsRequestError(error: unknown): boolean {
+  // A retry after Text Labs has accepted the request can multiply paid leaf
+  // calls. Only retry a browser transport failure; HTTP/application failures
+  // are already correlated and recoverable through the explicit Try again UI.
+  return error instanceof TextLabsRequestError
+    && error.kind === 'transport'
+    && error.retryable
 }
 
 const METRICS_OVERRIDE_BINDINGS: Record<string, readonly string[]> = {
@@ -312,21 +390,91 @@ export async function sendMessage(
     payload[snakeKey] = value
   }
 
-  const response = await fetch(`${TEXT_LABS_BASE_URL}/api/chat/message`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal,
-  })
+  let response: Response
+  try {
+    response = await fetch(`${TEXT_LABS_BASE_URL}/api/chat/message`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(typeof options.generationAttemptId === 'string'
+          ? { 'X-Generation-Attempt-ID': options.generationAttemptId }
+          : {}),
+      },
+      body: JSON.stringify(payload),
+      signal,
+    })
+  } catch (error) {
+    if (
+      signal?.aborted
+      || (error instanceof Error && error.name === 'AbortError')
+    ) {
+      throw error instanceof DOMException
+        ? error
+        : new DOMException('Aborted', 'AbortError')
+    }
+    throw new TextLabsRequestError(
+      'The element generation service could not be reached.',
+      {
+        kind: 'transport',
+        requestId: options.generationAttemptId ?? null,
+        retryable: true,
+        cause: error,
+      },
+    )
+  }
 
   if (!response.ok) {
     const errorData = await readErrorResponse(response, signal)
-    throw new Error(formatBackendError(errorData, `API error: ${response.status}`))
+    const errorRecord = (
+      errorData
+      && typeof errorData === 'object'
+      && !Array.isArray(errorData)
+    )
+      ? errorData as Record<string, unknown>
+      : {}
+    const detailRecord = (
+      errorRecord.detail
+      && typeof errorRecord.detail === 'object'
+      && !Array.isArray(errorRecord.detail)
+    )
+      ? errorRecord.detail as Record<string, unknown>
+      : {}
+    const retryable = (
+      [408, 425, 429, 502, 503, 504].includes(response.status)
+      || errorRecord.retryable === true
+      || detailRecord.retryable === true
+    )
+    throw new TextLabsRequestError(
+      formatBackendError(errorData, `API error: ${response.status}`),
+      {
+        kind: 'http',
+        status: response.status,
+        requestId: responseRequestId(response, errorData)
+          ?? options.generationAttemptId
+          ?? null,
+        retryable,
+        ambiguousCompletion: (
+          errorRecord.ambiguous_completion === true
+          || detailRecord.ambiguous_completion === true
+        ),
+      },
+    )
   }
 
   const data = await response.json()
   if (data && typeof data === 'object' && (data as Record<string, unknown>).success === false) {
-    throw new Error(formatBackendError(data, 'Element generation failed'))
+    const body = data as Record<string, unknown>
+    throw new TextLabsRequestError(
+      formatBackendError(data, 'Element generation failed'),
+      {
+        kind: 'application',
+        requestId: responseRequestId(response, data)
+          ?? options.generationAttemptId
+          ?? null,
+        retryable: body.retryable === true,
+        ambiguousCompletion: body.ambiguous_completion === true,
+      },
+    )
   }
   return data
 }
@@ -433,6 +581,9 @@ export function buildApiPayload(
     deckContext: formData.deckContext,
     generationContext: formData.generationContext,
     generationConfig: formData.generationConfig,
+    generationAttemptId: formData.generationAttemptId,
+    diagramSelection: formData.diagramSelection,
+    languageSelection: formData.languageSelection,
     research: isNonResearchVisualElement(
       formData.componentType,
       formData.slotKind,
@@ -539,6 +690,27 @@ export function buildApiPayload(
   // send it so create/refine/regenerate preserve the selected subtype and
   // normalized settings even when Advanced was never opened.
   switch (formData.componentType) {
+    case 'DIAGRAM_AUTO': {
+      const resolvedType = formData.generationConfig?.resolved_type
+      if (resolvedType === 'CODE_DISPLAY') {
+        options.codeDisplayConfig = formData.diagramConfig as Record<string, unknown>
+      } else if (resolvedType === 'KANBAN_BOARD') {
+        options.kanbanConfig = formData.diagramConfig as Record<string, unknown>
+      } else if (resolvedType === 'GANTT_CHART') {
+        options.ganttConfig = formData.diagramConfig as Record<string, unknown>
+      } else if (resolvedType === 'CHEVRON_MATURITY') {
+        options.chevronConfig = formData.diagramConfig as Record<string, unknown>
+      } else if (resolvedType === 'IDEA_BOARD') {
+        options.ideaBoardConfig = formData.diagramConfig as Record<string, unknown>
+      } else if (resolvedType === 'CLOUD_ARCHITECTURE') {
+        options.cloudArchitectureConfig = formData.diagramConfig as Record<string, unknown>
+      } else if (resolvedType === 'LOGICAL_ARCHITECTURE') {
+        options.logicalArchitectureConfig = formData.diagramConfig as Record<string, unknown>
+      } else if (resolvedType === 'DATA_ARCHITECTURE') {
+        options.dataArchitectureConfig = formData.diagramConfig as Record<string, unknown>
+      }
+      break
+    }
     case 'CODE_DISPLAY':
       options.codeDisplayConfig = formData.diagramConfig as Record<string, unknown>
       break
@@ -826,9 +998,17 @@ export function buildInsertionParams(
   if (generationConfig) baseParams.generationConfig = generationConfig
   if (structuredPlan) baseParams.structuredPlan = structuredPlan
   if (diagramGenerationConfig) {
-    baseParams.diagramSubtype = diagramGenerationConfig.diagram_type
-    baseParams.diagramType = diagramGenerationConfig.diagram_type
-  } else if (isDiagramSubtype(componentType)) {
+    const resolvedDiagramType = diagramGenerationConfig.resolved_type
+      ?? (
+        diagramGenerationConfig.diagram_type === 'DIAGRAM_AUTO'
+          ? undefined
+          : diagramGenerationConfig.diagram_type
+      )
+    if (resolvedDiagramType) {
+      baseParams.diagramSubtype = resolvedDiagramType
+      baseParams.diagramType = resolvedDiagramType
+    }
+  } else if (isDiagramSubtype(componentType) && componentType !== 'DIAGRAM_AUTO') {
     baseParams.diagramSubtype = componentType
     baseParams.diagramType = componentType
   }
@@ -922,6 +1102,7 @@ function isDiagramSubtype(type: TextLabsAllComponentType): boolean {
     'CODE_DISPLAY', 'KANBAN_BOARD', 'GANTT_CHART', 'CHEVRON_MATURITY',
     'IDEA_BOARD', 'CLOUD_ARCHITECTURE', 'LOGICAL_ARCHITECTURE', 'DATA_ARCHITECTURE',
     'CUSTOM',
+    'DIAGRAM_AUTO',
   ].includes(type)
 }
 

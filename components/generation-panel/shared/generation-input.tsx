@@ -5,6 +5,7 @@ import { SlidersHorizontal, ArrowUp, Loader2, ChevronDown, AlertCircle, RotateCc
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { MandatoryConfig } from '../types'
 import { elementPromptLengthState } from '@/lib/element-prompt-limit'
+import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
 
 interface GenerationInputProps {
   prompt: string
@@ -12,7 +13,7 @@ interface GenerationInputProps {
   mandatoryConfig: MandatoryConfig | MandatoryConfig[] | null
   showAdvanced: boolean
   onToggleAdvanced: () => void
-  onSubmit: () => void
+  onSubmit: (intent: ElementGenerationSubmitIntent) => void
   isGenerating: boolean
   error: string | null
   placeholder?: string
@@ -44,7 +45,10 @@ export function GenerationInput({
   const promptOverflow = promptLengthState.overflow
   const submitDisabled = isGenerating || promptOverLimit
   const handleSubmit = () => {
-    if (!submitDisabled) onSubmit()
+    if (!submitDisabled) onSubmit('generate')
+  }
+  const handleRetry = () => {
+    if (!submitDisabled) onSubmit('retry')
   }
 
   // Auto-expand textarea as user types
@@ -68,7 +72,7 @@ export function GenerationInput({
           <div className="flex-1 min-w-0">
             <p className="text-xs text-red-600 break-words">{error}</p>
             <button
-              onClick={handleSubmit}
+              onClick={handleRetry}
               disabled={submitDisabled}
               className="mt-1.5 flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >

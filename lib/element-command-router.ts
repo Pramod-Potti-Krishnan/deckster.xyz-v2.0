@@ -48,6 +48,7 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
 
   // Diagram-specific
   'setDiagramTheme',
+  'updateDiagramRendererState',
 
   // Arrange/layout commands
   'bringToFront',
@@ -88,6 +89,18 @@ export const LAYOUT_VIEWER_EVENTS = new Set([
   // Add Element edit/refine lifecycle events
   'refineElementRequested',
   'saveStatusChanged',
+
+  // Deterministic renderer interaction persistence
+  'updateCodeDisplayState',
+  'updateKanbanState',
+  'updateGanttState',
+  'updateChevronState',
+  'updateIdeaBoardState',
+  'updateCloudArchState',
+  'updateLogArchState',
+  'updateLogicalArchState',
+  'updateDataArchitectureState',
+  'updateDataArchState',
 ])
 
 // AI generation commands that go to Elementor

@@ -20,8 +20,18 @@ export type ThemeSyncRequestResult =
   | { ok: false; code: 'disconnected' | 'failed' | 'presentation_changed'; error: string }
 
 export type ThemeReadinessResult =
-  | { ready: true; sync: ThemeSyncState }
+  | {
+      ready: true
+      sync: ThemeSyncState
+      source: 'director' | 'layout' | 'neutral'
+      notice?: string
+    }
   | { ready: false; code: ThemeReadinessFailureCode; error: string }
+
+export interface PersistedThemeProbe {
+  source: 'layout' | 'neutral'
+  notice?: string
+}
 
 interface WaitForAuthoritativeThemeOptions {
   presentationId: string
@@ -49,6 +59,80 @@ export function syncingTheme(
   themeFingerprint: string | null = null,
 ): ThemeSyncState {
   return { status: 'syncing', requestId, presentationId, themeFingerprint, error: null }
+}
+
+export function persistedThemeSync(
+  presentationId: string,
+  source: PersistedThemeProbe['source'],
+): ThemeSyncState {
+  return {
+    status: 'applied',
+    requestId: `${source}:${presentationId}`,
+    presentationId,
+    themeFingerprint: null,
+    error: null,
+  }
+}
+
+function hasThemeTokens(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  const variables = (
+    record.css_variables
+    && typeof record.css_variables === 'object'
+    && !Array.isArray(record.css_variables)
+  )
+    ? record.css_variables as Record<string, unknown>
+    : record
+  return Object.entries(variables).some(([key, token]) => (
+    (key.startsWith('--theme-') || ['primary', 'secondary', 'background', 'text'].includes(key))
+    && typeof token === 'string'
+    && token.trim().length > 0
+  ))
+}
+
+/**
+ * Read the persisted Layout-owned theme without requiring Director. Failure is
+ * deliberately non-blocking: deterministic renderers have a neutral palette
+ * and generation remains useful while Director reconnects.
+ */
+export async function probePersistedPresentationTheme({
+  presentationId,
+  layoutServiceUrl,
+  fetchImpl = fetch,
+  timeoutMs = 2_500,
+}: {
+  presentationId: string
+  layoutServiceUrl: string
+  fetchImpl?: typeof fetch
+  timeoutMs?: number
+}): Promise<PersistedThemeProbe> {
+  const controller = new AbortController()
+  const timeout = setTimeout(
+    () => controller.abort(),
+    Math.max(1, timeoutMs),
+  )
+  try {
+    const response = await fetchImpl(
+      `${layoutServiceUrl}/api/presentations/${encodeURIComponent(presentationId)}/theme/css-variables`,
+      { cache: 'no-store', signal: controller.signal },
+    )
+    if (response.ok) {
+      const payload = await response.json().catch(() => null)
+      if (hasThemeTokens(payload)) return { source: 'layout' }
+    }
+    return {
+      source: 'neutral',
+      notice: 'No saved deck theme was available. This element will use a neutral, accessible palette.',
+    }
+  } catch {
+    return {
+      source: 'neutral',
+      notice: 'The saved deck theme could not be read. This element will use a neutral, accessible palette.',
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 export function applyThemeSyncResponse(
@@ -120,6 +204,23 @@ export function isThemeSyncTerminal(status: ThemeSyncStatus): boolean {
   return status === 'applied' || status === 'failed'
 }
 
+/**
+ * Compare the mutation identity that can make an in-flight element theme
+ * stale. Error text is deliberately excluded; status/request/presentation are
+ * the authoritative transition tuple.
+ */
+export function hasSameThemeSyncIdentity(
+  left: ThemeSyncState,
+  right: ThemeSyncState,
+): boolean {
+  return (
+    left.status === right.status
+    && left.requestId === right.requestId
+    && left.presentationId === right.presentationId
+    && left.themeFingerprint === right.themeFingerprint
+  )
+}
+
 const wait = (milliseconds: number) => new Promise<void>(resolve => {
   setTimeout(resolve, milliseconds)
 })
@@ -147,7 +248,7 @@ export async function waitForAuthoritativeTheme({
     isThemeAppliedToPresentation(initial, presentationId, themeFingerprint) &&
     initial.requestId
   ) {
-    return { ready: true, sync: initial }
+    return { ready: true, sync: initial, source: 'director' }
   }
 
   if (!isConnected()) {
@@ -190,7 +291,7 @@ export async function waitForAuthoritativeTheme({
       ) &&
       current.requestId
     ) {
-      return { ready: true, sync: current }
+      return { ready: true, sync: current, source: 'director' }
     }
     if (!isConnected()) {
       return {

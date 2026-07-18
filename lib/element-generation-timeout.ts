@@ -1,14 +1,14 @@
 import type {
   ElementResearchMode,
   TextLabsAllComponentType,
-  TextLabsDiagramSubtype,
+  TextLabsDiagramRequestType,
 } from '@/types/textlabs'
 
 export const FAST_ELEMENT_GENERATION_TIMEOUT_MS = 30_000
 export const PLANNED_ELEMENT_GENERATION_TIMEOUT_MS = 150_000
 export const INFOGRAPHIC_GENERATION_TIMEOUT_MS = 300_000
 
-const DIAGRAM_SUBTYPES = new Set<TextLabsDiagramSubtype>([
+const DIAGRAM_SUBTYPES = new Set<TextLabsDiagramRequestType>([
   'CODE_DISPLAY',
   'KANBAN_BOARD',
   'GANTT_CHART',
@@ -18,12 +18,13 @@ const DIAGRAM_SUBTYPES = new Set<TextLabsDiagramSubtype>([
   'LOGICAL_ARCHITECTURE',
   'DATA_ARCHITECTURE',
   'CUSTOM',
+  'DIAGRAM_AUTO',
 ])
 
 export function isDiagramGenerationType(
   componentType: TextLabsAllComponentType,
-): componentType is TextLabsDiagramSubtype {
-  return DIAGRAM_SUBTYPES.has(componentType as TextLabsDiagramSubtype)
+): boolean {
+  return DIAGRAM_SUBTYPES.has(componentType as TextLabsDiagramRequestType)
 }
 
 /**

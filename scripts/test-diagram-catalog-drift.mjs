@@ -7,9 +7,44 @@ import vm from 'node:vm'
 import ts from 'typescript'
 
 const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const generatorRoot = process.env.DIAGRAM_GENERATOR_REPO
+const configuredGeneratorRoot = process.env.DIAGRAM_GENERATOR_REPO
   ? path.resolve(process.env.DIAGRAM_GENERATOR_REPO)
-  : path.resolve(frontendRoot, '..', 'diagram-generator')
+  : null
+const generatorCandidates = [
+  configuredGeneratorRoot,
+  // Normal master-polyrepo checkout: <Deckster>/frontend + backend/diagram-generator.
+  path.resolve(frontendRoot, '..', 'backend', 'diagram-generator'),
+  // Isolated frontend worktree: <Deckster>/.worktrees/<name>.
+  path.resolve(frontendRoot, '..', '..', 'backend', 'diagram-generator'),
+  // Backward-compatible sibling checkout used by older CI jobs.
+  path.resolve(frontendRoot, '..', 'diagram-generator'),
+].filter(Boolean)
+const isGeneratorRepo = candidate => fs.existsSync(
+  path.join(candidate, 'models', 'atomic_catalog.py'),
+)
+const generatorRoot = generatorCandidates.find(isGeneratorRepo)
+
+if (configuredGeneratorRoot && !isGeneratorRepo(configuredGeneratorRoot)) {
+  throw new Error(
+    `DIAGRAM_GENERATOR_REPO does not contain models/atomic_catalog.py: ${configuredGeneratorRoot}`,
+  )
+}
+if (!generatorRoot) {
+  const checkedOutGenerator = generatorCandidates.find(candidate => (
+    fs.existsSync(path.join(candidate, '.git'))
+  ))
+  if (checkedOutGenerator) {
+    throw new Error(
+      `Diagram Generator checkout does not expose models/atomic_catalog.py: ${checkedOutGenerator}. `
+      + 'Check out its deployment ref or set DIAGRAM_GENERATOR_REPO to the matching isolated worktree.',
+    )
+  }
+  console.warn(
+    'SKIP diagram catalog drift (frontend-only checkout): Diagram Generator is not available. '
+    + 'Set DIAGRAM_GENERATOR_REPO to make this cross-repo contract test mandatory.',
+  )
+  process.exit(0)
+}
 
 const source = fs.readFileSync(path.join(frontendRoot, 'lib/diagram-catalog.ts'), 'utf8')
 const compiled = ts.transpileModule(source, {

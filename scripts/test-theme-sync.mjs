@@ -10,14 +10,24 @@ const compiled = ts.transpileModule(fs.readFileSync(path, 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 })
 const mod = { exports: {} }
-vm.runInNewContext(compiled.outputText, { module: mod, exports: mod.exports, require })
+vm.runInNewContext(compiled.outputText, {
+  module: mod,
+  exports: mod.exports,
+  require,
+  AbortController,
+  clearTimeout,
+  setTimeout,
+})
 
 const {
   IDLE_THEME_SYNC,
   applyThemeSyncResponse,
+  hasSameThemeSyncIdentity,
   isThemeAppliedToPresentation,
   isSameAppliedThemeAuthority,
   isThemeSyncTerminal,
+  persistedThemeSync,
+  probePersistedPresentationTheme,
   syncingTheme,
   waitForAuthoritativeTheme,
 } = mod.exports
@@ -30,6 +40,11 @@ assert.equal(isThemeAppliedToPresentation(acknowledged, 'deck-2'), false)
 assert.equal(isThemeSyncTerminal('syncing'), false)
 assert.equal(isThemeSyncTerminal('applied'), true)
 assert.equal(isThemeSyncTerminal('failed'), true)
+assert.equal(hasSameThemeSyncIdentity(current, { ...current, error: 'new text' }), true)
+assert.equal(
+  hasSameThemeSyncIdentity(current, syncingTheme('replacement-request', 'deck-2')),
+  false,
+)
 const stale = applyThemeSyncResponse(current, {
   request_id: 'old-request', status: 'applied', presentation_id: 'deck-1',
 })
@@ -340,6 +355,49 @@ assert.equal(initiallyDisconnected.ready, false)
 assert.equal(initiallyDisconnected.code, 'disconnected')
 assert.equal(disconnectedRequestCount, 0)
 
+const persisted = persistedThemeSync('deck-2', 'layout')
+assert.equal(persisted.status, 'applied')
+assert.equal(persisted.requestId, 'layout:deck-2')
+assert.equal(isThemeAppliedToPresentation(persisted, 'deck-2'), true)
+
+const layoutTheme = await probePersistedPresentationTheme({
+  presentationId: 'deck-2',
+  layoutServiceUrl: 'https://layout.example',
+  fetchImpl: async (url, init) => {
+    assert.match(url, /deck-2\/theme\/css-variables$/)
+    assert.equal(init.cache, 'no-store')
+    return {
+      ok: true,
+      json: async () => ({ css_variables: { '--theme-primary': '#6d28d9' } }),
+    }
+  },
+})
+assert.equal(layoutTheme.source, 'layout')
+assert.equal(layoutTheme.notice, undefined)
+
+const neutralTheme = await probePersistedPresentationTheme({
+  presentationId: 'deck-2',
+  layoutServiceUrl: 'https://layout.example',
+  fetchImpl: async () => ({ ok: false, json: async () => null }),
+})
+assert.equal(neutralTheme.source, 'neutral')
+assert.match(neutralTheme.notice, /neutral/)
+
+const timedOutPersistedTheme = await probePersistedPresentationTheme({
+  presentationId: 'deck-2',
+  layoutServiceUrl: 'https://layout.example',
+  timeoutMs: 1,
+  fetchImpl: async (_url, init) => new Promise((_resolve, reject) => {
+    init.signal.addEventListener(
+      'abort',
+      () => reject(new DOMException('Aborted', 'AbortError')),
+      { once: true },
+    )
+  }),
+})
+assert.equal(timedOutPersistedTheme.source, 'neutral')
+assert.match(timedOutPersistedTheme.notice, /could not be read/)
+
 const hookSource = fs.readFileSync(
   new URL('../hooks/use-textlabs-generation.ts', import.meta.url),
   'utf8',
@@ -374,6 +432,21 @@ assert.doesNotMatch(
   approvedHandler,
   /isThemeAppliedToPresentation|Apply the selected deck theme/,
   'the page wrapper must not reject idle/pending theme sync before the hook acquires its lock',
+)
+assert.match(builderSource, /probePersistedPresentationTheme\(/)
+assert.match(builderSource, /current\.status === 'syncing'/)
+assert.match(builderSource, /reconnectOnError: true/)
+assert.match(builderSource, /maxReconnectAttempts: 4/)
+assert.match(hookSource, /themeSyncBeforeReadiness/)
+assert.match(
+  hookSource,
+  /isSameAppliedThemeAuthority\(expectedThemeSync,\s*current\)/,
+  'Director theme readiness must remain pinned semantically through insertion',
+)
+assert.match(
+  hookSource,
+  /hasSameThemeSyncIdentity\(\s*current,\s*expectedThemeSync/,
+  'Layout/neutral theme readiness must remain pinned by mutation identity through insertion',
 )
 
 console.log('theme sync tests passed')
