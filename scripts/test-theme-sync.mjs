@@ -421,6 +421,16 @@ assert.match(
 )
 assert.match(
   builderSource,
+  /current\.status === 'failed'[\s\S]{0,260}current\.themeFingerprint === currentFingerprint/,
+  'a theme changed while disconnected remains pending instead of being normalized back to idle',
+)
+assert.match(
+  builderSource,
+  /current\.status === 'failed'[\s\S]{0,260}current\.themeFingerprint === desiredFingerprint[\s\S]{0,260}ready: false/,
+  'a pending local theme selection cannot fall through to the persisted Layout or neutral theme',
+)
+assert.match(
+  builderSource,
   /buildThemeSelectionRef\.current\.mode === 'auto' &&[\s\S]{0,300}themeSyncRef\.current\.status === 'idle'/,
   'late standard-theme hydration cannot supersede an in-flight or applied Auto selection',
 )

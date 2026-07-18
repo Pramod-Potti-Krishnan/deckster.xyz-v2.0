@@ -458,6 +458,7 @@ function BuilderContent() {
   const latestThemeSyncRequestRef = useRef<string | null>(null)
   const latestThemeSyncKeyRef = useRef<string | null>(null)
   const themeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const themeSelectionChangedLocallyRef = useRef(false)
   const commitThemeSync = useCallback((next: ThemeSyncState) => {
     themeSyncRef.current = next
     setThemeSync(next)
@@ -1317,6 +1318,7 @@ function BuilderContent() {
     setActiveBuildThemeProfile(current => (
       buildThemeProfileMatchesSelection(current, next) ? current : null
     ))
+    themeSelectionChangedLocallyRef.current = true
     setBuildThemeSelection(next)
   }, [toast])
 
@@ -1605,6 +1607,9 @@ function BuilderContent() {
         if (terminal) clearThemeSyncTimeout()
         const current = themeSyncRef.current
         const next = applyThemeSyncResponse(current, message.payload)
+        if (next.status === 'applied') {
+          themeSelectionChangedLocallyRef.current = false
+        }
         if (next !== current) commitThemeSync(next)
         return
       }
@@ -2221,6 +2226,23 @@ function BuilderContent() {
       return { ready: true, sync: current, source: 'director' } as const
     }
 
+    // A theme selected locally while Director is disconnected has not reached
+    // Layout yet. Do not render against the previously persisted palette (or
+    // neutral fallback) and silently misrepresent the user's new selection.
+    if (
+      current.status === 'failed'
+      && current.requestId === null
+      && current.presentationId === targetPresentationId
+      && current.themeFingerprint === desiredFingerprint
+    ) {
+      return {
+        ready: false,
+        code: 'failed',
+        error: current.error
+          || 'This theme selection is pending. Reconnect so Director can apply it before generating themed elements.',
+      } as const
+    }
+
     // A theme mutation already accepted by Director must finish (or fail)
     // before generation. When Director is connected, idle or stale applied
     // state is also advanced to the exact selected theme. A disconnected or
@@ -2275,12 +2297,43 @@ function BuilderContent() {
       const currentFingerprint = themeSelectionFingerprint(buildThemeSelection)
       if (
         !templateModeOn &&
+        !isReady &&
+        effectivePresentationId &&
+        themeSelectionChangedLocallyRef.current
+      ) {
+        latestThemeSyncRequestRef.current = null
+        latestThemeSyncKeyRef.current = null
+        clearThemeSyncTimeout()
+        commitThemeSync({
+          status: 'failed',
+          requestId: null,
+          presentationId: effectivePresentationId,
+          themeFingerprint: currentFingerprint,
+          error: 'This theme selection is pending. Reconnect so Director can apply it before generating themed elements.',
+        })
+        return
+      }
+      if (
+        !templateModeOn &&
         effectivePresentationId &&
         isThemeAppliedToPresentation(current, effectivePresentationId, currentFingerprint)
       ) {
         clearThemeSyncTimeout()
         latestThemeSyncRequestRef.current = current.requestId
         latestThemeSyncKeyRef.current = `${effectivePresentationId}:${currentFingerprint}`
+        return
+      }
+      if (
+        !templateModeOn &&
+        effectivePresentationId &&
+        current.status === 'failed' &&
+        current.requestId === null &&
+        current.presentationId === effectivePresentationId &&
+        current.themeFingerprint === currentFingerprint
+      ) {
+        clearThemeSyncTimeout()
+        latestThemeSyncRequestRef.current = null
+        latestThemeSyncKeyRef.current = null
         return
       }
       latestThemeSyncRequestRef.current = null
