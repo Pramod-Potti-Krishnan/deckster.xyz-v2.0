@@ -5,7 +5,10 @@ import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { ElementResearchMode } from '@/types/textlabs'
 import type { GenerationPanelDraft } from '@/components/generation-panel/types'
-import { isNonResearchVisualElement } from '@/lib/element-research-policy'
+import {
+  isNonResearchVisualElement,
+  restoreElementResearchSelection,
+} from '@/lib/element-research-policy'
 import { resolveBlankReplacementPanelState } from '@/lib/blank-element-replacement'
 
 function cloneFormDataForDraft(formData: TextLabsFormData): TextLabsFormData {
@@ -27,20 +30,6 @@ function showAdvancedFromGenerationConfig(formData?: TextLabsFormData | null): b
   const generationConfig = formData?.generationConfig
   if (!generationConfig || typeof generationConfig !== 'object' || Array.isArray(generationConfig)) return undefined
   return typeof generationConfig.showAdvanced === 'boolean' ? generationConfig.showAdvanced : undefined
-}
-
-function selectedResearchSource(
-  provenance: Record<string, unknown> | null,
-  sourceType: 'web' | 'uploaded_docs' | 'knowledge_graph',
-): boolean {
-  const sources = provenance?.sources
-  if (!Array.isArray(sources)) return false
-  return sources.some(source => (
-    source
-    && typeof source === 'object'
-    && (source as Record<string, unknown>).source_type === sourceType
-    && (source as Record<string, unknown>).selected === true
-  ))
 }
 
 /**
@@ -211,14 +200,16 @@ export function useGenerationPanel() {
     setMode('refine')
     setEditElementId(context.elementId)
     setRefineContext(context)
-    const researchEnabled = context.researchProvenance?.mode === 'on'
-      || selectedResearchSource(context.researchProvenance, 'web')
-      || selectedResearchSource(context.researchProvenance, 'uploaded_docs')
-      || selectedResearchSource(context.researchProvenance, 'knowledge_graph')
-    setResearchMode(researchEnabled ? 'on' : 'off')
-    setResearchWeb(selectedResearchSource(context.researchProvenance, 'web'))
-    setResearchUploadedDocs(selectedResearchSource(context.researchProvenance, 'uploaded_docs'))
-    setResearchKnowledgeGraph(selectedResearchSource(context.researchProvenance, 'knowledge_graph'))
+    const restoredResearch = restoreElementResearchSelection(
+      type,
+      context.researchProvenance,
+      context.slotKind,
+      context.accessoryType,
+    )
+    setResearchMode(restoredResearch.mode)
+    setResearchWeb(restoredResearch.web)
+    setResearchUploadedDocs(restoredResearch.uploadedDocuments)
+    setResearchKnowledgeGraph(restoredResearch.knowledgeGraph)
     setIsOpen(true)
     setError(null)
   }, [activateDraftKey, draftKey, elementType, normalizeResearchForType])

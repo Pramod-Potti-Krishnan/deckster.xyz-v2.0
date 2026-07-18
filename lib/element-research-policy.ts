@@ -12,6 +12,10 @@ export interface ElementResearchSelection {
   knowledgeGraph: boolean
 }
 
+export interface RestoredElementResearchSelection extends ElementResearchSelection {
+  mode: ElementResearchMode
+}
+
 const NON_RESEARCH_VISUAL_COMPONENTS = new Set<TextLabsAllComponentType>([
   'IMAGE',
   'ICON_LABEL',
@@ -32,6 +36,53 @@ export function isNonResearchVisualElement(
   return NON_RESEARCH_VISUAL_COMPONENTS.has(componentType)
     || slotKind === 'accessory'
     || accessoryType?.toUpperCase() === 'LOGO'
+}
+
+function selectedResearchSource(
+  provenance: Record<string, unknown> | null,
+  sourceType: 'web' | 'uploaded_docs' | 'knowledge_graph',
+): boolean {
+  const sources = provenance?.sources
+  if (!Array.isArray(sources)) return false
+  return sources.some(source => (
+    source
+    && typeof source === 'object'
+    && (source as Record<string, unknown>).source_type === sourceType
+    && (source as Record<string, unknown>).selected === true
+  ))
+}
+
+/**
+ * Restore saved research provenance only for element types that support it.
+ * Visual leaf types must remain off even when an older saved element claims
+ * that research was enabled.
+ */
+export function restoreElementResearchSelection(
+  componentType: TextLabsAllComponentType,
+  provenance: Record<string, unknown> | null,
+  slotKind?: TextSlotKind | null,
+  accessoryType?: string | null,
+): RestoredElementResearchSelection {
+  if (isNonResearchVisualElement(componentType, slotKind, accessoryType)) {
+    return {
+      mode: 'off',
+      web: false,
+      uploadedDocuments: false,
+      knowledgeGraph: false,
+    }
+  }
+
+  const web = selectedResearchSource(provenance, 'web')
+  const uploadedDocuments = selectedResearchSource(provenance, 'uploaded_docs')
+  const knowledgeGraph = selectedResearchSource(provenance, 'knowledge_graph')
+  return {
+    mode: provenance?.mode === 'on' || web || uploadedDocuments || knowledgeGraph
+      ? 'on'
+      : 'off',
+    web,
+    uploadedDocuments,
+    knowledgeGraph,
+  }
 }
 
 export function defaultElementResearchSelection(
