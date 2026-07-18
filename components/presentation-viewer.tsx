@@ -404,6 +404,32 @@ function postCommand(
   )
 }
 
+const DEFAULT_LAYOUT_COMMAND_TIMEOUT_MS = 5_000
+const READ_LAYOUT_COMMAND_TIMEOUT_MS = 8_000
+const MUTATING_LAYOUT_COMMAND_TIMEOUT_MS = 30_000
+const CITED_UPSERT_LAYOUT_COMMAND_TIMEOUT_MS = 45_000
+
+const LAYOUT_ELEMENT_COMMAND_TIMEOUTS: Record<string, number> = {
+  getElementGeometry: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+  getSlideGenerationContext: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+  getTemplateSlotCatalog: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+  getElementThemeVariants: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+  refreshElementThemeMetadata: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+
+  insertTextBox: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertTable: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertImage: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertChart: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertInfographic: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertDiagram: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertShape: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  deleteElement: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  deleteTextBox: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+
+  upsertSemanticElement: CITED_UPSERT_LAYOUT_COMMAND_TIMEOUT_MS,
+  upsertCitedElement: CITED_UPSERT_LAYOUT_COMMAND_TIMEOUT_MS,
+}
+
 function waitForViewerSettle(delayMs: number): Promise<void> {
   return new Promise(resolve => window.setTimeout(resolve, delayMs))
 }
@@ -1685,9 +1711,7 @@ export function PresentationViewer({
     // Direct Layout Service command - send to iframe
     if (commandType === 'layout-service') {
       debugLog(`[ElementCommand] Layout Service: ${action}`, params)
-      const timeoutMs = action === 'getElementGeometry' || action === 'refreshElementThemeMetadata'
-        ? 8000
-        : 5000
+      const timeoutMs = LAYOUT_ELEMENT_COMMAND_TIMEOUTS[action] ?? DEFAULT_LAYOUT_COMMAND_TIMEOUT_MS
       return sendCommand(iframeRef.current, action, params, { timeoutMs })
     }
 
