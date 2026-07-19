@@ -54,6 +54,7 @@ export interface GenerationPanelProps {
     rendererType?: string | null
     mode?: string | null
     metadata?: Record<string, unknown> | null
+    generationConfig?: Record<string, unknown> | null
     content?: unknown
   } | null
   existingDiagramTarget?: {

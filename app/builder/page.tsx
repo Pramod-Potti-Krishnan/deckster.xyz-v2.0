@@ -3923,6 +3923,7 @@ function BuilderContent() {
                           rendererType: generationPanel.refineContext.existingElement.renderer_type as string | null,
                           mode: generationPanel.refineContext.existingElement.mode as string | null,
                           metadata: generationPanel.refineContext.existingElement.properties as Record<string, unknown> | null,
+                          generationConfig: generationPanel.refineContext.generationConfig,
                           content: generationPanel.refineContext.existingElement.content,
                         }
                       : null

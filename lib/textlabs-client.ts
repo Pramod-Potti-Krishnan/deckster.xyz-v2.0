@@ -283,6 +283,7 @@ function responseString(payload: unknown, snakeKey: string, camelKey: string): s
 export class TextLabsRequestError extends Error {
   readonly kind: TextLabsRequestFailureKind
   readonly status: number | null
+  readonly errorCode: string | null
   readonly requestId: string | null
   readonly downstreamRequestId: string | null
   readonly retryable: boolean
@@ -294,6 +295,7 @@ export class TextLabsRequestError extends Error {
     options: {
       kind: TextLabsRequestFailureKind
       status?: number | null
+      errorCode?: string | null
       requestId?: string | null
       downstreamRequestId?: string | null
       retryable?: boolean
@@ -306,6 +308,7 @@ export class TextLabsRequestError extends Error {
     this.name = 'TextLabsRequestError'
     this.kind = options.kind
     this.status = options.status ?? null
+    this.errorCode = options.errorCode ?? null
     this.requestId = options.requestId ?? null
     this.downstreamRequestId = options.downstreamRequestId ?? null
     this.retryable = options.retryable ?? false
@@ -510,6 +513,7 @@ export async function sendMessage(
       {
         kind: 'http',
         status: response.status,
+        errorCode: responseString(errorData, 'error_code', 'errorCode'),
         requestId: responseRequestId(response, errorData)
           ?? options.generationAttemptId
           ?? null,
@@ -576,6 +580,7 @@ export async function sendMessage(
       formatBackendError(data, 'Element generation failed'),
       {
         kind: 'application',
+        errorCode: responseString(data, 'error_code', 'errorCode'),
         requestId: responseRequestId(response, data)
           ?? options.generationAttemptId
           ?? null,
@@ -600,7 +605,7 @@ export async function sendMessage(
       },
     )
   }
-  return data
+  return data as TextLabsResponse
 }
 
 // ============================================================================
@@ -704,7 +709,12 @@ export function buildApiPayload(
     slideContext: formData.slideContext,
     deckContext: formData.deckContext,
     generationContext: formData.generationContext,
-    generationConfig: formData.generationConfig,
+    // Infographic persistence metadata travels inside existing_element. The
+    // top-level field is the strict diagram contract and rejects infographic
+    // generation configs during refinement.
+    generationConfig: componentType === 'INFOGRAPHIC'
+      ? undefined
+      : formData.generationConfig,
     generationAttemptId: formData.generationAttemptId,
     diagramSelection: formData.diagramSelection,
     languageSelection: formData.languageSelection,

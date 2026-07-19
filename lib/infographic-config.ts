@@ -155,12 +155,23 @@ export function inferExistingInfographicMode(target?: {
   mode?: unknown
   rendererType?: unknown
   metadata?: unknown
+  generationConfig?: unknown
   content?: unknown
 } | null): InfographicMode {
   const metadata = target?.metadata && typeof target.metadata === 'object'
     ? target.metadata as Record<string, unknown>
     : null
+  const generationConfig = target?.generationConfig
+    && typeof target.generationConfig === 'object'
+    ? target.generationConfig as Record<string, unknown>
+    : null
+  const infographicConfig = generationConfig?.infographic
+    && typeof generationConfig.infographic === 'object'
+    ? generationConfig.infographic as Record<string, unknown>
+    : null
   const explicitMode = target?.mode
+    ?? infographicConfig?.mode
+    ?? generationConfig?.mode
     ?? metadata?.mode
     ?? metadata?.generation_mode
     ?? metadata?.renderer

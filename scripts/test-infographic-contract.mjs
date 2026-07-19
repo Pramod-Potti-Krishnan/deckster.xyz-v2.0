@@ -131,8 +131,20 @@ assert.equal(
   configModule.inferExistingInfographicMode({ rendererType: 'image', metadata: { generation_mode: 'v2' } }),
   'v2',
 )
+assert.equal(
+  configModule.inferExistingInfographicMode({
+    rendererType: 'image',
+    generationConfig: {
+      mode: 'v2',
+      infographic: { mode: 'v2' },
+    },
+  }),
+  'v2',
+  'persisted infographic generation config outranks stale renderer metadata',
+)
 
 let multipartRequest
+let chatResponsePayload
 const clientModule = compile(
   new URL('../lib/textlabs-client.ts', import.meta.url),
   id => {
@@ -160,6 +172,14 @@ const clientModule = compile(
   {
     FormData,
     fetch: async (url, request) => {
+      if (String(url).includes('/api/chat/message')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => null },
+          json: async () => chatResponsePayload,
+        }
+      }
       multipartRequest = { url, request }
       return { ok: true, json: async () => ({ success: true }) }
     },
@@ -185,6 +205,30 @@ const apiPayload = clientModule.buildApiPayload('session-1', staleResearchForm).
 assert.equal(apiPayload.research, undefined, 'stale INFOGRAPHIC research state is omitted')
 assert.equal(apiPayload.infographicConfig.mode, 'v2', 'mode travels without Advanced overrides')
 assert.equal(apiPayload.infographicConfig.segments, undefined)
+const infographicRefinePayload = clientModule.buildApiPayload('session-1', {
+  ...staleResearchForm,
+  refine: true,
+  generationConfig: {
+    mode: 'v2',
+    infographic: { mode: 'v2' },
+  },
+  existingElement: {
+    component_type: 'INFOGRAPHIC',
+    generation_config: {
+      mode: 'v2',
+      infographic: { mode: 'v2' },
+    },
+  },
+}).options
+assert.equal(
+  infographicRefinePayload.generationConfig,
+  undefined,
+  'infographic metadata must not enter the strict diagram generation_config field',
+)
+assert.equal(
+  infographicRefinePayload.existingElement.generation_config.mode,
+  'v2',
+)
 
 await clientModule.generateInfographic(
   'session-1',
@@ -206,12 +250,55 @@ const structuredInsertion = clientModule.buildInsertionParams('INFOGRAPHIC', {
   metadata: {
     structured_plan: { segment_count: 5 },
   },
+  generation_config: {
+    version: 'infographic_generation_config_v1',
+    mode: 'v2',
+    infographic: {
+      mode: 'v2',
+      structured_plan: {
+        segment_count: 5,
+        segments: manualSegments,
+      },
+    },
+  },
 })
 assert.equal(structuredInsertion.method, 'insertDiagram')
 assert.equal(structuredInsertion.params.htmlContent, '<section>Structured</section>')
 assert.deepEqual(
   JSON.parse(JSON.stringify(structuredInsertion.params.structuredPlan)),
   { segment_count: 5 },
+)
+assert.equal(structuredInsertion.params.generationConfig.mode, 'v2')
+assert.equal(
+  structuredInsertion.params.generationConfig.infographic.structured_plan.segments.length,
+  2,
+)
+const requestError = new clientModule.TextLabsRequestError('safe failure', {
+  kind: 'application',
+  errorCode: 'STRUCTURED_INFOGRAPHIC_PLANNING_FAILED',
+  retryable: true,
+  retryStrategy: 'start_fresh_attempt',
+})
+assert.equal(requestError.errorCode, 'STRUCTURED_INFOGRAPHIC_PLANNING_FAILED')
+assert.equal(requestError.retryStrategy, 'start_fresh_attempt')
+chatResponsePayload = {
+  success: false,
+  error: "We couldn't create reliable infographic content. Nothing was added.",
+  error_code: 'STRUCTURED_INFOGRAPHIC_PLANNING_FAILED',
+  retryable: true,
+  retry_strategy: 'start_fresh_attempt',
+}
+await assert.rejects(
+  () => clientModule.sendMessage(
+    'session-1',
+    'Create a structured infographic',
+    { componentType: 'INFOGRAPHIC' },
+  ),
+  error => (
+    error instanceof clientModule.TextLabsRequestError
+    && error.errorCode === 'STRUCTURED_INFOGRAPHIC_PLANNING_FAILED'
+    && error.retryStrategy === 'start_fresh_attempt'
+  ),
 )
 const creativeInsertion = clientModule.buildInsertionParams('INFOGRAPHIC', {
   component_type: 'INFOGRAPHIC',
@@ -278,6 +365,7 @@ assert.match(generationSource, /delete formData\.research/)
 assert.match(generationSource, /infographicConfig\.grid_row/)
 assert.match(generationSource, /resolveElementGenerationTimeoutMs\(/)
 assert.match(generationSource, /properties: params\.structuredPlan/)
+assert.match(generationSource, /errorRetryStrategy = err\.retryStrategy/)
 assert.doesNotMatch(
   formSource,
   /const advancedModified = mode === 'v2'/,
