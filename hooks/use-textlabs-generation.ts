@@ -43,6 +43,7 @@ import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
 import {
+  mergeChartPanelGenerationConfig,
   researchedChartRecoveryMessage,
   synchronizeChartPanelGenerationConfig,
 } from '@/lib/chart-data-contract'
@@ -1228,6 +1229,26 @@ export function useTextLabsGeneration({
             ?? formData.themeBindings
             ?? existingThemeBindings,
         })
+        const returnedGenerationConfig = element.generation_config
+          ?? element.generationConfig
+          ?? element.metadata?.generation_config
+          ?? element.metadata?.generationConfig
+          ?? response.generation_config
+          ?? response.generationConfig
+          ?? null
+        const resolvedChartMetadata = formData.componentType === 'CHART'
+          ? element.resolved_chart_metadata
+            ?? element.metadata?.resolved_chart_metadata
+            ?? response.resolved_chart_metadata
+            ?? null
+          : null
+        const effectiveGenerationConfig = formData.componentType === 'CHART'
+          ? mergeChartPanelGenerationConfig(
+              formData.generationConfig,
+              returnedGenerationConfig,
+              resolvedChartMetadata,
+            )
+          : returnedGenerationConfig ?? formData.generationConfig ?? null
         let elementWithPosition: Parameters<typeof buildInsertionParams>[1] = {
           ...element,
           semantic_role: formData.componentType === 'TEXT_BOX' && formData.slotKind === 'accessory'
@@ -1249,15 +1270,14 @@ export function useTextLabsGeneration({
           requested_data_source_mode: formData.componentType === 'CHART'
             ? formData.chartConfig.requested_data_source_mode
             : null,
-          generation_config: element.generation_config ?? response.generation_config
-            ?? formData.generationConfig ?? null,
+          resolved_chart_metadata: resolvedChartMetadata,
+          generation_config: effectiveGenerationConfig,
           resolved_geometry: element.resolved_geometry ?? response.resolved_geometry ?? null,
           platinum_profile: element.platinum_profile ?? response.platinum_profile ?? null,
           resolved_metrics_profile: element.resolved_metrics_profile ?? (
             elements.length === 1 ? response.resolved_metrics_profile ?? null : null
           ),
-          generationConfig: element.generation_config ?? response.generation_config
-            ?? formData.generationConfig ?? null,
+          generationConfig: effectiveGenerationConfig,
           theme_variant_id: resolvedTheme.themeVariantId,
           theme_bindings: resolvedTheme.themeBindings,
           // Ownership describes the newly returned HTML. Never carry the

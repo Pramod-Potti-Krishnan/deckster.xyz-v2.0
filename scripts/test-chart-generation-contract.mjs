@@ -44,10 +44,14 @@ const {
   chartAxisInputMode,
   chartDataTemplate,
   chartDataRequiresAxes,
+  mergeChartPanelGenerationConfig,
+  normalizeResolvedChartMetadata,
   parseChartDataJson,
   researchedChartRecoveryMessage,
+  resolveChartFormDataFromGenerationConfig,
   resolveChartPanelDraft,
   resolveChartSubmissionAxisLabels,
+  resolveChartTitleOverride,
   resolveCustomChartAxisLabels,
   synchronizeChartPanelGenerationConfig,
   validateChartData,
@@ -76,6 +80,7 @@ assert.equal(chartDataRequiresAxes(simple), false)
 assert.equal(chartAxisInputMode('scatter', scatter), 'required')
 assert.equal(chartAxisInputMode('line', simple), 'optional')
 assert.equal(chartAxisInputMode('bar_grouped', multiSeries), 'optional')
+assert.equal(chartAxisInputMode('auto', null), 'optional', 'Auto exposes optional axis intent in Advanced')
 for (const type of ['pie', 'doughnut', 'radar', 'polar_area']) {
   assert.equal(chartAxisInputMode(type, simple), 'hidden', `${type} hides Cartesian axis controls`)
 }
@@ -179,6 +184,36 @@ assert.deepEqual(
   },
   'custom bubble submissions preserve meaningful axes',
 )
+assert.deepEqual(
+  JSON.parse(JSON.stringify(resolveChartSubmissionAxisLabels(
+    'custom',
+    'bubble',
+    bubble,
+    '',
+    '',
+    'auto',
+  ))),
+  {
+    requiresAxes: false,
+    xAxisLabel: null,
+    yAxisLabel: null,
+    error: null,
+  },
+  'Auto axis semantics defer custom scatter/bubble meaning to Text Labs',
+)
+assert.equal(resolveChartTitleOverride('auto', 'stale custom title').chartTitle, null)
+assert.match(resolveChartTitleOverride('custom', '').error, /chart heading/i)
+assert.equal(resolveChartTitleOverride('custom', '  Revenue Growth  ').chartTitle, 'Revenue Growth')
+assert.match(
+  resolveChartSubmissionAxisLabels('auto', 'line', null, '', '', 'custom').error,
+  /at least one meaningful axis label/i,
+  'an explicit Custom axis mode cannot masquerade as an empty Auto request',
+)
+assert.equal(
+  resolveChartSubmissionAxisLabels('custom', 'line', simple, '', '').error,
+  null,
+  'legacy callers without an explicit metadata mode retain optional blank category axes',
+)
 
 const hydratedDraft = resolveChartPanelDraft({
   componentType: 'CHART',
@@ -191,10 +226,13 @@ const hydratedDraft = resolveChartPanelDraft({
   chartConfig: {
     chart_type: 'bar_grouped',
     requested_data_source_mode: 'custom',
+    requested_title_mode: 'custom',
+    requested_axis_label_mode: 'custom',
     include_insights: true,
     series_names: ['Revenue', 'Costs'],
     placeholder_mode: false,
     data: multiSeries,
+    chart_title: 'Regional Revenue',
     x_axis_label: 'Quarter',
     y_axis_label: 'USD millions',
     color_mode: 'same',
@@ -213,6 +251,9 @@ const hydratedDraft = resolveChartPanelDraft({
 assert.equal(hydratedDraft.chartType, 'bar_grouped')
 assert.equal(hydratedDraft.dataSource, 'custom')
 assert.equal(hydratedDraft.customDataInput, '{ "labels": ["Q1", "Q2"], "datasets": [] }')
+assert.equal(hydratedDraft.titleMode, 'custom')
+assert.equal(hydratedDraft.chartTitle, 'Regional Revenue')
+assert.equal(hydratedDraft.axisLabelMode, 'custom')
 assert.equal(hydratedDraft.xAxisLabel, 'Quarter')
 assert.equal(hydratedDraft.yAxisLabel, 'USD millions')
 assert.equal(hydratedDraft.includeInsights, true)
@@ -230,16 +271,20 @@ const persistedPanelConfig = buildChartPanelGenerationConfig({
   chartConfig: {
     chart_type: 'scatter',
     requested_data_source_mode: 'custom',
+    requested_title_mode: 'custom',
+    requested_axis_label_mode: 'custom',
     include_insights: true,
     series_names: [],
     placeholder_mode: false,
     data: scatter,
+    chart_title: 'Investment vs Revenue',
     x_axis_label: 'Investment',
     y_axis_label: 'Revenue',
   },
 }, '[{"x":1,"y":2},{"x":3,"y":4}]', true)
 assert.equal(persistedPanelConfig.customDataInput, '[{"x":1,"y":2},{"x":3,"y":4}]')
 assert.equal(persistedPanelConfig.formData.chartConfig.x_axis_label, 'Investment')
+assert.equal(persistedPanelConfig.formData.chartConfig.chart_title, 'Investment vs Revenue')
 assert.equal(persistedPanelConfig.formData.generationConfig.customDataInput, persistedPanelConfig.customDataInput)
 assert.equal(
   persistedPanelConfig.formData.generationConfig.formData,
@@ -288,6 +333,72 @@ assert.equal(
   'runtime synchronization keeps the chart reopen snapshot nonrecursive',
 )
 assert.doesNotThrow(() => JSON.stringify(synchronizedPanelConfig))
+const resolvedMetadata = normalizeResolvedChartMetadata({
+  title: 'Investment Efficiency',
+  x_axis: 'Investment ($m)',
+  y_axis: 'Revenue ($m)',
+  metric: 'Revenue',
+  unit: '$m',
+  value_format: 'currency',
+  title_mode: 'auto',
+  axis_label_mode: 'auto',
+  resolution_source: 'deterministic',
+  confidence: 0.93,
+})
+assert.equal(resolvedMetadata.title, 'Investment Efficiency')
+const partialResolvedMetadata = normalizeResolvedChartMetadata({
+  title: 'Legacy saved title',
+  x_axis: 'Month',
+  y_axis: 'Revenue',
+})
+assert.equal(partialResolvedMetadata.title, 'Legacy saved title')
+assert.equal(partialResolvedMetadata.resolution_source, 'fallback')
+assert.equal(partialResolvedMetadata.confidence, 0)
+const flatSavedChart = resolveChartFormDataFromGenerationConfig({
+  prompt: 'Monthly recurring revenue',
+  chart_type: 'line',
+  requested_data_source_mode: 'custom',
+  requested_title_mode: 'auto',
+  requested_axis_label_mode: 'custom',
+  data: simple,
+  x_axis_label: 'Quarter',
+  y_axis_label: 'Revenue ($k)',
+  include_insights: true,
+  showAdvanced: true,
+  resolved_chart_metadata: partialResolvedMetadata,
+})
+assert.equal(flatSavedChart.componentType, 'CHART')
+assert.equal(flatSavedChart.prompt, 'Monthly recurring revenue')
+assert.equal(flatSavedChart.chartConfig.chart_type, 'line')
+assert.equal(flatSavedChart.chartConfig.requested_data_source_mode, 'custom')
+assert.equal(flatSavedChart.chartConfig.requested_title_mode, 'auto')
+assert.equal(flatSavedChart.chartConfig.requested_axis_label_mode, 'custom')
+assert.deepEqual(JSON.parse(JSON.stringify(flatSavedChart.chartConfig.data)), simple)
+assert.equal(flatSavedChart.generationConfig.resolved_chart_metadata.title, 'Legacy saved title')
+const mergedPanelConfig = mergeChartPanelGenerationConfig(
+  persistedPanelConfig,
+  {
+    renderer: 'chartjs',
+    formData: {
+      componentType: 'CHART',
+      chartConfig: { chart_type: 'line', chart_title: 'backend rewrite' },
+    },
+  },
+  resolvedMetadata,
+)
+assert.equal(mergedPanelConfig.renderer, 'chartjs', 'renderer-owned generation details are retained')
+assert.equal(
+  mergedPanelConfig.formData.chartConfig.chart_type,
+  'scatter',
+  'submitted user controls win when hydrating Refine',
+)
+assert.equal(mergedPanelConfig.formData.chartConfig.chart_title, 'Investment vs Revenue')
+assert.equal(mergedPanelConfig.resolved_chart_metadata.title, 'Investment Efficiency')
+assert.equal(
+  mergedPanelConfig.formData.generationConfig.resolved_chart_metadata.x_axis,
+  'Investment ($m)',
+)
+assert.doesNotThrow(() => JSON.stringify(mergedPanelConfig))
 assert.equal(validateChartData([{ x: 1, y: 2, r: 0 }]).valid, false, 'bubble radii must be positive')
 assert.equal(validateChartData([{ label: 'Only', value: 1 }]).valid, false, 'canonical charts require at least two points')
 assert.equal(validateChartData([{ x: 1, y: 2 }]).valid, false, 'scatter charts require at least two points')
@@ -315,6 +426,8 @@ function chartForm(chartType, requestedDataSourceMode, data = null, researchMode
     chartConfig: {
       chart_type: chartType,
       requested_data_source_mode: requestedDataSourceMode,
+      requested_title_mode: 'auto',
+      requested_axis_label_mode: needsAxes ? 'custom' : 'auto',
       include_insights: false,
       series_names: [],
       placeholder_mode: false,
@@ -349,6 +462,8 @@ for (const [chartType, mode, data, research] of [
   const { options } = buildApiPayload('session-1', chartForm(chartType, mode, data, research))
   assert.equal(options.chartConfig.chart_type, chartType)
   assert.equal(options.chartConfig.requested_data_source_mode, mode)
+  assert.equal(options.chartConfig.requested_title_mode, 'auto')
+  assert.equal(options.chartConfig.requested_axis_label_mode, ['scatter', 'bubble'].includes(chartType) ? 'custom' : 'auto')
   assert.deepEqual(JSON.parse(JSON.stringify(options.chartConfig.data)), data)
   if (['scatter', 'bubble'].includes(chartType)) {
     assert.equal(options.chartConfig.x_axis_label, 'Investment')
@@ -363,6 +478,7 @@ const insertion = buildInsertionParams('CHART', {
   html: '<canvas id="chart"></canvas>',
   grid_position: { start_col: 7.2, start_row: 5.4, position_width: 18.6, position_height: 9.2 },
   requested_data_source_mode: 'auto',
+  resolved_chart_metadata: resolvedMetadata,
   source_provenance: 'research_sourced',
   source_citation: citation,
   research_provenance: { source_count: 1 },
@@ -381,6 +497,7 @@ assert.equal(insertion.params.gridColumn, '7.2/25.8', 'authoritative live elemen
 assert.equal(insertion.params.gridRow, '5.4/14.6')
 assert.equal(insertion.params.sourceProvenance, 'research_sourced')
 assert.equal(insertion.params.requestedDataSourceMode, 'auto')
+assert.equal(insertion.params.resolvedChartMetadata.title, 'Investment Efficiency')
 assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.sourceCitation)), citation)
 assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.citationsUsed)), [citation])
 assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.researchProvenance)), { source_count: 1 })
@@ -426,6 +543,13 @@ assert.match(chartFormSource, /next\.auto_position[\s\S]*liveStartCol !== undefi
 assert.match(panelSource, /elementContext && elementType !== 'CHART'/, 'the redundant chart position banner does not displace the chat controls')
 assert.match(chartFormSource, /X-axis label/)
 assert.match(chartFormSource, /Y-axis label/)
+assert.match(chartFormSource, /Chart heading/)
+assert.match(chartFormSource, /Axis labels/)
+assert.match(chartFormSource, /requested_title_mode/)
+assert.match(chartFormSource, /requested_axis_label_mode/)
+assert.match(chartFormSource, /titleMode === 'custom'/)
+assert.match(chartFormSource, /axisLabelMode === 'custom'/)
+assert.match(chartFormSource, /Ambiguous scatter or bubble semantics return a recoverable error/)
 assert.match(chartFormSource, /resolveChartSubmissionAxisLabels/)
 assert.doesNotMatch(chartFormSource, /setXAxisLabel\(current => current\.trim\(\) \|\| 'X value'\)/)
 assert.doesNotMatch(chartFormSource, /setYAxisLabel\(current => current\.trim\(\) \|\| 'Y value'\)/)
@@ -443,6 +567,11 @@ assert.match(
   /<ChartForm \{\.\.\.commonProps\} initialDraft=\{initialDraft\} onDraftChange=\{onDraftChange\}/,
   'ChartForm participates in the panel draft hydration lifecycle',
 )
+assert.match(
+  panelSource,
+  /elementType === 'CHART'[\s\S]*resolveChartFormDataFromGenerationConfig\(savedConfig\)/,
+  'flat Layout chart snapshots are upgraded into a complete refine draft after reload',
+)
 const resumePanelLifecycle = generationPanelHookSource.slice(
   generationPanelHookSource.indexOf('const resumePanelForElement'),
   generationPanelHookSource.indexOf('/** Open panel in edit mode'),
@@ -456,7 +585,11 @@ assert.doesNotMatch(
 )
 assert.match(chartFormSource, /axisInputMode !== 'hidden'/)
 assert.match(chartFormSource, /axisInputMode === 'required'/)
-assert.match(chartFormSource, /temporary mode switch[\s\S]*submission always resolves Auto\/Illustrative/)
+assert.match(
+  chartFormSource,
+  /temporary mode switch[\s\S]*independent Axis labels control decides/,
+  'data-source changes preserve axis drafts while the explicit Auto/Custom mode owns submission',
+)
 assert.match(
   chartFormSource,
   /previous\.start_col === liveStartCol[\s\S]*return previous/,
@@ -473,6 +606,13 @@ assert.match(generationSource, /const manuallyPositionedChart = formData\.compon
 assert.match(generationSource, /manuallyPositionedChart && formData\.positionConfig \? \{/)
 assert.match(generationSource, /\} : currentBlankInfo && formData\.count <= 1 \? \{/, 'Auto still preserves dragged placeholder geometry')
 assert.match(generationSource, /source_provenance: element\.source_provenance \?\? response\.source_provenance/)
+assert.match(generationSource, /mergeChartPanelGenerationConfig/)
+assert.match(generationSource, /resolved_chart_metadata: resolvedChartMetadata/)
+assert.match(
+  generationSource,
+  /element\.metadata\?\.generation_config[\s\S]*response\.generationConfig/,
+  'renderer-owned generation metadata is retained from every supported response alias',
+)
 assert.match(generationSource, /researchedChartRecoveryMessage/)
 const synchronizeDraftIndex = generationSource.indexOf('synchronizeChartPanelGenerationConfig(')
 const buildPayloadIndex = generationSource.indexOf('buildApiPayload(sessionId, formData)')

@@ -19,6 +19,7 @@ import { GenerationPanelProps, ElementContext, GenerationPanelDraft, MandatoryCo
 import { parseTemplateSlotCatalog } from '@/lib/text-slot-catalog'
 import { ResearchControls } from './shared/research-controls'
 import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
+import { resolveChartFormDataFromGenerationConfig } from '@/lib/chart-data-contract'
 
 function readObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -50,6 +51,16 @@ function useMemoFromSavedGenerationConfig(
       }
     }
     const prompt = typeof savedConfig.prompt === 'string' ? savedConfig.prompt : ''
+    if (elementType === 'CHART') {
+      const chartFormData = resolveChartFormDataFromGenerationConfig(savedConfig)
+      if (!chartFormData) return prompt ? { prompt } : null
+      return {
+        prompt: chartFormData.prompt,
+        showAdvanced: savedConfig.showAdvanced === true
+          || chartFormData.advancedModified === true,
+        formData: chartFormData,
+      }
+    }
     if (elementType !== 'TABLE') {
       return prompt ? { prompt, showAdvanced: Boolean(savedConfig.showAdvanced) } : null
     }

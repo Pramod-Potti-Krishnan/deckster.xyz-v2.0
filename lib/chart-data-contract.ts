@@ -3,6 +3,8 @@ import type {
   ChartData,
   ChartDataSourceMode,
   ChartFormData,
+  ChartMetadataMode,
+  ResolvedChartMetadata,
   TextLabsChartType,
   TextLabsPositionConfig,
 } from '@/types/textlabs'
@@ -19,13 +21,21 @@ export type CustomChartAxisLabels = {
 }
 
 export type ChartAxisInputMode = 'hidden' | 'optional' | 'required'
+export type ChartTitleOverride = {
+  chartTitle: string | null
+  error: string | null
+}
 
 export type ChartPanelDraftState = {
   chartType: TextLabsChartType
   dataSource: ChartDataSourceMode
   customDataInput: string
+  titleMode: ChartMetadataMode
+  chartTitle: string
+  axisLabelMode: ChartMetadataMode
   xAxisLabel: string
   yAxisLabel: string
+  resolvedChartMetadata: ResolvedChartMetadata | null
   includeInsights: boolean
   seriesNamesInput: string
   advancedModified: boolean
@@ -110,6 +120,63 @@ function chartDataSourceMode(value: unknown, data: ChartData | null): ChartDataS
     return value as ChartDataSourceMode
   }
   return data ? 'custom' : 'auto'
+}
+
+function chartMetadataMode(value: unknown, customValuePresent: boolean): ChartMetadataMode {
+  if (value === 'auto' || value === 'custom') return value
+  return customValuePresent ? 'custom' : 'auto'
+}
+
+function cleanOptionalText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
+export function normalizeResolvedChartMetadata(value: unknown): ResolvedChartMetadata | null {
+  if (!isRecord(value)) return null
+  const title = cleanOptionalText(value.title)
+  const xAxis = cleanOptionalText(value.x_axis)
+  const yAxis = cleanOptionalText(value.y_axis)
+  const metric = cleanOptionalText(value.metric)
+  const unit = cleanOptionalText(value.unit)
+  const valueFormat = cleanOptionalText(value.value_format)
+  const hasSemanticValue = Boolean(title || xAxis || yAxis || metric || unit || valueFormat)
+  const titleMode = value.title_mode === 'custom' ? 'custom' : 'auto'
+  const axisLabelMode = value.axis_label_mode === 'custom' ? 'custom' : 'auto'
+  const resolutionSources: ResolvedChartMetadata['resolution_source'][] = [
+    'manual_override',
+    'prompt_exact',
+    'research',
+    'deterministic',
+    'llm',
+    'fallback',
+    'mixed',
+  ]
+  const resolutionSource = resolutionSources.includes(
+    value.resolution_source as ResolvedChartMetadata['resolution_source'],
+  )
+    ? value.resolution_source as ResolvedChartMetadata['resolution_source']
+    : 'fallback'
+  const confidence = typeof value.confidence === 'number' && Number.isFinite(value.confidence)
+    ? Math.max(0, Math.min(1, value.confidence))
+    : 0
+  if (!hasSemanticValue && value.title_mode === undefined && value.axis_label_mode === undefined) {
+    return null
+  }
+
+  return {
+    title,
+    x_axis: xAxis,
+    y_axis: yAxis,
+    metric,
+    unit,
+    value_format: valueFormat,
+    title_mode: titleMode,
+    axis_label_mode: axisLabelMode,
+    resolution_source: resolutionSource,
+    confidence,
+  }
 }
 
 /** Validate the three canonical data shapes shared by Researcher and Analytics. */
@@ -200,8 +267,18 @@ export function chartAxisInputMode(
 ): ChartAxisInputMode {
   if (NON_CARTESIAN_CHART_TYPES.has(chartType)) return 'hidden'
   if (REQUIRED_AXIS_CHART_TYPES.has(chartType) || chartDataRequiresAxes(data)) return 'required'
-  if (chartType !== 'auto' || data) return 'optional'
-  return 'hidden'
+  return 'optional'
+}
+
+export function resolveChartTitleOverride(
+  titleMode: ChartMetadataMode,
+  chartTitle: string,
+): ChartTitleOverride {
+  if (titleMode === 'auto') return { chartTitle: null, error: null }
+  const resolvedTitle = chartTitle.trim()
+  return resolvedTitle
+    ? { chartTitle: resolvedTitle, error: null }
+    : { chartTitle: null, error: 'Enter a chart heading or switch Chart heading to Auto.' }
 }
 
 /**
@@ -259,9 +336,9 @@ export function resolveCustomChartAxisLabels(
 }
 
 /**
- * Axis fields are owned only by Custom JSON. Auto and Illustrative charts must
- * leave them empty so researched/source metadata can provide the semantics
- * downstream.
+ * Resolve the independent Axis labels Auto/Custom control. With no explicit
+ * mode argument, retain the legacy behavior: Custom JSON validates overrides,
+ * while Auto/Illustrative leaves semantics to Text Labs.
  */
 export function resolveChartSubmissionAxisLabels(
   dataSource: ChartDataSourceMode,
@@ -269,8 +346,10 @@ export function resolveChartSubmissionAxisLabels(
   data: ChartData | null,
   xAxisLabel: string,
   yAxisLabel: string,
+  axisLabelMode?: ChartMetadataMode,
 ): CustomChartAxisLabels {
-  if (dataSource !== 'custom') {
+  const effectiveMode = axisLabelMode ?? (dataSource === 'custom' ? 'custom' : 'auto')
+  if (effectiveMode === 'auto' || NON_CARTESIAN_CHART_TYPES.has(chartType)) {
     return {
       requiresAxes: false,
       xAxisLabel: null,
@@ -278,7 +357,19 @@ export function resolveChartSubmissionAxisLabels(
       error: null,
     }
   }
-  return resolveCustomChartAxisLabels(chartType, data, xAxisLabel, yAxisLabel)
+  const resolved = resolveCustomChartAxisLabels(chartType, data, xAxisLabel, yAxisLabel)
+  if (
+    axisLabelMode === 'custom'
+    && chartAxisInputMode(chartType, data) === 'optional'
+    && !resolved.xAxisLabel
+    && !resolved.yAxisLabel
+  ) {
+    return {
+      ...resolved,
+      error: 'Enter at least one meaningful axis label or switch Axis labels to Auto.',
+    }
+  }
+  return resolved
 }
 
 /** Hydrate the chart form from the panel's remembered formData snapshot. */
@@ -293,6 +384,13 @@ export function resolveChartPanelDraft(
   const generationConfig = formData?.generationConfig
   const generationMetadata = isRecord(generationConfig) ? generationConfig : null
   const savedRawInput = generationMetadata?.customDataInput
+  const resolvedChartMetadata = normalizeResolvedChartMetadata(
+    generationMetadata?.resolved_chart_metadata
+      ?? generationMetadata?.resolvedChartMetadata,
+  )
+  const chartTitle = typeof chartConfig.chart_title === 'string' ? chartConfig.chart_title : ''
+  const xAxisLabel = typeof chartConfig.x_axis_label === 'string' ? chartConfig.x_axis_label : ''
+  const yAxisLabel = typeof chartConfig.y_axis_label === 'string' ? chartConfig.y_axis_label : ''
   let customDataInput = typeof savedRawInput === 'string' ? savedRawInput : ''
   if (!customDataInput && data) {
     try {
@@ -306,8 +404,15 @@ export function resolveChartPanelDraft(
     chartType: textLabsChartType(chartConfig.chart_type),
     dataSource: chartDataSourceMode(chartConfig.requested_data_source_mode, data),
     customDataInput,
-    xAxisLabel: typeof chartConfig.x_axis_label === 'string' ? chartConfig.x_axis_label : '',
-    yAxisLabel: typeof chartConfig.y_axis_label === 'string' ? chartConfig.y_axis_label : '',
+    titleMode: chartMetadataMode(chartConfig.requested_title_mode, Boolean(chartTitle.trim())),
+    chartTitle,
+    axisLabelMode: chartMetadataMode(
+      chartConfig.requested_axis_label_mode,
+      Boolean(xAxisLabel.trim() || yAxisLabel.trim()),
+    ),
+    xAxisLabel,
+    yAxisLabel,
+    resolvedChartMetadata,
     includeInsights: chartConfig.include_insights === true,
     seriesNamesInput: Array.isArray(chartConfig.series_names)
       ? chartConfig.series_names.filter(nonEmptyLabel).join(', ')
@@ -319,6 +424,196 @@ export function resolveChartPanelDraft(
     positionConfig: formData?.positionConfig,
     preservedChartConfig: { ...chartConfig },
   }
+}
+
+/**
+ * Older Layout snapshots may contain a flat chart generation record rather
+ * than the newer non-recursive `formData` snapshot. Synthesize only known
+ * chart controls so those saved charts remain refinable without forwarding
+ * arbitrary renderer metadata back as request options.
+ */
+export function resolveChartFormDataFromGenerationConfig(
+  value: unknown,
+): ChartFormData | null {
+  if (!isRecord(value)) return null
+  const nestedFormData = isRecord(value.formData) ? value.formData : null
+  if (nestedFormData?.componentType === 'CHART') {
+    return nestedFormData as unknown as ChartFormData
+  }
+
+  const nestedChartConfig = isRecord(value.chartConfig)
+    ? value.chartConfig
+    : isRecord(value.chart_config)
+      ? value.chart_config
+      : null
+  const source = nestedChartConfig ?? value
+  const rawData = source.data
+  const validatedData = rawData === null || rawData === undefined
+    ? null
+    : validateChartData(rawData)
+  const data = validatedData?.valid ? validatedData.data : null
+  const chartTitle = cleanOptionalText(source.chart_title)
+  const xAxisLabel = cleanOptionalText(source.x_axis_label)
+  const yAxisLabel = cleanOptionalText(source.y_axis_label)
+  const requestedTitleMode = chartMetadataMode(
+    source.requested_title_mode,
+    Boolean(chartTitle),
+  )
+  const requestedAxisLabelMode = chartMetadataMode(
+    source.requested_axis_label_mode,
+    Boolean(xAxisLabel || yAxisLabel),
+  )
+  const requestedDataSourceMode = chartDataSourceMode(
+    source.requested_data_source_mode,
+    data,
+  )
+  const positionValue = isRecord(value.positionConfig)
+    ? value.positionConfig
+    : isRecord(value.position_config)
+      ? value.position_config
+      : null
+  const positionConfig = positionValue
+    && isFiniteNumber(positionValue.start_col)
+    && isFiniteNumber(positionValue.start_row)
+    && isFiniteNumber(positionValue.position_width)
+    && isFiniteNumber(positionValue.position_height)
+      ? {
+          start_col: positionValue.start_col,
+          start_row: positionValue.start_row,
+          position_width: positionValue.position_width,
+          position_height: positionValue.position_height,
+          auto_position: positionValue.auto_position === true,
+        }
+      : undefined
+  const colors = Array.isArray(source.colors)
+    ? source.colors.filter(nonEmptyLabel)
+    : undefined
+  const colorMode = source.color_mode === 'multi'
+    || source.color_mode === 'same'
+    || source.color_mode === 'transparency'
+      ? source.color_mode
+      : undefined
+
+  return {
+    componentType: 'CHART',
+    prompt: typeof value.prompt === 'string' ? value.prompt : '',
+    count: isFiniteNumber(value.count) && value.count > 0 ? Math.floor(value.count) : 1,
+    layout: value.layout === 'vertical' || value.layout === 'grid'
+      ? value.layout
+      : 'horizontal',
+    advancedModified: value.advancedModified === true
+      || value.advanced_modified === true
+      || requestedTitleMode === 'custom'
+      || requestedAxisLabelMode === 'custom',
+    z_index: isFiniteNumber(value.zIndex)
+      ? value.zIndex
+      : isFiniteNumber(value.z_index)
+        ? value.z_index
+        : undefined,
+    useDeckTheme: typeof value.useDeckTheme === 'boolean'
+      ? value.useDeckTheme
+      : typeof value.use_deck_theme === 'boolean'
+        ? value.use_deck_theme
+        : undefined,
+    themeOverrides: isRecord(value.themeOverrides)
+      ? value.themeOverrides
+      : isRecord(value.theme_overrides)
+        ? value.theme_overrides
+        : undefined,
+    chartConfig: {
+      chart_type: textLabsChartType(source.chart_type ?? source.chartType),
+      requested_data_source_mode: requestedDataSourceMode,
+      requested_title_mode: requestedTitleMode,
+      requested_axis_label_mode: requestedAxisLabelMode,
+      include_insights: source.include_insights === true,
+      series_names: Array.isArray(source.series_names)
+        ? source.series_names.filter(nonEmptyLabel)
+        : [],
+      placeholder_mode: false,
+      data,
+      chart_title: chartTitle,
+      x_axis_label: xAxisLabel,
+      y_axis_label: yAxisLabel,
+      colors,
+      color_mode: colorMode,
+      chart_font: cleanOptionalText(source.chart_font),
+    },
+    positionConfig,
+    generationConfig: value,
+  }
+}
+
+/**
+ * Combine Text Labs' renderer-owned generation details with the exact
+ * user-owned chart-panel snapshot. Returned generator state wins generally;
+ * the submitted form snapshot wins only for panel controls so Refine can
+ * faithfully reopen after Layout persistence and a hard refresh.
+ */
+export function mergeChartPanelGenerationConfig(
+  submittedConfig: unknown,
+  returnedConfig: unknown,
+  resolvedMetadata: unknown,
+): Record<string, unknown> | null {
+  const submitted = isRecord(submittedConfig) ? submittedConfig : null
+  const returned = isRecord(returnedConfig) ? returnedConfig : null
+  const submittedFormData = isRecord(submitted?.formData) ? submitted.formData : null
+  const returnedFormData = isRecord(returned?.formData) ? returned.formData : null
+  const isChartConfig = (
+    submittedFormData?.componentType === 'CHART'
+    || returnedFormData?.componentType === 'CHART'
+    || submitted?.componentType === 'CHART'
+    || returned?.componentType === 'CHART'
+  )
+
+  if (!isChartConfig) return returned ?? submitted
+
+  const submittedChartConfig = isRecord(submittedFormData?.chartConfig)
+    ? submittedFormData.chartConfig
+    : null
+  const returnedChartConfig = isRecord(returnedFormData?.chartConfig)
+    ? returnedFormData.chartConfig
+    : null
+  const submittedPanelMetadata = isRecord(submittedFormData?.generationConfig)
+    ? submittedFormData.generationConfig
+    : null
+  const returnedPanelMetadata = isRecord(returnedFormData?.generationConfig)
+    ? returnedFormData.generationConfig
+    : null
+  const normalizedMetadata = normalizeResolvedChartMetadata(
+    resolvedMetadata
+      ?? returned?.resolved_chart_metadata
+      ?? returned?.resolvedChartMetadata
+      ?? submitted?.resolved_chart_metadata
+      ?? submitted?.resolvedChartMetadata,
+  )
+  const merged: Record<string, unknown> = {
+    ...(submitted ?? {}),
+    ...(returned ?? {}),
+  }
+
+  if (normalizedMetadata) merged.resolved_chart_metadata = normalizedMetadata
+
+  if (submittedFormData || returnedFormData) {
+    merged.formData = {
+      ...(returnedFormData ?? {}),
+      ...(submittedFormData ?? {}),
+      ...(submittedChartConfig || returnedChartConfig ? {
+        chartConfig: {
+          ...(returnedChartConfig ?? {}),
+          ...(submittedChartConfig ?? {}),
+        },
+      } : {}),
+      ...(submittedPanelMetadata || returnedPanelMetadata ? {
+        generationConfig: {
+          ...(returnedPanelMetadata ?? {}),
+          ...(submittedPanelMetadata ?? {}),
+          ...(normalizedMetadata ? { resolved_chart_metadata: normalizedMetadata } : {}),
+        },
+      } : {}),
+    }
+  }
+
+  return merged
 }
 
 /**
