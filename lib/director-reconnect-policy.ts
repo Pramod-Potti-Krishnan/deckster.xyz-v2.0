@@ -1,5 +1,13 @@
 export const DIRECTOR_HEARTBEAT_INTERVAL_MS = 15_000
 export const DIRECTOR_PONG_TIMEOUT_MS = 10_000
+export const DIRECTOR_RECONNECT_STABILITY_MS = 30_000
+
+export type DirectorReconnectStatus =
+  | 'idle'
+  | 'scheduled'
+  | 'paused_offline'
+  | 'exhausted'
+  | 'manual'
 
 export type DirectorReconnectPlan =
   | { kind: 'skip'; reason: 'disabled' | 'manual' | 'not_desired' | 'exhausted' }
@@ -50,23 +58,52 @@ export interface ShouldReconnectDirectorOnOnlineOptions {
   manualDisconnect: boolean
   connectionDesired: boolean
   resumingFromOffline: boolean
+  reconnectStatus: DirectorReconnectStatus
   socketReadyState: number | null
 }
 
 /**
- * A socket that crossed a confirmed browser-offline boundary is stale even if
- * the browser still reports CONNECTING/OPEN. Outside that transition,
- * CONNECTING (0) and OPEN (1) are already live attempts and must not be
- * duplicated.
+ * Only a connection lifecycle that the hook explicitly paused on a confirmed
+ * offline event may resume on `online`. Generic/spurious online events cannot
+ * create another retry path or clear durable exhaustion.
  */
 export function shouldReconnectDirectorOnOnline({
   reconnectEnabled,
   manualDisconnect,
   connectionDesired,
   resumingFromOffline,
-  socketReadyState,
+  reconnectStatus,
 }: ShouldReconnectDirectorOnOnlineOptions): boolean {
   if (!reconnectEnabled || manualDisconnect || !connectionDesired) return false
+  if (reconnectStatus === 'exhausted' || reconnectStatus === 'manual') return false
   if (resumingFromOffline) return true
-  return socketReadyState !== 0 && socketReadyState !== 1
+  return false
+}
+
+export interface ShouldRequestBuilderSessionConnectionOptions {
+  sessionKey: string | null
+  lastRequestedSessionKey: string | null
+  loading: boolean
+  connected: boolean
+  connecting: boolean
+  reconnectStatus: DirectorReconnectStatus
+}
+
+/**
+ * The Builder session layer owns one initial connection request per adopted
+ * session. Once that request is handed to the WebSocket hook, transport close,
+ * backoff, offline recovery, and exhaustion belong exclusively to that hook.
+ */
+export function shouldRequestBuilderSessionConnection({
+  sessionKey,
+  lastRequestedSessionKey,
+  loading,
+  connected,
+  connecting,
+  reconnectStatus,
+}: ShouldRequestBuilderSessionConnectionOptions): boolean {
+  if (!sessionKey || loading) return false
+  if (sessionKey === lastRequestedSessionKey) return false
+  if (connected || connecting) return false
+  return reconnectStatus === 'idle'
 }

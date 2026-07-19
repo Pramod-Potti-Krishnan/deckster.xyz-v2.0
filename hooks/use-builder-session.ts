@@ -7,6 +7,10 @@ import { debugLog } from '@/lib/debug-log'
 import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import { recoverRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy'
 import { type DirectorMessage, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
+import {
+  type DirectorReconnectStatus,
+  shouldRequestBuilderSessionConnection,
+} from '@/lib/director-reconnect-policy'
 
 interface UseBuilderSessionParams {
   user: any
@@ -22,7 +26,8 @@ interface UseBuilderSessionParams {
   // WebSocket methods
   connected: boolean
   connecting: boolean
-  connect: () => void
+  reconnectStatus: DirectorReconnectStatus
+  ensureConnected: () => boolean
   disconnect: () => void
   clearMessages: () => void
   restoreMessages: (messages: DirectorMessage[], sessionState: any) => void
@@ -47,7 +52,8 @@ export function useBuilderSession({
   persistence,
   connected,
   connecting,
-  connect,
+  reconnectStatus,
+  ensureConnected,
   disconnect,
   clearMessages,
   restoreMessages,
@@ -64,7 +70,10 @@ export function useBuilderSession({
 
   const currentSessionIdRef = useRef(currentSessionId)
 
-  const [isLoadingSession, setIsLoadingSession] = useState(false)
+  // A URL-owned session must be considered loading on the first render. React
+  // effects share that render's state snapshot, so setting this only inside the
+  // async initializer lets the later connection-owner effect run too early.
+  const [isLoadingSession, setIsLoadingSession] = useState(() => Boolean(currentSessionId))
   const [isResumedSession, setIsResumedSession] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
 
@@ -99,6 +108,7 @@ export function useBuilderSession({
   const persistedMessageIdsRef = useRef<Set<string>>(new Set())
   const userMessageContentMapRef = useRef<Map<string, string>>(new Map())
   const answeredActionsRef = useRef<Set<string>>(new Set())
+  const connectionRequestedSessionRef = useRef<string | null>(null)
 
   // Keep currentSessionIdRef in sync
   useEffect(() => {
@@ -657,17 +667,51 @@ export function useBuilderSession({
     router.push(`/builder?session_id=${newSessionId}`)
   }, [router, clearMessages, disconnect, setUserMessages, setIsUnsavedSession, setIsResumedSession, setCurrentSessionId, setSessionStoreName])
 
-  // Auto-connect WebSocket
+  // The session layer owns exactly one initial connection request for each
+  // adopted session. After that handoff, the WebSocket hook exclusively owns
+  // close/backoff/offline/exhaustion recovery; connection-state renders must
+  // never create a second transport retry path.
   useEffect(() => {
-    if (currentSessionId && !isLoadingSession && !connecting && !connected) {
-      const sessionType = isResumedSession ? 'RESUMED' : 'NEW'
-      debugLog(`🔌 Auto-connecting WebSocket for ${sessionType} session:`, currentSessionId)
-      connect()
-    } else if (isUnsavedSession && !isLoadingSession && !connecting && !connected) {
-      debugLog('🔌 Auto-connecting WebSocket for UNSAVED session (no DB session yet)')
-      connect()
+    const sessionKey = currentSessionId || (isUnsavedSession ? 'unsaved-session' : null)
+
+    // A mount-level connection may already own this session. Latch it so a
+    // later transport close cannot be mistaken for initial session adoption.
+    if (sessionKey && (connected || connecting)) {
+      connectionRequestedSessionRef.current = sessionKey
+      return
     }
-  }, [currentSessionId, isLoadingSession, connecting, connected, connect, isResumedSession, isUnsavedSession])
+
+    if (!shouldRequestBuilderSessionConnection({
+      sessionKey,
+      lastRequestedSessionKey: connectionRequestedSessionRef.current,
+      loading: isLoadingSession || isAuthLoading || !user,
+      connected,
+      connecting,
+      reconnectStatus,
+    })) {
+      return
+    }
+
+    connectionRequestedSessionRef.current = sessionKey
+    const sessionType = isResumedSession ? 'RESUMED' : (isUnsavedSession ? 'UNSAVED' : 'NEW')
+    debugLog(`🔌 Requesting initial WebSocket connection for ${sessionType} session:`, sessionKey)
+    if (!ensureConnected()) {
+      // A mount-level attempt may have won the same commit. Its next state
+      // render will latch the key; otherwise leave initial ownership retryable.
+      connectionRequestedSessionRef.current = null
+    }
+  }, [
+    currentSessionId,
+    isLoadingSession,
+    isAuthLoading,
+    connecting,
+    connected,
+    ensureConnected,
+    isResumedSession,
+    isUnsavedSession,
+    reconnectStatus,
+    user,
+  ])
 
   // Persist bot messages received from WebSocket
   useEffect(() => {

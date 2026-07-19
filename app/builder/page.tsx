@@ -1503,6 +1503,7 @@ function BuilderContent() {
     connected,
     connecting,
     connectionState,
+    reconnectStatus,
     error: wsError,
     messages,
     presentationUrl,
@@ -1533,6 +1534,7 @@ function BuilderContent() {
     restoreMessages,
     switchVersion,
     connect,
+    ensureConnected,
     disconnect,
     isReady,
     sessionId: wsSessionId,
@@ -2871,7 +2873,8 @@ function BuilderContent() {
     persistence,
     connected,
     connecting,
-    connect,
+    reconnectStatus,
+    ensureConnected,
     disconnect,
     clearMessages,
     restoreMessages,
@@ -3224,6 +3227,21 @@ function BuilderContent() {
     isExecutingSendRef.current = true
 
     try {
+      // Sending a Director turn is non-idempotent. A user submission may
+      // explicitly reset exhausted reconnect state, but the exact message stays
+      // in the composer until OPEN rather than being guessed/replayed on a
+      // fixed handshake timeout.
+      if (!isReady) {
+        if (!connecting) {
+          connect()
+        }
+        toast({
+          title: connecting ? 'Director is reconnecting' : 'Reconnecting to Director',
+          description: 'Your message is still in the composer. Send it when the connection is ready.',
+        })
+        return
+      }
+
       // Template reuse skips the strawman→accept step that normally turns on the
       // build animation, so the right pane would sit static. Flip it on here so a
       // reuse turn runs the SAME live slide-build animation as a normal build (the
@@ -3389,60 +3407,6 @@ function BuilderContent() {
         }
       }
 
-      // For resumed sessions, connect on first message
-      if (session.isResumedSession && !connected && !connecting) {
-        console.log('Connecting WebSocket for first message in resumed session')
-        connect()
-        session.setIsResumedSession(false)
-
-        const messageId = crypto.randomUUID()
-        const timestamp = Date.now()
-
-        session.userMessageIdsRef.current.add(messageId)
-
-        session.setUserMessages(prev => [...prev, {
-          id: messageId,
-          text: messageText,
-          timestamp: timestamp
-        }])
-
-        if (currentSessionId && persistence) {
-          console.log('Persisting user message for resumed session:', messageId)
-          persistence.queueMessage({
-            message_id: messageId,
-            session_id: currentSessionId,
-            timestamp: new Date(timestamp).toISOString(),
-            type: 'chat_message',
-            payload: { text: messageText }
-          } as DirectorMessage, messageText)
-        }
-
-        setInputMessage("")
-
-        const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
-        const fileCount = successfulFiles.length
-
-        setTimeout(() => {
-          sendMessage(messageText, undefined, fileCount, {
-            deepResearch: researchEnabled,
-            webSearch: webSearchEnabled,
-            extendedGeneration: extendedGenerationEnabled,
-            useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
-            fileUpload: !!sessionStoreName,
-            storeName: sessionStoreName,
-            ...buildSendOptions,
-            manualDeck: turnContext?.manualDeck,
-          })
-          if (successfulFiles.length > 0) {
-            clearAllFiles()
-          }
-        }, 200)
-        return
-      }
-
-      // Normal check for connection
-      if (!isReady) return
-
       const messageId = crypto.randomUUID()
       const timestamp = Date.now()
 
@@ -3488,6 +3452,9 @@ function BuilderContent() {
       })
       if (success) {
         setInputMessage("")
+        if (session.isResumedSession) {
+          session.setIsResumedSession(false)
+        }
         if (successfulFiles.length > 0) {
           clearAllFiles()
         }
