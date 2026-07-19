@@ -111,6 +111,7 @@ export interface DiagramGenerationConfig extends Record<string, unknown> {
   routing_source?: string
   language_selection?: DiagramLanguageSelection
   resolved_language?: string
+  source_code?: string
   /** Explicitly remove persisted overrides when a refine control returns to Auto. */
   cleared_settings?: string[]
   theme_source?: ThemeSourceMode
