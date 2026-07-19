@@ -733,12 +733,13 @@ export function buildApiPayload(
     slideContext: formData.slideContext,
     deckContext: formData.deckContext,
     generationContext: formData.generationContext,
-    // Infographic persistence metadata travels inside existing_element. The
-    // top-level field is the strict diagram contract and rejects infographic
-    // generation configs during refinement.
-    generationConfig: componentType === 'INFOGRAPHIC'
-      ? undefined
-      : formData.generationConfig,
+    // Persisted generator metadata for images/icons/shapes/text travels inside
+    // existing_element. Text Labs' top-level generation_config is a strict
+    // DiagramGenerationConfig and must never receive those element-specific
+    // records during refinement.
+    generationConfig: isDiagramSubtype(componentType)
+      ? formData.generationConfig
+      : undefined,
     generationAttemptId: formData.generationAttemptId,
     diagramSelection: formData.diagramSelection,
     languageSelection: formData.languageSelection,
