@@ -64,6 +64,26 @@ const {
   TextLabsRequestError,
 } = mod.exports
 
+const retrySource = fs.readFileSync(
+  new URL('../lib/element-generation-retry.ts', import.meta.url),
+  'utf8',
+)
+const retryCompiled = ts.transpileModule(retrySource, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+})
+const retryMod = { exports: {} }
+vm.runInNewContext(retryCompiled.outputText, {
+  module: retryMod,
+  exports: retryMod.exports,
+})
+const {
+  DIAGRAM_FRESH_ATTEMPT_HANDOFF_REGISTRY_MAX_ENTRIES,
+  diagramGenerationRequestFingerprint,
+  diagramRetryCandidateForPreDispatch,
+  executeDiagramRequestWithFreshAttemptHandoff,
+  resolveDiagramGenerationAttemptId,
+} = retryMod.exports
+
 assert.equal(
   formatBackendError({ detail: [{ loc: ['body', 'chart_config', 'data'], msg: 'Explicit chart data is invalid' }] }, 'API error: 422'),
   'chart_config.data: Explicit chart data is invalid',
@@ -78,6 +98,17 @@ assert.equal(
   'camelCase proxy payloads remain compatible',
 )
 assert.equal(responseRetryStrategy({ retry_strategy: 'unexpected' }), null)
+assert.equal(
+  responseRetryStrategy({
+    response: {
+      error_detail: {
+        retry_strategy: 'start_fresh_attempt',
+      },
+    },
+  }),
+  'start_fresh_attempt',
+  'known cached/proxy envelope layers preserve the retry contract',
+)
 
 const iconInsertion = buildInsertionParams('ICON_LABEL', { html: '<div>Priority</div>' })
 assert.equal(iconInsertion.method, 'insertElement')
@@ -155,6 +186,389 @@ await assert.rejects(
     assert.equal(error.requestId, 'attempt-408')
     return true
   },
+)
+
+const terminalFreshEnvelope = attemptId => ({
+  ok: true,
+  status: 200,
+  headers: { get: () => null },
+  json: async () => ({
+    success: false,
+    error: 'Cloud planner output was invalid after one repair.',
+    error_code: 'CLOUD_PLANNER_OUTPUT_INVALID',
+    retryable: false,
+    retry_strategy: 'start_fresh_attempt',
+    generation_attempt_id: attemptId,
+    request_id: `waiter:${attemptId}`,
+    downstream_request_id: `generator:${attemptId}`,
+  }),
+})
+const successfulDiagramEnvelope = attemptId => ({
+  ok: true,
+  status: 200,
+  headers: { get: () => null },
+  json: async () => ({
+    success: true,
+    elements: [{ id: `diagram:${attemptId}`, html: '<svg></svg>' }],
+    generation_attempt_id: attemptId,
+  }),
+})
+
+const sequentialAttemptIds = []
+fetchImplementation = async (_url, init) => {
+  const attemptId = JSON.parse(init.body).generation_attempt_id
+  sequentialAttemptIds.push(attemptId)
+  return attemptId === 'attempt:G1'
+    ? terminalFreshEnvelope(attemptId)
+    : successfulDiagramEnvelope(attemptId)
+}
+const uiSubmitIntent = 'retry'
+const uiRequestOptions = {
+  componentType: 'CLOUD_ARCHITECTURE',
+  generationAttemptId: 'attempt:G1',
+  deadlineMs: 140_000,
+  generationConfig: {
+    diagram_type: 'CLOUD_ARCHITECTURE',
+    settings: { provider: 'aws' },
+  },
+}
+const uiRetryFingerprint = diagramGenerationRequestFingerprint({
+  sessionId: 'session-1',
+  message: 'recover the cached cloud generation',
+  options: uiRequestOptions,
+})
+const uiRetryCandidate = diagramRetryCandidateForPreDispatch(
+  uiSubmitIntent,
+  {
+    attemptId: 'attempt:G1',
+    requestFingerprint: uiRetryFingerprint,
+  },
+)
+const preparedUiFingerprint = diagramGenerationRequestFingerprint({
+  sessionId: 'session-1',
+  message: 'recover the cached cloud generation',
+  options: {
+    ...uiRequestOptions,
+    generationAttemptId: 'attempt:new-preflight-id',
+    deadlineMs: 127_000,
+  },
+})
+const resolvedUiAttempt = resolveDiagramGenerationAttemptId({
+  submitIntent: uiSubmitIntent,
+  freshAttemptId: 'attempt:new-preflight-id',
+  requestFingerprint: preparedUiFingerprint,
+  retryCandidate: uiRetryCandidate,
+})
+assert.equal(resolvedUiAttempt.attemptId, 'attempt:G1')
+assert.equal(
+  resolvedUiAttempt.reused,
+  true,
+  'the UI Retry intent and exact prepared fingerprint reconcile G1 before handoff',
+)
+const sequentialHandoffIds = []
+const sequentialDecisions = []
+const sequentialHandoff = await executeDiagramRequestWithFreshAttemptHandoff({
+  submitIntent: uiSubmitIntent,
+  reusedAttempt: resolvedUiAttempt.reused,
+  initialAttemptId: resolvedUiAttempt.attemptId,
+  freshAttemptId: 'attempt:G2',
+  registry: new Map(),
+  onFreshAttempt: attemptId => sequentialHandoffIds.push(attemptId),
+  onDecision: decision => sequentialDecisions.push(decision),
+  resolveFreshBackendDeadlineMs: () => 90_000,
+  send: attemptId => sendMessage(
+    'session-1',
+    'recover the cached cloud generation',
+    {
+      componentType: 'CLOUD_ARCHITECTURE',
+      generationAttemptId: attemptId,
+    },
+  ),
+})
+assert.deepEqual(
+  sequentialAttemptIds,
+  ['attempt:G1', 'attempt:G2'],
+  'an HTTP-200 success:false terminal G1 envelope launches one fresh G2',
+)
+assert.deepEqual(sequentialHandoffIds, ['attempt:G2'])
+assert.equal(sequentialHandoff.attemptId, 'attempt:G2')
+assert.equal(sequentialHandoff.freshAttemptStarted, true)
+assert.equal(sequentialHandoff.response.success, true)
+assert.deepEqual(
+  sequentialDecisions.map(decision => ({
+    policyEligible: decision.policyEligible,
+    existingHandoff: decision.existingHandoff,
+    backendBudgetMs: decision.backendBudgetMs,
+    freshAttemptStarted: decision.freshAttemptStarted,
+  })),
+  [{
+    policyEligible: true,
+    existingHandoff: false,
+    backendBudgetMs: 90_000,
+    freshAttemptStarted: true,
+  }],
+  'the production decision chain exposes sanitized trigger telemetry',
+)
+
+const concurrentAttemptIds = []
+let releaseConcurrentFresh
+const concurrentFreshGate = new Promise(resolve => {
+  releaseConcurrentFresh = resolve
+})
+fetchImplementation = async (_url, init) => {
+  const attemptId = JSON.parse(init.body).generation_attempt_id
+  concurrentAttemptIds.push(attemptId)
+  if (attemptId === 'attempt:G1-concurrent') {
+    return terminalFreshEnvelope(attemptId)
+  }
+  await concurrentFreshGate
+  return successfulDiagramEnvelope(attemptId)
+}
+const concurrentRegistry = new Map()
+const concurrentInput = freshAttemptId => ({
+  submitIntent: 'retry',
+  reusedAttempt: true,
+  initialAttemptId: 'attempt:G1-concurrent',
+  freshAttemptId,
+  registry: concurrentRegistry,
+  resolveFreshBackendDeadlineMs: () => 90_000,
+  send: attemptId => sendMessage(
+    'session-1',
+    'join the recovered cloud generation',
+    {
+      componentType: 'CLOUD_ARCHITECTURE',
+      generationAttemptId: attemptId,
+    },
+  ),
+})
+const concurrentFirst = executeDiagramRequestWithFreshAttemptHandoff(
+  concurrentInput('attempt:G2-owner'),
+)
+const concurrentSecond = executeDiagramRequestWithFreshAttemptHandoff(
+  concurrentInput('attempt:G2-duplicate'),
+)
+await new Promise(resolve => setImmediate(resolve))
+assert.equal(
+  concurrentAttemptIds.filter(id => id === 'attempt:G2-owner').length,
+  1,
+  'concurrent G1 waiters start one G2 owner request',
+)
+assert.equal(
+  concurrentAttemptIds.filter(id => id === 'attempt:G2-duplicate').length,
+  0,
+  'the second G1 waiter joins G2 instead of spending another generation',
+)
+releaseConcurrentFresh()
+const concurrentResults = await Promise.all([concurrentFirst, concurrentSecond])
+assert.deepEqual(
+  concurrentResults.map(result => result.attemptId),
+  ['attempt:G2-owner', 'attempt:G2-owner'],
+)
+assert.equal(
+  concurrentRegistry.size,
+  1,
+  'settled handoffs remain briefly joinable for delayed G1 responses',
+)
+
+const delayedAttemptIds = []
+let delayedG1Count = 0
+let releaseDelayedG1
+const delayedG1Gate = new Promise(resolve => {
+  releaseDelayedG1 = resolve
+})
+fetchImplementation = async (_url, init) => {
+  const attemptId = JSON.parse(init.body).generation_attempt_id
+  delayedAttemptIds.push(attemptId)
+  if (attemptId === 'attempt:G1-delayed') {
+    delayedG1Count += 1
+    if (delayedG1Count === 2) await delayedG1Gate
+    return terminalFreshEnvelope(attemptId)
+  }
+  return successfulDiagramEnvelope(attemptId)
+}
+const delayedRegistry = new Map()
+const delayedInput = freshAttemptId => ({
+  submitIntent: 'retry',
+  reusedAttempt: true,
+  initialAttemptId: 'attempt:G1-delayed',
+  freshAttemptId,
+  registry: delayedRegistry,
+  resolveFreshBackendDeadlineMs: () => 90_000,
+  send: attemptId => sendMessage(
+    'session-1',
+    'join G2 even after it already completed',
+    {
+      componentType: 'CLOUD_ARCHITECTURE',
+      generationAttemptId: attemptId,
+    },
+  ),
+})
+const completedBeforeDelayedG1 = executeDiagramRequestWithFreshAttemptHandoff(
+  delayedInput('attempt:G2-delayed-owner'),
+)
+const delayedG1Waiter = executeDiagramRequestWithFreshAttemptHandoff(
+  delayedInput('attempt:G2-must-not-start'),
+)
+const completedG2Result = await completedBeforeDelayedG1
+assert.equal(completedG2Result.attemptId, 'attempt:G2-delayed-owner')
+assert.equal(completedG2Result.freshAttemptStarted, true)
+assert.equal(completedG2Result.freshAttemptJoined, false)
+assert.equal(
+  delayedAttemptIds.filter(id => id === 'attempt:G2-delayed-owner').length,
+  1,
+)
+releaseDelayedG1()
+const delayedG1Result = await delayedG1Waiter
+assert.equal(delayedG1Result.attemptId, 'attempt:G2-delayed-owner')
+assert.equal(delayedG1Result.freshAttemptStarted, false)
+assert.equal(delayedG1Result.freshAttemptJoined, true)
+assert.equal(
+  delayedAttemptIds.filter(id => id.startsWith('attempt:G2')).length,
+  1,
+  'a delayed G1 terminal response joins the retained completed G2 exactly once',
+)
+
+const insufficientBudgetAttemptIds = []
+const insufficientBudgetDecisions = []
+fetchImplementation = async (_url, init) => {
+  const attemptId = JSON.parse(init.body).generation_attempt_id
+  insufficientBudgetAttemptIds.push(attemptId)
+  return terminalFreshEnvelope(attemptId)
+}
+await assert.rejects(
+  executeDiagramRequestWithFreshAttemptHandoff({
+    submitIntent: 'retry',
+    reusedAttempt: true,
+    initialAttemptId: 'attempt:G1-no-budget',
+    freshAttemptId: 'attempt:G2-no-budget',
+    registry: new Map(),
+    resolveFreshBackendDeadlineMs: () => 59_999,
+    onDecision: decision => insufficientBudgetDecisions.push(decision),
+    send: attemptId => sendMessage(
+      'session-1',
+      'preserve the original G1 terminal failure',
+      {
+        componentType: 'CLOUD_ARCHITECTURE',
+        generationAttemptId: attemptId,
+      },
+    ),
+  }),
+  error => error?.retryStrategy === 'start_fresh_attempt',
+)
+assert.deepEqual(
+  insufficientBudgetAttemptIds,
+  ['attempt:G1-no-budget'],
+  'less than the meaningful fresh budget never dispatches or mutates into G2',
+)
+assert.deepEqual(
+  insufficientBudgetDecisions.map(decision => ({
+    retryStrategy: decision.retryStrategy,
+    policyEligible: decision.policyEligible,
+    backendBudgetMs: decision.backendBudgetMs,
+    freshAttemptStarted: decision.freshAttemptStarted,
+  })),
+  [{
+    retryStrategy: 'start_fresh_attempt',
+    policyEligible: true,
+    backendBudgetMs: 59_999,
+    freshAttemptStarted: false,
+  }],
+  'budget suppression preserves the original terminal strategy in sanitized telemetry',
+)
+
+const fullRegistryAttemptIds = []
+const fullRegistryDecisions = []
+const neverSettles = new Promise(() => {})
+const fullInFlightRegistry = new Map()
+for (
+  let index = 0;
+  index < DIAGRAM_FRESH_ATTEMPT_HANDOFF_REGISTRY_MAX_ENTRIES;
+  index += 1
+) {
+  fullInFlightRegistry.set(`attempt:occupied-G1-${index}`, {
+    attemptId: `attempt:occupied-G2-${index}`,
+    promise: neverSettles,
+    createdAtMs: index,
+    settledAtMs: null,
+  })
+}
+fetchImplementation = async (_url, init) => {
+  const attemptId = JSON.parse(init.body).generation_attempt_id
+  fullRegistryAttemptIds.push(attemptId)
+  return terminalFreshEnvelope(attemptId)
+}
+await assert.rejects(
+  executeDiagramRequestWithFreshAttemptHandoff({
+    submitIntent: 'retry',
+    reusedAttempt: true,
+    initialAttemptId: 'attempt:G1-registry-full',
+    freshAttemptId: 'attempt:G2-must-not-run-unregistered',
+    registry: fullInFlightRegistry,
+    resolveFreshBackendDeadlineMs: () => 90_000,
+    onDecision: decision => fullRegistryDecisions.push(decision),
+    send: attemptId => sendMessage(
+      'session-1',
+      'do not evict or duplicate an in-flight handoff',
+      {
+        componentType: 'CLOUD_ARCHITECTURE',
+        generationAttemptId: attemptId,
+      },
+    ),
+  }),
+  error => error?.retryStrategy === 'start_fresh_attempt',
+)
+assert.deepEqual(
+  fullRegistryAttemptIds,
+  ['attempt:G1-registry-full'],
+  'a full in-flight registry suppresses G2 instead of starting it unregistered',
+)
+assert.equal(
+  fullInFlightRegistry.size,
+  DIAGRAM_FRESH_ATTEMPT_HANDOFF_REGISTRY_MAX_ENTRIES,
+  'capacity handling never evicts an in-flight G2 handoff',
+)
+assert.deepEqual(
+  fullRegistryDecisions.map(decision => ({
+    registryCapacityAvailable: decision.registryCapacityAvailable,
+    freshAttemptStarted: decision.freshAttemptStarted,
+    backendBudgetMs: decision.backendBudgetMs,
+  })),
+  [{
+    registryCapacityAvailable: false,
+    freshAttemptStarted: false,
+    backendBudgetMs: 90_000,
+  }],
+)
+
+const boundedAttemptIds = []
+fetchImplementation = async (_url, init) => {
+  const attemptId = JSON.parse(init.body).generation_attempt_id
+  boundedAttemptIds.push(attemptId)
+  return terminalFreshEnvelope(attemptId)
+}
+await assert.rejects(
+  executeDiagramRequestWithFreshAttemptHandoff({
+    submitIntent: 'retry',
+    reusedAttempt: true,
+    initialAttemptId: 'attempt:G1-bounded',
+    freshAttemptId: 'attempt:G2-bounded',
+    registry: new Map(),
+    resolveFreshBackendDeadlineMs: () => 90_000,
+    send: attemptId => sendMessage(
+      'session-1',
+      'do not loop after the fresh attempt fails',
+      {
+        componentType: 'CLOUD_ARCHITECTURE',
+        generationAttemptId: attemptId,
+      },
+    ),
+  }),
+  error => error?.retryStrategy === 'start_fresh_attempt',
+)
+assert.deepEqual(
+  boundedAttemptIds,
+  ['attempt:G1-bounded', 'attempt:G2-bounded'],
+  'a terminal G2 failure is surfaced without G3',
 )
 
 fetchImplementation = async () => ({

@@ -237,12 +237,36 @@ const TEXT_LABS_RETRY_STRATEGIES = new Set<TextLabsRetryStrategy>([
 
 function failurePayloadRecords(payload: unknown): Record<string, unknown>[] {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return []
-  const body = payload as Record<string, unknown>
-  const records = [body]
-  for (const key of ['detail', 'error']) {
-    const nested = body[key]
-    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-      records.push(nested as Record<string, unknown>)
+  const records: Record<string, unknown>[] = []
+  const pending: Array<{ value: Record<string, unknown>; depth: number }> = [{
+    value: payload as Record<string, unknown>,
+    depth: 0,
+  }]
+  const visited = new Set<object>()
+  const envelopeKeys = [
+    'detail',
+    'error',
+    'error_detail',
+    'data',
+    'result',
+    'response',
+  ]
+
+  while (pending.length > 0) {
+    const current = pending.shift()!
+    if (visited.has(current.value)) continue
+    visited.add(current.value)
+    records.push(current.value)
+    if (current.depth >= 3) continue
+
+    for (const key of envelopeKeys) {
+      const nested = current.value[key]
+      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+        pending.push({
+          value: nested as Record<string, unknown>,
+          depth: current.depth + 1,
+        })
+      }
     }
   }
   return records
