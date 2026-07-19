@@ -42,7 +42,10 @@ import {
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
-import { researchedChartRecoveryMessage } from '@/lib/chart-data-contract'
+import {
+  researchedChartRecoveryMessage,
+  synchronizeChartPanelGenerationConfig,
+} from '@/lib/chart-data-contract'
 import {
   assertLayoutCommandSucceeded,
   createLayoutMutationId,
@@ -997,6 +1000,13 @@ export function useTextLabsGeneration({
         activeGenerationKeysRef.current.delete(generationKey)
         return
       }
+    }
+
+    if (formData.componentType === 'CHART') {
+      formData.generationConfig = synchronizeChartPanelGenerationConfig(
+        formData.generationConfig as Record<string, unknown> | null | undefined,
+        formData,
+      )
     }
 
     const preflightTargetError = generationTargetError()

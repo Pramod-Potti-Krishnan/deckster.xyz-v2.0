@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ChartConfig,
   ChartDataSourceMode,
@@ -10,12 +10,15 @@ import {
   TEXT_LABS_ELEMENT_DEFAULTS,
 } from '@/types/textlabs'
 import {
-  chartDataRequiresAxes,
+  buildChartPanelGenerationConfig,
+  chartAxisInputMode,
   chartDataTemplate,
   parseChartDataJson,
-  resolveCustomChartAxisLabels,
+  resolveChartPanelDraft,
+  resolveChartSubmissionAxisLabels,
 } from '@/lib/chart-data-contract'
-import { ElementContext, MandatoryConfig } from '../types'
+import { ElementContext, GenerationPanelDraft, MandatoryConfig } from '../types'
+import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PositionPresets } from '../shared/position-presets'
@@ -84,6 +87,8 @@ interface ChartFormProps {
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | null) => void
+  initialDraft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
 }
 
 export function ChartForm({
@@ -95,55 +100,117 @@ export function ChartForm({
   prompt,
   showAdvanced,
   registerMandatoryConfig,
+  initialDraft,
+  onDraftChange,
 }: ChartFormProps) {
-  const [chartType, setChartType] = useState<TextLabsChartType>('auto')
-  const [dataSource, setDataSource] = useState<ChartDataSourceMode>('auto')
-  const [customDataInput, setCustomDataInput] = useState('')
+  const initialFormData = initialDraft?.formData?.componentType === 'CHART'
+    ? initialDraft.formData
+    : null
+  const [initialState] = useState(() => resolveChartPanelDraft(initialFormData))
+  const [preservedChartConfig] = useState(() => initialState.preservedChartConfig)
+  const [chartType, setChartType] = useState<TextLabsChartType>(initialState.chartType)
+  const [dataSource, setDataSource] = useState<ChartDataSourceMode>(initialState.dataSource)
+  const [customDataInput, setCustomDataInput] = useState(initialState.customDataInput)
   const [dataError, setDataError] = useState<string | null>(null)
-  const [xAxisLabel, setXAxisLabel] = useState('')
-  const [yAxisLabel, setYAxisLabel] = useState('')
-  const [includeInsights, setIncludeInsights] = useState(false)
-  const [seriesNamesInput, setSeriesNamesInput] = useState('')
-  const [advancedModified, setAdvancedModified] = useState(false)
-  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
+  const [axisError, setAxisError] = useState<string | null>(null)
+  const [xAxisLabel, setXAxisLabel] = useState(initialState.xAxisLabel)
+  const [yAxisLabel, setYAxisLabel] = useState(initialState.yAxisLabel)
+  const [includeInsights, setIncludeInsights] = useState(initialState.includeInsights)
+  const [seriesNamesInput, setSeriesNamesInput] = useState(initialState.seriesNamesInput)
+  const [advancedModified, setAdvancedModified] = useState(initialState.advancedModified)
+  const [zIndex, setZIndex] = useState(initialState.zIndex ?? DEFAULTS.zIndex)
   const [showOptions, setShowOptions] = useState(false)
   const [showPosition, setShowPosition] = useState(false)
-  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(
+    presentationId,
+    initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null,
+  )
 
   // Auto follows the live placeholder geometry. Manual is an explicit user
   // override and is honored by the generation hook when selected.
-  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
+  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>(initialState.positionConfig ?? {
     start_col: 2,
     start_row: 4,
     position_width: DEFAULTS.width,
     position_height: DEFAULTS.height,
     auto_position: true,
   })
+  const liveStartCol = elementContext?.startCol
+  const liveStartRow = elementContext?.startRow
+  const liveWidth = elementContext?.width
+  const liveHeight = elementContext?.height
 
   useEffect(() => {
-    if (!elementContext) return
-    setPositionConfig(previous => previous.auto_position ? {
-      start_col: elementContext.startCol,
-      start_row: elementContext.startRow,
-      position_width: elementContext.width,
-      position_height: elementContext.height,
-      auto_position: true,
-    } : previous)
-  }, [elementContext])
+    if (
+      liveStartCol === undefined
+      || liveStartRow === undefined
+      || liveWidth === undefined
+      || liveHeight === undefined
+    ) return
+    setPositionConfig(previous => {
+      if (!previous.auto_position) return previous
+      if (
+        previous.start_col === liveStartCol
+        && previous.start_row === liveStartRow
+        && previous.position_width === liveWidth
+        && previous.position_height === liveHeight
+      ) return previous
+      return {
+        start_col: liveStartCol,
+        start_row: liveStartRow,
+        position_width: liveWidth,
+        position_height: liveHeight,
+        auto_position: true,
+      }
+    })
+  }, [liveHeight, liveStartCol, liveStartRow, liveWidth])
 
   const updatePositionConfig = useCallback((next: TextLabsPositionConfig) => {
-    if (next.auto_position && elementContext) {
+    if (
+      next.auto_position
+      && liveStartCol !== undefined
+      && liveStartRow !== undefined
+      && liveWidth !== undefined
+      && liveHeight !== undefined
+    ) {
       setPositionConfig({
-        start_col: elementContext.startCol,
-        start_row: elementContext.startRow,
-        position_width: elementContext.width,
-        position_height: elementContext.height,
+        start_col: liveStartCol,
+        start_row: liveStartRow,
+        position_width: liveWidth,
+        position_height: liveHeight,
         auto_position: true,
       })
       return
     }
     setPositionConfig(next)
-  }, [elementContext])
+  }, [liveHeight, liveStartCol, liveStartRow, liveWidth])
+
+  const parsedCustomData = useMemo(() => {
+    if (!customDataInput.trim()) return null
+    const validation = parseChartDataJson(customDataInput)
+    return validation.valid ? validation.data : null
+  }, [customDataInput])
+  const axisInputMode = dataSource === 'custom'
+    ? chartAxisInputMode(chartType, parsedCustomData)
+    : 'hidden'
+
+  const selectChartType = useCallback((nextChartType: TextLabsChartType) => {
+    setChartType(nextChartType)
+    setAdvancedModified(true)
+    if (dataSource !== 'custom') {
+      setAxisError(null)
+      return
+    }
+    setAxisError(
+      resolveChartSubmissionAxisLabels(
+        'custom',
+        nextChartType,
+        parsedCustomData,
+        xAxisLabel,
+        yAxisLabel,
+      ).error,
+    )
+  }, [dataSource, parsedCustomData, xAxisLabel, yAxisLabel])
 
   const chartTypeLabel = CHART_TYPE_GROUPS
     .flatMap(group => group.types)
@@ -158,10 +225,7 @@ export function ChartForm({
       displayLabel: chartTypeLabel,
       selectedValue: chartType,
       promptPlaceholder: 'e.g., Show quarterly revenue growth for 2024',
-      onChange: value => {
-        setChartType(value as TextLabsChartType)
-        setAdvancedModified(true)
-      },
+      onChange: value => selectChartType(value as TextLabsChartType),
       customRender: (
         <label className="relative block min-w-0 max-w-[150px]">
           <span className="sr-only">Chart Type</span>
@@ -169,10 +233,7 @@ export function ChartForm({
             aria-label="Chart Type"
             value={chartType}
             disabled={isGenerating}
-            onChange={event => {
-              setChartType(event.target.value as TextLabsChartType)
-              setAdvancedModified(true)
-            }}
+            onChange={event => selectChartType(event.target.value as TextLabsChartType)}
             className="h-7 max-w-[150px] appearance-none rounded-lg border-0 bg-gray-100 py-1 pl-7 pr-7 text-xs font-medium text-gray-700 outline-none transition-colors hover:bg-gray-200 focus:ring-1 focus:ring-primary disabled:opacity-50 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
           >
             {CHART_TYPE_GROUPS.map(group => (
@@ -189,33 +250,18 @@ export function ChartForm({
         </label>
       ),
     })
-  }, [chartType, chartTypeLabel, isGenerating, registerMandatoryConfig])
+  }, [chartType, chartTypeLabel, isGenerating, registerMandatoryConfig, selectChartType])
 
-  const handleSubmit = useCallback(() => {
-    let data: ChartConfig['data'] = null
-    if (dataSource === 'custom') {
-      const validation = parseChartDataJson(customDataInput)
-      if (!validation.valid) {
-        setDataError(validation.error)
-        return
-      }
-      data = validation.data
-      const axes = resolveCustomChartAxisLabels(data, xAxisLabel, yAxisLabel)
-      if (axes.error) {
-        setDataError(axes.error)
-        return
-      }
-      setDataError(null)
-    }
-    const axes = dataSource === 'custom'
-      ? resolveCustomChartAxisLabels(data, xAxisLabel, yAxisLabel)
-      : {
-          xAxisLabel: xAxisLabel.trim() || null,
-          yAxisLabel: yAxisLabel.trim() || null,
-        }
+  const seriesNames = useMemo(
+    () => seriesNamesInput.split(',').map(value => value.trim()).filter(Boolean),
+    [seriesNamesInput],
+  )
 
-    const seriesNames = seriesNamesInput.split(',').map(value => value.trim()).filter(Boolean)
-    onSubmit({
+  const buildChartFormData = useCallback((
+    data: ChartConfig['data'],
+    axes: ReturnType<typeof resolveChartSubmissionAxisLabels>,
+  ): ChartFormData => {
+    const baseFormData: ChartFormData = {
       componentType: 'CHART',
       prompt,
       count: 1,
@@ -226,6 +272,7 @@ export function ChartForm({
       useDeckTheme,
       themeOverrides,
       chartConfig: {
+        ...preservedChartConfig,
         chart_type: chartType,
         requested_data_source_mode: dataSource,
         include_insights: includeInsights,
@@ -236,23 +283,85 @@ export function ChartForm({
         y_axis_label: axes.yAxisLabel,
       },
       positionConfig,
-    })
+    }
+    return {
+      ...baseFormData,
+      // Layout persists this non-recursive snapshot so a later refine
+      // activation can hydrate the chart panel after a reload.
+      generationConfig: buildChartPanelGenerationConfig(
+        baseFormData,
+        customDataInput,
+        showAdvanced,
+      ),
+    }
   }, [
     advancedModified,
     chartType,
     customDataInput,
     dataSource,
     includeInsights,
-    onSubmit,
     positionConfig,
+    preservedChartConfig,
     presentationId,
     prompt,
-    seriesNamesInput,
+    seriesNames,
+    showAdvanced,
     themeOverrides,
     useDeckTheme,
+    zIndex,
+  ])
+
+  const draftAxes = useMemo(
+    () => resolveChartSubmissionAxisLabels(
+      dataSource,
+      chartType,
+      dataSource === 'custom' ? parsedCustomData : null,
+      xAxisLabel,
+      yAxisLabel,
+    ),
+    [chartType, dataSource, parsedCustomData, xAxisLabel, yAxisLabel],
+  )
+  const draftFormData = useMemo(
+    () => buildChartFormData(dataSource === 'custom' ? parsedCustomData : null, draftAxes),
+    [buildChartFormData, dataSource, draftAxes, parsedCustomData],
+  )
+
+  useEffect(() => {
+    onDraftChange?.({ formData: draftFormData })
+  }, [draftFormData, onDraftChange])
+
+  const handleSubmit = useCallback(() => {
+    let data: ChartConfig['data'] = null
+    if (dataSource === 'custom') {
+      const validation = parseChartDataJson(customDataInput)
+      if (!validation.valid) {
+        setDataError(validation.error)
+        return
+      }
+      data = validation.data
+    }
+    const axes = resolveChartSubmissionAxisLabels(
+      dataSource,
+      chartType,
+      data,
+      xAxisLabel,
+      yAxisLabel,
+    )
+    if (axes.error) {
+      setAxisError(axes.error)
+      return
+    }
+    setDataError(null)
+    setAxisError(null)
+    onSubmit(buildChartFormData(data, axes))
+  }, [
+    buildChartFormData,
+    chartType,
+    customDataInput,
+    dataSource,
+    onSubmit,
     xAxisLabel,
     yAxisLabel,
-    zIndex,
   ])
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
@@ -261,18 +370,39 @@ export function ChartForm({
     setCustomDataInput(value)
     if (!value.trim()) {
       setDataError(null)
+      setAxisError(null)
       return
     }
     const validation = parseChartDataJson(value)
     setDataError(validation.valid ? null : validation.error)
-    if (
-      validation.valid &&
-      chartDataRequiresAxes(validation.data)
-    ) {
-      setXAxisLabel(current => current.trim() || 'X value')
-      setYAxisLabel(current => current.trim() || 'Y value')
+    if (!validation.valid) {
+      setAxisError(null)
+      return
     }
-  }, [])
+    setAxisError(
+      resolveChartSubmissionAxisLabels(
+        'custom',
+        chartType,
+        validation.data,
+        xAxisLabel,
+        yAxisLabel,
+      ).error,
+    )
+  }, [chartType, xAxisLabel, yAxisLabel])
+
+  const updateAxisLabels = useCallback((nextX: string, nextY: string) => {
+    setXAxisLabel(nextX)
+    setYAxisLabel(nextY)
+    setAxisError(
+      resolveChartSubmissionAxisLabels(
+        'custom',
+        chartType,
+        parsedCustomData,
+        nextX,
+        nextY,
+      ).error,
+    )
+  }, [chartType, parsedCustomData])
 
   return (
     <div className="space-y-3">
@@ -287,8 +417,23 @@ export function ChartForm({
             { value: 'custom', label: 'Custom JSON' },
           ]}
           onChange={(_, value) => {
-            setDataSource(value as ChartDataSourceMode)
+            const nextDataSource = value as ChartDataSourceMode
+            setDataSource(nextDataSource)
             setDataError(null)
+            // Axis state stays in the Custom silo so a temporary mode switch
+            // is reversible; submission always resolves Auto/Illustrative to
+            // null metadata.
+            setAxisError(
+              nextDataSource === 'custom'
+                ? resolveChartSubmissionAxisLabels(
+                    'custom',
+                    chartType,
+                    parsedCustomData,
+                    xAxisLabel,
+                    yAxisLabel,
+                  ).error
+                : null,
+            )
             setAdvancedModified(true)
           }}
         />
@@ -324,32 +469,50 @@ export function ChartForm({
           <p className={`text-[10px] leading-4 ${dataError ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>
             {dataError || 'Accepts label/value, scatter/bubble x/y(/r), or labels/datasets data.'}
           </p>
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <div className="space-y-1">
-              <label htmlFor="chart-x-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                X-axis label
-              </label>
-              <input
-                id="chart-x-axis"
-                value={xAxisLabel}
-                onChange={event => setXAxisLabel(event.target.value)}
-                placeholder="X value"
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-              />
+          {axisInputMode !== 'hidden' && (
+            <div className="space-y-1 pt-1">
+              <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+                {axisInputMode === 'required'
+                  ? 'Name what each numeric axis represents. Both labels are required for scatter and bubble data.'
+                  : 'Optionally name the category/time axis and the measured value for this Cartesian chart.'}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label htmlFor="chart-x-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                    X-axis label
+                  </label>
+                  <input
+                    id="chart-x-axis"
+                    value={xAxisLabel}
+                    onChange={event => updateAxisLabels(event.target.value, yAxisLabel)}
+                    placeholder="e.g., Investment"
+                    aria-invalid={Boolean(axisError)}
+                    className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
+                      axisError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
+                    }`}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="chart-y-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                    Y-axis label
+                  </label>
+                  <input
+                    id="chart-y-axis"
+                    value={yAxisLabel}
+                    onChange={event => updateAxisLabels(xAxisLabel, event.target.value)}
+                    placeholder="e.g., Revenue"
+                    aria-invalid={Boolean(axisError)}
+                    className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
+                      axisError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
+                    }`}
+                  />
+                </div>
+              </div>
+              {axisError && (
+                <p role="alert" className="text-[10px] leading-4 text-red-500">{axisError}</p>
+              )}
             </div>
-            <div className="space-y-1">
-              <label htmlFor="chart-y-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                Y-axis label
-              </label>
-              <input
-                id="chart-y-axis"
-                value={yAxisLabel}
-                onChange={event => setYAxisLabel(event.target.value)}
-                placeholder="Y value"
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-              />
-            </div>
-          </div>
+          )}
         </div>
       )}
 
