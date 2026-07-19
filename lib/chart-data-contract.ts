@@ -115,16 +115,23 @@ function textLabsChartType(value: unknown): TextLabsChartType {
     : 'auto'
 }
 
-function chartDataSourceMode(value: unknown, data: ChartData | null): ChartDataSourceMode {
+function chartDataSourceMode(value: unknown): ChartDataSourceMode {
   if (typeof value === 'string' && CHART_DATA_SOURCE_MODES.has(value as ChartDataSourceMode)) {
     return value as ChartDataSourceMode
   }
-  return data ? 'custom' : 'auto'
+  // Embedded data is not ownership evidence. Older generated, researched, and
+  // illustrative charts all persisted their resolved dataset without a
+  // requested mode, so treating data alone as Custom would silently change
+  // provenance and regeneration behavior after a reload.
+  return 'auto'
 }
 
-function chartMetadataMode(value: unknown, customValuePresent: boolean): ChartMetadataMode {
+function chartMetadataMode(value: unknown): ChartMetadataMode {
   if (value === 'auto' || value === 'custom') return value
-  return customValuePresent ? 'custom' : 'auto'
+  // Older generated charts persisted their resolved title and axes without
+  // ownership flags. Missing ownership must therefore remain Auto; only an
+  // explicit modern requested_*_mode may claim a user override.
+  return 'auto'
 }
 
 function cleanOptionalText(value: unknown): string | null {
@@ -402,14 +409,11 @@ export function resolveChartPanelDraft(
 
   return {
     chartType: textLabsChartType(chartConfig.chart_type),
-    dataSource: chartDataSourceMode(chartConfig.requested_data_source_mode, data),
+    dataSource: chartDataSourceMode(chartConfig.requested_data_source_mode),
     customDataInput,
-    titleMode: chartMetadataMode(chartConfig.requested_title_mode, Boolean(chartTitle.trim())),
+    titleMode: chartMetadataMode(chartConfig.requested_title_mode),
     chartTitle,
-    axisLabelMode: chartMetadataMode(
-      chartConfig.requested_axis_label_mode,
-      Boolean(xAxisLabel.trim() || yAxisLabel.trim()),
-    ),
+    axisLabelMode: chartMetadataMode(chartConfig.requested_axis_label_mode),
     xAxisLabel,
     yAxisLabel,
     resolvedChartMetadata,
@@ -455,18 +459,9 @@ export function resolveChartFormDataFromGenerationConfig(
   const chartTitle = cleanOptionalText(source.chart_title)
   const xAxisLabel = cleanOptionalText(source.x_axis_label)
   const yAxisLabel = cleanOptionalText(source.y_axis_label)
-  const requestedTitleMode = chartMetadataMode(
-    source.requested_title_mode,
-    Boolean(chartTitle),
-  )
-  const requestedAxisLabelMode = chartMetadataMode(
-    source.requested_axis_label_mode,
-    Boolean(xAxisLabel || yAxisLabel),
-  )
-  const requestedDataSourceMode = chartDataSourceMode(
-    source.requested_data_source_mode,
-    data,
-  )
+  const requestedTitleMode = chartMetadataMode(source.requested_title_mode)
+  const requestedAxisLabelMode = chartMetadataMode(source.requested_axis_label_mode)
+  const requestedDataSourceMode = chartDataSourceMode(source.requested_data_source_mode)
   const positionValue = isRecord(value.positionConfig)
     ? value.positionConfig
     : isRecord(value.position_config)

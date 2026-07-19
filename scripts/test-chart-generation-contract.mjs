@@ -375,6 +375,50 @@ assert.equal(flatSavedChart.chartConfig.requested_title_mode, 'auto')
 assert.equal(flatSavedChart.chartConfig.requested_axis_label_mode, 'custom')
 assert.deepEqual(JSON.parse(JSON.stringify(flatSavedChart.chartConfig.data)), simple)
 assert.equal(flatSavedChart.generationConfig.resolved_chart_metadata.title, 'Legacy saved title')
+const legacyGeneratedChart = resolveChartFormDataFromGenerationConfig({
+  prompt: 'Legacy researched revenue chart',
+  chart_type: 'scatter',
+  data: scatter,
+  chart_title: 'Generated Revenue Relationship',
+  x_axis_label: 'X value',
+  y_axis_label: 'Y value',
+  source_provenance: 'research',
+})
+assert.equal(
+  legacyGeneratedChart.chartConfig.requested_data_source_mode,
+  'auto',
+  'embedded legacy generated/researched data is not reclassified as Custom JSON',
+)
+assert.equal(
+  legacyGeneratedChart.chartConfig.requested_title_mode,
+  'auto',
+  'a legacy generated heading without an ownership flag remains Auto',
+)
+assert.equal(
+  legacyGeneratedChart.chartConfig.requested_axis_label_mode,
+  'auto',
+  'legacy generated axes without an ownership flag remain Auto for semantic repair',
+)
+const legacyNestedDraft = resolveChartPanelDraft({
+  componentType: 'CHART',
+  prompt: 'Legacy generated chart',
+  count: 1,
+  layout: 'horizontal',
+  advancedModified: false,
+  chartConfig: {
+    chart_type: 'line',
+    include_insights: false,
+    series_names: [],
+    placeholder_mode: false,
+    data: simple,
+    chart_title: 'Generated Trend',
+    x_axis_label: 'X value',
+    y_axis_label: 'Y value',
+  },
+})
+assert.equal(legacyNestedDraft.dataSource, 'auto')
+assert.equal(legacyNestedDraft.titleMode, 'auto')
+assert.equal(legacyNestedDraft.axisLabelMode, 'auto')
 const mergedPanelConfig = mergeChartPanelGenerationConfig(
   persistedPanelConfig,
   {
