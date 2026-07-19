@@ -49,9 +49,11 @@ const {
   resolveChartPanelDraft,
   resolveChartSubmissionAxisLabels,
   resolveCustomChartAxisLabels,
+  synchronizeChartPanelGenerationConfig,
   validateChartData,
 } = loadTypeScriptModule(moduleUrl('../lib/chart-data-contract.ts'))
 const { buildApiPayload, buildInsertionParams } = loadTypeScriptModule(moduleUrl('../lib/textlabs-client.ts'))
+const { resolveDraftThemeSource } = loadTypeScriptModule(moduleUrl('../lib/visual-form-draft.ts'))
 
 const simple = [{ label: 'Q1', value: 100 }, { label: 'Q2', value: 125 }]
 const scatter = [{ label: 'A', x: 1, y: 2 }, { label: 'B', x: 3, y: 5 }]
@@ -248,6 +250,44 @@ assert.doesNotThrow(
   () => JSON.stringify(persistedPanelConfig),
   'persisted chart draft remains serializable',
 )
+const synchronizedPanelConfig = synchronizeChartPanelGenerationConfig(
+  persistedPanelConfig,
+  {
+    ...persistedPanelConfig.formData,
+    useDeckTheme: false,
+    themeOverrides: {
+      primary: '#4F46E5',
+      secondary: '#64748B',
+      surface: '#F8FAFC',
+      border: '#CBD5E1',
+      accents: ['#4F46E5', '#0284C7'],
+      text: '#0F172A',
+      background: '#FFFFFF',
+    },
+    positionConfig: {
+      start_col: 7,
+      start_row: 8,
+      position_width: 12,
+      position_height: 6,
+      auto_position: false,
+    },
+  },
+)
+assert.equal(synchronizedPanelConfig.formData.useDeckTheme, false)
+assert.equal(synchronizedPanelConfig.formData.themeOverrides.primary, '#4F46E5')
+assert.equal(synchronizedPanelConfig.formData.positionConfig.start_col, 7)
+assert.equal(synchronizedPanelConfig.formData.chartConfig.x_axis_label, 'Investment')
+assert.equal(
+  resolveDraftThemeSource('presentation-1', synchronizedPanelConfig.formData).mode,
+  'another',
+  'reopening a neutral-fallback chart hydrates its authoritative fallback theme instead of the stale deck theme',
+)
+assert.equal(
+  synchronizedPanelConfig.formData.generationConfig.formData,
+  undefined,
+  'runtime synchronization keeps the chart reopen snapshot nonrecursive',
+)
+assert.doesNotThrow(() => JSON.stringify(synchronizedPanelConfig))
 assert.equal(validateChartData([{ x: 1, y: 2, r: 0 }]).valid, false, 'bubble radii must be positive')
 assert.equal(validateChartData([{ label: 'Only', value: 1 }]).valid, false, 'canonical charts require at least two points')
 assert.equal(validateChartData([{ x: 1, y: 2 }]).valid, false, 'scatter charts require at least two points')
@@ -434,6 +474,13 @@ assert.match(generationSource, /manuallyPositionedChart && formData\.positionCon
 assert.match(generationSource, /\} : currentBlankInfo && formData\.count <= 1 \? \{/, 'Auto still preserves dragged placeholder geometry')
 assert.match(generationSource, /source_provenance: element\.source_provenance \?\? response\.source_provenance/)
 assert.match(generationSource, /researchedChartRecoveryMessage/)
+const synchronizeDraftIndex = generationSource.indexOf('synchronizeChartPanelGenerationConfig(')
+const buildPayloadIndex = generationSource.indexOf('buildApiPayload(sessionId, formData)')
+assert.ok(synchronizeDraftIndex >= 0, 'chart runtime synchronizes its persisted panel snapshot')
+assert.ok(
+  synchronizeDraftIndex < buildPayloadIndex,
+  'chart snapshot synchronization occurs before the request and Layout persistence',
+)
 assert.match(generationSource, /method === 'insertChart'/)
 assert.match(generationSource, /insertedElementId === refineContext\.elementId/)
 assert.match(generationSource, /refineElementDeleted = true/)

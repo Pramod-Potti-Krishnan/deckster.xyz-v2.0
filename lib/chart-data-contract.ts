@@ -346,6 +346,56 @@ export function buildChartPanelGenerationConfig(
   }
 }
 
+/**
+ * Generation preflight can replace theme and geometry fields after ChartForm
+ * creates its reopen snapshot. Keep that nested snapshot aligned with the
+ * authoritative request without copying transient slide/deck context into it.
+ */
+export function synchronizeChartPanelGenerationConfig(
+  generationConfig: Record<string, unknown> | null | undefined,
+  formData: ChartFormData,
+): Record<string, unknown> | null | undefined {
+  if (!isRecord(generationConfig)) return generationConfig
+  const savedFormData = isRecord(generationConfig.formData)
+    ? generationConfig.formData
+    : null
+  if (savedFormData?.componentType !== 'CHART') return generationConfig
+
+  const savedPanelMetadata = isRecord(savedFormData.generationConfig)
+    ? savedFormData.generationConfig
+    : {
+        version: 1,
+        componentType: 'CHART',
+        customDataInput: typeof generationConfig.customDataInput === 'string'
+          ? generationConfig.customDataInput
+          : '',
+      }
+  return {
+    ...generationConfig,
+    formData: {
+      ...savedFormData,
+      componentType: 'CHART',
+      prompt: formData.prompt,
+      count: formData.count,
+      layout: formData.layout,
+      advancedModified: formData.advancedModified,
+      z_index: formData.z_index,
+      presentationId: formData.presentationId,
+      useDeckTheme: formData.useDeckTheme,
+      themeOverrides: formData.themeOverrides,
+      themeVariantId: formData.themeVariantId,
+      themeBindings: formData.themeBindings,
+      chartConfig: { ...formData.chartConfig },
+      positionConfig: formData.positionConfig
+        ? { ...formData.positionConfig }
+        : undefined,
+      // Keep the intentionally shallow panel metadata. Copying the outer
+      // generationConfig here would recursively embed formData.
+      generationConfig: savedPanelMetadata,
+    },
+  }
+}
+
 export function chartDataTemplate(chartType: TextLabsChartType): string {
   if (chartType === 'scatter') {
     return '[\n  { "label": "Point 1", "x": 10, "y": 20 },\n  { "label": "Point 2", "x": 30, "y": 40 }\n]'
