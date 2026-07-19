@@ -124,7 +124,7 @@ export function useGenerationPanel() {
     const next: GenerationPanelDraft = {
       ...(source || {}),
       prompt: formData?.prompt ?? source?.prompt,
-      showAdvanced: showAdvancedFromGenerationConfig(formData) ?? formData?.advancedModified ?? source?.showAdvanced,
+      showAdvanced: showAdvancedFromGenerationConfig(formData) ?? source?.showAdvanced ?? false,
       formData: formData ? cloneFormDataForDraft(formData) : source?.formData ?? null,
       researchMode,
       researchWeb,

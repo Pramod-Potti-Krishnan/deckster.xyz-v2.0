@@ -497,6 +497,7 @@ export type TextLabsImageStyle =
   | 'flat_vector' | 'isometric' | 'minimal' | 'abstract'
 
 export interface ImageConfig {
+  operation?: 'generate' | 'edit' | 'variation'
   style: TextLabsImageStyle
   quality: 'draft' | 'standard' | 'high' | 'ultra'
   corners: 'square' | 'rounded'

@@ -74,12 +74,20 @@ const SHAPE_COLOR_PRESETS: MandatoryFieldOption[] = [
 
 /** Pixel to grid conversion */
 function pxToGrid(px: number): number {
-  return Math.max(1, Math.round(px / GRID_CELL_SIZE))
+  return Math.max(0.2, Number((Math.round((px / GRID_CELL_SIZE) * 5) / 5).toFixed(1)))
 }
 
 /** Grid to pixel conversion */
 function gridToPx(grid: number): number {
-  return grid * GRID_CELL_SIZE
+  return Math.round(grid * GRID_CELL_SIZE)
+}
+
+function snapGrid(value: number): number {
+  return Number((Math.round(value * 5) / 5).toFixed(1))
+}
+
+function promptRequestsNoBorder(prompt: string): boolean {
+  return /\b(?:no|without)\s+(?:a\s+)?(?:border|outline|stroke)\b/i.test(prompt)
 }
 
 interface ShapeFormProps {
@@ -193,14 +201,14 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
   // Derived grid values (for display and API)
   const gridW = pxToGrid(widthPx)
   const gridH = pxToGrid(heightPx)
-  const startCol = Math.max(1, Math.round(x / GRID_CELL_SIZE) + 1)
-  const startRow = Math.max(1, Math.round(y / GRID_CELL_SIZE) + 1)
+  const startCol = Math.max(1, snapGrid(x / GRID_CELL_SIZE + 1))
+  const startRow = Math.max(1, snapGrid(y / GRID_CELL_SIZE + 1))
+  const noBorderFromPrompt = promptRequestsNoBorder(prompt)
 
   // Register mandatory config — Shape Type
   const shapeLabel = SHAPE_TYPE_GROUPS.flatMap(group => group.types).find(t => t.value === shapeType)?.label || 'Custom'
   const colorOptions = useMemo(() => {
     const options: MandatoryFieldOption[] = [
-      { value: 'theme', label: 'Theme', color: 'hsl(var(--primary))' },
       ...themeTokens.map(token => ({
         value: token.color,
         label: token.label,
@@ -219,7 +227,12 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
 
   useEffect(() => {
     const colorLabel = (field: 'fill' | 'stroke', color: string) => {
-      if (!explicitFields.has(field)) return 'Theme'
+      if (field === 'stroke' && (
+        (explicitFields.has('strokeWidth') && strokeWidth === 0)
+        || (!explicitFields.has('stroke') && noBorderFromPrompt)
+      )) return 'None'
+      if (!explicitFields.has(field)) return 'Auto (deck)'
+      if (color === 'none') return 'None'
       return colorOptions.find(option => option.value.toLowerCase() === color.toLowerCase())?.label || 'Custom'
     }
     const colorConfig = (
@@ -229,18 +242,50 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
       setColor: (value: string) => void,
     ): MandatoryConfig => {
       const selectedLabel = colorLabel(field, color)
+      const isNone = selectedLabel === 'None'
+      const options: MandatoryFieldOption[] = field === 'stroke'
+        ? [
+            { value: 'theme', label: 'Auto (deck)' },
+            { value: 'none', label: 'None' },
+            ...colorOptions,
+          ]
+        : [
+            { value: 'theme', label: 'Auto (deck)' },
+            ...colorOptions,
+            { value: 'none', label: 'None / Transparent' },
+          ]
       return {
         fieldLabel: `${label} color`,
         displayLabel: `${label}: ${selectedLabel}`,
-        selectedValue: explicitFields.has(field) ? color : 'theme',
-        options: colorOptions,
+        selectedValue: isNone ? 'none' : explicitFields.has(field) ? color : 'theme',
+        options,
         onChange: (value) => {
           if (value === 'theme') {
             clearExplicit(field)
+            if (field === 'stroke') {
+              clearExplicit('strokeWidth')
+              setStrokeWidth(2)
+            }
+            return
+          }
+          if (value === 'none') {
+            if (field === 'stroke') {
+              clearExplicit('stroke')
+              setStrokeWidth(0)
+              markExplicit('strokeWidth')
+            } else {
+              setColor('none')
+              markExplicit(field)
+            }
             return
           }
           setColor(value)
-          markExplicit(field)
+          if (field === 'stroke' && strokeWidth === 0) {
+            setStrokeWidth(2)
+            markExplicit(field, 'strokeWidth')
+          } else {
+            markExplicit(field)
+          }
         },
       }
     }
@@ -270,27 +315,35 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
     shapeLabel,
     shapeType,
     strokeColor,
+    strokeWidth,
+    noBorderFromPrompt,
   ])
 
   const handleSubmit = useCallback(() => {
     const isCustom = shapeType === 'custom'
     const defaultPrompt = isCustom ? 'custom shape' : `blue ${shapeType}`
 
+    const effectiveNoBorder = (
+      (explicitFields.has('strokeWidth') && strokeWidth === 0)
+      || (!explicitFields.has('stroke') && noBorderFromPrompt)
+    )
     const shapeConfig: Partial<ShapeConfig> = {
       shape_type: isCustom ? null : shapeType,
       prompt: isCustom ? (prompt || null) : null,
       ...(shapeType === 'polygon' && explicitFields.has('sides') ? { sides } : {}),
       ...(explicitFields.has('fill') ? { fill_color: fillColor } : {}),
       ...(explicitFields.has('stroke') ? { stroke_color: strokeColor } : {}),
-      ...(explicitFields.has('strokeWidth') ? { stroke_width: strokeWidth } : {}),
+      ...(effectiveNoBorder
+        ? { stroke_width: 0 }
+        : explicitFields.has('strokeWidth') ? { stroke_width: strokeWidth } : {}),
       ...(explicitFields.has('opacity') ? { opacity } : {}),
       ...(explicitFields.has('rotation') ? { rotation } : {}),
       ...(explicitFields.has('size') ? { size } : {}),
       ...(explicitFields.has('background') ? { target_background: targetBackground } : {}),
-      x,
-      y,
-      width_px: widthPx,
-      height_px: heightPx,
+      x: Math.round(x),
+      y: Math.round(y),
+      width_px: Math.round(widthPx),
+      height_px: Math.round(heightPx),
       start_col: startCol,
       start_row: startRow,
       position_width: gridW,
@@ -318,7 +371,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation, size, targetBackground, x, y, widthPx, heightPx, startCol, startRow, gridW, gridH, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
+  }, [prompt, count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation, size, targetBackground, x, y, widthPx, heightPx, startCol, startRow, gridW, gridH, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit, noBorderFromPrompt])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -354,7 +407,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Fill</label>
               <input
                 type="color"
-                value={fillColor}
+                value={fillColor === 'none' ? '#000000' : fillColor}
                 onChange={(e) => { setFillColor(e.target.value); markExplicit('fill') }}
                 className="h-7 w-full rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
               />
@@ -363,7 +416,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Border Color</label>
               <input
                 type="color"
-                value={strokeColor}
+                value={strokeColor === 'none' ? '#000000' : strokeColor}
                 onChange={(e) => { setStrokeColor(e.target.value); markExplicit('stroke') }}
                 className="h-7 w-full rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
               />

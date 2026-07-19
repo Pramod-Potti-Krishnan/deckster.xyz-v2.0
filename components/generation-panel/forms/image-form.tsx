@@ -87,11 +87,12 @@ interface ImageFormProps {
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
-  registerMandatoryConfig: (config: MandatoryConfig) => void
+  registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
   initialDraft?: GenerationPanelDraft | null
+  panelMode: 'generate' | 'edit' | 'refine'
 }
 
-export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft }: ImageFormProps) {
+export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft, panelMode }: ImageFormProps) {
   const initialFormData = initialDraft?.formData?.componentType === 'IMAGE'
     ? initialDraft.formData
     : null
@@ -115,6 +116,11 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [height, setHeight] = useState(initialConfig.height || DEFAULTS.height)
   const [selectedAspectRatio, setSelectedAspectRatio] = useState(initialConfig.aspect_ratio || '16:9')
   const [selectedPositionPreset, setSelectedPositionPreset] = useState<string | null>(null)
+  const [operation, setOperation] = useState<'generate' | 'edit' | 'variation'>(() => (
+    panelMode === 'refine'
+      ? initialConfig.operation === 'variation' ? 'variation' : 'edit'
+      : 'generate'
+  ))
   const [advancedModified, setAdvancedModified] = useState(Boolean(initialFormData?.advancedModified))
   const [explicitFields, setExplicitFields] = useState<Set<ImageOverrideField>>(() => initialExplicitFields)
   const [zIndex, setZIndex] = useState(initialFormData?.z_index ?? DEFAULTS.zIndex)
@@ -180,6 +186,16 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
     }
   }, [elementContext])
 
+  // A generated placeholder becomes an existing image without remounting this
+  // form. Move it onto image-aware editing at that transition, while retaining
+  // a user's explicit "Create new variation" choice during later submissions.
+  useEffect(() => {
+    setOperation(previous => {
+      if (panelMode !== 'refine') return 'generate'
+      return previous === 'generate' ? 'edit' : previous
+    })
+  }, [panelMode])
+
   const applyAspectRatio = useCallback((preset: typeof ASPECT_RATIO_PRESETS[0]) => {
     const fit = scaleToFitAndCenter(preset.ratioW, preset.ratioH)
     setWidth(fit.width)
@@ -207,7 +223,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
     const selectedStyle = IMAGE_STYLE_GROUPS
       .flatMap(group => group.styles)
       .find(option => option.value === style)
-    registerMandatoryConfig({
+    const styleConfig: MandatoryConfig = {
       fieldLabel: 'Image style',
       displayLabel: explicitFields.has('style') ? selectedStyle?.label || 'Custom' : 'Auto',
       selectedValue: explicitFields.has('style') ? style : 'auto',
@@ -230,8 +246,25 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
         markExplicit('style')
       },
       promptPlaceholder: 'e.g., Modern office space with team collaboration',
-    })
-  }, [clearExplicit, explicitFields, markExplicit, registerMandatoryConfig, style])
+    }
+    if (panelMode !== 'refine') {
+      registerMandatoryConfig(styleConfig)
+      return
+    }
+    registerMandatoryConfig([
+      {
+        fieldLabel: 'Image operation',
+        displayLabel: operation === 'edit' ? 'Edit current' : 'Create new variation',
+        selectedValue: operation,
+        options: [
+          { value: 'edit', label: 'Edit current' },
+          { value: 'variation', label: 'Create new variation' },
+        ],
+        onChange: (value: string) => setOperation(value === 'variation' ? 'variation' : 'edit'),
+      },
+      styleConfig,
+    ])
+  }, [clearExplicit, explicitFields, markExplicit, operation, panelMode, registerMandatoryConfig, style])
 
   const handleSubmit = useCallback(() => {
     const aspectRatio = reducedRatio(width, height)
@@ -239,6 +272,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
     const gridColumn = `${startCol}/${startCol + width}`
 
     const imageConfig: Partial<ImageConfig> = {
+      operation,
       placeholder_mode: false,
       start_col: startCol,
       start_row: startRow,
@@ -268,7 +302,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, style, quality, corners, border, startCol, startRow, width, height, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
+  }, [prompt, operation, style, quality, corners, border, startCol, startRow, width, height, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
