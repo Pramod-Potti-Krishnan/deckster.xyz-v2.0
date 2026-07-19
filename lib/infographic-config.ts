@@ -33,6 +33,13 @@ export interface InfographicConfigInput {
   >>
 }
 
+export interface InfographicDesignModeInput {
+  panelMode: 'generate' | 'edit' | 'refine'
+  operation: 'generate' | 'edit' | 'variation'
+  existingMode: InfographicMode
+  requestedMode: InfographicMode
+}
+
 const PLACEHOLDER_COPY = /^(?:(?:segment|step|stage|phase|item|point)\s*\d+|tbd|todo|placeholder|sample)$/i
 const COPY_LIMITS = {
   label: [2, 36],
@@ -54,6 +61,21 @@ function normalizedIconHint(value: string): string {
     .filter(token => token && !generic.has(token))
     .sort()
     .join(' ')
+}
+
+export function isInfographicDesignPathLocked({
+  panelMode,
+  operation,
+}: Pick<InfographicDesignModeInput, 'panelMode' | 'operation'>): boolean {
+  return panelMode === 'refine' && operation === 'edit'
+}
+
+export function resolveInfographicDesignMode(
+  input: InfographicDesignModeInput,
+): InfographicMode {
+  return isInfographicDesignPathLocked(input)
+    ? input.existingMode
+    : input.requestedMode
 }
 
 export function normalizeManualInfographicSegments(

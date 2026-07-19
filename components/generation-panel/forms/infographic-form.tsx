@@ -17,6 +17,8 @@ import {
 import {
   buildSparseInfographicConfig,
   inferExistingInfographicMode,
+  isInfographicDesignPathLocked,
+  resolveInfographicDesignMode,
   validateManualInfographicSegments,
 } from '@/lib/infographic-config'
 import type {
@@ -120,6 +122,8 @@ export function InfographicForm({
   const [height, setHeight] = useState(DEFAULTS.height)
   const [showPosition, setShowPosition] = useState(false)
   const existingMode = inferExistingInfographicMode(existingTarget)
+  const designPathLocked = isInfographicDesignPathLocked({ panelMode, operation })
+  const canUseReferenceImage = !designPathLocked || existingMode === 'v1'
 
   useEffect(() => {
     if (!elementContext) return
@@ -242,10 +246,47 @@ export function InfographicForm({
   }, [])
 
   const selectDesign = useCallback((nextMode: InfographicMode) => {
-    setMode(nextMode)
+    const resolvedMode = resolveInfographicDesignMode({
+      panelMode,
+      operation,
+      existingMode,
+      requestedMode: nextMode,
+    })
+    setMode(resolvedMode)
     setManualContentError(null)
-    if (nextMode === 'v2') clearReferenceImage()
-  }, [clearReferenceImage])
+    if (resolvedMode === 'v2') clearReferenceImage()
+  }, [clearReferenceImage, existingMode, operation, panelMode])
+
+  const selectOperation = useCallback((value: string) => {
+    const nextOperation = value === 'variation' ? 'variation' : 'edit'
+    setOperation(nextOperation)
+    if (nextOperation !== 'edit') return
+
+    setMode(existingMode)
+    setManualContentError(null)
+    if (existingMode === 'v2') clearReferenceImage()
+  }, [clearReferenceImage, existingMode])
+
+  // Edit current is a minimum-delta operation on the existing renderer. Keep
+  // the generation path source-aware even when a stale draft or a prior
+  // Create-new selection tries to restore an incompatible mode.
+  useEffect(() => {
+    const resolvedMode = resolveInfographicDesignMode({
+      panelMode,
+      operation,
+      existingMode,
+      requestedMode: mode,
+    })
+    if (resolvedMode !== mode) setMode(resolvedMode)
+    if (designPathLocked && existingMode === 'v2') clearReferenceImage()
+  }, [
+    clearReferenceImage,
+    designPathLocked,
+    existingMode,
+    mode,
+    operation,
+    panelMode,
+  ])
 
   useEffect(() => {
     const referenceConfig: MandatoryConfig = {
@@ -283,27 +324,29 @@ export function InfographicForm({
       registerMandatoryConfig(referenceConfig)
       return
     }
-    registerMandatoryConfig([
-      {
-        fieldLabel: 'Infographic operation',
-        displayLabel: operation === 'edit' ? 'Edit current' : 'Create new variation',
-        selectedValue: operation,
-        nativeSelect: true,
-        options: [
-          { value: 'edit', label: 'Edit current' },
-          { value: 'variation', label: 'Create new variation' },
-        ],
-        onChange: value => setOperation(value === 'variation' ? 'variation' : 'edit'),
-      },
-      referenceConfig,
-    ])
+    const operationConfig: MandatoryConfig = {
+      fieldLabel: 'Infographic operation',
+      displayLabel: operation === 'edit' ? 'Edit current' : 'Create new variation',
+      selectedValue: operation,
+      nativeSelect: true,
+      options: [
+        { value: 'edit', label: 'Edit current' },
+        { value: 'variation', label: 'Create new variation' },
+      ],
+      onChange: selectOperation,
+    }
+    registerMandatoryConfig(
+      canUseReferenceImage ? [operationConfig, referenceConfig] : operationConfig,
+    )
   }, [
+    canUseReferenceImage,
     clearReferenceImage,
     isGenerating,
     operation,
     panelMode,
     referenceImage,
     registerMandatoryConfig,
+    selectOperation,
   ])
 
   const updateOverride = useCallback(<K extends keyof InfographicOverrides>(
@@ -357,7 +400,13 @@ export function InfographicForm({
   }, [])
 
   const handleSubmit = useCallback(() => {
-    if (mode === 'v2' && contentMode === 'manual') {
+    const submitMode = resolveInfographicDesignMode({
+      panelMode,
+      operation,
+      existingMode,
+      requestedMode: mode,
+    })
+    if (submitMode === 'v2' && contentMode === 'manual') {
       const error = validateManualInfographicSegments(segmentRows)
       if (error) {
         setManualContentError(error)
@@ -371,14 +420,14 @@ export function InfographicForm({
       segment_colors: segmentColors.length ? segmentColors : undefined,
     }
     const infographicConfig = buildSparseInfographicConfig({
-      mode,
+      mode: submitMode,
       operation: panelMode === 'refine'
         ? operation === 'variation' ? 'variation' : 'edit'
         : undefined,
       geometry: { start_col: startCol, start_row: startRow, width, height },
       segmentCount,
-      contentMode: mode === 'v2' ? contentMode : 'automatic',
-      manualSegments: mode === 'v2' && contentMode === 'manual' ? segmentRows : undefined,
+      contentMode: submitMode === 'v2' ? contentMode : 'automatic',
+      manualSegments: submitMode === 'v2' && contentMode === 'manual' ? segmentRows : undefined,
       overrides: sparseOverrides,
     })
     const advancedModified = segmentCount !== undefined
@@ -400,10 +449,11 @@ export function InfographicForm({
       useDeckTheme,
       themeOverrides,
       infographicConfig,
-      referenceImage: mode === 'v1' ? referenceImage : null,
+      referenceImage: submitMode === 'v1' ? referenceImage : null,
     })
   }, [
     contentMode,
+    existingMode,
     height,
     mode,
     onSubmit,
@@ -441,6 +491,10 @@ export function InfographicForm({
         type="file"
         accept="image/*"
         onChange={event => {
+          if (!canUseReferenceImage) {
+            event.currentTarget.value = ''
+            return
+          }
           const file = event.target.files?.[0] ?? null
           setReferenceImage(file)
           if (file) {
@@ -457,35 +511,54 @@ export function InfographicForm({
         <div className="mb-2">
           <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Design</div>
           <div className="text-[10px] text-slate-500 dark:text-slate-400">
-            Choose the generation path. Creative is the default.
+            {designPathLocked
+              ? 'Edit current keeps the existing generation path.'
+              : 'Choose the generation path. Creative is the default.'}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Infographic design">
-          {([
-            ['v1', 'Creative', 'AI-designed image; supports a reference image.'],
-            ['v2', 'Structured', 'Ordered, editable process content with deterministic layout.'],
-          ] as const).map(([value, label, description]) => (
-            <button
-              key={value}
-              type="button"
-              disabled={isGenerating}
-              aria-pressed={mode === value}
-              onClick={() => selectDesign(value)}
-              className={`rounded-md border px-2 py-2 text-left transition-colors disabled:opacity-50 ${
-                mode === value
-                  ? 'border-primary bg-primary text-white'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
-              }`}
-            >
-              <span className="block text-[11px] font-semibold">{label}</span>
-              <span className={`mt-0.5 block text-[9px] leading-3.5 ${
-                mode === value ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
-              }`}>
-                {description}
-              </span>
-            </button>
-          ))}
-        </div>
+        {designPathLocked ? (
+          <div
+            role="status"
+            aria-label="Locked infographic design"
+            className="rounded-md border border-primary bg-primary px-2 py-2 text-left text-white"
+          >
+            <span className="block text-[11px] font-semibold">
+              {existingMode === 'v2' ? 'Structured' : 'Creative'}
+            </span>
+            <span className="mt-0.5 block text-[9px] leading-3.5 text-white/80">
+              {existingMode === 'v2'
+                ? 'Editing ordered content with its deterministic layout.'
+                : 'Editing the existing AI-designed image.'}
+            </span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Infographic design">
+            {([
+              ['v1', 'Creative', 'AI-designed image; supports a reference image.'],
+              ['v2', 'Structured', 'Ordered, editable process content with deterministic layout.'],
+            ] as const).map(([value, label, description]) => (
+              <button
+                key={value}
+                type="button"
+                disabled={isGenerating}
+                aria-pressed={mode === value}
+                onClick={() => selectDesign(value)}
+                className={`rounded-md border px-2 py-2 text-left transition-colors disabled:opacity-50 ${
+                  mode === value
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
+                }`}
+              >
+                <span className="block text-[11px] font-semibold">{label}</span>
+                <span className={`mt-0.5 block text-[9px] leading-3.5 ${
+                  mode === value ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
+                }`}>
+                  {description}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         {referenceImage && (
           <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400">
             The attached reference keeps Creative selected. Choosing Structured removes it.
