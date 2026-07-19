@@ -44,6 +44,7 @@ const {
   chartDataRequiresAxes,
   parseChartDataJson,
   researchedChartRecoveryMessage,
+  resolveChartSubmissionAxisLabels,
   resolveCustomChartAxisLabels,
   validateChartData,
 } = loadTypeScriptModule(moduleUrl('../lib/chart-data-contract.ts'))
@@ -71,25 +72,82 @@ assert.deepEqual(
   JSON.parse(JSON.stringify(resolveCustomChartAxisLabels(scatter, '', ''))),
   {
     requiresAxes: true,
-    xAxisLabel: 'X value',
-    yAxisLabel: 'Y value',
-    error: null,
+    xAxisLabel: null,
+    yAxisLabel: null,
+    error: 'Scatter and bubble data require meaningful X-axis and Y-axis labels (for example, Investment and Revenue).',
   },
-  'canonical custom x/y data receives neutral axis semantics without fabricating values',
+  'canonical custom x/y data requires user-owned semantics instead of fabricating labels',
 )
 assert.equal(
   resolveCustomChartAxisLabels(scatter, 'Revenue', 'Revenue').error,
   'Scatter and bubble data require distinct X-axis and Y-axis labels.',
 )
+assert.match(
+  resolveCustomChartAxisLabels(scatter, 'X value', 'Y value').error,
+  /meaningful axis labels/i,
+  'generic UI placeholders are rejected as chart semantics',
+)
+assert.match(
+  resolveCustomChartAxisLabels(scatter, 'X-axis value', 'Y label').error,
+  /meaningful axis labels/i,
+  'punctuated generic axis variants are also rejected',
+)
 assert.deepEqual(
-  JSON.parse(JSON.stringify(resolveCustomChartAxisLabels(simple, '', ''))),
+  JSON.parse(JSON.stringify(resolveCustomChartAxisLabels(scatter, 'Investment', 'Revenue'))),
+  {
+    requiresAxes: true,
+    xAxisLabel: 'Investment',
+    yAxisLabel: 'Revenue',
+    error: null,
+  },
+  'custom scatter accepts meaningful distinct axis labels',
+)
+assert.equal(
+  resolveCustomChartAxisLabels(scatter, 'Revenue ($)', 'Revenue (%)').error,
+  null,
+  'different units remain valid distinct axis semantics',
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(resolveCustomChartAxisLabels(simple, 'Stale X', 'Stale Y'))),
   {
     requiresAxes: false,
     xAxisLabel: null,
     yAxisLabel: null,
     error: null,
   },
-  'neutral axis defaults are limited to custom x/y data',
+  'category data never serializes stale custom axis labels',
+)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(resolveCustomChartAxisLabels(multiSeries, 'Stale X', 'Stale Y'))),
+  {
+    requiresAxes: false,
+    xAxisLabel: null,
+    yAxisLabel: null,
+    error: null,
+  },
+  'switching to labels/datasets clears the custom point-axis contract',
+)
+for (const mode of ['auto', 'illustrative']) {
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(resolveChartSubmissionAxisLabels(mode, scatter, 'Investment', 'Revenue'))),
+    {
+      requiresAxes: false,
+      xAxisLabel: null,
+      yAxisLabel: null,
+      error: null,
+    },
+    `${mode} submissions cannot leak custom axis labels`,
+  )
+}
+assert.deepEqual(
+  JSON.parse(JSON.stringify(resolveChartSubmissionAxisLabels('custom', bubble, 'Investment', 'Revenue'))),
+  {
+    requiresAxes: true,
+    xAxisLabel: 'Investment',
+    yAxisLabel: 'Revenue',
+    error: null,
+  },
+  'custom bubble submissions preserve meaningful axes',
 )
 assert.equal(validateChartData([{ x: 1, y: 2, r: 0 }]).valid, false, 'bubble radii must be positive')
 assert.equal(validateChartData([{ label: 'Only', value: 1 }]).valid, false, 'canonical charts require at least two points')
@@ -228,9 +286,13 @@ assert.match(chartFormSource, /if \(next\.auto_position && elementContext\)/, 'r
 assert.match(panelSource, /elementContext && elementType !== 'CHART'/, 'the redundant chart position banner does not displace the chat controls')
 assert.match(chartFormSource, /X-axis label/)
 assert.match(chartFormSource, /Y-axis label/)
-assert.match(chartFormSource, /resolveCustomChartAxisLabels/)
-assert.match(chartFormSource, /current\.trim\(\) \|\| 'X value'/)
-assert.match(chartFormSource, /current\.trim\(\) \|\| 'Y value'/)
+assert.match(chartFormSource, /resolveChartSubmissionAxisLabels/)
+assert.doesNotMatch(chartFormSource, /setXAxisLabel\(current => current\.trim\(\) \|\| 'X value'\)/)
+assert.doesNotMatch(chartFormSource, /setYAxisLabel\(current => current\.trim\(\) \|\| 'Y value'\)/)
+assert.match(chartFormSource, /nextDataSource !== 'custom'/, 'leaving Custom clears custom-only axes')
+assert.match(chartFormSource, /if \(!needsAxes\)/, 'changing to a non-cartesian canonical shape clears axes')
+assert.match(chartFormSource, /placeholder="e\.g\., Investment"/)
+assert.match(chartFormSource, /placeholder="e\.g\., Revenue"/)
 assert.match(generationSource, /const manuallyPositionedChart = formData\.componentType === 'CHART'/)
 assert.match(generationSource, /manuallyPositionedChart && formData\.positionConfig \? \{/)
 assert.match(generationSource, /\} : currentBlankInfo && formData\.count <= 1 \? \{/, 'Auto still preserves dragged placeholder geometry')

@@ -1,4 +1,4 @@
-import type { ChartData, TextLabsChartType } from '@/types/textlabs'
+import type { ChartData, ChartDataSourceMode, TextLabsChartType } from '@/types/textlabs'
 
 export type ChartDataValidationResult =
   | { valid: true; data: ChartData }
@@ -10,6 +10,24 @@ export type CustomChartAxisLabels = {
   yAxisLabel: string | null
   error: string | null
 }
+
+const GENERIC_AXIS_LABELS = new Set([
+  'axis',
+  'value',
+  'values',
+  'x',
+  'x axis',
+  'x axis value',
+  'x label',
+  'x value',
+  'x variable',
+  'y',
+  'y axis',
+  'y axis value',
+  'y label',
+  'y value',
+  'y variable',
+])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -106,9 +124,8 @@ export function chartDataRequiresAxes(data: ChartData | null): boolean {
 }
 
 /**
- * Canonical user-provided x/y data is already meaningful data. Give its axes
- * neutral labels when the user did not name them; researched charts do not use
- * this custom-data helper and must still supply source-derived semantics.
+ * Raw x/y(/r) values do not carry domain semantics. Require the user to name
+ * both axes rather than persisting UI placeholders as chart metadata.
  */
 export function resolveCustomChartAxisLabels(
   data: ChartData | null,
@@ -116,18 +133,62 @@ export function resolveCustomChartAxisLabels(
   yAxisLabel: string,
 ): CustomChartAxisLabels {
   const requiresAxes = chartDataRequiresAxes(data)
-  const resolvedX = xAxisLabel.trim() || (requiresAxes ? 'X value' : null)
-  const resolvedY = yAxisLabel.trim() || (requiresAxes ? 'Y value' : null)
-  const duplicates = requiresAxes &&
-    resolvedX?.toLowerCase() === resolvedY?.toLowerCase()
-  return {
-    requiresAxes,
-    xAxisLabel: resolvedX,
-    yAxisLabel: resolvedY,
-    error: duplicates
-      ? 'Scatter and bubble data require distinct X-axis and Y-axis labels.'
-      : null,
+  if (!requiresAxes) {
+    return {
+      requiresAxes: false,
+      xAxisLabel: null,
+      yAxisLabel: null,
+      error: null,
+    }
   }
+
+  const resolvedX = xAxisLabel.trim()
+  const resolvedY = yAxisLabel.trim()
+  const normalizedX = resolvedX.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const normalizedY = resolvedY.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const comparableX = resolvedX.toLowerCase().replace(/\s+/g, ' ')
+  const comparableY = resolvedY.toLowerCase().replace(/\s+/g, ' ')
+  const missing = !resolvedX || !resolvedY
+  const generic = GENERIC_AXIS_LABELS.has(normalizedX) || GENERIC_AXIS_LABELS.has(normalizedY)
+  const duplicates = !missing && comparableX === comparableY
+
+  let error: string | null = null
+  if (missing) {
+    error = 'Scatter and bubble data require meaningful X-axis and Y-axis labels (for example, Investment and Revenue).'
+  } else if (generic) {
+    error = 'Use meaningful axis labels instead of generic labels such as “X value” or “Y value”.'
+  } else if (duplicates) {
+    error = 'Scatter and bubble data require distinct X-axis and Y-axis labels.'
+  }
+
+  return {
+    requiresAxes: true,
+    xAxisLabel: resolvedX || null,
+    yAxisLabel: resolvedY || null,
+    error,
+  }
+}
+
+/**
+ * Axis fields are owned by Custom JSON x/y(/r) data only. Auto and
+ * Illustrative charts must leave them empty so researched/source metadata can
+ * provide the semantics downstream.
+ */
+export function resolveChartSubmissionAxisLabels(
+  dataSource: ChartDataSourceMode,
+  data: ChartData | null,
+  xAxisLabel: string,
+  yAxisLabel: string,
+): CustomChartAxisLabels {
+  if (dataSource !== 'custom') {
+    return {
+      requiresAxes: false,
+      xAxisLabel: null,
+      yAxisLabel: null,
+      error: null,
+    }
+  }
+  return resolveCustomChartAxisLabels(data, xAxisLabel, yAxisLabel)
 }
 
 export function chartDataTemplate(chartType: TextLabsChartType): string {

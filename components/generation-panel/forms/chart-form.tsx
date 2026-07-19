@@ -13,7 +13,7 @@ import {
   chartDataRequiresAxes,
   chartDataTemplate,
   parseChartDataJson,
-  resolveCustomChartAxisLabels,
+  resolveChartSubmissionAxisLabels,
 } from '@/lib/chart-data-contract'
 import { ElementContext, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
@@ -100,6 +100,8 @@ export function ChartForm({
   const [dataSource, setDataSource] = useState<ChartDataSourceMode>('auto')
   const [customDataInput, setCustomDataInput] = useState('')
   const [dataError, setDataError] = useState<string | null>(null)
+  const [axisError, setAxisError] = useState<string | null>(null)
+  const [customDataNeedsAxes, setCustomDataNeedsAxes] = useState(false)
   const [xAxisLabel, setXAxisLabel] = useState('')
   const [yAxisLabel, setYAxisLabel] = useState('')
   const [includeInsights, setIncludeInsights] = useState(false)
@@ -130,6 +132,15 @@ export function ChartForm({
       auto_position: true,
     } : previous)
   }, [elementContext])
+
+  // A new element target must never inherit semantic metadata from the
+  // previously selected chart. The parent normally remounts on activation;
+  // this is a defensive reset for target changes within one activation.
+  useEffect(() => {
+    setXAxisLabel('')
+    setYAxisLabel('')
+    setAxisError(null)
+  }, [elementContext?.elementId])
 
   const updatePositionConfig = useCallback((next: TextLabsPositionConfig) => {
     if (next.auto_position && elementContext) {
@@ -200,19 +211,15 @@ export function ChartForm({
         return
       }
       data = validation.data
-      const axes = resolveCustomChartAxisLabels(data, xAxisLabel, yAxisLabel)
+      const axes = resolveChartSubmissionAxisLabels(dataSource, data, xAxisLabel, yAxisLabel)
       if (axes.error) {
-        setDataError(axes.error)
+        setAxisError(axes.error)
         return
       }
       setDataError(null)
+      setAxisError(null)
     }
-    const axes = dataSource === 'custom'
-      ? resolveCustomChartAxisLabels(data, xAxisLabel, yAxisLabel)
-      : {
-          xAxisLabel: xAxisLabel.trim() || null,
-          yAxisLabel: yAxisLabel.trim() || null,
-        }
+    const axes = resolveChartSubmissionAxisLabels(dataSource, data, xAxisLabel, yAxisLabel)
 
     const seriesNames = seriesNamesInput.split(',').map(value => value.trim()).filter(Boolean)
     onSubmit({
@@ -261,18 +268,41 @@ export function ChartForm({
     setCustomDataInput(value)
     if (!value.trim()) {
       setDataError(null)
+      setAxisError(null)
+      setCustomDataNeedsAxes(false)
+      setXAxisLabel('')
+      setYAxisLabel('')
       return
     }
     const validation = parseChartDataJson(value)
     setDataError(validation.valid ? null : validation.error)
-    if (
-      validation.valid &&
-      chartDataRequiresAxes(validation.data)
-    ) {
-      setXAxisLabel(current => current.trim() || 'X value')
-      setYAxisLabel(current => current.trim() || 'Y value')
+    if (!validation.valid) return
+
+    const needsAxes = chartDataRequiresAxes(validation.data)
+    setCustomDataNeedsAxes(needsAxes)
+    if (!needsAxes) {
+      // Category and multi-series data do not own Cartesian axis metadata.
+      // Clear it when the canonical data shape changes.
+      setXAxisLabel('')
+      setYAxisLabel('')
+      setAxisError(null)
+      return
     }
-  }, [])
+    setAxisError(
+      resolveChartSubmissionAxisLabels('custom', validation.data, xAxisLabel, yAxisLabel).error,
+    )
+  }, [xAxisLabel, yAxisLabel])
+
+  const updateAxisLabels = useCallback((nextX: string, nextY: string) => {
+    setXAxisLabel(nextX)
+    setYAxisLabel(nextY)
+    const validation = parseChartDataJson(customDataInput)
+    setAxisError(
+      validation.valid
+        ? resolveChartSubmissionAxisLabels('custom', validation.data, nextX, nextY).error
+        : null,
+    )
+  }, [customDataInput])
 
   return (
     <div className="space-y-3">
@@ -287,8 +317,27 @@ export function ChartForm({
             { value: 'custom', label: 'Custom JSON' },
           ]}
           onChange={(_, value) => {
-            setDataSource(value as ChartDataSourceMode)
+            const nextDataSource = value as ChartDataSourceMode
+            setDataSource(nextDataSource)
             setDataError(null)
+            setAxisError(null)
+            if (nextDataSource !== 'custom') {
+              // Keep custom-only metadata out of Auto/Research/Illustrative.
+              setXAxisLabel('')
+              setYAxisLabel('')
+              setCustomDataNeedsAxes(false)
+            } else {
+              const validation = parseChartDataJson(customDataInput)
+              if (validation.valid) {
+                const needsAxes = chartDataRequiresAxes(validation.data)
+                setCustomDataNeedsAxes(needsAxes)
+                if (needsAxes) {
+                  setAxisError(
+                    resolveChartSubmissionAxisLabels('custom', validation.data, '', '').error,
+                  )
+                }
+              }
+            }
             setAdvancedModified(true)
           }}
         />
@@ -324,32 +373,48 @@ export function ChartForm({
           <p className={`text-[10px] leading-4 ${dataError ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>
             {dataError || 'Accepts label/value, scatter/bubble x/y(/r), or labels/datasets data.'}
           </p>
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <div className="space-y-1">
-              <label htmlFor="chart-x-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                X-axis label
-              </label>
-              <input
-                id="chart-x-axis"
-                value={xAxisLabel}
-                onChange={event => setXAxisLabel(event.target.value)}
-                placeholder="X value"
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-              />
+          {customDataNeedsAxes && (
+            <div className="space-y-1 pt-1">
+              <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+                Name what each numeric axis represents. These labels are required for scatter and bubble data.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label htmlFor="chart-x-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                    X-axis label
+                  </label>
+                  <input
+                    id="chart-x-axis"
+                    value={xAxisLabel}
+                    onChange={event => updateAxisLabels(event.target.value, yAxisLabel)}
+                    placeholder="e.g., Investment"
+                    aria-invalid={Boolean(axisError)}
+                    className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
+                      axisError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
+                    }`}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="chart-y-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                    Y-axis label
+                  </label>
+                  <input
+                    id="chart-y-axis"
+                    value={yAxisLabel}
+                    onChange={event => updateAxisLabels(xAxisLabel, event.target.value)}
+                    placeholder="e.g., Revenue"
+                    aria-invalid={Boolean(axisError)}
+                    className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
+                      axisError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
+                    }`}
+                  />
+                </div>
+              </div>
+              {axisError && (
+                <p role="alert" className="text-[10px] leading-4 text-red-500">{axisError}</p>
+              )}
             </div>
-            <div className="space-y-1">
-              <label htmlFor="chart-y-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                Y-axis label
-              </label>
-              <input
-                id="chart-y-axis"
-                value={yAxisLabel}
-                onChange={event => setYAxisLabel(event.target.value)}
-                placeholder="Y value"
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-              />
-            </div>
-          </div>
+          )}
         </div>
       )}
 
