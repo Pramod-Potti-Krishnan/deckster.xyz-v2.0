@@ -404,6 +404,16 @@ assert.match(
 )
 assert.match(
   diagramSource,
+  /languageSelectionMode === 'auto' && resolvedLanguage[\s\S]*resolved_language: resolvedLanguage/,
+  'Auto refinement must preserve the prior resolved language outside the strict selection object',
+)
+assert.match(
+  diagramSource,
+  /setPersistedSourceCode[\s\S]*source_code: persistedSourceCode/,
+  'Code refinement must carry the prior source through the generation envelope',
+)
+assert.match(
+  diagramSource,
   /subtype === 'CUSTOM'[\s\S]*elementPromptLengthState\([\s\S]*CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH/,
 )
 

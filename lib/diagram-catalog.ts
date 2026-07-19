@@ -324,7 +324,7 @@ const DIAGRAM_CATALOG_RAW: DiagramCatalog = {
       modes: ['auto', 'manual'],
       auto_omit_leaf_language: true,
       legacy_omission: 'python',
-      persists: ['language_selection', 'resolved_language'],
+      persists: ['language_selection', 'resolved_language', 'source_code'],
     },
   },
 }

@@ -466,6 +466,11 @@ export function DiagramForm({
   const [resolvedLanguage, setResolvedLanguage] = useState<string | null>(
     initialHydration.resolvedLanguage,
   )
+  const [persistedSourceCode, setPersistedSourceCode] = useState<string | null>(
+    typeof initialHydration.generationConfig?.source_code === 'string'
+      ? initialHydration.generationConfig.source_code
+      : null,
+  )
   const [colorTheme, setColorTheme] = useState<CodeDisplayConfig['color_theme']>(initialHydration.colorTheme)
   const [textSize, setTextSize] = useState<CodeDisplayConfig['text_size']>(initialHydration.textSize)
   const [showLineNumbers, setShowLineNumbers] = useState(initialHydration.showLineNumbers)
@@ -509,6 +514,16 @@ export function DiagramForm({
       existingDiagramTarget,
       initialDraftRef.current,
     )
+    // The rendered source is continuity data, not a user-editable control.
+    // Always accept a newly persisted source after replacement so a second
+    // refine in the same open panel builds on the immediately preceding code.
+    if (hydration.hasSource) {
+      setPersistedSourceCode(
+        typeof hydration.generationConfig?.source_code === 'string'
+          ? hydration.generationConfig.source_code
+          : null,
+      )
+    }
     // Fresh generation has no persisted target to hydrate. In particular, a
     // late catalog response must not reset an already selected subtype.
     if (!hydration.hasSource || controlsTouchedRef.current) return
@@ -752,6 +767,10 @@ export function DiagramForm({
         language_selection: languageSelectionMode === 'auto'
           ? { mode: 'auto' }
           : { mode: 'manual', language },
+        ...(languageSelectionMode === 'auto' && resolvedLanguage
+          ? { resolved_language: resolvedLanguage }
+          : {}),
+        ...(persistedSourceCode ? { source_code: persistedSourceCode } : {}),
       } : {}),
     }
     onSubmit({
@@ -786,7 +805,8 @@ export function DiagramForm({
     advancedModified, buildDiagramConfig, onSubmit, presentationId, prompt, provider,
     autoResolvedType, controlsSubtype, language, languageSelectionMode, layoutHint, leafTheme,
     positionPreset, providerConflict, providerConflictConfirmed, resolvedLanguage, selectionMode,
-    subtype, subtypeCatalog.config.theme, themeOverrides, themeSource.mode, useDeckTheme, zIndex,
+    persistedSourceCode, subtype, subtypeCatalog.config.theme, themeOverrides, themeSource.mode,
+    useDeckTheme, zIndex,
   ])
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
