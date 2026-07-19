@@ -187,15 +187,22 @@ assert.match(
 )
 assert.doesNotMatch(hookSource, /function buildSpinnerHtml/)
 const blankDeleteSource = hookSource.slice(
-  hookSource.indexOf('// Delete blank placeholder before inserting generated content'),
-  hookSource.indexOf('// Insert each element into the canvas'),
+  hookSource.indexOf('// Create-first replacement: preserve the original placeholder until'),
+  hookSource.indexOf('if (refineContext && !refineElementDeleted'),
 )
 assert.match(blankDeleteSource, /sendLayoutMutationWithReconciliation/)
+assert.ok(
+  hookSource.indexOf('// Insert each element into the canvas') <
+    hookSource.indexOf('// Create-first replacement: preserve the original placeholder until'),
+  'all generated insertions are acknowledged before placeholder deletion begins',
+)
 assert.ok(
   blankDeleteSource.indexOf('sendLayoutMutationWithReconciliation') <
     blankDeleteSource.indexOf('blankElements.removeElement(currentBlankId)'),
   'placeholder tracking changes only after a confirmed successful Layout deletion receipt',
 )
+assert.match(blankDeleteSource, /layoutMutationStateIsAmbiguous\(deleteError\)/)
+assert.match(blankDeleteSource, /insertedElementIds\.length = 0/)
 assert.match(
   hookSource,
   /currentBlankInfo &&\s+blankTrackingWasRemoved &&\s+layoutServiceApis/,
