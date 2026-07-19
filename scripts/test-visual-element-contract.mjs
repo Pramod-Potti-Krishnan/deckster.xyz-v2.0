@@ -86,6 +86,28 @@ assert.equal(restoredDiagramResearch.uploadedDocuments, true)
 assert.equal(restoredDiagramResearch.knowledgeGraph, true)
 
 const blankPolicy = compile(new URL('../lib/element-blank-policy.ts', import.meta.url))
+const imageRefinement = compile(new URL('../lib/image-refinement.ts', import.meta.url))
+assert.equal(
+  imageRefinement.existingImageSource({
+    content: { html: '<div><img src="https://deckster.supabase.co/current.png"></div>' },
+  }),
+  'https://deckster.supabase.co/current.png',
+)
+assert.equal(
+  imageRefinement.imageEditPreflightError('edit', {
+    content: { html: '<img src="https://deckster.supabase.co/current.png">' },
+  }),
+  null,
+)
+assert.match(
+  imageRefinement.imageEditPreflightError('edit', { content: '<div>not an image</div>' }),
+  /original was left unchanged/i,
+)
+assert.equal(
+  imageRefinement.imageEditPreflightError('variation', null),
+  null,
+  'fresh variations do not require a reference image',
+)
 assert.equal(
   blankPolicy.shouldOpenAsBlankPlaceholder({
     elementId: 'icon-1',
@@ -216,6 +238,14 @@ assert.equal(imageAuto.imageConfig.style, undefined)
 assert.equal(imageAuto.imageConfig.quality, undefined)
 assert.equal(imageAuto.imageConfig.aspect_ratio, undefined)
 assert.ok(!Object.values(imageAuto.imageConfig).includes('auto'), 'strict enums never receive literal auto')
+assert.equal(imageAuto.imageConfig.operation, undefined)
+
+const imageEdit = client.buildApiPayload('session', {
+  ...common,
+  componentType: 'IMAGE',
+  imageConfig: { ...liveImageGeometry, operation: 'edit' },
+}).options
+assert.equal(imageEdit.imageConfig.operation, 'edit')
 
 const imageManualStyle = client.buildApiPayload('session', {
   ...common,
@@ -332,6 +362,9 @@ assert.doesNotMatch(
 assert.match(inputSource, /Array\.isArray\(mandatoryConfig\)/, 'the prompt toolbar supports multiple primary controls')
 assert.match(inputSource, /selectedOption\?\.color/, 'palette choices expose their swatches in the prompt toolbar')
 assert.match(imageFormSource, /fieldLabel: 'Image style'/)
+assert.match(imageFormSource, /fieldLabel: 'Image operation'/)
+assert.match(imageFormSource, /value: 'edit', label: 'Edit current'/)
+assert.match(imageFormSource, /value: 'variation', label: 'Create new variation'/)
 assert.match(panelSource, /<ImageForm \{\.\.\.commonProps\} initialDraft=\{initialDraft\}/)
 assert.match(panelSource, /<IconLabelForm \{\.\.\.commonProps\} initialDraft=\{initialDraft\}/)
 assert.match(panelSource, /<ShapeForm \{\.\.\.commonProps\} initialDraft=\{initialDraft\}/)
@@ -387,7 +420,15 @@ assert.match(iconFormSource, /registerMandatoryConfig\(configs\)/)
 assert.match(iconFormSource, /fieldLabel: 'Style'[\s\S]{0,220}value: 'auto'/)
 assert.match(shapeFormSource, /colorConfig\('fill', 'Fill'/)
 assert.match(shapeFormSource, /colorConfig\('stroke', 'Border'/)
-assert.match(shapeFormSource, /selectedValue: explicitFields\.has\(field\) \? color : 'theme'/)
+assert.match(shapeFormSource, /label: 'Auto \(deck\)'/)
+assert.match(shapeFormSource, /value: 'none', label: 'None'/)
+assert.match(shapeFormSource, /Math\.round\(heightPx\)/)
+assert.match(shapeFormSource, /noBorderFromPrompt/)
+assert.doesNotMatch(
+  panelSource,
+  /advancedModified\s*\?\?\s*false/,
+  'saved explicit values do not force Advanced open',
+)
 assert.match(textFormSource, /\{\(isBodyText \|\| isSystemManaged\) && researchControls\}/)
 assert.match(generationSource, /if \(researchPolicy\) formData\.research = researchPolicy/)
 assert.match(generationSource, /else delete formData\.research/)

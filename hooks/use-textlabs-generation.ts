@@ -60,6 +60,7 @@ import {
 } from '@/lib/element-prompt-limit'
 import { resolveRefineGenerationConfig } from '@/lib/refine-generation-config'
 import { normalizePersistedDiagramSubtype } from '@/lib/diagram-catalog'
+import { imageEditPreflightError } from '@/lib/image-refinement'
 import {
   diagramBackendDeadlineBudgetMs,
   diagramRetryCandidateForPreDispatch,
@@ -983,6 +984,19 @@ export function useTextLabsGeneration({
           formData.metricsConfig,
         ),
       }))
+    }
+
+    if (formData.componentType === 'IMAGE') {
+      const imagePreflightError = imageEditPreflightError(
+        formData.imageConfig.operation,
+        formData.existingElement,
+      )
+      if (imagePreflightError) {
+        generationPanel.setError(imagePreflightError)
+        generationPanel.setIsGenerating(false)
+        activeGenerationKeysRef.current.delete(generationKey)
+        return
+      }
     }
 
     const preflightTargetError = generationTargetError()

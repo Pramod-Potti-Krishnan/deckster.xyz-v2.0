@@ -45,7 +45,7 @@ function useMemoFromSavedGenerationConfig(
           : typeof savedConfig.prompt === 'string'
             ? savedConfig.prompt
             : '',
-        showAdvanced: Boolean(savedConfig.showAdvanced ?? savedFormData.advancedModified),
+        showAdvanced: savedConfig.showAdvanced === true,
         formData: savedFormData as unknown as TextLabsFormData,
       }
     }
@@ -65,7 +65,7 @@ function useMemoFromSavedGenerationConfig(
     )
     return {
       prompt,
-      showAdvanced: Boolean(savedConfig.showAdvanced ?? advancedModified),
+      showAdvanced: savedConfig.showAdvanced === true,
       formData: {
         componentType: 'TABLE',
         prompt,
@@ -254,12 +254,10 @@ export function GenerationPanel({
   useEffect(() => {
     setPrompt(effectiveDraft?.prompt ?? effectiveDraft?.formData?.prompt ?? '')
     const savedFormGenerationConfig = readObject(effectiveDraft?.formData?.generationConfig)
-    setShowAdvanced(Boolean(
-      effectiveDraft?.showAdvanced
-        ?? savedFormGenerationConfig?.showAdvanced
-        ?? effectiveDraft?.formData?.advancedModified
-        ?? false,
-    ))
+    setShowAdvanced(
+      effectiveDraft?.showAdvanced === true
+      || savedFormGenerationConfig?.showAdvanced === true,
+    )
   }, [activationId, draftKey, elementType, existingTextTarget?.elementId])
 
   useEffect(() => {
@@ -480,7 +478,7 @@ function FormRouter({
     case 'CHART':
       return <ChartForm {...commonProps} />
     case 'IMAGE':
-      return <ImageForm {...commonProps} initialDraft={initialDraft} />
+      return <ImageForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} />
     case 'ICON_LABEL':
       return <IconLabelForm {...commonProps} initialDraft={initialDraft} />
     case 'SHAPE':
