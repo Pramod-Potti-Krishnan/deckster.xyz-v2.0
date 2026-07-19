@@ -1189,19 +1189,6 @@ export function useTextLabsGeneration({
         )
       }
 
-      // Delete blank placeholder before inserting generated content
-      if (currentBlankId && currentBlankInfo && layoutServiceApis?.sendElementCommand) {
-        await sendLayoutMutationWithReconciliation(
-          layoutServiceApis.sendElementCommand,
-          'deleteElement',
-          { elementId: currentBlankId },
-          `${lifecycleMutationId}:delete-placeholder`,
-        )
-        blankElements.removeElement(currentBlankId)
-        blankTrackingWasRemoved = true
-        blankOverlayActive = false
-      }
-
       // Insert each element into the canvas
       const effectiveSlideIndex = generationSlideIndex
       const formElements = 'elements' in formData ? formData.elements : undefined
@@ -1470,21 +1457,36 @@ export function useTextLabsGeneration({
       }
       assertGenerationTargetIsStillAuthoritative()
 
-      // Defensive cleanup: if the pre-insert delete raced or failed silently,
-      // the generated TABLE/METRICS/TEXT element can coexist with its old
-      // blank/spinner placeholder. The generated insert uses a fresh element id,
-      // so a retry against the known blank id cannot delete the new content.
+      // Create-first replacement: preserve the original placeholder until
+      // every generated element has been acknowledged by Layout. A failed
+      // insertion therefore leaves the authoritative original recoverable.
       if (
         currentBlankId
         && layoutServiceApis?.sendElementCommand
         && !insertedElementIds.includes(currentBlankId)
       ) {
         try {
-          await layoutServiceApis.sendElementCommand('deleteElement', { elementId: currentBlankId })
+          const deleteResponse = await sendLayoutMutationWithReconciliation(
+            layoutServiceApis.sendElementCommand,
+            'deleteElement',
+            { elementId: currentBlankId },
+            `${lifecycleMutationId}:delete-placeholder-after-insert`,
+          )
+          assertLayoutCommandSucceeded(
+            deleteResponse,
+            'Original placeholder deletion',
+          )
           blankElements.removeElement(currentBlankId)
-        } catch (cleanupError) {
-          // Already-deleted placeholders are the common success path here.
-          console.debug('[TextLabs] Blank placeholder cleanup retry found nothing to delete:', cleanupError)
+          blankTrackingWasRemoved = true
+          blankOverlayActive = false
+        } catch (deleteError) {
+          if (layoutMutationStateIsAmbiguous(deleteError)) {
+            // The placeholder may already be gone. Keep the inserted content
+            // and let reload reconcile the saved slide; rolling it back could
+            // otherwise leave the user with neither copy.
+            insertedElementIds.length = 0
+          }
+          throw deleteError
         }
       }
 
