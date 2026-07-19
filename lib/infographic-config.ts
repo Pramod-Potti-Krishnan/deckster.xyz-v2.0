@@ -14,6 +14,7 @@ export interface InfographicGeometry {
 
 export interface InfographicConfigInput {
   mode: InfographicMode
+  operation?: 'edit' | 'variation'
   geometry: InfographicGeometry
   segmentCount?: InfographicSegmentCount
   contentMode?: 'automatic' | 'manual'
@@ -135,6 +136,7 @@ export function buildSparseInfographicConfig(
     width: geometry.width,
     height: geometry.height,
   }
+  if (input.operation) config.operation = input.operation
 
   for (const [key, value] of Object.entries(overrides)) {
     if (value === undefined || value === null || value === '') continue

@@ -582,6 +582,7 @@ export type LegacyInfographicSegmentCount = 'auto' | '1' | '2' | '3' | '4' | '5'
 
 export interface InfographicConfig {
   mode: InfographicMode
+  operation?: 'generate' | 'edit' | 'variation'
   aspect_ratio?: '16:9' | '4:3' | '1:1' | '3:2' | '9:16'
   segment_count?: InfographicSegmentCount
   content_mode?: 'automatic' | 'manual'

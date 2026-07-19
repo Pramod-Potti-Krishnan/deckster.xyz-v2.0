@@ -40,6 +40,20 @@ assert.doesNotMatch(JSON.stringify(automatic), /auto/i)
 assert.equal(automatic.segments, undefined)
 assert.equal(automatic.segment_count, undefined)
 assert.equal(automatic.content_mode, undefined)
+assert.equal(automatic.operation, undefined)
+
+const editOperation = configModule.buildSparseInfographicConfig({
+  mode: 'v2',
+  operation: 'edit',
+  geometry,
+})
+assert.equal(editOperation.operation, 'edit')
+const variationOperation = configModule.buildSparseInfographicConfig({
+  mode: 'v1',
+  operation: 'variation',
+  geometry,
+})
+assert.equal(variationOperation.operation, 'variation')
 
 for (const count of [2, 3, 4, 5, 6, 7, 8]) {
   const counted = configModule.buildSparseInfographicConfig({
@@ -208,6 +222,10 @@ assert.equal(apiPayload.infographicConfig.segments, undefined)
 const infographicRefinePayload = clientModule.buildApiPayload('session-1', {
   ...staleResearchForm,
   refine: true,
+  infographicConfig: {
+    ...automatic,
+    operation: 'variation',
+  },
   generationConfig: {
     mode: 'v2',
     infographic: { mode: 'v2' },
@@ -220,6 +238,11 @@ const infographicRefinePayload = clientModule.buildApiPayload('session-1', {
     },
   },
 }).options
+assert.equal(
+  infographicRefinePayload.infographicConfig.operation,
+  'variation',
+  'the selected infographic regeneration operation reaches Text Labs',
+)
 assert.equal(
   infographicRefinePayload.generationConfig,
   undefined,
@@ -348,6 +371,13 @@ assert.doesNotMatch(formSource, /label:\s*['"`]Step \d/)
 assert.match(formSource, /Choose the generation path\. Creative is the default\./)
 assert.match(formSource, /Reset to Auto/)
 assert.match(formSource, /Manual rows are authoritative/)
+assert.match(formSource, /value: 'edit', label: 'Edit current'/)
+assert.match(formSource, /value: 'variation', label: 'Create new variation'/)
+assert.match(
+  formSource,
+  /operation === 'variation' \? 'variation' : 'edit'/,
+  'refinement submits only the two supported regeneration operations',
+)
 assert.match(formSource, /draftFormData\?\.infographicConfig/)
 assert.match(formSource, /setSegmentRows\(draftSegments\)/)
 assert.match(formSource, /hydratedTargetRef\.current/)
@@ -373,8 +403,8 @@ assert.doesNotMatch(
 )
 assert.match(
   generationSource,
-  /expectedThemeSource === 'director'/,
-  'theme authority distinguishes Director acknowledgement from persisted Layout readiness',
+  /isSameThemeGenerationAuthority\(expectedThemeAuthority, current\)/,
+  'theme authority revalidates the selected presentation and theme fingerprint',
 )
 
 console.log('infographic frontend contract tests passed')
