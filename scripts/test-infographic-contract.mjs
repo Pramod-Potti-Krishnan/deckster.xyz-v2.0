@@ -371,6 +371,11 @@ assert.doesNotMatch(formSource, /label:\s*['"`]Step \d/)
 assert.match(formSource, /Choose the generation path\. Creative is the default\./)
 assert.match(formSource, /Reset to Auto/)
 assert.match(formSource, /Manual rows are authoritative/)
+assert.match(
+  formSource,
+  /fieldLabel: 'Infographic operation'[\s\S]{0,180}nativeSelect: true/,
+  'the infographic Edit/Create choice bypasses the portalled popover',
+)
 assert.match(formSource, /value: 'edit', label: 'Edit current'/)
 assert.match(formSource, /value: 'variation', label: 'Create new variation'/)
 assert.match(
