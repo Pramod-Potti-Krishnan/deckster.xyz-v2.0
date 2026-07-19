@@ -22,6 +22,45 @@ function compile(file, requireImplementation = () => ({}), globals = {}) {
 const configModule = compile(new URL('../lib/infographic-config.ts', import.meta.url))
 const geometry = { start_col: 2, start_row: 4, width: 16, height: 9 }
 
+assert.equal(
+  configModule.resolveInfographicDesignMode({
+    panelMode: 'refine',
+    operation: 'edit',
+    existingMode: 'v2',
+    requestedMode: 'v1',
+  }),
+  'v2',
+  'Structured Edit current cannot switch to Creative',
+)
+assert.equal(
+  configModule.resolveInfographicDesignMode({
+    panelMode: 'refine',
+    operation: 'edit',
+    existingMode: 'v1',
+    requestedMode: 'v2',
+  }),
+  'v1',
+  'Creative Edit current cannot switch to Structured',
+)
+assert.equal(
+  configModule.resolveInfographicDesignMode({
+    panelMode: 'refine',
+    operation: 'variation',
+    existingMode: 'v2',
+    requestedMode: 'v1',
+  }),
+  'v1',
+  'Create new variation permits switching generation paths',
+)
+assert.equal(
+  configModule.isInfographicDesignPathLocked({
+    panelMode: 'generate',
+    operation: 'generate',
+  }),
+  false,
+  'new infographic generation keeps both design paths available',
+)
+
 const automatic = configModule.buildSparseInfographicConfig({ mode: 'v2', geometry })
 assert.deepEqual(
   JSON.parse(JSON.stringify(automatic)),
@@ -378,6 +417,27 @@ assert.match(
 )
 assert.match(formSource, /value: 'edit', label: 'Edit current'/)
 assert.match(formSource, /value: 'variation', label: 'Create new variation'/)
+assert.match(formSource, /Edit current keeps the existing generation path\./)
+assert.match(formSource, /aria-label="Locked infographic design"/)
+assert.match(
+  formSource,
+  /canUseReferenceImage \? \[operationConfig, referenceConfig\] : operationConfig/,
+  'Structured Edit current hides its incompatible reference-image affordance',
+)
+assert.match(
+  formSource,
+  /if \(nextOperation !== 'edit'\) return[\s\S]{0,160}setMode\(existingMode\)/,
+  'switching from Create new variation back to Edit current normalizes the mode immediately',
+)
+assert.match(
+  formSource,
+  /const submitMode = resolveInfographicDesignMode\(/,
+)
+assert.match(
+  formSource,
+  /buildSparseInfographicConfig\(\{[\s\S]{0,100}mode: submitMode/,
+  'the final payload boundary independently enforces the source renderer for Edit current',
+)
 assert.match(
   formSource,
   /operation === 'variation' \? 'variation' : 'edit'/,
