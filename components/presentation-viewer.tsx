@@ -106,6 +106,11 @@ import {
   parseDiagramRendererStateUpdate,
   type DiagramRendererStateUpdate,
 } from '@/lib/diagram-renderer-state'
+import {
+  createLayoutMutationId,
+  layoutMutationStateIsAmbiguous,
+  sendLayoutMutationWithReconciliation,
+} from '@/lib/layout-command-result'
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
@@ -176,6 +181,46 @@ export interface RefineElementRequest {
   diagramSubtype?: import('@/types/textlabs').TextLabsDiagramSubtype | null
   zIndex?: number | null
   content?: unknown
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+/**
+ * Layout versions have exposed persisted element metadata at both the event
+ * root and under properties/metadata. Accept every additive location while
+ * preferring the current direct contract so older saved charts can still
+ * hydrate Refine after a full-page reload.
+ */
+export function resolveRefineElementGenerationConfig(
+  payload: unknown,
+): Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null {
+  const root = recordValue(payload)
+  if (!root) return null
+  const properties = recordValue(root.properties)
+  const metadata = recordValue(root.metadata)
+  const propertyMetadata = recordValue(properties?.metadata)
+  const nestedData = recordValue(root.data)
+  const candidates = [
+    root.generationConfig,
+    root.generation_config,
+    properties?.generationConfig,
+    properties?.generation_config,
+    metadata?.generationConfig,
+    metadata?.generation_config,
+    propertyMetadata?.generationConfig,
+    propertyMetadata?.generation_config,
+    nestedData?.generationConfig,
+    nestedData?.generation_config,
+  ]
+  for (const candidate of candidates) {
+    const config = recordValue(candidate)
+    if (config) return config
+  }
+  return null
 }
 
 interface PresentationViewerProps {
@@ -530,6 +575,8 @@ export function PresentationViewer({
   const [selectedSlideIndices, setSelectedSlideIndices] = useState<number[]>([])
   // Track when CRUD operations have modified slides (invalidates stale slideStructure)
   const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
+  const [isSlideMutationPending, setIsSlideMutationPending] = useState(false)
+  const slideMutationPendingRef = useRef(false)
   const toolbarDropdownPortalContainer = isFullscreen ? containerRef.current ?? undefined : undefined
   // Text box selection state
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
@@ -989,7 +1036,11 @@ export function PresentationViewer({
 
   // Add slide handler
   const handleAddSlide = useCallback(async (layoutId: SlideLayoutType) => {
-    if (!iframeRef.current) {
+    // State updates are asynchronous; the ref closes the same-tick duplicate
+    // click window before SlideLayoutPicker can repaint its disabled state.
+    if (slideMutationPendingRef.current) return
+    const iframe = iframeRef.current
+    if (!iframe) {
       toast({
         title: 'Error',
         description: 'Presentation not ready',
@@ -998,17 +1049,50 @@ export function PresentationViewer({
       return
     }
 
+    slideMutationPendingRef.current = true
+    setIsSlideMutationPending(true)
+    let committedSlideNumber: number | null = null
     try {
-      const result = await sendCommand(iframeRef.current, 'addSlide', {
-        layout: layoutId,
-        position: currentSlide // Insert after current slide (0-based in iframe)
-      })
+      const mutationId = createLayoutMutationId('add-slide')
+      const result = await sendLayoutMutationWithReconciliation(
+        (action, params) => sendCommand(
+          iframe,
+          action,
+          params,
+          {
+            timeoutMs: action === 'getElementMutationReceipt'
+              ? READ_LAYOUT_COMMAND_TIMEOUT_MS
+              : MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+          },
+        ),
+        'addSlide',
+        {
+          layout: layoutId,
+          position: currentSlide, // Insert after current slide (0-based in iframe)
+        },
+        mutationId,
+        { attempts: 12, delayMs: 250 },
+      )
 
       if (result.success) {
         // Backend sends slide_index and slide_count directly (not nested in data)
-        const newSlideIndex = result.slide_index ?? result.data?.slideIndex ?? currentSlide
-        const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides + 1
+        const resultData = recordValue(result.data)
+        const candidateSlideIndex = result.slide_index
+          ?? result.slideIndex
+          ?? resultData?.slide_index
+          ?? resultData?.slideIndex
+        const candidateSlideCount = result.slide_count
+          ?? result.slideCount
+          ?? resultData?.slide_count
+          ?? resultData?.slideCount
+        const newSlideIndex = typeof candidateSlideIndex === 'number' && Number.isFinite(candidateSlideIndex)
+          ? candidateSlideIndex
+          : currentSlide
+        const newTotal = typeof candidateSlideCount === 'number' && Number.isFinite(candidateSlideCount)
+          ? candidateSlideCount
+          : totalSlides + 1
         const newSlideNumber = newSlideIndex + 1
+        committedSlideNumber = newSlideNumber
 
         setTotalSlides(newTotal)
         setCurrentSlide(newSlideNumber) // Update local state (1-based)
@@ -1020,10 +1104,10 @@ export function PresentationViewer({
         setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
 
         // Navigate iframe to the new slide (PowerPoint/Keynote behavior)
-        await sendCommand(iframeRef.current, 'goToSlide', { index: newSlideIndex })
+        await sendCommand(iframe, 'goToSlide', { index: newSlideIndex })
 
         // Activate element borders for editing (like pressing 'B')
-        await sendCommand(iframeRef.current, 'toggleBorderHighlight')
+        await sendCommand(iframe, 'toggleBorderHighlight')
 
         // Auto-enter edit mode after adding a slide
         await ensureEditMode()
@@ -1038,10 +1122,21 @@ export function PresentationViewer({
     } catch (error) {
       console.error('Error adding slide:', error)
       toast({
-        title: 'Error',
-        description: 'Failed to add slide. Please try again.',
+        title: committedSlideNumber
+          ? 'Slide added; viewer sync delayed'
+          : layoutMutationStateIsAmbiguous(error)
+            ? 'Check slide result'
+            : 'Error',
+        description: committedSlideNumber
+          ? `Slide ${committedSlideNumber} was added. Reload if the viewer did not navigate to it; do not add it again.`
+          : layoutMutationStateIsAmbiguous(error)
+            ? 'The slide acknowledgement was delayed. Reload before trying again so a completed slide is not duplicated.'
+            : 'Failed to add slide. Please try again.',
         variant: 'destructive'
       })
+    } finally {
+      slideMutationPendingRef.current = false
+      setIsSlideMutationPending(false)
     }
   }, [currentSlide, totalSlides, toast, ensureEditMode])
 
@@ -2261,7 +2356,7 @@ export function PresentationViewer({
           slotName: event.data.slotName || event.data.slot_name || null,
           slotKind: event.data.slotKind || event.data.slot_kind || null,
           accessoryType: event.data.accessoryType || event.data.accessory_type || null,
-          generationConfig: event.data.generationConfig || event.data.generation_config || null,
+          generationConfig: resolveRefineElementGenerationConfig(event.data),
           citationsUsed: event.data.citationsUsed || event.data.citations_used || null,
           metricsColorVariant: event.data.metricsColorVariant || event.data.metrics_color_variant || null,
           diagramSubtype: event.data.diagramSubtype || event.data.diagram_subtype
@@ -2471,7 +2566,7 @@ export function PresentationViewer({
               {/* Add Slide */}
               <SlideLayoutPicker
                 onAddSlide={handleAddSlide}
-                disabled={!viewerIsReady || templateModeOn}
+                disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
                 className="min-w-[80px] justify-center"
               />
 
@@ -2479,7 +2574,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    disabled={!viewerIsReady || templateModeOn}
+                    disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
                     className={cn(toolbarButtonClass, toolbarBtnBase, "min-w-[96px]")}
                     title="Add an element"
                   >

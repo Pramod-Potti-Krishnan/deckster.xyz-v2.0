@@ -1011,6 +1011,7 @@ export function buildInsertionParams(
     source_provenance?: string | null
     source_citation?: unknown
     requested_data_source_mode?: string | null
+    resolved_chart_metadata?: import('@/types/textlabs').ResolvedChartMetadata | null
     semantic_role?: string | null
     slot_name?: string | null
     slot_kind?: string | null
@@ -1117,9 +1118,12 @@ export function buildInsertionParams(
   const sourceProvenance = element.source_provenance ?? element.metadata?.source_provenance
   const sourceCitation = element.source_citation ?? element.metadata?.source_citation
   const requestedDataSourceMode = element.requested_data_source_mode ?? element.metadata?.requested_data_source_mode
+  const resolvedChartMetadata = element.resolved_chart_metadata
+    ?? element.metadata?.resolved_chart_metadata
   if (sourceProvenance) baseParams.sourceProvenance = sourceProvenance
   if (sourceCitation !== undefined && sourceCitation !== null) baseParams.sourceCitation = sourceCitation
   if (requestedDataSourceMode) baseParams.requestedDataSourceMode = requestedDataSourceMode
+  if (resolvedChartMetadata) baseParams.resolvedChartMetadata = resolvedChartMetadata
   const semanticRole = element.semantic_role ?? element.metadata?.semantic_role
   const slotName = element.slot_name ?? element.metadata?.slot_name
   const slotKind = element.slot_kind ?? element.metadata?.slot_kind

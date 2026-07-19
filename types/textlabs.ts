@@ -460,12 +460,40 @@ export type TextLabsChartType =
   | 'area_stacked' | 'bar_grouped' | 'bar_stacked' | 'waterfall'
 
 export type ChartDataSourceMode = 'auto' | 'illustrative' | 'custom'
+export type ChartMetadataMode = 'auto' | 'custom'
 
 export type ChartSourceProvenance =
   | 'research_sourced'
   | 'illustrative'
   | 'user_provided'
   | 'none'
+
+export type ChartMetadataResolutionSource =
+  | 'manual_override'
+  | 'prompt_exact'
+  | 'research'
+  | 'deterministic'
+  | 'llm'
+  | 'fallback'
+  | 'mixed'
+
+/**
+ * Text Labs' resolved semantic description of the rendered chart. This is
+ * intentionally separate from user overrides so Auto remains distinguishable
+ * from Custom after Layout persistence and a full-page reload.
+ */
+export interface ResolvedChartMetadata {
+  title?: string | null
+  x_axis?: string | null
+  y_axis?: string | null
+  metric?: string | null
+  unit?: string | null
+  value_format?: string | null
+  title_mode: ChartMetadataMode
+  axis_label_mode: ChartMetadataMode
+  resolution_source: ChartMetadataResolutionSource
+  confidence: number
+}
 
 export type SimpleChartData = Array<{ label: string; value: number }>
 export type ScatterBubbleChartData = Array<{ x: number; y: number; r?: number; label?: string }>
@@ -478,10 +506,13 @@ export type ChartData = SimpleChartData | ScatterBubbleChartData | MultiSeriesCh
 export interface ChartConfig {
   chart_type: TextLabsChartType
   requested_data_source_mode: ChartDataSourceMode
+  requested_title_mode?: ChartMetadataMode
+  requested_axis_label_mode?: ChartMetadataMode
   include_insights: boolean
   series_names: string[]          // parsed from comma-separated input
   placeholder_mode: boolean
   data: ChartData | null          // null = backend resolves Auto/Illustrative; object/array = custom JSON
+  chart_title?: string | null
   x_axis_label?: string | null
   y_axis_label?: string | null
   colors?: string[] | null
@@ -805,6 +836,7 @@ export interface TextLabsElement {
   research_provenance?: Record<string, unknown> | null
   source_provenance?: ChartSourceProvenance | null
   source_citation?: unknown
+  resolved_chart_metadata?: ResolvedChartMetadata | null
   semantic_role?: TextSemanticRole | null
   slot_name?: string | null
   slot_kind?: TextSlotKind | null
@@ -823,6 +855,7 @@ export interface TextLabsElement {
     research_provenance?: Record<string, unknown> | null
     source_provenance?: ChartSourceProvenance | null
     source_citation?: unknown
+    resolved_chart_metadata?: ResolvedChartMetadata | null
     semantic_role?: TextSemanticRole | null
     slot_name?: string | null
     slot_kind?: TextSlotKind | null
@@ -862,10 +895,12 @@ export interface TextLabsResponse {
   research_provenance?: Record<string, unknown> | null
   source_provenance?: ChartSourceProvenance | null
   source_citation?: unknown
+  resolved_chart_metadata?: ResolvedChartMetadata | null
   resolved_geometry?: Record<string, unknown> | null
   platinum_profile?: Record<string, unknown> | string | null
   resolved_metrics_profile?: Record<string, unknown> | null
   generation_config?: Record<string, unknown> | DiagramGenerationConfig | null
+  generationConfig?: Record<string, unknown> | DiagramGenerationConfig | null
 }
 
 export interface TextLabsSessionResponse {

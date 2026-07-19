@@ -5,6 +5,7 @@ import {
   ChartConfig,
   ChartDataSourceMode,
   ChartFormData,
+  ChartMetadataMode,
   TextLabsChartType,
   TextLabsPositionConfig,
   TEXT_LABS_ELEMENT_DEFAULTS,
@@ -16,6 +17,7 @@ import {
   parseChartDataJson,
   resolveChartPanelDraft,
   resolveChartSubmissionAxisLabels,
+  resolveChartTitleOverride,
 } from '@/lib/chart-data-contract'
 import { ElementContext, GenerationPanelDraft, MandatoryConfig } from '../types'
 import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
@@ -112,6 +114,10 @@ export function ChartForm({
   const [dataSource, setDataSource] = useState<ChartDataSourceMode>(initialState.dataSource)
   const [customDataInput, setCustomDataInput] = useState(initialState.customDataInput)
   const [dataError, setDataError] = useState<string | null>(null)
+  const [titleMode, setTitleMode] = useState<ChartMetadataMode>(initialState.titleMode)
+  const [chartTitle, setChartTitle] = useState(initialState.chartTitle)
+  const [titleError, setTitleError] = useState<string | null>(null)
+  const [axisLabelMode, setAxisLabelMode] = useState<ChartMetadataMode>(initialState.axisLabelMode)
   const [axisError, setAxisError] = useState<string | null>(null)
   const [xAxisLabel, setXAxisLabel] = useState(initialState.xAxisLabel)
   const [yAxisLabel, setYAxisLabel] = useState(initialState.yAxisLabel)
@@ -192,12 +198,16 @@ export function ChartForm({
   }, [customDataInput])
   const axisInputMode = dataSource === 'custom'
     ? chartAxisInputMode(chartType, parsedCustomData)
-    : 'hidden'
+    : chartAxisInputMode(chartType, null)
+  const resolvedChartMetadata = initialState.resolvedChartMetadata
 
   const selectChartType = useCallback((nextChartType: TextLabsChartType) => {
     setChartType(nextChartType)
     setAdvancedModified(true)
-    if (dataSource !== 'custom') {
+    if (axisLabelMode === 'auto' || chartAxisInputMode(
+      nextChartType,
+      dataSource === 'custom' ? parsedCustomData : null,
+    ) === 'hidden') {
       setAxisError(null)
       return
     }
@@ -208,9 +218,10 @@ export function ChartForm({
         parsedCustomData,
         xAxisLabel,
         yAxisLabel,
+        'custom',
       ).error,
     )
-  }, [dataSource, parsedCustomData, xAxisLabel, yAxisLabel])
+  }, [axisLabelMode, dataSource, parsedCustomData, xAxisLabel, yAxisLabel])
 
   const chartTypeLabel = CHART_TYPE_GROUPS
     .flatMap(group => group.types)
@@ -260,7 +271,11 @@ export function ChartForm({
   const buildChartFormData = useCallback((
     data: ChartConfig['data'],
     axes: ReturnType<typeof resolveChartSubmissionAxisLabels>,
+    title: ReturnType<typeof resolveChartTitleOverride>,
   ): ChartFormData => {
+    const effectiveAxisLabelMode = chartAxisInputMode(chartType, data) === 'hidden'
+      ? 'auto'
+      : axisLabelMode
     const baseFormData: ChartFormData = {
       componentType: 'CHART',
       prompt,
@@ -275,10 +290,13 @@ export function ChartForm({
         ...preservedChartConfig,
         chart_type: chartType,
         requested_data_source_mode: dataSource,
+        requested_title_mode: titleMode,
+        requested_axis_label_mode: effectiveAxisLabelMode,
         include_insights: includeInsights,
         series_names: seriesNames,
         placeholder_mode: false,
         data,
+        chart_title: title.chartTitle,
         x_axis_label: axes.xAxisLabel,
         y_axis_label: axes.yAxisLabel,
       },
@@ -296,7 +314,9 @@ export function ChartForm({
     }
   }, [
     advancedModified,
+    axisLabelMode,
     chartType,
+    chartTitle,
     customDataInput,
     dataSource,
     includeInsights,
@@ -307,6 +327,7 @@ export function ChartForm({
     seriesNames,
     showAdvanced,
     themeOverrides,
+    titleMode,
     useDeckTheme,
     zIndex,
   ])
@@ -318,12 +339,21 @@ export function ChartForm({
       dataSource === 'custom' ? parsedCustomData : null,
       xAxisLabel,
       yAxisLabel,
+      axisLabelMode,
     ),
-    [chartType, dataSource, parsedCustomData, xAxisLabel, yAxisLabel],
+    [axisLabelMode, chartType, dataSource, parsedCustomData, xAxisLabel, yAxisLabel],
+  )
+  const draftTitle = useMemo(
+    () => resolveChartTitleOverride(titleMode, chartTitle),
+    [chartTitle, titleMode],
   )
   const draftFormData = useMemo(
-    () => buildChartFormData(dataSource === 'custom' ? parsedCustomData : null, draftAxes),
-    [buildChartFormData, dataSource, draftAxes, parsedCustomData],
+    () => buildChartFormData(
+      dataSource === 'custom' ? parsedCustomData : null,
+      draftAxes,
+      draftTitle,
+    ),
+    [buildChartFormData, dataSource, draftAxes, draftTitle, parsedCustomData],
   )
 
   useEffect(() => {
@@ -346,20 +376,32 @@ export function ChartForm({
       data,
       xAxisLabel,
       yAxisLabel,
+      axisLabelMode,
     )
     if (axes.error) {
       setAxisError(axes.error)
+      setShowOptions(true)
+      return
+    }
+    const title = resolveChartTitleOverride(titleMode, chartTitle)
+    if (title.error) {
+      setTitleError(title.error)
+      setShowOptions(true)
       return
     }
     setDataError(null)
     setAxisError(null)
-    onSubmit(buildChartFormData(data, axes))
+    setTitleError(null)
+    onSubmit(buildChartFormData(data, axes, title))
   }, [
     buildChartFormData,
     chartType,
+    chartTitle,
     customDataInput,
     dataSource,
     onSubmit,
+    axisLabelMode,
+    titleMode,
     xAxisLabel,
     yAxisLabel,
   ])
@@ -386,23 +428,25 @@ export function ChartForm({
         validation.data,
         xAxisLabel,
         yAxisLabel,
+        axisLabelMode,
       ).error,
     )
-  }, [chartType, xAxisLabel, yAxisLabel])
+  }, [axisLabelMode, chartType, xAxisLabel, yAxisLabel])
 
   const updateAxisLabels = useCallback((nextX: string, nextY: string) => {
     setXAxisLabel(nextX)
     setYAxisLabel(nextY)
     setAxisError(
       resolveChartSubmissionAxisLabels(
-        'custom',
+        dataSource,
         chartType,
         parsedCustomData,
         nextX,
         nextY,
+        axisLabelMode,
       ).error,
     )
-  }, [chartType, parsedCustomData])
+  }, [axisLabelMode, chartType, dataSource, parsedCustomData])
 
   return (
     <div className="space-y-3">
@@ -421,16 +465,17 @@ export function ChartForm({
             setDataSource(nextDataSource)
             setDataError(null)
             // Axis state stays in the Custom silo so a temporary mode switch
-            // is reversible; submission always resolves Auto/Illustrative to
-            // null metadata.
+            // is reversible. The independent Axis labels control decides
+            // whether any override is submitted.
             setAxisError(
-              nextDataSource === 'custom'
+              axisLabelMode === 'custom'
                 ? resolveChartSubmissionAxisLabels(
-                    'custom',
+                    nextDataSource,
                     chartType,
-                    parsedCustomData,
+                    nextDataSource === 'custom' ? parsedCustomData : null,
                     xAxisLabel,
                     yAxisLabel,
+                    'custom',
                   ).error
                 : null,
             )
@@ -469,56 +514,149 @@ export function ChartForm({
           <p className={`text-[10px] leading-4 ${dataError ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>
             {dataError || 'Accepts label/value, scatter/bubble x/y(/r), or labels/datasets data.'}
           </p>
-          {axisInputMode !== 'hidden' && (
-            <div className="space-y-1 pt-1">
-              <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
-                {axisInputMode === 'required'
-                  ? 'Name what each numeric axis represents. Both labels are required for scatter and bubble data.'
-                  : 'Optionally name the category/time axis and the measured value for this Cartesian chart.'}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label htmlFor="chart-x-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                    X-axis label
-                  </label>
-                  <input
-                    id="chart-x-axis"
-                    value={xAxisLabel}
-                    onChange={event => updateAxisLabels(event.target.value, yAxisLabel)}
-                    placeholder="e.g., Investment"
-                    aria-invalid={Boolean(axisError)}
-                    className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
-                      axisError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
-                    }`}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label htmlFor="chart-y-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                    Y-axis label
-                  </label>
-                  <input
-                    id="chart-y-axis"
-                    value={yAxisLabel}
-                    onChange={event => updateAxisLabels(xAxisLabel, event.target.value)}
-                    placeholder="e.g., Revenue"
-                    aria-invalid={Boolean(axisError)}
-                    className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
-                      axisError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
-                    }`}
-                  />
-                </div>
-              </div>
-              {axisError && (
-                <p role="alert" className="text-[10px] leading-4 text-red-500">{axisError}</p>
-              )}
-            </div>
-          )}
         </div>
+      )}
+
+      {!showAdvanced && (titleError || axisError) && (
+        <p role="alert" className="text-[10px] leading-4 text-red-500">
+          {titleError || axisError} Open Advanced → Chart Options to update this setting.
+        </p>
       )}
 
       {showAdvanced && (
         <CollapsibleSection title="Chart Options" isOpen={showOptions} onToggle={() => setShowOptions(value => !value)}>
           <div className="space-y-2.5">
+            <div className="space-y-1.5">
+              <ToggleRow
+                label="Chart heading"
+                field="requested_title_mode"
+                value={titleMode}
+                options={[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'custom', label: 'Custom' },
+                ]}
+                onChange={(_, value) => {
+                  const nextMode = value as ChartMetadataMode
+                  setTitleMode(nextMode)
+                  setTitleError(resolveChartTitleOverride(nextMode, chartTitle).error)
+                  setAdvancedModified(nextMode === 'custom' || advancedModified)
+                }}
+              />
+              {titleMode === 'custom' ? (
+                <div className="space-y-1">
+                  <label htmlFor="chart-title" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                    Heading
+                  </label>
+                  <input
+                    id="chart-title"
+                    value={chartTitle}
+                    onChange={event => {
+                      const value = event.target.value
+                      setChartTitle(value)
+                      setTitleError(resolveChartTitleOverride('custom', value).error)
+                    }}
+                    placeholder="e.g., Customer Acquisition Cost"
+                    aria-invalid={Boolean(titleError)}
+                    className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
+                      titleError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
+                    }`}
+                  />
+                  {titleError && (
+                    <p role="alert" className="text-[10px] leading-4 text-red-500">{titleError}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+                  {resolvedChartMetadata?.title
+                    ? `Resolved heading: ${resolvedChartMetadata.title}`
+                    : 'Auto derives a concise heading from the prompt and resolved data.'}
+                </p>
+              )}
+            </div>
+
+            {axisInputMode !== 'hidden' && (
+              <div className="space-y-1.5">
+                <ToggleRow
+                  label="Axis labels"
+                  field="requested_axis_label_mode"
+                  value={axisLabelMode}
+                  options={[
+                    { value: 'auto', label: 'Auto' },
+                    { value: 'custom', label: 'Custom' },
+                  ]}
+                  onChange={(_, value) => {
+                    const nextMode = value as ChartMetadataMode
+                    setAxisLabelMode(nextMode)
+                    setAxisError(
+                      nextMode === 'custom'
+                        ? resolveChartSubmissionAxisLabels(
+                            dataSource,
+                            chartType,
+                            dataSource === 'custom' ? parsedCustomData : null,
+                            xAxisLabel,
+                            yAxisLabel,
+                            'custom',
+                          ).error
+                        : null,
+                    )
+                    setAdvancedModified(nextMode === 'custom' || advancedModified)
+                  }}
+                />
+                {axisLabelMode === 'custom' ? (
+                  <div className="space-y-1">
+                    <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+                      {axisInputMode === 'required'
+                        ? 'Name what each numeric axis represents. Both labels are required for scatter and bubble data.'
+                        : 'Name the category/time axis and measured value. Either label may be left blank.'}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label htmlFor="chart-x-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                          X-axis label
+                        </label>
+                        <input
+                          id="chart-x-axis"
+                          value={xAxisLabel}
+                          onChange={event => updateAxisLabels(event.target.value, yAxisLabel)}
+                          placeholder="e.g., Investment"
+                          aria-invalid={Boolean(axisError)}
+                          className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
+                            axisError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
+                          }`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label htmlFor="chart-y-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                          Y-axis label
+                        </label>
+                        <input
+                          id="chart-y-axis"
+                          value={yAxisLabel}
+                          onChange={event => updateAxisLabels(xAxisLabel, event.target.value)}
+                          placeholder="e.g., Revenue"
+                          aria-invalid={Boolean(axisError)}
+                          className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
+                            axisError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                    {axisError && (
+                      <p role="alert" className="text-[10px] leading-4 text-red-500">{axisError}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+                    {resolvedChartMetadata?.x_axis || resolvedChartMetadata?.y_axis
+                      ? `Resolved axes: ${resolvedChartMetadata.x_axis || '—'} / ${resolvedChartMetadata.y_axis || '—'}`
+                      : axisInputMode === 'required'
+                        ? 'Auto derives meaningful axes from the prompt. Ambiguous scatter or bubble semantics return a recoverable error.'
+                        : 'Auto derives axis meaning from the prompt and data.'}
+                  </p>
+                )}
+              </div>
+            )}
+
             <ThemeSourceSelector presentationId={presentationId} value={themeSource} onChange={updateThemeSource} />
             <ToggleRow
               label="Include Insights"
