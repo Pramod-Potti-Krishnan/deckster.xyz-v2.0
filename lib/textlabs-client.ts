@@ -1195,15 +1195,24 @@ export function buildInsertionParams(
         params: { ...baseParams, chartHtml: extractBodyContent(element.html || '') },
       }
     case 'insertImage':
+    {
+      const imageConfig = generationConfig && typeof generationConfig === 'object'
+        ? generationConfig as Record<string, unknown>
+        : {}
+      const corners = imageConfig.corners === 'rounded' ? 'rounded' : 'square'
+      const border = imageConfig.border === true
       return {
         method: 'insertImage',
         params: {
           ...baseParams,
+          corners,
+          border,
           imageUrl: extractImageSource(
             element.image_url || element.image_data_url || element.html || '',
           ),
         },
       }
+    }
     case 'insertDiagram':
       return {
         method: 'insertDiagram',

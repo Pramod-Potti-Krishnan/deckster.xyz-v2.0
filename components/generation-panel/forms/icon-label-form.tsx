@@ -12,7 +12,7 @@ import { CollapsibleSection } from '../shared/collapsible-section'
 import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.ICON_LABEL
-type IconOverrideField = 'size' | 'style' | 'font' | 'color' | 'background' | 'exclusions' | 'position' | 'padding'
+type IconOverrideField = 'size' | 'style' | 'font' | 'color' | 'stroke' | 'background' | 'exclusions' | 'position' | 'padding'
 
 // Backend-aligned icon styles
 const ICON_STYLES: { value: IconLabelConfig['style']; label: string }[] = [
@@ -47,9 +47,10 @@ interface IconLabelFormProps {
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
   initialDraft?: GenerationPanelDraft | null
+  panelMode: 'generate' | 'edit' | 'refine'
 }
 
-export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft }: IconLabelFormProps) {
+export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft, panelMode }: IconLabelFormProps) {
   const initialFormData = initialDraft?.formData?.componentType === 'ICON_LABEL'
     ? initialDraft.formData
     : null
@@ -59,6 +60,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
     ...('style' in initialConfig ? ['style' as const] : []),
     ...('font' in initialConfig ? ['font' as const] : []),
     ...('color' in initialConfig ? ['color' as const] : []),
+    ...('stroke_width' in initialConfig ? ['stroke' as const] : []),
     ...('target_background' in initialConfig ? ['background' as const] : []),
     ...('exclude_icons' in initialConfig ? ['exclusions' as const] : []),
   ])
@@ -68,6 +70,12 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
   const [style, setStyle] = useState<IconLabelConfig['style']>(initialConfig.style || 'circle')
   const [font, setFont] = useState<IconLabelConfig['font']>(initialConfig.font || 'poppins')
   const [color, setColor] = useState<string | null>(initialConfig.color ?? null)
+  const [strokeWidth, setStrokeWidth] = useState(initialConfig.stroke_width ?? 2)
+  const [operation, setOperation] = useState<'generate' | 'restyle' | 'replace'>(() => (
+    panelMode === 'refine'
+      ? initialConfig.operation === 'replace' ? 'replace' : 'restyle'
+      : 'generate'
+  ))
   const [targetBackground, setTargetBackground] = useState(initialConfig.target_background || 'light')
   const [excludeIconsInput, setExcludeIconsInput] = useState((initialConfig.exclude_icons || []).join(', '))
   const [advancedModified, setAdvancedModified] = useState(Boolean(initialFormData?.advancedModified))
@@ -120,6 +128,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
     setStyle('circle')
     setFont('poppins')
     setColor(null)
+    setStrokeWidth(2)
     setTargetBackground('light')
     setExcludeIconsInput('')
     setPositionConfig({
@@ -135,6 +144,13 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
     setExplicitFields(new Set())
     setAdvancedModified(false)
   }, [elementContext, presentationId, updateThemeSource])
+
+  useEffect(() => {
+    setOperation(previous => {
+      if (panelMode !== 'refine') return 'generate'
+      return previous === 'generate' ? 'restyle' : previous
+    })
+  }, [panelMode])
 
   // Register mandatory config — Mode
   useEffect(() => {
@@ -153,6 +169,19 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
       },
       promptPlaceholder: mode === 'icon' ? 'e.g., shopping cart icon, checkmark' : "e.g., Label 'IV', 'A+', 'Step 1'",
     }]
+
+    if (panelMode === 'refine' && mode === 'icon') {
+      configs.push({
+        fieldLabel: 'Icon operation',
+        displayLabel: operation === 'replace' ? 'Choose new icon' : 'Edit current',
+        selectedValue: operation,
+        options: [
+          { value: 'restyle', label: 'Edit current' },
+          { value: 'replace', label: 'Choose new icon' },
+        ],
+        onChange: value => setOperation(value === 'replace' ? 'replace' : 'restyle'),
+      })
+    }
 
     if (mode === 'icon') {
       const selectedStyle = ICON_STYLES.find(option => option.value === style)
@@ -176,7 +205,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
     }
 
     registerMandatoryConfig(configs)
-  }, [clearExplicit, explicitFields, markExplicit, mode, registerMandatoryConfig, style])
+  }, [clearExplicit, explicitFields, markExplicit, mode, operation, panelMode, registerMandatoryConfig, style])
 
   const handleSubmit = useCallback(() => {
     const defaultPrompt = mode === 'icon' ? 'shopping cart icon' : 'Label I'
@@ -192,11 +221,13 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
       useDeckTheme,
       themeOverrides,
       iconLabelConfig: {
+        operation,
         mode,
         ...(explicitFields.has('size') ? { size } : {}),
         ...(explicitFields.has('style') ? { style } : {}),
         ...(explicitFields.has('font') ? { font } : {}),
         ...(explicitFields.has('color') ? { color } : {}),
+        ...(explicitFields.has('stroke') && mode === 'icon' ? { stroke_width: strokeWidth } : {}),
         ...(explicitFields.has('background') ? { target_background: targetBackground } : {}),
         ...(explicitFields.has('exclusions') ? {
           exclude_icons: excludeIconsInput.split(',').map(item => item.trim()).filter(Boolean),
@@ -206,7 +237,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, mode, size, style, font, color, targetBackground, excludeIconsInput, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
+  }, [prompt, count, operation, mode, size, style, font, color, strokeWidth, targetBackground, excludeIconsInput, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, positionConfig, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -247,6 +278,30 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
           ))}
         </select>
       </div>
+
+      {mode === 'icon' && (
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Stroke Width</label>
+          <select
+            value={explicitFields.has('stroke') ? strokeWidth : ''}
+            onChange={(event) => {
+              if (!event.target.value) {
+                clearExplicit('stroke')
+                return
+              }
+              setStrokeWidth(Number(event.target.value))
+              markExplicit('stroke')
+            }}
+            className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
+          >
+            <option value="">Auto</option>
+            <option value="1">Thin</option>
+            <option value="2">Regular</option>
+            <option value="3">Thick</option>
+            <option value="4">Extra thick</option>
+          </select>
+        </div>
+      )}
 
       {/* Size */}
       <ToggleRow

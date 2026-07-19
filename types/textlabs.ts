@@ -519,11 +519,13 @@ export interface ImageConfig {
 // ============================================================================
 
 export interface IconLabelConfig {
+  operation?: 'generate' | 'restyle' | 'replace'
   mode: 'icon' | 'label'
   size: 'xs' | 'small' | 'medium' | 'large'
   style: 'flat' | 'pastel' | 'circle' | 'square' | 'circle-outline' | 'square-outline'
   font: 'poppins' | 'inter' | 'playfair' | 'roboto_mono'
   color: string | null
+  stroke_width?: number
   target_background?: string | null
   exclude_icons?: string[]
 }
