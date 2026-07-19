@@ -324,6 +324,19 @@ const iconManualStyle = client.buildApiPayload('session', {
 }).options
 assert.equal(iconManualStyle.iconLabelConfig.style, 'circle-outline')
 
+const iconRestyle = client.buildApiPayload('session', {
+  ...common,
+  componentType: 'ICON_LABEL',
+  refine: true,
+  iconLabelConfig: {
+    mode: 'icon',
+    operation: 'restyle',
+    stroke_width: 4,
+  },
+}).options
+assert.equal(iconRestyle.iconLabelConfig.operation, 'restyle')
+assert.equal(iconRestyle.iconLabelConfig.stroke_width, 4)
+
 const iconRefine = client.buildApiPayload('session', {
   ...common,
   componentType: 'ICON_LABEL',
@@ -376,6 +389,17 @@ const shapeManualColors = client.buildApiPayload('session', {
 }).options
 assert.equal(shapeManualColors.shapeConfig.fill_color, '#3B82F6')
 assert.equal(shapeManualColors.shapeConfig.stroke_color, '#334155')
+
+const framedImageInsertion = client.buildInsertionParams('IMAGE', {
+  image_url: 'https://example.test/image.png',
+  generation_config: {
+    version: 'image_generation_config_v1',
+    corners: 'rounded',
+    border: true,
+  },
+})
+assert.equal(framedImageInsertion.params.corners, 'rounded')
+assert.equal(framedImageInsertion.params.border, true)
 
 const shapeRefine = client.buildApiPayload('session', {
   ...common,
@@ -485,6 +509,15 @@ assert.match(imageFormSource, /fieldLabel: 'Image style'/)
 assert.match(imageFormSource, /fieldLabel: 'Image operation'/)
 assert.match(imageFormSource, /value: 'edit', label: 'Edit current'/)
 assert.match(imageFormSource, /value: 'variation', label: 'Create new variation'/)
+assert.match(iconFormSource, /fieldLabel: 'Icon operation'/)
+assert.match(iconFormSource, /value: 'restyle', label: 'Edit current'/)
+assert.match(iconFormSource, /value: 'replace', label: 'Choose new icon'/)
+assert.match(iconFormSource, /Stroke Width/)
+assert.match(
+  shapeFormSource,
+  /const needsDeckTheme = useDeckTheme[\s\S]{0,180}!explicitFields\.has\('fill'\)[\s\S]{0,180}!explicitFields\.has\('stroke'\)/,
+  'explicit fill and border colors bypass Theme Builder preparation',
+)
 assert.match(panelSource, /<ImageForm \{\.\.\.commonProps\} initialDraft=\{initialDraft\}/)
 assert.match(panelSource, /<IconLabelForm \{\.\.\.commonProps\} initialDraft=\{initialDraft\}/)
 assert.match(panelSource, /<ShapeForm \{\.\.\.commonProps\} initialDraft=\{initialDraft\}/)

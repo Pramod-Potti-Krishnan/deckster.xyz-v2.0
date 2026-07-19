@@ -267,7 +267,9 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   }, [clearExplicit, explicitFields, markExplicit, operation, panelMode, registerMandatoryConfig, style])
 
   const handleSubmit = useCallback(() => {
-    const aspectRatio = reducedRatio(width, height)
+    const aspectRatio = selectedAspectRatio === 'custom'
+      ? reducedRatio(width, height)
+      : selectedAspectRatio
     const gridRow = `${startRow}/${startRow + height}`
     const gridColumn = `${startCol}/${startCol + width}`
 
@@ -302,7 +304,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, operation, style, quality, corners, border, startCol, startRow, width, height, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
+  }, [prompt, operation, style, quality, corners, border, startCol, startRow, width, height, selectedAspectRatio, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
 
   useEffect(() => {
     registerSubmit(handleSubmit)

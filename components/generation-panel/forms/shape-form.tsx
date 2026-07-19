@@ -349,6 +349,10 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
       position_width: gridW,
       position_height: gridH,
     }
+    const needsDeckTheme = useDeckTheme && (
+      !explicitFields.has('fill')
+      || (!effectiveNoBorder && !explicitFields.has('stroke'))
+    )
 
     const formData: ShapeFormData = {
       componentType: 'SHAPE',
@@ -358,8 +362,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
       advancedModified,
       z_index: zIndex,
       presentationId,
-      useDeckTheme,
-      themeOverrides,
+      useDeckTheme: needsDeckTheme,
+      themeOverrides: needsDeckTheme ? themeOverrides : null,
       shapeConfig,
       positionConfig: {
         start_col: startCol,
