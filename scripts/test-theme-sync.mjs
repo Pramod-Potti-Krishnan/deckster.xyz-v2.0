@@ -24,6 +24,7 @@ const {
   applyThemeSyncResponse,
   hasSameThemeSyncIdentity,
   isThemeAppliedToPresentation,
+  isSameThemeGenerationAuthority,
   isSameAppliedThemeAuthority,
   isThemeSyncTerminal,
   persistedThemeSync,
@@ -359,6 +360,111 @@ const persisted = persistedThemeSync('deck-2', 'layout')
 assert.equal(persisted.status, 'applied')
 assert.equal(persisted.requestId, 'layout:deck-2')
 assert.equal(isThemeAppliedToPresentation(persisted, 'deck-2'), true)
+const semanticPersisted = persistedThemeSync('deck-2', 'layout', 'theme-fingerprint-a')
+assert.equal(semanticPersisted.themeFingerprint, 'theme-fingerprint-a')
+
+const layoutFallbackAuthority = {
+  presentationId: 'deck-2',
+  themeFingerprint: 'theme-fingerprint-a',
+  fallbackSync: {
+    status: 'failed',
+    requestId: 'disconnected-request',
+    presentationId: 'deck-2',
+    themeFingerprint: 'theme-fingerprint-a',
+    error: 'Director disconnected',
+  },
+}
+assert.equal(
+  isSameThemeGenerationAuthority(
+    layoutFallbackAuthority,
+    layoutFallbackAuthority.fallbackSync,
+  ),
+  true,
+  'an unchanged disconnected Director state retains persisted-Layout authority',
+)
+assert.equal(
+  isSameThemeGenerationAuthority(
+    layoutFallbackAuthority,
+    syncingTheme('reconnected-request', 'deck-2', 'theme-fingerprint-a'),
+  ),
+  true,
+  'a reconnect may begin applying the exact same semantic theme',
+)
+assert.equal(
+  isSameThemeGenerationAuthority(
+    layoutFallbackAuthority,
+    replacementSemanticApplied,
+  ),
+  true,
+  'a reconnect may finish applying the exact same semantic theme',
+)
+assert.equal(
+  isSameThemeGenerationAuthority(
+    layoutFallbackAuthority,
+    differentSemanticApplied,
+  ),
+  false,
+  'a different theme fingerprint invalidates generation authority',
+)
+assert.equal(
+  isSameThemeGenerationAuthority(
+    layoutFallbackAuthority,
+    { ...replacementSemanticApplied, presentationId: 'deck-3' },
+  ),
+  false,
+  'the same theme selection in another presentation is never authoritative',
+)
+assert.equal(
+  isSameThemeGenerationAuthority(
+    layoutFallbackAuthority,
+    {
+      ...layoutFallbackAuthority.fallbackSync,
+      requestId: 'new-failed-request',
+    },
+  ),
+  false,
+  'a new failed transport state cannot inherit authority from a fingerprint alone',
+)
+assert.equal(
+  isSameThemeGenerationAuthority(
+    layoutFallbackAuthority,
+    {
+      ...layoutFallbackAuthority.fallbackSync,
+      presentationId: 'deck-3',
+    },
+  ),
+  false,
+  'changing the fallback transport identity to another presentation is rejected',
+)
+const stalePriorPresentationFallback = {
+  ...layoutFallbackAuthority.fallbackSync,
+  presentationId: 'deck-1',
+}
+assert.equal(
+  isSameThemeGenerationAuthority(
+    {
+      ...layoutFallbackAuthority,
+      fallbackSync: stalePriorPresentationFallback,
+    },
+    stalePriorPresentationFallback,
+  ),
+  true,
+  'an unchanged stale Director identity from a prior deck cannot invalidate target-deck Layout authority',
+)
+assert.equal(
+  isSameThemeGenerationAuthority(
+    layoutFallbackAuthority,
+    {
+      status: 'idle',
+      requestId: null,
+      presentationId: 'deck-2',
+      themeFingerprint: 'theme-fingerprint-a',
+      error: null,
+    },
+  ),
+  false,
+  'an idle state cannot inherit authority from a fingerprint alone',
+)
 
 const layoutTheme = await probePersistedPresentationTheme({
   presentationId: 'deck-2',
@@ -444,19 +550,29 @@ assert.doesNotMatch(
   'the page wrapper must not reject idle/pending theme sync before the hook acquires its lock',
 )
 assert.match(builderSource, /probePersistedPresentationTheme\(/)
+assert.match(
+  builderSource,
+  /persistedThemeSync\(targetPresentationId, persisted\.source, desiredFingerprint\)/,
+  'persisted Layout readiness carries the selected semantic fingerprint',
+)
 assert.match(builderSource, /current\.status === 'syncing'/)
 assert.match(builderSource, /reconnectOnError: true/)
 assert.match(builderSource, /maxReconnectAttempts: 4/)
 assert.match(hookSource, /themeSyncBeforeReadiness/)
 assert.match(
   hookSource,
-  /isSameAppliedThemeAuthority\(expectedThemeSync,\s*current\)/,
-  'Director theme readiness must remain pinned semantically through insertion',
+  /isSameThemeGenerationAuthority\(expectedThemeAuthority, current\)/,
+  'Director and Layout theme readiness remain pinned semantically through insertion',
 )
 assert.match(
   hookSource,
-  /hasSameThemeSyncIdentity\(\s*current,\s*expectedThemeSync/,
-  'Layout/neutral theme readiness must remain pinned by mutation identity through insertion',
+  /readiness\.source === 'layout'[\s\S]{0,1200}isSameThemeGenerationAuthority\(/,
+  'Layout readiness re-evaluates a Director reconnect against the semantic authority pin',
+)
+assert.match(
+  hookSource,
+  /expectedThemeSource === 'neutral'[\s\S]{0,180}hasSameThemeSyncIdentity\(current, expectedThemeSync\)/,
+  'neutral fallback remains pinned by exact mutation identity',
 )
 
 console.log('theme sync tests passed')

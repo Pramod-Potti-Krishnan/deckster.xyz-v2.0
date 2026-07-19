@@ -2289,7 +2289,11 @@ function BuilderContent() {
     return {
       ready: true,
       source: persisted.source,
-      sync: persistedThemeSync(targetPresentationId, persisted.source),
+      // Preserve the selected semantic identity even though readiness came
+      // from Layout. If Director reconnects during element generation, the
+      // hook can distinguish an equivalent re-application from a real theme
+      // change without trusting a transport request ID.
+      sync: persistedThemeSync(targetPresentationId, persisted.source, desiredFingerprint),
       ...(persisted.notice ? { notice: persisted.notice } : {}),
     } as const
   }, [getThemeSyncSnapshot, requestThemeSyncForPresentation])

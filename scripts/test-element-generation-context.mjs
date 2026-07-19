@@ -139,32 +139,51 @@ assert.match(themeVariantsSource, /\['TEXT_BOX', 'METRICS'\]/)
 assert.match(hookSource, /componentSupportsThemeVariants/)
 assert.match(hookSource, /THEME_CHANGED_DURING_GENERATION/)
 assert.match(hookSource, /\(!refineContext \|\| !refineElementDeleted\)/)
+const earlyOverlayStartIndex = hookSource.indexOf("label: 'Regenerating…'")
+assert.notEqual(earlyOverlayStartIndex, -1)
 assert.ok(
-  hookSource.indexOf("sendElementCommand('setElementGenerationState'") >
-    hookSource.indexOf("sendElementCommand('getSlideGenerationContext'"),
-  'the regeneration overlay must start only after live-context preflight succeeds',
+  earlyOverlayStartIndex <
+    hookSource.indexOf('await ensureThemeReady(requestedThemePresentationId)'),
+  'the visible generation overlay starts before theme readiness',
 )
-const refineOverlaySource = hookSource.slice(
-  hookSource.indexOf('// Only mutate the live refine UI after every fallible preflight has passed.'),
-  hookSource.indexOf('// Keep the authoritative placeholder intact while generation runs.'),
+assert.ok(
+  earlyOverlayStartIndex <
+    hookSource.indexOf('readElementGenerationSnapshot({'),
+  'the visible generation overlay starts before live geometry preflight',
+)
+assert.ok(
+  earlyOverlayStartIndex <
+    hookSource.indexOf("sendElementCommand('getSlideGenerationContext'"),
+  'the visible generation overlay starts before live-context preflight',
+)
+const earlyOverlaySource = hookSource.slice(
+  hookSource.indexOf('// Start visible progress immediately after the presentation + element'),
+  hookSource.indexOf('const requestedThemePresentationId ='),
 )
 assert.match(
-  refineOverlaySource,
+  earlyOverlaySource,
   /assertLayoutCommandSucceeded\(overlayResponse, 'Regeneration overlay'\)/,
   'refinement never proceeds when Layout negatively acknowledges the visible progress overlay',
 )
-assert.match(refineOverlaySource, /generationPanel\.setError/)
-assert.match(refineOverlaySource, /return/)
-const blankOverlaySource = hookSource.slice(
-  hookSource.indexOf('// Keep the authoritative placeholder intact while generation runs.'),
-  hookSource.indexOf('// Structured planning and creative rendering are internal Text Labs work'),
-)
-assert.match(blankOverlaySource, /setElementGenerationState/)
-assert.match(blankOverlaySource, /assertLayoutCommandSucceeded\(overlayResponse, 'Generation overlay'\)/)
+assert.match(earlyOverlaySource, /assertLayoutCommandSucceeded\(overlayResponse, 'Generation overlay'\)/)
+assert.match(earlyOverlaySource, /generationPanel\.setError/)
+assert.match(earlyOverlaySource, /return/)
 assert.doesNotMatch(
-  blankOverlaySource,
+  earlyOverlaySource,
   /deleteElement|insertTextBox/,
   'starting blank generation must not replace the authoritative placeholder',
+)
+const lifecycleCleanupSource = hookSource.slice(
+  hookSource.indexOf('const cleanupGenerationLifecycle = async () =>'),
+  hookSource.indexOf('const requestedThemePresentationId ='),
+)
+assert.match(lifecycleCleanupSource, /generating: false/)
+assert.match(lifecycleCleanupSource, /generationPanel\.setIsGenerating\(false\)/)
+assert.match(lifecycleCleanupSource, /activeGenerationKeysRef\.current\.delete\(generationKey\)/)
+assert.match(
+  hookSource,
+  /\}\s*finally\s*\{\s*await cleanupGenerationLifecycle\(\)/,
+  'one outer lifecycle finally clears overlays and the duplicate-generation lock on every exit',
 )
 assert.doesNotMatch(hookSource, /function buildSpinnerHtml/)
 const blankDeleteSource = hookSource.slice(
