@@ -1467,6 +1467,7 @@ export function useTextLabsGeneration({
         const timeoutSeconds = generationTimeoutMs / 1000
         errorMessage = `Generation timed out after ${timeoutSeconds} seconds. Try again or simplify your prompt.`
       } else if (err instanceof TextLabsRequestError) {
+        errorRetryStrategy = err.retryStrategy
         const reference = err.requestId
           ? ` Request reference: ${err.requestId.slice(0, 12)}.`
           : ` Request reference: ${generationAttemptId.slice(0, 12)}.`
