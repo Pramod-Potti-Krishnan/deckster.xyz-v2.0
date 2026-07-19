@@ -63,7 +63,7 @@ interface InfographicFormProps {
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
-  registerMandatoryConfig: (config: MandatoryConfig) => void
+  registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
   initialDraft?: GenerationPanelDraft | null
   panelMode: GenerationPanelProps['mode']
   existingTarget?: GenerationPanelProps['existingInfographicTarget']
@@ -93,6 +93,15 @@ export function InfographicForm({
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const hydratedTargetRef = useRef(false)
+  const draftFormData = initialDraft?.formData?.componentType === 'INFOGRAPHIC'
+    ? initialDraft.formData
+    : null
+  const draftInfographicConfig = draftFormData?.infographicConfig
+  const [operation, setOperation] = useState<'generate' | 'edit' | 'variation'>(() => (
+    panelMode === 'refine'
+      ? draftInfographicConfig?.operation === 'variation' ? 'variation' : 'edit'
+      : 'generate'
+  ))
   const [mode, setMode] = useState<InfographicMode>('v1')
   const [segmentCount, setSegmentCount] = useState<InfographicSegmentCount | undefined>()
   const [contentMode, setContentMode] = useState<'automatic' | 'manual'>('automatic')
@@ -111,9 +120,6 @@ export function InfographicForm({
   const [height, setHeight] = useState(DEFAULTS.height)
   const [showPosition, setShowPosition] = useState(false)
   const existingMode = inferExistingInfographicMode(existingTarget)
-  const draftFormData = initialDraft?.formData?.componentType === 'INFOGRAPHIC'
-    ? initialDraft.formData
-    : null
 
   useEffect(() => {
     if (!elementContext) return
@@ -132,7 +138,7 @@ export function InfographicForm({
     if (hydratedTargetRef.current) return
     hydratedTargetRef.current = true
 
-    const draftConfig = draftFormData?.infographicConfig
+    const draftConfig = draftInfographicConfig
     if (draftFormData && draftConfig) {
       const draftMode = draftConfig.mode === 'v2' ? 'v2' : 'v1'
       const draftSegments = Array.isArray(draftConfig.segments)
@@ -147,6 +153,11 @@ export function InfographicForm({
       }
 
       setMode(draftMode)
+      setOperation(
+        panelMode === 'refine'
+          ? draftConfig.operation === 'variation' ? 'variation' : 'edit'
+          : 'generate',
+      )
       setReferenceImage(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
       setSegmentCount(
@@ -187,8 +198,10 @@ export function InfographicForm({
 
     if (panelMode === 'refine') {
       setMode(existingMode)
+      setOperation('edit')
     } else {
       setMode('v1')
+      setOperation('generate')
     }
     setReferenceImage(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
@@ -203,6 +216,7 @@ export function InfographicForm({
     setShowPosition(false)
   }, [
     draftFormData,
+    draftInfographicConfig,
     elementContext?.height,
     elementContext?.startCol,
     elementContext?.startRow,
@@ -211,6 +225,16 @@ export function InfographicForm({
     panelMode,
     updateThemeSource,
   ])
+
+  // A generated placeholder can transition into refinement without remounting
+  // this form. Default that transition to source-aware editing while retaining
+  // an explicit Create new variation choice on subsequent submissions.
+  useEffect(() => {
+    setOperation(previous => {
+      if (panelMode !== 'refine') return 'generate'
+      return previous === 'generate' ? 'edit' : previous
+    })
+  }, [panelMode])
 
   const clearReferenceImage = useCallback(() => {
     setReferenceImage(null)
@@ -224,7 +248,7 @@ export function InfographicForm({
   }, [clearReferenceImage])
 
   useEffect(() => {
-    registerMandatoryConfig({
+    const referenceConfig: MandatoryConfig = {
       fieldLabel: 'Reference',
       displayLabel: referenceImage ? referenceImage.name : 'No image',
       onChange: () => {},
@@ -254,8 +278,32 @@ export function InfographicForm({
           )}
         </div>
       ),
-    })
-  }, [clearReferenceImage, isGenerating, referenceImage, registerMandatoryConfig])
+    }
+    if (panelMode !== 'refine') {
+      registerMandatoryConfig(referenceConfig)
+      return
+    }
+    registerMandatoryConfig([
+      {
+        fieldLabel: 'Infographic operation',
+        displayLabel: operation === 'edit' ? 'Edit current' : 'Create new variation',
+        selectedValue: operation,
+        options: [
+          { value: 'edit', label: 'Edit current' },
+          { value: 'variation', label: 'Create new variation' },
+        ],
+        onChange: value => setOperation(value === 'variation' ? 'variation' : 'edit'),
+      },
+      referenceConfig,
+    ])
+  }, [
+    clearReferenceImage,
+    isGenerating,
+    operation,
+    panelMode,
+    referenceImage,
+    registerMandatoryConfig,
+  ])
 
   const updateOverride = useCallback(<K extends keyof InfographicOverrides>(
     field: K,
@@ -323,6 +371,9 @@ export function InfographicForm({
     }
     const infographicConfig = buildSparseInfographicConfig({
       mode,
+      operation: panelMode === 'refine'
+        ? operation === 'variation' ? 'variation' : 'edit'
+        : undefined,
       geometry: { start_col: startCol, start_row: startRow, width, height },
       segmentCount,
       contentMode: mode === 'v2' ? contentMode : 'automatic',
@@ -355,8 +406,10 @@ export function InfographicForm({
     height,
     mode,
     onSubmit,
+    operation,
     overrides,
     positionModified,
+    panelMode,
     presentationId,
     prompt,
     referenceImage,
