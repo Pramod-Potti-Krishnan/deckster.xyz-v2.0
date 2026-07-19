@@ -235,6 +235,29 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
     )
   }
 
+  if (config.nativeSelect && hasOptions && !hasGroups) {
+    return (
+      <div className="relative flex-shrink-0">
+        <select
+          aria-label={config.fieldLabel}
+          value={config.selectedValue || config.options![0]?.value || ''}
+          onChange={event => config.onChange(event.target.value)}
+          className="h-7 max-w-[160px] appearance-none rounded-lg border-0 bg-gray-100 py-1 pl-2 pr-6 text-xs text-gray-700 outline-none transition-colors hover:bg-gray-200 focus:ring-2 focus:ring-primary/30 dark:bg-slate-700 dark:text-slate-200"
+        >
+          {config.options!.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          aria-hidden="true"
+          className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-400 dark:text-slate-500"
+        />
+      </div>
+    )
+  }
+
   return (
     <Popover>
       <PopoverTrigger asChild>

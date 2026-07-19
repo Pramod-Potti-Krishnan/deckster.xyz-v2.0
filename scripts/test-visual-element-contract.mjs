@@ -505,8 +505,14 @@ assert.doesNotMatch(
 )
 assert.match(inputSource, /Array\.isArray\(mandatoryConfig\)/, 'the prompt toolbar supports multiple primary controls')
 assert.match(inputSource, /selectedOption\?\.color/, 'palette choices expose their swatches in the prompt toolbar')
+assert.match(
+  inputSource,
+  /config\.nativeSelect[\s\S]{0,500}<select[\s\S]{0,500}config\.onChange\(event\.target\.value\)/,
+  'primary operation controls use a directly interactive native selector',
+)
 assert.match(imageFormSource, /fieldLabel: 'Image style'/)
 assert.match(imageFormSource, /fieldLabel: 'Image operation'/)
+assert.match(imageFormSource, /fieldLabel: 'Image operation'[\s\S]{0,180}nativeSelect: true/)
 assert.match(imageFormSource, /value: 'edit', label: 'Edit current'/)
 assert.match(imageFormSource, /value: 'variation', label: 'Create new variation'/)
 assert.match(iconFormSource, /fieldLabel: 'Icon operation'/)

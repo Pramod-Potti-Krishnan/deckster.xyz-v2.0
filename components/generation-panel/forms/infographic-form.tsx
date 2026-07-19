@@ -288,6 +288,7 @@ export function InfographicForm({
         fieldLabel: 'Infographic operation',
         displayLabel: operation === 'edit' ? 'Edit current' : 'Create new variation',
         selectedValue: operation,
+        nativeSelect: true,
         options: [
           { value: 'edit', label: 'Edit current' },
           { value: 'variation', label: 'Create new variation' },

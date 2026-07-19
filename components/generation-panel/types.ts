@@ -112,6 +112,12 @@ export interface MandatoryConfig {
   selectedValue?: string
   options?: MandatoryFieldOption[]
   optionGroups?: MandatoryFieldOptionGroup[]
+  /**
+   * Use the browser's native select interaction instead of a portalled
+   * popover. This is reserved for small, primary operation choices that must
+   * remain usable above the embedded Layout viewer.
+   */
+  nativeSelect?: boolean
   onChange: (value: string) => void
   promptPlaceholder?: string
   promptMaxLength?: number
