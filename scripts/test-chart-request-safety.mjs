@@ -26,6 +26,7 @@ function loadClient(fetchImpl) {
       },
       FormData,
       DOMException,
+      Error,
       TypeError,
       setTimeout,
       clearTimeout,
@@ -88,7 +89,10 @@ assert.equal(
   1,
   'a non-idempotent Text Labs POST is never replayed after an ambiguous fetch failure',
 )
-assert.match(lostResponseIsNotReplayed.error.message, /Failed to fetch/)
+assert.match(
+  lostResponseIsNotReplayed.error.message,
+  /element generation service could not be reached/i,
+)
 
 const gatewayFailureIsNotReplayed = await runScenario([
   response(503, { detail: 'Service unavailable' }),
@@ -113,7 +117,10 @@ const nonChartFailure = await runScenario([
   response(200, { success: true }),
 ], { componentType: 'TEXT_BOX', serverSideInsert: false })
 assert.equal(nonChartFailure.calls, 1)
-assert.match(nonChartFailure.error.message, /Failed to fetch/)
+assert.match(
+  nonChartFailure.error.message,
+  /element generation service could not be reached/i,
+)
 
 const serverInsertFailure = await runScenario([
   response(503, { detail: 'Service unavailable' }),

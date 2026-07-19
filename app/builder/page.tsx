@@ -654,6 +654,7 @@ function BuilderContent() {
   useEffect(() => {
     currentSlideIndexRef.current = currentSlideIndex
   }, [currentSlideIndex])
+  const getCurrentSlideIndex = useCallback(() => currentSlideIndexRef.current, [])
   const [selectedLayoutSlideIndex, setSelectedLayoutSlideIndex] = useState(0)
   const [templateSourceSlideIndex, setTemplateSourceSlideIndex] = useState(0)
   const activeTemplateSlideIndex = templateModeOn ? templateSourceSlideIndex : currentSlideIndex
@@ -2901,6 +2902,15 @@ function BuilderContent() {
     trackElementRef.current(generationPanel.blankElementId)
   }, [generationPanel.blankElementId])
 
+  const activateElementPanel = useCallback(() => {
+    // Focus first: when Element and Deck are both open, equal z-indices make
+    // the later-rendered Deck drawer intercept the Chart controls.
+    bringToFront('element')
+    setShowElementPanel(false)
+    setShowTextBoxPanel(false)
+    setShowFormatPanel(false)
+  }, [bringToFront])
+
   // Text Labs generation hook
   const { handleGenerate: handleTextLabsGenerate, handleOpenPanel: handleOpenGenerationPanel } = useTextLabsGeneration({
     generationPanel,
@@ -2909,6 +2919,7 @@ function BuilderContent() {
     layoutServiceApis,
     presentationId: effectivePresentationId,
     currentSlideIndex,
+    getCurrentSlideIndex,
     deckContext: deckContext as Record<string, unknown> | null | undefined,
     researchSessionId: currentSessionId || wsSessionId || null,
     researchStoreName: sessionStoreName,
@@ -2918,6 +2929,19 @@ function BuilderContent() {
     ensureThemeReady,
     toast,
   })
+
+  const handleOpenGenerationPanelInFront = useCallback(async (type: string) => {
+    activateElementPanel()
+    await handleOpenGenerationPanel(type)
+  }, [activateElementPanel, handleOpenGenerationPanel])
+
+  const handleOpenBlankGenerationPanel = useCallback((
+    componentType: TextLabsComponentType,
+    elementId: string,
+  ) => {
+    activateElementPanel()
+    generationPanel.openPanelForElement(componentType, elementId)
+  }, [activateElementPanel, generationPanel])
 
   const handleApprovedTextLabsGenerate = useCallback(async (
     formData: TextLabsFormData,
@@ -2947,21 +2971,20 @@ function BuilderContent() {
 
     const blankInfo = blankElements.getElement(payload.elementId)
     if (shouldOpenAsBlankPlaceholder(payload, blankInfo?.componentType)) {
-      generationPanel.openPanelForElement(componentType, payload.elementId)
-      bringToFront('element')
-      setShowElementPanel(false)
-      setShowTextBoxPanel(false)
-      setShowFormatPanel(false)
+      handleOpenBlankGenerationPanel(componentType, payload.elementId)
       return
     }
 
     const refineContext = buildRefineContext(payload, componentType)
+    activateElementPanel()
     generationPanel.openPanelForRefine(componentType, refineContext)
-    bringToFront('element')
-    setShowElementPanel(false)
-    setShowTextBoxPanel(false)
-    setShowFormatPanel(false)
-  }, [blankElements, buildRefineContext, generationPanel, bringToFront])
+  }, [
+    activateElementPanel,
+    blankElements,
+    buildRefineContext,
+    generationPanel,
+    handleOpenBlankGenerationPanel,
+  ])
 
   const getTemplateSlotCatalog = useCallback(async (slideIndex: number) => {
     if (!layoutServiceApis?.sendElementCommand) {
@@ -3871,6 +3894,7 @@ function BuilderContent() {
 
           {/* === Element Drawer === */}
           <div
+            data-builder-panel="element"
             className={cn(
               "absolute inset-y-0 left-0 ease-out",
               isResizingDrawer ? "" : "transition-transform duration-300"
@@ -4129,6 +4153,7 @@ function BuilderContent() {
 
           {/* === Deck Drawer === */}
           <div
+            data-builder-panel="deck"
             className={cn(
               "absolute inset-y-0 left-0 ease-out",
               isResizingDrawer ? "" : "transition-transform duration-300"
@@ -4307,6 +4332,9 @@ function BuilderContent() {
             currentSlideIndex={currentSlideIndex}
             onSlideChange={(slideNum) => {
               const nextVisualIndex = Math.max(0, slideNum - 1)
+              // Keep the imperative insertion owner current before React
+              // schedules the corresponding render.
+              currentSlideIndexRef.current = nextVisualIndex
               setCurrentSlideIndex(nextVisualIndex)
               const resolved = resolveSlideComposeVisualIndex(nextVisualIndex, {
                 slideCount: effectiveSlideCount ?? 0,
@@ -4375,7 +4403,8 @@ function BuilderContent() {
             }}
             blankElements={blankElements}
             generationPanel={generationPanel}
-            onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
+            onOpenBlankGenerationPanel={handleOpenBlankGenerationPanel}
+            onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanelInFront : undefined}
             onRefineElementRequested={features.useTextLabsGeneration ? handleRefineElementRequested : undefined}
             buildThemeSelection={buildThemeSelection}
             themeSync={themeSync}

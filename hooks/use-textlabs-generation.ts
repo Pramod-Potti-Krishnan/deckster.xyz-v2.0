@@ -140,6 +140,7 @@ interface UseTextLabsGenerationParams {
   } | null
   presentationId?: string | null
   currentSlideIndex: number
+  getCurrentSlideIndex?: () => number
   deckContext?: Record<string, unknown> | null
   researchSessionId?: string | null
   researchStoreName?: string | null
@@ -248,6 +249,7 @@ export function useTextLabsGeneration({
   layoutServiceApis,
   presentationId,
   currentSlideIndex,
+  getCurrentSlideIndex,
   deckContext,
   researchSessionId,
   researchStoreName,
@@ -717,7 +719,10 @@ export function useTextLabsGeneration({
       }
     }
 
-    const generationSlideIndex = blankInfo?.slideIndex ?? refineContext?.slideIndex ?? currentSlideIndex
+    const generationSlideIndex = blankInfo?.slideIndex
+      ?? refineContext?.slideIndex
+      ?? getCurrentSlideIndex?.()
+      ?? currentSlideIndex
     formData.slideIndex = generationSlideIndex
 
     const nonResearchVisual = isNonResearchVisualElement(
@@ -1658,6 +1663,7 @@ export function useTextLabsGeneration({
     renderPresentationTarget,
     toast,
     currentSlideIndex,
+    getCurrentSlideIndex,
     blankElements,
     deckContext,
     researchSessionId,
@@ -1682,6 +1688,7 @@ export function useTextLabsGeneration({
     }
 
     try {
+      const targetSlideIndex = getCurrentSlideIndex?.() ?? currentSlideIndex
       const tempId = `blank_${Date.now()}`
       const placeholderHtml = buildPlaceholderHtml(tempId, componentType)
 
@@ -1690,7 +1697,7 @@ export function useTextLabsGeneration({
 
       const response = await layoutServiceApis.sendElementCommand('insertTextBox', {
         elementId: tempId,
-        slideIndex: currentSlideIndex,
+        slideIndex: targetSlideIndex,
         content: placeholderHtml,
         gridRow,
         gridColumn,
@@ -1713,7 +1720,7 @@ export function useTextLabsGeneration({
       blankElements.addElement({
         elementId: layoutElementId,
         componentType,
-        slideIndex: currentSlideIndex,
+        slideIndex: targetSlideIndex,
         startCol,
         startRow,
         width: defaults.width,
@@ -1729,7 +1736,7 @@ export function useTextLabsGeneration({
       generationPanel.setError(message)
       toast({ title: 'Element not added', description: message })
     }
-  }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, toast])
+  }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, getCurrentSlideIndex, toast])
 
   return { handleGenerate, handleOpenPanel }
 }
