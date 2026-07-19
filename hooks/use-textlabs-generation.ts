@@ -61,16 +61,19 @@ import {
 import { resolveRefineGenerationConfig } from '@/lib/refine-generation-config'
 import { normalizePersistedDiagramSubtype } from '@/lib/diagram-catalog'
 import {
+  diagramBackendDeadlineBudgetMs,
   diagramRetryCandidateForPreDispatch,
   diagramGenerationRequestFingerprint,
   diagramRetryStrategyForFailure,
+  executeDiagramRequestWithFreshAttemptHandoff,
   isAmbiguousDiagramRequestFailure,
   remainingDiagramBackendDeadlineMs,
   resolveDiagramGenerationAttemptId,
-  shouldAutoStartFreshDiagramAttempt,
+  type DiagramFreshAttemptHandoffRegistry,
   type DiagramRetryCandidate,
   type ElementGenerationSubmitIntent,
 } from '@/lib/element-generation-retry'
+import type { TextLabsResponse } from '@/types/textlabs'
 
 const THEME_CHANGED_DURING_GENERATION =
   'The deck theme changed while this element was being generated. Wait for Applied, then generate again.'
@@ -262,11 +265,15 @@ export function useTextLabsGeneration({
 }: UseTextLabsGenerationParams) {
   const activeGenerationKeysRef = useRef<Set<string>>(new Set())
   const retryCandidateRef = useRef<DiagramRetryCandidate | null>(null)
+  const freshDiagramAttemptHandoffsRef = useRef<
+    DiagramFreshAttemptHandoffRegistry<TextLabsResponse>
+  >(new Map())
   const generationHookMountedRef = useRef(true)
   useEffect(() => {
     generationHookMountedRef.current = true
     return () => {
       generationHookMountedRef.current = false
+      freshDiagramAttemptHandoffsRef.current.clear()
     }
   }, [])
   const activePresentationTargetRef = useRef({
@@ -1032,7 +1039,6 @@ export function useTextLabsGeneration({
       } else {
         const { message, options } = buildApiPayload(sessionId, formData)
         let reusedDiagramAttempt = false
-        let freshRecoveryAttemptStarted = false
         if (isDiagramGenerationType(formData.componentType)) {
           dispatchedDiagramRequestFingerprint = diagramGenerationRequestFingerprint({
             sessionId,
@@ -1075,39 +1081,68 @@ export function useTextLabsGeneration({
         // singleflight. The sole exception is a recovered same-attempt result
         // that explicitly says its terminal model failure needs one fresh run.
         diagramRequestWasDispatched = isDiagramGenerationType(formData.componentType)
-        try {
+        if (diagramRequestWasDispatched) {
+          const initialAttemptId = generationAttemptId
+          const requestResult = await executeDiagramRequestWithFreshAttemptHandoff({
+            submitIntent,
+            reusedAttempt: reusedDiagramAttempt,
+            initialAttemptId,
+            freshAttemptId: freshGenerationAttemptId,
+            registry: freshDiagramAttemptHandoffsRef.current,
+            resolveFreshBackendDeadlineMs: () => (
+              diagramBackendDeadlineBudgetMs(
+                browserDeadlineAtMs,
+                Date.now(),
+              )
+            ),
+            send: async (attemptId, freshBackendDeadlineMs) => {
+              generationAttemptId = attemptId
+              formData.generationAttemptId = attemptId
+              options.generationAttemptId = attemptId
+              if (attemptId !== initialAttemptId) {
+                if (freshBackendDeadlineMs === undefined) {
+                  throw new DOMException(
+                    'Insufficient remaining time for fresh diagram recovery',
+                    'AbortError',
+                  )
+                }
+                options.deadlineMs = freshBackendDeadlineMs
+              }
+              return sendTextLabsMessage(
+                sessionId,
+                message,
+                options,
+                controller.signal,
+              )
+            },
+            onFreshAttempt: attemptId => {
+              generationAttemptId = attemptId
+              formData.generationAttemptId = attemptId
+              options.generationAttemptId = attemptId
+            },
+            onDecision: decision => {
+              console.info(
+                '[TextLabs] Diagram fresh-attempt decision',
+                {
+                  submitIntentIsRetry: decision.submitIntentIsRetry,
+                  reusedAttempt: decision.reusedAttempt,
+                  retryStrategy: decision.retryStrategy,
+                  policyEligible: decision.policyEligible,
+                  existingHandoff: decision.existingHandoff,
+                  registryCapacityAvailable: decision.registryCapacityAvailable,
+                  backendBudgetMs: decision.backendBudgetMs,
+                  freshAttemptStarted: decision.freshAttemptStarted,
+                  freshAttemptJoined: decision.freshAttemptJoined,
+                },
+              )
+            },
+          })
+          generationAttemptId = requestResult.attemptId
+          formData.generationAttemptId = generationAttemptId
+          options.generationAttemptId = generationAttemptId
+          response = requestResult.response
+        } else {
           response = await sendTextLabsMessage(sessionId, message, options, controller.signal)
-        } catch (requestError) {
-          const retryStrategy = diagramRetryStrategyForFailure(requestError)
-          if (
-            isDiagramGenerationType(formData.componentType)
-            && shouldAutoStartFreshDiagramAttempt({
-              submitIntent,
-              reusedAttempt: reusedDiagramAttempt,
-              retryStrategy,
-              freshAttemptAlreadyStarted: freshRecoveryAttemptStarted,
-            })
-          ) {
-            const backendDeadlineMs = remainingDiagramBackendDeadlineMs(
-              browserDeadlineAtMs,
-              Date.now(),
-            )
-            if (backendDeadlineMs === null) throw requestError
-
-            freshRecoveryAttemptStarted = true
-            generationAttemptId = freshGenerationAttemptId
-            formData.generationAttemptId = generationAttemptId
-            options.generationAttemptId = generationAttemptId
-            options.deadlineMs = backendDeadlineMs
-            response = await sendTextLabsMessage(
-              sessionId,
-              message,
-              options,
-              controller.signal,
-            )
-          } else {
-            throw requestError
-          }
         }
       }
 

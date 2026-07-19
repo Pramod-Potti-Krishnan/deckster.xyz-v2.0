@@ -264,6 +264,74 @@ assert.equal(
   'no paid request starts without the minimum budget and cleanup reserve',
 )
 assert.equal(
+  generationRetry.remainingFreshDiagramBackendDeadlineMs(70_000, 0),
+  60_000,
+  'a recovered G2 receives the full 60s Diagram Generator HTTP window',
+)
+assert.equal(
+  generationRetry.remainingFreshDiagramBackendDeadlineMs(69_999, 0),
+  null,
+  'a recovered G2 is suppressed when only 59,999ms remains after cleanup',
+)
+assert.equal(
+  generationRetry.diagramBackendDeadlineBudgetMs(69_999, 0),
+  59_999,
+  'decision telemetry retains the exact under-budget value without dispatching',
+)
+const settledHandoffRegistry = new Map([
+  ['G1-expiring', {
+    attemptId: 'G2-expiring',
+    promise: Promise.resolve({ success: true }),
+    createdAtMs: 100,
+    settledAtMs: 1_000,
+  }],
+])
+generationRetry.pruneDiagramFreshAttemptHandoffs(
+  settledHandoffRegistry,
+  1_000 + generationRetry.DIAGRAM_FRESH_ATTEMPT_HANDOFF_TTL_MS - 1,
+)
+assert.equal(
+  settledHandoffRegistry.size,
+  1,
+  'a settled G2 remains joinable until its exact TTL boundary',
+)
+generationRetry.pruneDiagramFreshAttemptHandoffs(
+  settledHandoffRegistry,
+  1_000 + generationRetry.DIAGRAM_FRESH_ATTEMPT_HANDOFF_TTL_MS,
+)
+assert.equal(
+  settledHandoffRegistry.size,
+  0,
+  'a settled G2 is pruned deterministically at the TTL boundary',
+)
+const oversizedHandoffRegistry = new Map()
+for (
+  let index = 0;
+  index < generationRetry.DIAGRAM_FRESH_ATTEMPT_HANDOFF_REGISTRY_MAX_ENTRIES + 3;
+  index += 1
+) {
+  oversizedHandoffRegistry.set(`G1-${index}`, {
+    attemptId: `G2-${index}`,
+    promise: Promise.resolve({ success: true }),
+    createdAtMs: index,
+    settledAtMs: index,
+  })
+}
+generationRetry.pruneDiagramFreshAttemptHandoffs(
+  oversizedHandoffRegistry,
+  1_000,
+)
+assert.equal(
+  oversizedHandoffRegistry.size,
+  generationRetry.DIAGRAM_FRESH_ATTEMPT_HANDOFF_REGISTRY_MAX_ENTRIES,
+  'the retained handoff registry cannot grow beyond its hard size cap',
+)
+assert.equal(
+  oversizedHandoffRegistry.has('G1-0'),
+  false,
+  'bounded pruning removes the oldest settled handoff first',
+)
+assert.equal(
   generationRetry.isAmbiguousDiagramRequestFailure({
     kind: 'transport',
     retryable: true,
@@ -460,9 +528,15 @@ assert.match(generationHookSource, /submitIntent !== 'retry'/)
 assert.match(generationHookSource, /diagramRetryCandidateForPreDispatch\(/)
 assert.match(generationHookSource, /resolveDiagramGenerationAttemptId\(\{/)
 assert.match(generationHookSource, /remainingDiagramBackendDeadlineMs\([\s\S]*browserDeadlineAtMs/)
-assert.match(generationHookSource, /shouldAutoStartFreshDiagramAttempt\(\{/)
-assert.match(generationHookSource, /freshAttemptAlreadyStarted: freshRecoveryAttemptStarted/)
-assert.match(generationHookSource, /generationAttemptId = freshGenerationAttemptId/)
+assert.match(generationHookSource, /diagramBackendDeadlineBudgetMs\(/)
+assert.match(generationHookSource, /executeDiagramRequestWithFreshAttemptHandoff\(\{/)
+assert.match(generationHookSource, /registry: freshDiagramAttemptHandoffsRef\.current/)
+assert.match(generationHookSource, /resolveFreshBackendDeadlineMs: \(\) => \(/)
+assert.match(generationHookSource, /onFreshAttempt: attemptId => \{/)
+assert.match(generationHookSource, /onDecision: decision => \{/)
+assert.match(generationHookSource, /generationAttemptId = requestResult\.attemptId/)
+assert.match(generationHookSource, /freshDiagramAttemptHandoffsRef\.current\.clear\(\)/)
+assert.doesNotMatch(generationHookSource, /recoveredAttemptId|freshAttemptId: attemptId\.slice/)
 assert.match(generationHookSource, /activeGenerationKeysRef\.current\.has\(generationKey\)/)
 assert.match(generationHookSource, /activeGenerationKeysRef\.current\.add\(generationKey\)/)
 assert.match(generationHookSource, /activeGenerationKeysRef\.current\.delete\(generationKey\)/)
