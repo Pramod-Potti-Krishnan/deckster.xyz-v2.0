@@ -243,9 +243,61 @@ assert.equal(imageAuto.imageConfig.operation, undefined)
 const imageEdit = client.buildApiPayload('session', {
   ...common,
   componentType: 'IMAGE',
+  refine: true,
   imageConfig: { ...liveImageGeometry, operation: 'edit' },
+  generationConfig: {
+    version: 'image_generation_config_v1',
+    operation: 'generate',
+    style: 'realistic',
+  },
+  existingElement: {
+    component_type: 'IMAGE',
+    generation_config: {
+      version: 'image_generation_config_v1',
+      operation: 'generate',
+      style: 'realistic',
+    },
+  },
 }).options
 assert.equal(imageEdit.imageConfig.operation, 'edit')
+assert.equal(
+  imageEdit.generationConfig,
+  undefined,
+  'image edit metadata must not enter the strict diagram generation_config field',
+)
+assert.equal(
+  imageEdit.existingElement.generation_config.version,
+  'image_generation_config_v1',
+  'image edit retains persisted metadata inside existing_element',
+)
+
+const imageVariation = client.buildApiPayload('session', {
+  ...common,
+  componentType: 'IMAGE',
+  refine: true,
+  imageConfig: { ...liveImageGeometry, operation: 'variation' },
+  generationConfig: {
+    version: 'image_generation_config_v1',
+    operation: 'edit',
+  },
+  existingElement: {
+    component_type: 'IMAGE',
+    generation_config: {
+      version: 'image_generation_config_v1',
+      operation: 'edit',
+    },
+  },
+}).options
+assert.equal(imageVariation.imageConfig.operation, 'variation')
+assert.equal(
+  imageVariation.generationConfig,
+  undefined,
+  'new image variations must not be validated as diagram refinements',
+)
+assert.equal(
+  imageVariation.existingElement.generation_config.version,
+  'image_generation_config_v1',
+)
 
 const imageManualStyle = client.buildApiPayload('session', {
   ...common,
@@ -271,6 +323,26 @@ const iconManualStyle = client.buildApiPayload('session', {
   iconLabelConfig: { mode: 'icon', style: 'circle-outline' },
 }).options
 assert.equal(iconManualStyle.iconLabelConfig.style, 'circle-outline')
+
+const iconRefine = client.buildApiPayload('session', {
+  ...common,
+  componentType: 'ICON_LABEL',
+  refine: true,
+  iconLabelConfig: { mode: 'icon' },
+  generationConfig: {
+    version: 'icon_generation_config_v1',
+    icon_name: 'shield-check',
+  },
+  existingElement: {
+    component_type: 'ICON_LABEL',
+    generation_config: {
+      version: 'icon_generation_config_v1',
+      icon_name: 'shield-check',
+    },
+  },
+}).options
+assert.equal(iconRefine.generationConfig, undefined)
+assert.equal(iconRefine.existingElement.generation_config.icon_name, 'shield-check')
 
 const shapeAuto = client.buildApiPayload('session', {
   ...common,
@@ -304,6 +376,54 @@ const shapeManualColors = client.buildApiPayload('session', {
 }).options
 assert.equal(shapeManualColors.shapeConfig.fill_color, '#3B82F6')
 assert.equal(shapeManualColors.shapeConfig.stroke_color, '#334155')
+
+const shapeRefine = client.buildApiPayload('session', {
+  ...common,
+  componentType: 'SHAPE',
+  refine: true,
+  shapeConfig: shapeAuto.shapeConfig,
+  generationConfig: {
+    version: 'shape_generation_config_v1',
+    relationship: 'concentric',
+    count: 3,
+  },
+  existingElement: {
+    component_type: 'SHAPE',
+    generation_config: {
+      version: 'shape_generation_config_v1',
+      relationship: 'concentric',
+      count: 3,
+    },
+  },
+}).options
+assert.equal(shapeRefine.generationConfig, undefined)
+assert.equal(shapeRefine.existingElement.generation_config.count, 3)
+
+const diagramRefine = client.buildApiPayload('session', {
+  ...common,
+  componentType: 'GANTT_CHART',
+  refine: true,
+  diagramConfig: { time_unit: 'weeks' },
+  generationConfig: {
+    version: 'diagram_generation_config_v1',
+    diagram_type: 'GANTT_CHART',
+    settings: { time_unit: 'weeks' },
+  },
+  existingElement: {
+    component_type: 'GANTT_CHART',
+    generation_config: {
+      version: 'diagram_generation_config_v1',
+      diagram_type: 'GANTT_CHART',
+      settings: { time_unit: 'weeks' },
+    },
+  },
+}).options
+assert.equal(
+  diagramRefine.generationConfig.version,
+  'diagram_generation_config_v1',
+  'diagram requests retain their strict top-level generation config',
+)
+assert.equal(diagramRefine.generationConfig.diagram_type, 'GANTT_CHART')
 
 const logo = client.buildApiPayload('session', {
   ...common,
