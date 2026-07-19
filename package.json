@@ -35,6 +35,8 @@
     "test:chart-generation-contract": "node scripts/test-chart-generation-contract.mjs",
     "test:chart-request-safety": "node scripts/test-chart-request-safety.mjs",
     "test:director-websocket-reconnect": "node scripts/test-director-websocket-reconnect.mjs",
+    "test:slide-element-targeting": "node scripts/test-slide-element-targeting.mjs",
+    "test:element-panel-activation": "node scripts/test-element-panel-activation.mjs",
     "test:infographic-contract": "node scripts/test-infographic-contract.mjs",
     "test:diagram-contract": "node scripts/test-diagram-contract.mjs",
     "test:diagram-catalog-drift": "node scripts/test-diagram-catalog-drift.mjs",

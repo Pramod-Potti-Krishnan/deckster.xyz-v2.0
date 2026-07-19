@@ -654,6 +654,7 @@ function BuilderContent() {
   useEffect(() => {
     currentSlideIndexRef.current = currentSlideIndex
   }, [currentSlideIndex])
+  const getCurrentSlideIndex = useCallback(() => currentSlideIndexRef.current, [])
   const [selectedLayoutSlideIndex, setSelectedLayoutSlideIndex] = useState(0)
   const [templateSourceSlideIndex, setTemplateSourceSlideIndex] = useState(0)
   const activeTemplateSlideIndex = templateModeOn ? templateSourceSlideIndex : currentSlideIndex
@@ -1502,6 +1503,7 @@ function BuilderContent() {
     connected,
     connecting,
     connectionState,
+    reconnectStatus,
     error: wsError,
     messages,
     presentationUrl,
@@ -1532,6 +1534,7 @@ function BuilderContent() {
     restoreMessages,
     switchVersion,
     connect,
+    ensureConnected,
     disconnect,
     isReady,
     sessionId: wsSessionId,
@@ -2286,7 +2289,11 @@ function BuilderContent() {
     return {
       ready: true,
       source: persisted.source,
-      sync: persistedThemeSync(targetPresentationId, persisted.source),
+      // Preserve the selected semantic identity even though readiness came
+      // from Layout. If Director reconnects during element generation, the
+      // hook can distinguish an equivalent re-application from a real theme
+      // change without trusting a transport request ID.
+      sync: persistedThemeSync(targetPresentationId, persisted.source, desiredFingerprint),
       ...(persisted.notice ? { notice: persisted.notice } : {}),
     } as const
   }, [getThemeSyncSnapshot, requestThemeSyncForPresentation])
@@ -2870,7 +2877,8 @@ function BuilderContent() {
     persistence,
     connected,
     connecting,
-    connect,
+    reconnectStatus,
+    ensureConnected,
     disconnect,
     clearMessages,
     restoreMessages,
@@ -2901,6 +2909,15 @@ function BuilderContent() {
     trackElementRef.current(generationPanel.blankElementId)
   }, [generationPanel.blankElementId])
 
+  const activateElementPanel = useCallback(() => {
+    // Focus first: when Element and Deck are both open, equal z-indices make
+    // the later-rendered Deck drawer intercept the Chart controls.
+    bringToFront('element')
+    setShowElementPanel(false)
+    setShowTextBoxPanel(false)
+    setShowFormatPanel(false)
+  }, [bringToFront])
+
   // Text Labs generation hook
   const { handleGenerate: handleTextLabsGenerate, handleOpenPanel: handleOpenGenerationPanel } = useTextLabsGeneration({
     generationPanel,
@@ -2909,6 +2926,7 @@ function BuilderContent() {
     layoutServiceApis,
     presentationId: effectivePresentationId,
     currentSlideIndex,
+    getCurrentSlideIndex,
     deckContext: deckContext as Record<string, unknown> | null | undefined,
     researchSessionId: currentSessionId || wsSessionId || null,
     researchStoreName: sessionStoreName,
@@ -2918,6 +2936,19 @@ function BuilderContent() {
     ensureThemeReady,
     toast,
   })
+
+  const handleOpenGenerationPanelInFront = useCallback(async (type: string) => {
+    activateElementPanel()
+    await handleOpenGenerationPanel(type)
+  }, [activateElementPanel, handleOpenGenerationPanel])
+
+  const handleOpenBlankGenerationPanel = useCallback((
+    componentType: TextLabsComponentType,
+    elementId: string,
+  ) => {
+    activateElementPanel()
+    generationPanel.openPanelForElement(componentType, elementId)
+  }, [activateElementPanel, generationPanel])
 
   const handleApprovedTextLabsGenerate = useCallback(async (
     formData: TextLabsFormData,
@@ -2947,21 +2978,20 @@ function BuilderContent() {
 
     const blankInfo = blankElements.getElement(payload.elementId)
     if (shouldOpenAsBlankPlaceholder(payload, blankInfo?.componentType)) {
-      generationPanel.openPanelForElement(componentType, payload.elementId)
-      bringToFront('element')
-      setShowElementPanel(false)
-      setShowTextBoxPanel(false)
-      setShowFormatPanel(false)
+      handleOpenBlankGenerationPanel(componentType, payload.elementId)
       return
     }
 
     const refineContext = buildRefineContext(payload, componentType)
+    activateElementPanel()
     generationPanel.openPanelForRefine(componentType, refineContext)
-    bringToFront('element')
-    setShowElementPanel(false)
-    setShowTextBoxPanel(false)
-    setShowFormatPanel(false)
-  }, [blankElements, buildRefineContext, generationPanel, bringToFront])
+  }, [
+    activateElementPanel,
+    blankElements,
+    buildRefineContext,
+    generationPanel,
+    handleOpenBlankGenerationPanel,
+  ])
 
   const getTemplateSlotCatalog = useCallback(async (slideIndex: number) => {
     if (!layoutServiceApis?.sendElementCommand) {
@@ -3201,6 +3231,21 @@ function BuilderContent() {
     isExecutingSendRef.current = true
 
     try {
+      // Sending a Director turn is non-idempotent. A user submission may
+      // explicitly reset exhausted reconnect state, but the exact message stays
+      // in the composer until OPEN rather than being guessed/replayed on a
+      // fixed handshake timeout.
+      if (!isReady) {
+        if (!connecting) {
+          connect()
+        }
+        toast({
+          title: connecting ? 'Director is reconnecting' : 'Reconnecting to Director',
+          description: 'Your message is still in the composer. Send it when the connection is ready.',
+        })
+        return
+      }
+
       // Template reuse skips the strawman→accept step that normally turns on the
       // build animation, so the right pane would sit static. Flip it on here so a
       // reuse turn runs the SAME live slide-build animation as a normal build (the
@@ -3366,60 +3411,6 @@ function BuilderContent() {
         }
       }
 
-      // For resumed sessions, connect on first message
-      if (session.isResumedSession && !connected && !connecting) {
-        console.log('Connecting WebSocket for first message in resumed session')
-        connect()
-        session.setIsResumedSession(false)
-
-        const messageId = crypto.randomUUID()
-        const timestamp = Date.now()
-
-        session.userMessageIdsRef.current.add(messageId)
-
-        session.setUserMessages(prev => [...prev, {
-          id: messageId,
-          text: messageText,
-          timestamp: timestamp
-        }])
-
-        if (currentSessionId && persistence) {
-          console.log('Persisting user message for resumed session:', messageId)
-          persistence.queueMessage({
-            message_id: messageId,
-            session_id: currentSessionId,
-            timestamp: new Date(timestamp).toISOString(),
-            type: 'chat_message',
-            payload: { text: messageText }
-          } as DirectorMessage, messageText)
-        }
-
-        setInputMessage("")
-
-        const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
-        const fileCount = successfulFiles.length
-
-        setTimeout(() => {
-          sendMessage(messageText, undefined, fileCount, {
-            deepResearch: researchEnabled,
-            webSearch: webSearchEnabled,
-            extendedGeneration: extendedGenerationEnabled,
-            useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
-            fileUpload: !!sessionStoreName,
-            storeName: sessionStoreName,
-            ...buildSendOptions,
-            manualDeck: turnContext?.manualDeck,
-          })
-          if (successfulFiles.length > 0) {
-            clearAllFiles()
-          }
-        }, 200)
-        return
-      }
-
-      // Normal check for connection
-      if (!isReady) return
-
       const messageId = crypto.randomUUID()
       const timestamp = Date.now()
 
@@ -3465,6 +3456,9 @@ function BuilderContent() {
       })
       if (success) {
         setInputMessage("")
+        if (session.isResumedSession) {
+          session.setIsResumedSession(false)
+        }
         if (successfulFiles.length > 0) {
           clearAllFiles()
         }
@@ -3871,6 +3865,7 @@ function BuilderContent() {
 
           {/* === Element Drawer === */}
           <div
+            data-builder-panel="element"
             className={cn(
               "absolute inset-y-0 left-0 ease-out",
               isResizingDrawer ? "" : "transition-transform duration-300"
@@ -4129,6 +4124,7 @@ function BuilderContent() {
 
           {/* === Deck Drawer === */}
           <div
+            data-builder-panel="deck"
             className={cn(
               "absolute inset-y-0 left-0 ease-out",
               isResizingDrawer ? "" : "transition-transform duration-300"
@@ -4307,6 +4303,9 @@ function BuilderContent() {
             currentSlideIndex={currentSlideIndex}
             onSlideChange={(slideNum) => {
               const nextVisualIndex = Math.max(0, slideNum - 1)
+              // Keep the imperative insertion owner current before React
+              // schedules the corresponding render.
+              currentSlideIndexRef.current = nextVisualIndex
               setCurrentSlideIndex(nextVisualIndex)
               const resolved = resolveSlideComposeVisualIndex(nextVisualIndex, {
                 slideCount: effectiveSlideCount ?? 0,
@@ -4375,7 +4374,8 @@ function BuilderContent() {
             }}
             blankElements={blankElements}
             generationPanel={generationPanel}
-            onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanel : undefined}
+            onOpenBlankGenerationPanel={handleOpenBlankGenerationPanel}
+            onOpenGenerationPanel={features.useTextLabsGeneration ? handleOpenGenerationPanelInFront : undefined}
             onRefineElementRequested={features.useTextLabsGeneration ? handleRefineElementRequested : undefined}
             buildThemeSelection={buildThemeSelection}
             themeSync={themeSync}

@@ -1008,9 +1008,15 @@ export function PresentationViewer({
         // Backend sends slide_index and slide_count directly (not nested in data)
         const newSlideIndex = result.slide_index ?? result.data?.slideIndex ?? currentSlide
         const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides + 1
+        const newSlideNumber = newSlideIndex + 1
 
         setTotalSlides(newTotal)
-        setCurrentSlide(newSlideIndex + 1) // Update local state (1-based)
+        setCurrentSlide(newSlideNumber) // Update local state (1-based)
+        // The parent owns the slide index used by Add Element. Publish the
+        // authoritative addSlide result before awaiting navigation/edit-mode
+        // commands so an immediate Add Blank → Chart cannot target the prior
+        // slide while the 3-second viewer poll is still stale.
+        onSlideChangeRef.current?.(newSlideNumber)
         setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
 
         // Navigate iframe to the new slide (PowerPoint/Keynote behavior)

@@ -21,15 +21,13 @@ export function handleBlankElementClick(
     isBlankElement: (id: string) => boolean
     getElement: (id: string) => BlankElementInfo | undefined
   },
-  generationPanel: {
-    openPanelForElement: (componentType: any, elementId: string) => void
-  }
+  openBlankGenerationPanel: (componentType: any, elementId: string) => void,
 ): boolean {
   if (blankElements.isBlankElement(elementId)) {
     const info = blankElements.getElement(elementId)
     if (info) {
       if (info.status === 'generating') return true // no panel during generation
-      generationPanel.openPanelForElement(info.componentType, elementId)
+      openBlankGenerationPanel(info.componentType, elementId)
     }
     return true
   }
@@ -72,9 +70,9 @@ export interface PresentationAreaProps {
     updatePosition: (elementId: string, startCol: number, startRow: number, width: number, height: number) => void
   }
   generationPanel: {
-    openPanelForElement: (componentType: any, elementId: string) => void
     isGenerating: boolean
   }
+  onOpenBlankGenerationPanel: (componentType: any, elementId: string) => void
   // Generation panel handler (for toolbar)
   onOpenGenerationPanel?: (type: string) => void
   onRefineElementRequested?: (payload: RefineElementRequest) => void
@@ -134,6 +132,7 @@ export function PresentationArea({
   onElementDeselected,
   blankElements,
   generationPanel,
+  onOpenBlankGenerationPanel,
   onOpenGenerationPanel,
   onRefineElementRequested,
   onEditModeChange,
@@ -199,12 +198,12 @@ export function PresentationArea({
               onEditModeChange?.(isEditing)
             }}
             onTextBoxSelected={(elementId, formatting, componentType) => {
-              if (handleBlankElementClick(elementId, blankElements, generationPanel)) return
+              if (handleBlankElementClick(elementId, blankElements, onOpenBlankGenerationPanel)) return
               onTextBoxSelected(elementId, formatting, componentType)
             }}
             onTextBoxDeselected={onTextBoxDeselected}
             onElementSelected={(elementId, elementType, properties) => {
-              if (handleBlankElementClick(elementId, blankElements, generationPanel)) return
+              if (handleBlankElementClick(elementId, blankElements, onOpenBlankGenerationPanel)) return
               onElementSelected(elementId, elementType, properties)
             }}
             onElementDeselected={onElementDeselected}

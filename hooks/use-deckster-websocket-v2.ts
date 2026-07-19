@@ -13,6 +13,14 @@ import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
 import { guardDirectorLayoutUrlMessage } from '@/lib/director-layout-url-ingress';
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client';
 import { evaluateLayoutViewerUrl, sanitizeRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy';
+import {
+  DIRECTOR_HEARTBEAT_INTERVAL_MS,
+  DIRECTOR_PONG_TIMEOUT_MS,
+  DIRECTOR_RECONNECT_STABILITY_MS,
+  type DirectorReconnectStatus,
+  resolveDirectorReconnectPlan,
+  shouldReconnectDirectorOnOnline,
+} from '@/lib/director-reconnect-policy';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -389,6 +397,8 @@ export interface UseDecksterWebSocketV2State {
   connected: boolean;
   connecting: boolean;
   connectionState: 'disconnected' | 'connecting' | 'connected' | 'error';
+  reconnectStatus: DirectorReconnectStatus;
+  reconnectAttempt: number;
   sessionId: string;
   userId: string;
   error: Error | null;
@@ -569,6 +579,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         connected: false,
         connecting: false,
         connectionState: 'disconnected',
+        reconnectStatus: 'idle',
+        reconnectAttempt: 0,
         sessionId: sessionIdRef.current,
         userId: userIdRef.current,
         error: null,
@@ -602,6 +614,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       connected: false,
       connecting: false,
       connectionState: 'disconnected',
+      reconnectStatus: 'idle',
+      reconnectAttempt: 0,
       sessionId: sessionIdRef.current,
       userId: userIdRef.current,
       error: null,
@@ -688,68 +702,239 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const reconnectStabilityTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectAttemptsRef = useRef(0);
+  const pendingReconnectAttemptRef = useRef<number | null>(null);
   const pendingSessionReconnectRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
   const hasConnectedRef = useRef(false);
+  const startConnectionRef = useRef<() => boolean>(() => false);
+  const manualDisconnectRef = useRef(false);
+  const connectionDesiredRef = useRef(options.autoConnect !== false);
+  const reconnectPausedForOfflineRef = useRef(false);
+  const reconnectStatusRef = useRef<DirectorReconnectStatus>('idle');
+  const browserOnlineRef = useRef(
+    typeof navigator === 'undefined' || navigator.onLine !== false,
+  );
+  const reconnectOnErrorRef = useRef(options.reconnectOnError === true);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const pongDeadlineTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const awaitingPongRef = useRef(false);
   const lastCloseDiagnosticAtRef = useRef(0);
   const suppressedCloseDiagnosticsRef = useRef(0);
   const maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
   const reconnectDelay = options.reconnectDelay ?? 3000;
 
-  const HEARTBEAT_INTERVAL = 15000; // Send ping every 15 seconds
+  reconnectOnErrorRef.current = options.reconnectOnError === true;
 
-  // Start heartbeat to keep connection alive during long operations
-  const startHeartbeat = useCallback(() => {
-    // Clear any existing heartbeat first
-    if (heartbeatIntervalRef.current) {
-      clearInterval(heartbeatIntervalRef.current);
-    }
-
-    debugLog('💓 Starting heartbeat (ping every 15s)');
-    heartbeatIntervalRef.current = setInterval(() => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        try {
-          // Send raw "ping" text to keep connection alive (protocol spec)
-          // Backend expects raw text "ping", not JSON object
-          wsRef.current.send('ping');
-          debugLog('💓 Ping sent');
-        } catch (error) {
-          console.error('❌ Failed to send ping:', error);
-        }
+  const setReconnectStatus = useCallback((
+    reconnectStatus: DirectorReconnectStatus,
+    reconnectAttempt = reconnectAttemptsRef.current,
+  ) => {
+    reconnectStatusRef.current = reconnectStatus;
+    setState(prev => {
+      if (
+        prev.reconnectStatus === reconnectStatus &&
+        prev.reconnectAttempt === reconnectAttempt
+      ) {
+        return prev;
       }
-    }, HEARTBEAT_INTERVAL);
-  }, [HEARTBEAT_INTERVAL]);
+      return {
+        ...prev,
+        reconnectStatus,
+        reconnectAttempt,
+      };
+    });
+  }, []);
 
-  // Stop heartbeat
+  const clearReconnectTimer = useCallback((preservePendingAttempt = false) => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = undefined;
+    }
+    if (!preservePendingAttempt) {
+      pendingReconnectAttemptRef.current = null;
+    }
+  }, []);
+
+  const clearReconnectStabilityTimer = useCallback(() => {
+    if (!reconnectStabilityTimeoutRef.current) return;
+    clearTimeout(reconnectStabilityTimeoutRef.current);
+    reconnectStabilityTimeoutRef.current = undefined;
+  }, []);
+
+  const clearPongDeadline = useCallback(() => {
+    if (pongDeadlineTimeoutRef.current) {
+      clearTimeout(pongDeadlineTimeoutRef.current);
+      pongDeadlineTimeoutRef.current = undefined;
+    }
+    awaitingPongRef.current = false;
+  }, []);
+
+  // Stop heartbeat and its liveness deadline.
   const stopHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
       debugLog('💔 Stopping heartbeat');
       clearInterval(heartbeatIntervalRef.current);
       heartbeatIntervalRef.current = undefined;
     }
-  }, []);
+    clearPongDeadline();
+  }, [clearPongDeadline]);
 
-  // Connect to WebSocket
-  const connect = useCallback(() => {
+  const acknowledgeHeartbeat = useCallback((socket: WebSocket) => {
+    if (wsRef.current !== socket) return;
+    clearPongDeadline();
+  }, [clearPongDeadline]);
+
+  // Start heartbeat to keep the connection alive and retire half-open sockets.
+  const startHeartbeat = useCallback((socket: WebSocket) => {
+    stopHeartbeat();
+    debugLog('💓 Starting heartbeat (ping every 15s)');
+    heartbeatIntervalRef.current = setInterval(() => {
+      if (wsRef.current !== socket || socket.readyState !== WebSocket.OPEN) return;
+
+      try {
+        // Backend expects raw text "ping", not a JSON frame.
+        socket.send('ping');
+        awaitingPongRef.current = true;
+        if (pongDeadlineTimeoutRef.current) {
+          clearTimeout(pongDeadlineTimeoutRef.current);
+        }
+        pongDeadlineTimeoutRef.current = setTimeout(() => {
+          pongDeadlineTimeoutRef.current = undefined;
+          if (
+            wsRef.current !== socket ||
+            socket.readyState !== WebSocket.OPEN ||
+            !awaitingPongRef.current
+          ) {
+            return;
+          }
+
+          awaitingPongRef.current = false;
+          console.warn('💔 Director heartbeat timed out; retiring half-open WebSocket');
+          try {
+            socket.close(4000, 'Director heartbeat timeout');
+          } catch (error) {
+            console.error('❌ Failed to close heartbeat-timeout socket:', error);
+          }
+        }, DIRECTOR_PONG_TIMEOUT_MS);
+        debugLog('💓 Ping sent');
+      } catch (error) {
+        console.error('❌ Failed to send ping:', error);
+        try {
+          socket.close(4000, 'Director heartbeat send failed');
+        } catch {
+          // The close handler or browser network state will drive recovery.
+        }
+      }
+    }, DIRECTOR_HEARTBEAT_INTERVAL_MS);
+  }, [stopHeartbeat]);
+
+  const scheduleReconnect = useCallback((trigger: string) => {
+    if (reconnectTimeoutRef.current) {
+      debugLog('⏳ Director reconnect is already scheduled; ignoring duplicate close', { trigger });
+      return;
+    }
+
+    const plan = resolveDirectorReconnectPlan({
+      reconnectEnabled: reconnectOnErrorRef.current,
+      manualDisconnect: manualDisconnectRef.current,
+      connectionDesired: connectionDesiredRef.current,
+      online: browserOnlineRef.current,
+      attempts: reconnectAttemptsRef.current,
+      maxAttempts: maxReconnectAttempts,
+      baseDelayMs: reconnectDelay,
+    });
+
+    if (plan.kind === 'pause') {
+      reconnectPausedForOfflineRef.current = true;
+      setReconnectStatus('paused_offline');
+      debugLog('⏸️ Director reconnect paused while browser is offline', {
+        trigger,
+        attempts: reconnectAttemptsRef.current,
+      });
+      return;
+    }
+
+    if (plan.kind === 'skip') {
+      if (plan.reason === 'exhausted') {
+        setReconnectStatus('exhausted', reconnectAttemptsRef.current);
+      } else if (plan.reason === 'manual' || plan.reason === 'not_desired') {
+        setReconnectStatus('manual', reconnectAttemptsRef.current);
+      }
+      debugLog('⏹️ Director reconnect not scheduled', {
+        trigger,
+        reason: plan.reason,
+        attempts: reconnectAttemptsRef.current,
+      });
+      return;
+    }
+
+    debugLog(`🔄 Reconnecting in ${plan.delayMs}ms (attempt ${plan.attempt}/${maxReconnectAttempts})`, {
+      trigger,
+    });
+    pendingReconnectAttemptRef.current = plan.attempt;
+    setReconnectStatus('scheduled', plan.attempt);
+    reconnectTimeoutRef.current = setTimeout(() => {
+      reconnectTimeoutRef.current = undefined;
+
+      // Going offline while the timer was pending must not consume an attempt.
+      if (!browserOnlineRef.current) {
+        reconnectPausedForOfflineRef.current = true;
+        pendingReconnectAttemptRef.current = plan.attempt;
+        setReconnectStatus('paused_offline', plan.attempt);
+        debugLog('⏸️ Director reconnect timer paused before launch because browser is offline');
+        return;
+      }
+      if (
+        manualDisconnectRef.current ||
+        !connectionDesiredRef.current ||
+        !reconnectOnErrorRef.current
+      ) {
+        pendingReconnectAttemptRef.current = null;
+        return;
+      }
+
+      pendingReconnectAttemptRef.current = null;
+      reconnectAttemptsRef.current = plan.attempt;
+      setReconnectStatus('idle', plan.attempt);
+      startConnectionRef.current();
+    }, plan.delayMs);
+  }, [maxReconnectAttempts, reconnectDelay, setReconnectStatus]);
+
+  // Start one transport attempt. Initial/session/manual ownership and transport
+  // retry ownership call this through separate entry points below.
+  const startConnection = useCallback((): boolean => {
+    if (!browserOnlineRef.current) {
+      reconnectPausedForOfflineRef.current = true;
+      setReconnectStatus('paused_offline', reconnectAttemptsRef.current);
+      debugLog('⏸️ Cannot connect to Director while browser is offline; waiting for online');
+      setState(prev => ({
+        ...prev,
+        connected: false,
+        connecting: false,
+        connectionState: 'disconnected',
+      }));
+      return false;
+    }
+
     // FIXED: Prevent connection if user is not authenticated
     // This ensures we always connect with a real user ID, never temporary ones
     if (!userIdRef.current) {
       debugLog('⚠️ Cannot connect: user not authenticated yet');
-      return;
+      return false;
     }
 
     // Prevent multiple simultaneous connection attempts
     if (isConnectingRef.current) {
       debugLog('⏳ Connection attempt already in progress, skipping...');
-      return;
+      return false;
     }
 
     if (wsRef.current?.readyState === WebSocket.OPEN ||
         wsRef.current?.readyState === WebSocket.CONNECTING) {
       debugLog('✅ WebSocket already connected or connecting');
-      return;
+      return false;
     }
 
     isConnectingRef.current = true;
@@ -796,6 +981,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+      const started = true;
       const isCurrentSocket = () => wsRef.current === ws;
 
       ws.onopen = () => {
@@ -810,12 +996,24 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         }
 
         debugLog('✅ Connected to Director v3.4');
-        reconnectAttemptsRef.current = 0;
+        clearReconnectTimer();
+        reconnectPausedForOfflineRef.current = false;
+        setReconnectStatus('idle', reconnectAttemptsRef.current);
+        clearReconnectStabilityTimer();
+        if (reconnectAttemptsRef.current > 0) {
+          reconnectStabilityTimeoutRef.current = setTimeout(() => {
+            reconnectStabilityTimeoutRef.current = undefined;
+            if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return;
+            reconnectAttemptsRef.current = 0;
+            setReconnectStatus('idle', 0);
+            debugLog('✅ Director connection remained stable; retry budget reset');
+          }, DIRECTOR_RECONNECT_STABILITY_MS);
+        }
         isConnectingRef.current = false;
         hasConnectedRef.current = true;
 
         // Start heartbeat to keep connection alive
-        startHeartbeat();
+        startHeartbeat(ws);
 
         setState(prev => ({
           ...prev,
@@ -833,6 +1031,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         }
 
         try {
+          // Any inbound frame proves that the transport is alive. Raw pong is
+          // still handled separately because it has no JSON envelope.
+          acknowledgeHeartbeat(ws);
+
           // Handle raw "pong" response from heartbeat ping
           if (event.data === 'pong') {
             debugLog('💓 Pong received');
@@ -1395,6 +1597,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
         // Stop heartbeat
         stopHeartbeat();
+        clearReconnectStabilityTimer();
 
         setState(prev => ({
           ...prev,
@@ -1406,23 +1609,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         }));
 
         wsRef.current = null;
-
-        // Attempt a bounded reconnect for both established connections and
-        // first-connect failures. Requiring a prior successful connection
-        // leaves a reloaded/resumed Builder permanently disconnected after one
-        // transient Director failure.
-        if (options.reconnectOnError &&
-            reconnectAttemptsRef.current < maxReconnectAttempts) {
-          reconnectAttemptsRef.current++;
-          const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current - 1);
-
-          debugLog(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
-          }, delay);
-        }
+        scheduleReconnect(`close:${event.code}`);
       };
+      return started;
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
       isConnectingRef.current = false;
@@ -1438,8 +1627,172 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       if (options.onError) {
         options.onError(err);
       }
+
+      scheduleReconnect('constructor_error');
+      return true;
     }
-  }, [options, reconnectDelay, maxReconnectAttempts, startHeartbeat, stopHeartbeat]);
+  }, [
+    options,
+    acknowledgeHeartbeat,
+    clearReconnectStabilityTimer,
+    clearReconnectTimer,
+    scheduleReconnect,
+    setReconnectStatus,
+    startHeartbeat,
+    stopHeartbeat,
+  ]);
+
+  startConnectionRef.current = startConnection;
+
+  // Automatic session ownership never resets or bypasses a scheduled,
+  // offline-paused, exhausted, or manually-disconnected transport lifecycle.
+  const ensureConnected = useCallback((): boolean => {
+    if (reconnectStatusRef.current !== 'idle') {
+      debugLog('⏭️ Initial/session connection request is already transport-owned', {
+        reconnectStatus: reconnectStatusRef.current,
+        attempts: reconnectAttemptsRef.current,
+      });
+      return false;
+    }
+
+    connectionDesiredRef.current = true;
+    manualDisconnectRef.current = false;
+    return startConnection();
+  }, [startConnection]);
+
+  // Public connect is an explicit user retry. It is the only same-session path
+  // allowed to clear durable exhaustion and start a fresh bounded retry budget.
+  const connect = useCallback(() => {
+    clearReconnectTimer();
+    clearReconnectStabilityTimer();
+    reconnectAttemptsRef.current = 0;
+    reconnectPausedForOfflineRef.current = false;
+    connectionDesiredRef.current = true;
+    manualDisconnectRef.current = false;
+    setReconnectStatus('idle', 0);
+    startConnection();
+  }, [
+    clearReconnectStabilityTimer,
+    clearReconnectTimer,
+    setReconnectStatus,
+    startConnection,
+  ]);
+
+  // React StrictMode replays mount setup after running its cleanup. That
+  // cleanup records a manual disconnect, but it has no retry history and no
+  // surviving connection. Re-arm only that fresh-mount case; never clear
+  // exhausted transport state from an automatic path.
+  const connectOnMount = useCallback((): boolean => {
+    if (
+      reconnectStatusRef.current === 'manual' &&
+      reconnectAttemptsRef.current === 0 &&
+      !hasConnectedRef.current
+    ) {
+      connectionDesiredRef.current = true;
+      manualDisconnectRef.current = false;
+      setReconnectStatus('idle', 0);
+    }
+    return ensureConnected();
+  }, [ensureConnected, setReconnectStatus]);
+
+  // Browser connectivity is a gate, not a retry attempt. Offline time never
+  // burns or resets the bounded retry budget; coming back online resumes the
+  // hook-owned backoff and retires any half-open socket from the old network.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+
+    browserOnlineRef.current = navigator.onLine !== false;
+
+    const handleOffline = () => {
+      browserOnlineRef.current = false;
+      if (
+        !reconnectOnErrorRef.current ||
+        manualDisconnectRef.current ||
+        !connectionDesiredRef.current ||
+        reconnectStatusRef.current === 'exhausted'
+      ) {
+        return;
+      }
+
+      reconnectPausedForOfflineRef.current = true;
+      clearReconnectTimer(true);
+      clearReconnectStabilityTimer();
+      stopHeartbeat();
+      setReconnectStatus(
+        'paused_offline',
+        pendingReconnectAttemptRef.current ?? reconnectAttemptsRef.current,
+      );
+      setState(prev => ({
+        ...prev,
+        connected: false,
+        connecting: false,
+        connectionState: 'disconnected',
+        currentStatus: null,
+      }));
+
+      const socket = wsRef.current;
+      if (
+        socket &&
+        (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)
+      ) {
+        try {
+          socket.close(4001, 'Browser offline');
+        } catch {
+          // Browser transports normally emit close as the network disappears.
+        }
+      }
+    };
+
+    const handleOnline = () => {
+      browserOnlineRef.current = true;
+      const socket = wsRef.current;
+      const shouldReconnect = shouldReconnectDirectorOnOnline({
+        reconnectEnabled: reconnectOnErrorRef.current,
+        manualDisconnect: manualDisconnectRef.current,
+        connectionDesired: connectionDesiredRef.current,
+        resumingFromOffline: reconnectPausedForOfflineRef.current,
+        reconnectStatus: reconnectStatusRef.current,
+        socketReadyState: socket?.readyState ?? null,
+      });
+      if (!shouldReconnect) return;
+
+      reconnectPausedForOfflineRef.current = false;
+      clearReconnectTimer(true);
+      clearReconnectStabilityTimer();
+      stopHeartbeat();
+
+      // Detach before closing so a delayed close from the pre-offline socket
+      // cannot schedule a second reconnect alongside the immediate one.
+      wsRef.current = null;
+      if (socket) {
+        try {
+          socket.close(4001, 'Browser online reconnect');
+        } catch {
+          // The replacement connection below is authoritative.
+        }
+      }
+      isConnectingRef.current = false;
+      const resumedAttempt = pendingReconnectAttemptRef.current;
+      pendingReconnectAttemptRef.current = null;
+      if (resumedAttempt !== null) {
+        reconnectAttemptsRef.current = resumedAttempt;
+      }
+      setReconnectStatus('idle', reconnectAttemptsRef.current);
+      startConnectionRef.current();
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [
+    clearReconnectStabilityTimer,
+    clearReconnectTimer,
+    setReconnectStatus,
+    stopHeartbeat,
+  ]);
 
   // Reconnect when the Builder adopts a persisted/new database session ID.
   // Session IDs must not be assigned during render: doing that before this
@@ -1464,9 +1817,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     sessionIdRef.current = nextSessionId;
     reconnectAttemptsRef.current = 0;
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = undefined;
+    clearReconnectTimer();
+    clearReconnectStabilityTimer();
+    reconnectPausedForOfflineRef.current = false;
+    setReconnectStatus('idle', 0);
+    if (shouldReconnect) {
+      manualDisconnectRef.current = false;
+      connectionDesiredRef.current = true;
     }
     stopHeartbeat();
 
@@ -1485,10 +1842,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }));
 
     pendingSessionReconnectRef.current = shouldReconnect ? nextSessionId : null;
-  }, [options.existingSessionId, stopHeartbeat]);
+  }, [
+    options.existingSessionId,
+    clearReconnectStabilityTimer,
+    clearReconnectTimer,
+    setReconnectStatus,
+    stopHeartbeat,
+  ]);
 
   // Connect on the render after session adoption. This gives useSessionCache
-  // the new key before connect() computes skip_history/message_count, avoiding
+  // the new key before the transport computes skip_history/message_count, avoiding
   // an old session's cache metadata on the replacement Director socket.
   useEffect(() => {
     const pendingSessionId = pendingSessionReconnectRef.current;
@@ -1500,29 +1863,34 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return;
     }
     pendingSessionReconnectRef.current = null;
-    connect();
-  }, [connect, state.sessionId]);
+    ensureConnected();
+  }, [ensureConnected, state.sessionId]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
     debugLog('🔌 Disconnecting WebSocket');
 
+    manualDisconnectRef.current = true;
+    connectionDesiredRef.current = false;
+    reconnectPausedForOfflineRef.current = false;
+
     // Stop heartbeat
     stopHeartbeat();
+    clearReconnectTimer();
+    clearReconnectStabilityTimer();
 
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    const socket = wsRef.current;
+    // Detach before close so a manual shutdown can never schedule recovery.
+    wsRef.current = null;
+    if (socket) {
+      socket.close();
     }
 
     isConnectingRef.current = false;
     hasConnectedRef.current = false;
     reconnectAttemptsRef.current = 0;
     pendingSessionReconnectRef.current = null;
+    setReconnectStatus('manual', 0);
 
     setState(prev => ({
       ...prev,
@@ -1530,7 +1898,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       connecting: false,
       connectionState: 'disconnected',
     }));
-  }, [stopHeartbeat]);
+  }, [
+    clearReconnectStabilityTimer,
+    clearReconnectTimer,
+    setReconnectStatus,
+    stopHeartbeat,
+  ]);
 
   // Send message to server (v4.14: includes feature flags and session-sticky file state)
   const sendMessage = useCallback((
@@ -1852,7 +2225,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     if (options.autoConnect !== false && !hasConnectedRef.current && !isConnectingRef.current) {
       debugLog('🎯 Initiating connection...');
-      connect();
+      connectOnMount();
     } else {
       debugLog('⏭️ Skipping auto-connect:', {
         autoConnect: options.autoConnect,
@@ -1889,6 +2262,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     // Actions
     connect,
+    ensureConnected,
     disconnect,
     sendMessage,
     sendControlMessage,

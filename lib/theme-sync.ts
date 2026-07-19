@@ -33,6 +33,12 @@ export interface PersistedThemeProbe {
   notice?: string
 }
 
+export interface ThemeGenerationAuthority {
+  presentationId: string
+  themeFingerprint: string | null
+  fallbackSync: ThemeSyncState
+}
+
 interface WaitForAuthoritativeThemeOptions {
   presentationId: string
   themeFingerprint?: string | null
@@ -64,12 +70,13 @@ export function syncingTheme(
 export function persistedThemeSync(
   presentationId: string,
   source: PersistedThemeProbe['source'],
+  themeFingerprint: string | null = null,
 ): ThemeSyncState {
   return {
     status: 'applied',
     requestId: `${source}:${presentationId}`,
     presentationId,
-    themeFingerprint: null,
+    themeFingerprint,
     error: null,
   }
 }
@@ -218,6 +225,35 @@ export function hasSameThemeSyncIdentity(
     && left.requestId === right.requestId
     && left.presentationId === right.presentationId
     && left.themeFingerprint === right.themeFingerprint
+  )
+}
+
+/**
+ * Pin one element generation to the selected semantic theme rather than a
+ * Director transport request. Layout fallback can begin while Director is
+ * disconnected and then observe a replacement syncing/applied request after a
+ * reconnect. That transition is safe only when both the presentation and
+ * selected-theme fingerprint still match.
+ *
+ * `fallbackSync` preserves the exact pre-probe state so idle/failed/stale
+ * Director state can remain unchanged while Layout's persisted theme is used.
+ * That unchanged state may name a previously displayed presentation; it is
+ * transport context, not the authority established by the successful Layout
+ * probe. Any new syncing/applied semantic transition still has to match the
+ * pinned target presentation and fingerprint.
+ */
+export function isSameThemeGenerationAuthority(
+  expected: ThemeGenerationAuthority,
+  current: ThemeSyncState,
+): boolean {
+  if (hasSameThemeSyncIdentity(expected.fallbackSync, current)) {
+    return true
+  }
+  return Boolean(
+    expected.themeFingerprint
+    && current.presentationId === expected.presentationId
+    && current.themeFingerprint === expected.themeFingerprint
+    && (current.status === 'syncing' || current.status === 'applied'),
   )
 }
 
