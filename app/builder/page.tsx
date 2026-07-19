@@ -3902,6 +3902,7 @@ function BuilderContent() {
                   onElementTypeChange={generationPanel.changeElementType}
                   isGenerating={generationPanel.isGenerating}
                   error={generationPanel.error}
+                  retryStrategy={generationPanel.retryStrategy}
                   slideIndex={currentSlideIndex}
                   presentationId={effectivePresentationId}
                   elementContext={blankElements.activePosition}

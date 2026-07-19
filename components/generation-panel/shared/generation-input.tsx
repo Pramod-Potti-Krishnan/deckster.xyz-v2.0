@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { MandatoryConfig } from '../types'
 import { elementPromptLengthState } from '@/lib/element-prompt-limit'
 import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
+import type { TextLabsRetryStrategy } from '@/lib/textlabs-client'
 
 interface GenerationInputProps {
   prompt: string
@@ -16,6 +17,7 @@ interface GenerationInputProps {
   onSubmit: (intent: ElementGenerationSubmitIntent) => void
   isGenerating: boolean
   error: string | null
+  retryStrategy?: TextLabsRetryStrategy | null
   placeholder?: string
 }
 
@@ -28,6 +30,7 @@ export function GenerationInput({
   onSubmit,
   isGenerating,
   error,
+  retryStrategy,
   placeholder: placeholderOverride,
 }: GenerationInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -44,12 +47,19 @@ export function GenerationInput({
   const promptOverLimit = promptLengthState.overLimit
   const promptOverflow = promptLengthState.overflow
   const submitDisabled = isGenerating || promptOverLimit
+  const primarySubmitIntent: ElementGenerationSubmitIntent =
+    retryStrategy === 'resume_same_attempt' ? 'retry' : 'generate'
   const handleSubmit = () => {
-    if (!submitDisabled) onSubmit('generate')
+    if (!submitDisabled) onSubmit(primarySubmitIntent)
   }
   const handleRetry = () => {
     if (!submitDisabled) onSubmit('retry')
   }
+  const retryLabel = retryStrategy === 'resume_same_attempt'
+    ? 'Check generation result'
+    : retryStrategy === 'start_fresh_attempt'
+      ? 'Try fresh generation'
+      : 'Try again'
 
   // Auto-expand textarea as user types
   useEffect(() => {
@@ -71,14 +81,21 @@ export function GenerationInput({
           <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-xs text-red-600 break-words">{error}</p>
-            <button
-              onClick={handleRetry}
-              disabled={submitDisabled}
-              className="mt-1.5 flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RotateCcw className="h-3 w-3" />
-              Try again
-            </button>
+            {retryStrategy !== 'do_not_retry' ? (
+              <button
+                type="button"
+                onClick={handleRetry}
+                disabled={submitDisabled}
+                className="mt-1.5 flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RotateCcw className="h-3 w-3" />
+                {retryLabel}
+              </button>
+            ) : (
+              <p className="mt-1.5 text-[10px] text-red-500">
+                Update the prompt or settings before generating again.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -153,7 +170,13 @@ export function GenerationInput({
                   ? 'bg-gray-200 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed'
                   : 'bg-purple-600 hover:bg-purple-700 text-white'
               }`}
-              title={promptOverLimit ? 'Shorten the prompt before generating' : 'Generate (⌘↵)'}
+              title={
+                promptOverLimit
+                  ? 'Shorten the prompt before generating'
+                  : retryStrategy === 'resume_same_attempt'
+                    ? 'Check generation result (⌘↵)'
+                    : 'Generate (⌘↵)'
+              }
             >
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

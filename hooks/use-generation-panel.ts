@@ -5,6 +5,7 @@ import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { ElementResearchMode } from '@/types/textlabs'
 import type { GenerationPanelDraft } from '@/components/generation-panel/types'
+import type { TextLabsRetryStrategy } from '@/lib/textlabs-client'
 import {
   isNonResearchVisualElement,
   restoreElementResearchSelection,
@@ -43,7 +44,8 @@ export function useGenerationPanel() {
   const [activationId, setActivationId] = useState(0)
   const [elementType, setElementType] = useState<TextLabsComponentType>('TEXT_BOX')
   const [isGenerating, setIsGenerating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setErrorState] = useState<string | null>(null)
+  const [retryStrategy, setRetryStrategy] = useState<TextLabsRetryStrategy | null>(null)
   const [blankElementId, setBlankElementId] = useState<string | null>(null)
 
   // Edit mode state
@@ -57,6 +59,10 @@ export function useGenerationPanel() {
   const [draftKey, setDraftKey] = useState<string | null>(null)
   const [draftVersion, setDraftVersion] = useState(0)
   const draftsRef = useRef<Map<string, GenerationPanelDraft>>(new Map())
+  const setError = useCallback((value: string | null) => {
+    setErrorState(value)
+    setRetryStrategy(null)
+  }, [])
   const snapshotRef = useRef({
     isOpen,
     blankElementId,
@@ -275,6 +281,7 @@ export function useGenerationPanel() {
     elementType,
     isGenerating,
     error,
+    retryStrategy,
     blankElementId,
     mode,
     editElementId,
@@ -295,6 +302,7 @@ export function useGenerationPanel() {
     completeBlankReplacement,
     setIsGenerating,
     setError,
+    setRetryStrategy,
     setResearchMode,
     setResearchWeb,
     setResearchUploadedDocs,

@@ -10,6 +10,7 @@ import {
   TextSlotKind,
 } from '@/types/textlabs'
 import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
+import type { TextLabsRetryStrategy } from '@/lib/textlabs-client'
 
 export interface ElementContext {
   elementId?: string
@@ -34,6 +35,7 @@ export interface GenerationPanelProps {
   onElementTypeChange: (type: TextLabsComponentType) => void
   isGenerating: boolean
   error: string | null
+  retryStrategy?: TextLabsRetryStrategy | null
   slideIndex: number
   presentationId?: string | null
   elementContext?: ElementContext | null

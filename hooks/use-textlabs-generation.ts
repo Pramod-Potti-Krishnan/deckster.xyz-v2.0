@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "react"
 import { TextLabsFormData, TextLabsComponentType, TextLabsPositionConfig } from '@/types/textlabs'
 import {
   TextLabsRequestError,
+  type TextLabsRetryStrategy,
   sendMessage as sendTextLabsMessage,
   buildApiPayload,
   buildInsertionParams,
@@ -61,9 +62,11 @@ import { normalizePersistedDiagramSubtype } from '@/lib/diagram-catalog'
 import {
   diagramRetryCandidateForPreDispatch,
   diagramGenerationRequestFingerprint,
+  diagramRetryStrategyForFailure,
   isAmbiguousDiagramRequestFailure,
   remainingDiagramBackendDeadlineMs,
   resolveDiagramGenerationAttemptId,
+  shouldAutoStartFreshDiagramAttempt,
   type DiagramRetryCandidate,
   type ElementGenerationSubmitIntent,
 } from '@/lib/element-generation-retry'
@@ -98,6 +101,7 @@ interface UseTextLabsGenerationParams {
     researchKnowledgeGraph: boolean
     setIsGenerating: (v: boolean) => void
     setError: (v: string | null) => void
+    setRetryStrategy: (v: TextLabsRetryStrategy | null) => void
     closePanel: () => void
     openPanelForElement: (type: TextLabsComponentType, elementId: string) => void
     resumePanelForElement: (type: TextLabsComponentType, elementId: string) => void
@@ -976,6 +980,8 @@ export function useTextLabsGeneration({
         )
       } else {
         const { message, options } = buildApiPayload(sessionId, formData)
+        let reusedDiagramAttempt = false
+        let freshRecoveryAttemptStarted = false
         if (isDiagramGenerationType(formData.componentType)) {
           dispatchedDiagramRequestFingerprint = diagramGenerationRequestFingerprint({
             sessionId,
@@ -988,6 +994,7 @@ export function useTextLabsGeneration({
             requestFingerprint: dispatchedDiagramRequestFingerprint,
             retryCandidate,
           })
+          reusedDiagramAttempt = resolvedAttempt.reused
           generationAttemptId = resolvedAttempt.attemptId
           formData.generationAttemptId = generationAttemptId
           options.generationAttemptId = generationAttemptId
@@ -1014,9 +1021,43 @@ export function useTextLabsGeneration({
         }
         // Do not replay /api/chat/message automatically: Auto routing,
         // Researcher, and prompt construction all happen before leaf
-        // singleflight. A transport error is correlated for an explicit retry.
+        // singleflight. The sole exception is a recovered same-attempt result
+        // that explicitly says its terminal model failure needs one fresh run.
         diagramRequestWasDispatched = isDiagramGenerationType(formData.componentType)
-        response = await sendTextLabsMessage(sessionId, message, options, controller.signal)
+        try {
+          response = await sendTextLabsMessage(sessionId, message, options, controller.signal)
+        } catch (requestError) {
+          const retryStrategy = diagramRetryStrategyForFailure(requestError)
+          if (
+            isDiagramGenerationType(formData.componentType)
+            && shouldAutoStartFreshDiagramAttempt({
+              submitIntent,
+              reusedAttempt: reusedDiagramAttempt,
+              retryStrategy,
+              freshAttemptAlreadyStarted: freshRecoveryAttemptStarted,
+            })
+          ) {
+            const backendDeadlineMs = remainingDiagramBackendDeadlineMs(
+              browserDeadlineAtMs,
+              Date.now(),
+            )
+            if (backendDeadlineMs === null) throw requestError
+
+            freshRecoveryAttemptStarted = true
+            generationAttemptId = freshGenerationAttemptId
+            formData.generationAttemptId = generationAttemptId
+            options.generationAttemptId = generationAttemptId
+            options.deadlineMs = backendDeadlineMs
+            response = await sendTextLabsMessage(
+              sessionId,
+              message,
+              options,
+              controller.signal,
+            )
+          } else {
+            throw requestError
+          }
+        }
       }
 
       if (response.error) {
@@ -1401,15 +1442,22 @@ export function useTextLabsGeneration({
       })
       console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
     } catch (err) {
+      let errorRetryStrategy = diagramRequestWasDispatched
+        ? diagramRetryStrategyForFailure(err)
+        : null
       if (
         diagramRequestWasDispatched
         && dispatchedDiagramRequestFingerprint
+        && errorRetryStrategy === 'resume_same_attempt'
         && isAmbiguousDiagramRequestFailure(err)
       ) {
         retryCandidateRef.current = {
           attemptId: generationAttemptId,
           requestFingerprint: dispatchedDiagramRequestFingerprint,
         }
+      } else if (diagramRequestWasDispatched) {
+        // A terminal response must never retain an older ambiguous identity.
+        retryCandidateRef.current = null
       }
       let errorMessage = 'Generation failed'
       if (
@@ -1422,10 +1470,16 @@ export function useTextLabsGeneration({
         const reference = err.requestId
           ? ` Request reference: ${err.requestId.slice(0, 12)}.`
           : ` Request reference: ${generationAttemptId.slice(0, 12)}.`
+        const downstreamReference = (
+          err.downstreamRequestId
+          && err.downstreamRequestId !== err.requestId
+        )
+          ? ` Diagram reference: ${err.downstreamRequestId.slice(0, 12)}.`
+          : ''
         if (err.kind === 'transport') {
-          errorMessage = `The generation service could not be reached.${reference}`
+          errorMessage = `The generation service could not be reached.${reference}${downstreamReference}`
         } else {
-          errorMessage = `${err.message}${reference}`
+          errorMessage = `${err.message}${reference}${downstreamReference}`
         }
       } else if (err instanceof TypeError && /fetch|network/i.test(err.message)) {
         errorMessage = `The generation service could not be reached. Request reference: ${generationAttemptId.slice(0, 12)}.`
@@ -1444,6 +1498,7 @@ export function useTextLabsGeneration({
       const presentationTargetChanged = !presentationIsStillAuthoritative()
       if (presentationTargetChanged) {
         errorMessage = PRESENTATION_CHANGED_DURING_GENERATION
+        errorRetryStrategy = 'do_not_retry'
         // The captured command bridge may now resolve to a different iframe.
         // Never perform compensating mutations until the original deck is
         // reloaded and its actual lifecycle state can be inspected.
@@ -1545,8 +1600,10 @@ export function useTextLabsGeneration({
           : !latestPanel.isOpen
       if (currentBlankId && currentBlankInfo && (!latestPanel.isOpen || ownsCurrentPanel)) {
         generationPanel.setError(errorMessage)
+        generationPanel.setRetryStrategy(errorRetryStrategy)
       } else if (ownsCurrentPanel || !latestPanel.isOpen) {
         generationPanel.setError(errorMessage)
+        generationPanel.setRetryStrategy(errorRetryStrategy)
       } else {
         toast({
           title: 'Element generation failed',

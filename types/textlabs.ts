@@ -842,6 +842,14 @@ export interface TextLabsResponse {
   error_code?: string
   retryable?: boolean
   ambiguous_completion?: boolean
+  retry_strategy?: 'resume_same_attempt' | 'start_fresh_attempt' | 'do_not_retry'
+  retryStrategy?: 'resume_same_attempt' | 'start_fresh_attempt' | 'do_not_retry'
+  request_id?: string
+  originating_request_id?: string
+  downstream_request_id?: string
+  downstreamRequestId?: string
+  downstream_generation_attempt_id?: string
+  downstreamGenerationAttemptId?: string
   warnings?: string[]
   message?: string
   response_text?: string

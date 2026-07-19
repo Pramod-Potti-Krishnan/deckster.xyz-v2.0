@@ -59,6 +59,7 @@ const {
   formatBackendError,
   generateInfographic,
   isRetryableTextLabsRequestError,
+  responseRetryStrategy,
   sendMessage,
   TextLabsRequestError,
 } = mod.exports
@@ -67,6 +68,16 @@ assert.equal(
   formatBackendError({ detail: [{ loc: ['body', 'chart_config', 'data'], msg: 'Explicit chart data is invalid' }] }, 'API error: 422'),
   'chart_config.data: Explicit chart data is invalid',
 )
+assert.equal(
+  responseRetryStrategy({ detail: { retry_strategy: 'start_fresh_attempt' } }),
+  'start_fresh_attempt',
+)
+assert.equal(
+  responseRetryStrategy({ detail: { retryStrategy: 'do_not_retry' } }),
+  'do_not_retry',
+  'camelCase proxy payloads remain compatible',
+)
+assert.equal(responseRetryStrategy({ retry_strategy: 'unexpected' }), null)
 
 const iconInsertion = buildInsertionParams('ICON_LABEL', { html: '<div>Priority</div>' })
 assert.equal(iconInsertion.method, 'insertElement')
@@ -112,11 +123,36 @@ await assert.rejects(
     assert.equal(error.name, 'TextLabsRequestError')
     assert.equal(error.status, 503)
     assert.equal(error.requestId, 'request-503')
+    assert.equal(error.retryStrategy, 'resume_same_attempt')
     assert.equal(
       isRetryableTextLabsRequestError(error),
       false,
       'application failures must not trigger a second paid request',
     )
+    return true
+  },
+)
+
+fetchImplementation = async () => ({
+  ok: false,
+  status: 408,
+  headers: { get: () => null },
+  json: async () => ({ detail: 'Request timeout' }),
+})
+await assert.rejects(
+  sendMessage(
+    'session-1',
+    'reconcile a timed-out diagram',
+    {
+      componentType: 'CLOUD_ARCHITECTURE',
+      generationAttemptId: 'attempt-408',
+    },
+  ),
+  error => {
+    assert.equal(error.status, 408)
+    assert.equal(error.ambiguousCompletion, true)
+    assert.equal(error.retryStrategy, 'resume_same_attempt')
+    assert.equal(error.requestId, 'attempt-408')
     return true
   },
 )
@@ -148,7 +184,73 @@ await assert.rejects(
     assert.equal(error.kind, 'application')
     assert.equal(error.retryable, true)
     assert.equal(error.ambiguousCompletion, true)
+    assert.equal(error.retryStrategy, 'resume_same_attempt')
     assert.equal(error.requestId, 'attempt-ambiguous')
+    return true
+  },
+)
+
+fetchImplementation = async () => ({
+  ok: false,
+  status: 422,
+  headers: { get: () => null },
+  json: async () => ({
+    request_id: 'textlabs-request',
+    detail: {
+      message: 'Planner output was invalid after one repair.',
+      retryable: false,
+      retry_strategy: 'start_fresh_attempt',
+      downstream_request_id: 'diagram-request',
+    },
+  }),
+})
+await assert.rejects(
+  sendMessage(
+    'session-1',
+    'recover with a fresh model run',
+    {
+      componentType: 'CUSTOM',
+      generationAttemptId: 'recovered-attempt',
+    },
+  ),
+  error => {
+    assert.equal(error.kind, 'http')
+    assert.equal(error.requestId, 'textlabs-request')
+    assert.equal(error.downstreamRequestId, 'diagram-request')
+    assert.equal(error.retryable, false)
+    assert.equal(error.retryStrategy, 'start_fresh_attempt')
+    return true
+  },
+)
+
+fetchImplementation = async () => ({
+  ok: true,
+  status: 200,
+  headers: {
+    get: name => name.toLowerCase() === 'x-request-id'
+      ? 'request-unreadable'
+      : null,
+  },
+  json: async () => {
+    throw new SyntaxError('Unexpected end of JSON input')
+  },
+})
+await assert.rejects(
+  sendMessage(
+    'session-1',
+    'reconcile an unreadable success envelope',
+    {
+      componentType: 'CUSTOM',
+      generationAttemptId: 'attempt-unreadable',
+    },
+  ),
+  error => {
+    assert.equal(error.kind, 'application')
+    assert.equal(error.status, 200)
+    assert.equal(error.retryable, true)
+    assert.equal(error.ambiguousCompletion, true)
+    assert.equal(error.retryStrategy, 'resume_same_attempt')
+    assert.equal(error.requestId, 'request-unreadable')
     return true
   },
 )
@@ -159,6 +261,13 @@ assert.equal(
     { kind: 'transport', retryable: true },
   )),
   true,
+)
+assert.equal(
+  new TextLabsRequestError(
+    'legacy transport failure',
+    { kind: 'transport', retryable: true },
+  ).retryStrategy,
+  'resume_same_attempt',
 )
 
 fetchImplementation = async (_url, init) => {

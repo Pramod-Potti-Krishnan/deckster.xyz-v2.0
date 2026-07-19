@@ -94,6 +94,7 @@ export function GenerationPanel({
   onElementTypeChange,
   isGenerating,
   error,
+  retryStrategy,
   slideIndex,
   presentationId,
   elementContext,
@@ -130,7 +131,10 @@ export function GenerationPanel({
   ) => {
     const registration = submitFnRef.current
     if (registration?.key !== panelTargetKey) return
-    submitIntentRef.current = { key: panelTargetKey, intent }
+    const effectiveIntent = (
+      intent === 'generate' && retryStrategy === 'resume_same_attempt'
+    ) ? 'retry' : intent
+    submitIntentRef.current = { key: panelTargetKey, intent: effectiveIntent }
     try {
       registration.submit()
     } finally {
@@ -138,7 +142,7 @@ export function GenerationPanel({
       // handleFormSubmit before their async generation work begins.
       submitIntentRef.current = null
     }
-  }, [panelTargetKey])
+  }, [panelTargetKey, retryStrategy])
 
   const handleResearchEnabledChange = useCallback((enabled: boolean) => {
     onResearchModeChange(enabled ? 'on' : 'off')
@@ -363,6 +367,7 @@ export function GenerationPanel({
             onSubmit={handleFooterGenerate}
             isGenerating={isGenerating}
             error={error}
+            retryStrategy={retryStrategy}
             placeholder={elementType === 'CHART' ? 'e.g., Show quarterly revenue growth for 2024' : undefined}
           />
         )}

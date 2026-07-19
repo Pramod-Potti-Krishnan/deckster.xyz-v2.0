@@ -224,6 +224,57 @@ type BackendValidationIssue = {
 }
 
 export type TextLabsRequestFailureKind = 'transport' | 'http' | 'application'
+export type TextLabsRetryStrategy =
+  | 'resume_same_attempt'
+  | 'start_fresh_attempt'
+  | 'do_not_retry'
+
+const TEXT_LABS_RETRY_STRATEGIES = new Set<TextLabsRetryStrategy>([
+  'resume_same_attempt',
+  'start_fresh_attempt',
+  'do_not_retry',
+])
+
+function failurePayloadRecords(payload: unknown): Record<string, unknown>[] {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return []
+  const body = payload as Record<string, unknown>
+  const records = [body]
+  for (const key of ['detail', 'error']) {
+    const nested = body[key]
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      records.push(nested as Record<string, unknown>)
+    }
+  }
+  return records
+}
+
+/** Read the additive retry contract while tolerating a camelCase proxy. */
+export function responseRetryStrategy(payload: unknown): TextLabsRetryStrategy | null {
+  for (const record of failurePayloadRecords(payload)) {
+    const value = record.retry_strategy ?? record.retryStrategy
+    if (
+      typeof value === 'string'
+      && TEXT_LABS_RETRY_STRATEGIES.has(value as TextLabsRetryStrategy)
+    ) {
+      return value as TextLabsRetryStrategy
+    }
+  }
+  return null
+}
+
+function responseBoolean(payload: unknown, snakeKey: string, camelKey: string): boolean {
+  return failurePayloadRecords(payload).some(record => (
+    record[snakeKey] === true || record[camelKey] === true
+  ))
+}
+
+function responseString(payload: unknown, snakeKey: string, camelKey: string): string | null {
+  for (const record of failurePayloadRecords(payload)) {
+    const value = record[snakeKey] ?? record[camelKey]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return null
+}
 
 /**
  * Preserve request identity and retry semantics across the browser boundary so
@@ -233,8 +284,10 @@ export class TextLabsRequestError extends Error {
   readonly kind: TextLabsRequestFailureKind
   readonly status: number | null
   readonly requestId: string | null
+  readonly downstreamRequestId: string | null
   readonly retryable: boolean
   readonly ambiguousCompletion: boolean
+  readonly retryStrategy: TextLabsRetryStrategy
 
   constructor(
     message: string,
@@ -242,8 +295,10 @@ export class TextLabsRequestError extends Error {
       kind: TextLabsRequestFailureKind
       status?: number | null
       requestId?: string | null
+      downstreamRequestId?: string | null
       retryable?: boolean
       ambiguousCompletion?: boolean
+      retryStrategy?: TextLabsRetryStrategy
       cause?: unknown
     },
   ) {
@@ -252,8 +307,23 @@ export class TextLabsRequestError extends Error {
     this.kind = options.kind
     this.status = options.status ?? null
     this.requestId = options.requestId ?? null
+    this.downstreamRequestId = options.downstreamRequestId ?? null
     this.retryable = options.retryable ?? false
     this.ambiguousCompletion = options.ambiguousCompletion ?? false
+    this.retryStrategy = options.retryStrategy ?? (
+      this.ambiguousCompletion
+      || this.kind === 'transport'
+      || (
+        this.kind === 'http'
+        && this.retryable
+        && this.status !== null
+        && [408, 502, 503, 504].includes(this.status)
+      )
+        ? 'resume_same_attempt'
+        : this.retryable
+          ? 'start_fresh_attempt'
+          : 'do_not_retry'
+    )
   }
 }
 
@@ -418,6 +488,8 @@ export async function sendMessage(
         kind: 'transport',
         requestId: options.generationAttemptId ?? null,
         retryable: true,
+        ambiguousCompletion: true,
+        retryStrategy: 'resume_same_attempt',
         cause: error,
       },
     )
@@ -425,24 +497,13 @@ export async function sendMessage(
 
   if (!response.ok) {
     const errorData = await readErrorResponse(response, signal)
-    const errorRecord = (
-      errorData
-      && typeof errorData === 'object'
-      && !Array.isArray(errorData)
-    )
-      ? errorData as Record<string, unknown>
-      : {}
-    const detailRecord = (
-      errorRecord.detail
-      && typeof errorRecord.detail === 'object'
-      && !Array.isArray(errorRecord.detail)
-    )
-      ? errorRecord.detail as Record<string, unknown>
-      : {}
     const retryable = (
       [408, 425, 429, 502, 503, 504].includes(response.status)
-      || errorRecord.retryable === true
-      || detailRecord.retryable === true
+      || responseBoolean(errorData, 'retryable', 'retryable')
+    )
+    const ambiguousCompletion = (
+      responseBoolean(errorData, 'ambiguous_completion', 'ambiguousCompletion')
+      || ([408, 502, 503, 504].includes(response.status) && retryable)
     )
     throw new TextLabsRequestError(
       formatBackendError(errorData, `API error: ${response.status}`),
@@ -452,18 +513,65 @@ export async function sendMessage(
         requestId: responseRequestId(response, errorData)
           ?? options.generationAttemptId
           ?? null,
+        downstreamRequestId: responseString(
+          errorData,
+          'downstream_request_id',
+          'downstreamRequestId',
+        ) ?? responseString(
+          errorData,
+          'downstream_generation_attempt_id',
+          'downstreamGenerationAttemptId',
+        ),
         retryable,
-        ambiguousCompletion: (
-          errorRecord.ambiguous_completion === true
-          || detailRecord.ambiguous_completion === true
+        ambiguousCompletion,
+        retryStrategy: responseRetryStrategy(errorData) ?? (
+          ambiguousCompletion
+            ? 'resume_same_attempt'
+            : retryable
+              ? 'start_fresh_attempt'
+              : 'do_not_retry'
         ),
       },
     )
   }
 
-  const data = await response.json()
+  let data: unknown
+  try {
+    data = await response.json()
+  } catch (error) {
+    if (
+      signal?.aborted
+      || (error instanceof Error && error.name === 'AbortError')
+    ) {
+      throw error instanceof DOMException
+        ? error
+        : new DOMException('Aborted', 'AbortError')
+    }
+    // A 2xx response with an unreadable body does not prove whether Text Labs
+    // completed the paid operation. Preserve the attempt identity so an
+    // explicit retry can reconcile with the in-flight/completed registry.
+    throw new TextLabsRequestError(
+      'The generation service returned an unreadable response.',
+      {
+        kind: 'application',
+        status: response.status,
+        requestId: responseRequestId(response)
+          ?? options.generationAttemptId
+          ?? null,
+        retryable: true,
+        ambiguousCompletion: true,
+        retryStrategy: 'resume_same_attempt',
+        cause: error,
+      },
+    )
+  }
   if (data && typeof data === 'object' && (data as Record<string, unknown>).success === false) {
-    const body = data as Record<string, unknown>
+    const retryable = responseBoolean(data, 'retryable', 'retryable')
+    const ambiguousCompletion = responseBoolean(
+      data,
+      'ambiguous_completion',
+      'ambiguousCompletion',
+    )
     throw new TextLabsRequestError(
       formatBackendError(data, 'Element generation failed'),
       {
@@ -471,8 +579,24 @@ export async function sendMessage(
         requestId: responseRequestId(response, data)
           ?? options.generationAttemptId
           ?? null,
-        retryable: body.retryable === true,
-        ambiguousCompletion: body.ambiguous_completion === true,
+        downstreamRequestId: responseString(
+          data,
+          'downstream_request_id',
+          'downstreamRequestId',
+        ) ?? responseString(
+          data,
+          'downstream_generation_attempt_id',
+          'downstreamGenerationAttemptId',
+        ),
+        retryable,
+        ambiguousCompletion,
+        retryStrategy: responseRetryStrategy(data) ?? (
+          ambiguousCompletion
+            ? 'resume_same_attempt'
+            : retryable
+              ? 'start_fresh_attempt'
+              : 'do_not_retry'
+        ),
       },
     )
   }

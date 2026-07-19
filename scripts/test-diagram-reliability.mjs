@@ -317,6 +317,71 @@ assert.equal(
   true,
   'Text Labs preserves an ambiguous downstream completion through its HTTP-200 envelope',
 )
+assert.equal(
+  generationRetry.diagramRetryStrategyForFailure({
+    kind: 'application',
+    retryable: true,
+    retryStrategy: 'start_fresh_attempt',
+  }),
+  'start_fresh_attempt',
+)
+assert.equal(
+  generationRetry.diagramRetryStrategyForFailure({
+    kind: 'transport',
+    retryable: true,
+  }),
+  'resume_same_attempt',
+  'legacy ambiguous transport failures resume their correlated attempt',
+)
+assert.equal(
+  generationRetry.diagramRetryStrategyForFailure({
+    kind: 'http',
+    retryable: false,
+  }),
+  'do_not_retry',
+)
+assert.equal(
+  generationRetry.shouldAutoStartFreshDiagramAttempt({
+    submitIntent: 'retry',
+    reusedAttempt: true,
+    retryStrategy: 'start_fresh_attempt',
+    freshAttemptAlreadyStarted: false,
+  }),
+  true,
+  'a recovered terminal model failure starts exactly one fresh attempt',
+)
+for (const input of [
+  {
+    submitIntent: 'generate',
+    reusedAttempt: true,
+    retryStrategy: 'start_fresh_attempt',
+    freshAttemptAlreadyStarted: false,
+  },
+  {
+    submitIntent: 'retry',
+    reusedAttempt: false,
+    retryStrategy: 'start_fresh_attempt',
+    freshAttemptAlreadyStarted: false,
+  },
+  {
+    submitIntent: 'retry',
+    reusedAttempt: true,
+    retryStrategy: 'resume_same_attempt',
+    freshAttemptAlreadyStarted: false,
+  },
+  {
+    submitIntent: 'retry',
+    reusedAttempt: true,
+    retryStrategy: 'start_fresh_attempt',
+    freshAttemptAlreadyStarted: true,
+  },
+]) {
+  assert.equal(
+    generationRetry.shouldAutoStartFreshDiagramAttempt(input),
+    false,
+    'initial, uncorrelated, resume, and repeated requests never auto-spend',
+  )
+}
 
 const viewerSource = fs.readFileSync(
   new URL('../components/presentation-viewer.tsx', import.meta.url),
@@ -362,15 +427,29 @@ const generationInputSource = fs.readFileSync(
   new URL('../components/generation-panel/shared/generation-input.tsx', import.meta.url),
   'utf8',
 )
-assert.match(generationInputSource, /onSubmit\('generate'\)/)
+assert.match(generationInputSource, /onSubmit\(primarySubmitIntent\)/)
 assert.match(generationInputSource, /onSubmit\('retry'\)/)
 assert.match(generationInputSource, /onClick=\{handleRetry\}/)
+assert.match(generationInputSource, /Check generation result/)
+assert.match(generationInputSource, /Try fresh generation/)
+assert.match(generationInputSource, /retryStrategy !== 'do_not_retry'/)
+assert.match(
+  generationInputSource,
+  /retryStrategy === 'resume_same_attempt' \? 'retry' : 'generate'/,
+)
 
 const generationPanelSource = fs.readFileSync(
   new URL('../components/generation-panel/index.tsx', import.meta.url),
   'utf8',
 )
-assert.match(generationPanelSource, /submitIntentRef\.current = \{ key: panelTargetKey, intent \}/)
+assert.match(
+  generationPanelSource,
+  /intent === 'generate' && retryStrategy === 'resume_same_attempt'/,
+)
+assert.match(
+  generationPanelSource,
+  /submitIntentRef\.current = \{ key: panelTargetKey, intent: effectiveIntent \}/,
+)
 assert.match(generationPanelSource, /await onGenerate\(formData, submitIntent\)/)
 
 const generationHookSource = fs.readFileSync(
@@ -381,6 +460,12 @@ assert.match(generationHookSource, /submitIntent !== 'retry'/)
 assert.match(generationHookSource, /diagramRetryCandidateForPreDispatch\(/)
 assert.match(generationHookSource, /resolveDiagramGenerationAttemptId\(\{/)
 assert.match(generationHookSource, /remainingDiagramBackendDeadlineMs\([\s\S]*browserDeadlineAtMs/)
+assert.match(generationHookSource, /shouldAutoStartFreshDiagramAttempt\(\{/)
+assert.match(generationHookSource, /freshAttemptAlreadyStarted: freshRecoveryAttemptStarted/)
+assert.match(generationHookSource, /generationAttemptId = freshGenerationAttemptId/)
+assert.match(generationHookSource, /activeGenerationKeysRef\.current\.has\(generationKey\)/)
+assert.match(generationHookSource, /activeGenerationKeysRef\.current\.add\(generationKey\)/)
+assert.match(generationHookSource, /activeGenerationKeysRef\.current\.delete\(generationKey\)/)
 assert.match(
   generationHookSource,
   /diagramRequestWasDispatched[\s\S]*isAmbiguousDiagramRequestFailure\(err\)/,
