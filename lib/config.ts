@@ -41,6 +41,8 @@ export const config = {
     // When true: Toolbar buttons open the GenerationPanel (Text Labs unified API)
     // When false: Toolbar buttons use legacy Elementor per-element endpoints
     useTextLabsGeneration: process.env.NEXT_PUBLIC_USE_TEXTLABS_GENERATION !== 'false',
+    // Saved profile -> element palette mapping is intentionally hidden until PK verifies preset palette shape.
+    enableElementAnotherTheme: process.env.NEXT_PUBLIC_ENABLE_ELEMENT_ANOTHER_THEME === 'true',
     slideComposerEnabled: process.env.NEXT_PUBLIC_SLIDE_COMPOSER_ENABLED === 'true',
     slideComposerAsyncEnabled: process.env.NEXT_PUBLIC_SLIDE_COMPOSER_ASYNC === 'true',
     slideComposerTraceEnabled: process.env.NEXT_PUBLIC_SLIDE_COMPOSER_TRACE_ENABLED === 'true',

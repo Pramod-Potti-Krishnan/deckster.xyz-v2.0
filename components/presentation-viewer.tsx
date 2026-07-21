@@ -31,11 +31,18 @@ import {
   Eye,
   Sun,
   Moon,
+  Tag,
+  Pentagon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
-import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
+import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
+import {
+  getLayoutViewerOrigin,
+  isTrustedLayoutViewerMessage,
+} from '@/lib/layout-viewer-messaging'
+import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
 import {
   isMatchingSlideComposeCommandResponse,
   restoreSlideViewerSelection,
@@ -82,7 +89,8 @@ import { getTemplateSaveGate } from '@/lib/template-save-gate'
 import {
   LAYOUT_SERVICE_COMMANDS,
   getCommandType,
-  isElementorCommand
+  isElementorCommand,
+  isLayoutViewerEvent,
 } from '@/lib/element-command-router'
 import {
   ELEMENTOR_BASE_URL,
@@ -91,6 +99,20 @@ import {
   ElementorPosition
 } from '@/lib/elementor-client'
 import { SlideBuildingLoader } from './slide-building-loader'
+import type { BuildThemeSelection } from '@/lib/theme-builder'
+import { IDLE_THEME_SYNC, type ThemeSyncState } from '@/lib/theme-sync'
+import {
+  isDiagramRendererStateEvent,
+  parseDiagramRendererStateUpdate,
+  type DiagramRendererStateUpdate,
+} from '@/lib/diagram-renderer-state'
+import {
+  createLayoutMutationId,
+  layoutMutationStateIsAmbiguous,
+  sendLayoutMutationWithReconciliation,
+} from '@/lib/layout-command-result'
+
+const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
 function scTrace(event: string, payload: Record<string, unknown>) {
   if (typeof window === 'undefined') return
@@ -125,6 +147,80 @@ export interface TextBoxFormatting {
   padding?: string
   border?: string
   borderRadius?: string
+  themeBindings?: Record<string, string> | null
+}
+
+export interface RefineElementRequest {
+  elementId: string
+  elementType: string
+  componentType?: string
+  slideIndex?: number
+  gridPosition?: {
+    gridRow?: string
+    gridColumn?: string
+    startCol?: number
+    startRow?: number
+    width?: number
+    height?: number
+  }
+  isBlank?: boolean
+  formatting?: Record<string, unknown>
+  properties?: Record<string, unknown>
+  themeVariantId?: string | null
+  themeBindings?: Record<string, string> | null
+  styleOwner?: string | null
+  themeVariantSource?: string | null
+  researchProvenance?: Record<string, unknown> | null
+  semanticRole?: import('@/types/textlabs').TextSemanticRole | null
+  slotName?: string | null
+  slotKind?: import('@/types/textlabs').TextSlotKind | null
+  accessoryType?: string | null
+  generationConfig?: Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null
+  citationsUsed?: Array<Record<string, unknown>> | null
+  metricsColorVariant?: string | null
+  diagramSubtype?: import('@/types/textlabs').TextLabsDiagramSubtype | null
+  zIndex?: number | null
+  content?: unknown
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+/**
+ * Layout versions have exposed persisted element metadata at both the event
+ * root and under properties/metadata. Accept every additive location while
+ * preferring the current direct contract so older saved charts can still
+ * hydrate Refine after a full-page reload.
+ */
+export function resolveRefineElementGenerationConfig(
+  payload: unknown,
+): Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null {
+  const root = recordValue(payload)
+  if (!root) return null
+  const properties = recordValue(root.properties)
+  const metadata = recordValue(root.metadata)
+  const propertyMetadata = recordValue(properties?.metadata)
+  const nestedData = recordValue(root.data)
+  const candidates = [
+    root.generationConfig,
+    root.generation_config,
+    properties?.generationConfig,
+    properties?.generation_config,
+    metadata?.generationConfig,
+    metadata?.generation_config,
+    propertyMetadata?.generationConfig,
+    propertyMetadata?.generation_config,
+    nestedData?.generationConfig,
+    nestedData?.generation_config,
+  ]
+  for (const candidate of candidates) {
+    const config = recordValue(candidate)
+    if (config) return config
+  }
+  return null
 }
 
 interface PresentationViewerProps {
@@ -144,13 +240,21 @@ interface PresentationViewerProps {
   isBlankPresentation?: boolean
   onVersionSwitch?: (version: 'blank' | 'strawman' | 'final') => void
   // Text box panel callbacks
-  onTextBoxSelected?: (elementId: string, formatting: TextBoxFormatting | null) => void
+  onTextBoxSelected?: (
+    elementId: string,
+    formatting: TextBoxFormatting | null,
+    componentType?: string,
+  ) => void
   onTextBoxDeselected?: () => void
   // Element panel callbacks (Image, Table, Chart, Infographic, Diagram)
   onElementSelected?: (elementId: string, elementType: ElementType, properties: ElementProperties) => void
   onElementDeselected?: () => void
   // Text Labs Generation Panel - opens generation panel for the given element type
   onOpenGenerationPanel?: (type: string) => void  // Uses string to avoid coupling to TextLabsComponentType
+  onRefineElementRequested?: (payload: RefineElementRequest) => void
+  buildThemeSelection?: BuildThemeSelection
+  themeSync?: ThemeSyncState
+  onBuildThemeChange?: (selection: BuildThemeSelection) => void
   // Element moved/resized on canvas (for position sync with GenerationPanel)
   onElementMoved?: (elementId: string, gridRow: string, gridColumn: string) => void
   // Bottom toolbar items (moved from header)
@@ -188,7 +292,7 @@ interface PresentationViewerProps {
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
-  }) => void
+  } | null) => void
   onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
 }
 
@@ -227,15 +331,6 @@ interface SlideInfo {
 
 // Viewer origin for postMessage communication
 const VIEWER_ORIGIN = new URL(LAYOUT_SERVICE_URL).origin
-
-function getIframeOrigin(iframe: HTMLIFrameElement | null): string {
-  if (!iframe?.src) return VIEWER_ORIGIN
-  try {
-    return new URL(iframe.src).origin
-  } catch {
-    return VIEWER_ORIGIN
-  }
-}
 
 /**
  * Send command to iframe via postMessage (cross-origin safe)
@@ -277,7 +372,7 @@ function sendCommand(
       return
     }
 
-    const targetOrigin = getIframeOrigin(iframe)
+    const targetOrigin = getLayoutViewerOrigin(iframe, VIEWER_ORIGIN)
     let settled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
@@ -290,8 +385,7 @@ function sendCommand(
     }
 
     const handler = (event: MessageEvent) => {
-      // Only accept messages from viewer origin
-      if (event.origin !== targetOrigin) return
+      if (!isTrustedLayoutViewerMessage(event, iframe, VIEWER_ORIGIN)) return
 
       const matches = requiresStrictResponse
         ? isMatchingSlideComposeCommandResponse(event.data, {
@@ -356,7 +450,37 @@ function postCommand(
   action: string,
   params?: Record<string, any>,
 ) {
-  iframe?.contentWindow?.postMessage({ action, params, requestId: createViewerRequestId() }, getIframeOrigin(iframe))
+  iframe?.contentWindow?.postMessage(
+    { action, params, requestId: createViewerRequestId() },
+    getLayoutViewerOrigin(iframe, VIEWER_ORIGIN),
+  )
+}
+
+const DEFAULT_LAYOUT_COMMAND_TIMEOUT_MS = 5_000
+const READ_LAYOUT_COMMAND_TIMEOUT_MS = 8_000
+const MUTATING_LAYOUT_COMMAND_TIMEOUT_MS = 30_000
+const CITED_UPSERT_LAYOUT_COMMAND_TIMEOUT_MS = 45_000
+
+const LAYOUT_ELEMENT_COMMAND_TIMEOUTS: Record<string, number> = {
+  getElementGeometry: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+  getSlideGenerationContext: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+  getTemplateSlotCatalog: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+  getElementThemeVariants: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+  refreshElementThemeMetadata: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+  setElementGenerationState: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+
+  insertTextBox: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertTable: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertImage: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertChart: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertInfographic: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertDiagram: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  insertShape: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  deleteElement: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+  deleteTextBox: MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+
+  upsertSemanticElement: CITED_UPSERT_LAYOUT_COMMAND_TIMEOUT_MS,
+  upsertCitedElement: CITED_UPSERT_LAYOUT_COMMAND_TIMEOUT_MS,
 }
 
 function waitForViewerSettle(delayMs: number): Promise<void> {
@@ -385,6 +509,10 @@ export function PresentationViewer({
   onApiReady,
   onComposeApiReady,
   onOpenGenerationPanel,
+  onRefineElementRequested,
+  buildThemeSelection = DEFAULT_BUILD_THEME_SELECTION,
+  themeSync = IDLE_THEME_SYNC,
+  onBuildThemeChange,
   onElementMoved,
   toolbarPortalTarget,
   toolbarOffset = 0,
@@ -432,8 +560,11 @@ export function PresentationViewer({
   const [showThumbnails, setShowThumbnails] = useState(true) // Show by default
   const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
   const [iframeReady, setIframeReady] = useState(false)
+  const [loadedApprovedNavigationUrl, setLoadedApprovedNavigationUrl] = useState<string | null>(null)
   const [pollingFailureCount, setPollingFailureCount] = useState(0)
   const lastSlideInfoRef = useRef<{ slide: number; total: number; visualTotal: number } | null>(null)
+  const diagramStateTimersRef = useRef<Map<string, number>>(new Map())
+  const pendingDiagramStatesRef = useRef<Map<string, DiagramRendererStateUpdate>>(new Map())
   const onSlideChangeRef = useRef(onSlideChange)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   // Delete dialog state
@@ -444,6 +575,8 @@ export function PresentationViewer({
   const [selectedSlideIndices, setSelectedSlideIndices] = useState<number[]>([])
   // Track when CRUD operations have modified slides (invalidates stale slideStructure)
   const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
+  const [isSlideMutationPending, setIsSlideMutationPending] = useState(false)
+  const slideMutationPendingRef = useRef(false)
   const toolbarDropdownPortalContainer = isFullscreen ? containerRef.current ?? undefined : undefined
   // Text box selection state
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
@@ -451,11 +584,18 @@ export function PresentationViewer({
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPresentationSettings, setShowPresentationSettings] = useState(false)
   const [showThemePanel, setShowThemePanel] = useState(false)
+  const viewerUrlDecision = useMemo(
+    () => evaluateLayoutViewerUrl(presentationUrl, LAYOUT_VIEWER_URL_POLICY),
+    [presentationUrl],
+  )
+  const approvedPresentationUrl = viewerUrlDecision.status === 'allowed'
+    ? viewerUrlDecision.url
+    : null
   const templateSaveGate = getTemplateSaveGate({
     templateBuilderEnabled,
     sessionId,
     deckOwnerSessionId,
-    presentationUrl,
+    presentationUrl: approvedPresentationUrl,
     presentationId,
     finalPresentationUrl,
     templateSavePresentationId,
@@ -472,6 +612,17 @@ export function PresentationViewer({
   // Layout Service honors ?showNotes=true/false on the iframe URL; in
   // fullscreen we always force false regardless of this state.
   const [isNotesActive, setIsNotesActive] = useState(false)
+  const approvedIframeNavigationUrl = useMemo(() => {
+    if (!approvedPresentationUrl) return null
+    const url = new URL(approvedPresentationUrl)
+    url.searchParams.set('showNotes', String(!isFullscreen && isNotesActive))
+    return url.toString()
+  }, [approvedPresentationUrl, isFullscreen, isNotesActive])
+  const viewerIsReady = Boolean(
+    iframeReady &&
+    approvedIframeNavigationUrl &&
+    loadedApprovedNavigationUrl === approvedIframeNavigationUrl
+  )
   // Theme — read from next-themes (canonical theme source, shared with
   // the profile-menu's "Dark Mode" toggle). Used inside the Mode dropdown.
   const { resolvedTheme, setTheme } = useTheme()
@@ -504,21 +655,43 @@ export function PresentationViewer({
     }
   }, [slideStructure])
 
-  // Reset iframe ready state when presentation URL changes
+  // Reset readiness for every exact iframe navigation, including notes and
+  // fullscreen query-string rewrites.
   useEffect(() => {
-    debugLog('🔄 Presentation URL changed, resetting iframe state')
+    debugLog('🔄 Presentation iframe navigation changed, resetting readiness')
     setIframeReady(false)
+    setLoadedApprovedNavigationUrl(null)
     setPollingFailureCount(0)
     lastSlideInfoRef.current = null
-  }, [presentationUrl])
+  }, [approvedIframeNavigationUrl])
+
+  useEffect(() => {
+    if (viewerUrlDecision.status !== 'blocked') return
+
+    setIframeReady(false)
+    setLoadedApprovedNavigationUrl(null)
+    console.error('[LayoutViewerPolicy] Blocked presentation viewer URL', {
+      source: 'presentation_viewer',
+      origin: viewerUrlDecision.origin,
+      reason: viewerUrlDecision.reason,
+      allowedOrigins: LAYOUT_VIEWER_URL_POLICY.allowedOrigins,
+    })
+  }, [viewerUrlDecision])
 
   // Handle iframe load event
-  const handleIframeLoad = useCallback(() => {
+  const handleIframeLoad = useCallback((event: React.SyntheticEvent<HTMLIFrameElement>) => {
+    const loadedUrl = event.currentTarget.src
+    if (!approvedIframeNavigationUrl || loadedUrl !== approvedIframeNavigationUrl) {
+      setIframeReady(false)
+      setLoadedApprovedNavigationUrl(null)
+      return
+    }
     debugLog('✅ Iframe loaded and ready')
+    setLoadedApprovedNavigationUrl(loadedUrl)
     setIframeReady(true)
     setPollingFailureCount(0) // Reset failure count on load
     lastSlideInfoRef.current = null
-  }, [])
+  }, [approvedIframeNavigationUrl])
 
   // Extract slide thumbnails from slideStructure
   // Use totalSlides when: CRUD ops occurred, OR slideStructure is stale/missing
@@ -603,10 +776,7 @@ export function PresentationViewer({
     if (!iframeRef.current) return
     const nextActive = !isGridActive
     setIsGridActive(nextActive)
-    iframeRef.current.contentWindow?.postMessage(
-      { action: nextActive ? 'showGridOverlay' : 'hideGridOverlay' },
-      VIEWER_ORIGIN
-    )
+    postCommand(iframeRef.current, nextActive ? 'showGridOverlay' : 'hideGridOverlay')
     debugLog(`📐 Grid overlay: ${nextActive ? 'ON' : 'OFF'}`)
   }, [isGridActive])
 
@@ -666,7 +836,7 @@ export function PresentationViewer({
   // Poll for slide info updates via postMessage (with exponential backoff)
   useEffect(() => {
     // Don't poll if iframe isn't ready
-    if (!iframeReady) {
+    if (!viewerIsReady) {
       debugLog('⏸️ Polling paused - iframe not ready yet')
       return
     }
@@ -683,7 +853,7 @@ export function PresentationViewer({
     const backoffInterval = Math.min(baseInterval * Math.pow(2, pollingFailureCount), 10000)
 
     const interval = setInterval(async () => {
-      if (!iframeRef.current || !iframeReady) return
+      if (!iframeRef.current || !viewerIsReady) return
 
       try {
         const hasComposeJobs = composeJobs.length > 0
@@ -727,7 +897,7 @@ export function PresentationViewer({
     }, backoffInterval)
 
     return () => clearInterval(interval)
-  }, [composeJobs.length, iframeReady, pollingFailureCount, slideCount, totalSlides])
+  }, [composeJobs.length, pollingFailureCount, slideCount, totalSlides, viewerIsReady])
 
   // Force save handler (for Ctrl+S and retry on error)
   // IMPORTANT: Must be declared BEFORE the keyboard shortcuts useEffect that references it
@@ -866,7 +1036,11 @@ export function PresentationViewer({
 
   // Add slide handler
   const handleAddSlide = useCallback(async (layoutId: SlideLayoutType) => {
-    if (!iframeRef.current) {
+    // State updates are asynchronous; the ref closes the same-tick duplicate
+    // click window before SlideLayoutPicker can repaint its disabled state.
+    if (slideMutationPendingRef.current) return
+    const iframe = iframeRef.current
+    if (!iframe) {
       toast({
         title: 'Error',
         description: 'Presentation not ready',
@@ -875,26 +1049,65 @@ export function PresentationViewer({
       return
     }
 
+    slideMutationPendingRef.current = true
+    setIsSlideMutationPending(true)
+    let committedSlideNumber: number | null = null
     try {
-      const result = await sendCommand(iframeRef.current, 'addSlide', {
-        layout: layoutId,
-        position: currentSlide // Insert after current slide (0-based in iframe)
-      })
+      const mutationId = createLayoutMutationId('add-slide')
+      const result = await sendLayoutMutationWithReconciliation(
+        (action, params) => sendCommand(
+          iframe,
+          action,
+          params,
+          {
+            timeoutMs: action === 'getElementMutationReceipt'
+              ? READ_LAYOUT_COMMAND_TIMEOUT_MS
+              : MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
+          },
+        ),
+        'addSlide',
+        {
+          layout: layoutId,
+          position: currentSlide, // Insert after current slide (0-based in iframe)
+        },
+        mutationId,
+        { attempts: 12, delayMs: 250 },
+      )
 
       if (result.success) {
         // Backend sends slide_index and slide_count directly (not nested in data)
-        const newSlideIndex = result.slide_index ?? result.data?.slideIndex ?? currentSlide
-        const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides + 1
+        const resultData = recordValue(result.data)
+        const candidateSlideIndex = result.slide_index
+          ?? result.slideIndex
+          ?? resultData?.slide_index
+          ?? resultData?.slideIndex
+        const candidateSlideCount = result.slide_count
+          ?? result.slideCount
+          ?? resultData?.slide_count
+          ?? resultData?.slideCount
+        const newSlideIndex = typeof candidateSlideIndex === 'number' && Number.isFinite(candidateSlideIndex)
+          ? candidateSlideIndex
+          : currentSlide
+        const newTotal = typeof candidateSlideCount === 'number' && Number.isFinite(candidateSlideCount)
+          ? candidateSlideCount
+          : totalSlides + 1
+        const newSlideNumber = newSlideIndex + 1
+        committedSlideNumber = newSlideNumber
 
         setTotalSlides(newTotal)
-        setCurrentSlide(newSlideIndex + 1) // Update local state (1-based)
+        setCurrentSlide(newSlideNumber) // Update local state (1-based)
+        // The parent owns the slide index used by Add Element. Publish the
+        // authoritative addSlide result before awaiting navigation/edit-mode
+        // commands so an immediate Add Blank → Chart cannot target the prior
+        // slide while the 3-second viewer poll is still stale.
+        onSlideChangeRef.current?.(newSlideNumber)
         setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
 
         // Navigate iframe to the new slide (PowerPoint/Keynote behavior)
-        await sendCommand(iframeRef.current, 'goToSlide', { index: newSlideIndex })
+        await sendCommand(iframe, 'goToSlide', { index: newSlideIndex })
 
         // Activate element borders for editing (like pressing 'B')
-        await sendCommand(iframeRef.current, 'toggleBorderHighlight')
+        await sendCommand(iframe, 'toggleBorderHighlight')
 
         // Auto-enter edit mode after adding a slide
         await ensureEditMode()
@@ -909,10 +1122,21 @@ export function PresentationViewer({
     } catch (error) {
       console.error('Error adding slide:', error)
       toast({
-        title: 'Error',
-        description: 'Failed to add slide. Please try again.',
+        title: committedSlideNumber
+          ? 'Slide added; viewer sync delayed'
+          : layoutMutationStateIsAmbiguous(error)
+            ? 'Check slide result'
+            : 'Error',
+        description: committedSlideNumber
+          ? `Slide ${committedSlideNumber} was added. Reload if the viewer did not navigate to it; do not add it again.`
+          : layoutMutationStateIsAmbiguous(error)
+            ? 'The slide acknowledgement was delayed. Reload before trying again so a completed slide is not duplicated.'
+            : 'Failed to add slide. Please try again.',
         variant: 'destructive'
       })
+    } finally {
+      slideMutationPendingRef.current = false
+      setIsSlideMutationPending(false)
     }
   }, [currentSlide, totalSlides, toast, ensureEditMode])
 
@@ -1169,6 +1393,7 @@ export function PresentationViewer({
     if (iframeRef.current) {
       try {
         const result = await sendCommand(iframeRef.current, 'insertTable', {
+          componentType: 'TABLE',
           slideIndex: currentSlide - 1,
           gridRow: '5/15',
           gridColumn: '3/30',
@@ -1235,6 +1460,7 @@ export function PresentationViewer({
     if (iframeRef.current) {
       try {
         const result = await sendCommand(iframeRef.current, 'insertChart', {
+          componentType: 'CHART',
           slideIndex: currentSlide - 1,
           gridRow: '3/16',
           gridColumn: '2/20',
@@ -1291,6 +1517,7 @@ export function PresentationViewer({
     if (iframeRef.current) {
       try {
         const result = await sendCommand(iframeRef.current, 'insertImage', {
+          componentType: 'IMAGE',
           slideIndex: currentSlide - 1,
           gridRow: '4/14',
           gridColumn: '8/24',
@@ -1349,6 +1576,7 @@ export function PresentationViewer({
     if (iframeRef.current) {
       try {
         const result = await sendCommand(iframeRef.current, 'insertInfographic', {
+          componentType: 'INFOGRAPHIC',
           slideIndex: currentSlide - 1,
           gridRow: '3/16',
           gridColumn: '2/31',
@@ -1408,6 +1636,7 @@ export function PresentationViewer({
     if (iframeRef.current) {
       try {
         const result = await sendCommand(iframeRef.current, 'insertDiagram', {
+          componentType: 'DIAGRAM',
           slideIndex: currentSlide - 1,
           gridRow: '3/16',
           gridColumn: '4/28',
@@ -1450,6 +1679,7 @@ export function PresentationViewer({
 
     try {
       const result = await sendCommand(iframeRef.current!, 'insertTextBox', {
+        componentType: 'TEXT_BOX',
         slideIndex: currentSlide - 1, // Convert to 0-based
         gridRow: '6/12',      // Center position
         gridColumn: '8/24',
@@ -1577,10 +1807,7 @@ export function PresentationViewer({
     if (!iframeRef.current) return
 
     // Send refreshSlide command to iframe - Layout Service will reload current slide
-    iframeRef.current.contentWindow?.postMessage(
-      { action: 'refreshSlide' },
-      VIEWER_ORIGIN
-    )
+    postCommand(iframeRef.current, 'refreshSlide')
     debugLog('[Elementor] Triggered iframe refresh after auto-injection')
   }, [])
 
@@ -1595,7 +1822,8 @@ export function PresentationViewer({
     // Direct Layout Service command - send to iframe
     if (commandType === 'layout-service') {
       debugLog(`[ElementCommand] Layout Service: ${action}`, params)
-      return sendCommand(iframeRef.current, action, params)
+      const timeoutMs = LAYOUT_ELEMENT_COMMAND_TIMEOUTS[action] ?? DEFAULT_LAYOUT_COMMAND_TIMEOUT_MS
+      return sendCommand(iframeRef.current, action, params, { timeoutMs })
     }
 
     // Elementor command - call Elementor API (auto-injects into Layout Service)
@@ -1853,20 +2081,27 @@ export function PresentationViewer({
 
   // Expose APIs to parent component when iframe is ready
   useEffect(() => {
-    if (iframeReady && onApiReady) {
-      onApiReady({
-        getSelectionInfo: handleGetSelectionInfo,
-        updateSectionContent: handleUpdateSectionContent,
-        sendTextBoxCommand: handleSendTextBoxCommand,
-        sendElementCommand: handleSendElementCommand
-      })
+    if (!onApiReady) return
+
+    if (!viewerIsReady) {
+      onApiReady(null)
+      return
     }
-  }, [iframeReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand])
+
+    onApiReady({
+      getSelectionInfo: handleGetSelectionInfo,
+      updateSectionContent: handleUpdateSectionContent,
+      sendTextBoxCommand: handleSendTextBoxCommand,
+      sendElementCommand: handleSendElementCommand
+    })
+
+    return () => onApiReady(null)
+  }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand])
 
   useEffect(() => {
     if (!onComposeApiReady) return
 
-    if (!iframeReady) {
+    if (!viewerIsReady) {
       onComposeApiReady(null)
       return
     }
@@ -1886,7 +2121,7 @@ export function PresentationViewer({
 
     return () => onComposeApiReady(null)
   }, [
-    iframeReady,
+    viewerIsReady,
     onComposeApiReady,
     handleComposePlaceholderAdd,
     handleComposeSlideReconcile,
@@ -2055,39 +2290,116 @@ export function PresentationViewer({
     }
   }, [isFullscreen])
 
-  // Listen for save status events from iframe
+  // Listen for save status/refine events from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== VIEWER_ORIGIN) return
+      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
+      const type = event.data?.type
+      if (typeof type !== 'string' || !isLayoutViewerEvent(type)) return
+
+      if (isDiagramRendererStateEvent(type)) {
+        const update = parseDiagramRendererStateUpdate(event.data)
+        if (!update) return
+        pendingDiagramStatesRef.current.set(update.elementId, update)
+        const previousTimer = diagramStateTimersRef.current.get(update.elementId)
+        if (previousTimer !== undefined) window.clearTimeout(previousTimer)
+        if (update.action === 'taskColumnResize' || update.action === 'rowLabelResize') {
+          // Resize-end is an explicit terminal renderer event. Persist it
+          // immediately so a fast Regenerate preflight cannot beat debounce.
+          diagramStateTimersRef.current.delete(update.elementId)
+          pendingDiagramStatesRef.current.delete(update.elementId)
+          postCommand(iframeRef.current, 'updateDiagramRendererState', update)
+          return
+        }
+        const timer = window.setTimeout(() => {
+          diagramStateTimersRef.current.delete(update.elementId)
+          const pending = pendingDiagramStatesRef.current.get(update.elementId)
+          pendingDiagramStatesRef.current.delete(update.elementId)
+          if (!pending) return
+          postCommand(iframeRef.current, 'updateDiagramRendererState', pending)
+        }, 250)
+        diagramStateTimersRef.current.set(update.elementId, timer)
+        return
+      }
 
       // Handle save status updates from auto-save system
-      if (event.data.type === 'save_status') {
+      if (type === 'save_status' || type === 'saveStatusChanged') {
         const status = event.data.status as SaveStatus
         setSaveStatus(status)
         debugLog(`💾 Save status: ${status}`)
       }
+
+      if (
+        type === 'refineElementRequested' &&
+        event.data.elementId &&
+        (event.data.componentType || event.data.elementType)
+      ) {
+        onRefineElementRequested?.({
+          elementId: String(event.data.elementId),
+          elementType: String(event.data.elementType || event.data.componentType),
+          componentType: event.data.componentType ? String(event.data.componentType) : undefined,
+          slideIndex: typeof event.data.slideIndex === 'number' ? event.data.slideIndex : undefined,
+          gridPosition: event.data.gridPosition,
+          isBlank: Boolean(event.data.isBlank),
+          formatting: event.data.formatting,
+          properties: event.data.properties,
+          themeVariantId: typeof event.data.themeVariantId === 'string'
+            ? event.data.themeVariantId
+            : typeof event.data.theme_variant_id === 'string'
+              ? event.data.theme_variant_id
+              : null,
+          themeBindings: event.data.themeBindings || event.data.theme_bindings,
+          styleOwner: event.data.styleOwner || event.data.style_owner || null,
+          themeVariantSource: event.data.themeVariantSource || event.data.theme_variant_source || null,
+          researchProvenance: event.data.researchProvenance || event.data.research_provenance || null,
+          semanticRole: event.data.semanticRole || event.data.semantic_role || null,
+          slotName: event.data.slotName || event.data.slot_name || null,
+          slotKind: event.data.slotKind || event.data.slot_kind || null,
+          accessoryType: event.data.accessoryType || event.data.accessory_type || null,
+          generationConfig: resolveRefineElementGenerationConfig(event.data),
+          citationsUsed: event.data.citationsUsed || event.data.citations_used || null,
+          metricsColorVariant: event.data.metricsColorVariant || event.data.metrics_color_variant || null,
+          diagramSubtype: event.data.diagramSubtype || event.data.diagram_subtype
+            || event.data.diagramType || event.data.diagram_type || null,
+          zIndex: typeof (event.data.zIndex ?? event.data.z_index) === 'number'
+            ? Number(event.data.zIndex ?? event.data.z_index)
+            : null,
+          content: event.data.content,
+        })
+      }
     }
 
     window.addEventListener('message', handleMessage)
-    return () => window.removeEventListener('message', handleMessage)
-  }, [])
+    return () => {
+      window.removeEventListener('message', handleMessage)
+      diagramStateTimersRef.current.forEach(timer => window.clearTimeout(timer))
+      diagramStateTimersRef.current.clear()
+      pendingDiagramStatesRef.current.clear()
+    }
+  }, [onRefineElementRequested])
 
   // Listen for text box selection events from iframe
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (event.origin !== VIEWER_ORIGIN) return
+      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       // Handle text box selection - auto-enter edit mode
       if (event.data.type === 'textBoxSelected') {
         const elementId = event.data.elementId
         const formatting = event.data.formatting as TextBoxFormatting | null
+        const componentType = typeof event.data.componentType === 'string'
+          ? event.data.componentType
+          : undefined
 
         // Auto-enter edit mode when user clicks on a text box
         await ensureEditMode()
 
         setSelectedTextBoxId(elementId)
-        onTextBoxSelected?.(elementId, formatting)
-        debugLog(`📦 Text box selected: ${elementId}`)
+        onTextBoxSelected?.(elementId, formatting, componentType)
+        void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
+          console.warn('[PresentationViewer] Failed to bring selected text box to front:', error)
+        })
+        debugLog(`📦 Text box selected: ${elementId} (${componentType || 'TEXT_BOX'})`)
       }
 
       // Handle text box deselection
@@ -2105,7 +2417,7 @@ export function PresentationViewer({
   // Listen for element selection events from iframe (Image, Chart, Table, Infographic, Diagram)
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (event.origin !== VIEWER_ORIGIN) return
+      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       // Handle element selection - auto-enter edit mode and show format panel
       if (event.data.type === 'elementSelected') {
@@ -2118,6 +2430,9 @@ export function PresentationViewer({
 
         // Notify parent to show the appropriate format panel
         onElementSelected?.(elementId, elementType, properties)
+        void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
+          console.warn('[PresentationViewer] Failed to bring selected element to front:', error)
+        })
         debugLog(`🎯 Element selected: ${elementType} (${elementId})`)
       }
 
@@ -2137,7 +2452,7 @@ export function PresentationViewer({
     if (!onElementMoved) return
 
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== VIEWER_ORIGIN) return
+      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       if (event.data.type === 'elementMoved' || event.data.action === 'elementMoved') {
         const elementId = event.data.elementId as string
@@ -2181,43 +2496,55 @@ export function PresentationViewer({
           {
             label: 'Table',
             icon: Grid2x2,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('TABLE') : handleInsertTable(3, 3),
           },
           {
             label: 'Metrics',
             icon: TrendingUp,
-            disabled: !presentationUrl || !onOpenGenerationPanel,
+            disabled: !viewerIsReady || !onOpenGenerationPanel,
             action: () => onOpenGenerationPanel?.('METRICS'),
           },
           {
             label: 'Chart',
             icon: BarChart3,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('CHART') : handleInsertChart({ type: 'bar' }),
           },
           {
             label: 'Text Box',
             icon: Type,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('TEXT_BOX') : handleInsertTextBox(),
           },
           {
             label: 'Image',
             icon: Image,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('IMAGE') : handleInsertImage(),
+          },
+          {
+            label: 'Icon / Label',
+            icon: Tag,
+            disabled: !viewerIsReady || !onOpenGenerationPanel,
+            action: () => onOpenGenerationPanel?.('ICON_LABEL'),
+          },
+          {
+            label: 'Shape',
+            icon: Pentagon,
+            disabled: !viewerIsReady || !onOpenGenerationPanel,
+            action: () => onOpenGenerationPanel?.('SHAPE'),
           },
           {
             label: 'Infographic',
             icon: LayoutGrid,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('INFOGRAPHIC') : handleInsertInfographic(),
           },
           {
             label: 'Diagram',
             icon: GitBranch,
-            disabled: !presentationUrl,
+            disabled: !viewerIsReady,
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('DIAGRAM') : handleInsertDiagram(),
           },
         ]
@@ -2239,7 +2566,7 @@ export function PresentationViewer({
               {/* Add Slide */}
               <SlideLayoutPicker
                 onAddSlide={handleAddSlide}
-                disabled={!presentationUrl || templateModeOn}
+                disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
                 className="min-w-[80px] justify-center"
               />
 
@@ -2247,7 +2574,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    disabled={!presentationUrl || templateModeOn}
+                    disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
                     className={cn(toolbarButtonClass, toolbarBtnBase, "min-w-[96px]")}
                     title="Add an element"
                   >
@@ -2284,6 +2611,7 @@ export function PresentationViewer({
                 >
                   <DropdownMenuTrigger asChild>
                     <button
+                      disabled={!viewerIsReady}
                       className={cn(toolbarButtonClass, toolbarBtnBase)}
                       title="Template options"
                     >
@@ -2363,7 +2691,7 @@ export function PresentationViewer({
               {/* Theme — 4th primary build action; sits with its build siblings */}
               <button
                 onClick={() => setShowThemePanel(true)}
-                disabled={!presentationUrl || templateModeOn}
+                disabled={!viewerIsReady || templateModeOn}
                 className={cn(toolbarButtonClass, toolbarBtnBase)}
                 title="Presentation theme"
               >
@@ -2378,6 +2706,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
+                    disabled={!viewerIsReady}
                     className={cn(toolbarButtonClass, toolbarBtnQuiet)}
                     title="Editing mode + theme"
                   >
@@ -2427,6 +2756,7 @@ export function PresentationViewer({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
+                    disabled={!viewerIsReady}
                     className={cn(toolbarButtonClass, toolbarBtnQuiet)}
                     title="Display options"
                   >
@@ -2485,7 +2815,7 @@ export function PresentationViewer({
               ) : saveStatus === 'unsaved' || saveStatus === 'error' ? (
                 <button
                   onClick={handleSaveChanges}
-                  disabled={isSaving || !presentationUrl}
+                  disabled={isSaving || !viewerIsReady}
                   className={cn(toolbarButtonClass, "bg-amber-500/20 text-amber-700 hover:bg-amber-500/30 dark:text-amber-200")}
                   title="Save changes now"
                 >
@@ -2495,7 +2825,7 @@ export function PresentationViewer({
               ) : null}
 
               {/* Version switcher — only surfaces once a tagged strawman/final version exists */}
-              {(strawmanPreviewUrl || finalPresentationUrl) && (
+              {viewerIsReady && (strawmanPreviewUrl || finalPresentationUrl) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -2549,7 +2879,7 @@ export function PresentationViewer({
               {/* Play */}
               <button
                 onClick={handleFullscreen}
-                disabled={!presentationUrl}
+                disabled={!viewerIsReady}
                 className={cn(toolbarButtonClass, toolbarBtnBase)}
                 title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
               >
@@ -2562,7 +2892,7 @@ export function PresentationViewer({
               </button>
 
               {/* Download Controls */}
-              {downloadControls}
+              {viewerIsReady ? downloadControls : null}
             </div>
           </div>
         )
@@ -2626,7 +2956,7 @@ export function PresentationViewer({
                 </button>
               </div>
             )}
-            {presentationUrl ? (
+            {approvedPresentationUrl ? (
               <div
                 className={cn(
                   isFullscreen ? '' : 'max-w-7xl',
@@ -2658,21 +2988,9 @@ export function PresentationViewer({
                 )}
                 <div className="relative z-10 h-full w-full overflow-hidden rounded-sm">
                   <iframe
+                  key={approvedIframeNavigationUrl}
                   ref={iframeRef}
-                  src={(() => {
-                    // showNotes: true when the user has the Notes toggle on
-                    // AND we're not in fullscreen presentation mode.
-                    // Layout Service honors ?showNotes=true|false on the
-                    // iframe URL (see docs/BACKEND_REQUEST_THUMBNAILS_AND_NOTES.md).
-                    const showNotesInIframe = !isFullscreen && isNotesActive
-                    try {
-                      const u = new URL(presentationUrl, window.location.href)
-                      u.searchParams.set('showNotes', String(showNotesInIframe))
-                      return u.toString()
-                    } catch {
-                      return presentationUrl
-                    }
-                  })()}
+                  src={approvedIframeNavigationUrl || undefined}
                   onLoad={handleIframeLoad}
                   className={cn(
                     "w-full h-full border-0 transition duration-200",
@@ -2694,6 +3012,21 @@ export function PresentationViewer({
                   />
                 )}
                 </div>
+              </div>
+            ) : viewerUrlDecision.status === 'blocked' ? (
+              <div
+                role="alert"
+                className="flex max-w-xl flex-col items-center justify-center rounded-lg border border-amber-300 bg-amber-50 p-8 text-center text-amber-950 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+              >
+                <p className="text-base font-semibold">Presentation blocked in this environment</p>
+                <p className="mt-2 text-sm opacity-80">
+                  This presentation points to a Layout Service origin that is not approved for this deployment.
+                </p>
+                {viewerUrlDecision.origin && (
+                  <code className="mt-3 max-w-full break-all rounded bg-black/5 px-2 py-1 text-xs dark:bg-white/10">
+                    {viewerUrlDecision.origin}
+                  </code>
+                )}
               </div>
             ) : (
               <div className="flex items-center justify-center text-gray-400">
@@ -2839,9 +3172,11 @@ export function PresentationViewer({
       <ThemePanel
         isOpen={showThemePanel}
         onClose={() => setShowThemePanel(false)}
-        iframeRef={iframeRef}
-        viewerOrigin={VIEWER_ORIGIN}
         presentationId={presentationId}
+        buildThemeSelection={buildThemeSelection}
+        themeSync={themeSync}
+        selectionLocked={templateSelectionLocked}
+        onBuildThemeChange={onBuildThemeChange}
       />
     </div>
   )

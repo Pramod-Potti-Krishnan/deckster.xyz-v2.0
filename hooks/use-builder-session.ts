@@ -4,7 +4,13 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
+import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
+import { recoverRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy'
 import { type DirectorMessage, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
+import {
+  type DirectorReconnectStatus,
+  shouldRequestBuilderSessionConnection,
+} from '@/lib/director-reconnect-policy'
 
 interface UseBuilderSessionParams {
   user: any
@@ -20,7 +26,8 @@ interface UseBuilderSessionParams {
   // WebSocket methods
   connected: boolean
   connecting: boolean
-  connect: () => void
+  reconnectStatus: DirectorReconnectStatus
+  ensureConnected: () => boolean
   disconnect: () => void
   clearMessages: () => void
   restoreMessages: (messages: DirectorMessage[], sessionState: any) => void
@@ -45,7 +52,8 @@ export function useBuilderSession({
   persistence,
   connected,
   connecting,
-  connect,
+  reconnectStatus,
+  ensureConnected,
   disconnect,
   clearMessages,
   restoreMessages,
@@ -62,7 +70,10 @@ export function useBuilderSession({
 
   const currentSessionIdRef = useRef(currentSessionId)
 
-  const [isLoadingSession, setIsLoadingSession] = useState(false)
+  // A URL-owned session must be considered loading on the first render. React
+  // effects share that render's state snapshot, so setting this only inside the
+  // async initializer lets the later connection-owner effect run too early.
+  const [isLoadingSession, setIsLoadingSession] = useState(() => Boolean(currentSessionId))
   const [isResumedSession, setIsResumedSession] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
 
@@ -97,6 +108,7 @@ export function useBuilderSession({
   const persistedMessageIdsRef = useRef<Set<string>>(new Set())
   const userMessageContentMapRef = useRef<Map<string, string>>(new Map())
   const answeredActionsRef = useRef<Set<string>>(new Set())
+  const connectionRequestedSessionRef = useRef<string | null>(null)
 
   // Keep currentSessionIdRef in sync
   useEffect(() => {
@@ -322,9 +334,12 @@ export function useBuilderSession({
               hasTitleFromPresentationRef.current = true
             }
 
-            const sessionState = {
-              presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl,
-              presentationId: session.finalPresentationId || session.strawmanPresentationId,
+            const restoredSessionState = {
+              presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl || session.blankPresentationUrl,
+              presentationId: session.finalPresentationId || session.strawmanPresentationId || session.blankPresentationId,
+              blankPresentationUrl: session.blankPresentationUrl,
+              blankPresentationId: session.blankPresentationId,
+              isBlankPresentation: Boolean(session.blankPresentationUrl),
               strawmanPreviewUrl: session.strawmanPreviewUrl,
               strawmanPresentationId: session.strawmanPresentationId,
               finalPresentationUrl: session.finalPresentationUrl,
@@ -333,6 +348,59 @@ export function useBuilderSession({
               slideStructure: (session as any).stateCache?.slideStructure || null,
               currentStage: session.currentStage,
               activeVersion: (session as any).stateCache?.activeVersion || null
+            }
+            const {
+              state: sessionState,
+              recovered: recoveredViewerUrls,
+              blocked: blockedViewerUrls,
+            } = await recoverRestoredLayoutViewerUrls(
+              restoredSessionState,
+              LAYOUT_VIEWER_URL_POLICY,
+              async (presentationId) => {
+                const response = await fetch(
+                  `${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(presentationId)}`,
+                  { cache: 'no-store' },
+                )
+                return response.ok
+              },
+            )
+
+            if (recoveredViewerUrls.length > 0) {
+              const normalizedSessionUrls: Record<string, string> = {}
+              for (const recovered of recoveredViewerUrls) {
+                if (
+                  recovered.field === 'blankPresentationUrl' ||
+                  recovered.field === 'strawmanPreviewUrl' ||
+                  recovered.field === 'finalPresentationUrl'
+                ) {
+                  normalizedSessionUrls[recovered.field] = recovered.url
+                }
+              }
+
+              if (Object.keys(normalizedSessionUrls).length > 0) {
+                try {
+                  const response = await fetch(`/api/sessions/${encodeURIComponent(session.id)}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(normalizedSessionUrls),
+                  })
+                  if (!response.ok) {
+                    console.warn('Failed to persist recovered Layout viewer URLs:', response.status)
+                  }
+                } catch (error) {
+                  // The recovered in-memory state is still safe to use for this
+                  // load; a later reload can retry the id-verified normalization.
+                  console.warn('Failed to persist recovered Layout viewer URLs:', error)
+                }
+              }
+            }
+
+            if (blockedViewerUrls.length > 0) {
+              toast({
+                title: 'Saved presentation unavailable here',
+                description: 'This session points to a Layout Service from another environment, so its viewer was not loaded.',
+                variant: 'destructive',
+              })
             }
 
             if (session.messages && session.messages.length > 0) {
@@ -420,7 +488,11 @@ export function useBuilderSession({
               setUserMessages([])
               userMessageIdsRef.current.clear()
               userMessageContentMapRef.current.clear()
-              const hasPresentationState = Boolean(sessionState.finalPresentationUrl || sessionState.strawmanPreviewUrl)
+              const hasPresentationState = Boolean(
+                sessionState.presentationUrl ||
+                sessionState.finalPresentationUrl ||
+                sessionState.strawmanPreviewUrl
+              )
               if (hasPresentationState) {
                 restoreMessages([], sessionState)
                 debugLog('📊 Restored presentation state without DB messages:', {
@@ -595,17 +667,51 @@ export function useBuilderSession({
     router.push(`/builder?session_id=${newSessionId}`)
   }, [router, clearMessages, disconnect, setUserMessages, setIsUnsavedSession, setIsResumedSession, setCurrentSessionId, setSessionStoreName])
 
-  // Auto-connect WebSocket
+  // The session layer owns exactly one initial connection request for each
+  // adopted session. After that handoff, the WebSocket hook exclusively owns
+  // close/backoff/offline/exhaustion recovery; connection-state renders must
+  // never create a second transport retry path.
   useEffect(() => {
-    if (currentSessionId && !isLoadingSession && !connecting && !connected) {
-      const sessionType = isResumedSession ? 'RESUMED' : 'NEW'
-      debugLog(`🔌 Auto-connecting WebSocket for ${sessionType} session:`, currentSessionId)
-      connect()
-    } else if (isUnsavedSession && !isLoadingSession && !connecting && !connected) {
-      debugLog('🔌 Auto-connecting WebSocket for UNSAVED session (no DB session yet)')
-      connect()
+    const sessionKey = currentSessionId || (isUnsavedSession ? 'unsaved-session' : null)
+
+    // A mount-level connection may already own this session. Latch it so a
+    // later transport close cannot be mistaken for initial session adoption.
+    if (sessionKey && (connected || connecting)) {
+      connectionRequestedSessionRef.current = sessionKey
+      return
     }
-  }, [currentSessionId, isLoadingSession, connecting, connected, connect, isResumedSession, isUnsavedSession])
+
+    if (!shouldRequestBuilderSessionConnection({
+      sessionKey,
+      lastRequestedSessionKey: connectionRequestedSessionRef.current,
+      loading: isLoadingSession || isAuthLoading || !user,
+      connected,
+      connecting,
+      reconnectStatus,
+    })) {
+      return
+    }
+
+    connectionRequestedSessionRef.current = sessionKey
+    const sessionType = isResumedSession ? 'RESUMED' : (isUnsavedSession ? 'UNSAVED' : 'NEW')
+    debugLog(`🔌 Requesting initial WebSocket connection for ${sessionType} session:`, sessionKey)
+    if (!ensureConnected()) {
+      // A mount-level attempt may have won the same commit. Its next state
+      // render will latch the key; otherwise leave initial ownership retryable.
+      connectionRequestedSessionRef.current = null
+    }
+  }, [
+    currentSessionId,
+    isLoadingSession,
+    isAuthLoading,
+    connecting,
+    connected,
+    ensureConnected,
+    isResumedSession,
+    isUnsavedSession,
+    reconnectStatus,
+    user,
+  ])
 
   // Persist bot messages received from WebSocket
   useEffect(() => {

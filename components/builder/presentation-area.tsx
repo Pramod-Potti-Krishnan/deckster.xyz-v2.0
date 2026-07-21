@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { PresentationViewer, TextBoxFormatting, type SlideComposeViewerApi } from "@/components/presentation-viewer"
+import { PresentationViewer, TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi } from "@/components/presentation-viewer"
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
 import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-strip"
@@ -11,6 +11,8 @@ import { ElementType, ElementProperties } from '@/types/elements'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/hooks/use-templates'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import type { BuildThemeSelection } from '@/lib/theme-builder'
+import type { ThemeSyncState } from '@/lib/theme-sync'
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -19,15 +21,13 @@ export function handleBlankElementClick(
     isBlankElement: (id: string) => boolean
     getElement: (id: string) => BlankElementInfo | undefined
   },
-  generationPanel: {
-    openPanelForElement: (componentType: any, elementId: string) => void
-  }
+  openBlankGenerationPanel: (componentType: any, elementId: string) => void,
 ): boolean {
   if (blankElements.isBlankElement(elementId)) {
     const info = blankElements.getElement(elementId)
     if (info) {
       if (info.status === 'generating') return true // no panel during generation
-      generationPanel.openPanelForElement(info.componentType, elementId)
+      openBlankGenerationPanel(info.componentType, elementId)
     }
     return true
   }
@@ -54,7 +54,11 @@ export interface PresentationAreaProps {
   onApiReady: (apis: any) => void
   onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
   // Text box selection
-  onTextBoxSelected: (elementId: string, formatting: TextBoxFormatting | null) => void
+  onTextBoxSelected: (
+    elementId: string,
+    formatting: TextBoxFormatting | null,
+    componentType?: string,
+  ) => void
   onTextBoxDeselected: () => void
   // Element selection
   onElementSelected: (elementId: string, elementType: ElementType, properties: ElementProperties) => void
@@ -66,11 +70,16 @@ export interface PresentationAreaProps {
     updatePosition: (elementId: string, startCol: number, startRow: number, width: number, height: number) => void
   }
   generationPanel: {
-    openPanelForElement: (componentType: any, elementId: string) => void
+    isGenerating: boolean
   }
+  onOpenBlankGenerationPanel: (componentType: any, elementId: string) => void
   // Generation panel handler (for toolbar)
   onOpenGenerationPanel?: (type: string) => void
+  onRefineElementRequested?: (payload: RefineElementRequest) => void
   onEditModeChange?: (isEditing: boolean) => void
+  buildThemeSelection: BuildThemeSelection
+  themeSync: ThemeSyncState
+  onBuildThemeChange: (selection: BuildThemeSelection) => void
   // Bottom toolbar items (moved from header)
   connected: boolean
   connecting: boolean
@@ -123,8 +132,13 @@ export function PresentationArea({
   onElementDeselected,
   blankElements,
   generationPanel,
+  onOpenBlankGenerationPanel,
   onOpenGenerationPanel,
+  onRefineElementRequested,
   onEditModeChange,
+  buildThemeSelection,
+  themeSync,
+  onBuildThemeChange,
   connected,
   connecting,
   toolbarPortalTarget,
@@ -183,19 +197,23 @@ export function PresentationArea({
               console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
               onEditModeChange?.(isEditing)
             }}
-            onTextBoxSelected={(elementId, formatting) => {
-              if (handleBlankElementClick(elementId, blankElements, generationPanel)) return
-              onTextBoxSelected(elementId, formatting)
+            onTextBoxSelected={(elementId, formatting, componentType) => {
+              if (handleBlankElementClick(elementId, blankElements, onOpenBlankGenerationPanel)) return
+              onTextBoxSelected(elementId, formatting, componentType)
             }}
             onTextBoxDeselected={onTextBoxDeselected}
             onElementSelected={(elementId, elementType, properties) => {
-              if (handleBlankElementClick(elementId, blankElements, generationPanel)) return
+              if (handleBlankElementClick(elementId, blankElements, onOpenBlankGenerationPanel)) return
               onElementSelected(elementId, elementType, properties)
             }}
             onElementDeselected={onElementDeselected}
             onApiReady={onApiReady}
             onComposeApiReady={onComposeApiReady}
             onOpenGenerationPanel={onOpenGenerationPanel}
+            onRefineElementRequested={onRefineElementRequested}
+            buildThemeSelection={buildThemeSelection}
+            themeSync={themeSync}
+            onBuildThemeChange={onBuildThemeChange}
             connected={connected}
             connecting={connecting}
             onElementMoved={(elementId, gridRow, gridColumn) => {
@@ -220,7 +238,7 @@ export function PresentationArea({
             templateBuilderEnabled={templateBuilderEnabled}
             onSelectTemplate={onSelectTemplate}
             onTemplateOptimizationFailed={onTemplateOptimizationFailed}
-            templateSelectionLocked={templateSelectionLocked}
+            templateSelectionLocked={templateSelectionLocked || generationPanel.isGenerating}
             templateModeOn={templateModeOn}
             onTemplateModeChange={onTemplateModeChange}
             templateModeAvailable={templateModeAvailable}

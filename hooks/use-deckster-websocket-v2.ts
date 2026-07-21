@@ -4,11 +4,23 @@ import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
+import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import {
   buildSlideComposeProgressStatus,
   normalizeSlideComposeSocketFrame,
 } from '@/lib/slide-compose-async';
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
+import { guardDirectorLayoutUrlMessage } from '@/lib/director-layout-url-ingress';
+import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client';
+import { evaluateLayoutViewerUrl, sanitizeRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy';
+import {
+  DIRECTOR_HEARTBEAT_INTERVAL_MS,
+  DIRECTOR_PONG_TIMEOUT_MS,
+  DIRECTOR_RECONNECT_STABILITY_MS,
+  type DirectorReconnectStatus,
+  resolveDirectorReconnectPlan,
+  shouldReconnectDirectorOnOnline,
+} from '@/lib/director-reconnect-policy';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -16,7 +28,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_ready' | 'slide_failed';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_ready' | 'slide_failed' | 'theme_sync';
   payload: any;
 }
 
@@ -33,6 +45,7 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'slide_progress',
   'slide_ready',
   'slide_failed',
+  'theme_sync',
 ]);
 
 function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
@@ -298,7 +311,21 @@ export interface SlideComposeFailed {
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideComposeReady | SlideComposeFailed;
+export interface ThemeSyncMessage {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'theme_sync';
+  payload: {
+    request_id: string;
+    status: 'syncing' | 'applied' | 'failed';
+    presentation_id?: string | null;
+    theme_session_id?: string | null;
+    error?: string | null;
+  };
+}
+
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage;
 
 export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
   return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
@@ -324,7 +351,31 @@ export interface UserMessage {
     element_overrides?: TemplateOverrides;
     action_value?: string;
     action_label?: string;
+    // Customized-slide workflow. Director latches this source before the
+    // generated strawman/final presentation replaces the live blank deck.
+    manual_deck?: ManualDeckContext;
+    // One-shot key seeded by POST /api/sessions/{id}/handoff. Director uses it
+    // to suppress navigation/reconnect retries of the pending build request.
+    handoff_idempotency_key?: string;
   };
+}
+
+export interface SendUserMessageOptions {
+  deepResearch?: boolean;
+  webSearch?: boolean;
+  extendedGeneration?: boolean;
+  fileUpload?: boolean;
+  storeName?: string | null;
+  useKnowledgeGraph?: boolean;
+  theme?: BuildThemeSelection;
+  // Template Builder (reuse): set when a saved template is locked in.
+  templateMode?: boolean;
+  templateId?: string | null;
+  elementOverrides?: TemplateOverrides;
+  actionValue?: string;
+  actionLabel?: string;
+  manualDeck?: ManualDeckContext;
+  handoffIdempotencyKey?: string;
 }
 
 export interface ControlMessage {
@@ -332,11 +383,22 @@ export interface ControlMessage {
   data?: Record<string, never>;
 }
 
+export interface SetThemeMessage {
+  type: 'set_theme';
+  data: {
+    request_id: string;
+    theme: BuildThemeSelection;
+    presentation_id: string;
+  };
+}
+
 // Hook state
 export interface UseDecksterWebSocketV2State {
   connected: boolean;
   connecting: boolean;
   connectionState: 'disconnected' | 'connecting' | 'connected' | 'error';
+  reconnectStatus: DirectorReconnectStatus;
+  reconnectAttempt: number;
   sessionId: string;
   userId: string;
   error: Error | null;
@@ -422,25 +484,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }
 
-  // FIXED: Allow session ID updates only when creating a new database session
-  // Prevents session ID from changing once a session is loaded from URL/database
-  if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
-    debugLog('🔄 [WEBSOCKET-SESSION] Session ID update requested', {
-      old: sessionIdRef.current,
-      new: options.existingSessionId,
-      source: 'builder page (existingSessionId prop)'
-    });
-
-    // Always update to the existingSessionId from the builder page
-    // The builder page is responsible for maintaining session continuity
-    // This allows: initial connection with URL session ID or upgrading unsaved → saved
-    sessionIdRef.current = options.existingSessionId;
-
-    debugLog('✅ [WEBSOCKET-SESSION] Session ID updated', {
-      sessionId: sessionIdRef.current
-    });
-  }
-
   // FIXED: Initialize user ID ONLY with authenticated user (no temporary IDs)
   // This prevents user ID from changing during session and breaking continuity
   if (!userIdRef.current && (user?.id || user?.email)) {
@@ -486,8 +529,22 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Try to restore state from cache first (before creating default state)
   const getInitialState = (): UseDecksterWebSocketV2State => {
-    const cached = sessionCache.getCachedState();
-    if (cached && sessionCache.isCacheValid()) {
+    const rawCached = sessionCache.getCachedState();
+    if (rawCached && sessionCache.isCacheValid()) {
+      const { state: cached, blocked: blockedViewerUrls } = sanitizeRestoredLayoutViewerUrls(
+        rawCached,
+        LAYOUT_VIEWER_URL_POLICY,
+      );
+
+      if (blockedViewerUrls.length > 0) {
+        console.error('[LayoutViewerPolicy] Blocked restored viewer URLs', {
+          source: 'session_storage',
+          sessionId: sessionIdRef.current,
+          blocked: blockedViewerUrls,
+          allowedOrigins: LAYOUT_VIEWER_URL_POLICY.allowedOrigins,
+        });
+      }
+
       debugLog('⚡ Initializing from sessionStorage cache:', {
         messages: cached.messages?.length || 0,
         blank: !!cached.blankPresentationUrl,
@@ -497,24 +554,42 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
       // Determine activeVersion: use cached value if available, otherwise infer from URLs
       // Priority: final > strawman > blank
-      const cachedActiveVersion = (cached.activeVersion as 'blank' | 'strawman' | 'final') ||
-        (cached.finalPresentationUrl ? 'final' :
-         (cached.strawmanPreviewUrl ? 'strawman' :
-          (cached.blankPresentationUrl ? 'blank' : 'final')));
+      const requestedActiveVersion = cached.activeVersion as 'blank' | 'strawman' | 'final' | undefined;
+      const requestedVersionIsAvailable =
+        (requestedActiveVersion === 'final' && Boolean(cached.finalPresentationUrl)) ||
+        (requestedActiveVersion === 'strawman' && Boolean(cached.strawmanPreviewUrl)) ||
+        (requestedActiveVersion === 'blank' && Boolean(cached.blankPresentationUrl));
+      const cachedActiveVersion = requestedVersionIsAvailable
+        ? requestedActiveVersion!
+        : (cached.finalPresentationUrl ? 'final' :
+          (cached.strawmanPreviewUrl ? 'strawman' :
+            (cached.blankPresentationUrl ? 'blank' : 'final')));
+      const cachedDisplayUrl = cachedActiveVersion === 'blank'
+        ? cached.blankPresentationUrl
+        : cachedActiveVersion === 'strawman'
+          ? cached.strawmanPreviewUrl
+          : cached.finalPresentationUrl;
+      const cachedDisplayId = cachedActiveVersion === 'blank'
+        ? cached.blankPresentationId
+        : cachedActiveVersion === 'strawman'
+          ? cached.strawmanPresentationId
+          : cached.finalPresentationId;
 
       return {
         connected: false,
         connecting: false,
         connectionState: 'disconnected',
+        reconnectStatus: 'idle',
+        reconnectAttempt: 0,
         sessionId: sessionIdRef.current,
         userId: userIdRef.current,
         error: null,
         messages: cached.messages || [],
-        presentationUrl: cached.presentationUrl || null,
+        presentationUrl: cachedDisplayUrl || cached.presentationUrl || null,
         strawmanPreviewUrl: cached.strawmanPreviewUrl || null,
         finalPresentationUrl: cached.finalPresentationUrl || null,
         deckOwnerSessionId: sessionIdRef.current,
-        presentationId: cached.presentationId || null,
+        presentationId: cachedDisplayUrl ? cachedDisplayId || null : cached.presentationId || null,
         strawmanPresentationId: cached.strawmanPresentationId || null,
         finalPresentationId: cached.finalPresentationId || null,
         // NEW: Blank presentation state (Builder V2)
@@ -539,6 +614,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       connected: false,
       connecting: false,
       connectionState: 'disconnected',
+      reconnectStatus: 'idle',
+      reconnectAttempt: 0,
       sessionId: sessionIdRef.current,
       userId: userIdRef.current,
       error: null,
@@ -625,78 +702,239 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const reconnectStabilityTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectAttemptsRef = useRef(0);
+  const pendingReconnectAttemptRef = useRef<number | null>(null);
+  const pendingSessionReconnectRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
   const hasConnectedRef = useRef(false);
+  const startConnectionRef = useRef<() => boolean>(() => false);
+  const manualDisconnectRef = useRef(false);
+  const connectionDesiredRef = useRef(options.autoConnect !== false);
+  const reconnectPausedForOfflineRef = useRef(false);
+  const reconnectStatusRef = useRef<DirectorReconnectStatus>('idle');
+  const browserOnlineRef = useRef(
+    typeof navigator === 'undefined' || navigator.onLine !== false,
+  );
+  const reconnectOnErrorRef = useRef(options.reconnectOnError === true);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const pongDeadlineTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const awaitingPongRef = useRef(false);
   const lastCloseDiagnosticAtRef = useRef(0);
   const suppressedCloseDiagnosticsRef = useRef(0);
   const maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
   const reconnectDelay = options.reconnectDelay ?? 3000;
 
-  // Reconnect when session ID changes (e.g., after database session creation)
-  useEffect(() => {
-    if (options.existingSessionId && options.existingSessionId !== sessionIdRef.current) {
-      debugLog('🔄 Reconnecting with new session ID:', options.existingSessionId);
-      sessionIdRef.current = options.existingSessionId;
-      if (wsRef.current) {
-        wsRef.current.close();
-        // Will auto-reconnect via existing reconnection logic
+  reconnectOnErrorRef.current = options.reconnectOnError === true;
+
+  const setReconnectStatus = useCallback((
+    reconnectStatus: DirectorReconnectStatus,
+    reconnectAttempt = reconnectAttemptsRef.current,
+  ) => {
+    reconnectStatusRef.current = reconnectStatus;
+    setState(prev => {
+      if (
+        prev.reconnectStatus === reconnectStatus &&
+        prev.reconnectAttempt === reconnectAttempt
+      ) {
+        return prev;
       }
+      return {
+        ...prev,
+        reconnectStatus,
+        reconnectAttempt,
+      };
+    });
+  }, []);
+
+  const clearReconnectTimer = useCallback((preservePendingAttempt = false) => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = undefined;
     }
-  }, [options.existingSessionId]);
-  const HEARTBEAT_INTERVAL = 15000; // Send ping every 15 seconds
-
-  // Start heartbeat to keep connection alive during long operations
-  const startHeartbeat = useCallback(() => {
-    // Clear any existing heartbeat first
-    if (heartbeatIntervalRef.current) {
-      clearInterval(heartbeatIntervalRef.current);
+    if (!preservePendingAttempt) {
+      pendingReconnectAttemptRef.current = null;
     }
+  }, []);
 
-    debugLog('💓 Starting heartbeat (ping every 15s)');
-    heartbeatIntervalRef.current = setInterval(() => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        try {
-          // Send raw "ping" text to keep connection alive (protocol spec)
-          // Backend expects raw text "ping", not JSON object
-          wsRef.current.send('ping');
-          debugLog('💓 Ping sent');
-        } catch (error) {
-          console.error('❌ Failed to send ping:', error);
-        }
-      }
-    }, HEARTBEAT_INTERVAL);
-  }, [HEARTBEAT_INTERVAL]);
+  const clearReconnectStabilityTimer = useCallback(() => {
+    if (!reconnectStabilityTimeoutRef.current) return;
+    clearTimeout(reconnectStabilityTimeoutRef.current);
+    reconnectStabilityTimeoutRef.current = undefined;
+  }, []);
 
-  // Stop heartbeat
+  const clearPongDeadline = useCallback(() => {
+    if (pongDeadlineTimeoutRef.current) {
+      clearTimeout(pongDeadlineTimeoutRef.current);
+      pongDeadlineTimeoutRef.current = undefined;
+    }
+    awaitingPongRef.current = false;
+  }, []);
+
+  // Stop heartbeat and its liveness deadline.
   const stopHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
       debugLog('💔 Stopping heartbeat');
       clearInterval(heartbeatIntervalRef.current);
       heartbeatIntervalRef.current = undefined;
     }
-  }, []);
+    clearPongDeadline();
+  }, [clearPongDeadline]);
 
-  // Connect to WebSocket
-  const connect = useCallback(() => {
+  const acknowledgeHeartbeat = useCallback((socket: WebSocket) => {
+    if (wsRef.current !== socket) return;
+    clearPongDeadline();
+  }, [clearPongDeadline]);
+
+  // Start heartbeat to keep the connection alive and retire half-open sockets.
+  const startHeartbeat = useCallback((socket: WebSocket) => {
+    stopHeartbeat();
+    debugLog('💓 Starting heartbeat (ping every 15s)');
+    heartbeatIntervalRef.current = setInterval(() => {
+      if (wsRef.current !== socket || socket.readyState !== WebSocket.OPEN) return;
+
+      try {
+        // Backend expects raw text "ping", not a JSON frame.
+        socket.send('ping');
+        awaitingPongRef.current = true;
+        if (pongDeadlineTimeoutRef.current) {
+          clearTimeout(pongDeadlineTimeoutRef.current);
+        }
+        pongDeadlineTimeoutRef.current = setTimeout(() => {
+          pongDeadlineTimeoutRef.current = undefined;
+          if (
+            wsRef.current !== socket ||
+            socket.readyState !== WebSocket.OPEN ||
+            !awaitingPongRef.current
+          ) {
+            return;
+          }
+
+          awaitingPongRef.current = false;
+          console.warn('💔 Director heartbeat timed out; retiring half-open WebSocket');
+          try {
+            socket.close(4000, 'Director heartbeat timeout');
+          } catch (error) {
+            console.error('❌ Failed to close heartbeat-timeout socket:', error);
+          }
+        }, DIRECTOR_PONG_TIMEOUT_MS);
+        debugLog('💓 Ping sent');
+      } catch (error) {
+        console.error('❌ Failed to send ping:', error);
+        try {
+          socket.close(4000, 'Director heartbeat send failed');
+        } catch {
+          // The close handler or browser network state will drive recovery.
+        }
+      }
+    }, DIRECTOR_HEARTBEAT_INTERVAL_MS);
+  }, [stopHeartbeat]);
+
+  const scheduleReconnect = useCallback((trigger: string) => {
+    if (reconnectTimeoutRef.current) {
+      debugLog('⏳ Director reconnect is already scheduled; ignoring duplicate close', { trigger });
+      return;
+    }
+
+    const plan = resolveDirectorReconnectPlan({
+      reconnectEnabled: reconnectOnErrorRef.current,
+      manualDisconnect: manualDisconnectRef.current,
+      connectionDesired: connectionDesiredRef.current,
+      online: browserOnlineRef.current,
+      attempts: reconnectAttemptsRef.current,
+      maxAttempts: maxReconnectAttempts,
+      baseDelayMs: reconnectDelay,
+    });
+
+    if (plan.kind === 'pause') {
+      reconnectPausedForOfflineRef.current = true;
+      setReconnectStatus('paused_offline');
+      debugLog('⏸️ Director reconnect paused while browser is offline', {
+        trigger,
+        attempts: reconnectAttemptsRef.current,
+      });
+      return;
+    }
+
+    if (plan.kind === 'skip') {
+      if (plan.reason === 'exhausted') {
+        setReconnectStatus('exhausted', reconnectAttemptsRef.current);
+      } else if (plan.reason === 'manual' || plan.reason === 'not_desired') {
+        setReconnectStatus('manual', reconnectAttemptsRef.current);
+      }
+      debugLog('⏹️ Director reconnect not scheduled', {
+        trigger,
+        reason: plan.reason,
+        attempts: reconnectAttemptsRef.current,
+      });
+      return;
+    }
+
+    debugLog(`🔄 Reconnecting in ${plan.delayMs}ms (attempt ${plan.attempt}/${maxReconnectAttempts})`, {
+      trigger,
+    });
+    pendingReconnectAttemptRef.current = plan.attempt;
+    setReconnectStatus('scheduled', plan.attempt);
+    reconnectTimeoutRef.current = setTimeout(() => {
+      reconnectTimeoutRef.current = undefined;
+
+      // Going offline while the timer was pending must not consume an attempt.
+      if (!browserOnlineRef.current) {
+        reconnectPausedForOfflineRef.current = true;
+        pendingReconnectAttemptRef.current = plan.attempt;
+        setReconnectStatus('paused_offline', plan.attempt);
+        debugLog('⏸️ Director reconnect timer paused before launch because browser is offline');
+        return;
+      }
+      if (
+        manualDisconnectRef.current ||
+        !connectionDesiredRef.current ||
+        !reconnectOnErrorRef.current
+      ) {
+        pendingReconnectAttemptRef.current = null;
+        return;
+      }
+
+      pendingReconnectAttemptRef.current = null;
+      reconnectAttemptsRef.current = plan.attempt;
+      setReconnectStatus('idle', plan.attempt);
+      startConnectionRef.current();
+    }, plan.delayMs);
+  }, [maxReconnectAttempts, reconnectDelay, setReconnectStatus]);
+
+  // Start one transport attempt. Initial/session/manual ownership and transport
+  // retry ownership call this through separate entry points below.
+  const startConnection = useCallback((): boolean => {
+    if (!browserOnlineRef.current) {
+      reconnectPausedForOfflineRef.current = true;
+      setReconnectStatus('paused_offline', reconnectAttemptsRef.current);
+      debugLog('⏸️ Cannot connect to Director while browser is offline; waiting for online');
+      setState(prev => ({
+        ...prev,
+        connected: false,
+        connecting: false,
+        connectionState: 'disconnected',
+      }));
+      return false;
+    }
+
     // FIXED: Prevent connection if user is not authenticated
     // This ensures we always connect with a real user ID, never temporary ones
     if (!userIdRef.current) {
       debugLog('⚠️ Cannot connect: user not authenticated yet');
-      return;
+      return false;
     }
 
     // Prevent multiple simultaneous connection attempts
     if (isConnectingRef.current) {
       debugLog('⏳ Connection attempt already in progress, skipping...');
-      return;
+      return false;
     }
 
     if (wsRef.current?.readyState === WebSocket.OPEN ||
         wsRef.current?.readyState === WebSocket.CONNECTING) {
       debugLog('✅ WebSocket already connected or connecting');
-      return;
+      return false;
     }
 
     isConnectingRef.current = true;
@@ -743,6 +981,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
+      const started = true;
       const isCurrentSocket = () => wsRef.current === ws;
 
       ws.onopen = () => {
@@ -757,12 +996,24 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         }
 
         debugLog('✅ Connected to Director v3.4');
-        reconnectAttemptsRef.current = 0;
+        clearReconnectTimer();
+        reconnectPausedForOfflineRef.current = false;
+        setReconnectStatus('idle', reconnectAttemptsRef.current);
+        clearReconnectStabilityTimer();
+        if (reconnectAttemptsRef.current > 0) {
+          reconnectStabilityTimeoutRef.current = setTimeout(() => {
+            reconnectStabilityTimeoutRef.current = undefined;
+            if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return;
+            reconnectAttemptsRef.current = 0;
+            setReconnectStatus('idle', 0);
+            debugLog('✅ Director connection remained stable; retry budget reset');
+          }, DIRECTOR_RECONNECT_STABILITY_MS);
+        }
         isConnectingRef.current = false;
         hasConnectedRef.current = true;
 
         // Start heartbeat to keep connection alive
-        startHeartbeat();
+        startHeartbeat(ws);
 
         setState(prev => ({
           ...prev,
@@ -780,6 +1031,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         }
 
         try {
+          // Any inbound frame proves that the transport is alive. Raw pong is
+          // still handled separately because it has no JSON envelope.
+          acknowledgeHeartbeat(ws);
+
           // Handle raw "pong" response from heartbeat ping
           if (event.data === 'pong') {
             debugLog('💓 Pong received');
@@ -791,7 +1046,24 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             return;
           }
 
-          const message = parsedMessage as DirectorMessage;
+          const guardedMessage = guardDirectorLayoutUrlMessage(
+            parsedMessage as DirectorMessage & { payload: Record<string, any> },
+            LAYOUT_VIEWER_URL_POLICY,
+          );
+          const message = guardedMessage.message as DirectorMessage;
+          const blockedIngress = guardedMessage.ingress?.status === 'blocked'
+            ? guardedMessage.ingress
+            : null;
+
+          if (blockedIngress) {
+            console.error('[LayoutViewerPolicy] Blocked Director viewer URL', {
+              source: 'director_message',
+              messageType: message.type,
+              field: blockedIngress.field,
+              origin: blockedIngress.origin,
+              reason: blockedIngress.reason,
+            });
+          }
 
           // Add client-side timestamp for message ordering
           const messageWithTimestamp = {
@@ -815,12 +1087,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               message.type !== 'slide_progress' &&
               message.type !== 'slide_ready' &&
               message.type !== 'slide_failed' &&
+              message.type !== 'theme_sync' &&
               !isDuplicate;
 
             const newState = {
               ...prev,
               messages: shouldAddToMessages ? [...prev.messages, messageWithTimestamp] : prev.messages,
             };
+
+            if (blockedIngress) {
+              // Keep an already-approved displayed deck, but never let a rejected
+              // frame become a version target, API id, callback, or persisted URL.
+              newState.currentStatus = null;
+            }
 
             // Track ephemeral chat_messages (Director thinking-stream) so MessageList
             // can fade them out once the real slide_update lands.
@@ -883,6 +1162,22 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     sessionIdRef.current,
                   );
                   if (recovery.didRecover) {
+                    const recoveredUrlDecision = evaluateLayoutViewerUrl(
+                      recovery.state.finalPresentationUrl,
+                      LAYOUT_VIEWER_URL_POLICY,
+                    );
+                    if (recoveredUrlDecision.status !== 'allowed') {
+                      console.error('[LayoutViewerPolicy] Blocked sync recovery output', {
+                        source: 'sync_recovery',
+                        field: 'state.finalPresentationUrl',
+                        origin: recoveredUrlDecision.origin,
+                        reason: recoveredUrlDecision.status === 'blocked'
+                          ? recoveredUrlDecision.reason
+                          : 'missing_url',
+                      });
+                      break;
+                    }
+
                     Object.assign(newState, recovery.state);
                     debugLog('🔁 Restored finished presentation from sync_response (reconnect repaint)');
 
@@ -905,6 +1200,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
               case 'presentation_url':
                 debugLog('🎯 Final presentation URL received:', message.payload.url);
+
+                if (guardedMessage.ingress?.status !== 'allowed') {
+                  newState.currentStatus = null;
+                  break;
+                }
 
                 // Extended-generation builds (Phase 4a) emit one ephemeral
                 // "Building slide N/M…" progress bubble per slide, then close the
@@ -1180,6 +1480,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 });
                 break;
 
+              case 'theme_sync':
+                debugLog('🎨 Theme sync response:', message.payload);
+                break;
+
               case 'slide_ready':
                 debugLog('✅ slide_ready received:', {
                   job_id: message.payload.job_id,
@@ -1218,7 +1522,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
           if (message.type === 'slide_progress') {
             options.onSlideComposeProgress?.(message);
-          } else if (message.type === 'slide_ready') {
+          } else if (message.type === 'slide_ready' && !blockedIngress) {
             options.onSlideComposeReady?.(message);
           } else if (message.type === 'slide_failed') {
             options.onSlideComposeFailed?.(message);
@@ -1293,6 +1597,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
         // Stop heartbeat
         stopHeartbeat();
+        clearReconnectStabilityTimer();
 
         setState(prev => ({
           ...prev,
@@ -1304,21 +1609,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         }));
 
         wsRef.current = null;
-
-        // Attempt reconnection if enabled and we had previously connected successfully
-        if (options.reconnectOnError &&
-            hasConnectedRef.current &&
-            reconnectAttemptsRef.current < maxReconnectAttempts) {
-          reconnectAttemptsRef.current++;
-          const delay = reconnectDelay * Math.pow(2, reconnectAttemptsRef.current - 1);
-
-          debugLog(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
-          }, delay);
-        }
+        scheduleReconnect(`close:${event.code}`);
       };
+      return started;
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
       isConnectingRef.current = false;
@@ -1334,28 +1627,270 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       if (options.onError) {
         options.onError(err);
       }
+
+      scheduleReconnect('constructor_error');
+      return true;
     }
-  }, [options, reconnectDelay, maxReconnectAttempts, startHeartbeat, stopHeartbeat]);
+  }, [
+    options,
+    acknowledgeHeartbeat,
+    clearReconnectStabilityTimer,
+    clearReconnectTimer,
+    scheduleReconnect,
+    setReconnectStatus,
+    startHeartbeat,
+    stopHeartbeat,
+  ]);
+
+  startConnectionRef.current = startConnection;
+
+  // Automatic session ownership never resets or bypasses a scheduled,
+  // offline-paused, exhausted, or manually-disconnected transport lifecycle.
+  const ensureConnected = useCallback((): boolean => {
+    if (reconnectStatusRef.current !== 'idle') {
+      debugLog('⏭️ Initial/session connection request is already transport-owned', {
+        reconnectStatus: reconnectStatusRef.current,
+        attempts: reconnectAttemptsRef.current,
+      });
+      return false;
+    }
+
+    connectionDesiredRef.current = true;
+    manualDisconnectRef.current = false;
+    return startConnection();
+  }, [startConnection]);
+
+  // Public connect is an explicit user retry. It is the only same-session path
+  // allowed to clear durable exhaustion and start a fresh bounded retry budget.
+  const connect = useCallback(() => {
+    clearReconnectTimer();
+    clearReconnectStabilityTimer();
+    reconnectAttemptsRef.current = 0;
+    reconnectPausedForOfflineRef.current = false;
+    connectionDesiredRef.current = true;
+    manualDisconnectRef.current = false;
+    setReconnectStatus('idle', 0);
+    startConnection();
+  }, [
+    clearReconnectStabilityTimer,
+    clearReconnectTimer,
+    setReconnectStatus,
+    startConnection,
+  ]);
+
+  // React StrictMode replays mount setup after running its cleanup. That
+  // cleanup records a manual disconnect, but it has no retry history and no
+  // surviving connection. Re-arm only that fresh-mount case; never clear
+  // exhausted transport state from an automatic path.
+  const connectOnMount = useCallback((): boolean => {
+    if (
+      reconnectStatusRef.current === 'manual' &&
+      reconnectAttemptsRef.current === 0 &&
+      !hasConnectedRef.current
+    ) {
+      connectionDesiredRef.current = true;
+      manualDisconnectRef.current = false;
+      setReconnectStatus('idle', 0);
+    }
+    return ensureConnected();
+  }, [ensureConnected, setReconnectStatus]);
+
+  // Browser connectivity is a gate, not a retry attempt. Offline time never
+  // burns or resets the bounded retry budget; coming back online resumes the
+  // hook-owned backoff and retires any half-open socket from the old network.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+
+    browserOnlineRef.current = navigator.onLine !== false;
+
+    const handleOffline = () => {
+      browserOnlineRef.current = false;
+      if (
+        !reconnectOnErrorRef.current ||
+        manualDisconnectRef.current ||
+        !connectionDesiredRef.current ||
+        reconnectStatusRef.current === 'exhausted'
+      ) {
+        return;
+      }
+
+      reconnectPausedForOfflineRef.current = true;
+      clearReconnectTimer(true);
+      clearReconnectStabilityTimer();
+      stopHeartbeat();
+      setReconnectStatus(
+        'paused_offline',
+        pendingReconnectAttemptRef.current ?? reconnectAttemptsRef.current,
+      );
+      setState(prev => ({
+        ...prev,
+        connected: false,
+        connecting: false,
+        connectionState: 'disconnected',
+        currentStatus: null,
+      }));
+
+      const socket = wsRef.current;
+      if (
+        socket &&
+        (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)
+      ) {
+        try {
+          socket.close(4001, 'Browser offline');
+        } catch {
+          // Browser transports normally emit close as the network disappears.
+        }
+      }
+    };
+
+    const handleOnline = () => {
+      browserOnlineRef.current = true;
+      const socket = wsRef.current;
+      const shouldReconnect = shouldReconnectDirectorOnOnline({
+        reconnectEnabled: reconnectOnErrorRef.current,
+        manualDisconnect: manualDisconnectRef.current,
+        connectionDesired: connectionDesiredRef.current,
+        resumingFromOffline: reconnectPausedForOfflineRef.current,
+        reconnectStatus: reconnectStatusRef.current,
+        socketReadyState: socket?.readyState ?? null,
+      });
+      if (!shouldReconnect) return;
+
+      reconnectPausedForOfflineRef.current = false;
+      clearReconnectTimer(true);
+      clearReconnectStabilityTimer();
+      stopHeartbeat();
+
+      // Detach before closing so a delayed close from the pre-offline socket
+      // cannot schedule a second reconnect alongside the immediate one.
+      wsRef.current = null;
+      if (socket) {
+        try {
+          socket.close(4001, 'Browser online reconnect');
+        } catch {
+          // The replacement connection below is authoritative.
+        }
+      }
+      isConnectingRef.current = false;
+      const resumedAttempt = pendingReconnectAttemptRef.current;
+      pendingReconnectAttemptRef.current = null;
+      if (resumedAttempt !== null) {
+        reconnectAttemptsRef.current = resumedAttempt;
+      }
+      setReconnectStatus('idle', reconnectAttemptsRef.current);
+      startConnectionRef.current();
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [
+    clearReconnectStabilityTimer,
+    clearReconnectTimer,
+    setReconnectStatus,
+    stopHeartbeat,
+  ]);
+
+  // Reconnect when the Builder adopts a persisted/new database session ID.
+  // Session IDs must not be assigned during render: doing that before this
+  // effect made the old comparison permanently false and left the socket bound
+  // to the previous session.
+  useEffect(() => {
+    const nextSessionId = options.existingSessionId;
+    if (!nextSessionId || nextSessionId === sessionIdRef.current) return;
+
+    const previousSessionId = sessionIdRef.current;
+    const previousSocket = wsRef.current;
+    const shouldReconnect = Boolean(
+      previousSocket
+      || isConnectingRef.current
+      || hasConnectedRef.current,
+    );
+    debugLog('🔄 [WEBSOCKET-SESSION] Adopting Builder session ID', {
+      old: previousSessionId,
+      new: nextSessionId,
+      reconnecting: shouldReconnect,
+    });
+
+    sessionIdRef.current = nextSessionId;
+    reconnectAttemptsRef.current = 0;
+    clearReconnectTimer();
+    clearReconnectStabilityTimer();
+    reconnectPausedForOfflineRef.current = false;
+    setReconnectStatus('idle', 0);
+    if (shouldReconnect) {
+      manualDisconnectRef.current = false;
+      connectionDesiredRef.current = true;
+    }
+    stopHeartbeat();
+
+    // Detach before close so late events from the old socket are ignored and
+    // cannot schedule a second reconnect for the newly adopted session.
+    wsRef.current = null;
+    if (previousSocket) previousSocket.close();
+    isConnectingRef.current = false;
+    setState(prev => ({
+      ...prev,
+      sessionId: nextSessionId,
+      connected: false,
+      connecting: shouldReconnect,
+      connectionState: shouldReconnect ? 'connecting' : 'disconnected',
+      currentStatus: null,
+    }));
+
+    pendingSessionReconnectRef.current = shouldReconnect ? nextSessionId : null;
+  }, [
+    options.existingSessionId,
+    clearReconnectStabilityTimer,
+    clearReconnectTimer,
+    setReconnectStatus,
+    stopHeartbeat,
+  ]);
+
+  // Connect on the render after session adoption. This gives useSessionCache
+  // the new key before the transport computes skip_history/message_count, avoiding
+  // an old session's cache metadata on the replacement Director socket.
+  useEffect(() => {
+    const pendingSessionId = pendingSessionReconnectRef.current;
+    if (
+      !pendingSessionId ||
+      state.sessionId !== pendingSessionId ||
+      sessionIdRef.current !== pendingSessionId
+    ) {
+      return;
+    }
+    pendingSessionReconnectRef.current = null;
+    ensureConnected();
+  }, [ensureConnected, state.sessionId]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
     debugLog('🔌 Disconnecting WebSocket');
 
+    manualDisconnectRef.current = true;
+    connectionDesiredRef.current = false;
+    reconnectPausedForOfflineRef.current = false;
+
     // Stop heartbeat
     stopHeartbeat();
+    clearReconnectTimer();
+    clearReconnectStabilityTimer();
 
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    const socket = wsRef.current;
+    // Detach before close so a manual shutdown can never schedule recovery.
+    wsRef.current = null;
+    if (socket) {
+      socket.close();
     }
 
     isConnectingRef.current = false;
     hasConnectedRef.current = false;
     reconnectAttemptsRef.current = 0;
+    pendingSessionReconnectRef.current = null;
+    setReconnectStatus('manual', 0);
 
     setState(prev => ({
       ...prev,
@@ -1363,28 +1898,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       connecting: false,
       connectionState: 'disconnected',
     }));
-  }, [stopHeartbeat]);
+  }, [
+    clearReconnectStabilityTimer,
+    clearReconnectTimer,
+    setReconnectStatus,
+    stopHeartbeat,
+  ]);
 
   // Send message to server (v4.14: includes feature flags and session-sticky file state)
   const sendMessage = useCallback((
     text: string,
     storeName?: string,
     fileCount?: number,
-    options?: {
-      deepResearch?: boolean;
-      webSearch?: boolean;
-      extendedGeneration?: boolean;
-      fileUpload?: boolean;
-      storeName?: string | null;
-      useKnowledgeGraph?: boolean;
-      theme?: BuildThemeSelection;
-      // Template Builder (reuse): set when a saved template is locked in.
-      templateMode?: boolean;
-      templateId?: string | null;
-      elementOverrides?: TemplateOverrides;
-      actionValue?: string;
-      actionLabel?: string;
-    },
+    options?: SendUserMessageOptions,
   ): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send message: WebSocket not connected');
@@ -1412,6 +1938,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.elementOverrides && { element_overrides: options.elementOverrides }),
           ...(options?.actionValue && { action_value: options.actionValue }),
           ...(options?.actionLabel && { action_label: options.actionLabel }),
+          ...(options?.manualDeck && { manual_deck: options.manualDeck }),
+          ...(options?.handoffIdempotencyKey && {
+            handoff_idempotency_key: options.handoffIdempotencyKey,
+          }),
         },
       };
 
@@ -1419,7 +1949,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         '📤 Sending message:',
         text,
         effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
-        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}]`
+        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
 
@@ -1443,6 +1973,30 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return true;
     } catch (error) {
       console.error('Failed to send control message:', error);
+      return false;
+    }
+  }, []);
+
+  const sendThemeSelection = useCallback((
+    theme: BuildThemeSelection,
+    requestId: string,
+    presentationId: string,
+  ): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot sync theme: WebSocket not connected');
+      return false;
+    }
+
+    try {
+      const message: SetThemeMessage = {
+        type: 'set_theme',
+        data: { request_id: requestId, theme, presentation_id: presentationId },
+      };
+      wsRef.current.send(JSON.stringify(message));
+      debugLog('🎨 Theme sync requested:', requestId, theme.mode);
+      return true;
+    } catch (error) {
+      console.error('Failed to sync theme:', error);
       return false;
     }
   }, []);
@@ -1518,7 +2072,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   }, [sessionCache, setStateWithCache]);
 
   // Restore messages from database (for session loading)
-  const restoreMessages = useCallback((historicalMessages: DirectorMessage[], sessionState?: {
+  const restoreMessages = useCallback((historicalMessages: DirectorMessage[], restoredSessionState?: {
     presentationUrl?: string | null;
     presentationId?: string | null;
     strawmanPreviewUrl?: string | null;
@@ -1534,6 +2088,37 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     currentStage?: number | null;
     activeVersion?: 'blank' | 'strawman' | 'final' | null;
   }) => {
+    const { state: sessionState, blocked: blockedViewerUrls } = sanitizeRestoredLayoutViewerUrls(
+      restoredSessionState || {},
+      LAYOUT_VIEWER_URL_POLICY,
+    );
+
+    if (blockedViewerUrls.length > 0) {
+      console.error('[LayoutViewerPolicy] Blocked restored viewer URLs', {
+        source: 'restore_messages',
+        sessionId: sessionIdRef.current,
+        blocked: blockedViewerUrls,
+        allowedOrigins: LAYOUT_VIEWER_URL_POLICY.allowedOrigins,
+      });
+    }
+
+    const safeHistoricalMessages = historicalMessages.map(message => {
+      const guarded = guardDirectorLayoutUrlMessage(
+        message as DirectorMessage & { payload: Record<string, any> },
+        LAYOUT_VIEWER_URL_POLICY,
+      );
+      if (guarded.ingress?.status === 'blocked') {
+        console.error('[LayoutViewerPolicy] Blocked historical Director viewer URL', {
+          source: 'restore_messages',
+          messageType: message.type,
+          field: guarded.ingress.field,
+          origin: guarded.ingress.origin,
+          reason: guarded.ingress.reason,
+        });
+      }
+      return guarded.message as DirectorMessage;
+    });
+
     debugLog(`🔄 Restoring ${historicalMessages.length} messages from database`);
     debugLog(`📊 Restoration data:`, {
       presentationUrl: sessionState?.presentationUrl || '(none)',
@@ -1551,22 +2136,28 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     // Priority: final > strawman > blank
     let activeVersion: 'blank' | 'strawman' | 'final' = 'final';
 
-    if (sessionState?.activeVersion) {
+    if (
+      sessionState.activeVersion && (
+        (sessionState.activeVersion === 'final' && sessionState.finalPresentationUrl) ||
+        (sessionState.activeVersion === 'strawman' && sessionState.strawmanPreviewUrl) ||
+        (sessionState.activeVersion === 'blank' && sessionState.blankPresentationUrl)
+      )
+    ) {
       // If activeVersion is explicitly provided (from database or cache), use it
       activeVersion = sessionState.activeVersion;
-    } else if (sessionState?.currentStage === 4) {
+    } else if (sessionState.currentStage === 4 && sessionState.strawmanPreviewUrl) {
       // Stage 4 = strawman preview
       activeVersion = 'strawman';
-    } else if (sessionState?.currentStage === 6) {
+    } else if (sessionState.currentStage === 6 && sessionState.finalPresentationUrl) {
       // Stage 6 = final presentation
       activeVersion = 'final';
     } else {
       // Fallback: infer from which URLs are available (prefer final > strawman > blank)
-      if (sessionState?.finalPresentationUrl) {
+      if (sessionState.finalPresentationUrl) {
         activeVersion = 'final';
-      } else if (sessionState?.strawmanPreviewUrl) {
+      } else if (sessionState.strawmanPreviewUrl) {
         activeVersion = 'strawman';
-      } else if (sessionState?.blankPresentationUrl) {
+      } else if (sessionState.blankPresentationUrl) {
         activeVersion = 'blank';
       }
     }
@@ -1576,49 +2167,49 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     let displayId: string | null = null;
 
     if (activeVersion === 'blank') {
-      displayUrl = sessionState?.blankPresentationUrl || null;
-      displayId = sessionState?.blankPresentationId || null;
+      displayUrl = sessionState.blankPresentationUrl || null;
+      displayId = sessionState.blankPresentationId || null;
     } else if (activeVersion === 'strawman') {
-      displayUrl = sessionState?.strawmanPreviewUrl || null;
-      displayId = sessionState?.strawmanPresentationId || null;
+      displayUrl = sessionState.strawmanPreviewUrl || null;
+      displayId = sessionState.strawmanPresentationId || null;
     } else {
-      displayUrl = sessionState?.finalPresentationUrl || null;
-      displayId = sessionState?.finalPresentationId || null;
+      displayUrl = sessionState.finalPresentationUrl || null;
+      displayId = sessionState.finalPresentationId || null;
     }
 
     debugLog(`✅ Determined activeVersion: ${activeVersion} (display URL: ${displayUrl ? 'present' : 'none'})`);
     const restoredDeckOwnerSessionId = (
       displayUrl ||
-      sessionState?.blankPresentationUrl ||
-      sessionState?.strawmanPreviewUrl ||
-      sessionState?.finalPresentationUrl
+      sessionState.blankPresentationUrl ||
+      sessionState.strawmanPreviewUrl ||
+      sessionState.finalPresentationUrl
     ) ? sessionIdRef.current : null;
 
     setStateWithCache(prev => ({
       ...prev,
-      messages: historicalMessages,
+      messages: safeHistoricalMessages,
       // CRITICAL FIX: Use computed display URL based on activeVersion
       // This ensures the correct presentation version is shown
       presentationUrl: displayUrl,
       presentationId: displayId,
-      strawmanPreviewUrl: sessionState?.strawmanPreviewUrl || null,
-      strawmanPresentationId: sessionState?.strawmanPresentationId || null,
-      finalPresentationUrl: sessionState?.finalPresentationUrl || null,
-      finalPresentationId: sessionState?.finalPresentationId || null,
+      strawmanPreviewUrl: sessionState.strawmanPreviewUrl || null,
+      strawmanPresentationId: sessionState.strawmanPresentationId || null,
+      finalPresentationUrl: sessionState.finalPresentationUrl || null,
+      finalPresentationId: sessionState.finalPresentationId || null,
       deckOwnerSessionId: restoredDeckOwnerSessionId,
       // NEW: Blank presentation state (Builder V2)
-      blankPresentationUrl: sessionState?.blankPresentationUrl || null,
-      blankPresentationId: sessionState?.blankPresentationId || null,
-      isBlankPresentation: sessionState?.isBlankPresentation || false,
+      blankPresentationUrl: sessionState.blankPresentationUrl || null,
+      blankPresentationId: sessionState.blankPresentationId || null,
+      isBlankPresentation: sessionState.isBlankPresentation || false,
       activeVersion: activeVersion,
-      slideCount: sessionState?.slideCount || null,
-      slideStructure: sessionState?.slideStructure || null,
-      currentStage: sessionState?.currentStage || null,
+      slideCount: sessionState.slideCount || null,
+      slideStructure: sessionState.slideStructure || null,
+      currentStage: sessionState.currentStage || null,
       currentStatus: null, // Always clear status on session restore
       ephemeralMessageIds: [],
       ephemeralFadeToken: 0,
-      tokenUsage: (sessionState as any)?.tokenUsage || null,
-      tokenUsageMessageId: (sessionState as any)?.tokenUsageMessageId || null,
+      tokenUsage: (sessionState as any).tokenUsage || null,
+      tokenUsageMessageId: (sessionState as any).tokenUsageMessageId || null,
     }));
   }, [setStateWithCache]);
 
@@ -1634,7 +2225,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     if (options.autoConnect !== false && !hasConnectedRef.current && !isConnectingRef.current) {
       debugLog('🎯 Initiating connection...');
-      connect();
+      connectOnMount();
     } else {
       debugLog('⏭️ Skipping auto-connect:', {
         autoConnect: options.autoConnect,
@@ -1671,9 +2262,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     // Actions
     connect,
+    ensureConnected,
     disconnect,
     sendMessage,
     sendControlMessage,
+    sendThemeSelection,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,

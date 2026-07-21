@@ -1,8 +1,9 @@
 'use client'
 
-import { useRef, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useRef, useCallback, useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
+import { defaultElementResearchSelection, isNonResearchVisualElement } from '@/lib/element-research-policy'
+import { TemplateSlotCatalog, TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import { GenerationPanelHeader } from './header'
 import { GenerationInput } from './shared/generation-input'
 import { TextBoxForm } from './forms/text-box-form'
@@ -14,62 +15,311 @@ import { IconLabelForm } from './forms/icon-label-form'
 import { ShapeForm } from './forms/shape-form'
 import { InfographicForm } from './forms/infographic-form'
 import { DiagramForm } from './forms/diagram-form'
-import { GenerationPanelProps, ElementContext, MandatoryConfig } from './types'
+import { GenerationPanelProps, ElementContext, GenerationPanelDraft, MandatoryConfig } from './types'
+import { parseTemplateSlotCatalog } from '@/lib/text-slot-catalog'
+import { ResearchControls } from './shared/research-controls'
+import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
+import { resolveChartFormDataFromGenerationConfig } from '@/lib/chart-data-contract'
+
+function readObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function useMemoFromSavedGenerationConfig(
+  savedConfig: Record<string, unknown> | null | undefined,
+  elementType: TextLabsComponentType,
+  mode: GenerationPanelProps['mode'],
+): GenerationPanelDraft | null {
+  return useMemo(() => {
+    if (!savedConfig || (mode !== 'edit' && mode !== 'refine')) return null
+    const savedFormData = readObject(savedConfig.formData)
+    if (savedFormData?.componentType) {
+      return {
+        prompt: typeof savedFormData.prompt === 'string'
+          ? savedFormData.prompt
+          : typeof savedConfig.prompt === 'string'
+            ? savedConfig.prompt
+            : '',
+        showAdvanced: savedConfig.showAdvanced === true,
+        formData: savedFormData as unknown as TextLabsFormData,
+      }
+    }
+    const prompt = typeof savedConfig.prompt === 'string' ? savedConfig.prompt : ''
+    if (elementType === 'CHART') {
+      const chartFormData = resolveChartFormDataFromGenerationConfig(savedConfig)
+      if (!chartFormData) return prompt ? { prompt } : null
+      return {
+        prompt: chartFormData.prompt,
+        showAdvanced: savedConfig.showAdvanced === true
+          || chartFormData.advancedModified === true,
+        formData: chartFormData,
+      }
+    }
+    if (elementType !== 'TABLE') {
+      return prompt ? { prompt, showAdvanced: Boolean(savedConfig.showAdvanced) } : null
+    }
+    const tableConfig = readObject(savedConfig.tableConfig ?? savedConfig.table_config) ?? { structure_mode: 'AUTO' }
+    const positionConfig = readObject(savedConfig.positionConfig ?? savedConfig.position_config)
+    const paddingConfig = readObject(savedConfig.paddingConfig ?? savedConfig.padding_config)
+    const count = readNumber(savedConfig.count) ?? 1
+    const advancedModified = Boolean(
+      savedConfig.advancedModified
+      ?? savedConfig.advanced_modified
+      ?? savedConfig.showAdvanced
+      ?? Object.keys(tableConfig).some(key => key !== 'structure_mode'),
+    )
+    return {
+      prompt,
+      showAdvanced: savedConfig.showAdvanced === true,
+      formData: {
+        componentType: 'TABLE',
+        prompt,
+        count,
+        layout: 'horizontal',
+        advancedModified,
+        z_index: readNumber(savedConfig.zIndex ?? savedConfig.z_index),
+        tableConfig,
+        positionConfig: positionConfig as unknown as TextLabsFormData['positionConfig'],
+        paddingConfig: paddingConfig as unknown as TextLabsFormData['paddingConfig'],
+        generationConfig: savedConfig,
+      } as TextLabsFormData,
+    }
+  }, [elementType, mode, savedConfig])
+}
 
 export function GenerationPanel({
   isOpen,
+  activationId,
+  draftKey,
+  draft,
+  onDraftChange,
   elementType,
   onClose,
-  onReopen,
   onGenerate,
   onElementTypeChange,
   isGenerating,
   error,
+  retryStrategy,
   slideIndex,
+  presentationId,
   elementContext,
   mode,
-  regenerateEnabled,
-  onRegenerateToggle,
+  getTemplateSlotCatalog,
+  existingTextTarget,
+  existingInfographicTarget,
+  existingDiagramTarget,
+  researchMode,
+  researchWeb,
+  researchUploadedDocs,
+  researchKnowledgeGraph,
+  researchCapabilities,
+  onResearchModeChange,
+  onResearchWebChange,
+  onResearchUploadedDocsChange,
+  onResearchKnowledgeGraphChange,
 }: GenerationPanelProps) {
+  const panelTargetKey = `${activationId}:${draftKey ?? 'new'}:${elementType}:${existingTextTarget?.elementId ?? 'none'}`
+
   // Form registers its submit function here
-  const submitFnRef = useRef<(() => void) | null>(null)
+  const submitFnRef = useRef<{ key: string; submit: () => void } | null>(null)
+  const submitIntentRef = useRef<{
+    key: string
+    intent: ElementGenerationSubmitIntent
+  } | null>(null)
 
   const registerSubmit = useCallback((fn: () => void) => {
-    submitFnRef.current = fn
-  }, [])
+    submitFnRef.current = { key: panelTargetKey, submit: fn }
+  }, [panelTargetKey])
 
-  const handleFooterGenerate = useCallback(() => {
-    submitFnRef.current?.()
-  }, [])
+  const handleFooterGenerate = useCallback((
+    intent: ElementGenerationSubmitIntent = 'generate',
+  ) => {
+    const registration = submitFnRef.current
+    if (registration?.key !== panelTargetKey) return
+    const effectiveIntent = (
+      intent === 'generate' && retryStrategy === 'resume_same_attempt'
+    ) ? 'retry' : intent
+    submitIntentRef.current = { key: panelTargetKey, intent: effectiveIntent }
+    try {
+      registration.submit()
+    } finally {
+      // Form submit handlers synchronously hand their immutable snapshot to
+      // handleFormSubmit before their async generation work begins.
+      submitIntentRef.current = null
+    }
+  }, [panelTargetKey, retryStrategy])
+
+  const handleResearchEnabledChange = useCallback((enabled: boolean) => {
+    onResearchModeChange(enabled ? 'on' : 'off')
+    const defaults = defaultElementResearchSelection(enabled, researchCapabilities)
+    onResearchWebChange(defaults.web)
+    onResearchUploadedDocsChange(defaults.uploadedDocuments)
+    onResearchKnowledgeGraphChange(defaults.knowledgeGraph)
+    onDraftChange?.({
+      researchMode: enabled ? 'on' : 'off',
+      researchWeb: defaults.web,
+      researchUploadedDocs: defaults.uploadedDocuments,
+      researchKnowledgeGraph: defaults.knowledgeGraph,
+    })
+  }, [
+    onDraftChange,
+    onResearchKnowledgeGraphChange,
+    onResearchModeChange,
+    onResearchUploadedDocsChange,
+    onResearchWebChange,
+    researchCapabilities,
+  ])
 
   // Prompt state — lifted to panel level, passed to forms
   const [prompt, setPrompt] = useState('')
-  const [showAdvanced, setShowAdvanced] = useState(true)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [slotCatalog, setSlotCatalog] = useState<TemplateSlotCatalog>({ slots: [] })
+  const [slotCatalogLoading, setSlotCatalogLoading] = useState(false)
+  const [slotCatalogError, setSlotCatalogError] = useState<string | null>(null)
 
-  // Mandatory config — registered by each form
-  const mandatoryConfigRef = useRef<MandatoryConfig | null>(null)
-  const [, forceUpdate] = useState(0)
+  const handlePromptChange = useCallback((value: string) => {
+    setPrompt(value)
+    onDraftChange?.({ prompt: value })
+  }, [onDraftChange])
 
-  const registerMandatoryConfig = useCallback((config: MandatoryConfig) => {
-    mandatoryConfigRef.current = config
-    forceUpdate(n => n + 1)
-  }, [])
+  const handleShowAdvancedToggle = useCallback(() => {
+    setShowAdvanced(previous => {
+      const next = !previous
+      onDraftChange?.({ showAdvanced: next })
+      return next
+    })
+  }, [onDraftChange])
 
-  // Reset prompt when element type changes
+  const handleResearchWebChange = useCallback((enabled: boolean) => {
+    onResearchWebChange(enabled)
+    onDraftChange?.({ researchWeb: enabled })
+  }, [onDraftChange, onResearchWebChange])
+
+  const handleResearchUploadedDocsChange = useCallback((enabled: boolean) => {
+    onResearchUploadedDocsChange(enabled)
+    onDraftChange?.({ researchUploadedDocs: enabled })
+  }, [onDraftChange, onResearchUploadedDocsChange])
+
+  const handleResearchKnowledgeGraphChange = useCallback((enabled: boolean) => {
+    onResearchKnowledgeGraphChange(enabled)
+    onDraftChange?.({ researchKnowledgeGraph: enabled })
+  }, [onDraftChange, onResearchKnowledgeGraphChange])
+
+  const handleFormSubmit = useCallback(async (formData: TextLabsFormData) => {
+    const submitIntent = submitIntentRef.current?.key === panelTargetKey
+      ? submitIntentRef.current.intent
+      : 'generate'
+    onDraftChange?.({
+      prompt: formData.prompt,
+      showAdvanced,
+      formData,
+      researchMode,
+      researchWeb,
+      researchUploadedDocs,
+      researchKnowledgeGraph,
+    })
+    await onGenerate(formData, submitIntent)
+  }, [
+    onDraftChange,
+    onGenerate,
+    panelTargetKey,
+    researchKnowledgeGraph,
+    researchMode,
+    researchUploadedDocs,
+    researchWeb,
+    showAdvanced,
+  ])
+
+  // Mandatory controls are registered by the mounted form. Scope the
+  // registration to the current activation so a previous element's controls
+  // can never flash in a newly opened panel. Keeping this in state also avoids
+  // the parent hydration effect clearing a control after the child's
+  // registration effect has run.
+  const [mandatoryConfigState, setMandatoryConfigState] = useState<{
+    key: string
+    config: MandatoryConfig | MandatoryConfig[] | null
+  }>({ key: panelTargetKey, config: null })
+
+  const registerMandatoryConfig = useCallback((config: MandatoryConfig | MandatoryConfig[] | null) => {
+    setMandatoryConfigState({ key: panelTargetKey, config })
+  }, [panelTargetKey])
+  const mandatoryConfig = mandatoryConfigState.key === panelTargetKey
+    ? mandatoryConfigState.config
+    : null
+
+  const persistedGenerationDraft = useMemoFromSavedGenerationConfig(
+    existingTextTarget?.generationConfig,
+    elementType,
+    mode,
+  )
+  const effectiveDraft = draft ?? persistedGenerationDraft
+
+  // Every new target activation hydrates from its remembered draft when one
+  // exists. Same-target reopen keeps the mounted form state intact.
   useEffect(() => {
-    setPrompt('')
-  }, [elementType])
+    setPrompt(effectiveDraft?.prompt ?? effectiveDraft?.formData?.prompt ?? '')
+    const savedFormGenerationConfig = readObject(effectiveDraft?.formData?.generationConfig)
+    setShowAdvanced(
+      effectiveDraft?.showAdvanced === true
+      || savedFormGenerationConfig?.showAdvanced === true,
+    )
+  }, [activationId, draftKey, elementType, existingTextTarget?.elementId])
 
-  // Force showAdvanced=true when entering edit mode
   useEffect(() => {
-    if (mode === 'edit') {
-      setShowAdvanced(true)
+    if (!isOpen || elementType !== 'TEXT_BOX') return
+    let cancelled = false
+    if (!getTemplateSlotCatalog) {
+      setSlotCatalog({ slots: [] })
+      setSlotCatalogLoading(false)
+      setSlotCatalogError('Template roles are unavailable; Body text remains available.')
+      return
     }
-  }, [mode])
+    setSlotCatalogLoading(true)
+    setSlotCatalogError(null)
+    void getTemplateSlotCatalog(slideIndex)
+      .then(response => {
+        if (cancelled) return
+        const catalog = parseTemplateSlotCatalog(response)
+        setSlotCatalog(catalog)
+        if (!catalog.slots.length) {
+          setSlotCatalogError('This template exposes no structural text slots; Body text remains available.')
+        }
+      })
+      .catch(error => {
+        if (cancelled) return
+        console.warn('[GenerationPanel] Template slot catalog unavailable:', error)
+        setSlotCatalog({ slots: [] })
+        setSlotCatalogError('Template roles could not be loaded; Body text remains available.')
+      })
+      .finally(() => {
+        if (!cancelled) setSlotCatalogLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [elementType, getTemplateSlotCatalog, isOpen, slideIndex])
 
   // Visibility logic
-  const showGenerationInput = mode === 'generate' || regenerateEnabled
-  const showFormBody = mode === 'edit' || showAdvanced
+  const showGenerationInput = mode === 'generate' || mode === 'refine'
+  const supportsResearch = !isNonResearchVisualElement(elementType)
+
+  const researchControls = showGenerationInput && supportsResearch ? (
+    <ResearchControls
+      researchMode={researchMode}
+      researchWeb={researchWeb}
+      researchUploadedDocs={researchUploadedDocs}
+      researchKnowledgeGraph={researchKnowledgeGraph}
+      researchCapabilities={researchCapabilities}
+      onResearchEnabledChange={handleResearchEnabledChange}
+      onResearchWebChange={handleResearchWebChange}
+      onResearchUploadedDocsChange={handleResearchUploadedDocsChange}
+      onResearchKnowledgeGraphChange={handleResearchKnowledgeGraphChange}
+    />
+  ) : null
 
   // Keyboard shortcuts: Escape to close, Cmd/Ctrl+Enter to generate
   useEffect(() => {
@@ -82,13 +332,13 @@ export function GenerationPanel({
       }
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !isGenerating && showGenerationInput) {
         e.preventDefault()
-        submitFnRef.current?.()
+        handleFooterGenerate()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, isGenerating, onClose, showGenerationInput])
+  }, [handleFooterGenerate, isOpen, isGenerating, onClose, showGenerationInput])
 
   return (
     <div className="absolute inset-0 z-20 flex pointer-events-none">
@@ -103,46 +353,69 @@ export function GenerationPanel({
         <GenerationPanelHeader
           elementType={elementType}
           onClose={onClose}
-          onElementTypeChange={mode === 'edit' ? undefined : onElementTypeChange}
+          onElementTypeChange={mode === 'edit' || mode === 'refine' ? undefined : onElementTypeChange}
           mode={mode}
-          regenerateEnabled={regenerateEnabled}
-          onRegenerateToggle={onRegenerateToggle}
         />
 
         {/* Canvas position indicator */}
-        {elementContext && (
+        {elementContext && elementType !== 'CHART' && (
           <div className="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
             Position from canvas ({elementContext.width}&times;{elementContext.height} cells)
           </div>
         )}
 
-        {/* Chat-style generation input — hidden in edit mode when regenerate is OFF */}
+        {/* Regenerate is a direct viewer action; edit mode never needs a second toggle. */}
         {showGenerationInput && (
           <GenerationInput
             prompt={prompt}
-            onPromptChange={setPrompt}
-            mandatoryConfig={mandatoryConfigRef.current}
+            onPromptChange={handlePromptChange}
+            mandatoryConfig={mandatoryConfig}
             showAdvanced={showAdvanced}
-            onToggleAdvanced={() => setShowAdvanced(prev => !prev)}
+            onToggleAdvanced={handleShowAdvancedToggle}
             onSubmit={handleFooterGenerate}
             isGenerating={isGenerating}
             error={error}
+            retryStrategy={retryStrategy}
+            placeholder={elementType === 'CHART' ? 'e.g., Show quarterly revenue growth for 2024' : undefined}
           />
         )}
 
-        {/* Scrollable form area — always visible in edit mode, toggled by advanced in generate mode */}
-        <div className={`flex-1 overflow-y-auto px-3 py-3 ${!showFormBody ? 'hidden' : ''}`}>
+        {elementType !== 'TEXT_BOX' && elementType !== 'METRICS' && elementType !== 'TABLE' && elementType !== 'DIAGRAM' && researchControls}
+
+        <div className="flex-1 overflow-y-auto px-3 py-3">
           <FormRouter
+            // activationId changes for a genuinely new target. draftKey may
+            // change when Layout reissues the same placeholder under a new ID,
+            // which must not remount the form and discard its in-flight state.
+            key={`${activationId}:${elementType}`}
             elementType={elementType}
-            onSubmit={onGenerate}
+            onSubmit={handleFormSubmit}
             registerSubmit={registerSubmit}
             isGenerating={isGenerating}
             slideIndex={slideIndex}
+            presentationId={presentationId}
             elementContext={elementContext}
             prompt={prompt}
             showAdvanced={showAdvanced}
             registerMandatoryConfig={registerMandatoryConfig}
+            researchControls={
+              elementType === 'TEXT_BOX' ||
+              elementType === 'METRICS' ||
+              elementType === 'TABLE' ||
+              elementType === 'DIAGRAM'
+                ? researchControls
+                : null
+            }
+            slotCatalog={slotCatalog}
+            slotCatalogLoading={slotCatalogLoading}
+            slotCatalogError={slotCatalogError}
+            existingTextTarget={existingTextTarget}
+            initialDraft={effectiveDraft}
+            onDraftChange={onDraftChange}
+            existingInfographicTarget={existingInfographicTarget}
+            panelMode={mode}
+            existingDiagramTarget={existingDiagramTarget}
           />
         </div>
       </div>
@@ -158,25 +431,48 @@ function FormRouter({
   registerSubmit,
   isGenerating,
   slideIndex,
+  presentationId,
   elementContext,
   prompt,
   showAdvanced,
   registerMandatoryConfig,
+  researchControls,
+  slotCatalog,
+  slotCatalogLoading,
+  slotCatalogError,
+  existingTextTarget,
+  initialDraft,
+  onDraftChange,
+  existingInfographicTarget,
+  panelMode,
+  existingDiagramTarget,
 }: {
   elementType: TextLabsComponentType
   onSubmit: (formData: TextLabsFormData) => Promise<void>
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   slideIndex: number
+  presentationId?: string | null
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
-  registerMandatoryConfig: (config: MandatoryConfig) => void
+  registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[] | null) => void
+  researchControls?: ReactNode
+  slotCatalog: TemplateSlotCatalog
+  slotCatalogLoading: boolean
+  slotCatalogError?: string | null
+  existingTextTarget?: GenerationPanelProps['existingTextTarget']
+  initialDraft?: GenerationPanelProps['draft']
+  onDraftChange?: GenerationPanelProps['onDraftChange']
+  existingInfographicTarget?: GenerationPanelProps['existingInfographicTarget']
+  panelMode: GenerationPanelProps['mode']
+  existingDiagramTarget?: GenerationPanelProps['existingDiagramTarget']
 }) {
   const commonProps = {
     onSubmit,
     registerSubmit,
     isGenerating,
+    presentationId,
     elementContext,
     prompt,
     showAdvanced,
@@ -185,23 +481,37 @@ function FormRouter({
 
   switch (elementType) {
     case 'TEXT_BOX':
-      return <TextBoxForm {...commonProps} />
+      return <TextBoxForm {...commonProps} researchControls={researchControls} slotCatalog={slotCatalog} slotCatalogLoading={slotCatalogLoading} slotCatalogError={slotCatalogError} existingTextTarget={existingTextTarget} />
     case 'METRICS':
-      return <MetricsForm {...commonProps} />
+      return <MetricsForm {...commonProps} researchControls={researchControls} existingTextTarget={existingTextTarget} initialDraft={initialDraft} />
     case 'TABLE':
-      return <TableForm {...commonProps} />
+      return <TableForm {...commonProps} researchControls={researchControls} initialDraft={initialDraft} onDraftChange={onDraftChange} />
     case 'CHART':
-      return <ChartForm {...commonProps} />
+      return <ChartForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} panelMode={panelMode} />
     case 'IMAGE':
-      return <ImageForm {...commonProps} />
+      return <ImageForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} />
     case 'ICON_LABEL':
-      return <IconLabelForm onSubmit={onSubmit} registerSubmit={registerSubmit} isGenerating={isGenerating} prompt={prompt} showAdvanced={showAdvanced} registerMandatoryConfig={registerMandatoryConfig} />
+      return <IconLabelForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} />
     case 'SHAPE':
-      return <ShapeForm {...commonProps} />
+      return <ShapeForm {...commonProps} initialDraft={initialDraft} />
     case 'INFOGRAPHIC':
-      return <InfographicForm {...commonProps} />
+      return (
+        <InfographicForm
+          {...commonProps}
+          initialDraft={initialDraft}
+          panelMode={panelMode}
+          existingTarget={existingInfographicTarget}
+        />
+      )
     case 'DIAGRAM':
-      return <DiagramForm {...commonProps} />
+      return (
+        <DiagramForm
+          {...commonProps}
+          researchControls={researchControls}
+          existingDiagramTarget={existingDiagramTarget}
+          initialDraft={initialDraft}
+        />
+      )
     default:
       return null
   }

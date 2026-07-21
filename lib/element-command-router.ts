@@ -16,6 +16,8 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   'insertTextBox',
   'insertTable',
   'insertShape',
+  'upsertSemanticElement',
+  'upsertCitedElement',
 
   // Content updates (manual updates, not from AI)
   'updateImageSource',
@@ -27,6 +29,12 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   'updateTableData',
 
   // Element management
+  'getElementGeometry',
+  'getSlideGenerationContext',
+  'getTemplateSlotCatalog',
+  'refreshElementThemeMetadata',
+  'setElementGenerationState',
+  'getElementThemeVariants',
   'deleteElement',
   'deleteTextBox',
 
@@ -40,6 +48,7 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
 
   // Diagram-specific
   'setDiagramTheme',
+  'updateDiagramRendererState',
 
   // Arrange/layout commands
   'bringToFront',
@@ -65,6 +74,33 @@ export const LAYOUT_SERVICE_COMMANDS = new Set([
   // Element property commands
   'setElementClasses',
   'setTextBoxTextTransform',
+])
+
+// Messages the embedded Layout Service viewer is allowed to send back to Builder.
+export const LAYOUT_VIEWER_EVENTS = new Set([
+  // Existing selection/status events
+  'textBoxSelected',
+  'textBoxDeselected',
+  'elementSelected',
+  'elementDeselected',
+  'elementMoved',
+  'save_status',
+
+  // Add Element edit/refine lifecycle events
+  'refineElementRequested',
+  'saveStatusChanged',
+
+  // Deterministic renderer interaction persistence
+  'updateCodeDisplayState',
+  'updateKanbanState',
+  'updateGanttState',
+  'updateChevronState',
+  'updateIdeaBoardState',
+  'updateCloudArchState',
+  'updateLogArchState',
+  'updateLogicalArchState',
+  'updateDataArchitectureState',
+  'updateDataArchState',
 ])
 
 // AI generation commands that go to Elementor
@@ -96,4 +132,8 @@ export function getCommandType(action: string): 'layout-service' | 'elementor' |
  */
 export function isElementorCommand(action: string): boolean {
   return ELEMENTOR_COMMANDS.has(action)
+}
+
+export function isLayoutViewerEvent(type: string): boolean {
+  return LAYOUT_VIEWER_EVENTS.has(type)
 }

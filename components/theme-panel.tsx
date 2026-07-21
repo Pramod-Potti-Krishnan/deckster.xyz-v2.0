@@ -1,957 +1,555 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
-import { X, Check, Loader2, RotateCcw, ChevronDown, ChevronRight, Palette, Wand2 } from 'lucide-react'
-import { useToast } from '@/hooks/use-toast'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  Loader2,
+  Palette,
+  RotateCcw,
+  Wand2,
+  X,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { CompactColorPicker } from '@/components/ui/color-picker'
 import { cn } from '@/lib/utils'
-
-// ============================================================================
-// Type Definitions
-// ============================================================================
-
-interface PresentationThemeConfig {
-  theme_id: string
-  color_overrides?: Record<string, string> | null
-}
-
-// Full 25-color theme interface matching backend API
-interface FullThemeColors {
-  // Brand Colors (4)
-  primary: string
-  primary_light: string
-  primary_dark: string
-  accent: string
-  // Accent Variants (2) - for hover states, subtle highlights
-  accent_light: string
-  accent_dark: string
-  // Tertiary Colors (3) - for groupings, borders, dividers
-  tertiary_1: string
-  tertiary_2: string
-  tertiary_3: string
-  // Background Colors (3)
-  background: string
-  surface: string  // renamed from background_alt
-  hero_background: string
-  // Text Colors (6)
-  text_primary: string
-  text_secondary: string
-  text_body: string
-  text_muted: string  // renamed from footer_text
-  hero_text_primary: string
-  hero_text_secondary: string
-  // Border (1)
-  border: string
-  // Chart Colors (6) - for data visualization
-  chart_1: string
-  chart_2: string
-  chart_3: string
-  chart_4: string
-  chart_5: string
-  chart_6: string
-}
-
-interface ThemePreview {
-  id: string
-  name: string
-  description: string
-  colors: FullThemeColors
-}
+import {
+  CANONICAL_THEME_PRESET_IDS,
+  FALLBACK_THEME_PRESETS,
+  isCanonicalThemePresetId,
+  isValidThemeHex,
+  normalizeThemePanelSelection,
+  normalizeThemePresetId,
+  selectCanonicalThemePreset,
+  themeSelectionFingerprint,
+  type BuildThemeSelection,
+  type CanonicalThemePresetId,
+} from '@/lib/theme-builder'
+import type { ThemeSyncState, ThemeSyncStatus } from '@/lib/theme-sync'
 
 type ThemeMode = 'preset' | 'custom'
 
-// ============================================================================
-// Color Configuration
-// ============================================================================
-
-// Organize colors into logical groups for the UI
-const COLOR_GROUPS = {
-  brand: {
-    label: 'Brand Colors',
-    keys: ['primary', 'primary_light', 'primary_dark', 'accent', 'accent_light', 'accent_dark'] as const
-  },
-  tertiary: {
-    label: 'Tertiary Colors',
-    keys: ['tertiary_1', 'tertiary_2', 'tertiary_3'] as const
-  },
-  background: {
-    label: 'Background Colors',
-    keys: ['background', 'surface', 'hero_background'] as const
-  },
-  text: {
-    label: 'Text Colors',
-    keys: ['text_primary', 'text_secondary', 'text_body', 'text_muted', 'hero_text_primary', 'hero_text_secondary'] as const
-  },
-  border: {
-    label: 'Border',
-    keys: ['border'] as const
-  },
-  chart: {
-    label: 'Chart Colors',
-    keys: ['chart_1', 'chart_2', 'chart_3', 'chart_4', 'chart_5', 'chart_6'] as const
-  }
-} as const
-
-// Human-friendly labels for each color property
-const COLOR_LABELS: Record<keyof FullThemeColors, string> = {
-  // Brand Colors
-  primary: 'Primary',
-  primary_light: 'Primary Light',
-  primary_dark: 'Primary Dark',
-  accent: 'Accent',
-  accent_light: 'Accent Light',
-  accent_dark: 'Accent Dark',
-  // Tertiary Colors
-  tertiary_1: 'Tertiary 1',
-  tertiary_2: 'Tertiary 2',
-  tertiary_3: 'Tertiary 3',
-  // Background Colors
-  background: 'Main Background',
-  surface: 'Surface',
-  hero_background: 'Hero Background',
-  // Text Colors
-  text_primary: 'Primary Text',
-  text_secondary: 'Secondary Text',
-  text_body: 'Body Text',
-  text_muted: 'Muted Text',
-  hero_text_primary: 'Hero Title',
-  hero_text_secondary: 'Hero Subtitle',
-  // Border
-  border: 'Border Color',
-  // Chart Colors
-  chart_1: 'Chart 1',
-  chart_2: 'Chart 2',
-  chart_3: 'Chart 3',
-  chart_4: 'Chart 4',
-  chart_5: 'Chart 5',
-  chart_6: 'Chart 6'
+type PreviewPalette = {
+  background: string
+  surface: string
+  primary: string
+  accent: string
+  text: string
 }
 
-// Full theme definitions with all 25 colors
-const THEME_PREVIEWS: Record<string, ThemePreview> = {
-  'corporate-blue': {
-    id: 'corporate-blue',
-    name: 'Corporate Blue',
-    description: 'Professional blue theme for business presentations',
-    colors: {
-      // Brand Colors
-      primary: '#1e40af',
-      primary_light: '#3b82f6',
-      primary_dark: '#1e3a8a',
-      accent: '#f59e0b',
-      accent_light: '#fef3c7',
-      accent_dark: '#b45309',
-      // Tertiary Colors
-      tertiary_1: '#3b82f6',
-      tertiary_2: '#60a5fa',
-      tertiary_3: '#93c5fd',
-      // Background Colors
-      background: '#ffffff',
-      surface: '#f8fafc',
-      hero_background: '#1e40af',
-      // Text Colors
-      text_primary: '#1f2937',
-      text_secondary: '#6b7280',
-      text_body: '#374151',
-      text_muted: '#9ca3af',
-      hero_text_primary: '#ffffff',
-      hero_text_secondary: '#e0e7ff',
-      // Border
-      border: '#e5e7eb',
-      // Chart Colors
-      chart_1: '#3b82f6',
-      chart_2: '#10b981',
-      chart_3: '#f59e0b',
-      chart_4: '#ef4444',
-      chart_5: '#8b5cf6',
-      chart_6: '#ec4899'
-    }
+const PREVIEW_PALETTES: Record<CanonicalThemePresetId, PreviewPalette> = {
+  corporate_light: {
+    background: '#ffffff',
+    surface: '#eff6ff',
+    primary: '#1e40af',
+    accent: '#f59e0b',
+    text: '#172033',
   },
-  'elegant-emerald': {
-    id: 'elegant-emerald',
-    name: 'Elegant Emerald',
-    description: 'Sophisticated green theme with classic typography',
-    colors: {
-      // Brand Colors
-      primary: '#065f46',
-      primary_light: '#10b981',
-      primary_dark: '#064e3b',
-      accent: '#d97706',
-      accent_light: '#fef3c7',
-      accent_dark: '#92400e',
-      // Tertiary Colors
-      tertiary_1: '#10b981',
-      tertiary_2: '#34d399',
-      tertiary_3: '#6ee7b7',
-      // Background Colors
-      background: '#f0fdf4',
-      surface: '#dcfce7',
-      hero_background: '#065f46',
-      // Text Colors
-      text_primary: '#1f2937',
-      text_secondary: '#4b5563',
-      text_body: '#374151',
-      text_muted: '#6b7280',
-      hero_text_primary: '#ffffff',
-      hero_text_secondary: '#a7f3d0',
-      // Border
-      border: '#d1fae5',
-      // Chart Colors
-      chart_1: '#10b981',
-      chart_2: '#3b82f6',
-      chart_3: '#f59e0b',
-      chart_4: '#ef4444',
-      chart_5: '#8b5cf6',
-      chart_6: '#ec4899'
-    }
+  corporate_dark: {
+    background: '#0f172a',
+    surface: '#1e293b',
+    primary: '#60a5fa',
+    accent: '#fbbf24',
+    text: '#f8fafc',
   },
-  'vibrant-orange': {
-    id: 'vibrant-orange',
-    name: 'Vibrant Orange',
-    description: 'Energetic orange theme for creative presentations',
-    colors: {
-      // Brand Colors
-      primary: '#ea580c',
-      primary_light: '#fb923c',
-      primary_dark: '#c2410c',
-      accent: '#0891b2',
-      accent_light: '#cffafe',
-      accent_dark: '#0e7490',
-      // Tertiary Colors
-      tertiary_1: '#fb923c',
-      tertiary_2: '#fdba74',
-      tertiary_3: '#fed7aa',
-      // Background Colors
-      background: '#fffbeb',
-      surface: '#fef3c7',
-      hero_background: '#ea580c',
-      // Text Colors
-      text_primary: '#1c1917',
-      text_secondary: '#78716c',
-      text_body: '#44403c',
-      text_muted: '#a8a29e',
-      hero_text_primary: '#ffffff',
-      hero_text_secondary: '#fed7aa',
-      // Border
-      border: '#e7e5e4',
-      // Chart Colors
-      chart_1: '#ea580c',
-      chart_2: '#0891b2',
-      chart_3: '#8b5cf6',
-      chart_4: '#10b981',
-      chart_5: '#ec4899',
-      chart_6: '#3b82f6'
-    }
+  minimal: {
+    background: '#ffffff',
+    surface: '#f8fafc',
+    primary: '#334155',
+    accent: '#94a3b8',
+    text: '#0f172a',
   },
-  'dark-mode': {
-    id: 'dark-mode',
-    name: 'Dark Mode',
-    description: 'Dark theme for low-light environments',
-    colors: {
-      // Brand Colors
-      primary: '#60a5fa',
-      primary_light: '#93c5fd',
-      primary_dark: '#3b82f6',
-      accent: '#f472b6',
-      accent_light: '#fbcfe8',
-      accent_dark: '#db2777',
-      // Tertiary Colors
-      tertiary_1: '#4b5563',
-      tertiary_2: '#6b7280',
-      tertiary_3: '#9ca3af',
-      // Background Colors
-      background: '#1f2937',
-      surface: '#374151',
-      hero_background: '#111827',
-      // Text Colors
-      text_primary: '#f9fafb',
-      text_secondary: '#d1d5db',
-      text_body: '#e5e7eb',
-      text_muted: '#9ca3af',
-      hero_text_primary: '#ffffff',
-      hero_text_secondary: '#93c5fd',
-      // Border
-      border: '#4b5563',
-      // Chart Colors
-      chart_1: '#60a5fa',
-      chart_2: '#34d399',
-      chart_3: '#fbbf24',
-      chart_4: '#f87171',
-      chart_5: '#a78bfa',
-      chart_6: '#f472b6'
-    }
-  }
+  vibrant: {
+    background: '#fff7ed',
+    surface: '#f5f3ff',
+    primary: '#6d28d9',
+    accent: '#f97316',
+    text: '#27203b',
+  },
+  executive: {
+    background: '#f8fafc',
+    surface: '#e2e8f0',
+    primary: '#0f172a',
+    accent: '#b45309',
+    text: '#111827',
+  },
+  pastel: {
+    background: '#fdf2f8',
+    surface: '#ecfeff',
+    primary: '#8b5cf6',
+    accent: '#2dd4bf',
+    text: '#3f3a52',
+  },
 }
 
-const THEME_IDS = ['corporate-blue', 'elegant-emerald', 'vibrant-orange', 'dark-mode'] as const
+const THEME_PREVIEWS = CANONICAL_THEME_PRESET_IDS.map(id => ({
+  id,
+  ...FALLBACK_THEME_PRESETS.find(preset => preset.preset_id === id)!,
+  colors: PREVIEW_PALETTES[id],
+}))
 
-// ============================================================================
-// Collapsible Color Section Component
-// ============================================================================
+const CUSTOM_COLOR_FIELDS = [
+  { key: 'primary_hex', label: 'Primary / brand' },
+  { key: 'secondary_hex', label: 'Secondary' },
+  { key: 'tertiary_hex', label: 'Tertiary' },
+  { key: 'neutral_hex', label: 'Neutral' },
+] as const
 
-interface ColorSectionProps {
-  title: string
-  colorKeys: readonly string[]
-  colors: Record<string, string>
-  baseColors: FullThemeColors
-  onColorChange: (key: string, value: string) => void
-  onResetSection: () => void
-  hasOverrides: boolean
-  defaultExpanded?: boolean
-}
-
-function ColorSection({
-  title,
-  colorKeys,
-  colors,
-  baseColors,
-  onColorChange,
-  onResetSection,
-  hasOverrides,
-  defaultExpanded = false
-}: ColorSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded)
-
-  return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      {/* Section Header */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          {isExpanded ? (
-            <ChevronDown className="h-4 w-4 text-gray-500" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-gray-500" />
-          )}
-          <span className="text-xs font-medium text-gray-700">{title}</span>
-          {hasOverrides && (
-            <span className="w-2 h-2 rounded-full bg-blue-500" title="Has customizations" />
-          )}
-        </div>
-        {hasOverrides && isExpanded && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onResetSection()
-            }}
-            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-0.5 rounded hover:bg-gray-200"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Reset
-          </button>
-        )}
-      </button>
-
-      {/* Section Content */}
-      {isExpanded && (
-        <div className="p-3 space-y-2 bg-white">
-          {colorKeys.map((key) => {
-            const colorKey = key as keyof FullThemeColors
-            const currentValue = colors[key] || baseColors[colorKey]
-            const isOverridden = colors[key] !== undefined
-
-            return (
-              <div key={key} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-gray-600">
-                    {COLOR_LABELS[colorKey]}
-                  </Label>
-                  {isOverridden && (
-                    <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                      Custom
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 font-mono">
-                    {currentValue}
-                  </span>
-                  <CompactColorPicker
-                    value={currentValue}
-                    onChange={(color) => onColorChange(key, color)}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ============================================================================
-// Main Theme Panel Component
-// ============================================================================
+const OVERRIDE_TOKENS = [
+  { key: 'primary', label: 'Primary' },
+  { key: 'secondary', label: 'Secondary' },
+  { key: 'tertiary', label: 'Tertiary' },
+  { key: 'neutral', label: 'Neutral' },
+  { key: 'accent', label: 'Accent' },
+  { key: 'background', label: 'Background' },
+  { key: 'surface', label: 'Surface' },
+  { key: 'text_primary', label: 'Heading text' },
+  { key: 'text_body', label: 'Body text' },
+  { key: 'border', label: 'Border' },
+] as const
 
 interface ThemePanelProps {
   isOpen: boolean
   onClose: () => void
-  iframeRef: React.RefObject<HTMLIFrameElement | null>
-  viewerOrigin: string
   presentationId?: string | null
+  buildThemeSelection: BuildThemeSelection
+  themeSync: ThemeSyncState
+  selectionLocked?: boolean
+  onBuildThemeChange?: (selection: BuildThemeSelection) => void
+}
+
+function resolvedPresetId(selection: BuildThemeSelection): CanonicalThemePresetId {
+  const normalized = normalizeThemePresetId(selection.preset_id)
+  return isCanonicalThemePresetId(normalized) ? normalized : 'corporate_light'
+}
+
+function SyncBadge({ status }: { status: ThemeSyncStatus }) {
+  if (status === 'syncing') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
+        <Loader2 className="h-3 w-3 animate-spin" /> Syncing
+      </span>
+    )
+  }
+  if (status === 'applied') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700">
+        <CheckCircle2 className="h-3 w-3" /> Applied
+      </span>
+    )
+  }
+  if (status === 'failed') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-[10px] font-medium text-rose-700">
+        <AlertCircle className="h-3 w-3" /> Failed
+      </span>
+    )
+  }
+  return <span className="text-[10px] text-gray-400">Not synced</span>
+}
+
+function HexField({
+  label,
+  value,
+  fallback,
+  linkedLabel,
+  disabled = false,
+  onChange,
+  onReset,
+}: {
+  label: string
+  value?: string
+  fallback: string
+  linkedLabel?: string
+  disabled?: boolean
+  onChange: (value: string) => void
+  onReset?: () => void
+}) {
+  const validValue = isValidThemeHex(value) ? value : fallback
+  const isExplicit = value !== undefined
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium text-gray-700">{label}</span>
+        {isExplicit ? (
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={disabled}
+            className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={`Reset ${label} to theme`}
+          >
+            <RotateCcw className="h-3 w-3" /> Reset to theme
+          </button>
+        ) : (
+          <span className="text-[10px] text-emerald-600">{linkedLabel || 'Theme-linked'}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={validValue}
+          onChange={event => onChange(event.target.value)}
+          disabled={disabled}
+          className="h-8 w-9 rounded border border-gray-200 bg-white p-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label={`${label} color`}
+        />
+        <input
+          value={value || ''}
+          onChange={event => onChange(event.target.value)}
+          disabled={disabled}
+          className={cn(
+            'h-8 min-w-0 flex-1 rounded-md border bg-white px-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-60',
+            value && !isValidThemeHex(value) ? 'border-rose-400 text-rose-700' : 'border-gray-200 text-gray-700',
+          )}
+          placeholder={isExplicit ? '#000000' : `Theme (${fallback})`}
+          aria-label={`${label} hex value`}
+        />
+      </div>
+    </div>
+  )
 }
 
 export function ThemePanel({
   isOpen,
   onClose,
-  iframeRef,
-  viewerOrigin,
   presentationId,
+  buildThemeSelection,
+  themeSync,
+  selectionLocked = false,
+  onBuildThemeChange,
 }: ThemePanelProps) {
-  const { toast } = useToast()
+  const [draft, setDraft] = useState<BuildThemeSelection>(() => (
+    normalizeThemePanelSelection(buildThemeSelection)
+  ))
+  const [submittedFromRequestId, setSubmittedFromRequestId] = useState<string | null | undefined>()
 
-  // Loading states
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-
-  // Mode toggle
-  const [themeMode, setThemeMode] = useState<ThemeMode>('preset')
-
-  // Theme state
-  const [selectedTheme, setSelectedTheme] = useState<string>('corporate-blue')
-  const [colorOverrides, setColorOverrides] = useState<Record<string, string>>({})
-
-  // Original state for cancel restoration
-  const [originalTheme, setOriginalTheme] = useState<PresentationThemeConfig | null>(null)
-
-  // Track changes
-  const [hasChanges, setHasChanges] = useState(false)
-
-  /**
-   * Send command to iframe via postMessage
-   */
-  const sendCommand = useCallback(async (
-    action: string,
-    params?: Record<string, any>
-  ): Promise<any> => {
-    return new Promise((resolve, reject) => {
-      if (!iframeRef.current) {
-        reject(new Error('Iframe not ready'))
-        return
-      }
-
-      const handler = (event: MessageEvent) => {
-        if (event.origin !== viewerOrigin) return
-
-        if (event.data.action === action) {
-          window.removeEventListener('message', handler)
-          console.log(`[ThemePanel] Received response for ${action}:`, event.data)
-
-          if (event.data.success) {
-            resolve(event.data)
-          } else {
-            reject(new Error(event.data.error || 'Command failed'))
-          }
-        }
-      }
-
-      window.addEventListener('message', handler)
-
-      setTimeout(() => {
-        window.removeEventListener('message', handler)
-        reject(new Error('Command timeout'))
-      }, 10000)
-
-      console.log(`[ThemePanel] Sending postMessage:`, { action, params })
-      iframeRef.current.contentWindow?.postMessage({ action, params }, viewerOrigin)
-    })
-  }, [iframeRef, viewerOrigin])
-
-  /**
-   * Load current theme when panel opens
-   */
-  const loadCurrentTheme = useCallback(async () => {
-    if (!isOpen) return
-
-    setIsLoading(true)
-    try {
-      const result = await sendCommand('getTheme')
-      const config: PresentationThemeConfig = result.themeConfig || { theme_id: 'corporate-blue' }
-
-      setSelectedTheme(config.theme_id || 'corporate-blue')
-      setColorOverrides(config.color_overrides || {})
-      setOriginalTheme(config)
-      setHasChanges(false)
-
-      // If there are significant color overrides, default to custom mode
-      const overrideCount = Object.keys(config.color_overrides || {}).length
-      if (overrideCount > 2) {
-        setThemeMode('custom')
-      }
-    } catch (error) {
-      console.error('Failed to load theme:', error)
-      setSelectedTheme('corporate-blue')
-      setColorOverrides({})
-      setOriginalTheme({ theme_id: 'corporate-blue' })
-    } finally {
-      setIsLoading(false)
-    }
-  }, [isOpen, sendCommand])
-
-  /**
-   * Load theme when panel opens
-   */
   useEffect(() => {
-    if (isOpen) {
-      loadCurrentTheme()
+    if (!isOpen) return
+    setDraft(normalizeThemePanelSelection(buildThemeSelection))
+    setSubmittedFromRequestId(undefined)
+  }, [buildThemeSelection, isOpen, selectionLocked])
+
+  useEffect(() => {
+    if (submittedFromRequestId === undefined) return
+    if (themeSync.requestId !== submittedFromRequestId || themeSync.status === 'failed') {
+      setSubmittedFromRequestId(undefined)
     }
-  }, [isOpen, loadCurrentTheme])
+  }, [submittedFromRequestId, themeSync.requestId, themeSync.status])
 
-  /**
-   * Preview theme in iframe
-   */
-  const previewTheme = useCallback(async (themeId: string, overrides?: Record<string, string>) => {
-    console.log('[ThemePanel] previewTheme called:', { themeId, overrides })
-    try {
-      const result = await sendCommand('previewTheme', {
-        themeId,
-        colorOverrides: overrides && Object.keys(overrides).length > 0 ? overrides : undefined
-      })
-      console.log('[ThemePanel] previewTheme success:', result)
-    } catch (error) {
-      console.error('[ThemePanel] previewTheme failed:', error)
-      toast({
-        title: 'Preview failed',
-        description: error instanceof Error ? error.message : 'Could not preview theme',
-        variant: 'destructive'
-      })
-    }
-  }, [sendCommand, toast])
+  const mode: ThemeMode = draft.mode === 'custom' ? 'custom' : 'preset'
+  const selectedPresetId = resolvedPresetId(draft)
+  const selectedPreview = PREVIEW_PALETTES[selectedPresetId]
+  const hasChanges = themeSelectionFingerprint(draft) !== themeSelectionFingerprint(buildThemeSelection)
+  const syncBelongsToPresentation = !themeSync.presentationId
+    || !presentationId
+    || themeSync.presentationId === presentationId
+  const visibleSyncStatus: ThemeSyncStatus = submittedFromRequestId !== undefined
+    ? 'syncing'
+    : syncBelongsToPresentation
+      ? themeSync.status
+      : 'idle'
 
-  /**
-   * Handle theme selection (preset mode)
-   */
-  const handleSelectTheme = async (themeId: string) => {
-    setSelectedTheme(themeId)
-    setHasChanges(true)
-    // Clear overrides when switching base themes
-    setColorOverrides({})
-    await previewTheme(themeId)
-  }
-
-  /**
-   * Handle color override change
-   */
-  const handleColorChange = async (key: string, value: string) => {
-    const newOverrides = { ...colorOverrides, [key]: value }
-    setColorOverrides(newOverrides)
-    setHasChanges(true)
-    await previewTheme(selectedTheme, newOverrides)
-  }
-
-  /**
-   * Reset specific color group
-   */
-  const handleResetSection = async (keys: readonly string[]) => {
-    const newOverrides = { ...colorOverrides }
-    keys.forEach(key => {
-      delete newOverrides[key]
+  const invalidCustomColor = mode === 'custom' && (
+    !isValidThemeHex(draft.primary_hex)
+    || CUSTOM_COLOR_FIELDS.slice(1).some(({ key }) => {
+      const value = draft[key]
+      return Boolean(value && !isValidThemeHex(value))
     })
-    setColorOverrides(newOverrides)
-    setHasChanges(true)
-    await previewTheme(selectedTheme, Object.keys(newOverrides).length > 0 ? newOverrides : undefined)
-  }
+  )
+  const invalidOverride = Object.values(draft.color_overrides || {}).some(value => !isValidThemeHex(value))
+  const canApply = Boolean(
+    onBuildThemeChange
+    && !selectionLocked
+    && !invalidCustomColor
+    && !invalidOverride
+    && (hasChanges || visibleSyncStatus === 'failed'),
+  )
 
-  /**
-   * Reset all color overrides
-   */
-  const handleResetAll = async () => {
-    setColorOverrides({})
-    setHasChanges(true)
-    await previewTheme(selectedTheme)
-  }
-
-  /**
-   * Handle cancel - restore original theme
-   */
-  const handleCancel = async () => {
-    if (originalTheme && hasChanges) {
-      await previewTheme(
-        originalTheme.theme_id,
-        originalTheme.color_overrides || undefined
-      )
-    }
-    onClose()
-  }
-
-  /**
-   * Save theme
-   */
-  const handleSave = async () => {
-    setIsSaving(true)
-    try {
-      await sendCommand('setTheme', {
-        themeId: selectedTheme,
-        colorOverrides: Object.keys(colorOverrides).length > 0 ? colorOverrides : undefined
-      })
-
-      setHasChanges(false)
-      toast({
-        title: 'Theme applied',
-        description: `Presentation theme set to ${THEME_PREVIEWS[selectedTheme]?.name || selectedTheme}`
-      })
-      onClose()
-    } catch (error) {
-      console.error('Failed to save theme:', error)
-      toast({
-        title: 'Save failed',
-        description: error instanceof Error ? error.message : 'Failed to save theme',
-        variant: 'destructive'
-      })
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  /**
-   * Get current colors (theme base merged with overrides)
-   */
-  const getCurrentColors = (): Record<string, string> => {
-    const baseColors = THEME_PREVIEWS[selectedTheme]?.colors || THEME_PREVIEWS['corporate-blue'].colors
-    return { ...baseColors, ...colorOverrides }
-  }
-
-  /**
-   * Check if a color group has overrides
-   */
-  const hasGroupOverrides = (keys: readonly string[]): boolean => {
-    return keys.some(key => colorOverrides[key] !== undefined)
-  }
+  const currentPalette = useMemo<PreviewPalette>(() => ({
+    background: draft.color_overrides?.background || selectedPreview.background,
+    surface: draft.color_overrides?.surface || selectedPreview.surface,
+    primary: draft.primary_hex || draft.color_overrides?.primary || selectedPreview.primary,
+    accent: draft.secondary_hex || draft.color_overrides?.accent || selectedPreview.accent,
+    text: draft.color_overrides?.text_primary || selectedPreview.text,
+  }), [draft, selectedPreview])
 
   if (!isOpen) return null
 
-  const baseColors = THEME_PREVIEWS[selectedTheme]?.colors || THEME_PREVIEWS['corporate-blue'].colors
-  const currentColors = getCurrentColors()
-  const totalOverrides = Object.keys(colorOverrides).length
+  const updateDraft = (next: BuildThemeSelection) => {
+    if (selectionLocked) return
+    setDraft(normalizeThemePanelSelection(next))
+    setSubmittedFromRequestId(undefined)
+  }
+
+  const selectPreset = (presetId: string) => {
+    updateDraft(selectCanonicalThemePreset(draft, presetId))
+  }
+
+  const selectAuto = () => {
+    const retained = selectCanonicalThemePreset(draft, selectedPresetId)
+    updateDraft({
+      mode: 'auto',
+      harmony_preference: draft.harmony_preference,
+      palette_mode: draft.palette_mode,
+      color_overrides: retained.color_overrides,
+    })
+  }
+
+  const selectCustomMode = () => {
+    if (draft.mode === 'custom') return
+    updateDraft({
+      mode: 'custom',
+      preset_id: selectedPresetId,
+      primary_hex: draft.color_overrides?.primary || selectedPreview.primary,
+      secondary_hex: draft.color_overrides?.secondary || selectedPreview.accent,
+      tertiary_hex: draft.color_overrides?.tertiary,
+      neutral_hex: draft.color_overrides?.neutral,
+      harmony_preference: draft.harmony_preference || 'auto',
+      palette_mode: draft.palette_mode || 'both',
+      color_overrides: draft.color_overrides ? { ...draft.color_overrides } : undefined,
+    })
+  }
+
+  const updateCustomColor = (
+    key: typeof CUSTOM_COLOR_FIELDS[number]['key'],
+    value: string,
+  ) => {
+    updateDraft({ ...draft, mode: 'custom', [key]: value || undefined })
+  }
+
+  const updateOverride = (key: string, value?: string) => {
+    const nextOverrides = { ...(draft.color_overrides || {}) }
+    if (value) nextOverrides[key] = value
+    else delete nextOverrides[key]
+    updateDraft({
+      ...draft,
+      color_overrides: Object.keys(nextOverrides).length > 0 ? nextOverrides : undefined,
+    })
+  }
+
+  const applyTheme = () => {
+    if (selectionLocked || !canApply || !onBuildThemeChange) return
+    const next = normalizeThemePanelSelection(draft)
+    setSubmittedFromRequestId(themeSync.requestId)
+    onBuildThemeChange(next)
+  }
 
   return (
-    <div className="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl z-50 flex flex-col border-r border-gray-200">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
-        <h2 className="text-xs font-semibold text-gray-900">Theme</h2>
+    <div className="fixed inset-y-0 left-0 z-50 flex w-96 flex-col border-r border-gray-200 bg-white shadow-2xl">
+      <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xs font-semibold text-gray-900">Deck theme</h2>
+          <SyncBadge status={visibleSyncStatus} />
+        </div>
         <button
-          onClick={handleCancel}
-          className="p-1.5 rounded-md hover:bg-gray-200 transition-colors"
+          type="button"
+          onClick={onClose}
+          className="rounded-md p-1.5 transition-colors hover:bg-gray-200"
           title="Close panel"
         >
           <X className="h-4 w-4 text-gray-600" />
         </button>
       </div>
 
-      {/* Mode Toggle */}
-      <div className="px-3 py-2 border-b border-gray-200">
+      {visibleSyncStatus === 'failed' && themeSync.error && (
+        <div className="border-b border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
+          {themeSync.error}
+        </div>
+      )}
+
+      {selectionLocked && (
+        <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800">
+          Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.
+        </div>
+      )}
+
+      <div className="border-b border-gray-200 px-3 py-2">
         <div className="flex rounded-lg bg-gray-100 p-0.5">
           <button
-            onClick={() => setThemeMode('preset')}
+            type="button"
+            disabled={selectionLocked}
+            onClick={() => {
+              if (draft.mode === 'custom') selectPreset(selectedPresetId)
+            }}
             className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-all",
-              themeMode === 'preset'
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
+              'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50',
+              mode === 'preset' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900',
             )}
           >
-            <Palette className="h-3 w-3" />
-            Preset Themes
+            <Palette className="h-3 w-3" /> Preset themes
           </button>
           <button
-            onClick={() => setThemeMode('custom')}
+            type="button"
+            disabled={selectionLocked}
+            onClick={selectCustomMode}
             className={cn(
-              "flex-1 flex items-center justify-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium transition-all",
-              themeMode === 'custom'
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
+              'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50',
+              mode === 'custom' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900',
             )}
           >
-            <Wand2 className="h-3 w-3" />
-            Build Custom
+            <Wand2 className="h-3 w-3" /> Build custom
           </button>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      <div className="flex-1 space-y-4 overflow-y-auto p-3">
+        {draft.mode === 'auto' ? (
+          <div className="rounded-lg border border-sky-100 bg-sky-50 p-2.5 text-[10px] leading-4 text-sky-700">
+            Auto is resolved by Director from the session default. Apply it to see the authoritative Theme Builder result on the deck.
           </div>
-        ) : themeMode === 'preset' ? (
-          /* ============ PRESET THEMES MODE ============ */
-          <>
-            {/* Theme Selection Grid */}
-            <div className="space-y-2">
-              <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                Select Theme
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {THEME_IDS.map((themeId) => {
-                  const theme = THEME_PREVIEWS[themeId]
-                  const isSelected = selectedTheme === themeId
-
-                  return (
-                    <button
-                      key={themeId}
-                      onClick={() => handleSelectTheme(themeId)}
-                      className={cn(
-                        "relative p-2.5 rounded-lg border-2 transition-all text-left",
-                        isSelected
-                          ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
-                          : "border-gray-200 hover:border-gray-300 bg-white"
-                      )}
-                    >
-                      {/* Color swatches */}
-                      <div
-                        className="h-12 rounded-md mb-2 flex items-center justify-center gap-2"
-                        style={{ background: theme.colors.background }}
-                      >
-                        <div
-                          className="w-8 h-8 rounded shadow-sm"
-                          style={{ background: theme.colors.primary }}
-                        />
-                        <div
-                          className="w-8 h-8 rounded shadow-sm"
-                          style={{ background: theme.colors.accent }}
-                        />
-                      </div>
-
-                      {/* Theme name */}
-                      <div className="text-[11px] font-medium text-gray-900">
-                        {theme.name}
-                      </div>
-
-                      {/* Check mark */}
-                      {isSelected && (
-                        <div className="absolute top-2 right-2">
-                          <Check className="h-4 w-4 text-blue-500" />
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-gray-200" />
-
-            {/* Quick Color Customization */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                  Quick Customize
-                </h3>
-                {totalOverrides > 0 && (
-                  <button
-                    onClick={handleResetAll}
-                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    Reset All
-                  </button>
-                )}
-              </div>
-
-              <p className="text-[10px] text-gray-500">
-                Quickly adjust the main colors. Switch to "Build Custom" for full control.
-              </p>
-
-              <div className="space-y-2">
-                {/* Primary Color */}
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs text-gray-600">Primary</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 font-mono">
-                      {currentColors.primary}
-                    </span>
-                    <CompactColorPicker
-                      value={currentColors.primary}
-                      onChange={(color) => handleColorChange('primary', color)}
-                    />
-                  </div>
-                </div>
-
-                {/* Accent Color */}
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs text-gray-600">Accent</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 font-mono">
-                      {currentColors.accent}
-                    </span>
-                    <CompactColorPicker
-                      value={currentColors.accent}
-                      onChange={(color) => handleColorChange('accent', color)}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Theme Description */}
-            <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
-              <div className="text-[10px] text-gray-500 mb-0.5">Current theme:</div>
-              <div className="text-xs font-medium text-gray-800">
-                {THEME_PREVIEWS[selectedTheme]?.name}
-                {totalOverrides > 0 && (
-                  <span className="text-xs text-blue-600 ml-2">
-                    ({totalOverrides} customization{totalOverrides !== 1 ? 's' : ''})
-                  </span>
-                )}
-              </div>
-              <div className="text-[10px] text-gray-500 mt-0.5">
-                {THEME_PREVIEWS[selectedTheme]?.description}
-              </div>
-            </div>
-          </>
         ) : (
-          /* ============ BUILD CUSTOM MODE ============ */
-          <>
-            {/* Base Theme Selector */}
-            <div className="space-y-1.5">
-              <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                Base Theme
-              </h3>
-              <p className="text-[10px] text-gray-500">
-                Start from a preset theme and customize all colors below.
-              </p>
-              <select
-                value={selectedTheme}
-                onChange={(e) => handleSelectTheme(e.target.value)}
-                className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                {THEME_IDS.map((themeId) => (
-                  <option key={themeId} value={themeId}>
-                    {THEME_PREVIEWS[themeId].name}
-                  </option>
-                ))}
-              </select>
+          <div className="rounded-lg border border-gray-200 p-2.5">
+            <div
+              className="flex h-16 items-center justify-center gap-2 rounded-md"
+              style={{ background: currentPalette.background, color: currentPalette.text }}
+            >
+              <div className="h-9 w-16 rounded" style={{ background: currentPalette.primary }} />
+              <div className="h-9 w-10 rounded" style={{ background: currentPalette.accent }} />
+              <div className="h-9 w-8 rounded border" style={{ background: currentPalette.surface }} />
             </div>
-
-            {/* Reset All Button */}
-            {totalOverrides > 0 && (
-              <div className="flex justify-end">
-                <button
-                  onClick={handleResetAll}
-                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Reset All Colors ({totalOverrides})
-                </button>
-              </div>
-            )}
-
-            {/* Color Sections */}
-            <div className="space-y-2">
-              {/* Brand Colors */}
-              <ColorSection
-                title={COLOR_GROUPS.brand.label}
-                colorKeys={COLOR_GROUPS.brand.keys}
-                colors={colorOverrides}
-                baseColors={baseColors}
-                onColorChange={handleColorChange}
-                onResetSection={() => handleResetSection(COLOR_GROUPS.brand.keys)}
-                hasOverrides={hasGroupOverrides(COLOR_GROUPS.brand.keys)}
-                defaultExpanded={true}
-              />
-
-              {/* Tertiary Colors */}
-              <ColorSection
-                title={COLOR_GROUPS.tertiary.label}
-                colorKeys={COLOR_GROUPS.tertiary.keys}
-                colors={colorOverrides}
-                baseColors={baseColors}
-                onColorChange={handleColorChange}
-                onResetSection={() => handleResetSection(COLOR_GROUPS.tertiary.keys)}
-                hasOverrides={hasGroupOverrides(COLOR_GROUPS.tertiary.keys)}
-              />
-
-              {/* Background Colors */}
-              <ColorSection
-                title={COLOR_GROUPS.background.label}
-                colorKeys={COLOR_GROUPS.background.keys}
-                colors={colorOverrides}
-                baseColors={baseColors}
-                onColorChange={handleColorChange}
-                onResetSection={() => handleResetSection(COLOR_GROUPS.background.keys)}
-                hasOverrides={hasGroupOverrides(COLOR_GROUPS.background.keys)}
-              />
-
-              {/* Text Colors */}
-              <ColorSection
-                title={COLOR_GROUPS.text.label}
-                colorKeys={COLOR_GROUPS.text.keys}
-                colors={colorOverrides}
-                baseColors={baseColors}
-                onColorChange={handleColorChange}
-                onResetSection={() => handleResetSection(COLOR_GROUPS.text.keys)}
-                hasOverrides={hasGroupOverrides(COLOR_GROUPS.text.keys)}
-              />
-
-              {/* Border */}
-              <ColorSection
-                title={COLOR_GROUPS.border.label}
-                colorKeys={COLOR_GROUPS.border.keys}
-                colors={colorOverrides}
-                baseColors={baseColors}
-                onColorChange={handleColorChange}
-                onResetSection={() => handleResetSection(COLOR_GROUPS.border.keys)}
-                hasOverrides={hasGroupOverrides(COLOR_GROUPS.border.keys)}
-              />
-
-              {/* Chart Colors */}
-              <ColorSection
-                title={COLOR_GROUPS.chart.label}
-                colorKeys={COLOR_GROUPS.chart.keys}
-                colors={colorOverrides}
-                baseColors={baseColors}
-                onColorChange={handleColorChange}
-                onResetSection={() => handleResetSection(COLOR_GROUPS.chart.keys)}
-                hasOverrides={hasGroupOverrides(COLOR_GROUPS.chart.keys)}
-              />
-            </div>
-
-            {/* Summary */}
-            <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
-              <div className="text-[10px] text-gray-500 mb-0.5">Building from:</div>
-              <div className="text-xs font-medium text-gray-800">
-                {THEME_PREVIEWS[selectedTheme]?.name}
-              </div>
-              {totalOverrides > 0 && (
-                <div className="text-xs text-blue-600 mt-1">
-                  {totalOverrides} color{totalOverrides !== 1 ? 's' : ''} customized
-                </div>
-              )}
-            </div>
-          </>
+            <p className="mt-2 text-[10px] leading-4 text-gray-500">
+              Palette guide only. Director applies the complete Theme Builder contract, including typography and component treatments.
+            </p>
+          </div>
         )}
+
+        {mode === 'preset' ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={selectionLocked}
+                onClick={selectAuto}
+                className={cn(
+                  'col-span-2 rounded-lg border-2 px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                  draft.mode === 'auto' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300',
+                )}
+              >
+                <span className="flex items-center justify-between text-[11px] font-medium text-gray-800">
+                  Auto / session default
+                  {draft.mode === 'auto' && <Check className="h-4 w-4 text-blue-500" />}
+                </span>
+                <span className="text-[10px] text-gray-500">Use the Director session’s resolved theme.</span>
+              </button>
+              {THEME_PREVIEWS.map(theme => {
+                const selected = draft.mode === 'preset' && selectedPresetId === theme.id
+                return (
+                  <button
+                    type="button"
+                    disabled={selectionLocked}
+                    key={theme.id}
+                    onClick={() => selectPreset(theme.id)}
+                    className={cn(
+                      'relative rounded-lg border-2 p-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                      selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300',
+                    )}
+                  >
+                    <div className="mb-2 flex h-9 gap-1 rounded p-1" style={{ background: theme.colors.background }}>
+                      <span className="flex-1 rounded" style={{ background: theme.colors.primary }} />
+                      <span className="w-7 rounded" style={{ background: theme.colors.accent }} />
+                    </div>
+                    <div className="pr-4 text-[11px] font-medium text-gray-900">{theme.name}</div>
+                    <div className="mt-0.5 line-clamp-2 text-[9px] leading-3 text-gray-500">{theme.description}</div>
+                    {selected && <Check className="absolute right-2 top-2 h-4 w-4 text-blue-500" />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div>
+              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Custom palette</h3>
+              <p className="mt-1 text-[10px] text-gray-500">These values are explicit literals and stay fixed when a named theme changes.</p>
+            </div>
+            {CUSTOM_COLOR_FIELDS.map(({ key, label }, index) => (
+              <HexField
+                key={key}
+                label={label}
+                value={draft[key]}
+                fallback={index === 0 ? selectedPreview.primary : index === 1 ? selectedPreview.accent : selectedPreview.surface}
+                linkedLabel="Generated from primary"
+                disabled={selectionLocked}
+                onChange={value => updateCustomColor(key, value)}
+                onReset={() => updateCustomColor(key, '')}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="space-y-2 border-t border-gray-200 pt-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Explicit token overrides</h3>
+              <p className="mt-1 text-[10px] text-gray-500">Empty values remain linked to the selected theme.</p>
+            </div>
+            {draft.color_overrides && Object.keys(draft.color_overrides).length > 0 && (
+              <button
+                type="button"
+                disabled={selectionLocked}
+                onClick={() => updateDraft({ ...draft, color_overrides: undefined })}
+                className="inline-flex shrink-0 items-center gap-1 text-[10px] text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RotateCcw className="h-3 w-3" /> Reset all
+              </button>
+            )}
+          </div>
+          {OVERRIDE_TOKENS.map(({ key, label }) => {
+            const fallbacks: Record<string, string> = {
+              primary: currentPalette.primary,
+              secondary: selectedPreview.accent,
+              tertiary: selectedPreview.surface,
+              neutral: selectedPreview.surface,
+              accent: currentPalette.accent,
+              background: currentPalette.background,
+              surface: currentPalette.surface,
+              text_primary: currentPalette.text,
+              text_body: currentPalette.text,
+              border: selectedPreview.surface,
+            }
+            return (
+              <HexField
+                key={key}
+                label={label}
+                value={draft.color_overrides?.[key]}
+                fallback={fallbacks[key]}
+                disabled={selectionLocked}
+                onChange={value => updateOverride(key, value)}
+                onReset={() => updateOverride(key)}
+              />
+            )
+          })}
+          {draft.color_overrides && Object.keys(draft.color_overrides).some(
+            key => !OVERRIDE_TOKENS.some(token => token.key === key),
+          ) && (
+            <p className="rounded-md bg-gray-50 px-2 py-1.5 text-[10px] text-gray-500">
+              Additional saved overrides are retained when you apply this theme.
+            </p>
+          )}
+        </div>
       </div>
 
-      {/* Footer */}
-      <div className="px-3 py-2 border-t border-gray-200 bg-gray-50">
+      <div className="border-t border-gray-200 bg-gray-50 px-3 py-2">
+        {(invalidCustomColor || invalidOverride) && (
+          <p className="mb-2 text-[10px] text-rose-600">Custom themes require a primary six-digit hex color, such as #1e40af.</p>
+        )}
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleCancel}
-            disabled={isSaving}
-            className="flex-1 h-7 text-[11px]"
-          >
-            Cancel
+          <Button variant="outline" onClick={onClose} className="h-7 flex-1 text-[11px]">
+            Close
           </Button>
           <Button
-            onClick={handleSave}
-            disabled={isSaving || !hasChanges}
-            className="flex-1 h-7 text-[11px]"
+            onClick={applyTheme}
+            disabled={!canApply || visibleSyncStatus === 'syncing'}
+            className="h-7 flex-1 text-[11px]"
           >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Applying...
-              </>
+            {visibleSyncStatus === 'syncing' ? (
+              <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Syncing</>
+            ) : visibleSyncStatus === 'failed' && !hasChanges ? (
+              'Retry'
             ) : (
-              'Apply'
+              'Apply through Director'
             )}
           </Button>
         </div>

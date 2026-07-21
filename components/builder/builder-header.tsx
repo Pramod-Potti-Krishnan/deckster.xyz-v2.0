@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { ConnectionError } from "@/components/connection-error"
 import { Home, PanelLeft } from "lucide-react"
+import {
+  BuildFingerprintBadge,
+  BuildVersionGuard,
+} from "@/components/build-version-guard"
 
 export interface BuilderHeaderProps {
   wsError: any
@@ -75,6 +79,7 @@ export function BuilderHeader({
 
           {/* One-button-width gap before the profile so it reads as separate from present actions */}
           <div className="flex items-center gap-1 flex-shrink-0 ml-[72px]">
+            <BuildFingerprintBadge />
             <UserProfileMenu />
           </div>
         </div>
@@ -86,6 +91,7 @@ export function BuilderHeader({
           <ConnectionError onRetry={() => window.location.reload()} />
         </div>
       )}
+      <BuildVersionGuard />
     </>
   )
 }

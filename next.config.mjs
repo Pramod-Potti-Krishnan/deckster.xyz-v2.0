@@ -1,5 +1,30 @@
+import { execFileSync } from 'node:child_process'
+
+function resolveBuildFingerprint() {
+  const configured =
+    process.env.NEXT_PUBLIC_DECKSTER_BUILD_SHA
+    || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
+    || process.env.VERCEL_GIT_COMMIT_SHA
+    || process.env.GIT_COMMIT_SHA
+  if (configured) return configured
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+  } catch {
+    return `package-${process.env.npm_package_version || '0.1.0'}`
+  }
+}
+
+const buildFingerprint = resolveBuildFingerprint()
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    NEXT_PUBLIC_DECKSTER_BUILD_SHA: buildFingerprint,
+  },
   eslint: {
     // Temporarily ignore ESLint during builds to deploy first
     ignoreDuringBuilds: true,
