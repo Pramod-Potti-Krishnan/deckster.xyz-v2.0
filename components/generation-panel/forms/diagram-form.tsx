@@ -223,10 +223,10 @@ interface DiagramFormHydration {
   showLineNumbers: boolean
   showCopyButton: boolean
   cornerStyle: CodeDisplayConfig['corner_style']
-  columnCount: number
+  columnCount: number | null
   ganttTimeUnit: GanttConfig['time_unit']
   taskColumnWidthPx: number | null
-  numStages: number
+  numStages: number | null
   chevronTimeUnit: ChevronConfig['time_unit']
   rowLabelWidthPx: number | null
   axisPreset: IdeaBoardConfig['axis_preset']
@@ -362,10 +362,9 @@ export function resolveDiagramFormHydration(
       ? settings.show_copy_button
       : true,
     cornerStyle: settings.corner_style === 'square' ? 'square' : 'rounded',
-    columnCount: hydratedCatalogNumber(
+    columnCount: hydratedOptionalCatalogNumber(
       hydratedCatalog.config.column_count,
       settings.column_count,
-      4,
     ),
     ganttTimeUnit: hydratedSubtype === 'GANTT_CHART'
       ? hydratedCatalogString(
@@ -378,10 +377,9 @@ export function resolveDiagramFormHydration(
       hydratedCatalog.config.task_column_width_px,
       settings.task_column_width_px ?? generationConfig?.task_column_width_px,
     ),
-    numStages: hydratedCatalogNumber(
+    numStages: hydratedOptionalCatalogNumber(
       hydratedCatalog.config.num_stages,
       settings.num_stages,
-      5,
     ),
     chevronTimeUnit: hydratedSubtype === 'CHEVRON_MATURITY'
       ? hydratedCatalogString(
@@ -672,7 +670,7 @@ export function DiagramForm({
           ...shared,
         }
       case 'KANBAN_BOARD':
-        return { column_count: columnCount, ...shared }
+        return { ...(columnCount !== null ? { column_count: columnCount } : {}), ...shared }
       case 'GANTT_CHART':
         return {
           time_unit: ganttTimeUnit,
@@ -681,7 +679,7 @@ export function DiagramForm({
         }
       case 'CHEVRON_MATURITY':
         return {
-          num_stages: numStages,
+          ...(numStages !== null ? { num_stages: numStages } : {}),
           time_unit: chevronTimeUnit,
           ...(rowLabelWidthPx !== null ? { row_label_width_px: rowLabelWidthPx } : {}),
           ...shared,
@@ -732,10 +730,20 @@ export function DiagramForm({
       ).overLimit
     ) return
     const settings = buildDiagramConfig()
+    // When global Auto is selected, controlsSubtype is intentionally unresolved.
+    // Use the last selected/hydrated leaf solely to tombstone any persisted
+    // renderer-owned overrides; otherwise Text Labs would merge them back in.
+    const settingsOwnerSubtype = controlsSubtype ?? subtype
     const clearedSettings = [
-      ...(controlsSubtype && leafTheme === 'auto' && subtypeCatalog.config.theme ? ['theme'] : []),
+      ...(leafTheme === 'auto' && subtypeCatalog.config.theme ? ['theme'] : []),
       ...(positionPreset === 'auto' ? ['position_preset'] : []),
-      ...(controlsSubtype === 'CUSTOM' && layoutHint === 'auto' ? ['layout_hint'] : []),
+      ...(settingsOwnerSubtype === 'KANBAN_BOARD' && (selectionMode === 'auto' || columnCount === null)
+        ? ['column_count']
+        : []),
+      ...(settingsOwnerSubtype === 'CHEVRON_MATURITY' && (selectionMode === 'auto' || numStages === null)
+        ? ['num_stages']
+        : []),
+      ...(settingsOwnerSubtype === 'CUSTOM' && layoutHint === 'auto' ? ['layout_hint'] : []),
     ]
     const generationConfig: DiagramGenerationConfig = {
       version: 'diagram_generation_config_v1',
@@ -866,9 +874,13 @@ export function DiagramForm({
           {controlsSubtype === 'KANBAN_BOARD' && (
             <SelectField
               label="Columns"
-              value={String(columnCount)}
-              options={numbers(subtypeCatalog.config.column_count, [3, 4, 5]).map(String)}
-              onChange={value => { setColumnCount(Number(value)); markPrimaryModified() }}
+              value={columnCount === null ? 'auto' : String(columnCount)}
+              options={['auto', ...numbers(subtypeCatalog.config.column_count, [3, 4, 5]).map(String)]}
+              onChange={value => {
+                setColumnCount(value === 'auto' ? null : Number(value))
+                markPrimaryModified()
+              }}
+              autoLabel="Auto (from prompt)"
             />
           )}
           {controlsSubtype === 'GANTT_CHART' && (
@@ -883,9 +895,13 @@ export function DiagramForm({
             <div className="grid grid-cols-2 gap-2">
               <SelectField
                 label="Stages"
-                value={String(numStages)}
-                options={numbers(subtypeCatalog.config.num_stages, [3, 4, 5, 6]).map(String)}
-                onChange={value => { setNumStages(Number(value)); markPrimaryModified() }}
+                value={numStages === null ? 'auto' : String(numStages)}
+                options={['auto', ...numbers(subtypeCatalog.config.num_stages, [3, 4, 5, 6]).map(String)]}
+                onChange={value => {
+                  setNumStages(value === 'auto' ? null : Number(value))
+                  markPrimaryModified()
+                }}
+                autoLabel="Auto (from prompt)"
               />
               <SelectField
                 label="Timeline"

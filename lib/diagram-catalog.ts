@@ -118,7 +118,12 @@ const DIAGRAM_CATALOG_RAW: DiagramCatalog = {
       research_capable: true,
       path: pathFor('KANBAN_BOARD'),
       config: {
-        column_count: { type: 'enum', enum: [3, 4, 5], default: 4, primary: true },
+        column_count: {
+          type: 'enum',
+          enum: [3, 4, 5],
+          primary: true,
+          omit_when_auto: true,
+        },
         theme: {
           type: 'enum',
           enum: ['auto', 'default', 'dark', 'minimal'],
@@ -169,7 +174,13 @@ const DIAGRAM_CATALOG_RAW: DiagramCatalog = {
       research_capable: true,
       path: pathFor('CHEVRON_MATURITY'),
       config: {
-        num_stages: { type: 'integer', min: 3, max: 6, default: 5, primary: true },
+        num_stages: {
+          type: 'integer',
+          min: 3,
+          max: 6,
+          primary: true,
+          omit_when_auto: true,
+        },
         time_unit: {
           type: 'enum',
           enum: ['quarters', 'months', 'years', 'stages'],
@@ -517,7 +528,9 @@ export function normalizePersistedDiagramSettings(
       normalized.corner_style = input.corner_style === 'square' ? 'square' : 'rounded'
       break
     case 'KANBAN_BOARD':
-      normalized.column_count = normalizedCatalogNumber(config.column_count, input.column_count, 4)
+      if (input.column_count !== undefined && input.column_count !== null) {
+        normalized.column_count = normalizedCatalogNumber(config.column_count, input.column_count, 4)
+      }
       break
     case 'GANTT_CHART':
       normalized.time_unit = normalizedCatalogString(
@@ -525,7 +538,9 @@ export function normalizePersistedDiagramSettings(
       )
       break
     case 'CHEVRON_MATURITY':
-      normalized.num_stages = normalizedCatalogNumber(config.num_stages, input.num_stages, 5)
+      if (input.num_stages !== undefined && input.num_stages !== null) {
+        normalized.num_stages = normalizedCatalogNumber(config.num_stages, input.num_stages, 5)
+      }
       normalized.time_unit = normalizedCatalogString(config.time_unit, input.time_unit, 'stages')
       break
     case 'IDEA_BOARD':
