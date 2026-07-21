@@ -656,7 +656,7 @@ export interface CodeDisplayConfig {
 }
 
 export interface KanbanConfig {
-  column_count: number    // 3-5
+  column_count?: number   // 3-5; omitted lets the planner infer from the prompt
   theme: 'default' | 'dark' | 'minimal'
   position_preset: string
 }
@@ -668,7 +668,7 @@ export interface GanttConfig {
 }
 
 export interface ChevronConfig {
-  num_stages: number      // 3-6
+  num_stages?: number     // 3-6; omitted lets the planner infer from the prompt
   theme: 'default' | 'emerald' | 'purple'
   time_unit: 'months' | 'quarters' | 'years' | 'stages'
   position_preset: string

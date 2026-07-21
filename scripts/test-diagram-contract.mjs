@@ -208,6 +208,19 @@ assert.match(source, /cleared_settings: clearedSettings/)
 assert.doesNotMatch(source, /\bsolarized'\b/)
 assert.doesNotMatch(source, /\bnord\b/i)
 assert.match(source, /subtypeCatalog\.research_capable && researchControls/)
+assert.match(source, /columnCount !== null \? \{ column_count: columnCount \} : \{\}/)
+assert.match(source, /numStages !== null \? \{ num_stages: numStages \} : \{\}/)
+assert.match(source, /columnCount === null \? 'auto' : String\(columnCount\)/)
+assert.match(source, /numStages === null \? 'auto' : String\(numStages\)/)
+assert.match(source, /settingsOwnerSubtype === 'KANBAN_BOARD' && \(selectionMode === 'auto' \|\| columnCount === null\)/)
+assert.match(source, /settingsOwnerSubtype === 'CHEVRON_MATURITY' && \(selectionMode === 'auto' \|\| numStages === null\)/)
+
+const catalogSource = fs.readFileSync(
+  new URL('../lib/diagram-catalog.ts', import.meta.url),
+  'utf8',
+)
+assert.match(catalogSource, /input\.column_count !== undefined && input\.column_count !== null/)
+assert.match(catalogSource, /input\.num_stages !== undefined && input\.num_stages !== null/)
 
 const semanticModule = loadTypeScriptModule(
   new URL('../lib/element-semantic-type.ts', import.meta.url),

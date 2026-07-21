@@ -73,6 +73,31 @@ const generatorCatalog = JSON.parse(execFileSync(
 ))
 const frontendCatalog = JSON.parse(JSON.stringify(mod.exports.DIAGRAM_CATALOG_FALLBACK))
 
+const autoKanban = JSON.parse(JSON.stringify(
+  mod.exports.normalizePersistedDiagramSettings(frontendCatalog, 'KANBAN_BOARD', {}),
+))
+const autoChevron = JSON.parse(JSON.stringify(
+  mod.exports.normalizePersistedDiagramSettings(frontendCatalog, 'CHEVRON_MATURITY', {}),
+))
+assert.equal(autoKanban.column_count, undefined)
+assert.equal(autoChevron.num_stages, undefined)
+assert.equal(
+  mod.exports.normalizePersistedDiagramSettings(
+    frontendCatalog,
+    'KANBAN_BOARD',
+    { column_count: 5 },
+  ).column_count,
+  5,
+)
+assert.equal(
+  mod.exports.normalizePersistedDiagramSettings(
+    frontendCatalog,
+    'CHEVRON_MATURITY',
+    { num_stages: 4 },
+  ).num_stages,
+  4,
+)
+
 assert.deepEqual(
   frontendCatalog,
   generatorCatalog,
