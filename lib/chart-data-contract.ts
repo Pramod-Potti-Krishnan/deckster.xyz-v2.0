@@ -2,7 +2,9 @@ import type {
   ChartConfig,
   ChartData,
   ChartDataSourceMode,
+  ChartDataUpdateMode,
   ChartFormData,
+  ChartLegendMode,
   ChartMetadataMode,
   ResolvedChartMetadata,
   TextLabsChartType,
@@ -29,6 +31,7 @@ export type ChartTitleOverride = {
 export type ChartPanelDraftState = {
   chartType: TextLabsChartType
   dataSource: ChartDataSourceMode
+  legendMode: ChartLegendMode
   customDataInput: string
   titleMode: ChartMetadataMode
   chartTitle: string
@@ -71,6 +74,7 @@ const CHART_TYPES = new Set<TextLabsChartType>([
   'waterfall',
 ])
 const CHART_DATA_SOURCE_MODES = new Set<ChartDataSourceMode>(['auto', 'illustrative', 'custom'])
+const CHART_LEGEND_MODES = new Set<ChartLegendMode>(['auto', 'show', 'hide'])
 const NON_CARTESIAN_CHART_TYPES = new Set<TextLabsChartType>([
   'pie',
   'doughnut',
@@ -132,6 +136,89 @@ function chartMetadataMode(value: unknown): ChartMetadataMode {
   // ownership flags. Missing ownership must therefore remain Auto; only an
   // explicit modern requested_*_mode may claim a user override.
   return 'auto'
+}
+
+function chartLegendMode(value: unknown): ChartLegendMode {
+  return typeof value === 'string' && CHART_LEGEND_MODES.has(value as ChartLegendMode)
+    ? value as ChartLegendMode
+    : 'auto'
+}
+
+/**
+ * `data_update_mode` is an instruction for one Text Labs request, never chart
+ * state. Strip it recursively before anything is cached by the panel or
+ * persisted by Layout because services may echo the request at different
+ * generationConfig/formData nesting levels.
+ */
+export function stripChartDataUpdateMode<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(item => stripChartDataUpdateMode(item)) as unknown as T
+  }
+  if (!isRecord(value)) return value
+
+  const cleaned: Record<string, unknown> = {}
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (key === 'data_update_mode' || key === 'dataUpdateMode') continue
+    cleaned[key] = stripChartDataUpdateMode(nestedValue)
+  }
+  return cleaned as unknown as T
+}
+
+export type ResolveChartDataUpdateModeInput = {
+  panelMode: 'generate' | 'edit' | 'refine'
+  initialPrompt: string
+  prompt: string
+  initialChartType: TextLabsChartType
+  chartType: TextLabsChartType
+  initialDataSource: ChartDataSourceMode
+  dataSource: ChartDataSourceMode
+  initialCustomDataInput: string
+  customDataInput: string
+}
+
+function comparableChartDataInput(input: string): string {
+  try {
+    const normalize = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(normalize)
+      if (!isRecord(value)) return value
+      return Object.fromEntries(
+        Object.keys(value)
+          .sort()
+          .map(key => [key, normalize(value[key])]),
+      )
+    }
+    return JSON.stringify(normalize(JSON.parse(input)))
+  } catch {
+    return input.trim()
+  }
+}
+
+/**
+ * Give Text Labs an unambiguous data-ownership hint only when the panel can
+ * determine intent without interpreting natural language. A changed refine
+ * prompt is intentionally left unclassified so Text Labs can distinguish
+ * metadata-only wording from a new dataset request.
+ */
+export function resolveChartDataUpdateMode({
+  panelMode,
+  initialPrompt,
+  prompt,
+  initialChartType,
+  chartType,
+  initialDataSource,
+  dataSource,
+  initialCustomDataInput,
+  customDataInput,
+}: ResolveChartDataUpdateModeInput): ChartDataUpdateMode | undefined {
+  if (panelMode !== 'refine') return 'replace'
+  if (chartType !== initialChartType || dataSource !== initialDataSource) return 'replace'
+  if (dataSource === 'custom') {
+    return comparableChartDataInput(customDataInput) === comparableChartDataInput(initialCustomDataInput)
+      ? 'preserve'
+      : 'replace'
+  }
+  if (prompt.trim() !== initialPrompt.trim()) return undefined
+  return 'preserve'
 }
 
 function cleanOptionalText(value: unknown): string | null {
@@ -410,6 +497,7 @@ export function resolveChartPanelDraft(
   return {
     chartType: textLabsChartType(chartConfig.chart_type),
     dataSource: chartDataSourceMode(chartConfig.requested_data_source_mode),
+    legendMode: chartLegendMode(chartConfig.legend_mode),
     customDataInput,
     titleMode: chartMetadataMode(chartConfig.requested_title_mode),
     chartTitle,
@@ -426,7 +514,7 @@ export function resolveChartPanelDraft(
       ? formData.z_index
       : undefined,
     positionConfig: formData?.positionConfig,
-    preservedChartConfig: { ...chartConfig },
+    preservedChartConfig: stripChartDataUpdateMode({ ...chartConfig }),
   }
 }
 
@@ -462,6 +550,7 @@ export function resolveChartFormDataFromGenerationConfig(
   const requestedTitleMode = chartMetadataMode(source.requested_title_mode)
   const requestedAxisLabelMode = chartMetadataMode(source.requested_axis_label_mode)
   const requestedDataSourceMode = chartDataSourceMode(source.requested_data_source_mode)
+  const legendMode = chartLegendMode(source.legend_mode)
   const positionValue = isRecord(value.positionConfig)
     ? value.positionConfig
     : isRecord(value.position_config)
@@ -499,7 +588,8 @@ export function resolveChartFormDataFromGenerationConfig(
     advancedModified: value.advancedModified === true
       || value.advanced_modified === true
       || requestedTitleMode === 'custom'
-      || requestedAxisLabelMode === 'custom',
+      || requestedAxisLabelMode === 'custom'
+      || legendMode !== 'auto',
     z_index: isFiniteNumber(value.zIndex)
       ? value.zIndex
       : isFiniteNumber(value.z_index)
@@ -520,6 +610,7 @@ export function resolveChartFormDataFromGenerationConfig(
       requested_data_source_mode: requestedDataSourceMode,
       requested_title_mode: requestedTitleMode,
       requested_axis_label_mode: requestedAxisLabelMode,
+      legend_mode: legendMode,
       include_insights: source.include_insights === true,
       series_names: Array.isArray(source.series_names)
         ? source.series_names.filter(nonEmptyLabel)
@@ -588,15 +679,63 @@ export function mergeChartPanelGenerationConfig(
 
   if (normalizedMetadata) merged.resolved_chart_metadata = normalizedMetadata
 
+  const mergedChartConfig: Record<string, unknown> | null = submittedChartConfig || returnedChartConfig
+    ? {
+        ...(returnedChartConfig ?? {}),
+        ...(submittedChartConfig ?? {}),
+      }
+    : null
+  if (mergedChartConfig) {
+    const submittedChartType = textLabsChartType(
+      submittedChartConfig?.chart_type ?? submittedChartConfig?.chartType,
+    )
+    const returnedChartType = textLabsChartType(
+      returnedChartConfig?.chart_type
+        ?? returnedChartConfig?.chartType
+        ?? returned?.chart_type
+        ?? returned?.chartType,
+    )
+    // Auto is durable panel ownership. A specific submitted type, however,
+    // may just be the previous renderer snapshot while Text Labs classified a
+    // changed natural-language refinement. Persist the effective returned type
+    // so the next metadata-only refine cannot revert it.
+    if (submittedChartType !== 'auto' && returnedChartType !== 'auto') {
+      mergedChartConfig.chart_type = returnedChartType
+    }
+
+    const submittedLegendMode = chartLegendMode(
+      submittedChartConfig?.legend_mode ?? submittedChartConfig?.legendMode,
+    )
+    const returnedLegendMode = chartLegendMode(
+      returnedChartConfig?.legend_mode
+        ?? returnedChartConfig?.legendMode
+        ?? returned?.legend_mode
+        ?? returned?.legendMode,
+    )
+    if (submittedLegendMode === 'auto' && returnedLegendMode !== 'auto') {
+      mergedChartConfig.legend_mode = returnedLegendMode
+    }
+
+    const returnedPartToWholeContainer = [returnedChartConfig, returned]
+      .find(container => Boolean(
+        container && (
+          Object.prototype.hasOwnProperty.call(container, 'part_to_whole_value_mode')
+          || Object.prototype.hasOwnProperty.call(container, 'partToWholeValueMode')
+        ),
+      ))
+    if (returnedPartToWholeContainer) {
+      mergedChartConfig.part_to_whole_value_mode =
+        returnedPartToWholeContainer.part_to_whole_value_mode
+        ?? returnedPartToWholeContainer.partToWholeValueMode
+        ?? null
+    }
+  }
   if (submittedFormData || returnedFormData) {
     merged.formData = {
       ...(returnedFormData ?? {}),
       ...(submittedFormData ?? {}),
-      ...(submittedChartConfig || returnedChartConfig ? {
-        chartConfig: {
-          ...(returnedChartConfig ?? {}),
-          ...(submittedChartConfig ?? {}),
-        },
+      ...(mergedChartConfig ? {
+        chartConfig: mergedChartConfig,
       } : {}),
       ...(submittedPanelMetadata || returnedPanelMetadata ? {
         generationConfig: {
@@ -608,7 +747,7 @@ export function mergeChartPanelGenerationConfig(
     }
   }
 
-  return merged
+  return stripChartDataUpdateMode(merged)
 }
 
 /**
@@ -625,7 +764,7 @@ export function buildChartPanelGenerationConfig(
     componentType: 'CHART' as const,
     customDataInput,
   }
-  return {
+  return stripChartDataUpdateMode({
     ...panelMetadata,
     prompt: baseFormData.prompt,
     showAdvanced,
@@ -633,7 +772,7 @@ export function buildChartPanelGenerationConfig(
       ...baseFormData,
       generationConfig: panelMetadata,
     },
-  }
+  })
 }
 
 /**
@@ -660,7 +799,7 @@ export function synchronizeChartPanelGenerationConfig(
           ? generationConfig.customDataInput
           : '',
       }
-  return {
+  return stripChartDataUpdateMode({
     ...generationConfig,
     formData: {
       ...savedFormData,
@@ -683,7 +822,7 @@ export function synchronizeChartPanelGenerationConfig(
       // generationConfig here would recursively embed formData.
       generationConfig: savedPanelMetadata,
     },
-  }
+  })
 }
 
 export function chartDataTemplate(chartType: TextLabsChartType): string {

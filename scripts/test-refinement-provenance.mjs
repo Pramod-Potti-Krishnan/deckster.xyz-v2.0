@@ -54,6 +54,34 @@ const diagramContext = buildRefineContext({
   },
 }, 'DIAGRAM')
 
+const liveChartProperties = {
+  chart_type: 'doughnut',
+  chart_data: [
+    { label: 'Enterprise', value: 55 },
+    { label: 'SMB', value: 30 },
+  ],
+  chart_config: { legend_mode: 'hide' },
+  chartType: 'doughnut',
+  chartData: [
+    { label: 'Enterprise', value: 55 },
+    { label: 'SMB', value: 30 },
+  ],
+  chartConfig: { legend_mode: 'hide' },
+}
+const chartContext = buildRefineContext({
+  elementId: 'chart-1',
+  elementType: 'chart',
+  componentType: 'CHART',
+  generationConfig: {
+    componentType: 'CHART',
+    formData: {
+      componentType: 'CHART',
+      chartConfig: { requested_data_source_mode: 'auto' },
+    },
+  },
+  properties: liveChartProperties,
+}, 'CHART')
+
 assert.equal(context.styleOwner, 'text_service')
 assert.equal(context.themeVariantSource, 'full_deck_generation')
 assert.equal(context.existingElement.style_owner, 'text_service')
@@ -70,6 +98,18 @@ assert.equal(context.existingElement.z_index, 317)
 assert.equal(diagramContext.diagramSubtype, 'GANTT_CHART')
 assert.equal(diagramContext.generationConfig.settings.time_unit, 'weeks')
 assert.equal(diagramContext.existingElement.generation_config.diagram_type, 'GANTT_CHART')
+assert.strictEqual(
+  chartContext.existingElement.properties,
+  liveChartProperties,
+  'Layout chart properties are forwarded under existing_element without rewriting current data',
+)
+assert.equal(chartContext.existingElement.properties.chart_data[0].value, 55)
+assert.equal(chartContext.existingElement.properties.chartData[1].value, 30)
+assert.equal(
+  chartContext.generationConfig.formData.chartConfig.requested_data_source_mode,
+  'auto',
+  'the live rendered snapshot does not reclassify generated Auto data as Custom JSON',
+)
 
 const generationSource = fs.readFileSync(
   new URL('../hooks/use-textlabs-generation.ts', import.meta.url),
@@ -82,6 +122,21 @@ assert.match(
   generationSource,
   /!refineElementDeleted[\s\S]*insertedElementIds\.includes\(refineContext\.elementId\)/,
   'regeneration overlay cleanup must run for in-place replacements while avoiding deleted targets',
+)
+assert.match(
+  generationSource,
+  /formData\.existingElement = \{[\s\S]*\.\.\.refineContext\.existingElement/,
+  'regeneration preflight retains existing_element.properties from the Layout event',
+)
+
+const clientSource = fs.readFileSync(
+  new URL('../lib/textlabs-client.ts', import.meta.url),
+  'utf8',
+)
+assert.match(
+  clientSource,
+  /existingElement: formData\.existingElement/,
+  'the Text Labs request receives the same existing_element snapshot',
 )
 
 const provenanceSource = fs.readFileSync(

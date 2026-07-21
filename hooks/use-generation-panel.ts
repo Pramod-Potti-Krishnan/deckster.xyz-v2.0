@@ -11,6 +11,7 @@ import {
   restoreElementResearchSelection,
 } from '@/lib/element-research-policy'
 import { resolveBlankReplacementPanelState } from '@/lib/blank-element-replacement'
+import { stripChartDataUpdateMode } from '@/lib/chart-data-contract'
 
 function cloneFormDataForDraft(formData: TextLabsFormData): TextLabsFormData {
   const copy: Record<string, unknown> = {}
@@ -20,10 +21,13 @@ function cloneFormDataForDraft(formData: TextLabsFormData): TextLabsFormData {
     if (key === 'existingElement') return
     if (value !== undefined) copy[key] = value
   })
+  const durableCopy = formData.componentType === 'CHART'
+    ? stripChartDataUpdateMode(copy)
+    : copy
   try {
-    return JSON.parse(JSON.stringify(copy)) as unknown as TextLabsFormData
+    return JSON.parse(JSON.stringify(durableCopy)) as unknown as TextLabsFormData
   } catch (_error) {
-    return copy as unknown as TextLabsFormData
+    return durableCopy as unknown as TextLabsFormData
   }
 }
 

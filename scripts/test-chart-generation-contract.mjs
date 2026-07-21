@@ -48,11 +48,13 @@ const {
   normalizeResolvedChartMetadata,
   parseChartDataJson,
   researchedChartRecoveryMessage,
+  resolveChartDataUpdateMode,
   resolveChartFormDataFromGenerationConfig,
   resolveChartPanelDraft,
   resolveChartSubmissionAxisLabels,
   resolveChartTitleOverride,
   resolveCustomChartAxisLabels,
+  stripChartDataUpdateMode,
   synchronizeChartPanelGenerationConfig,
   validateChartData,
 } = loadTypeScriptModule(moduleUrl('../lib/chart-data-contract.ts'))
@@ -215,6 +217,95 @@ assert.equal(
   'legacy callers without an explicit metadata mode retain optional blank category axes',
 )
 
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'generate',
+  initialPrompt: '',
+  prompt: 'Create a chart',
+  initialChartType: 'auto',
+  chartType: 'auto',
+  initialDataSource: 'auto',
+  dataSource: 'auto',
+  initialCustomDataInput: '',
+  customDataInput: '',
+}), 'replace', 'fresh generation always replaces any placeholder data')
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'refine',
+  initialPrompt: 'Quarterly revenue',
+  prompt: 'Quarterly revenue',
+  initialChartType: 'line',
+  chartType: 'line',
+  initialDataSource: 'auto',
+  dataSource: 'auto',
+  initialCustomDataInput: '',
+  customDataInput: '',
+}), 'preserve', 'same-prompt Chart Options changes preserve the live dataset')
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'refine',
+  initialPrompt: 'Quarterly revenue',
+  prompt: 'Use FY Revenue as the title',
+  initialChartType: 'line',
+  chartType: 'line',
+  initialDataSource: 'auto',
+  dataSource: 'auto',
+  initialCustomDataInput: '',
+  customDataInput: '',
+}), undefined, 'changed natural-language refinement is classified by Text Labs')
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'refine',
+  initialPrompt: 'Quarterly revenue',
+  prompt: 'Quarterly revenue',
+  initialChartType: 'line',
+  chartType: 'doughnut',
+  initialDataSource: 'auto',
+  dataSource: 'auto',
+  initialCustomDataInput: '',
+  customDataInput: '',
+}), 'replace', 'an explicit chart-type change resets stale renderer/data modes')
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'refine',
+  initialPrompt: 'Quarterly revenue',
+  prompt: 'Quarterly revenue',
+  initialChartType: 'line',
+  chartType: 'line',
+  initialDataSource: 'auto',
+  dataSource: 'custom',
+  initialCustomDataInput: '',
+  customDataInput: '[{"label":"Enterprise","value":55}]',
+}), 'replace', 'switching to explicit Custom JSON replaces live data')
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'refine',
+  initialPrompt: 'Customer mix',
+  prompt: 'Customer mix',
+  initialChartType: 'doughnut',
+  chartType: 'doughnut',
+  initialDataSource: 'custom',
+  dataSource: 'custom',
+  initialCustomDataInput: '[{"label":"Enterprise","value":55},{"label":"SMB","value":30}]',
+  customDataInput: '[ { "value": 55, "label": "Enterprise" }, { "value": 30, "label": "SMB" } ]',
+}), 'preserve', 'unchanged Custom JSON preserves newer live editor values during metadata-only refinement')
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'refine',
+  initialPrompt: 'Customer mix',
+  prompt: 'Change only the title to FY Customer Mix and hide the legend',
+  initialChartType: 'doughnut',
+  chartType: 'doughnut',
+  initialDataSource: 'custom',
+  dataSource: 'custom',
+  initialCustomDataInput: '[{"label":"Enterprise","value":55},{"label":"SMB","value":30}]',
+  customDataInput: '[ { "value": 55, "label": "Enterprise" }, { "value": 30, "label": "SMB" } ]',
+}), 'preserve', 'metadata-only prompt changes cannot replay unchanged Custom JSON over live editor values')
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'refine',
+  initialPrompt: 'Customer mix',
+  prompt: 'Customer mix',
+  initialChartType: 'doughnut',
+  chartType: 'doughnut',
+  initialDataSource: 'custom',
+  dataSource: 'custom',
+  initialCustomDataInput: '[{"label":"Enterprise","value":55},{"label":"SMB","value":30}]',
+  customDataInput: '[{"label":"Enterprise","value":45},{"label":"SMB","value":40}]',
+}), 'replace', 'changed Custom JSON intentionally replaces live editor values')
+
 const hydratedDraft = resolveChartPanelDraft({
   componentType: 'CHART',
   prompt: 'Compare quarterly performance',
@@ -228,6 +319,8 @@ const hydratedDraft = resolveChartPanelDraft({
     requested_data_source_mode: 'custom',
     requested_title_mode: 'custom',
     requested_axis_label_mode: 'custom',
+    legend_mode: 'hide',
+    data_update_mode: 'preserve',
     include_insights: true,
     series_names: ['Revenue', 'Costs'],
     placeholder_mode: false,
@@ -254,6 +347,7 @@ assert.equal(hydratedDraft.customDataInput, '{ "labels": ["Q1", "Q2"], "datasets
 assert.equal(hydratedDraft.titleMode, 'custom')
 assert.equal(hydratedDraft.chartTitle, 'Regional Revenue')
 assert.equal(hydratedDraft.axisLabelMode, 'custom')
+assert.equal(hydratedDraft.legendMode, 'hide')
 assert.equal(hydratedDraft.xAxisLabel, 'Quarter')
 assert.equal(hydratedDraft.yAxisLabel, 'USD millions')
 assert.equal(hydratedDraft.includeInsights, true)
@@ -262,6 +356,11 @@ assert.equal(hydratedDraft.advancedModified, true)
 assert.equal(hydratedDraft.zIndex, 42)
 assert.equal(hydratedDraft.positionConfig.auto_position, false)
 assert.equal(hydratedDraft.preservedChartConfig.color_mode, 'same')
+assert.equal(
+  Object.prototype.hasOwnProperty.call(hydratedDraft.preservedChartConfig, 'data_update_mode'),
+  false,
+  'legacy echoed operation hints are discarded during panel hydration',
+)
 const persistedPanelConfig = buildChartPanelGenerationConfig({
   componentType: 'CHART',
   prompt: 'Restore this chart',
@@ -273,6 +372,8 @@ const persistedPanelConfig = buildChartPanelGenerationConfig({
     requested_data_source_mode: 'custom',
     requested_title_mode: 'custom',
     requested_axis_label_mode: 'custom',
+    legend_mode: 'show',
+    data_update_mode: 'replace',
     include_insights: true,
     series_names: [],
     placeholder_mode: false,
@@ -285,6 +386,12 @@ const persistedPanelConfig = buildChartPanelGenerationConfig({
 assert.equal(persistedPanelConfig.customDataInput, '[{"x":1,"y":2},{"x":3,"y":4}]')
 assert.equal(persistedPanelConfig.formData.chartConfig.x_axis_label, 'Investment')
 assert.equal(persistedPanelConfig.formData.chartConfig.chart_title, 'Investment vs Revenue')
+assert.equal(persistedPanelConfig.formData.chartConfig.legend_mode, 'show')
+assert.equal(
+  Object.prototype.hasOwnProperty.call(persistedPanelConfig.formData.chartConfig, 'data_update_mode'),
+  false,
+  'the persisted reopen snapshot excludes the per-request data operation',
+)
 assert.equal(persistedPanelConfig.formData.generationConfig.customDataInput, persistedPanelConfig.customDataInput)
 assert.equal(
   persistedPanelConfig.formData.generationConfig.formData,
@@ -299,6 +406,10 @@ const synchronizedPanelConfig = synchronizeChartPanelGenerationConfig(
   persistedPanelConfig,
   {
     ...persistedPanelConfig.formData,
+    chartConfig: {
+      ...persistedPanelConfig.formData.chartConfig,
+      data_update_mode: 'preserve',
+    },
     useDeckTheme: false,
     themeOverrides: {
       primary: '#4F46E5',
@@ -322,6 +433,11 @@ assert.equal(synchronizedPanelConfig.formData.useDeckTheme, false)
 assert.equal(synchronizedPanelConfig.formData.themeOverrides.primary, '#4F46E5')
 assert.equal(synchronizedPanelConfig.formData.positionConfig.start_col, 7)
 assert.equal(synchronizedPanelConfig.formData.chartConfig.x_axis_label, 'Investment')
+assert.doesNotMatch(
+  JSON.stringify(synchronizedPanelConfig),
+  /data_update_mode/,
+  'preflight synchronization cannot reintroduce the operation hint into saved panel state',
+)
 assert.equal(
   resolveDraftThemeSource('presentation-1', synchronizedPanelConfig.formData).mode,
   'another',
@@ -360,6 +476,7 @@ const flatSavedChart = resolveChartFormDataFromGenerationConfig({
   requested_data_source_mode: 'custom',
   requested_title_mode: 'auto',
   requested_axis_label_mode: 'custom',
+  legend_mode: 'hide',
   data: simple,
   x_axis_label: 'Quarter',
   y_axis_label: 'Revenue ($k)',
@@ -373,6 +490,8 @@ assert.equal(flatSavedChart.chartConfig.chart_type, 'line')
 assert.equal(flatSavedChart.chartConfig.requested_data_source_mode, 'custom')
 assert.equal(flatSavedChart.chartConfig.requested_title_mode, 'auto')
 assert.equal(flatSavedChart.chartConfig.requested_axis_label_mode, 'custom')
+assert.equal(flatSavedChart.chartConfig.legend_mode, 'hide')
+assert.equal(flatSavedChart.advancedModified, true)
 assert.deepEqual(JSON.parse(JSON.stringify(flatSavedChart.chartConfig.data)), simple)
 assert.equal(flatSavedChart.generationConfig.resolved_chart_metadata.title, 'Legacy saved title')
 const legacyGeneratedChart = resolveChartFormDataFromGenerationConfig({
@@ -419,13 +538,22 @@ const legacyNestedDraft = resolveChartPanelDraft({
 assert.equal(legacyNestedDraft.dataSource, 'auto')
 assert.equal(legacyNestedDraft.titleMode, 'auto')
 assert.equal(legacyNestedDraft.axisLabelMode, 'auto')
+assert.equal(legacyNestedDraft.legendMode, 'auto', 'legacy charts default to renderer-owned legend behavior')
 const mergedPanelConfig = mergeChartPanelGenerationConfig(
   persistedPanelConfig,
   {
+    data_update_mode: 'preserve',
     renderer: 'chartjs',
     formData: {
       componentType: 'CHART',
-      chartConfig: { chart_type: 'line', chart_title: 'backend rewrite' },
+      chartConfig: { chart_type: 'line', chart_title: 'backend rewrite', data_update_mode: 'preserve' },
+      generationConfig: {
+        data_update_mode: 'replace',
+        formData: {
+          data_update_mode: 'preserve',
+          chart_config: { data_update_mode: 'replace' },
+        },
+      },
     },
   },
   resolvedMetadata,
@@ -433,10 +561,89 @@ const mergedPanelConfig = mergeChartPanelGenerationConfig(
 assert.equal(mergedPanelConfig.renderer, 'chartjs', 'renderer-owned generation details are retained')
 assert.equal(
   mergedPanelConfig.formData.chartConfig.chart_type,
-  'scatter',
-  'submitted user controls win when hydrating Refine',
+  'line',
+  'a returned effective specific type replaces a stale submitted renderer snapshot',
 )
 assert.equal(mergedPanelConfig.formData.chartConfig.chart_title, 'Investment vs Revenue')
+assert.equal(mergedPanelConfig.formData.chartConfig.legend_mode, 'show')
+assert.equal(
+  Object.prototype.hasOwnProperty.call(mergedPanelConfig.formData.chartConfig, 'data_update_mode'),
+  false,
+  'per-request data update intent never persists into the next refinement',
+)
+assert.doesNotMatch(
+  JSON.stringify(mergedPanelConfig),
+  /data_update_mode/,
+  'echoed operation hints are removed from every persisted nesting level',
+)
+const sequentialNaturalLanguageTypeChange = mergeChartPanelGenerationConfig(
+  {
+    componentType: 'CHART',
+    prompt: 'Change this to a waterfall chart',
+    formData: {
+      componentType: 'CHART',
+      prompt: 'Change this to a waterfall chart',
+      customDataInput: '',
+      chartConfig: {
+        chart_type: 'bar_vertical',
+        requested_data_source_mode: 'auto',
+        legend_mode: 'auto',
+      },
+    },
+  },
+  {
+    chart_type: 'waterfall',
+    part_to_whole_value_mode: null,
+    legend_mode: 'hide',
+  },
+  null,
+)
+assert.equal(
+  sequentialNaturalLanguageTypeChange.formData.chartConfig.chart_type,
+  'waterfall',
+  'bar to prompt-selected waterfall persists the effective type for the next refinement',
+)
+assert.equal(
+  sequentialNaturalLanguageTypeChange.formData.chartConfig.legend_mode,
+  'hide',
+  'an Auto prompt-derived legend decision persists as durable chart intent',
+)
+assert.equal(
+  sequentialNaturalLanguageTypeChange.formData.chartConfig.part_to_whole_value_mode,
+  null,
+  'a returned null tombstone clears stale circular value semantics',
+)
+const sequentialDraft = resolveChartPanelDraft(
+  resolveChartFormDataFromGenerationConfig(sequentialNaturalLanguageTypeChange),
+)
+assert.equal(sequentialDraft.chartType, 'waterfall')
+assert.equal(sequentialDraft.legendMode, 'hide')
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'refine',
+  initialPrompt: 'Change this to a waterfall chart',
+  prompt: 'Change this to a waterfall chart',
+  initialChartType: sequentialDraft.chartType,
+  chartType: sequentialDraft.chartType,
+  initialDataSource: sequentialDraft.dataSource,
+  dataSource: sequentialDraft.dataSource,
+  initialCustomDataInput: sequentialDraft.customDataInput,
+  customDataInput: sequentialDraft.customDataInput,
+}), 'preserve', 'the next title/options-only refine stays waterfall and preserves its data')
+assert.deepEqual(JSON.parse(JSON.stringify(stripChartDataUpdateMode({
+  legend_mode: 'hide',
+  data_update_mode: 'preserve',
+  dataUpdateMode: 'replace',
+  generationConfig: {
+    legend_mode: 'show',
+    formData: [{ data_update_mode: 'replace', legend_mode: 'auto' }],
+  },
+}))), {
+  legend_mode: 'hide',
+  generationConfig: {
+    legend_mode: 'show',
+    formData: [{ legend_mode: 'auto' }],
+  },
+}, 'recursive cleanup retains durable legend choices while dropping only the operation hint')
 assert.equal(mergedPanelConfig.resolved_chart_metadata.title, 'Investment Efficiency')
 assert.equal(
   mergedPanelConfig.formData.generationConfig.resolved_chart_metadata.x_axis,
@@ -472,6 +679,8 @@ function chartForm(chartType, requestedDataSourceMode, data = null, researchMode
       requested_data_source_mode: requestedDataSourceMode,
       requested_title_mode: 'auto',
       requested_axis_label_mode: needsAxes ? 'custom' : 'auto',
+      legend_mode: 'auto',
+      data_update_mode: 'replace',
       include_insights: false,
       series_names: [],
       placeholder_mode: false,
@@ -508,6 +717,8 @@ for (const [chartType, mode, data, research] of [
   assert.equal(options.chartConfig.requested_data_source_mode, mode)
   assert.equal(options.chartConfig.requested_title_mode, 'auto')
   assert.equal(options.chartConfig.requested_axis_label_mode, ['scatter', 'bubble'].includes(chartType) ? 'custom' : 'auto')
+  assert.equal(options.chartConfig.legend_mode, 'auto')
+  assert.equal(options.chartConfig.data_update_mode, 'replace')
   assert.deepEqual(JSON.parse(JSON.stringify(options.chartConfig.data)), data)
   if (['scatter', 'bubble'].includes(chartType)) {
     assert.equal(options.chartConfig.x_axis_label, 'Investment')
@@ -589,6 +800,18 @@ assert.match(chartFormSource, /X-axis label/)
 assert.match(chartFormSource, /Y-axis label/)
 assert.match(chartFormSource, /Chart heading/)
 assert.match(chartFormSource, /Axis labels/)
+assert.match(chartFormSource, /label="Legend"/)
+assert.match(chartFormSource, /field="legend_mode"/)
+for (const legendMode of ['auto', 'show', 'hide']) {
+  assert.match(chartFormSource, new RegExp(`value: '${legendMode}'`), `${legendMode} legend mode is visible`)
+}
+assert.match(chartFormSource, /resolveChartDataUpdateMode/)
+assert.match(chartFormSource, /panelMode/)
+assert.match(
+  generationPanelHookSource,
+  /formData\.componentType === 'CHART'[\s\S]*stripChartDataUpdateMode\(copy\)/,
+  'session panel drafts also exclude the one-request data operation hint',
+)
 assert.match(chartFormSource, /requested_title_mode/)
 assert.match(chartFormSource, /requested_axis_label_mode/)
 assert.match(chartFormSource, /titleMode === 'custom'/)
