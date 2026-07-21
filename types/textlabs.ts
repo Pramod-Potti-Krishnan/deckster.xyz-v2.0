@@ -461,6 +461,8 @@ export type TextLabsChartType =
 
 export type ChartDataSourceMode = 'auto' | 'illustrative' | 'custom'
 export type ChartMetadataMode = 'auto' | 'custom'
+export type ChartLegendMode = 'auto' | 'show' | 'hide'
+export type ChartDataUpdateMode = 'preserve' | 'replace'
 
 export type ChartSourceProvenance =
   | 'research_sourced'
@@ -508,6 +510,10 @@ export interface ChartConfig {
   requested_data_source_mode: ChartDataSourceMode
   requested_title_mode?: ChartMetadataMode
   requested_axis_label_mode?: ChartMetadataMode
+  /** Auto follows the renderer's chart-type default; Show/Hide are explicit user intent. */
+  legend_mode?: ChartLegendMode
+  /** Per-request operation hint. This must not be persisted as durable chart state. */
+  data_update_mode?: ChartDataUpdateMode
   include_insights: boolean
   series_names: string[]          // parsed from comma-separated input
   placeholder_mode: boolean

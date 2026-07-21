@@ -487,7 +487,7 @@ function FormRouter({
     case 'TABLE':
       return <TableForm {...commonProps} researchControls={researchControls} initialDraft={initialDraft} onDraftChange={onDraftChange} />
     case 'CHART':
-      return <ChartForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} />
+      return <ChartForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} panelMode={panelMode} />
     case 'IMAGE':
       return <ImageForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} />
     case 'ICON_LABEL':

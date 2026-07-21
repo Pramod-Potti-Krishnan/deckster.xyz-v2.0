@@ -5,6 +5,7 @@ import {
   ChartConfig,
   ChartDataSourceMode,
   ChartFormData,
+  ChartLegendMode,
   ChartMetadataMode,
   TextLabsChartType,
   TextLabsPositionConfig,
@@ -16,6 +17,7 @@ import {
   chartDataTemplate,
   parseChartDataJson,
   resolveChartPanelDraft,
+  resolveChartDataUpdateMode,
   resolveChartSubmissionAxisLabels,
   resolveChartTitleOverride,
 } from '@/lib/chart-data-contract'
@@ -91,6 +93,7 @@ interface ChartFormProps {
   registerMandatoryConfig: (config: MandatoryConfig | null) => void
   initialDraft?: GenerationPanelDraft | null
   onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
+  panelMode: 'generate' | 'edit' | 'refine'
 }
 
 export function ChartForm({
@@ -104,14 +107,17 @@ export function ChartForm({
   registerMandatoryConfig,
   initialDraft,
   onDraftChange,
+  panelMode,
 }: ChartFormProps) {
   const initialFormData = initialDraft?.formData?.componentType === 'CHART'
     ? initialDraft.formData
     : null
   const [initialState] = useState(() => resolveChartPanelDraft(initialFormData))
+  const [initialPrompt] = useState(() => initialFormData?.prompt ?? '')
   const [preservedChartConfig] = useState(() => initialState.preservedChartConfig)
   const [chartType, setChartType] = useState<TextLabsChartType>(initialState.chartType)
   const [dataSource, setDataSource] = useState<ChartDataSourceMode>(initialState.dataSource)
+  const [legendMode, setLegendMode] = useState<ChartLegendMode>(initialState.legendMode)
   const [customDataInput, setCustomDataInput] = useState(initialState.customDataInput)
   const [dataError, setDataError] = useState<string | null>(null)
   const [titleMode, setTitleMode] = useState<ChartMetadataMode>(initialState.titleMode)
@@ -276,6 +282,17 @@ export function ChartForm({
     const effectiveAxisLabelMode = chartAxisInputMode(chartType, data) === 'hidden'
       ? 'auto'
       : axisLabelMode
+    const dataUpdateMode = resolveChartDataUpdateMode({
+      panelMode,
+      initialPrompt,
+      prompt,
+      initialChartType: initialState.chartType,
+      chartType,
+      initialDataSource: initialState.dataSource,
+      dataSource,
+      initialCustomDataInput: initialState.customDataInput,
+      customDataInput,
+    })
     const baseFormData: ChartFormData = {
       componentType: 'CHART',
       prompt,
@@ -292,6 +309,8 @@ export function ChartForm({
         requested_data_source_mode: dataSource,
         requested_title_mode: titleMode,
         requested_axis_label_mode: effectiveAxisLabelMode,
+        legend_mode: legendMode,
+        data_update_mode: dataUpdateMode,
         include_insights: includeInsights,
         series_names: seriesNames,
         placeholder_mode: false,
@@ -320,6 +339,12 @@ export function ChartForm({
     customDataInput,
     dataSource,
     includeInsights,
+    initialPrompt,
+    initialState.chartType,
+    initialState.dataSource,
+    initialState.customDataInput,
+    legendMode,
+    panelMode,
     positionConfig,
     preservedChartConfig,
     presentationId,
@@ -656,6 +681,25 @@ export function ChartForm({
                 )}
               </div>
             )}
+
+            <ToggleRow
+              label="Legend"
+              field="legend_mode"
+              value={legendMode}
+              options={[
+                { value: 'auto', label: 'Auto' },
+                { value: 'show', label: 'Show' },
+                { value: 'hide', label: 'Hide' },
+              ]}
+              onChange={(_, value) => {
+                const nextMode = value as ChartLegendMode
+                setLegendMode(nextMode)
+                setAdvancedModified(nextMode !== 'auto' || advancedModified)
+              }}
+            />
+            <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+              Auto chooses the chart-type default and honors explicit legend wording in the prompt.
+            </p>
 
             <ThemeSourceSelector presentationId={presentationId} value={themeSource} onChange={updateThemeSource} />
             <ToggleRow
