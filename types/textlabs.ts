@@ -462,6 +462,7 @@ export type TextLabsChartType =
 export type ChartDataSourceMode = 'auto' | 'illustrative' | 'custom'
 export type ChartMetadataMode = 'auto' | 'custom'
 export type ChartLegendMode = 'auto' | 'show' | 'hide'
+export type ChartOperationMode = 'refine' | 'recreate'
 export type ChartDataUpdateMode = 'preserve' | 'replace'
 
 export type ChartSourceProvenance =

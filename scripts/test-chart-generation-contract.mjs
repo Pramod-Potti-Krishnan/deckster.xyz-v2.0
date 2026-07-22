@@ -249,6 +249,30 @@ assert.equal(resolveChartDataUpdateMode({
 }), 'replace', 'fresh generation always replaces any placeholder data')
 assert.equal(resolveChartDataUpdateMode({
   panelMode: 'refine',
+  operationMode: 'refine',
+  initialPrompt: 'Quarterly revenue',
+  prompt: 'Convert this existing chart into a line chart',
+  initialChartType: 'bar_vertical',
+  chartType: 'line',
+  initialDataSource: 'auto',
+  dataSource: 'auto',
+  initialCustomDataInput: '',
+  customDataInput: '',
+}), 'preserve', 'the explicit Refine operation preserves data across a chart-type change')
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'refine',
+  operationMode: 'recreate',
+  initialPrompt: 'Quarterly revenue',
+  prompt: 'Create a new chart',
+  initialChartType: 'bar_vertical',
+  chartType: 'bar_vertical',
+  initialDataSource: 'auto',
+  dataSource: 'auto',
+  initialCustomDataInput: '',
+  customDataInput: '',
+}), 'replace', 'the explicit Recreate operation replaces the current dataset')
+assert.equal(resolveChartDataUpdateMode({
+  panelMode: 'refine',
   initialPrompt: 'Quarterly revenue',
   prompt: 'Quarterly revenue',
   initialChartType: 'line',
@@ -821,6 +845,11 @@ for (const chartType of [
 ]) assert.match(chartFormSource, new RegExp(`value: '${chartType}'`), `${chartType} is visible in the selector`)
 assert.doesNotMatch(chartFormSource, /Content Source/)
 assert.match(chartFormSource, /customRender:/, 'the grouped chart selector renders in the chat toolbar')
+assert.match(chartFormSource, /fieldLabel: 'Chart operation'/)
+assert.match(chartFormSource, /nativeSelect: true/)
+assert.match(chartFormSource, /value: 'refine', label: 'Refine'/)
+assert.match(chartFormSource, /value: 'recreate', label: 'Recreate'/)
+assert.match(chartFormSource, /Current chart/)
 assert.match(chartFormSource, /<PositionPresets/, 'advanced chart settings restore full position controls')
 assert.match(chartFormSource, /CollapsibleSection title="Position"/)
 assert.match(chartFormSource, /auto_position: true/, 'chart positioning defaults to the live canvas')
