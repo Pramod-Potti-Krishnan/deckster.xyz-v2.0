@@ -1419,10 +1419,23 @@ export function useTextLabsGeneration({
               generatedComponentType,
               params as Record<string, unknown>,
             )
+            const generatedChartMetadata = generatedComponentType === 'CHART'
+              && resolvedChartMetadata
+              && typeof resolvedChartMetadata === 'object'
+              && !Array.isArray(resolvedChartMetadata)
+              ? resolvedChartMetadata as unknown as Record<string, unknown>
+              : null
             const generatedProperties = params.structuredPlan
               || Object.keys(generatedChartData).length > 0
+              || generatedChartMetadata
               ? {
                   ...generatedChartData,
+                  ...(generatedChartMetadata
+                    ? {
+                        resolved_chart_metadata: generatedChartMetadata,
+                        resolvedChartMetadata: generatedChartMetadata,
+                      }
+                    : {}),
                   ...(params.structuredPlan
                     ? { structuredPlan: params.structuredPlan }
                     : {}),
@@ -1465,6 +1478,13 @@ export function useTextLabsGeneration({
                 accessory_type: typeof params.accessoryType === 'string' ? params.accessoryType : null,
                 generation_config: generatedConfig,
                 citations_used: citationsUsed,
+                source_provenance: params.sourceProvenance ?? null,
+                source_citation: params.sourceCitation ?? null,
+                requested_data_source_mode: params.requestedDataSourceMode ?? null,
+                resolved_chart_metadata: generatedChartMetadata,
+                chart_title: generatedChartMetadata?.title ?? null,
+                x_axis_label: generatedChartMetadata?.x_axis ?? null,
+                y_axis_label: generatedChartMetadata?.y_axis ?? null,
                 metrics_color_variant: typeof params.metricsColorVariant === 'string' ? params.metricsColorVariant : null,
                 research_provenance: generatedResearchProvenance,
                 diagram_subtype: generatedDiagramSubtype,
