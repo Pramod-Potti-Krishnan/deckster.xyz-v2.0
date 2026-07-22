@@ -490,6 +490,9 @@ assert.match(buildGuardSource, /DIAGRAM_CATALOG_VERSION/)
 assert.match(buildGuardSource, /catalogResponse\.status === 400 \|\| catalogResponse\.status === 404/)
 assert.match(buildGuardSource, /window\.location\.reload\(\)/)
 assert.match(buildGuardSource, /role="alertdialog"/)
+assert.match(buildGuardSource, /Deckster was updated/)
+assert.match(buildGuardSource, />\s*Reload now\s*</)
+assert.doesNotMatch(buildGuardSource, /Deckster UAT|Reload UAT|but UAT/)
 
 const generationInputSource = fs.readFileSync(
   new URL('../components/generation-panel/shared/generation-input.tsx', import.meta.url),
