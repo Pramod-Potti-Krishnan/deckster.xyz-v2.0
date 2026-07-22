@@ -128,6 +128,11 @@ assert.match(
   /formData\.existingElement = \{[\s\S]*\.\.\.refineContext\.existingElement/,
   'regeneration preflight retains existing_element.properties from the Layout event',
 )
+assert.match(
+  generationSource,
+  /const generatedChartData = chartRefinementDataSnapshot\([\s\S]*const generatedProperties =[\s\S]*\.\.\.generatedChartData,[\s\S]*properties: generatedProperties/,
+  'the immediate post-generation refinement context retains canonical chart data',
+)
 
 const clientSource = fs.readFileSync(
   new URL('../lib/textlabs-client.ts', import.meta.url),

@@ -43,6 +43,7 @@ import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
 import {
+  chartRefinementDataSnapshot,
   mergeChartPanelGenerationConfig,
   researchedChartRecoveryMessage,
   synchronizeChartPanelGenerationConfig,
@@ -1414,6 +1415,19 @@ export function useTextLabsGeneration({
               : typeof formData.z_index === 'number' && Number.isFinite(formData.z_index)
                 ? formData.z_index
                 : null
+            const generatedChartData = chartRefinementDataSnapshot(
+              generatedComponentType,
+              params as Record<string, unknown>,
+            )
+            const generatedProperties = params.structuredPlan
+              || Object.keys(generatedChartData).length > 0
+              ? {
+                  ...generatedChartData,
+                  ...(params.structuredPlan
+                    ? { structuredPlan: params.structuredPlan }
+                    : {}),
+                }
+              : undefined
             generatedRefineContext = {
               elementId: insertedElementId,
               elementType: generatedComponentType,
@@ -1455,9 +1469,8 @@ export function useTextLabsGeneration({
                 research_provenance: generatedResearchProvenance,
                 diagram_subtype: generatedDiagramSubtype,
                 z_index: generatedZIndex,
-                properties: params.structuredPlan
-                  ? { structuredPlan: params.structuredPlan }
-                  : undefined,
+                ...generatedChartData,
+                properties: generatedProperties,
                 content: generatedContent,
                 grid_position: generatedGridPosition,
               },

@@ -44,6 +44,7 @@ const {
   chartAxisInputMode,
   chartDataTemplate,
   chartDataRequiresAxes,
+  chartRefinementDataSnapshot,
   mergeChartPanelGenerationConfig,
   normalizeResolvedChartMetadata,
   parseChartDataJson,
@@ -71,6 +72,24 @@ const multiSeries = {
     { label: 'Costs', data: [60, 72] },
   ],
 }
+
+const immediateRefineData = [
+  { label: '2020', value: 10000 },
+  { label: '2021', value: 14000 },
+]
+const immediateRefineSnapshot = chartRefinementDataSnapshot('CHART', {
+  chartData: immediateRefineData,
+})
+assert.strictEqual(immediateRefineSnapshot.chart_data, immediateRefineData)
+assert.strictEqual(immediateRefineSnapshot.chartData, immediateRefineData)
+assert.strictEqual(immediateRefineSnapshot.data_used, immediateRefineData)
+assert.deepEqual(
+  JSON.parse(JSON.stringify(chartRefinementDataSnapshot('TABLE', {
+    chartData: immediateRefineData,
+  }))),
+  {},
+  'non-chart refinement contexts do not acquire chart aliases',
+)
 
 for (const data of [simple, scatter, bubble, multiSeries]) {
   const result = validateChartData(data)
