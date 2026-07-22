@@ -58,7 +58,7 @@ export function BuildVersionGuard() {
           && deployed.build_sha !== BUILD_FINGERPRINT
         ) {
           setIssue({
-            title: 'Deckster UAT was updated',
+            title: 'Deckster was updated',
             detail: 'This tab is running an older frontend build. Reload before generating another element.',
           })
           return
@@ -81,13 +81,13 @@ export function BuildVersionGuard() {
             : 'unknown'
           setIssue({
             title: 'Diagram services are on different versions',
-            detail: `This builder requires diagram catalog v${DIAGRAM_CATALOG_VERSION} capabilities, but UAT is serving v${deployedVersion} without the required Auto, language, or nine-renderer contract. Reload after the deployment finishes.`,
+            detail: `This builder requires diagram catalog v${DIAGRAM_CATALOG_VERSION} capabilities, but the current environment is serving v${deployedVersion} without the required Auto, language, or nine-renderer contract. Reload after the deployment finishes.`,
           })
         }
       } else if (catalogResponse.status === 400 || catalogResponse.status === 404) {
         setIssue({
           title: 'Diagram services are still updating',
-          detail: `This builder requires the diagram catalog v${DIAGRAM_CATALOG_VERSION} endpoint, but UAT does not expose it yet. Reload after the backend deployment finishes.`,
+          detail: `This builder requires the diagram catalog v${DIAGRAM_CATALOG_VERSION} endpoint, but the current environment does not expose it yet. Reload after the backend deployment finishes.`,
         })
       }
     } catch {
@@ -139,7 +139,7 @@ export function BuildVersionGuard() {
           className="mt-4 w-full rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2"
           onClick={() => window.location.reload()}
         >
-          Reload UAT now
+          Reload now
         </button>
       </div>
     </div>
