@@ -56,6 +56,23 @@ export type ChartPanelGenerationConfig = {
   formData: ChartFormData
 }
 
+export function chartRefinementDataSnapshot(
+  componentType: unknown,
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  if (componentType !== 'CHART') return {}
+  const data = params.chartData
+    ?? params.chart_data
+    ?? params.dataUsed
+    ?? params.data_used
+  if (data === undefined || data === null) return {}
+  return {
+    chart_data: data,
+    chartData: data,
+    data_used: data,
+  }
+}
+
 const CHART_TYPES = new Set<TextLabsChartType>([
   'auto',
   'line',
