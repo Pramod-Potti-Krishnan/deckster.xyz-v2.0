@@ -6,6 +6,7 @@ import type {
   ChartFormData,
   ChartLegendMode,
   ChartMetadataMode,
+  ChartOperationMode,
   ResolvedChartMetadata,
   TextLabsChartType,
   TextLabsPositionConfig,
@@ -183,6 +184,7 @@ export function stripChartDataUpdateMode<T>(value: T): T {
 
 export type ResolveChartDataUpdateModeInput = {
   panelMode: 'generate' | 'edit' | 'refine'
+  operationMode?: ChartOperationMode
   initialPrompt: string
   prompt: string
   initialChartType: TextLabsChartType
@@ -211,13 +213,13 @@ function comparableChartDataInput(input: string): string {
 }
 
 /**
- * Give Text Labs an unambiguous data-ownership hint only when the panel can
- * determine intent without interpreting natural language. A changed refine
- * prompt is intentionally left unclassified so Text Labs can distinguish
- * metadata-only wording from a new dataset request.
+ * Give Text Labs an unambiguous data-ownership hint. Modern chart refinement
+ * uses the explicit Refine/Recreate control; the remaining comparisons retain
+ * compatibility with drafts created before that control existed.
  */
 export function resolveChartDataUpdateMode({
   panelMode,
+  operationMode,
   initialPrompt,
   prompt,
   initialChartType,
@@ -228,6 +230,8 @@ export function resolveChartDataUpdateMode({
   customDataInput,
 }: ResolveChartDataUpdateModeInput): ChartDataUpdateMode | undefined {
   if (panelMode !== 'refine') return 'replace'
+  if (operationMode === 'recreate') return 'replace'
+  if (operationMode === 'refine') return 'preserve'
   if (chartType !== initialChartType || dataSource !== initialDataSource) return 'replace'
   if (dataSource === 'custom') {
     return comparableChartDataInput(customDataInput) === comparableChartDataInput(initialCustomDataInput)

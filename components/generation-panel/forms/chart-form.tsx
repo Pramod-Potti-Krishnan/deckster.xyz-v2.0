@@ -7,6 +7,7 @@ import {
   ChartFormData,
   ChartLegendMode,
   ChartMetadataMode,
+  ChartOperationMode,
   TextLabsChartType,
   TextLabsPositionConfig,
   TEXT_LABS_ELEMENT_DEFAULTS,
@@ -90,7 +91,7 @@ interface ChartFormProps {
   elementContext?: ElementContext | null
   prompt: string
   showAdvanced: boolean
-  registerMandatoryConfig: (config: MandatoryConfig | null) => void
+  registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[] | null) => void
   initialDraft?: GenerationPanelDraft | null
   onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
   panelMode: 'generate' | 'edit' | 'refine'
@@ -115,6 +116,9 @@ export function ChartForm({
   const [initialState] = useState(() => resolveChartPanelDraft(initialFormData))
   const [initialPrompt] = useState(() => initialFormData?.prompt ?? '')
   const [preservedChartConfig] = useState(() => initialState.preservedChartConfig)
+  const [operationMode, setOperationMode] = useState<ChartOperationMode>(() => (
+    panelMode === 'refine' ? 'refine' : 'recreate'
+  ))
   const [chartType, setChartType] = useState<TextLabsChartType>(initialState.chartType)
   const [dataSource, setDataSource] = useState<ChartDataSourceMode>(initialState.dataSource)
   const [legendMode, setLegendMode] = useState<ChartLegendMode>(initialState.legendMode)
@@ -137,6 +141,10 @@ export function ChartForm({
     presentationId,
     initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null,
   )
+
+  useEffect(() => {
+    setOperationMode(panelMode === 'refine' ? 'refine' : 'recreate')
+  }, [panelMode])
 
   // Auto follows the live placeholder geometry. Manual is an explicit user
   // override and is honored by the generation hook when selected.
@@ -237,7 +245,7 @@ export function ChartForm({
   // model. A native grouped select is used deliberately: it remains reliable
   // in the panel/iframe stack where the generic popover previously failed.
   useEffect(() => {
-    registerMandatoryConfig({
+    const chartTypeConfig: MandatoryConfig = {
       fieldLabel: 'Chart Type',
       displayLabel: chartTypeLabel,
       selectedValue: chartType,
@@ -266,8 +274,26 @@ export function ChartForm({
           </span>
         </label>
       ),
-    })
-  }, [chartType, chartTypeLabel, isGenerating, registerMandatoryConfig, selectChartType])
+    }
+    if (panelMode !== 'refine') {
+      registerMandatoryConfig(chartTypeConfig)
+      return
+    }
+    registerMandatoryConfig([
+      {
+        fieldLabel: 'Chart operation',
+        displayLabel: operationMode === 'refine' ? 'Refine' : 'Recreate',
+        selectedValue: operationMode,
+        nativeSelect: true,
+        options: [
+          { value: 'refine', label: 'Refine' },
+          { value: 'recreate', label: 'Recreate' },
+        ],
+        onChange: value => setOperationMode(value === 'recreate' ? 'recreate' : 'refine'),
+      },
+      chartTypeConfig,
+    ])
+  }, [chartType, chartTypeLabel, isGenerating, operationMode, panelMode, registerMandatoryConfig, selectChartType])
 
   const seriesNames = useMemo(
     () => seriesNamesInput.split(',').map(value => value.trim()).filter(Boolean),
@@ -284,6 +310,7 @@ export function ChartForm({
       : axisLabelMode
     const dataUpdateMode = resolveChartDataUpdateMode({
       panelMode,
+      operationMode,
       initialPrompt,
       prompt,
       initialChartType: initialState.chartType,
@@ -344,6 +371,7 @@ export function ChartForm({
     initialState.dataSource,
     initialState.customDataInput,
     legendMode,
+    operationMode,
     panelMode,
     positionConfig,
     preservedChartConfig,
@@ -475,44 +503,58 @@ export function ChartForm({
 
   return (
     <div className="space-y-3">
-      <div className="space-y-1.5">
-        <ToggleRow
-          label="Data Source"
-          field="dataSource"
-          value={dataSource}
-          options={[
-            { value: 'auto', label: 'Auto' },
-            { value: 'illustrative', label: 'Illustrative' },
-            { value: 'custom', label: 'Custom JSON' },
-          ]}
-          onChange={(_, value) => {
-            const nextDataSource = value as ChartDataSourceMode
-            setDataSource(nextDataSource)
-            setDataError(null)
-            // Axis state stays in the Custom silo so a temporary mode switch
-            // is reversible. The independent Axis labels control decides
-            // whether any override is submitted.
-            setAxisError(
-              axisLabelMode === 'custom'
-                ? resolveChartSubmissionAxisLabels(
-                    nextDataSource,
-                    chartType,
-                    nextDataSource === 'custom' ? parsedCustomData : null,
-                    xAxisLabel,
-                    yAxisLabel,
-                    'custom',
-                  ).error
-                : null,
-            )
-            setAdvancedModified(true)
-          }}
-        />
-        <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
-          With Research on, Auto requires valid source-backed data. Illustrative creates clearly labeled sample data.
-        </p>
-      </div>
+      {panelMode === 'refine' && operationMode === 'refine' ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Data Source</span>
+            <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              Current chart
+            </span>
+          </div>
+          <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+            Refine preserves the current data, labels, and source. Choose Recreate to generate a new dataset.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <ToggleRow
+            label="Data Source"
+            field="dataSource"
+            value={dataSource}
+            options={[
+              { value: 'auto', label: 'Auto' },
+              { value: 'illustrative', label: 'Illustrative' },
+              { value: 'custom', label: 'Custom JSON' },
+            ]}
+            onChange={(_, value) => {
+              const nextDataSource = value as ChartDataSourceMode
+              setDataSource(nextDataSource)
+              setDataError(null)
+              // Axis state stays in the Custom silo so a temporary mode switch
+              // is reversible. The independent Axis labels control decides
+              // whether any override is submitted.
+              setAxisError(
+                axisLabelMode === 'custom'
+                  ? resolveChartSubmissionAxisLabels(
+                      nextDataSource,
+                      chartType,
+                      nextDataSource === 'custom' ? parsedCustomData : null,
+                      xAxisLabel,
+                      yAxisLabel,
+                      'custom',
+                    ).error
+                  : null,
+              )
+              setAdvancedModified(true)
+            }}
+          />
+          <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
+            With Research on, Auto requires valid source-backed data. Illustrative creates clearly labeled sample data.
+          </p>
+        </div>
+      )}
 
-      {dataSource === 'custom' && (
+      {dataSource === 'custom' && !(panelMode === 'refine' && operationMode === 'refine') && (
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <label htmlFor="chart-custom-data" className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
