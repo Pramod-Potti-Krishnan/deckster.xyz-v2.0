@@ -63,6 +63,7 @@ export interface PresentationAreaProps {
   // Element selection
   onElementSelected: (elementId: string, elementType: ElementType, properties: ElementProperties) => void
   onElementDeselected: () => void
+  onElementDeleted: (elementId: string) => void
   // Blank elements
   blankElements: {
     isBlankElement: (id: string) => boolean
@@ -130,6 +131,7 @@ export function PresentationArea({
   onTextBoxDeselected,
   onElementSelected,
   onElementDeselected,
+  onElementDeleted,
   blankElements,
   generationPanel,
   onOpenBlankGenerationPanel,
@@ -207,6 +209,7 @@ export function PresentationArea({
               onElementSelected(elementId, elementType, properties)
             }}
             onElementDeselected={onElementDeselected}
+            onElementDeleted={onElementDeleted}
             onApiReady={onApiReady}
             onComposeApiReady={onComposeApiReady}
             onOpenGenerationPanel={onOpenGenerationPanel}

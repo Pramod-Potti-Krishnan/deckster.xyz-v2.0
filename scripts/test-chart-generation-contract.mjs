@@ -736,6 +736,10 @@ const insertion = buildInsertionParams('CHART', {
   resolved_chart_metadata: resolvedMetadata,
   source_provenance: 'research_sourced',
   source_citation: citation,
+  data_used: [
+    { label: '2023', value: 14 },
+    { label: '2024', value: 17 },
+  ],
   research_provenance: { source_count: 1 },
   citations_used: [citation],
 }, {
@@ -756,6 +760,14 @@ assert.equal(insertion.params.resolvedChartMetadata.title, 'Investment Efficienc
 assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.sourceCitation)), citation)
 assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.citationsUsed)), [citation])
 assert.deepEqual(JSON.parse(JSON.stringify(insertion.params.researchProvenance)), { source_count: 1 })
+assert.deepEqual(
+  JSON.parse(JSON.stringify(insertion.params.chartData)),
+  [
+    { label: '2023', value: 14 },
+    { label: '2024', value: 17 },
+  ],
+  'canonical Analytics data is retained for Layout refinement and reload',
+)
 
 for (const provenance of ['illustrative', 'user_provided']) {
   const ungrounded = buildInsertionParams('CHART', {

@@ -249,6 +249,7 @@ interface PresentationViewerProps {
   // Element panel callbacks (Image, Table, Chart, Infographic, Diagram)
   onElementSelected?: (elementId: string, elementType: ElementType, properties: ElementProperties) => void
   onElementDeselected?: () => void
+  onElementDeleted?: (elementId: string) => void
   // Text Labs Generation Panel - opens generation panel for the given element type
   onOpenGenerationPanel?: (type: string) => void  // Uses string to avoid coupling to TextLabsComponentType
   onRefineElementRequested?: (payload: RefineElementRequest) => void
@@ -506,6 +507,7 @@ export function PresentationViewer({
   onTextBoxDeselected,
   onElementSelected,
   onElementDeselected,
+  onElementDeleted,
   onApiReady,
   onComposeApiReady,
   onOpenGenerationPanel,
@@ -2441,11 +2443,17 @@ export function PresentationViewer({
         onElementDeselected?.()
         debugLog('🎯 Element deselected')
       }
+
+      if (event.data.type === 'elementDeleted') {
+        const elementId = event.data.elementId as string
+        if (elementId) onElementDeleted?.(elementId)
+        debugLog(`🎯 Element deleted: ${elementId}`)
+      }
     }
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [onElementSelected, onElementDeselected, ensureEditMode])
+  }, [onElementSelected, onElementDeselected, onElementDeleted, ensureEditMode])
 
   // Listen for element moved/resized events from iframe
   useEffect(() => {
