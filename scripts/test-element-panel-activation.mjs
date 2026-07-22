@@ -6,6 +6,10 @@ const areaSource = fs.readFileSync(
   new URL('../components/builder/presentation-area.tsx', import.meta.url),
   'utf8',
 )
+const routerSource = fs.readFileSync(
+  new URL('../lib/element-command-router.ts', import.meta.url),
+  'utf8',
+)
 
 const activation = builderSource.slice(
   builderSource.indexOf('const activateElementPanel = useCallback'),
@@ -64,6 +68,13 @@ assert.doesNotMatch(
 
 assert.match(builderSource, /data-builder-panel="element"/)
 assert.match(builderSource, /data-builder-panel="deck"/)
+assert.match(routerSource, /'elementDeleted'/)
+assert.match(areaSource, /onElementDeleted=\{onElementDeleted\}/)
+assert.match(
+  builderSource,
+  /onElementDeleted=\{\(elementId\) => \{[\s\S]*generationPanel\.refineContext\?\.elementId === elementId[\s\S]*generationPanel\.closePanel\(\)/,
+  'deleting the element targeted by Refine closes its stale panel',
+)
 assert.match(
   builderSource,
   /zIndex: isElementDrawerOpen \? 10 \+ panelZIndices\.element : 60/,

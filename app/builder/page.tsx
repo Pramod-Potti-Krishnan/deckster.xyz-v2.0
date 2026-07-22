@@ -4372,6 +4372,20 @@ function BuilderContent() {
                 generationPanel.closePanel()
               }
             }}
+            onElementDeleted={(elementId) => {
+              const deletedActiveElement = selectedElementId === elementId
+                || selectedTextBoxId === elementId
+                || generationPanel.editElementId === elementId
+                || generationPanel.refineContext?.elementId === elementId
+                || generationPanel.blankElementId === elementId
+              if (!deletedActiveElement) return
+              setSelectedElementId(null)
+              setSelectedElementType(null)
+              setSelectedElementProperties(null)
+              setSelectedTextBoxId(null)
+              setSelectedTextBoxFormatting(null)
+              if (!generationPanel.isGenerating) generationPanel.closePanel()
+            }}
             blankElements={blankElements}
             generationPanel={generationPanel}
             onOpenBlankGenerationPanel={handleOpenBlankGenerationPanel}

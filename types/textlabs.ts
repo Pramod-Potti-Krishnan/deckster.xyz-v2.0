@@ -836,6 +836,7 @@ export interface TextLabsElement {
   html?: string
   image_url?: string
   image_data_url?: string
+  data_used?: unknown
   component_type: TextLabsAllComponentType
   theme_variant_id?: string | null
   theme_bindings?: Record<string, string> | null

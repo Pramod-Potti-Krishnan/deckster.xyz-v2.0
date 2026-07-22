@@ -83,6 +83,7 @@ export const LAYOUT_VIEWER_EVENTS = new Set([
   'textBoxDeselected',
   'elementSelected',
   'elementDeselected',
+  'elementDeleted',
   'elementMoved',
   'save_status',
 
