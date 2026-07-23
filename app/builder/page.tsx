@@ -14,7 +14,7 @@ import { useFileUpload } from '@/hooks/use-file-upload'
 import { features } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult } from '@/components/slide-generation-panel'
+import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent } from '@/components/slide-generation-panel'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
@@ -665,6 +665,7 @@ function BuilderContent() {
     refreshToken: number
   } | null>(null)
   const [slideComposeJobs, setSlideComposeJobs] = useState<Record<string, SlideComposeJobState>>({})
+  const [slideComposePanelEvent, setSlideComposePanelEvent] = useState<SlideComposePanelEvent | null>(null)
   const slideComposerPresentationRef = useRef<{
     presentationUrl: string | null
     presentationId: string | null
@@ -698,6 +699,7 @@ function BuilderContent() {
 
   const clearSlideComposerWork = useCallback(() => {
     setSlideComposeJobs({})
+    setSlideComposePanelEvent(null)
     Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
     slideComposeWatchdogsRef.current = {}
     Object.values(slideComposePollersRef.current).forEach(clearInterval)
@@ -1701,6 +1703,11 @@ function BuilderContent() {
       const presentationKey = payload.presentation_id
         ?? slideComposerPresentationRef.current.presentationId
         ?? '__unknown__'
+      setSlideComposePanelEvent({
+        jobId: payload.job_id,
+        status: 'built',
+        message: `Slide ${Math.max(0, payload.slide_index) + 1} built.`,
+      })
       scTrace('builder.ws.slide_ready.received', {
         payload,
         presentation_key: presentationKey,
@@ -2050,6 +2057,12 @@ function BuilderContent() {
         return
       }
       const failedKind: SlideComposeJobKind = payload.kind ?? failedJob?.kind ?? 'compose'
+      setSlideComposePanelEvent({
+        jobId: payload.job_id,
+        status: 'error',
+        message: errors[0]
+          ?? (payload.stage ? `Failed during ${payload.stage}.` : 'Slide generation failed.'),
+      })
       clearSlideComposeWatchdog(payload.job_id)
       clearSlideComposePoller(payload.job_id)
       if (failedKind === 'refine') {
@@ -2639,6 +2652,10 @@ function BuilderContent() {
       })),
     })
     clearSlideComposeWatchdog(job.job_id)
+    setSlideComposePanelEvent({
+      jobId: job.job_id,
+      status: 'building',
+    })
     setSlideComposeJobs(prev => ({
       ...prev,
       [job.job_id]: {
@@ -4083,6 +4100,7 @@ function BuilderContent() {
                   enabled={features.slideComposerEnabled}
                   onBuilt={handleSlideComposerBuilt}
                   onAccepted={handleSlideComposerAccepted}
+                  jobEvent={slideComposePanelEvent}
                 />
               </div>
 

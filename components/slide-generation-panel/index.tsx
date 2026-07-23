@@ -83,6 +83,12 @@ interface SlideComposerResearchState {
   useKnowledgeGraph: boolean
 }
 
+export interface SlideComposePanelEvent {
+  jobId: string
+  status: 'building' | 'built' | 'error'
+  message?: string
+}
+
 interface SlideGenerationPanelProps {
   isOpen: boolean
   onClose: () => void
@@ -98,6 +104,7 @@ interface SlideGenerationPanelProps {
   enabled: boolean
   onBuilt: (result: SlideComposeBuiltResult) => void
   onAccepted?: (job: SlideComposeAcceptedJob) => void
+  jobEvent?: SlideComposePanelEvent | null
 }
 
 type OpenSections = Record<'slideSetup' | 'grounding', boolean>
@@ -212,6 +219,7 @@ export function SlideGenerationPanel({
   enabled,
   onBuilt,
   onAccepted,
+  jobEvent,
 }: SlideGenerationPanelProps) {
   const [prompt, setPrompt] = useState('')
   const [selectedLayout, setSelectedLayout] = useState<LayoutChoice>(AUTO_VALUE)
@@ -219,6 +227,7 @@ export function SlideGenerationPanel({
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [acceptedJobId, setAcceptedJobId] = useState<string | null>(null)
   const [needsInput, setNeedsInput] = useState<SlideComposeNeedsInputResult | null>(null)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [canvasType, setCanvasType] = useState<OptionalChoice<CanvasType>>(AUTO_VALUE)
@@ -295,6 +304,7 @@ export function SlideGenerationPanel({
     setKeyMessage('')
     setError(null)
     setSuccessMessage(null)
+    setAcceptedJobId(null)
     setNeedsInput(null)
     setAnswers({})
 
@@ -321,6 +331,19 @@ export function SlideGenerationPanel({
     research.useUploadedDocuments,
     research.useWebSearch,
   ])
+
+  useEffect(() => {
+    if (!acceptedJobId || jobEvent?.jobId !== acceptedJobId) return
+    if (jobEvent.status === 'built') {
+      setError(null)
+      setSuccessMessage(jobEvent.message || 'Slide built.')
+      return
+    }
+    if (jobEvent.status === 'error') {
+      setSuccessMessage(null)
+      setError(jobEvent.message || 'Slide generation failed.')
+    }
+  }, [acceptedJobId, jobEvent])
   const hasUploadedFiles = Boolean(research.useUploadedDocuments)
   const heroVariant: HeroVariant = heroBackground
   const allowHeroImage = isHero && heroBackground !== 'solid_dark'
@@ -386,6 +409,7 @@ export function SlideGenerationPanel({
     setHeroBackground('solid_dark')
     setError(null)
     setSuccessMessage(null)
+    setAcceptedJobId(null)
   }
 
   function handleContentTypeChange(value: OptionalChoice<ContentType>) {
@@ -445,6 +469,7 @@ export function SlideGenerationPanel({
 
     setError(null)
     setSuccessMessage(null)
+    setAcceptedJobId(null)
 
     if (!enabled) {
       setError('Slide Composer is disabled.')
@@ -524,6 +549,7 @@ export function SlideGenerationPanel({
           ? `Refining slide ${refineSlideNumber} in the background.`
           : `Building slide ${data.target_index + 1} in the background.`
         )
+        setAcceptedJobId(data.job_id)
         onAccepted?.({
           ...data,
           kind: isRefineMode ? 'refine' : (data.kind ?? 'compose'),
@@ -684,6 +710,7 @@ export function SlideGenerationPanel({
             setNeedsInput(null)
             setError(null)
             setSuccessMessage(null)
+            setAcceptedJobId(null)
           }}
           mandatoryConfig={null}
           showAdvanced={showAdvanced}
