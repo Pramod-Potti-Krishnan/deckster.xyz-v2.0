@@ -72,6 +72,7 @@ export interface PresentationAreaProps {
   }
   generationPanel: {
     isGenerating: boolean
+    hasActiveGenerations: boolean
   }
   onOpenBlankGenerationPanel: (componentType: any, elementId: string) => void
   // Generation panel handler (for toolbar)
@@ -241,7 +242,7 @@ export function PresentationArea({
             templateBuilderEnabled={templateBuilderEnabled}
             onSelectTemplate={onSelectTemplate}
             onTemplateOptimizationFailed={onTemplateOptimizationFailed}
-            templateSelectionLocked={templateSelectionLocked || generationPanel.isGenerating}
+            templateSelectionLocked={templateSelectionLocked || generationPanel.hasActiveGenerations}
             templateModeOn={templateModeOn}
             onTemplateModeChange={onTemplateModeChange}
             templateModeAvailable={templateModeAvailable}
