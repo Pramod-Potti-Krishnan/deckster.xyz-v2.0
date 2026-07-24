@@ -47,7 +47,6 @@ export function useGenerationPanel() {
   const [isOpen, setIsOpen] = useState(false)
   const [activationId, setActivationId] = useState(0)
   const [elementType, setElementType] = useState<TextLabsComponentType>('TEXT_BOX')
-  const [isGenerating, setIsGenerating] = useState(false)
   const [error, setErrorState] = useState<string | null>(null)
   const [retryStrategy, setRetryStrategy] = useState<TextLabsRetryStrategy | null>(null)
   const [blankElementId, setBlankElementId] = useState<string | null>(null)
@@ -62,7 +61,23 @@ export function useGenerationPanel() {
   const [researchKnowledgeGraph, setResearchKnowledgeGraph] = useState(false)
   const [draftKey, setDraftKey] = useState<string | null>(null)
   const [draftVersion, setDraftVersion] = useState(0)
+  const [activeGenerationKeys, setActiveGenerationKeys] = useState<Set<string>>(
+    () => new Set(),
+  )
   const draftsRef = useRef<Map<string, GenerationPanelDraft>>(new Map())
+  const generationTargetKey = draftKey
+    ?? `${mode}:${blankElementId ?? editElementId ?? elementType}`
+  const isGenerating = activeGenerationKeys.has(generationTargetKey)
+  const hasActiveGenerations = activeGenerationKeys.size > 0
+  const setIsGenerating = useCallback((value: boolean) => {
+    const key = generationTargetKey
+    setActiveGenerationKeys(previous => {
+      const next = new Set(previous)
+      if (value) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }, [generationTargetKey])
   const setError = useCallback((value: string | null) => {
     setErrorState(value)
     setRetryStrategy(null)
@@ -284,6 +299,7 @@ export function useGenerationPanel() {
     draftVersion,
     elementType,
     isGenerating,
+    hasActiveGenerations,
     error,
     retryStrategy,
     blankElementId,
