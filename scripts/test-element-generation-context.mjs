@@ -115,6 +115,10 @@ const hookSource = fs.readFileSync(
   new URL('../hooks/use-textlabs-generation.ts', import.meta.url),
   'utf8',
 )
+const generationPanelHookSource = fs.readFileSync(
+  new URL('../hooks/use-generation-panel.ts', import.meta.url),
+  'utf8',
+)
 const contextSource = fs.readFileSync(
   new URL('../lib/element-generation-context.ts', import.meta.url),
   'utf8',
@@ -128,6 +132,14 @@ const elementGeometrySource = fs.readFileSync(
   'utf8',
 )
 assert.match(hookSource, /getSlideGenerationContext/)
+assert.match(generationPanelHookSource, /activeGenerationKeys/)
+assert.match(generationPanelHookSource, /activeGenerationKeys\.has\(generationTargetKey\)/)
+assert.match(generationPanelHookSource, /hasActiveGenerations = activeGenerationKeys\.size > 0/)
+assert.doesNotMatch(
+  generationPanelHookSource,
+  /const \[isGenerating, setIsGenerating\] = useState\(false\)/,
+  'element generation must not use one global busy flag across different targets',
+)
 assert.match(hookSource, /buildElementResearchPolicy/)
 assert.match(elementGeometrySource, /refreshElementThemeMetadata/)
 assert.match(hookSource, /themeVariantSource: 'element_generation'/)
