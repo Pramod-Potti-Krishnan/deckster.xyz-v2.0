@@ -119,21 +119,140 @@ export async function retryDeleteStaleSnapshots(
   return stillStale
 }
 
+export interface PresentationMeta {
+  /** Layout's top-level `updated_at` string, verbatim (null if absent) */
+  updatedAt: string | null
+  /** slides.length (null if the deck has no slides array) */
+  slideCount: number | null
+}
+
+/**
+ * Hard ceiling on the deck-JSON GET behind every advisory signal here
+ * (slide count, staleness baseline). The response can be multi-MB, so a Layout
+ * Service that accepts the connection and then stalls would otherwise hold the
+ * request open until the serverless function budget runs out — turning a
+ * degraded advisory signal into a failed publish, or (on the dialog's staleness
+ * probe) a hung request. Bounded wait, then the usual null = "unknown".
+ */
+const PRESENTATION_META_TIMEOUT_MS = 5000
+
+/**
+ * One GET of the deck JSON -> the two facts publish cares about. The deck JSON
+ * can be multi-MB, so callers that need both must use this rather than issuing
+ * two fetches (and no caller should reach for it on a hot path).
+ *
+ * Never throws: every failure mode collapses to null (including the timeout
+ * abort), because the callers use this for advisory signals that must not break
+ * a publish — or make a published deck look unpublished.
+ */
+export async function getPresentationMeta(presentationId: string): Promise<PresentationMeta> {
+  try {
+    const response = await fetch(
+      `${getLayoutServiceBaseUrl()}/api/presentations/${presentationId}`,
+      { signal: AbortSignal.timeout(PRESENTATION_META_TIMEOUT_MS) }
+    )
+    if (!response.ok) return { updatedAt: null, slideCount: null }
+    const data = await response.json()
+    return {
+      updatedAt: typeof data?.updated_at === 'string' ? data.updated_at : null,
+      slideCount: Array.isArray(data?.slides) ? data.slides.length : null,
+    }
+  } catch (error) {
+    console.error('[Publish] Presentation meta fetch error:', presentationId, error)
+    return { updatedAt: null, slideCount: null }
+  }
+}
+
 /**
  * Slide count: read slides.length off the full deck JSON.
  */
 export async function getPresentationSlideCount(presentationId: string): Promise<number | null> {
-  try {
-    const response = await fetch(
-      `${getLayoutServiceBaseUrl()}/api/presentations/${presentationId}`
-    )
-    if (!response.ok) return null
-    const data = await response.json()
-    return Array.isArray(data?.slides) ? data.slides.length : null
-  } catch (error) {
-    console.error('[Publish] Slide count fetch error:', presentationId, error)
-    return null
+  const { slideCount } = await getPresentationMeta(presentationId)
+  return slideCount
+}
+
+/**
+ * The SOURCE deck's `updated_at`, persisted at publish time and compared on the
+ * owner's next dialog open to tell them — exactly, not by clock heuristics —
+ * that the frozen published copy no longer matches the deck they're editing.
+ *
+ * Returns null on ANY failure (non-2xx, network error, field missing/not a
+ * string). A null is stored as "unknown" and never fails the publish, and the
+ * staleness check treats unknown as "not stale" so a Layout hiccup can't nag the
+ * owner into pointless republishes.
+ *
+ * ACCEPTED TRADE-OFF: Layout bumps `updated_at` on ANY deck write, including a
+ * speaker-notes / script save. Editing only narration therefore counts as
+ * "changed" here even though viewers of the published deck see no visible
+ * difference. We prefer that false positive (a redundant republish) to the false
+ * negative this whole signal exists to kill (a silently stale public link).
+ */
+export async function getPresentationUpdatedAt(presentationId: string): Promise<string | null> {
+  const { updatedAt } = await getPresentationMeta(presentationId)
+  return updatedAt
+}
+
+/**
+ * Same read, with one bounded retry. A NULL baseline is not a harmless "we'll
+ * find out next time": it is persisted onto the record and permanently disables
+ * the staleness comparison for that deck (every later check reads "unknown"),
+ * which is the silently-stale link this signal exists to kill. One transient
+ * blip is therefore worth a second attempt before we accept the unknown.
+ *
+ * Still never throws and still collapses to null when it truly can't read.
+ */
+export async function getPresentationUpdatedAtWithRetry(
+  presentationId: string,
+  attempts = 2,
+  delayMs = 250,
+): Promise<string | null> {
+  for (let i = 0; i < attempts; i++) {
+    const updatedAt = await getPresentationUpdatedAt(presentationId)
+    if (updatedAt != null) return updatedAt
+    if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
+  return null
+}
+
+/**
+ * Pick which `updated_at` to persist as the staleness baseline, given the
+ * readings taken BEFORE and AFTER the snapshot was created.
+ *
+ * The snapshot is frozen at some instant between the two reads, so a write that
+ * lands inside that window may or may not be in the frozen copy. Prefer the
+ * BEFORE value: it can only ever make the next check say "stale" when the copy
+ * is in fact current (a redundant republish), never the reverse. Persisting the
+ * AFTER value would record a state the snapshot might not contain and report
+ * "up to date" on a copy that isn't — the exact false negative this whole
+ * signal exists to prevent.
+ *
+ * AFTER is used only as the fallback when the BEFORE read (already retried)
+ * came back unknown — a real value with a small race window beats a null, which
+ * disables the comparison outright.
+ *
+ * `ref` is logging context only (deck id / session id).
+ */
+export function resolveStalenessBaseline(
+  before: string | null,
+  after: string | null,
+  ref: string,
+): string | null {
+  if (before != null && after != null && before !== after) {
+    console.warn(
+      `[Publish] Source deck for ${ref} changed while the snapshot was being taken ` +
+        `(${before} -> ${after}); persisting the PRE-snapshot value, so the next check ` +
+        `errs toward "stale" rather than missing a change the frozen copy may not contain.`
+    )
+  }
+  const baseline = before ?? after
+  if (baseline == null) {
+    console.warn(
+      `[Publish] Persisting a NULL staleness baseline for ${ref}: Layout's updated_at ` +
+        `could not be read (already retried). Staleness for this deck will report ` +
+        `"can't verify" — not "up to date" — until the next successful publish/republish/rotate.`
+    )
+  }
+  return baseline
 }
 
 /**

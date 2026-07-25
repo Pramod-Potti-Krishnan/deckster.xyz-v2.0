@@ -34,6 +34,8 @@ export interface SerializedPublishedDeck {
   publishedAt: string
   republishedAt: string | null
   revokedAt: string | null
+  /** SOURCE deck's Layout updated_at at the last publish/republish/rotate */
+  sourceUpdatedAt: string | null
   publicUrl: string
 }
 
@@ -54,6 +56,7 @@ export function serializePublishedDeck(deck: PublishedDeck): SerializedPublished
     publishedAt: deck.publishedAt.toISOString(),
     republishedAt: deck.republishedAt ? deck.republishedAt.toISOString() : null,
     revokedAt: deck.revokedAt ? deck.revokedAt.toISOString() : null,
+    sourceUpdatedAt: deck.sourceUpdatedAt ?? null,
     publicUrl: publicUrlForSlug(deck.slug),
   }
 }

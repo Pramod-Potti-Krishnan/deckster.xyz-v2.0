@@ -371,6 +371,14 @@ model PublishedDeck {
   sessionId              String    @unique @map("session_id")    // ChatSession.id — one publish record per session
   sourcePresentationId   String    @map("source_presentation_id")   // the live (editable) deck
   snapshotPresentationId String    @map("snapshot_presentation_id") // the frozen copy viewers actually see
+  // The SOURCE deck's Layout `updated_at` as of the last publish/republish/rotate.
+  // Exact (not clock-based) staleness signal: if the live deck's current
+  // updated_at differs from this, the frozen copy viewers see is out of date.
+  // Stored as the raw string the Layout Service returns so the comparison is a
+  // byte-for-byte equality check with no parse/precision loss. Nullable: the
+  // read is best-effort and must never fail a publish (null = "unknown", which
+  // reads as "not stale" rather than nagging the owner on every open).
+  sourceUpdatedAt        String?   @map("source_updated_at")
   title                  String
   slideCount             Int       @map("slide_count")           // /convert/pptx requires a valid slide_count
   visibility             String    @default("unlisted")          // 'public' | 'unlisted' | 'restricted'

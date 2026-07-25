@@ -5,7 +5,10 @@ import { prisma } from '@/lib/prisma';
 import { generateSlug } from '@/lib/publish/slug';
 import {
   deletePresentationSnapshot,
+  getPresentationUpdatedAt,
+  getPresentationUpdatedAtWithRetry,
   getSnapshotSlideCountWithRetry,
+  resolveStalenessBaseline,
   retryDeleteStaleSnapshots,
   snapshotPresentation,
 } from '@/lib/publish/layout';
@@ -75,6 +78,13 @@ export async function POST(
     const sourcePresentationId =
       chatSession?.finalPresentationId || existing.sourcePresentationId;
 
+    // Staleness baseline, part 1: read the SOURCE deck's updated_at BEFORE the
+    // new snapshot is taken, for the same reason POST /api/publish does — a read
+    // taken only afterwards can record a write the frozen copy doesn't contain,
+    // and the next comparison would then wrongly report the link up to date.
+    // Best-effort with one retry; never fails the rotate.
+    const sourceUpdatedAtBefore = await getPresentationUpdatedAtWithRetry(sourcePresentationId);
+
     const snapshot = await snapshotPresentation(sourcePresentationId);
     if (!snapshot) {
       return NextResponse.json(
@@ -100,6 +110,17 @@ export async function POST(
         { status: 502 }
       );
     }
+
+    // Staleness baseline, part 2: re-read now that the new snapshot exists.
+    // Rotate re-snapshots, so it re-baselines staleness exactly as
+    // POST /api/publish does — pre-snapshot value wins when the two differ, the
+    // post-snapshot one is only a fallback for an unreadable pre-snapshot read.
+    const sourceUpdatedAtAfter = await getPresentationUpdatedAt(sourcePresentationId);
+    const sourceUpdatedAt = resolveStalenessBaseline(
+      sourceUpdatedAtBefore,
+      sourceUpdatedAtAfter,
+      `deck ${existing.id}`,
+    );
 
     // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
     const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds, existing.id);
@@ -132,6 +153,7 @@ export async function POST(
             snapshotPresentationId: snapshot.snapshotId,
             sourcePresentationId,
             slideCount,
+            sourceUpdatedAt,
             staleSnapshotIds: stagedStale,
             version: { increment: 1 },
           },
