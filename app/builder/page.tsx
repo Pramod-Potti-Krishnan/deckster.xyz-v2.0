@@ -107,6 +107,7 @@ import {
   inspectManualDeck,
   readPendingHandoff,
   savePendingHandoff,
+  shouldInspectManualDeckBeforeBuild,
   type ManualDeckContext,
   type ManualDeckSummary,
   type PendingHandoffSubmission,
@@ -1522,6 +1523,7 @@ function BuilderContent() {
     blankPresentationId,
     isBlankPresentation,
     activeVersion,
+    directorWorkflowState,
     slideContextByIndex,
     deckContext,
     ephemeralMessageIds,
@@ -3178,14 +3180,15 @@ function BuilderContent() {
     // turn so theme selection alone does not trigger the choice dialog and no
     // stale client-side slide count can lose manual work.
     const manualSourcePresentationId = blankPresentationId ?? presentationId ?? effectivePresentationId
-    const shouldInspectManualDeck = Boolean(
-      !pendingActionInput &&
-      !turnContext?.manualDeck &&
-      !templateModeOn &&
-      isBlankPresentation &&
-      activeVersion === 'blank' &&
-      manualSourcePresentationId,
-    )
+    const shouldInspectManualDeck = shouldInspectManualDeckBeforeBuild({
+      hasPendingAction: Boolean(pendingActionInput),
+      hasManualDeckContext: Boolean(turnContext?.manualDeck),
+      templateModeOn,
+      sourcePresentationId: manualSourcePresentationId,
+      directorWorkflowState,
+      isBlankPresentation,
+      activeVersion,
+    })
     if (shouldInspectManualDeck) {
       if (pendingManualDeckBuild || manualDeckInspectionInFlightRef.current) return
       manualDeckInspectionInFlightRef.current = true
