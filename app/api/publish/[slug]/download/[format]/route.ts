@@ -3,14 +3,11 @@ import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { unlockCookieName, verifyUnlockCookie } from '@/lib/publish/passcode';
 
-// The Downloads service and the public Layout origin (same defaults the client
-// bundle uses in lib/api/download-service.ts and lib/layout-service-client.ts).
-// The URL handed to Downloads must be one Downloads can itself reach, so we use
-// the PUBLIC Layout origin, not the server-only LAYOUT_SERVICE_URL.
-const DOWNLOAD_SERVICE_URL =
-  process.env.NEXT_PUBLIC_DOWNLOAD_SERVICE_URL || 'https://web-production-4908a.up.railway.app';
-const PUBLIC_LAYOUT_BASE_URL =
-  process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL || 'https://web-production-f0d13.up.railway.app';
+// Service origins are resolved per-request by lib/publish/service-urls, which
+// refuses to fall back to the production services from a non-production
+// deployment. The URL handed to Downloads must be one Downloads can itself
+// reach, so we use the PUBLIC Layout origin, not the server-only var.
+import { getDownloadServiceUrl, getPublicLayoutBaseUrl } from '@/lib/publish/service-urls';
 
 // Auth (unlock cookie) + per-format flags are evaluated per request — never cache.
 export const dynamic = 'force-dynamic';
@@ -97,7 +94,7 @@ export async function GET(
       );
     }
 
-    const presentationUrl = `${PUBLIC_LAYOUT_BASE_URL}/p/${deck.snapshotPresentationId}`;
+    const presentationUrl = `${getPublicLayoutBaseUrl()}/p/${deck.snapshotPresentationId}`;
     const slideCount = deck.slideCount > 0 ? deck.slideCount : 1;
     const meta = FORMAT_META[downloadFormat];
 
@@ -117,7 +114,7 @@ export async function GET(
             quality: 'high',
           };
 
-    const upstream = await fetch(`${DOWNLOAD_SERVICE_URL}${meta.path}`, {
+    const upstream = await fetch(`${getDownloadServiceUrl()}${meta.path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

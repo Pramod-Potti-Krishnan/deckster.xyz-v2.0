@@ -1,16 +1,13 @@
 // Server-side Layout Service helpers for the publish API routes.
 //
-// API routes run on the server, so they prefer the server-only
-// LAYOUT_SERVICE_URL (if set) over the public NEXT_PUBLIC_ variant, falling
-// back to the same default host the client bundle uses.
+// The URL itself is resolved by lib/publish/service-urls, which refuses to fall
+// back to the production Layout Service from a non-production deployment —
+// publish writes (snapshot create/delete), so a silent prod fallback in UAT
+// would create and delete presentations in production.
 
-export function getLayoutServiceBaseUrl(): string {
-  return (
-    process.env.LAYOUT_SERVICE_URL ||
-    process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL ||
-    'https://web-production-f0d13.up.railway.app'
-  )
-}
+import { getLayoutServiceBaseUrl } from './service-urls'
+
+export { getLayoutServiceBaseUrl }
 
 export interface SnapshotResult {
   snapshotId: string

@@ -6,10 +6,7 @@ import { unlockCookieName, verifyUnlockCookie } from '@/lib/publish/passcode'
 import { PublishedViewer } from '@/components/published-viewer'
 import { PublishPasscodeGate } from '@/components/publish-passcode-gate'
 
-// Public Layout Service origin for the viewer iframe (same default the
-// client bundle uses in lib/layout-service-client.ts)
-const PUBLIC_LAYOUT_BASE_URL =
-  process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL || 'https://web-production-f0d13.up.railway.app'
+import { getPublicLayoutBaseUrl } from '@/lib/publish/service-urls'
 
 // Slug resolution reads the database — never prerender/cache this page
 export const dynamic = 'force-dynamic'
@@ -64,7 +61,7 @@ export default async function PublishedDeckPage({ params }: PublishedDeckPagePro
     <PublishedViewer
       title={deck.title}
       slug={deck.slug}
-      layoutBaseUrl={PUBLIC_LAYOUT_BASE_URL}
+      layoutBaseUrl={getPublicLayoutBaseUrl()}
       snapshotPresentationId={deck.snapshotPresentationId}
       slideCount={deck.slideCount}
       allowPdf={deck.allowPdf}
