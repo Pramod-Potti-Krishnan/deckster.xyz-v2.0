@@ -6,6 +6,7 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  KeyRound,
   Loader2,
   RefreshCw,
   Share2,
@@ -37,6 +38,27 @@ type PublishVisibility = 'public' | 'unlisted' | 'restricted'
 
 /** Which single setting is mid-flight; also what `busy` is derived from */
 type SettingsField = 'visibility' | 'allowPdf' | 'allowPptx' | 'passcode'
+
+/**
+ * Staleness is THREE-valued, plus an in-flight state. 'unknown' is not a
+ * synonym for 'current': the record may have no baseline (published before the
+ * column existed, or by a publish whose Layout read failed), or the check
+ * itself may not have come back. Those must read as "can't verify", never as
+ * "up to date" — an owner who is told nothing is wrong will not republish.
+ */
+type Staleness = 'checking' | 'unknown' | 'current' | 'stale'
+
+const parseStaleness = (value: unknown): Staleness =>
+  value === 'stale' || value === 'current' ? value : 'unknown'
+
+/**
+ * After a republish/rotate the server re-baselined by construction — but only
+ * if it managed to read one. An echoed-back null baseline means the copy is
+ * fresh and yet unverifiable from here on, so say 'unknown' rather than claim
+ * a verification we can't repeat.
+ */
+const stalenessAfterResnapshot = (deck: SerializedPublishedDeck | null | undefined): Staleness =>
+  deck?.sourceUpdatedAt ? 'current' : 'unknown'
 
 const VISIBILITY_LABELS: Record<PublishVisibility, { label: string; hint: string }> = {
   unlisted: { label: 'Unlisted', hint: 'Anyone with the link can view' },
@@ -111,11 +133,16 @@ export function PublishControls({
         onClick={() => setOpen(true)}
         disabled={!enabled}
         className="relative flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-700 dark:disabled:hover:text-slate-200"
+        // Says ONLY what this dot actually knows. The dot compares slide COUNTS;
+        // the dialog compares the source deck's updated_at, and the two can
+        // legitimately disagree (edited slides at an unchanged count; an
+        // unverifiable baseline). Asserting "republish to update the link" here
+        // would let the toolbar make a claim the dialog then fails to back up.
         title={
           !enabled
             ? 'Publishing unlocks once the final deck is built'
             : slideCountDrifted
-              ? `Published ${plural(publishedSlideCount!, 'slide')} · this deck now has ${slideCount} — republish to update the link`
+              ? `Published ${plural(publishedSlideCount!, 'slide')} · deck now has ${slideCount}`
               : 'Publish this deck to a shareable link'
         }
       >
@@ -162,7 +189,7 @@ export function PublishDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [record, setRecord] = useState<SerializedPublishedDeck | null>(null)
   /** Exact (updated_at-based) verdict from the server, not a clock heuristic */
-  const [isStale, setIsStale] = useState(false)
+  const [staleness, setStaleness] = useState<Staleness>('unknown')
   const [currentSlideCount, setCurrentSlideCount] = useState<number | null>(null)
 
   // Settings form (drives both first publish and later PATCHes)
@@ -176,8 +203,10 @@ export function PublishDialog({
   const [isRotating, setIsRotating] = useState(false)
   const [isUnpublishing, setIsUnpublishing] = useState(false)
   const [confirmUnpublish, setConfirmUnpublish] = useState(false)
+  const [confirmRotate, setConfirmRotate] = useState(false)
 
   const isLive = Boolean(record && !record.revokedAt)
+  const isStale = staleness === 'stale'
   const busy = isPublishing || savingField !== null || isRotating || isUnpublishing
 
   const syncFormFromRecord = useCallback((deck: SerializedPublishedDeck | null) => {
@@ -188,38 +217,75 @@ export function PublishDialog({
     setPasscode('')
   }, [])
 
-  // Load the current publish state whenever the dialog opens. checkStale=1 makes
-  // the server also compare the live deck's updated_at against the one recorded
-  // at publish time — opt-in because it costs a full deck GET, which is why the
-  // toolbar's cheap poll above doesn't ask for it.
+  // Load the current publish state whenever the dialog opens, in TWO decoupled
+  // passes — because the two facts have completely different failure costs.
+  //
+  // Pass 1 is the record: one DB read, zero Layout calls. It decides whether the
+  // dialog shows the published state at all (link, copy, open, rotate,
+  // unpublish), so it must not depend on the Layout Service being reachable.
+  //
+  // Pass 2 is the advisory staleness verdict, which DOES cost a multi-MB deck
+  // GET. Its failure is contained: staleness falls back to 'unknown' and the
+  // record is left untouched. A Layout outage must never make a genuinely
+  // published deck render as "Publish deck" — that would strip every control the
+  // owner has over a link that is still live and still serving viewers, and
+  // offer a full republish as the only way out.
   useEffect(() => {
     if (!open) {
       setConfirmUnpublish(false)
+      setConfirmRotate(false)
       return
     }
     let cancelled = false
     setIsLoading(true)
-    fetch(`/api/publish/by-session/${sessionId}?checkStale=1`)
-      .then(async (response) => {
+    setStaleness('checking')
+    setCurrentSlideCount(null)
+
+    const load = async () => {
+      let deck: SerializedPublishedDeck | null = null
+      try {
+        const response = await fetch(`/api/publish/by-session/${sessionId}`)
         if (!response.ok) throw new Error('Failed to load publish state')
         const data = await response.json()
-        if (cancelled) return
-        setRecord(data.deck ?? null)
-        setIsStale(Boolean(data.isStale))
-        setCurrentSlideCount(
-          typeof data.currentSlideCount === 'number' ? data.currentSlideCount : null
-        )
-        syncFormFromRecord(data.deck ?? null)
-      })
-      .catch(() => {
+        deck = (data?.deck ?? null) as SerializedPublishedDeck | null
+      } catch {
         if (cancelled) return
         setRecord(null)
-        setIsStale(false)
-        setCurrentSlideCount(null)
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false)
-      })
+        setStaleness('unknown')
+        setIsLoading(false)
+        return
+      }
+      if (cancelled) return
+      setRecord(deck)
+      syncFormFromRecord(deck)
+      setIsLoading(false)
+
+      // Nothing live to compare against (never published, or unpublished): the
+      // server skips the Layout read for a revoked record anyway, so don't ask.
+      if (!deck || deck.revokedAt) {
+        setStaleness('unknown')
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/publish/by-session/${sessionId}?checkStale=1`)
+        if (!response.ok) throw new Error('Failed to check staleness')
+        const data = await response.json()
+        if (cancelled) return
+        // Deliberately ignores data.deck: pass 1 already rendered the record, and
+        // this response is older than any edit the owner has made since.
+        setStaleness(parseStaleness(data?.staleness))
+        setCurrentSlideCount(
+          typeof data?.currentSlideCount === 'number' ? data.currentSlideCount : null
+        )
+      } catch {
+        // Layout unreachable/slow, or the check errored. The published state
+        // stays exactly as pass 1 rendered it; only the verdict is unknown.
+        if (!cancelled) setStaleness('unknown')
+      }
+    }
+
+    void load()
     return () => {
       cancelled = true
     }
@@ -240,7 +306,16 @@ export function PublishDialog({
     record!.visibility !== 'restricted' &&
     !record!.hasPasscode
   const pendingPasscode = isLive && visibility === 'restricted' && passcode.length > 0
-  const hasUnsavedSettings = pendingRestricted || pendingPasscode
+  /**
+   * Only TYPED passcode text blocks Republish. A held 'restricted' selection
+   * with an empty field must not: the button that would resolve it ("Update
+   * passcode") is disabled while the field is empty, so blocking there pointed
+   * the owner at a control they cannot press. Nothing is at risk either — the
+   * held selection was never persisted, and Republish sends no settings, so
+   * letting it through discards a local-only selection rather than a saved one
+   * (the select visibly snaps back to the record's real visibility afterwards).
+   */
+  const blocksRepublish = pendingPasscode
 
   /**
    * Fold a PATCH response back into local state, mirroring ONLY the fields the
@@ -280,6 +355,12 @@ export function PublishDialog({
         if (!response.ok) {
           throw new Error(data.error || 'Failed to save setting')
         }
+        // Defensive: a 200 without a record would otherwise walk into
+        // applySavedRecord, set `record` to undefined and THEN throw — flipping
+        // a live published deck to the pre-publish "Publish deck" state on what
+        // is really just a malformed response. Fail as an error instead, which
+        // reverts the control and toasts.
+        if (!data?.deck) throw new Error('The server did not return the updated settings')
         applySavedRecord(data.deck, body)
       } catch (error) {
         revert()
@@ -325,15 +406,23 @@ export function PublishDialog({
       // Leaving restricted abandons any passcode typed for it; drop the text so a
       // field the owner can no longer see can't block Republish later. The revert
       // restores it along with the selection, so a failed PATCH loses nothing.
+      // Say so when there was something to drop — the field vanishes with the
+      // 'restricted' option, so a silent clear looks like the passcode was kept.
       const previousPasscode = passcode
-      if (previous === 'restricted' && next !== 'restricted') setPasscode('')
+      if (previous === 'restricted' && next !== 'restricted' && passcode) {
+        setPasscode('')
+        toast({
+          title: 'Discarded the unsaved passcode',
+          description: `${VISIBILITY_LABELS[next].label} viewers don't need one. Nothing was saved — switch back to Restricted to set one.`,
+        })
+      }
 
       void patchSettings('visibility', { visibility: next }, () => {
         setVisibility(previous)
         setPasscode(previousPasscode)
       })
     },
-    [visibility, passcode, isLive, record, patchSettings]
+    [visibility, passcode, isLive, record, patchSettings, toast]
   )
 
   const handlePasscodeSubmit = useCallback(() => {
@@ -367,11 +456,13 @@ export function PublishDialog({
       if (!response.ok) {
         throw new Error(data.error || 'Failed to publish')
       }
+      if (!data?.deck) throw new Error('The server did not return the published deck')
       setRecord(data.deck)
       syncFormFromRecord(data.deck)
-      // The snapshot was just re-taken from the live deck, so the staleness
-      // baseline the server stored is current by construction.
-      setIsStale(false)
+      // The snapshot was just re-taken from the live deck, so the baseline the
+      // server stored is current by construction — unless it couldn't read one,
+      // which the echoed record tells us (null sourceUpdatedAt → unverifiable).
+      setStaleness(stalenessAfterResnapshot(data.deck))
       setCurrentSlideCount(data.deck?.slideCount ?? null)
       toast({
         title: republish ? 'Deck republished' : 'Deck published',
@@ -398,7 +489,7 @@ export function PublishDialog({
    * (optionally with the restricted switch waiting on it).
    */
   const handleRepublishClick = useCallback(() => {
-    if (hasUnsavedSettings) {
+    if (blocksRepublish) {
       toast({
         title: 'Apply your passcode first',
         description:
@@ -410,7 +501,7 @@ export function PublishDialog({
       return
     }
     void handlePublish(true)
-  }, [hasUnsavedSettings, pendingRestricted, handlePublish, toast])
+  }, [blocksRepublish, pendingRestricted, handlePublish, toast])
 
   const handleRotate = useCallback(async () => {
     if (!record) return
@@ -421,9 +512,12 @@ export function PublishDialog({
       if (!response.ok) {
         throw new Error(data.error || 'Failed to rotate link')
       }
+      if (!data?.deck) throw new Error('The server did not return the rotated deck')
       setRecord(data.deck)
-      // Rotate re-snapshots too, so it re-baselines staleness server-side.
-      setIsStale(false)
+      setConfirmRotate(false)
+      // Rotate re-snapshots too, so it re-baselines staleness server-side (same
+      // "unless the baseline couldn't be read" caveat as republish).
+      setStaleness(stalenessAfterResnapshot(data.deck))
       setCurrentSlideCount(data.deck?.slideCount ?? null)
       toast({
         title: 'Link rotated',
@@ -451,8 +545,10 @@ export function PublishDialog({
       if (!response.ok) {
         throw new Error(data.error || 'Failed to unpublish')
       }
+      if (!data?.deck) throw new Error('The server did not return the unpublished deck')
       setRecord(data.deck)
-      setIsStale(false)
+      // No live copy left to compare against; the verdict is simply not applicable.
+      setStaleness('unknown')
       setConfirmUnpublish(false)
       toast({
         title: 'Deck unpublished',
@@ -723,24 +819,65 @@ export function PublishDialog({
                 </Button>
                 {/* Rotating mints a NEW link, so it belongs beside the link it
                     replaces — not in the footer next to Republish, where the two
-                    read as interchangeable. */}
+                    read as interchangeable. It is also the single most
+                    destructive control in this dialog: it permanently kills
+                    every URL already shared (strictly worse than Unpublish,
+                    which can be undone by republishing the same slug). So it
+                    ARMS on the first press and only acts on an explicit confirm,
+                    like Unpublish — and it wears a key, not a refresh glyph,
+                    which belongs to Republish, the safe "update" action. */}
                 <Button
                   type="button"
-                  variant="outline"
+                  variant={confirmRotate ? 'secondary' : 'outline'}
                   size="icon"
-                  onClick={handleRotate}
+                  onClick={() => {
+                    setConfirmUnpublish(false) // never leave two confirms armed at once
+                    setConfirmRotate((armed) => !armed)
+                  }}
                   disabled={busy}
                   title="Mint a new link — the old one stops working"
                   aria-label="Mint a new link — the old one stops working"
+                  aria-expanded={confirmRotate}
                   className="flex-shrink-0"
                 >
                   {isRotating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <RefreshCw className="h-4 w-4" />
+                    <KeyRound className="h-4 w-4" />
                   )}
                 </Button>
               </div>
+
+              {confirmRotate && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200">
+                  <p className="flex-1">
+                    <span className="font-medium">Mint a new link?</span> This link stops working
+                    permanently — anyone you already shared it with loses access. To publish your
+                    latest slides on the SAME link, use Republish instead.
+                  </p>
+                  <div className="flex flex-shrink-0 items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setConfirmRotate(false)}
+                      disabled={busy}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleRotate}
+                      disabled={busy}
+                    >
+                      {isRotating ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                      Mint new link
+                    </Button>
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 Published {formatDate(record!.publishedAt)}
                 {record!.republishedAt ? ` · updated ${formatDate(record!.republishedAt)}` : ''}
@@ -750,13 +887,26 @@ export function PublishDialog({
 
             {liveSettingsForm}
 
-            {isStale && (
+            {/* Three outcomes, three different things to say. 'current' says
+                nothing (the quiet default). 'stale' is the amber call to
+                action. 'unknown' — no stored baseline, or the check didn't come
+                back — gets a NEUTRAL hint: silence there would read as "all
+                good" and leave a possibly-stale link sitting unrepublished,
+                while amber would nag on evidence we don't have. */}
+            {staleness === 'stale' && (
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200">
                 <p className="font-medium">
                   This deck has changed since you published it — republish to update the link.
                 </p>
                 {slideDelta && <p className="mt-0.5 opacity-90">{slideDelta}</p>}
               </div>
+            )}
+
+            {staleness === 'unknown' && (
+              <p className="text-xs text-muted-foreground">
+                Can&rsquo;t verify whether the published copy is up to date — republish if in doubt.
+                {slideDelta ? ` ${slideDelta}.` : ''}
+              </p>
             )}
 
             <DialogFooter className="sm:justify-between">
@@ -776,7 +926,10 @@ export function PublishDialog({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setConfirmUnpublish(true)}
+                  onClick={() => {
+                    setConfirmRotate(false) // never leave two confirms armed at once
+                    setConfirmUnpublish(true)
+                  }}
                   disabled={busy}
                   className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950"
                 >
@@ -784,7 +937,9 @@ export function PublishDialog({
                 </Button>
               )}
               {/* Primary when the published copy is out of date; still clickable
-                  (a forced re-snapshot) when it isn't. */}
+                  (a forced re-snapshot) when it isn't. It carries the refresh
+                  glyph because THIS is the "update what's published" action —
+                  the one Rotate used to wear while doing the opposite. */}
               <Button
                 type="button"
                 variant={isStale ? 'default' : 'outline'}
@@ -797,7 +952,11 @@ export function PublishDialog({
                     : 'Re-snapshot the deck onto the same link'
                 }
               >
-                {isPublishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                {isPublishing ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                )}
                 Republish
               </Button>
             </DialogFooter>
