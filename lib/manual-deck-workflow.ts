@@ -251,9 +251,14 @@ export function inspectManualDeck(value: unknown): ManualDeckInspection {
     ]
       .some(value => typeof value === 'string' && value.trim().length > 0)
     const notesChanged = hasMeaningfulValue(slideNotes(slide))
+    // Layout's runtime H1s blank does not currently include the is_blank
+    // marker. Its empty one-slide shape is still authoritative enough to
+    // distinguish it from customized work.
+    const hasInitialBlankLayout = isMarkedInitialBlank
+      ? INITIAL_BLANK_LAYOUTS.has(layout)
+      : layout === 'H1s'
     const isPristineInitialBlank = slides.length === 1
-      && isMarkedInitialBlank
-      && INITIAL_BLANK_LAYOUTS.has(layout)
+      && hasInitialBlankLayout
       && slideElementCount === 0
       && !contentChanged
       && !backgroundChanged
