@@ -50,6 +50,14 @@ export interface ChangeLayoutOptions {
   content_mapping?: Record<string, string>
 }
 
+// Slide-level narration fields (Script | Notes | References panel).
+// All live at the slide top level on the Layout Service Slide model.
+export interface SlideNarrationFields {
+  script?: string
+  speaker_notes?: string
+  references?: string[]
+}
+
 // ============================================================================
 // SLIDE OPERATIONS
 // ============================================================================
@@ -308,9 +316,173 @@ export async function changeSlideLayout(
   }
 }
 
+/**
+ * Update top-level fields of an existing slide (script, speaker notes, references)
+ *
+ * @param presentationId - The presentation UUID
+ * @param slideIndex - The 0-based index of the slide
+ * @param fields - Slide-level fields to update (script, speaker_notes, references)
+ * @returns Promise with the operation result
+ *
+ * @note The Layout Service lifts these fields to the slide top level;
+ *       anything else in the body would be treated as slide content.
+ */
+export async function updateSlideFields(
+  presentationId: string,
+  slideIndex: number,
+  fields: SlideNarrationFields
+): Promise<LayoutServiceResponse> {
+  try {
+    const response = await fetch(
+      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/slides/${slideIndex}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        error: {
+          code: `HTTP_${response.status}`,
+          message: errorData.detail || `Request failed with status ${response.status}`,
+        },
+      }
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('[LayoutService] updateSlideFields failed:', error)
+    return {
+      success: false,
+      error: {
+        code: 'NETWORK_ERROR',
+        message: error instanceof Error ? error.message : 'Network request failed',
+      },
+    }
+  }
+}
+
+// Result of a concurrency-guarded narration PATCH.
+export interface SlideNarrationUpdateResult {
+  success: boolean
+  /** HTTP status (200 on success, 409 on optimistic conflict) */
+  status?: number
+  /** deck updated_at echoed back on a 200 — thread this into the next save */
+  updatedAt?: string
+  /** deck updated_at the server currently holds, returned on a 409 */
+  currentUpdatedAt?: string
+  error?: {
+    code: string
+    message: string
+  }
+}
+
+/**
+ * Update a slide's narration (script / speaker_notes / references) by STABLE
+ * slide_id, guarded by optimistic concurrency.
+ *
+ * PATCH /api/presentations/{id}/slides/{slide_id}/narration
+ * Body: { script?, speaker_notes?, references?, expected_updated_at }
+ *   - 200 { ok, updated_at }        — saved; updated_at advances
+ *   - 409 { current_updated_at }    — the deck changed since the caller's read;
+ *                                     the write was rejected to avoid a clobber
+ *
+ * `expected_updated_at` is REQUIRED — pass the deck updated_at captured from the
+ * last authoritative GET (or the previous save's response).
+ */
+export async function updateSlideNarration(
+  presentationId: string,
+  slideId: string,
+  fields: SlideNarrationFields,
+  expectedUpdatedAt: string
+): Promise<SlideNarrationUpdateResult> {
+  try {
+    const response = await fetch(
+      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/slides/${encodeURIComponent(
+        slideId
+      )}/narration`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fields, expected_updated_at: expectedUpdatedAt }),
+      }
+    )
+
+    if (response.status === 409) {
+      const data = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        status: 409,
+        currentUpdatedAt:
+          typeof data?.current_updated_at === 'string' ? data.current_updated_at : undefined,
+      }
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      return {
+        success: false,
+        status: response.status,
+        error: {
+          code: `HTTP_${response.status}`,
+          message: errorData.detail || `Request failed with status ${response.status}`,
+        },
+      }
+    }
+
+    const data = await response.json().catch(() => ({}))
+    return {
+      success: true,
+      status: 200,
+      updatedAt: typeof data?.updated_at === 'string' ? data.updated_at : undefined,
+    }
+  } catch (error) {
+    console.error('[LayoutService] updateSlideNarration failed:', error)
+    return {
+      success: false,
+      error: {
+        code: 'NETWORK_ERROR',
+        message: error instanceof Error ? error.message : 'Network request failed',
+      },
+    }
+  }
+}
+
 // ============================================================================
 // PRESENTATION OPERATIONS
 // ============================================================================
+
+/**
+ * Get the full presentation JSON (title, slides[], theme, …)
+ *
+ * @param presentationId - The presentation UUID
+ * @returns Promise with the presentation JSON, or null on failure
+ */
+export async function getPresentation(
+  presentationId: string
+): Promise<Record<string, any> | null> {
+  try {
+    const response = await fetch(
+      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}`,
+      {
+        method: 'GET',
+      }
+    )
+
+    if (!response.ok) {
+      return null
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('[LayoutService] getPresentation failed:', error)
+    return null
+  }
+}
 
 /**
  * Get the presentation viewer URL
@@ -462,6 +634,14 @@ export class SlideManager {
     options: ChangeLayoutOptions = {}
   ): Promise<LayoutServiceResponse> {
     return changeSlideLayout(presentationId, slideIndex, newLayout, options)
+  }
+
+  async updateSlideFields(
+    presentationId: string,
+    slideIndex: number,
+    fields: SlideNarrationFields
+  ): Promise<LayoutServiceResponse> {
+    return updateSlideFields(presentationId, slideIndex, fields)
   }
 
   getViewerUrl(presentationId: string): string {

@@ -80,6 +80,7 @@ model User {
   preferences        UserPreferences?
   couponRedemptions  CouponRedemption[]
   walletTransactions WalletTransaction[]
+  publishedDecks     PublishedDeck[]
 
   @@map("auth_users")
 }
@@ -135,6 +136,7 @@ model ChatSession {
   messages               ChatMessage[]
   stateCache             SessionStateCache?
   uploadedFiles          UploadedFile[]
+  publishedDeck          PublishedDeck?
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, lastMessageAt(sort: Desc)])
@@ -358,6 +360,42 @@ model WalletTransaction {
   @@index([reason])
   @@index([userId, reason, createdAt])
   @@map("fe_wallet_transactions")
+}
+
+// Published decks — a public snapshot of a built deck served at /p/{slug}.
+// One record per ChatSession; republish swaps the snapshot pointer.
+model PublishedDeck {
+  id                     String    @id @default(cuid())
+  slug                   String    @unique                       // 10-char base62 capability token for unlisted links
+  userId                 String    @map("user_id")
+  sessionId              String    @unique @map("session_id")    // ChatSession.id — one publish record per session
+  sourcePresentationId   String    @map("source_presentation_id")   // the live (editable) deck
+  snapshotPresentationId String    @map("snapshot_presentation_id") // the frozen copy viewers actually see
+  title                  String
+  slideCount             Int       @map("slide_count")           // /convert/pptx requires a valid slide_count
+  visibility             String    @default("unlisted")          // 'public' | 'unlisted' | 'restricted'
+  passcodeHash           String?   @map("passcode_hash")         // scrypt hash; set when visibility = 'restricted'
+  allowPdf               Boolean   @default(true) @map("allow_pdf")
+  allowPptx              Boolean   @default(true) @map("allow_pptx")
+  // Snapshot ids whose Layout-side delete failed (key mismatch / 5xx). Carried
+  // here so revocation isn't silently lost; retried opportunistically on the
+  // next publish/rotate/unpublish (self-healing — no cron).
+  staleSnapshotIds       String[]  @default([]) @map("stale_snapshot_ids")
+  // Optimistic-concurrency token. Publish/rotate/unpublish CAS on this (update
+  // guarded by the read version + increment) so concurrent lifecycle ops can't
+  // lose a stale-snapshot id or orphan a just-created snapshot. Column name
+  // matches, so no @map (convention here maps only when names differ).
+  version                Int       @default(0)
+  viewCount              Int       @default(0) @map("view_count")
+  publishedAt            DateTime  @default(now()) @map("published_at")
+  republishedAt          DateTime? @map("republished_at")
+  revokedAt              DateTime? @map("revoked_at")            // unpublished (row kept so the slug stays reserved)
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("fe_published_decks")
 }
 
 // Element Conversation Models (for format panel chat-based AI)
