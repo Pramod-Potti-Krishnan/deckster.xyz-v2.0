@@ -8,7 +8,9 @@ import { hashPasscode, MIN_PASSCODE_LENGTH } from '@/lib/publish/passcode';
 import {
   deletePresentationSnapshot,
   getPresentationUpdatedAt,
+  getPresentationUpdatedAtWithRetry,
   getSnapshotSlideCountWithRetry,
+  resolveStalenessBaseline,
   retryDeleteStaleSnapshots,
   snapshotPresentation,
 } from '@/lib/publish/layout';
@@ -121,6 +123,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Staleness baseline, part 1: read the SOURCE deck's updated_at BEFORE the
+    // snapshot is taken. Reading it only afterwards opens a false-NEGATIVE
+    // window — the snapshot freezes at T0, the read lands at T1 (after the
+    // slide-count retry, several hundred ms later), and any write in between is
+    // captured in the stored baseline but NOT in the frozen copy, so the next
+    // comparison reports "up to date" on a copy that is already behind.
+    // Best-effort with one retry: never fails a publish, but a null here would
+    // permanently disable staleness for this deck, so it's worth a second try.
+    const sourceUpdatedAtBefore = await getPresentationUpdatedAtWithRetry(
+      chatSession.finalPresentationId,
+    );
+
     // Freeze the deck: snapshot on the Layout Service
     const snapshot = await snapshotPresentation(chatSession.finalPresentationId);
     if (!snapshot) {
@@ -147,12 +161,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Staleness baseline: the SOURCE deck's updated_at as of this publish.
-    // Read AFTER the snapshot so the Layout snapshot call itself (should it ever
-    // touch the source row) can't leave us permanently "stale". Best-effort —
-    // getPresentationUpdatedAt never throws and returns null on any failure, and
-    // a null simply means "unknown" downstream (never blocks or fails a publish).
-    const sourceUpdatedAt = await getPresentationUpdatedAt(chatSession.finalPresentationId);
+    // Staleness baseline, part 2: read it again now that the snapshot exists.
+    // resolveStalenessBaseline keeps the PRE-snapshot value when the two differ
+    // (conservative: the next dialog open reports "stale" rather than missing a
+    // change the frozen copy may not contain) and only falls back to this one
+    // when the pre-snapshot read came back unknown. Best-effort throughout —
+    // neither read throws, and a null is simply stored as "unknown" (surfaced to
+    // the owner as "can't verify", never as "up to date").
+    const sourceUpdatedAtAfter = await getPresentationUpdatedAt(chatSession.finalPresentationId);
+    const sourceUpdatedAt = resolveStalenessBaseline(
+      sourceUpdatedAtBefore,
+      sourceUpdatedAtAfter,
+      `session ${sessionId}`,
+    );
 
     const title = chatSession.title || 'Untitled presentation';
     const passcodeHash =

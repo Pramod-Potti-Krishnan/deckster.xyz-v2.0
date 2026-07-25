@@ -12,9 +12,15 @@ import { serializePublishedDeck } from '@/lib/publish/serialize';
  *
  * Query:
  * - checkStale=1 — ALSO compare the live source deck against the frozen copy and
- *   return { isStale, currentSlideCount }. OPT-IN because it costs one GET of the
- *   full deck JSON from the Layout Service, which can be multi-MB; the default
- *   path stays a single DB read and never touches Layout.
+ *   return { staleness, isStale, currentSlideCount }. OPT-IN because it costs one
+ *   GET of the full deck JSON from the Layout Service, which can be multi-MB; the
+ *   default path stays a single DB read and never touches Layout.
+ *
+ * `staleness` is deliberately THREE-valued — 'stale' | 'current' | 'unknown' —
+ * because a missing baseline and a Layout read that didn't come back are not the
+ * same thing as "up to date", and the dialog must not tell the owner their copy
+ * is current on evidence it doesn't have. `isStale` is the boolean projection
+ * ('stale' only), kept so a caller that just wants the banner needn't branch.
  */
 export async function GET(
   req: NextRequest,
@@ -60,7 +66,10 @@ export async function GET(
       );
     }
 
-    if (req.nextUrl.searchParams.get('checkStale') !== '1') {
+    // A revoked record has no live link, so nothing consumes the verdict — skip
+    // the multi-MB deck GET entirely rather than pay for an answer that is only
+    // read in the live branch of the dialog.
+    if (req.nextUrl.searchParams.get('checkStale') !== '1' || deck.revokedAt) {
       return NextResponse.json({ deck: serializePublishedDeck(deck) });
     }
 
@@ -76,16 +85,24 @@ export async function GET(
       chatSession?.finalPresentationId || deck.sourcePresentationId;
     const { updatedAt, slideCount } = await getPresentationMeta(currentSourceId);
 
-    // Fail SOFT in both unknown directions: a record published before this
-    // column existed (sourceUpdatedAt null) or a Layout read that didn't come
-    // back (updatedAt null) reports "not stale" rather than nagging the owner
-    // into a pointless republish on evidence we don't have.
-    const isStale =
-      deck.sourceUpdatedAt != null && updatedAt != null && deck.sourceUpdatedAt !== updatedAt;
+    // Report UNKNOWN, not "current", when either side is missing: a record
+    // published before this column existed (sourceUpdatedAt null) or a Layout
+    // read that didn't come back (updatedAt null) means we have no evidence
+    // either way. Collapsing that to "not stale" is what makes a silently-stale
+    // link look healthy — the dialog turns 'unknown' into a neutral "can't
+    // verify" hint instead of the amber "has changed" banner, so the owner is
+    // never nagged into a pointless republish OR told a lie.
+    const staleness: 'stale' | 'current' | 'unknown' =
+      deck.sourceUpdatedAt == null || updatedAt == null
+        ? 'unknown'
+        : deck.sourceUpdatedAt !== updatedAt
+          ? 'stale'
+          : 'current';
 
     return NextResponse.json({
       deck: serializePublishedDeck(deck),
-      isStale,
+      staleness,
+      isStale: staleness === 'stale',
       currentSlideCount: slideCount,
     });
 
