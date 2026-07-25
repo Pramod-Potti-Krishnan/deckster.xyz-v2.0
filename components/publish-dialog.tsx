@@ -48,6 +48,14 @@ type SettingsField = 'visibility' | 'allowPdf' | 'allowPptx' | 'passcode'
  */
 type Staleness = 'checking' | 'unknown' | 'current' | 'stale'
 
+/**
+ * Client-side ceiling on the staleness check. The server bounds its own Layout
+ * reads, but nothing bounded the browser's wait for that response — so a hung
+ * request left the verdict on 'checking' forever. Sits above the server's own
+ * budget so a slow-but-working check still gets to answer.
+ */
+const STALENESS_CHECK_TIMEOUT_MS = 8000
+
 const parseStaleness = (value: unknown): Staleness =>
   value === 'stale' || value === 'current' ? value : 'unknown'
 
@@ -156,7 +164,11 @@ export function PublishControls({
         <span className="text-[10px] font-medium">Publish</span>
       </button>
       {sessionId && (
+        // Keyed by session so switching decks REMOUNTS the dialog rather than
+        // reusing it: its settings form is local state, and a survivor from the
+        // previous deck would silently become the next deck's publish payload.
         <PublishDialog
+          key={sessionId}
           open={open}
           onOpenChange={setOpen}
           sessionId={sessionId}
@@ -188,6 +200,10 @@ export function PublishDialog({
 
   const [isLoading, setIsLoading] = useState(false)
   const [record, setRecord] = useState<SerializedPublishedDeck | null>(null)
+  /** Pass-1 (the record read) failed — the publish state on screen is unverified */
+  const [loadError, setLoadError] = useState(false)
+  /** Bumped by Retry to re-run the load effect */
+  const [reloadToken, setReloadToken] = useState(0)
   /** Exact (updated_at-based) verdict from the server, not a clock heuristic */
   const [staleness, setStaleness] = useState<Staleness>('unknown')
   const [currentSlideCount, setCurrentSlideCount] = useState<number | null>(null)
@@ -209,8 +225,23 @@ export function PublishDialog({
   const isStale = staleness === 'stale'
   const busy = isPublishing || savingField !== null || isRotating || isUnpublishing
 
+  /**
+   * Mirror the form onto the record — and, for a DEFINITIVE "not published",
+   * back onto the defaults. Returning early there left the previous deck's
+   * settings sitting in the form, so opening an unpublished deck after a public
+   * one offered "Public" pre-selected and published it that way. Only ever
+   * called with null for a real `{deck: null}` answer, never for a failed load.
+   */
   const syncFormFromRecord = useCallback((deck: SerializedPublishedDeck | null) => {
-    if (!deck) return
+    if (!deck) {
+      setVisibility('unlisted')
+      setAllowPdf(true)
+      setAllowPptx(true)
+      setPasscode('')
+      setConfirmUnpublish(false)
+      setConfirmRotate(false)
+      return
+    }
     setVisibility((deck.visibility as PublishVisibility) || 'unlisted')
     setAllowPdf(deck.allowPdf)
     setAllowPptx(deck.allowPptx)
@@ -230,6 +261,15 @@ export function PublishDialog({
   // published deck render as "Publish deck" — that would strip every control the
   // owner has over a link that is still live and still serving viewers, and
   // offer a full republish as the only way out.
+  //
+  // A pass-1 FAILURE is not an answer, so it must not be treated as one. It
+  // never nulls a record we already hold and never falls through to the publish
+  // form: a POST from there carries the whole form, and the server applies it to
+  // the record that is still there — turning a restricted deck unlisted (every
+  // link-holder in, no passcode) and re-enabling downloads the owner had off.
+  // Instead it raises loadError, which keeps the last known state on screen and
+  // withholds Publish/Republish until a Retry gets a real answer. Only a
+  // definitive `{deck: null}` may clear the record.
   useEffect(() => {
     if (!open) {
       setConfirmUnpublish(false)
@@ -238,6 +278,7 @@ export function PublishDialog({
     }
     let cancelled = false
     setIsLoading(true)
+    setLoadError(false)
     setStaleness('checking')
     setCurrentSlideCount(null)
 
@@ -250,7 +291,8 @@ export function PublishDialog({
         deck = (data?.deck ?? null) as SerializedPublishedDeck | null
       } catch {
         if (cancelled) return
-        setRecord(null)
+        // `record` is deliberately left as-is — see the note above.
+        setLoadError(true)
         setStaleness('unknown')
         setIsLoading(false)
         return
@@ -268,7 +310,12 @@ export function PublishDialog({
       }
 
       try {
-        const response = await fetch(`/api/publish/by-session/${sessionId}?checkStale=1`)
+        // Client-side bound as well as the server's. Without it a hung request
+        // parks the verdict on 'checking' indefinitely; the timeout aborts into
+        // the catch below, which lands on 'unknown' — never on 'current'.
+        const response = await fetch(`/api/publish/by-session/${sessionId}?checkStale=1`, {
+          signal: AbortSignal.timeout(STALENESS_CHECK_TIMEOUT_MS),
+        })
         if (!response.ok) throw new Error('Failed to check staleness')
         const data = await response.json()
         if (cancelled) return
@@ -289,7 +336,7 @@ export function PublishDialog({
     return () => {
       cancelled = true
     }
-  }, [open, sessionId, syncFormFromRecord])
+  }, [open, sessionId, reloadToken, syncFormFromRecord])
 
   // A revoked record keeps its passcode hash, so republishing a restricted
   // deck doesn't require re-entering one
@@ -746,6 +793,34 @@ export function PublishDialog({
     </div>
   )
 
+  /**
+   * Pass-1 failed. Shown ABOVE the live state when we still hold a record, and
+   * INSTEAD of the publish form when we don't — because the form's Publish sends
+   * every setting, and from an unknown state those settings are guesses that the
+   * server would apply to whatever record actually exists. Either way the only
+   * way forward is Retry.
+   */
+  const loadErrorNotice = (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200">
+      <p className="flex-1">
+        <span className="font-medium">Couldn&rsquo;t load this deck&rsquo;s publish status.</span>{' '}
+        {isLive
+          ? 'What you see below is the last state we loaded. Publishing is paused until this loads.'
+          : 'Publishing is paused until this loads — it can’t be done safely without knowing the current settings.'}
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setReloadToken((token) => token + 1)}
+        disabled={busy}
+        className="flex-shrink-0"
+      >
+        Retry
+      </Button>
+    </div>
+  )
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -767,6 +842,10 @@ export function PublishDialog({
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
+        ) : loadError && !isLive ? (
+          // Nothing loaded and nothing held: show the failure, not a form whose
+          // defaults would be submitted as if they were this deck's settings.
+          loadErrorNotice
         ) : !isLive ? (
           <>
             {settingsForm}
@@ -790,6 +869,8 @@ export function PublishDialog({
           </>
         ) : (
           <div className="space-y-5">
+            {loadError && loadErrorNotice}
+
             {/* The link */}
             <div className="space-y-1.5">
               <Label>Public link</Label>
@@ -887,26 +968,44 @@ export function PublishDialog({
 
             {liveSettingsForm}
 
-            {/* Three outcomes, three different things to say. 'current' says
-                nothing (the quiet default). 'stale' is the amber call to
-                action. 'unknown' — no stored baseline, or the check didn't come
-                back — gets a NEUTRAL hint: silence there would read as "all
-                good" and leave a possibly-stale link sitting unrepublished,
-                while amber would nag on evidence we don't have. */}
-            {staleness === 'stale' && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200">
-                <p className="font-medium">
-                  This deck has changed since you published it — republish to update the link.
-                </p>
-                {slideDelta && <p className="mt-0.5 opacity-90">{slideDelta}</p>}
-              </div>
-            )}
+            {/* Four states, four different things to say. 'current' says nothing
+                (the quiet default). 'stale' is the amber call to action.
+                'unknown' — no stored baseline, or the check didn't come back —
+                gets a NEUTRAL hint: silence there would read as "all good" and
+                leave a possibly-stale link sitting unrepublished, while amber
+                would nag on evidence we don't have. 'checking' says so out loud
+                for the same reason: an empty space during a slow or hung check
+                is indistinguishable from "up to date", which is the exact
+                misreading this tri-state exists to prevent.
+                All of it is suppressed while loadError is up: that notice
+                already explains the situation, and pointing at Republish would
+                point at a button we have deliberately withheld. */}
+            {!loadError && (
+              <>
+                {staleness === 'checking' && (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Checking whether the published copy is up to date&hellip;
+                  </p>
+                )}
 
-            {staleness === 'unknown' && (
-              <p className="text-xs text-muted-foreground">
-                Can&rsquo;t verify whether the published copy is up to date — republish if in doubt.
-                {slideDelta ? ` ${slideDelta}.` : ''}
-              </p>
+                {staleness === 'stale' && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200">
+                    <p className="font-medium">
+                      This deck has changed since you published it — republish to update the link.
+                    </p>
+                    {slideDelta && <p className="mt-0.5 opacity-90">{slideDelta}</p>}
+                  </div>
+                )}
+
+                {staleness === 'unknown' && (
+                  <p className="text-xs text-muted-foreground">
+                    Can&rsquo;t verify whether the published copy is up to date — republish if in
+                    doubt.
+                    {slideDelta ? ` ${slideDelta}.` : ''}
+                  </p>
+                )}
+              </>
             )}
 
             <DialogFooter className="sm:justify-between">
@@ -939,26 +1038,31 @@ export function PublishDialog({
               {/* Primary when the published copy is out of date; still clickable
                   (a forced re-snapshot) when it isn't. It carries the refresh
                   glyph because THIS is the "update what's published" action —
-                  the one Rotate used to wear while doing the opposite. */}
-              <Button
-                type="button"
-                variant={isStale ? 'default' : 'outline'}
-                size="sm"
-                onClick={handleRepublishClick}
-                disabled={busy}
-                title={
-                  isStale
-                    ? 'Snapshot the latest version of the deck onto the same link'
-                    : 'Re-snapshot the deck onto the same link'
-                }
-              >
-                {isPublishing ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                )}
-                Republish
-              </Button>
+                  the one Rotate used to wear while doing the opposite.
+                  Gone entirely while loadError is up — the notice above owns the
+                  next move (Retry), and no write should leave here until the
+                  record on screen has been confirmed against the server. */}
+              {!loadError && (
+                <Button
+                  type="button"
+                  variant={isStale ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={handleRepublishClick}
+                  disabled={busy}
+                  title={
+                    isStale
+                      ? 'Snapshot the latest version of the deck onto the same link'
+                      : 'Re-snapshot the deck onto the same link'
+                  }
+                >
+                  {isPublishing ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Republish
+                </Button>
+              )}
             </DialogFooter>
           </div>
         )}
