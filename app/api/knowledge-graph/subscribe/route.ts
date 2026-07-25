@@ -1,40 +1,34 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth-options'
-
-const KG_BASE = process.env.KNOWLEDGE_SERVICE_URL || 'https://researcher-v1.up.railway.app'
+import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 
 export async function POST() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Paid-entitlement gate (review finding 1): only a Pro-and-above account
+  // may create backend entitlement — a free user cannot self-grant here.
+  const gate = await requireKgEntitled()
+  if (gate.error) return gate.error
+  const userId = gate.userId
 
   try {
     const resp = await fetch(`${KG_BASE}/api/v1/kg/subscribe`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: kgHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
-        user_id: session.user.id,
+        user_id: userId,
         cross_session_enabled: true,
         consent_version: '2026-05-28-v1',
       }),
     })
 
     if (resp.status === 404) {
-      // KG endpoints not deployed yet — return a synthetic success
-      // so the frontend toggle works, and real subscription will be picked up
-      // once the Researcher MR is merged and deployed
-      return NextResponse.json({
-        user_id: session.user.id,
-        subscribed: true,
-        cross_session_enabled: true,
-        consent_version: '2026-05-28-v1',
-        consent_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        _pending_deployment: true,
-      })
+      // KG router not mounted on the Researcher (RESEARCHER_KG_ENABLED off).
+      // Be honest: nothing was stored, so nothing succeeded.
+      return NextResponse.json(
+        {
+          error: 'Knowledge Graph is not activated on the backend yet',
+          service_unavailable: true,
+        },
+        { status: 503 }
+      )
     }
 
     if (!resp.ok) {
@@ -50,7 +44,10 @@ export async function POST() {
   } catch (e) {
     console.error('[KG Proxy] Subscribe network error:', e)
     return NextResponse.json(
-      { error: 'Knowledge graph service is temporarily unavailable' },
+      {
+        error: 'Knowledge graph service is temporarily unavailable',
+        service_unavailable: true,
+      },
       { status: 503 }
     )
   }

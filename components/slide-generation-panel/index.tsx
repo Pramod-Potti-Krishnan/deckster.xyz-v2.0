@@ -22,6 +22,8 @@ import {
 import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
 import { FALLBACK_THEME_PRESETS, type BuildThemeSelection } from '@/lib/theme-builder'
+// Aliased: `useKnowledgeGraph` is already a local state name in this panel.
+import { useKnowledgeGraph as useKnowledgeGraphEntitlement } from '@/hooks/use-knowledge-graph'
 import { withAsyncSlideComposeFields } from '@/lib/slide-compose-async'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
@@ -130,7 +132,10 @@ const INITIAL_OPEN_SECTIONS: OpenSections = {
   grounding: true,
 }
 
-const KG_CARD_ENABLED = process.env.NEXT_PUBLIC_SLIDE_COMPOSER_KG_ENABLED === 'true'
+// Default ON (KG v2 P0, D-KG appendix): the card is inert unless the user is
+// entitled + subscribed and the KG backend is activated, so showing it is safe.
+// Set NEXT_PUBLIC_SLIDE_COMPOSER_KG_ENABLED=false to hide explicitly.
+const KG_CARD_ENABLED = process.env.NEXT_PUBLIC_SLIDE_COMPOSER_KG_ENABLED !== 'false'
 
 const SLIDE_TYPE_OPTIONS: Array<{
   value: LayoutChoice
@@ -240,6 +245,9 @@ export function SlideGenerationPanel({
   const [webSearchMaxQueries, setWebSearchMaxQueries] = useState(3)
   const [useUploadedDocuments, setUseUploadedDocuments] = useState(false)
   const [useKnowledgeGraph, setUseKnowledgeGraph] = useState(false)
+  // Same gate as the chat KG toggle: entitled + subscribed users only.
+  const { isEntitled: kgEntitled, isSubscribed: kgSubscribed } = useKnowledgeGraphEntitlement()
+  const kgCardVisible = KG_CARD_ENABLED && kgEntitled && kgSubscribed
   const [showMoreOptions, setShowMoreOptions] = useState(false)
   const [heroStyle, setHeroStyle] = useState<OptionalChoice<HeroStyle>>(AUTO_VALUE)
   const [eyebrow, setEyebrow] = useState('')
@@ -442,7 +450,7 @@ export function SlideGenerationPanel({
       use_uploaded_documents: !isDiagram && hasUploadedFiles && useUploadedDocuments,
       use_web_search: !isDiagram && useWebSearch,
       use_deep_research: !isDiagram && useDeepResearch,
-      use_knowledge_graph: !isDiagram && KG_CARD_ENABLED && useKnowledgeGraph,
+      use_knowledge_graph: !isDiagram && kgCardVisible && useKnowledgeGraph,
       web_search_max_queries: webSearchMaxQueries,
     }
     const endpoint = isRefineMode ? '/api/slides/refine' : '/api/slides/compose'
@@ -900,7 +908,7 @@ export function SlideGenerationPanel({
                     disabled={!hasUploadedFiles}
                     onClick={() => setUseUploadedDocuments(prev => !prev)}
                   />
-                  {KG_CARD_ENABLED && (
+                  {kgCardVisible && (
                     <ToggleRow
                       label="Use my knowledge repo"
                       description="Use saved domain memory"

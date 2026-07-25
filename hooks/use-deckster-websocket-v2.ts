@@ -526,6 +526,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Initialize browser cache for this session
   const sessionCache = useSessionCache({
     sessionId: sessionIdRef.current,
+    // Owner-scoped cache: never let one account read another's cached deck.
+    userId: userIdRef.current,
     enabled: true,
     ttl: 24 * 60 * 60 * 1000, // 24 hours
   });
@@ -984,643 +986,688 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       });
       debugLog(`🔌 Connecting to Director v3.4: ${wsUrl}`);
 
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      // KG v2 (WS auth): mint a short-lived, session-bound identity token and
+      // offer it as a WebSocket subprotocol. Director requires this when
+      // KG_ENABLED=true; when DIRECTOR_WS_AUTH_SECRET is unset the route
+      // answers auth_enabled=false and we open a plain socket exactly as
+      // before, so this is safe to deploy ahead of the Director change.
       const started = true;
-      const isCurrentSocket = () => wsRef.current === ws;
-
-      ws.onopen = () => {
-        if (!isCurrentSocket()) {
-          debugLog('⏭️ Ignoring open from stale WebSocket');
-          try {
-            ws.close();
-          } catch {
-            // Ignore cleanup errors from a superseded socket.
-          }
-          return;
-        }
-
-        debugLog('✅ Connected to Director v3.4');
-        clearReconnectTimer();
-        reconnectPausedForOfflineRef.current = false;
-        setReconnectStatus('idle', reconnectAttemptsRef.current);
-        clearReconnectStabilityTimer();
-        if (reconnectAttemptsRef.current > 0) {
-          reconnectStabilityTimeoutRef.current = setTimeout(() => {
-            reconnectStabilityTimeoutRef.current = undefined;
-            if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return;
-            reconnectAttemptsRef.current = 0;
-            setReconnectStatus('idle', 0);
-            debugLog('✅ Director connection remained stable; retry budget reset');
-          }, DIRECTOR_RECONNECT_STABILITY_MS);
-        }
-        isConnectingRef.current = false;
-        hasConnectedRef.current = true;
-
-        // Start heartbeat to keep connection alive
-        startHeartbeat(ws);
-
-        setState(prev => ({
-          ...prev,
-          connected: true,
-          connecting: false,
-          connectionState: 'connected',
-          error: null,
-        }));
-      };
-
-      ws.onmessage = (event) => {
-        if (!isCurrentSocket()) {
-          debugLog('⏭️ Ignoring message from stale WebSocket');
-          return;
-        }
-
+      void (async () => {
+        let protocols: string[] | undefined;
         try {
-          // Any inbound frame proves that the transport is alive. Raw pong is
-          // still handled separately because it has no JSON envelope.
-          acknowledgeHeartbeat(ws);
-
-          // Handle raw "pong" response from heartbeat ping
-          if (event.data === 'pong') {
-            debugLog('💓 Pong received');
-            return;
-          }
-
-          const parsedMessage = normalizeDirectorMessageFrame(JSON.parse(event.data)) as DirectorMessage & { type?: unknown };
-          if (!isKnownDirectorMessageType(parsedMessage.type)) {
-            return;
-          }
-
-          const guardedMessage = guardDirectorLayoutUrlMessage(
-            parsedMessage as DirectorMessage & { payload: Record<string, any> },
-            LAYOUT_VIEWER_URL_POLICY,
+          const tokenResponse = await fetch(
+            `/api/director/ws-token?session_id=${encodeURIComponent(sessionIdRef.current)}`,
+            { cache: 'no-store' },
           );
-          const message = guardedMessage.message as DirectorMessage;
-          const blockedIngress = guardedMessage.ingress?.status === 'blocked'
-            ? guardedMessage.ingress
-            : null;
+          if (tokenResponse.ok) {
+            const tokenBody = await tokenResponse.json();
+            if (tokenBody?.auth_enabled && tokenBody?.auth_token) {
+              // Never logged: the auth-bearing protocol carries the secret.
+              protocols = ['deckster.v1', `deckster-auth.${tokenBody.auth_token}`];
+            }
+          }
+        } catch (tokenError) {
+          debugLog('⚠️ Director WS token unavailable; opening legacy socket', tokenError);
+        }
 
-          if (blockedIngress) {
-            console.error('[LayoutViewerPolicy] Blocked Director viewer URL', {
-              source: 'director_message',
-              messageType: message.type,
-              field: blockedIngress.field,
-              origin: blockedIngress.origin,
-              reason: blockedIngress.reason,
-            });
+        let ws: WebSocket;
+        try {
+          ws = protocols ? new WebSocket(wsUrl, protocols) : new WebSocket(wsUrl);
+        } catch (error) {
+          // The socket is now built inside an async prelude, so the outer
+          // try/catch can no longer see constructor failures. Mirror its
+          // recovery here or the connection state would wedge on isConnecting.
+          console.error('Failed to create WebSocket connection:', error);
+          isConnectingRef.current = false;
+          const err = error instanceof Error ? error : new Error('Failed to connect');
+          setState(prev => ({
+            ...prev,
+            error: err,
+            connecting: false,
+            connectionState: 'error',
+          }));
+          if (options.onError) {
+            options.onError(err);
+          }
+          scheduleReconnect('constructor_error');
+          return;
+        }
+        wsRef.current = ws;
+        const isCurrentSocket = () => wsRef.current === ws;
+
+        ws.onopen = () => {
+          if (!isCurrentSocket()) {
+            debugLog('⏭️ Ignoring open from stale WebSocket');
+            try {
+              ws.close();
+            } catch {
+              // Ignore cleanup errors from a superseded socket.
+            }
+            return;
           }
 
-          // Add client-side timestamp for message ordering
-          const messageWithTimestamp = {
-            ...message,
-            clientTimestamp: Date.now()
-          } as DirectorMessage & { clientTimestamp: number };
+          debugLog('✅ Connected to Director v3.4');
+          clearReconnectTimer();
+          reconnectPausedForOfflineRef.current = false;
+          setReconnectStatus('idle', reconnectAttemptsRef.current);
+          clearReconnectStabilityTimer();
+          if (reconnectAttemptsRef.current > 0) {
+            reconnectStabilityTimeoutRef.current = setTimeout(() => {
+              reconnectStabilityTimeoutRef.current = undefined;
+              if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return;
+              reconnectAttemptsRef.current = 0;
+              setReconnectStatus('idle', 0);
+              debugLog('✅ Director connection remained stable; retry budget reset');
+            }, DIRECTOR_RECONNECT_STABILITY_MS);
+          }
+          isConnectingRef.current = false;
+          hasConnectedRef.current = true;
 
-          debugLog('📨 Received message:', message.type, message);
+          // Start heartbeat to keep connection alive
+          startHeartbeat(ws);
 
-          setStateWithCache(prev => {
-            // Prevent duplicate messages by checking message_id
-            const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
+          setState(prev => ({
+            ...prev,
+            connected: true,
+            connecting: false,
+            connectionState: 'connected',
+            error: null,
+          }));
+        };
 
-            // Don't add state-management frames to chat; they drive deck/view state only.
-            const shouldAddToMessages =
-              message.type !== 'status_update' &&
-              message.type !== 'sync_response' &&
-              message.type !== 'presentation_init' &&
-              message.type !== 'slide_context' &&
-              message.type !== 'token_usage' &&
-              message.type !== 'slide_progress' &&
-              message.type !== 'slide_ready' &&
-              message.type !== 'slide_failed' &&
-              message.type !== 'theme_sync' &&
-              !isDuplicate;
+        ws.onmessage = (event) => {
+          if (!isCurrentSocket()) {
+            debugLog('⏭️ Ignoring message from stale WebSocket');
+            return;
+          }
 
-            const newState = {
-              ...prev,
-              messages: shouldAddToMessages ? [...prev.messages, messageWithTimestamp] : prev.messages,
-            };
+          try {
+            // Any inbound frame proves that the transport is alive. Raw pong is
+            // still handled separately because it has no JSON envelope.
+            acknowledgeHeartbeat(ws);
+
+            // Handle raw "pong" response from heartbeat ping
+            if (event.data === 'pong') {
+              debugLog('💓 Pong received');
+              return;
+            }
+
+            const parsedMessage = normalizeDirectorMessageFrame(JSON.parse(event.data)) as DirectorMessage & { type?: unknown };
+            if (!isKnownDirectorMessageType(parsedMessage.type)) {
+              return;
+            }
+
+            const guardedMessage = guardDirectorLayoutUrlMessage(
+              parsedMessage as DirectorMessage & { payload: Record<string, any> },
+              LAYOUT_VIEWER_URL_POLICY,
+            );
+            const message = guardedMessage.message as DirectorMessage;
+            const blockedIngress = guardedMessage.ingress?.status === 'blocked'
+              ? guardedMessage.ingress
+              : null;
 
             if (blockedIngress) {
-              // Keep an already-approved displayed deck, but never let a rejected
-              // frame become a version target, API id, callback, or persisted URL.
-              newState.currentStatus = null;
+              console.error('[LayoutViewerPolicy] Blocked Director viewer URL', {
+                source: 'director_message',
+                messageType: message.type,
+                field: blockedIngress.field,
+                origin: blockedIngress.origin,
+                reason: blockedIngress.reason,
+              });
             }
 
-            // Track ephemeral chat_messages (Director thinking-stream) so MessageList
-            // can fade them out once the real slide_update lands.
-            if (message.type === 'chat_message' && (message.payload as any).ephemeral === true) {
-              newState.ephemeralMessageIds = prev.ephemeralMessageIds.includes(message.message_id)
-                ? prev.ephemeralMessageIds
-                : [...prev.ephemeralMessageIds, message.message_id];
-              debugLog('💭 Ephemeral progress message:', (message.payload as any).text);
-            }
+            // Add client-side timestamp for message ordering
+            const messageWithTimestamp = {
+              ...message,
+              clientTimestamp: Date.now()
+            } as DirectorMessage & { clientTimestamp: number };
 
-            // Handle specific message types
-            switch (message.type) {
-              case 'status_update':
-                debugLog('📊 Status update:', message.payload.text, message.payload.progress ? `${message.payload.progress}%` : '');
-                newState.currentStatus = message.payload;
-                // Auto-clear status when complete
-                if (message.payload.status === 'complete' || message.payload.status === 'idle') {
-                  debugLog('✅ Status complete/idle - will clear shortly');
-                  setTimeout(() => {
-                    setState(s => ({ ...s, currentStatus: null }));
-                  }, 2000);
-                }
-                break;
+            debugLog('📨 Received message:', message.type, message);
 
-              case 'chat_message':
-                // Non-ephemeral assistant messages are terminal responses for the
-                // current turn (for example, the plan proposal after
-                // "Analyzing presentation strategy..."). Clear the working pulse so
-                // it cannot remain pinned below the actual response/action card.
-                if ((message.payload as any).ephemeral !== true) {
-                  newState.currentStatus = null;
-                }
-                break;
+            setStateWithCache(prev => {
+              // Prevent duplicate messages by checking message_id
+              const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
 
-              case 'action_request':
-                // Action cards mean Director is waiting on the user, not still
-                // thinking. Without this, a prior status_update can leave the chat
-                // stuck visually on the old "Analyzing..." pulse.
+              // Don't add state-management frames to chat; they drive deck/view state only.
+              const shouldAddToMessages =
+                message.type !== 'status_update' &&
+                message.type !== 'sync_response' &&
+                message.type !== 'presentation_init' &&
+                message.type !== 'slide_context' &&
+                message.type !== 'token_usage' &&
+                message.type !== 'slide_progress' &&
+                message.type !== 'slide_ready' &&
+                message.type !== 'slide_failed' &&
+                message.type !== 'theme_sync' &&
+                !isDuplicate;
+
+              const newState = {
+                ...prev,
+                messages: shouldAddToMessages ? [...prev.messages, messageWithTimestamp] : prev.messages,
+              };
+
+              if (blockedIngress) {
+                // Keep an already-approved displayed deck, but never let a rejected
+                // frame become a version target, API id, callback, or persisted URL.
                 newState.currentStatus = null;
-                break;
-
-              case 'sync_response':
-                // Sync protocol response - Director confirms whether to skip history
-                newState.directorWorkflowState = message.payload.current_state || null;
-                debugLog('🔄 Sync response received:', {
-                  action: message.payload.action,
-                  message_count: message.payload.message_count,
-                  current_state: message.payload.current_state,
-                  has_strawman: message.payload.has_strawman,
-                  presentation_url: message.payload.presentation_url,
-                  presentation_id: message.payload.presentation_id
-                });
-                // Resilience: a deck can finish while the socket is down (WS churn during
-                // a long reuse/build). Promote sync_response URLs to final only when
-                // Director says the durable session state is content-generated/complete;
-                // blank/strawman reconnect URLs must remain previews.
-                {
-                  const recovery = applyFinalSyncRecovery(
-                    newState,
-                    message.payload,
-                    sessionIdRef.current,
-                  );
-                  if (recovery.didRecover) {
-                    const recoveredUrlDecision = evaluateLayoutViewerUrl(
-                      recovery.state.finalPresentationUrl,
-                      LAYOUT_VIEWER_URL_POLICY,
-                    );
-                    if (recoveredUrlDecision.status !== 'allowed') {
-                      console.error('[LayoutViewerPolicy] Blocked sync recovery output', {
-                        source: 'sync_recovery',
-                        field: 'state.finalPresentationUrl',
-                        origin: recoveredUrlDecision.origin,
-                        reason: recoveredUrlDecision.status === 'blocked'
-                          ? recoveredUrlDecision.reason
-                          : 'missing_url',
-                      });
-                      break;
-                    }
-
-                    Object.assign(newState, recovery.state);
-                    debugLog('🔁 Restored finished presentation from sync_response (reconnect repaint)');
-
-                    if (recovery.didChangeDisplayedDeck && options.onPresentationReady && newState.finalPresentationUrl) {
-                      options.onPresentationReady(newState.finalPresentationUrl);
-                    }
-
-                    if (recovery.didChangeDisplayedDeck && options.onSessionStateChange && newState.finalPresentationUrl) {
-                      options.onSessionStateChange({
-                        presentationUrl: newState.finalPresentationUrl,
-                        presentationId: newState.finalPresentationId ?? undefined,
-                        slideCount: newState.slideCount ?? undefined,
-                        currentStage: 6,
-                        activeVersion: 'final',
-                      });
-                    }
-                  }
-                }
-                break;
-
-              case 'presentation_url':
-                debugLog('🎯 Final presentation URL received:', message.payload.url);
-
-                if (guardedMessage.ingress?.status !== 'allowed') {
-                  newState.currentStatus = null;
-                  break;
-                }
-                newState.directorWorkflowState = 'CONTENT_GENERATED';
-
-                // Extended-generation builds (Phase 4a) emit one ephemeral
-                // "Building slide N/M…" progress bubble per slide, then close the
-                // turn with presentation_url — NOT a strawman slide_update. Mirror
-                // the slide_update fade trigger here so those bubbles fade out
-                // instead of lingering. Guarded on length so it's a no-op in the
-                // standard path, where the strawman slide_update already drained
-                // the tracked ids.
-                if (prev.ephemeralMessageIds.length > 0) {
-                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
-                }
-
-                newState.finalPresentationUrl = message.payload.url;
-                newState.finalPresentationId = message.payload.presentation_id;
-                newState.deckOwnerSessionId = sessionIdRef.current;
-                newState.isBlankPresentation = false;
-
-                // Automatically switch to final version when it arrives
-                newState.activeVersion = 'final';
-                newState.presentationUrl = message.payload.url;
-                newState.presentationId = message.payload.presentation_id;
-                newState.slideCount = message.payload.slide_count;
-
-                // Clear loading state - final presentation is complete
-                debugLog('✅ Final presentation received - clearing loading state, switching to final version');
-                newState.currentStatus = null;
-
-                // Trigger callbacks
-                if (options.onPresentationReady) {
-                  options.onPresentationReady(message.payload.url);
-                }
-
-                // Notify session state change for persistence
-                if (options.onSessionStateChange) {
-                  debugLog('🔔 Calling onSessionStateChange for FINAL presentation:', {
-                    url: message.payload.url,
-                    id: message.payload.presentation_id,
-                    slideCount: message.payload.slide_count,
-                    callbackDefined: typeof options.onSessionStateChange
-                  });
-                  try {
-                    options.onSessionStateChange({
-                      presentationUrl: message.payload.url,
-                      presentationId: message.payload.presentation_id,
-                      slideCount: message.payload.slide_count,
-                      currentStage: 6, // Stage 6 - final presentation
-                    });
-                    debugLog('✅ onSessionStateChange completed (final)');
-                  } catch (error) {
-                    console.error('❌ onSessionStateChange threw error (final):', error);
-                  }
-                } else {
-                  console.warn('⚠️ onSessionStateChange NOT defined for final presentation!');
-                }
-                break;
-
-              case 'presentation_init': {
-                // Director sends presentation_init (instead of slide_update) for blank presentations
-                // This avoids rendering a "1 slides · 0 min" card in chat
-                debugLog('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
-                newState.directorWorkflowState = 'BLANK_PRESENTATION';
-
-                const initUrl = message.payload.presentation_url ||
-                                message.payload.preview_url ||
-                                message.payload.url ||
-                                message.payload.metadata?.preview_url ||
-                                message.payload.metadata?.presentation_url;
-                const initId = message.payload.presentation_id ||
-                               message.payload.preview_presentation_id ||
-                               message.payload.metadata?.preview_presentation_id ||
-                               message.payload.metadata?.presentation_id;
-
-                debugLog('🆕 Blank presentation received (presentation_init):', { initUrl, initId });
-
-                if (initUrl) {
-                  newState.blankPresentationUrl = initUrl;
-                  newState.blankPresentationId = initId || null;
-                  newState.isBlankPresentation = true;
-
-                  // Guard: a blank canvas must NOT clobber a real deck we already have
-                  // (one restored from the session record on reload, a finished build, or
-                  // a strawman). Otherwise reconnect → blank overwrites the deck → blank RHS.
-                  // Only switch the active view + persist when there's no real deck yet.
-                  const heldDeck = !!(prev.finalPresentationUrl || prev.strawmanPreviewUrl || prev.presentationUrl);
-                  const hasRealDeck = heldDeck && prev.deckOwnerSessionId === sessionIdRef.current;
-                  if (hasRealDeck) {
-                    debugLog('⚠️ presentation_init: keeping existing deck, not switching to blank');
-                  } else {
-                    newState.activeVersion = 'blank';
-                    newState.presentationUrl = initUrl;
-                    newState.presentationId = initId || null;
-                    newState.strawmanPreviewUrl = null;
-                    newState.strawmanPresentationId = null;
-                    newState.finalPresentationUrl = null;
-                    newState.finalPresentationId = null;
-                    newState.deckOwnerSessionId = sessionIdRef.current;
-                    newState.slideStructure = null;
-                    newState.slideCount = null;
-
-                    debugLog('✅ Blank presentation ready - all editing tools now active');
-
-                    if (options.onPresentationReady) {
-                      options.onPresentationReady(initUrl);
-                    }
-
-                    if (options.onSessionStateChange) {
-                      options.onSessionStateChange({
-                        presentationUrl: initUrl,
-                        presentationId: initId || undefined,
-                        slideCount: 1,
-                        currentStage: 0,
-                      });
-                    }
-                  }
-                }
-                break;
               }
 
-              case 'slide_update':
-                debugLog('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
-                newState.slideStructure = message.payload;
+              // Track ephemeral chat_messages (Director thinking-stream) so MessageList
+              // can fade them out once the real slide_update lands.
+              if (message.type === 'chat_message' && (message.payload as any).ephemeral === true) {
+                newState.ephemeralMessageIds = prev.ephemeralMessageIds.includes(message.message_id)
+                  ? prev.ephemeralMessageIds
+                  : [...prev.ephemeralMessageIds, message.message_id];
+                debugLog('💭 Ephemeral progress message:', (message.payload as any).text);
+              }
 
-                if (
-                  message.payload.operation === 'full_update' &&
-                  !message.payload.is_blank &&
-                  prev.ephemeralMessageIds.length > 0
-                ) {
-                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
-                }
+              // Handle specific message types
+              switch (message.type) {
+                case 'status_update':
+                  debugLog('📊 Status update:', message.payload.text, message.payload.progress ? `${message.payload.progress}%` : '');
+                  newState.currentStatus = message.payload;
+                  // Auto-clear status when complete
+                  if (message.payload.status === 'complete' || message.payload.status === 'idle') {
+                    debugLog('✅ Status complete/idle - will clear shortly');
+                    setTimeout(() => {
+                      setState(s => ({ ...s, currentStatus: null }));
+                    }, 2000);
+                  }
+                  break;
 
-                // Legacy: Handle blank presentation sent as slide_update with is_blank flag
-                // (kept for backward compatibility, but Director now sends presentation_init instead)
-                if (message.payload.is_blank) {
-                  newState.directorWorkflowState = 'BLANK_PRESENTATION';
-                  const blankUrl = message.payload.preview_url ||
-                                   message.payload.metadata?.preview_url;
-                  const blankId = message.payload.metadata?.preview_presentation_id ||
-                                  message.payload.preview_presentation_id;
+                case 'chat_message':
+                  // Non-ephemeral assistant messages are terminal responses for the
+                  // current turn (for example, the plan proposal after
+                  // "Analyzing presentation strategy..."). Clear the working pulse so
+                  // it cannot remain pinned below the actual response/action card.
+                  if ((message.payload as any).ephemeral !== true) {
+                    newState.currentStatus = null;
+                  }
+                  break;
 
-                  debugLog('🆕 Blank presentation received (legacy slide_update):', { blankUrl, blankId });
+                case 'action_request':
+                  // Action cards mean Director is waiting on the user, not still
+                  // thinking. Without this, a prior status_update can leave the chat
+                  // stuck visually on the old "Analyzing..." pulse.
+                  newState.currentStatus = null;
+                  break;
 
-                  if (blankUrl) {
-                    // Set blank presentation state
-                    newState.blankPresentationUrl = blankUrl;
-                    newState.blankPresentationId = blankId || null;
-                    newState.isBlankPresentation = true;
+                case 'sync_response':
+                  // Sync protocol response - Director confirms whether to skip history
+                  newState.directorWorkflowState = message.payload.current_state || null;
+                  debugLog('🔄 Sync response received:', {
+                    action: message.payload.action,
+                    message_count: message.payload.message_count,
+                    current_state: message.payload.current_state,
+                    has_strawman: message.payload.has_strawman,
+                    presentation_url: message.payload.presentation_url,
+                    presentation_id: message.payload.presentation_id
+                  });
+                  // Resilience: a deck can finish while the socket is down (WS churn during
+                  // a long reuse/build). Promote sync_response URLs to final only when
+                  // Director says the durable session state is content-generated/complete;
+                  // blank/strawman reconnect URLs must remain previews.
+                  {
+                    const recovery = applyFinalSyncRecovery(
+                      newState,
+                      message.payload,
+                      sessionIdRef.current,
+                    );
+                    if (recovery.didRecover) {
+                      const recoveredUrlDecision = evaluateLayoutViewerUrl(
+                        recovery.state.finalPresentationUrl,
+                        LAYOUT_VIEWER_URL_POLICY,
+                      );
+                      if (recoveredUrlDecision.status !== 'allowed') {
+                        console.error('[LayoutViewerPolicy] Blocked sync recovery output', {
+                          source: 'sync_recovery',
+                          field: 'state.finalPresentationUrl',
+                          origin: recoveredUrlDecision.origin,
+                          reason: recoveredUrlDecision.status === 'blocked'
+                            ? recoveredUrlDecision.reason
+                            : 'missing_url',
+                        });
+                        break;
+                      }
 
-                    // Set as current presentation (blank is the starting point)
-                    newState.activeVersion = 'blank';
-                    newState.presentationUrl = blankUrl;
-                    newState.presentationId = blankId || null;
-                    newState.strawmanPreviewUrl = null;
-                    newState.strawmanPresentationId = null;
-                    newState.finalPresentationUrl = null;
-                    newState.finalPresentationId = null;
-                    newState.deckOwnerSessionId = sessionIdRef.current;
-                    newState.slideStructure = null;
-                    newState.slideCount = null;
+                      Object.assign(newState, recovery.state);
+                      debugLog('🔁 Restored finished presentation from sync_response (reconnect repaint)');
 
-                    debugLog('✅ Blank presentation ready - all editing tools now active');
+                      if (recovery.didChangeDisplayedDeck && options.onPresentationReady && newState.finalPresentationUrl) {
+                        options.onPresentationReady(newState.finalPresentationUrl);
+                      }
 
-                    // Trigger callback for blank presentation ready
-                    if (options.onPresentationReady) {
-                      options.onPresentationReady(blankUrl);
-                    }
-
-                    // Notify session state change for persistence (Stage 0 - blank)
-                    if (options.onSessionStateChange) {
-                      options.onSessionStateChange({
-                        presentationUrl: blankUrl,
-                        presentationId: blankId || undefined,
-                        slideCount: 1, // Blank has 1 title slide
-                        currentStage: 0, // Stage 0 - blank presentation
-                      });
+                      if (recovery.didChangeDisplayedDeck && options.onSessionStateChange && newState.finalPresentationUrl) {
+                        options.onSessionStateChange({
+                          presentationUrl: newState.finalPresentationUrl,
+                          presentationId: newState.finalPresentationId ?? undefined,
+                          slideCount: newState.slideCount ?? undefined,
+                          currentStage: 6,
+                          activeVersion: 'final',
+                        });
+                      }
                     }
                   }
-                  break; // Exit early - don't process as strawman
-                }
+                  break;
 
-                // EXISTING: Handle regular slide_update (strawman preview)
-                newState.directorWorkflowState = 'REFINE_STRAWMAN';
-                // Extract preview URL if present (strawman preview)
-                // Check multiple possible locations
-                const previewUrl = message.payload.preview_url ||
-                                   message.payload.metadata?.preview_url ||
-                                   (message.payload as any).strawman?.preview_url ||
-                                   (message.payload as any).url;  // Sometimes sent as just 'url'
+                case 'presentation_url':
+                  debugLog('🎯 Final presentation URL received:', message.payload.url);
 
-                // Extract presentation ID for strawman downloads (Stage 4)
-                // Director v3.4 sends this in metadata object (per PREVIEW_PRESENTATION_ID_FIX.md)
-                const previewPresentationId = message.payload.metadata?.preview_presentation_id ||
-                                              message.payload.preview_presentation_id ||
-                                              (message.payload as any).strawman?.preview_presentation_id ||
-                                              (message.payload as any).presentation_id;
+                  if (guardedMessage.ingress?.status !== 'allowed') {
+                    newState.currentStatus = null;
+                    break;
+                  }
+                  newState.directorWorkflowState = 'CONTENT_GENERATED';
 
-                if (previewUrl) {
-                  debugLog('✅ Found strawman preview URL:', previewUrl);
-                  debugLog('🖼️ Setting strawmanPreviewUrl and displaying preview IMMEDIATELY');
-                  newState.strawmanPreviewUrl = previewUrl;
-                  newState.strawmanPresentationId = previewPresentationId || null;
+                  // Extended-generation builds (Phase 4a) emit one ephemeral
+                  // "Building slide N/M…" progress bubble per slide, then close the
+                  // turn with presentation_url — NOT a strawman slide_update. Mirror
+                  // the slide_update fade trigger here so those bubbles fade out
+                  // instead of lingering. Guarded on length so it's a no-op in the
+                  // standard path, where the strawman slide_update already drained
+                  // the tracked ids.
+                  if (prev.ephemeralMessageIds.length > 0) {
+                    newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  }
+
+                  newState.finalPresentationUrl = message.payload.url;
+                  newState.finalPresentationId = message.payload.presentation_id;
                   newState.deckOwnerSessionId = sessionIdRef.current;
                   newState.isBlankPresentation = false;
 
-                  // Set activeVersion to strawman and update presentationUrl to display it
-                  newState.activeVersion = 'strawman';
-                  newState.presentationUrl = previewUrl;
-                  newState.presentationId = previewPresentationId || null;
+                  // Automatically switch to final version when it arrives
+                  newState.activeVersion = 'final';
+                  newState.presentationUrl = message.payload.url;
+                  newState.presentationId = message.payload.presentation_id;
+                  newState.slideCount = message.payload.slide_count;
 
-                  // Clear loading state - strawman generation is complete
-                  debugLog('✅ Strawman received - clearing loading state');
+                  // Clear loading state - final presentation is complete
+                  debugLog('✅ Final presentation received - clearing loading state, switching to final version');
                   newState.currentStatus = null;
 
-                  // Set presentation ID if found (enables download buttons)
-                  if (previewPresentationId) {
-                    debugLog('✅ Found strawman presentation_id:', previewPresentationId);
-                  } else {
-                    debugLog('⚠️ No preview_presentation_id found - download buttons will be disabled');
-                  }
-
-                  // Trigger callback for preview
+                  // Trigger callbacks
                   if (options.onPresentationReady) {
-                    options.onPresentationReady(previewUrl);
+                    options.onPresentationReady(message.payload.url);
                   }
 
                   // Notify session state change for persistence
                   if (options.onSessionStateChange) {
-                    debugLog('🔔 Calling onSessionStateChange for STRAWMAN:', {
-                      url: previewUrl,
-                      id: previewPresentationId,
-                      slideCount: message.payload.slides?.length,
+                    debugLog('🔔 Calling onSessionStateChange for FINAL presentation:', {
+                      url: message.payload.url,
+                      id: message.payload.presentation_id,
+                      slideCount: message.payload.slide_count,
                       callbackDefined: typeof options.onSessionStateChange
                     });
                     try {
                       options.onSessionStateChange({
-                        presentationUrl: previewUrl,
-                        presentationId: previewPresentationId || undefined,
-                        slideCount: message.payload.slides?.length || undefined,
-                        currentStage: 4, // Stage 4 - strawman preview
+                        presentationUrl: message.payload.url,
+                        presentationId: message.payload.presentation_id,
+                        slideCount: message.payload.slide_count,
+                        currentStage: 6, // Stage 6 - final presentation
                       });
-                      debugLog('✅ onSessionStateChange completed (strawman)');
+                      debugLog('✅ onSessionStateChange completed (final)');
                     } catch (error) {
-                      console.error('❌ onSessionStateChange threw error (strawman):', error);
+                      console.error('❌ onSessionStateChange threw error (final):', error);
                     }
                   } else {
-                    console.warn('⚠️ onSessionStateChange NOT defined for strawman!');
+                    console.warn('⚠️ onSessionStateChange NOT defined for final presentation!');
                   }
-                } else {
-                  debugLog('⚠️ No preview URL found in slide_update message');
-                  debugLog('Checked locations: payload.preview_url, metadata.preview_url, strawman.preview_url, payload.url');
-                }
-                break;
+                  break;
 
-              case 'slide_context': {
-                const ctx = message.payload;
-                const byIndex: Record<number, SlideContextItem> = {};
-                for (const s of ctx.slides ?? []) {
-                  if (typeof s.slide_index === 'number') byIndex[s.slide_index] = s;
+                case 'presentation_init': {
+                  // Director sends presentation_init (instead of slide_update) for blank presentations
+                  // This avoids rendering a "1 slides · 0 min" card in chat
+                  debugLog('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
+                  newState.directorWorkflowState = 'BLANK_PRESENTATION';
+
+                  const initUrl = message.payload.presentation_url ||
+                                  message.payload.preview_url ||
+                                  message.payload.url ||
+                                  message.payload.metadata?.preview_url ||
+                                  message.payload.metadata?.presentation_url;
+                  const initId = message.payload.presentation_id ||
+                                 message.payload.preview_presentation_id ||
+                                 message.payload.metadata?.preview_presentation_id ||
+                                 message.payload.metadata?.presentation_id;
+
+                  debugLog('🆕 Blank presentation received (presentation_init):', { initUrl, initId });
+
+                  if (initUrl) {
+                    newState.blankPresentationUrl = initUrl;
+                    newState.blankPresentationId = initId || null;
+                    newState.isBlankPresentation = true;
+
+                    // Guard: a blank canvas must NOT clobber a real deck we already have
+                    // (one restored from the session record on reload, a finished build, or
+                    // a strawman). Otherwise reconnect → blank overwrites the deck → blank RHS.
+                    // Only switch the active view + persist when there's no real deck yet.
+                    const heldDeck = !!(prev.finalPresentationUrl || prev.strawmanPreviewUrl || prev.presentationUrl);
+                    const hasRealDeck = heldDeck && prev.deckOwnerSessionId === sessionIdRef.current;
+                    if (hasRealDeck) {
+                      debugLog('⚠️ presentation_init: keeping existing deck, not switching to blank');
+                    } else {
+                      newState.activeVersion = 'blank';
+                      newState.presentationUrl = initUrl;
+                      newState.presentationId = initId || null;
+                      newState.strawmanPreviewUrl = null;
+                      newState.strawmanPresentationId = null;
+                      newState.finalPresentationUrl = null;
+                      newState.finalPresentationId = null;
+                      newState.deckOwnerSessionId = sessionIdRef.current;
+                      newState.slideStructure = null;
+                      newState.slideCount = null;
+
+                      debugLog('✅ Blank presentation ready - all editing tools now active');
+
+                      if (options.onPresentationReady) {
+                        options.onPresentationReady(initUrl);
+                      }
+
+                      if (options.onSessionStateChange) {
+                        options.onSessionStateChange({
+                          presentationUrl: initUrl,
+                          presentationId: initId || undefined,
+                          slideCount: 1,
+                          currentStage: 0,
+                        });
+                      }
+                    }
+                  }
+                  break;
                 }
-                newState.slideContextByIndex = byIndex;
-                newState.deckContext = ctx.deck ?? null;
-                debugLog('📚 slide_context received:', {
-                  slides: ctx.slides?.length,
-                  deckArc: ctx.deck?.deck_arc?.slice(0, 60),
-                });
-                break;
+
+                case 'slide_update':
+                  debugLog('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
+                  newState.slideStructure = message.payload;
+
+                  if (
+                    message.payload.operation === 'full_update' &&
+                    !message.payload.is_blank &&
+                    prev.ephemeralMessageIds.length > 0
+                  ) {
+                    newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  }
+
+                  // Legacy: Handle blank presentation sent as slide_update with is_blank flag
+                  // (kept for backward compatibility, but Director now sends presentation_init instead)
+                  if (message.payload.is_blank) {
+                    newState.directorWorkflowState = 'BLANK_PRESENTATION';
+                    const blankUrl = message.payload.preview_url ||
+                                     message.payload.metadata?.preview_url;
+                    const blankId = message.payload.metadata?.preview_presentation_id ||
+                                    message.payload.preview_presentation_id;
+
+                    debugLog('🆕 Blank presentation received (legacy slide_update):', { blankUrl, blankId });
+
+                    if (blankUrl) {
+                      // Set blank presentation state
+                      newState.blankPresentationUrl = blankUrl;
+                      newState.blankPresentationId = blankId || null;
+                      newState.isBlankPresentation = true;
+
+                      // Set as current presentation (blank is the starting point)
+                      newState.activeVersion = 'blank';
+                      newState.presentationUrl = blankUrl;
+                      newState.presentationId = blankId || null;
+                      newState.strawmanPreviewUrl = null;
+                      newState.strawmanPresentationId = null;
+                      newState.finalPresentationUrl = null;
+                      newState.finalPresentationId = null;
+                      newState.deckOwnerSessionId = sessionIdRef.current;
+                      newState.slideStructure = null;
+                      newState.slideCount = null;
+
+                      debugLog('✅ Blank presentation ready - all editing tools now active');
+
+                      // Trigger callback for blank presentation ready
+                      if (options.onPresentationReady) {
+                        options.onPresentationReady(blankUrl);
+                      }
+
+                      // Notify session state change for persistence (Stage 0 - blank)
+                      if (options.onSessionStateChange) {
+                        options.onSessionStateChange({
+                          presentationUrl: blankUrl,
+                          presentationId: blankId || undefined,
+                          slideCount: 1, // Blank has 1 title slide
+                          currentStage: 0, // Stage 0 - blank presentation
+                        });
+                      }
+                    }
+                    break; // Exit early - don't process as strawman
+                  }
+
+                  // EXISTING: Handle regular slide_update (strawman preview)
+                  newState.directorWorkflowState = 'REFINE_STRAWMAN';
+                  // Extract preview URL if present (strawman preview)
+                  // Check multiple possible locations
+                  const previewUrl = message.payload.preview_url ||
+                                     message.payload.metadata?.preview_url ||
+                                     (message.payload as any).strawman?.preview_url ||
+                                     (message.payload as any).url;  // Sometimes sent as just 'url'
+
+                  // Extract presentation ID for strawman downloads (Stage 4)
+                  // Director v3.4 sends this in metadata object (per PREVIEW_PRESENTATION_ID_FIX.md)
+                  const previewPresentationId = message.payload.metadata?.preview_presentation_id ||
+                                                message.payload.preview_presentation_id ||
+                                                (message.payload as any).strawman?.preview_presentation_id ||
+                                                (message.payload as any).presentation_id;
+
+                  if (previewUrl) {
+                    debugLog('✅ Found strawman preview URL:', previewUrl);
+                    debugLog('🖼️ Setting strawmanPreviewUrl and displaying preview IMMEDIATELY');
+                    newState.strawmanPreviewUrl = previewUrl;
+                    newState.strawmanPresentationId = previewPresentationId || null;
+                    newState.deckOwnerSessionId = sessionIdRef.current;
+                    newState.isBlankPresentation = false;
+
+                    // Set activeVersion to strawman and update presentationUrl to display it
+                    newState.activeVersion = 'strawman';
+                    newState.presentationUrl = previewUrl;
+                    newState.presentationId = previewPresentationId || null;
+
+                    // Clear loading state - strawman generation is complete
+                    debugLog('✅ Strawman received - clearing loading state');
+                    newState.currentStatus = null;
+
+                    // Set presentation ID if found (enables download buttons)
+                    if (previewPresentationId) {
+                      debugLog('✅ Found strawman presentation_id:', previewPresentationId);
+                    } else {
+                      debugLog('⚠️ No preview_presentation_id found - download buttons will be disabled');
+                    }
+
+                    // Trigger callback for preview
+                    if (options.onPresentationReady) {
+                      options.onPresentationReady(previewUrl);
+                    }
+
+                    // Notify session state change for persistence
+                    if (options.onSessionStateChange) {
+                      debugLog('🔔 Calling onSessionStateChange for STRAWMAN:', {
+                        url: previewUrl,
+                        id: previewPresentationId,
+                        slideCount: message.payload.slides?.length,
+                        callbackDefined: typeof options.onSessionStateChange
+                      });
+                      try {
+                        options.onSessionStateChange({
+                          presentationUrl: previewUrl,
+                          presentationId: previewPresentationId || undefined,
+                          slideCount: message.payload.slides?.length || undefined,
+                          currentStage: 4, // Stage 4 - strawman preview
+                        });
+                        debugLog('✅ onSessionStateChange completed (strawman)');
+                      } catch (error) {
+                        console.error('❌ onSessionStateChange threw error (strawman):', error);
+                      }
+                    } else {
+                      console.warn('⚠️ onSessionStateChange NOT defined for strawman!');
+                    }
+                  } else {
+                    debugLog('⚠️ No preview URL found in slide_update message');
+                    debugLog('Checked locations: payload.preview_url, metadata.preview_url, strawman.preview_url, payload.url');
+                  }
+                  break;
+
+                case 'slide_context': {
+                  const ctx = message.payload;
+                  const byIndex: Record<number, SlideContextItem> = {};
+                  for (const s of ctx.slides ?? []) {
+                    if (typeof s.slide_index === 'number') byIndex[s.slide_index] = s;
+                  }
+                  newState.slideContextByIndex = byIndex;
+                  newState.deckContext = ctx.deck ?? null;
+                  debugLog('📚 slide_context received:', {
+                    slides: ctx.slides?.length,
+                    deckArc: ctx.deck?.deck_arc?.slice(0, 60),
+                  });
+                  break;
+                }
+
+                case 'token_usage':
+                  newState.tokenUsage = message.payload;
+                  newState.tokenUsageMessageId = message.message_id;
+                  debugLog('🧮 token_usage received:', {
+                    action: message.payload.action_type,
+                    turnTotal: message.payload.turn?.total_tokens,
+                    sessionTotal: message.payload.session?.total_tokens,
+                    coverage: message.payload.coverage,
+                  });
+                  break;
+
+                case 'theme_sync':
+                  debugLog('🎨 Theme sync response:', message.payload);
+                  break;
+
+                case 'slide_ready':
+                  debugLog('✅ slide_ready received:', {
+                    job_id: message.payload.job_id,
+                    slide_index: message.payload.slide_index,
+                    presentation_id: message.payload.presentation_id,
+                  });
+                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  newState.currentStatus = null;
+                  break;
+
+                case 'slide_progress':
+                  debugLog('🧵 slide_progress received:', {
+                    job_id: message.payload.job_id,
+                    stage: message.payload.stage,
+                    text: message.payload.text,
+                  });
+                  newState.currentStatus = buildSlideComposeProgressStatus(message.payload);
+                  break;
+
+                case 'slide_failed':
+                  debugLog('❌ slide_failed received:', {
+                    job_id: message.payload.job_id,
+                    stage: message.payload.stage,
+                    errors: message.payload.errors,
+                  });
+                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  newState.currentStatus = null;
+                  break;
+
+                default:
+                  break;
               }
 
-              case 'token_usage':
-                newState.tokenUsage = message.payload;
-                newState.tokenUsageMessageId = message.message_id;
-                debugLog('🧮 token_usage received:', {
-                  action: message.payload.action_type,
-                  turnTotal: message.payload.turn?.total_tokens,
-                  sessionTotal: message.payload.session?.total_tokens,
-                  coverage: message.payload.coverage,
-                });
-                break;
+              return newState;
+            });
 
-              case 'theme_sync':
-                debugLog('🎨 Theme sync response:', message.payload);
-                break;
-
-              case 'slide_ready':
-                debugLog('✅ slide_ready received:', {
-                  job_id: message.payload.job_id,
-                  slide_index: message.payload.slide_index,
-                  presentation_id: message.payload.presentation_id,
-                });
-                newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
-                newState.currentStatus = null;
-                break;
-
-              case 'slide_progress':
-                debugLog('🧵 slide_progress received:', {
-                  job_id: message.payload.job_id,
-                  stage: message.payload.stage,
-                  text: message.payload.text,
-                });
-                newState.currentStatus = buildSlideComposeProgressStatus(message.payload);
-                break;
-
-              case 'slide_failed':
-                debugLog('❌ slide_failed received:', {
-                  job_id: message.payload.job_id,
-                  stage: message.payload.stage,
-                  errors: message.payload.errors,
-                });
-                newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
-                newState.currentStatus = null;
-                break;
-
-              default:
-                break;
+            if (message.type === 'slide_progress') {
+              options.onSlideComposeProgress?.(message);
+            } else if (message.type === 'slide_ready' && !blockedIngress) {
+              options.onSlideComposeReady?.(message);
+            } else if (message.type === 'slide_failed') {
+              options.onSlideComposeFailed?.(message);
             }
 
-            return newState;
-          });
+            // Trigger message callback
+            if (options.onMessage) {
+              options.onMessage(message);
+            }
+          } catch (error) {
+            console.error('Failed to parse message:', error);
+          }
+        };
 
-          if (message.type === 'slide_progress') {
-            options.onSlideComposeProgress?.(message);
-          } else if (message.type === 'slide_ready' && !blockedIngress) {
-            options.onSlideComposeReady?.(message);
-          } else if (message.type === 'slide_failed') {
-            options.onSlideComposeFailed?.(message);
+        ws.onerror = (error) => {
+          if (!isCurrentSocket()) {
+            debugLog('⏭️ Ignoring error from stale WebSocket');
+            return;
           }
 
-          // Trigger message callback
-          if (options.onMessage) {
-            options.onMessage(message);
+          console.error('❌ WebSocket error:', error);
+          isConnectingRef.current = false;
+
+          const err = new Error('WebSocket connection error');
+          setState(prev => ({
+            ...prev,
+            error: err,
+            connectionState: 'error',
+          }));
+
+          if (options.onError) {
+            options.onError(err);
           }
-        } catch (error) {
-          console.error('Failed to parse message:', error);
-        }
-      };
+        };
 
-      ws.onerror = (error) => {
-        if (!isCurrentSocket()) {
-          debugLog('⏭️ Ignoring error from stale WebSocket');
-          return;
-        }
+        ws.onclose = (event) => {
+          if (!isCurrentSocket()) {
+            debugLog('⏭️ Ignoring close from stale WebSocket', {
+              code: event.code,
+              reason: event.reason || '(no reason provided)',
+              wasClean: event.wasClean,
+              current_session_id: sessionIdRef.current,
+            });
+            return;
+          }
 
-        console.error('❌ WebSocket error:', error);
-        isConnectingRef.current = false;
+          const now = Date.now();
+          const suppressedSinceLastLog = suppressedCloseDiagnosticsRef.current;
 
-        const err = new Error('WebSocket connection error');
-        setState(prev => ({
-          ...prev,
-          error: err,
-          connectionState: 'error',
-        }));
+          if (now - lastCloseDiagnosticAtRef.current > 5000) {
+            console.warn('🔌 WebSocket connection closed', {
+              code: event.code,
+              reason: event.reason || '(no reason provided)',
+              wasClean: event.wasClean,
+              session_id: sessionIdRef.current,
+              ready_state: ws.readyState,
+              suppressed_close_logs: suppressedSinceLastLog,
+            });
+            lastCloseDiagnosticAtRef.current = now;
+            suppressedCloseDiagnosticsRef.current = 0;
+          } else {
+            suppressedCloseDiagnosticsRef.current += 1;
+            debugLog('🔌 WebSocket connection closed', {
+              code: event.code,
+              reason: event.reason || '(no reason provided)',
+              wasClean: event.wasClean,
+              session_id: sessionIdRef.current,
+            });
+          }
 
-        if (options.onError) {
-          options.onError(err);
-        }
-      };
+          isConnectingRef.current = false;
 
-      ws.onclose = (event) => {
-        if (!isCurrentSocket()) {
-          debugLog('⏭️ Ignoring close from stale WebSocket', {
-            code: event.code,
-            reason: event.reason || '(no reason provided)',
-            wasClean: event.wasClean,
-            current_session_id: sessionIdRef.current,
-          });
-          return;
-        }
+          // Stop heartbeat
+          stopHeartbeat();
+          clearReconnectStabilityTimer();
 
-        const now = Date.now();
-        const suppressedSinceLastLog = suppressedCloseDiagnosticsRef.current;
+          setState(prev => ({
+            ...prev,
+            connected: false,
+            connecting: false,
+            connectionState: 'disconnected',
+            // Clear status when disconnected - prevents stale "working on strawman" messages
+            currentStatus: null,
+          }));
 
-        if (now - lastCloseDiagnosticAtRef.current > 5000) {
-          console.warn('🔌 WebSocket connection closed', {
-            code: event.code,
-            reason: event.reason || '(no reason provided)',
-            wasClean: event.wasClean,
-            session_id: sessionIdRef.current,
-            ready_state: ws.readyState,
-            suppressed_close_logs: suppressedSinceLastLog,
-          });
-          lastCloseDiagnosticAtRef.current = now;
-          suppressedCloseDiagnosticsRef.current = 0;
-        } else {
-          suppressedCloseDiagnosticsRef.current += 1;
-          debugLog('🔌 WebSocket connection closed', {
-            code: event.code,
-            reason: event.reason || '(no reason provided)',
-            wasClean: event.wasClean,
-            session_id: sessionIdRef.current,
-          });
-        }
-
-        isConnectingRef.current = false;
-
-        // Stop heartbeat
-        stopHeartbeat();
-        clearReconnectStabilityTimer();
-
-        setState(prev => ({
-          ...prev,
-          connected: false,
-          connecting: false,
-          connectionState: 'disconnected',
-          // Clear status when disconnected - prevents stale "working on strawman" messages
-          currentStatus: null,
-        }));
-
-        wsRef.current = null;
-        scheduleReconnect(`close:${event.code}`);
-      };
+          wsRef.current = null;
+          scheduleReconnect(`close:${event.code}`);
+        };
+      })();
       return started;
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);

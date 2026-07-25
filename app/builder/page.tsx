@@ -112,6 +112,7 @@ import {
   type ManualDeckSummary,
   type PendingHandoffSubmission,
 } from '@/lib/manual-deck-workflow'
+import { lastBuilderSessionKey, unsavedBuilderSessionKey } from '@/lib/last-builder-session'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -119,7 +120,7 @@ export const dynamic = 'force-dynamic'
 const DEFAULT_DRAWER_WIDTH = 420
 const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
-const BUILDER_SESSION_OPTIONS_VERSION = 1
+const BUILDER_SESSION_OPTIONS_VERSION = 2
 const THEME_SYNC_TIMEOUT_MS = 20_000
 function normalizeTextLabsElementType(value: unknown): TextLabsComponentType | null {
   return normalizeSemanticComponentType(value)
@@ -159,6 +160,7 @@ interface SlideComposeJobState {
 
 interface BuilderSessionOptions {
   version: typeof BUILDER_SESSION_OPTIONS_VERSION
+  ownerUserId: string
   activeTemplate: BuilderTemplateSelection | null
   buildThemeSelection: BuildThemeSelection
   activeBuildThemeProfile: ActiveBuildThemeProfile | null
@@ -179,8 +181,8 @@ interface DirectorHandoffResponse {
   continued_from_session_id: string
 }
 
-function getBuilderSessionOptionsKey(sessionId: string): string {
-  return `deckster_builder_options_${sessionId}`
+function getBuilderSessionOptionsKey(userId: string, sessionId: string): string {
+  return `deckster_builder_options_v2_${encodeURIComponent(userId)}_${sessionId}`
 }
 
 function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection {
@@ -283,10 +285,11 @@ function buildThemeProfileMatchesSelection(
   return !!profile && buildThemeSelectionsEqual(profile.theme_payload, selection)
 }
 
-function readBuilderSessionOptions(sessionId: string): BuilderSessionOptions {
+function readBuilderSessionOptions(userId: string, sessionId: string): BuilderSessionOptions {
   if (typeof window === 'undefined') {
     return {
       version: BUILDER_SESSION_OPTIONS_VERSION,
+      ownerUserId: userId,
       activeTemplate: null,
       buildThemeSelection: { mode: 'auto' },
       activeBuildThemeProfile: null,
@@ -294,10 +297,11 @@ function readBuilderSessionOptions(sessionId: string): BuilderSessionOptions {
   }
 
   try {
-    const raw = window.sessionStorage.getItem(getBuilderSessionOptionsKey(sessionId))
+    const raw = window.sessionStorage.getItem(getBuilderSessionOptionsKey(userId, sessionId))
     if (!raw) {
       return {
         version: BUILDER_SESSION_OPTIONS_VERSION,
+        ownerUserId: userId,
         activeTemplate: null,
         buildThemeSelection: { mode: 'auto' },
         activeBuildThemeProfile: null,
@@ -305,9 +309,13 @@ function readBuilderSessionOptions(sessionId: string): BuilderSessionOptions {
     }
 
     const parsed = JSON.parse(raw) as Partial<BuilderSessionOptions>
-    if (parsed.version !== BUILDER_SESSION_OPTIONS_VERSION) {
+    if (
+      parsed.version !== BUILDER_SESSION_OPTIONS_VERSION
+      || parsed.ownerUserId !== userId
+    ) {
       return {
         version: BUILDER_SESSION_OPTIONS_VERSION,
+        ownerUserId: userId,
         activeTemplate: null,
         buildThemeSelection: { mode: 'auto' },
         activeBuildThemeProfile: null,
@@ -318,6 +326,7 @@ function readBuilderSessionOptions(sessionId: string): BuilderSessionOptions {
     const activeBuildThemeProfile = normalizeStoredBuildThemeProfile(parsed.activeBuildThemeProfile)
     return {
       version: BUILDER_SESSION_OPTIONS_VERSION,
+      ownerUserId: userId,
       activeTemplate: normalizeStoredTemplate(parsed.activeTemplate),
       buildThemeSelection,
       activeBuildThemeProfile: buildThemeProfileMatchesSelection(activeBuildThemeProfile, buildThemeSelection)
@@ -327,6 +336,7 @@ function readBuilderSessionOptions(sessionId: string): BuilderSessionOptions {
   } catch {
     return {
       version: BUILDER_SESSION_OPTIONS_VERSION,
+      ownerUserId: userId,
       activeTemplate: null,
       buildThemeSelection: { mode: 'auto' },
       activeBuildThemeProfile: null,
@@ -335,6 +345,7 @@ function readBuilderSessionOptions(sessionId: string): BuilderSessionOptions {
 }
 
 function writeBuilderSessionOptions(
+  userId: string,
   sessionId: string,
   activeTemplate: BuilderTemplateSelection | null,
   buildThemeSelection: BuildThemeSelection,
@@ -344,9 +355,10 @@ function writeBuilderSessionOptions(
 
   try {
     window.sessionStorage.setItem(
-      getBuilderSessionOptionsKey(sessionId),
+      getBuilderSessionOptionsKey(userId, sessionId),
       JSON.stringify({
         version: BUILDER_SESSION_OPTIONS_VERSION,
+        ownerUserId: userId,
         activeTemplate,
         buildThemeSelection,
         activeBuildThemeProfile,
@@ -422,8 +434,12 @@ function extractPresentationIdFromViewerUrl(url: string | null): string | null {
   }
 }
 
-function BuilderContent() {
+function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: string }) {
   const { user, isLoading: isAuthLoading } = useAuth()
+  // This component is keyed by authScopeUserId at the boundary below. Account
+  // changes therefore discard all Builder-local state and socket hooks in the
+  // same render instead of waiting for cleanup effects.
+  const builderCacheOwner = authScopeUserId
   const router = useRouter()
   const searchParams = useSearchParams()
   const themeSearchOverride = searchParams.get('theme')
@@ -514,13 +530,33 @@ function BuilderContent() {
     isPremium: kgIsPremium,
     isLoading: kgIsLoading,
     capability: kgCapability,
+    serviceAvailable: kgServiceAvailable,
+    subscribe: subscribeToKnowledgeGraph,
   } = useKnowledgeGraph()
+  // The KG workspace code refers to the loading flag as kgAccessLoading.
+  const kgAccessLoading = kgIsLoading
   const [knowledgeGraphEnabled, setKnowledgeGraphEnabled] = useState(false)
-  const showKnowledgeGraphToggle = kgIsPremium && kgSubscribed
+  const canUseKnowledgeGraph = kgIsPremium && kgSubscribed && kgServiceAvailable
+  // Keep the feature discoverable for every user. The chat row renders an
+  // upgrade/setup affordance until both paid entitlement and explicit consent
+  // are present; only the ready state can send KG=true.
+  const showKnowledgeGraphToggle = true
+  const knowledgeGraphAccess: 'locked' | 'setup' | 'ready' | 'unavailable' | 'loading' = kgAccessLoading
+    ? 'loading'
+    : !kgIsPremium
+      ? 'locked'
+      : !kgServiceAvailable
+        ? 'unavailable'
+        : canUseKnowledgeGraph
+          ? 'ready'
+          : 'setup'
 
   useEffect(() => {
-    if (kgSubscribed) setKnowledgeGraphEnabled(true)
-  }, [kgSubscribed])
+    // Per-deck privacy choice: access becoming available must never silently
+    // opt a resumed deck in. Like web/deep research, each deck starts off and
+    // the user explicitly enables it from the chat menu.
+    if (!canUseKnowledgeGraph) setKnowledgeGraphEnabled(false)
+  }, [canUseKnowledgeGraph])
 
   useEffect(() => {
     buildThemeSelectionRef.current = buildThemeSelection
@@ -1099,8 +1135,10 @@ function BuilderContent() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const urlSessionId = params.get('session_id')
-      if (urlSessionId && urlSessionId !== 'new') {
-        return sessionStorage.getItem(`deckster_unsaved_${urlSessionId}`) === 'true'
+      if (builderCacheOwner && urlSessionId && urlSessionId !== 'new') {
+        return sessionStorage.getItem(
+          unsavedBuilderSessionKey(builderCacheOwner, urlSessionId),
+        ) === 'true'
       }
     }
     return false
@@ -1137,6 +1175,7 @@ function BuilderContent() {
 
   const persistence = useSessionPersistence({
     sessionId: currentSessionId || '',
+    userId: authScopeUserId,
     enabled: !!currentSessionId && !isUnsavedSession,
     debounceMs: 500,
     onError: (error) => {
@@ -1151,25 +1190,39 @@ function BuilderContent() {
   }, [persistence])
 
   const currentSessionIdRef = useRef(currentSessionId)
+  const previousKnowledgeGraphSessionRef = useRef(currentSessionId)
   useEffect(() => {
     currentSessionIdRef.current = currentSessionId
+    if (
+      previousKnowledgeGraphSessionRef.current !== null &&
+      previousKnowledgeGraphSessionRef.current !== currentSessionId
+    ) {
+      // Covers sidebar navigation, browser history and query-param-driven
+      // deck changes. A KG choice belongs only to the deck where it was made.
+      setKnowledgeGraphEnabled(false)
+    }
+    previousKnowledgeGraphSessionRef.current = currentSessionId
   }, [currentSessionId])
   const builderOptionsRestoredSessionRef = useRef<string | null>(null)
   const skipBuilderOptionsPersistRef = useRef<string | null>(null)
+  const builderOptionsScope = builderCacheOwner && currentSessionId && currentSessionId !== 'new'
+    ? getBuilderSessionOptionsKey(builderCacheOwner, currentSessionId)
+    : null
 
   // Remember the active session so "Back to builder" (in the account-area header)
   // can return the user to this exact deck. Covers create, resume, and
   // dashboard-initiated navigation since they all funnel through currentSessionId.
   useEffect(() => {
     if (typeof window === "undefined") return
-    if (currentSessionId && currentSessionId !== "new") {
+    const userId = user?.id ?? user?.email
+    if (userId && currentSessionId && currentSessionId !== "new") {
       try {
-        window.localStorage.setItem("deckster:last_session_id", currentSessionId)
+        window.localStorage.setItem(lastBuilderSessionKey(userId), currentSessionId)
       } catch {
         // ignore storage errors (Safari private mode, quota)
       }
     }
-  }, [currentSessionId])
+  }, [currentSessionId, user?.email, user?.id])
 
   useEffect(() => {
     standardThemeLoadedRef.current = false
@@ -1195,18 +1248,21 @@ function BuilderContent() {
   }, [activeTemplateSlideIndex, templateModeOn])
 
   useEffect(() => {
-    if (!currentSessionId || currentSessionId === "new") {
+    if (isAuthLoading || !builderOptionsScope || !currentSessionId) {
       builderOptionsRestoredSessionRef.current = null
+      setActiveTemplate(null)
+      setBuildThemeSelection({ mode: 'auto' })
+      setActiveBuildThemeProfile(null)
       return
     }
 
     let cancelled = false
-    const stored = readBuilderSessionOptions(currentSessionId)
-    skipBuilderOptionsPersistRef.current = currentSessionId
+    const stored = readBuilderSessionOptions(builderCacheOwner, currentSessionId)
+    skipBuilderOptionsPersistRef.current = builderOptionsScope
     setActiveTemplate(stored.activeTemplate)
     setBuildThemeSelection(stored.buildThemeSelection)
     setActiveBuildThemeProfile(stored.activeBuildThemeProfile)
-    builderOptionsRestoredSessionRef.current = currentSessionId
+    builderOptionsRestoredSessionRef.current = builderOptionsScope
 
     if (
       !stored.activeBuildThemeProfile &&
@@ -1233,24 +1289,39 @@ function BuilderContent() {
     return () => {
       cancelled = true
     }
-  }, [currentSessionId, getStandardTheme, themeSearchOverride])
+  }, [
+    builderCacheOwner,
+    builderOptionsScope,
+    currentSessionId,
+    getStandardTheme,
+    isAuthLoading,
+    themeSearchOverride,
+  ])
 
   useEffect(() => {
-    if (!currentSessionId || currentSessionId === "new") return
-    if (builderOptionsRestoredSessionRef.current !== currentSessionId) return
+    if (!builderCacheOwner || !builderOptionsScope || !currentSessionId) return
+    if (builderOptionsRestoredSessionRef.current !== builderOptionsScope) return
 
-    if (skipBuilderOptionsPersistRef.current === currentSessionId) {
+    if (skipBuilderOptionsPersistRef.current === builderOptionsScope) {
       skipBuilderOptionsPersistRef.current = null
       return
     }
 
     writeBuilderSessionOptions(
+      builderCacheOwner,
       currentSessionId,
       activeTemplate,
       buildThemeSelection,
-      activeBuildThemeProfileForSelection,
+      activeBuildThemeProfile,
     )
-  }, [currentSessionId, activeTemplate, buildThemeSelection, activeBuildThemeProfileForSelection])
+  }, [
+    activeBuildThemeProfile,
+    activeTemplate,
+    buildThemeSelection,
+    builderCacheOwner,
+    builderOptionsScope,
+    currentSessionId,
+  ])
 
   const loadTemplateSnapshot = useCallback(async (template: BuilderTemplateSelection): Promise<TemplateSnapshot | null> => {
     setTemplateSnapshotLoading(true)
@@ -3305,7 +3376,7 @@ function BuilderContent() {
           deepResearch: researchEnabled,
           webSearch: webSearchEnabled,
           extendedGeneration: extendedGenerationEnabled,
-          useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
+          useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
           fileUpload: !!sessionStoreName,
           storeName: sessionStoreName,
           actionValue: action.value,
@@ -3338,7 +3409,11 @@ function BuilderContent() {
           if (dbSession) {
             session.justCreatedSessionRef.current = dbSession.id
             setIsUnsavedSession(false)
-            try { sessionStorage.removeItem(`deckster_unsaved_${dbSession.id}`) } catch {}
+            try {
+              if (builderCacheOwner) {
+                sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, dbSession.id))
+              }
+            } catch {}
             if (!currentSessionId) {
               setCurrentSessionId(dbSession.id)
               router.push(`/builder?session_id=${dbSession.id}`)
@@ -3409,7 +3484,7 @@ function BuilderContent() {
               deepResearch: researchEnabled,
               webSearch: webSearchEnabled,
               extendedGeneration: extendedGenerationEnabled,
-              useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
+              useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
               fileUpload: !!sessionStoreName,
               storeName: sessionStoreName,
               ...buildSendOptions,
@@ -3430,6 +3505,67 @@ function BuilderContent() {
           return
         }
       }
+
+      // For resumed sessions, connect on first message
+      if (session.isResumedSession && !connected && !connecting) {
+        console.log('Connecting WebSocket for first message in resumed session')
+        // uat's connect() is fire-and-forget (void); readiness is asserted by
+        // the isReady guard below rather than a return value.
+        connect()
+        if (!connected && !isReady) {
+          toast({
+            title: 'Could not connect to this deck',
+            description: 'Your message was not sent. Please try again when the connection recovers.',
+            variant: 'destructive',
+          })
+          return
+        }
+        session.setIsResumedSession(false)
+
+        const messageId = crypto.randomUUID()
+        const timestamp = Date.now()
+
+        session.userMessageIdsRef.current.add(messageId)
+
+        session.setUserMessages(prev => [...prev, {
+          id: messageId,
+          text: messageText,
+          timestamp: timestamp
+        }])
+
+        if (currentSessionId && persistence) {
+          console.log('Persisting user message for resumed session:', messageId)
+          persistence.queueMessage({
+            message_id: messageId,
+            session_id: currentSessionId,
+            timestamp: new Date(timestamp).toISOString(),
+            type: 'chat_message',
+            payload: { text: messageText }
+          } as DirectorMessage, messageText)
+        }
+
+        setInputMessage("")
+
+        const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
+        const fileCount = successfulFiles.length
+
+        sendMessage(messageText, undefined, fileCount, {
+          deepResearch: researchEnabled,
+          webSearch: webSearchEnabled,
+          extendedGeneration: extendedGenerationEnabled,
+          useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
+          fileUpload: !!sessionStoreName,
+          storeName: sessionStoreName,
+          ...buildSendOptions,
+        })
+        if (successfulFiles.length > 0) {
+          clearAllFiles()
+        }
+        return
+      }
+
+      // Normal check for connection
+      if (!isReady) return
 
       const messageId = crypto.randomUUID()
       const timestamp = Date.now()
@@ -3468,7 +3604,7 @@ function BuilderContent() {
         deepResearch: researchEnabled,
         webSearch: webSearchEnabled,
         extendedGeneration: extendedGenerationEnabled,
-        useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
+        useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
         ...buildSendOptions,
@@ -3498,6 +3634,7 @@ function BuilderContent() {
     blankPresentationId, presentationId, effectivePresentationId,
     effectivePresentationUrl, isBlankPresentation, activeVersion,
     pendingManualDeckBuild, templateModeOn,
+      canUseKnowledgeGraph, builderCacheOwner,
   ])
 
   const handleCancelManualDeckBuild = useCallback(() => {
@@ -3618,6 +3755,7 @@ function BuilderContent() {
         console.warn('[Manual Deck] Could not persist handoff submission in session storage.', error)
       }
       writeBuilderSessionOptions(
+        builderCacheOwner,
         newSessionId,
         activeTemplate,
         buildThemeSelection,
@@ -3785,7 +3923,7 @@ function BuilderContent() {
         deepResearch: researchEnabled,
         webSearch: webSearchEnabled,
         extendedGeneration: extendedGenerationEnabled,
-        useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
+        useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
         actionValue: action.value,
@@ -3793,7 +3931,7 @@ function BuilderContent() {
         ...buildSendOptions,
       })
     }
-  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, showKnowledgeGraphToggle, sessionStoreName, buildSendOptions, activeTemplate])
+  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, canUseKnowledgeGraph, sessionStoreName, buildSendOptions, activeTemplate])
 
   const handleCancelTemplateReuse = useCallback(() => {
     const sent = sendControlMessage('cancel_template_reuse')
@@ -3816,11 +3954,13 @@ function BuilderContent() {
     setIsGeneratingStrawman(false)
     setShowChatHistory(false)
     setSessionStoreName(null)
+    // The KG switch is a per-deck privacy choice, never a global sticky bit.
+    setKnowledgeGraphEnabled(false)
     session.handleSessionSelect(sessionId)
   }, [session.handleSessionSelect])
 
   const handleNewChatWrapped = useCallback(() => {
-    if (currentSessionId) skipBuilderOptionsPersistRef.current = currentSessionId
+    if (builderOptionsScope) skipBuilderOptionsPersistRef.current = builderOptionsScope
     setInputMessage("")
     setPendingActionInput(null)
     setActiveTemplate(null)
@@ -3838,7 +3978,7 @@ function BuilderContent() {
     setResearchEnabled(false)
     setWebSearchEnabled(false)
     setExtendedGenerationEnabled(true)
-    setKnowledgeGraphEnabled(kgSubscribed)
+    setKnowledgeGraphEnabled(false)
     setIsGeneratingFinal(false)
     setTemplateReuseAwaitingInput(false)
     setIsGeneratingStrawman(false)
@@ -3846,7 +3986,7 @@ function BuilderContent() {
     setSessionStoreName(null)
     clearAllFiles()
     session.handleNewChat()
-  }, [clearAllFiles, currentSessionId, kgSubscribed, session.handleNewChat])
+  }, [builderOptionsScope, clearAllFiles, session.handleNewChat])
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
@@ -4096,7 +4236,7 @@ function BuilderContent() {
                     useUploadedDocuments: uploadedFiles.some(file => file.status === 'success') || Boolean(sessionStoreName),
                     useWebSearch: webSearchEnabled,
                     useDeepResearch: researchEnabled && webSearchEnabled,
-                    useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
+                    useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
                   }}
                   buildThemeSelection={buildThemeSelection}
                   activeBuildThemeProfileName={activeBuildThemeProfileForSelection?.name ?? null}
@@ -4214,6 +4354,27 @@ function BuilderContent() {
                     knowledgeGraphEnabled={knowledgeGraphEnabled}
                     onKnowledgeGraphEnabledChange={setKnowledgeGraphEnabled}
                     showKnowledgeGraphToggle={showKnowledgeGraphToggle}
+                    knowledgeGraphAccess={knowledgeGraphAccess}
+                    onKnowledgeGraphAccessClick={async () => {
+                      if (knowledgeGraphAccess === 'locked') {
+                        router.push('/pricing')
+                        return
+                      }
+                      const enabled = await subscribeToKnowledgeGraph()
+                      if (enabled) {
+                        setKnowledgeGraphEnabled(true)
+                        toast({
+                          title: 'Knowledge enabled',
+                          description: 'This deck can now use the knowledge you have chosen to connect.',
+                        })
+                      } else {
+                        toast({
+                          title: 'Could not enable Knowledge',
+                          description: 'Open Knowledge settings to check access or try again.',
+                          variant: 'destructive',
+                        })
+                      }
+                    }}
                     isReady={isReady}
                     isLoadingSession={session.isLoadingSession}
                     connected={connected}
@@ -4476,18 +4637,68 @@ function BuilderContent() {
   )
 }
 
+function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+      <div className="text-center">
+        <div className="h-10 w-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-sm text-gray-600">{message}</p>
+      </div>
+    </div>
+  )
+}
+
+function BuilderAuthBoundary() {
+  const { user, isLoading, isAuthenticated } = useAuth()
+  const router = useRouter()
+  const authScopeUserId = user?.id ?? user?.email ?? ''
+  const mountedAccountRef = useRef('')
+  const accountChanged = Boolean(
+    !isLoading
+    && authScopeUserId
+    && mountedAccountRef.current
+    && mountedAccountRef.current !== authScopeUserId
+  )
+  if (!isLoading && authScopeUserId && !mountedAccountRef.current) {
+    mountedAccountRef.current = authScopeUserId
+  }
+
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || !authScopeUserId)) {
+      router.replace('/auth/signin?callbackUrl=%2Fbuilder')
+    }
+  }, [authScopeUserId, isAuthenticated, isLoading, router])
+
+  useEffect(() => {
+    if (accountChanged && typeof window !== 'undefined') {
+      // The URL may still name account A's session. A hard navigation both
+      // disposes every async callback and ensures B starts with a fresh deck.
+      window.location.replace('/builder?session_id=new')
+    }
+  }, [accountChanged])
+
+  // Never leave the previous account's Builder tree mounted while NextAuth is
+  // revalidating. The authenticated account id is also the React key, forcing
+  // a complete state/socket remount on an A -> B transition.
+  if (isLoading) return <BuilderLoadingState />
+  if (accountChanged) return <BuilderLoadingState />
+  if (!isAuthenticated || !authScopeUserId) {
+    return <BuilderLoadingState message="Redirecting to sign in..." />
+  }
+
+  return (
+    <AuthenticatedBuilderContent
+      key={authScopeUserId}
+      authScopeUserId={authScopeUserId}
+    />
+  )
+}
+
 export default function BuilderPage() {
   return (
     <WebSocketErrorBoundary>
-      <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
-          <div className="text-center">
-            <div className="h-10 w-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-sm text-gray-600">Loading builder...</p>
-          </div>
-        </div>
-      }>
-        <BuilderContent />
+      <Suspense fallback={<BuilderLoadingState />}>
+        <BuilderAuthBoundary />
       </Suspense>
     </WebSocketErrorBoundary>
   )

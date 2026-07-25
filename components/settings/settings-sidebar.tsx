@@ -3,7 +3,9 @@
 import type { ComponentType } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { useSubscription } from "@/hooks/use-subscription"
+import { isKgEntitled } from "@/lib/kg-entitlement"
 import { cn } from "@/lib/utils"
 import { User, Palette, Bell, ShieldCheck, Lock, Brain } from "lucide-react"
 
@@ -25,11 +27,12 @@ const ITEMS: NavItem[] = [
 
 export function SettingsSidebar() {
   const pathname = usePathname()
+  const { data: session } = useSession()
   const { subscription } = useSubscription()
-  // Premium gate mirrors useKnowledgeGraph().isPremium exactly (subscription.tier).
-  const isPremium = subscription?.tier === "premium"
+  // Same central gate as useKnowledgeGraph().isEntitled (lib/kg-entitlement).
+  const entitled = isKgEntitled(session?.user?.tier, subscription)
 
-  const items = ITEMS.filter((item) => !item.premiumOnly || isPremium)
+  const items = ITEMS.filter((item) => !item.premiumOnly || entitled)
 
   return (
     <nav

@@ -9,6 +9,8 @@ import { Input } from './ui/input';
 import { Checkbox } from './ui/checkbox';
 import { DeleteConfirmModal } from './delete-confirm-modal';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { sessionCacheKey, sessionMetadataCacheKey } from '@/hooks/use-session-cache';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +37,7 @@ export function ChatHistorySidebar({
   onNewChat
 }: ChatHistorySidebarProps) {
   const { loadSessions, deleteSession, loading } = useChatSessions();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [sessions, setSessions] = useState<SessionType[]>([]);
   const [totalSessionCount, setTotalSessionCount] = useState(0);
@@ -50,6 +53,13 @@ export function ChatHistorySidebar({
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [deletionSummary, setDeletionSummary] = useState({ count: 0 });
+
+  const clearSessionCache = (sessionId: string) => {
+    const cacheOwner = user?.id ?? user?.email ?? '';
+    if (!cacheOwner) return;
+    sessionStorage.removeItem(sessionCacheKey(cacheOwner, sessionId));
+    sessionStorage.removeItem(sessionMetadataCacheKey(cacheOwner, sessionId));
+  };
 
   // Load sessions when sidebar opens
   useEffect(() => {
@@ -72,8 +82,7 @@ export function ChatHistorySidebar({
     if (success) {
       // Clear sessionStorage cache for deleted session
       try {
-        sessionStorage.removeItem(`deckster_session_${sessionId}`);
-        sessionStorage.removeItem(`deckster_metadata_${sessionId}`);
+        clearSessionCache(sessionId);
         console.log(`🗑️ Cleared sessionStorage cache for deleted session: ${sessionId}`);
       } catch (error) {
         console.error('❌ Failed to clear sessionStorage:', error);
@@ -155,8 +164,7 @@ export function ChatHistorySidebar({
         if (success) {
           // Clear sessionStorage cache for deleted session
           try {
-            sessionStorage.removeItem(`deckster_session_${sessionId}`);
-            sessionStorage.removeItem(`deckster_metadata_${sessionId}`);
+            clearSessionCache(sessionId);
             console.log(`🗑️ Cleared sessionStorage cache for deleted session: ${sessionId}`);
           } catch (error) {
             console.error('❌ Failed to clear sessionStorage:', error);

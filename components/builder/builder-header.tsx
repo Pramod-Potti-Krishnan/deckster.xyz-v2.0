@@ -6,7 +6,7 @@ import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { ConnectionError } from "@/components/connection-error"
-import { Home, PanelLeft } from "lucide-react"
+import { Brain, Home, PanelLeft } from "lucide-react"
 import {
   BuildFingerprintBadge,
   BuildVersionGuard,
@@ -71,6 +71,22 @@ export function BuilderHeader({
               title={isChatHistoryOpen ? 'Close decks' : 'All decks'}
             >
               <PanelLeft className="h-5 w-5" />
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className={
+                isDark
+                  ? "flex-shrink-0 text-slate-200 hover:bg-slate-800 hover:text-white"
+                  : "flex-shrink-0 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+              }
+              aria-label="Open Knowledge"
+              title="Knowledge"
+            >
+              <Link href="/knowledge">
+                <Brain className="h-5 w-5" />
+              </Link>
             </Button>
           </div>
 

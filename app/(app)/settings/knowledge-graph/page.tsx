@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,14 +14,50 @@ import Link from "next/link"
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
 
+type KnowledgeGraphAccess = ReturnType<typeof useKnowledgeGraph>
+
 export default function KnowledgeGraphSettingsPage() {
   const kg = useKnowledgeGraph()
+
+  // Keep confirmation text and in-progress controls owned by one account.
+  // A user switch remounts this state before the next account is rendered.
+  return <KnowledgeGraphSettingsForAccount key={kg.accountKey} kg={kg} />
+}
+
+function KnowledgeGraphSettingsForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const [showPurgeConfirm, setShowPurgeConfirm] = useState(false)
   const [purgeResult, setPurgeResult] = useState<string | null>(null)
   const [toggleLoading, setToggleLoading] = useState(false)
+  const actionGenerationRef = useRef(0)
 
-  // Non-premium users see a locked/upsell state
-  if (!kg.isPremium) {
+  useEffect(() => () => {
+    // Network requests are aborted and generation-guarded by the KG hook;
+    // this also prevents their awaiting UI continuations from touching a
+    // remounted account workspace.
+    actionGenerationRef.current += 1
+  }, [])
+
+  // Resolve auth and live billing before choosing between the paid and locked
+  // states; otherwise a paid user briefly sees an incorrect upgrade card.
+  if (kg.isLoading) {
+    return (
+      <Card aria-busy="true">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5" />
+            Knowledge Graph
+          </CardTitle>
+          <CardDescription>Checking your Knowledge access…</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-20 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Non-entitled users see a locked/upsell state
+  if (!kg.isEntitled) {
     return (
       <Card>
         <CardHeader>
@@ -39,9 +75,9 @@ export default function KnowledgeGraphSettingsPage() {
               <Lock className="h-8 w-8 text-muted-foreground" />
             </div>
             <div className="space-y-1">
-              <p className="font-medium">Max Feature</p>
+              <p className="font-medium">Premium Feature</p>
               <p className="text-sm text-muted-foreground">
-                Knowledge Graph is available on Max plans. Upgrade to build
+                Knowledge Graph is available on Pro plans and above. Upgrade to build
                 a persistent knowledge graph that enriches every new deck you create.
               </p>
             </div>
@@ -66,24 +102,40 @@ export default function KnowledgeGraphSettingsPage() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!kg.isLoading && !kg.serviceAvailable && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              The Knowledge Graph backend is not reachable right now. Your
+              settings can&apos;t be read or changed until it&apos;s back.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
-            <Label>Build a knowledge graph across my decks</Label>
+            <Label htmlFor="knowledge-graph-subscription">
+              Build a knowledge graph across my decks
+            </Label>
             <p className="text-sm text-muted-foreground">
               When enabled, research from each deck enriches future decks on related topics
             </p>
           </div>
           <Switch
+            id="knowledge-graph-subscription"
+            aria-label="Build a knowledge graph across my decks"
             checked={kg.isSubscribed}
-            disabled={kg.isLoading || toggleLoading}
+            disabled={kg.isLoading || toggleLoading || !kg.serviceAvailable}
             onCheckedChange={async (checked) => {
+              const generation = ++actionGenerationRef.current
               setToggleLoading(true)
               if (checked) {
                 await kg.subscribe()
               } else {
-                kg.unsubscribe()
+                await kg.unsubscribe()
               }
-              setToggleLoading(false)
+              if (actionGenerationRef.current === generation) {
+                setToggleLoading(false)
+              }
             }}
           />
         </div>
@@ -129,7 +181,9 @@ export default function KnowledgeGraphSettingsPage() {
                       variant="destructive"
                       size="sm"
                       onClick={async () => {
+                        const generation = ++actionGenerationRef.current
                         const result = await kg.purge()
+                        if (actionGenerationRef.current !== generation) return
                         setShowPurgeConfirm(false)
                         if (result) {
                           setPurgeResult(
