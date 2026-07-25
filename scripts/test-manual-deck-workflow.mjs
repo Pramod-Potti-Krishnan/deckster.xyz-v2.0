@@ -115,9 +115,13 @@ const unmarkedH1s = structuredClone(canonicalLayoutBlank)
 delete unmarkedH1s.slides[0].metadata.is_blank
 assert.equal(
   inspectManualDeck(unmarkedH1s).hasMeaningfulWork,
-  true,
-  'only the marked initial H1s may bypass the customized-slide prompt',
+  false,
+  'Layout runtime H1s blank without metadata must not prompt',
 )
+
+const unmarkedH1sWithContent = structuredClone(unmarkedH1s)
+unmarkedH1sWithContent.slides[0].content.slide_title = 'My custom title'
+assert.equal(inspectManualDeck(unmarkedH1sWithContent).hasMeaningfulWork, true)
 
 const twoSlides = structuredClone(blank)
 twoSlides.slides.push(structuredClone(blank.slides[0]))
