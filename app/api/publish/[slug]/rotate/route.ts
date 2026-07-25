@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { generateSlug } from '@/lib/publish/slug';
 import {
   deletePresentationSnapshot,
+  getPresentationUpdatedAt,
   getSnapshotSlideCountWithRetry,
   retryDeleteStaleSnapshots,
   snapshotPresentation,
@@ -101,6 +102,12 @@ export async function POST(
       );
     }
 
+    // Rotate re-snapshots, so it also re-baselines staleness: record the SOURCE
+    // deck's updated_at as of this new snapshot. Read AFTER the snapshot, exactly
+    // as POST /api/publish does. Best-effort — never fails the rotate (null just
+    // means "unknown", which reads as "not stale").
+    const sourceUpdatedAt = await getPresentationUpdatedAt(sourcePresentationId);
+
     // Self-heal: retry earlier failed deletes (safe anytime — unreferenced).
     const carriedStale = await retryDeleteStaleSnapshots(existing.staleSnapshotIds, existing.id);
     // Pre-park the old snapshot id IN THE SAME version-CAS that swaps the pointer,
@@ -132,6 +139,7 @@ export async function POST(
             snapshotPresentationId: snapshot.snapshotId,
             sourcePresentationId,
             slideCount,
+            sourceUpdatedAt,
             staleSnapshotIds: stagedStale,
             version: { increment: 1 },
           },

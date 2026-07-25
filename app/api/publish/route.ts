@@ -7,6 +7,7 @@ import { generateSlug } from '@/lib/publish/slug';
 import { hashPasscode, MIN_PASSCODE_LENGTH } from '@/lib/publish/passcode';
 import {
   deletePresentationSnapshot,
+  getPresentationUpdatedAt,
   getSnapshotSlideCountWithRetry,
   retryDeleteStaleSnapshots,
   snapshotPresentation,
@@ -146,6 +147,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Staleness baseline: the SOURCE deck's updated_at as of this publish.
+    // Read AFTER the snapshot so the Layout snapshot call itself (should it ever
+    // touch the source row) can't leave us permanently "stale". Best-effort —
+    // getPresentationUpdatedAt never throws and returns null on any failure, and
+    // a null simply means "unknown" downstream (never blocks or fails a publish).
+    const sourceUpdatedAt = await getPresentationUpdatedAt(chatSession.finalPresentationId);
+
     const title = chatSession.title || 'Untitled presentation';
     const passcodeHash =
       passcode === undefined ? undefined : passcode.length > 0 ? hashPasscode(passcode) : null;
@@ -182,6 +190,7 @@ export async function POST(req: NextRequest) {
           snapshotPresentationId: snapshot.snapshotId,
           title,
           slideCount,
+          sourceUpdatedAt,
           staleSnapshotIds: stagedStale,
           version: { increment: 1 },
           republishedAt: new Date(),
@@ -253,6 +262,7 @@ export async function POST(req: NextRequest) {
             snapshotPresentationId: snapshot.snapshotId,
             title,
             slideCount,
+            sourceUpdatedAt,
             visibility: visibility ?? 'unlisted',
             passcodeHash: passcodeHash ?? null,
             ...(allowPdf !== undefined ? { allowPdf } : {}),

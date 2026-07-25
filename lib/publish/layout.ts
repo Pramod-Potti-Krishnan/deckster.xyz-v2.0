@@ -119,21 +119,65 @@ export async function retryDeleteStaleSnapshots(
   return stillStale
 }
 
+export interface PresentationMeta {
+  /** Layout's top-level `updated_at` string, verbatim (null if absent) */
+  updatedAt: string | null
+  /** slides.length (null if the deck has no slides array) */
+  slideCount: number | null
+}
+
 /**
- * Slide count: read slides.length off the full deck JSON.
+ * One GET of the deck JSON -> the two facts publish cares about. The deck JSON
+ * can be multi-MB, so callers that need both must use this rather than issuing
+ * two fetches (and no caller should reach for it on a hot path).
+ *
+ * Never throws: every failure mode collapses to null, because the callers use
+ * this for advisory signals that must not break a publish.
  */
-export async function getPresentationSlideCount(presentationId: string): Promise<number | null> {
+export async function getPresentationMeta(presentationId: string): Promise<PresentationMeta> {
   try {
     const response = await fetch(
       `${getLayoutServiceBaseUrl()}/api/presentations/${presentationId}`
     )
-    if (!response.ok) return null
+    if (!response.ok) return { updatedAt: null, slideCount: null }
     const data = await response.json()
-    return Array.isArray(data?.slides) ? data.slides.length : null
+    return {
+      updatedAt: typeof data?.updated_at === 'string' ? data.updated_at : null,
+      slideCount: Array.isArray(data?.slides) ? data.slides.length : null,
+    }
   } catch (error) {
-    console.error('[Publish] Slide count fetch error:', presentationId, error)
-    return null
+    console.error('[Publish] Presentation meta fetch error:', presentationId, error)
+    return { updatedAt: null, slideCount: null }
   }
+}
+
+/**
+ * Slide count: read slides.length off the full deck JSON.
+ */
+export async function getPresentationSlideCount(presentationId: string): Promise<number | null> {
+  const { slideCount } = await getPresentationMeta(presentationId)
+  return slideCount
+}
+
+/**
+ * The SOURCE deck's `updated_at`, persisted at publish time and compared on the
+ * owner's next dialog open to tell them — exactly, not by clock heuristics —
+ * that the frozen published copy no longer matches the deck they're editing.
+ *
+ * Returns null on ANY failure (non-2xx, network error, field missing/not a
+ * string). A null is stored as "unknown" and never fails the publish, and the
+ * staleness check treats unknown as "not stale" so a Layout hiccup can't nag the
+ * owner into pointless republishes.
+ *
+ * ACCEPTED TRADE-OFF: Layout bumps `updated_at` on ANY deck write, including a
+ * speaker-notes / script save. Editing only narration therefore counts as
+ * "changed" here even though viewers of the published deck see no visible
+ * difference. We prefer that false positive (a redundant republish) to the false
+ * negative this whole signal exists to kill (a silently stale public link).
+ */
+export async function getPresentationUpdatedAt(presentationId: string): Promise<string | null> {
+  const { updatedAt } = await getPresentationMeta(presentationId)
+  return updatedAt
 }
 
 /**

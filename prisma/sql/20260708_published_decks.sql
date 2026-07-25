@@ -14,6 +14,10 @@ CREATE TABLE IF NOT EXISTS "fe_published_decks" (
   "passcode_hash" TEXT,
   "allow_pdf" BOOLEAN NOT NULL DEFAULT true,
   "allow_pptx" BOOLEAN NOT NULL DEFAULT true,
+  -- The SOURCE deck's Layout `updated_at` at the last publish/republish/rotate.
+  -- Exact staleness signal: differs from the live deck's current updated_at =>
+  -- the frozen copy viewers see is out of date. NULL = couldn't be read.
+  "source_updated_at" TEXT,
   -- Snapshot ids whose Layout-side delete failed; retried on the next
   -- publish/rotate/unpublish so revocation isn't silently lost.
   "stale_snapshot_ids" TEXT[] NOT NULL DEFAULT '{}',
@@ -32,5 +36,6 @@ CREATE TABLE IF NOT EXISTS "fe_published_decks" (
 -- never be added without these. No-ops when the column already exists.
 ALTER TABLE "fe_published_decks" ADD COLUMN IF NOT EXISTS "stale_snapshot_ids" TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE "fe_published_decks" ADD COLUMN IF NOT EXISTS "version" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "fe_published_decks" ADD COLUMN IF NOT EXISTS "source_updated_at" TEXT;
 
 CREATE INDEX IF NOT EXISTS "fe_published_decks_user_id_idx" ON "fe_published_decks"("user_id");
