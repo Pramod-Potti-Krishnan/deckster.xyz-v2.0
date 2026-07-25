@@ -5,7 +5,7 @@
   "installCommand": "pnpm install",
   "regions": ["iad1"],
   "functions": {
-    "app/api/*/route.ts": {
+    "app/api/**/route.ts": {
       "maxDuration": 30
     }
   },

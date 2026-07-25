@@ -4419,6 +4419,9 @@ function BuilderContent() {
             connecting={connecting}
             toolbarPortalTarget={toolbarPortalTarget}
             toolbarOffset={drawerOffset > TEMPLATE_PANEL_COLLAPSED_WIDTH ? Math.max(drawerOffset - 112, 0) : 0}
+            publishSessionId={currentSessionId || wsSessionId}
+            deckTitle={slideStructure?.metadata?.main_title ?? null}
+            hasFinalDeck={Boolean(finalPresentationId || finalPresentationUrl)}
             sessionId={wsSessionId}
             deckOwnerSessionId={deckOwnerSessionId}
             templateSavePresentationId={templateSavePresentationId}

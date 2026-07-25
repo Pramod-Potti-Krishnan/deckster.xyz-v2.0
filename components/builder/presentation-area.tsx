@@ -3,6 +3,7 @@
 import React from "react"
 import { PresentationViewer, TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi } from "@/components/presentation-viewer"
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
+import { PublishControls } from "@/components/publish-dialog"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
 import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-strip"
 // Branding ("powered by deckster") lives inside PresentationViewer's
@@ -87,6 +88,10 @@ export interface PresentationAreaProps {
   connecting: boolean
   toolbarPortalTarget?: HTMLDivElement | null
   toolbarOffset?: number
+  // Publish: ChatSession id + gate (final deck required by the publish API)
+  publishSessionId?: string | null
+  deckTitle?: string | null
+  hasFinalDeck?: boolean
   // Template Builder: WS session id (source for "Save as Template") + gate
   sessionId?: string | null
   deckOwnerSessionId?: string | null
@@ -146,6 +151,9 @@ export function PresentationArea({
   connecting,
   toolbarPortalTarget,
   toolbarOffset,
+  publishSessionId,
+  deckTitle,
+  hasFinalDeck = false,
   sessionId,
   deckOwnerSessionId,
   templateSavePresentationId,
@@ -183,12 +191,20 @@ export function PresentationArea({
             onVersionSwitch={onVersionSwitch}
             showControls={true}
             downloadControls={
-              <PresentationDownloadControls
-                presentationUrl={presentationUrl}
-                presentationId={presentationId}
-                slideCount={slideCount}
-                stage={currentStage}
-              />
+              <>
+                <PresentationDownloadControls
+                  presentationUrl={presentationUrl}
+                  presentationId={presentationId}
+                  slideCount={slideCount}
+                  stage={currentStage}
+                />
+                <PublishControls
+                  sessionId={publishSessionId ?? null}
+                  deckTitle={deckTitle ?? null}
+                  slideCount={slideCount}
+                  hasFinalDeck={hasFinalDeck}
+                />
+              </>
             }
             onSlideChange={(slideNum) => {
               if (templateModeOn) {

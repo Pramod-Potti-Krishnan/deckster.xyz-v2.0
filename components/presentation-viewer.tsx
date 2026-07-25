@@ -26,7 +26,6 @@ import {
   Sparkles,
   LayoutTemplate,
   SlidersHorizontal,
-  FileText,
   Settings2,
   Eye,
   Sun,
@@ -68,6 +67,7 @@ import { useTheme } from 'next-themes'
 import Link from 'next/link'
 import { SlideThumbnailStrip, SlideThumbnail, type SlideComposeThumbnailJob } from './slide-thumbnail-strip'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import { SlideNotesPanel } from './slide-notes-panel'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { DeleteSlideDialog } from './delete-slide-dialog'
@@ -610,16 +610,10 @@ export function PresentationViewer({
   // View mode toggles (grid, borders, edit) - only shown in non-fullscreen
   const [isGridActive, setIsGridActive] = useState(false)
   const [isBordersActive, setIsBordersActive] = useState(false)
-  // Speaker notes — default OFF (user opts in via the Show menu). The
-  // Layout Service honors ?showNotes=true/false on the iframe URL; in
-  // fullscreen we always force false regardless of this state.
-  const [isNotesActive, setIsNotesActive] = useState(false)
   const approvedIframeNavigationUrl = useMemo(() => {
     if (!approvedPresentationUrl) return null
-    const url = new URL(approvedPresentationUrl)
-    url.searchParams.set('showNotes', String(!isFullscreen && isNotesActive))
-    return url.toString()
-  }, [approvedPresentationUrl, isFullscreen, isNotesActive])
+    return new URL(approvedPresentationUrl).toString()
+  }, [approvedPresentationUrl])
   const viewerIsReady = Boolean(
     iframeReady &&
     approvedIframeNavigationUrl &&
@@ -2788,13 +2782,6 @@ export function PresentationViewer({
                     >
                       <Square className="h-4 w-4 mr-2" /> Borders
                     </DropdownMenuCheckboxItem>
-                    <DropdownMenuCheckboxItem
-                      checked={isNotesActive}
-                      onCheckedChange={() => setIsNotesActive((prev) => !prev)}
-                      className="cursor-pointer whitespace-nowrap"
-                    >
-                      <FileText className="h-4 w-4 mr-2" /> Notes
-                    </DropdownMenuCheckboxItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onSelect={() => setShowPresentationSettings(true)}
@@ -3059,6 +3046,17 @@ export function PresentationViewer({
               </div>
             )}
           </div>
+
+          {/* Script | Notes | References — collapsible panel below the slide.
+              The slide container's ResizeObserver fit-contain absorbs the
+              height change; hidden while presenting fullscreen. */}
+          {!isFullscreen && (
+            <SlideNotesPanel
+              presentationId={presentationId}
+              currentSlideIndex={Math.max(0, currentSlide - 1)}
+              slideStructure={slideStructure}
+            />
+          )}
 
           {/* powered by deckster — inside slide column so it tracks the slide's right edge */}
           {!isFullscreen && (
