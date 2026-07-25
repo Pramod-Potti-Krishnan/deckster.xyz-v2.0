@@ -416,6 +416,9 @@ export interface UseDecksterWebSocketV2State {
   blankPresentationId: string | null; // Blank presentation ID
   isBlankPresentation: boolean; // True if currently showing blank presentation
   activeVersion: 'blank' | 'strawman' | 'final'; // Which version is currently being viewed
+  // Durable Director workflow state. This is authoritative for deciding whether
+  // the next build starts from a manually edited blank presentation.
+  directorWorkflowState: string | null;
   slideCount: number | null;
   currentStatus: StatusUpdate['payload'] | null;
   slideStructure: SlideUpdate['payload'] | null;
@@ -597,6 +600,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         blankPresentationId: cached.blankPresentationId || null,
         isBlankPresentation: cached.isBlankPresentation || false,
         activeVersion: cachedActiveVersion,
+        directorWorkflowState: null,
         slideCount: cached.slideCount || null,
         currentStatus: cached.currentStatus || null,
         slideStructure: cached.slideStructure || null,
@@ -632,6 +636,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       blankPresentationId: null,
       isBlankPresentation: false,
       activeVersion: 'final', // Default to final when available, fallback to strawman/blank
+      directorWorkflowState: null,
       slideCount: null,
       currentStatus: null,
       slideStructure: null,
@@ -1143,6 +1148,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
               case 'sync_response':
                 // Sync protocol response - Director confirms whether to skip history
+                newState.directorWorkflowState = message.payload.current_state || null;
                 debugLog('🔄 Sync response received:', {
                   action: message.payload.action,
                   message_count: message.payload.message_count,
@@ -1205,6 +1211,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   newState.currentStatus = null;
                   break;
                 }
+                newState.directorWorkflowState = 'CONTENT_GENERATED';
 
                 // Extended-generation builds (Phase 4a) emit one ephemeral
                 // "Building slide N/M…" progress bubble per slide, then close the
@@ -1265,6 +1272,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 // Director sends presentation_init (instead of slide_update) for blank presentations
                 // This avoids rendering a "1 slides · 0 min" card in chat
                 debugLog('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
+                newState.directorWorkflowState = 'BLANK_PRESENTATION';
 
                 const initUrl = message.payload.presentation_url ||
                                 message.payload.preview_url ||
@@ -1337,6 +1345,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 // Legacy: Handle blank presentation sent as slide_update with is_blank flag
                 // (kept for backward compatibility, but Director now sends presentation_init instead)
                 if (message.payload.is_blank) {
+                  newState.directorWorkflowState = 'BLANK_PRESENTATION';
                   const blankUrl = message.payload.preview_url ||
                                    message.payload.metadata?.preview_url;
                   const blankId = message.payload.metadata?.preview_presentation_id ||
@@ -1383,6 +1392,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 }
 
                 // EXISTING: Handle regular slide_update (strawman preview)
+                newState.directorWorkflowState = 'REFINE_STRAWMAN';
                 // Extract preview URL if present (strawman preview)
                 // Check multiple possible locations
                 const previewUrl = message.payload.preview_url ||
@@ -2059,6 +2069,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       blankPresentationId: null,
       isBlankPresentation: false,
       activeVersion: 'final',
+      directorWorkflowState: null,
       slideCount: null,
       currentStatus: null,
       slideStructure: null,

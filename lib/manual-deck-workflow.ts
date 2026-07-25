@@ -16,6 +16,7 @@ const ELEMENT_COLLECTION_KEYS = [
 
 const DEFAULT_BLANK_LAYOUTS = new Set(['H1-structured', 'blank'])
 const INITIAL_BLANK_LAYOUTS = new Set(['H1s', 'H1-structured', 'blank', 'B1'])
+const MANUAL_DECK_WORKFLOW_STATES = new Set(['NEW', 'BLANK_PRESENTATION', 'TOPIC_SET'])
 const EMPTY_HTML = /<(?:br|p|div)(?:\s[^>]*)?>\s*(?:&nbsp;|&#160;|\s)*<\/(?:p|div)>|<br\s*\/?>/gi
 
 export interface ManualDeckSummary {
@@ -85,6 +86,31 @@ export interface SessionHandoffRequest {
   store_name?: string
   attachment_store_references: Array<{ store_name: string }>
   manual_deck_summary: ManualDeckSummary
+}
+
+export function shouldInspectManualDeckBeforeBuild(input: {
+  hasPendingAction: boolean
+  hasManualDeckContext: boolean
+  templateModeOn: boolean
+  sourcePresentationId: string | null | undefined
+  directorWorkflowState?: string | null
+  isBlankPresentation: boolean
+  activeVersion: 'blank' | 'strawman' | 'final'
+}): boolean {
+  if (
+    input.hasPendingAction ||
+    input.hasManualDeckContext ||
+    input.templateModeOn ||
+    !input.sourcePresentationId
+  ) {
+    return false
+  }
+
+  if (input.directorWorkflowState) {
+    return MANUAL_DECK_WORKFLOW_STATES.has(input.directorWorkflowState)
+  }
+
+  return input.isBlankPresentation && input.activeVersion === 'blank'
 }
 
 type StorageReader = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>

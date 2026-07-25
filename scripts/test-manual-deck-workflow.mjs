@@ -17,7 +17,66 @@ const {
   inspectManualDeck,
   readPendingHandoff,
   savePendingHandoff,
+  shouldInspectManualDeckBeforeBuild,
 } = mod.exports
+
+const manualDeckPreflightBase = {
+  hasPendingAction: false,
+  hasManualDeckContext: false,
+  templateModeOn: false,
+  sourcePresentationId: 'presentation-1',
+  isBlankPresentation: false,
+  activeVersion: 'final',
+}
+assert.equal(
+  shouldInspectManualDeckBeforeBuild({
+    ...manualDeckPreflightBase,
+    directorWorkflowState: 'BLANK_PRESENTATION',
+  }),
+  true,
+  'Director blank state must win over a stale final-viewer flag',
+)
+assert.equal(
+  shouldInspectManualDeckBeforeBuild({
+    ...manualDeckPreflightBase,
+    directorWorkflowState: 'TOPIC_SET',
+  }),
+  true,
+  'Director topic state still represents the first build from the manual deck',
+)
+assert.equal(
+  shouldInspectManualDeckBeforeBuild({
+    ...manualDeckPreflightBase,
+    directorWorkflowState: 'COMPLETE',
+  }),
+  false,
+  'completed Director sessions must not reopen the manual-deck choice',
+)
+assert.equal(
+  shouldInspectManualDeckBeforeBuild({
+    ...manualDeckPreflightBase,
+    directorWorkflowState: null,
+    isBlankPresentation: true,
+    activeVersion: 'blank',
+  }),
+  true,
+  'legacy sessions without a Director state retain the blank-viewer fallback',
+)
+for (const blockedInput of [
+  { hasPendingAction: true },
+  { hasManualDeckContext: true },
+  { templateModeOn: true },
+  { sourcePresentationId: null },
+]) {
+  assert.equal(
+    shouldInspectManualDeckBeforeBuild({
+      ...manualDeckPreflightBase,
+      directorWorkflowState: 'BLANK_PRESENTATION',
+      ...blockedInput,
+    }),
+    false,
+  )
+}
 
 const blank = {
   title: 'Untitled Presentation',
