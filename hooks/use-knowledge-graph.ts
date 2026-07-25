@@ -13,6 +13,8 @@ interface KgSettings {
   updated_at: string | null
   /** Set by the proxy when the KG backend is unreachable / not activated. */
   service_unavailable?: boolean
+  /** Readiness probe result forwarded by the settings proxy. */
+  capability?: KgCapability
 }
 
 export interface KgCapability {

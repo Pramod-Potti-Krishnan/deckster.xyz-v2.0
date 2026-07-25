@@ -3509,8 +3509,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       // For resumed sessions, connect on first message
       if (session.isResumedSession && !connected && !connecting) {
         console.log('Connecting WebSocket for first message in resumed session')
-        const connectionReady = await connect()
-        if (!connectionReady) {
+        // uat's connect() is fire-and-forget (void); readiness is asserted by
+        // the isReady guard below rather than a return value.
+        connect()
+        if (!connected && !isReady) {
           toast({
             title: 'Could not connect to this deck',
             description: 'Your message was not sent. Please try again when the connection recovers.',
@@ -3753,6 +3755,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         console.warn('[Manual Deck] Could not persist handoff submission in session storage.', error)
       }
       writeBuilderSessionOptions(
+        builderCacheOwner,
         newSessionId,
         activeTemplate,
         buildThemeSelection,
