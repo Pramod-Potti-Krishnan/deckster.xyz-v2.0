@@ -1601,7 +1601,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     ephemeralFadeToken,
     tokenUsage,
     tokenUsageMessageId,
+    hasStrawman,
     sendMessage,
+    sendMessageWhenConnected,
     sendControlMessage,
     sendThemeSelection,
     clearMessages,
@@ -3198,6 +3200,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [user])
 
   // Handle sending messages
+  // Research settings freeze. These toggles decide what the deck is BUILT from,
+  // and the strawman is where they are first spent — web/deep research fire
+  // there and extraction-readiness is read there. Changing them afterwards
+  // yields a deck whose grounding disagrees with its own settings, so the
+  // Director refuses late changes too ([TAP:RESEARCH_SETTINGS_LOCKED]); this is
+  // only the matching UI. `hasStrawman` is the Director's own signal, latched.
+  const researchSettingsLocked = hasStrawman
+
   const handleSendMessage = useCallback(async (
     e?: React.FormEvent,
     messageOverride?: string,
@@ -3524,72 +3534,47 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         }
       }
 
-      // For resumed sessions, connect on first message
-      if (session.isResumedSession && !connected && !connecting) {
-        console.log('Connecting WebSocket for first message in resumed session')
-        // uat's connect() is fire-and-forget (void); readiness is asserted by
-        // the isReady guard below rather than a return value.
-        connect()
-        if (!connected && !isReady) {
-          toast({
-            title: 'Could not connect to this deck',
-            description: 'Your message was not sent. Please try again when the connection recovers.',
-            variant: 'destructive',
-          })
-          return
-        }
-        session.setIsResumedSession(false)
-
-        const messageId = crypto.randomUUID()
-        const timestamp = Date.now()
-
-        session.userMessageIdsRef.current.add(messageId)
-
-        session.setUserMessages(prev => [...prev, {
-          id: messageId,
-          text: messageText,
-          timestamp: timestamp
-        }])
-
-        if (currentSessionId && persistence) {
-          console.log('Persisting user message for resumed session:', messageId)
-          persistence.queueMessage({
-            message_id: messageId,
-            session_id: currentSessionId,
-            timestamp: new Date(timestamp).toISOString(),
-            type: 'chat_message',
-            payload: { text: messageText }
-          } as DirectorMessage, messageText)
-        }
-
-        setInputMessage("")
-
-        const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
-        const fileCount = successfulFiles.length
-
-        sendMessage(messageText, undefined, fileCount, {
-          deepResearch: researchEnabled,
-          webSearch: webSearchEnabled,
-          extendedGeneration: extendedGenerationEnabled,
-          useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
-          fileUpload: !!sessionStoreName,
-          storeName: sessionStoreName,
-          ...buildSendOptions,
-        })
-        if (successfulFiles.length > 0) {
-          clearAllFiles()
-        }
-        return
-      }
-
-      // Normal check for connection
-      if (!isReady) return
-
+      // A resumed session used to get its own send path here: call connect(),
+      // then immediately read `connected`/`isReady` — React state captured in
+      // this closure, so still false however well the connect went — and either
+      // bail with a toast or send and ignore the result. It duplicated the main
+      // path and dropped messages in both directions. The unified send below
+      // reconnects and waits on the socket REF, so it is correct for a resumed
+      // session too; all that is left to do here is retire the flag.
       const messageId = crypto.randomUUID()
       const timestamp = Date.now()
 
-      session.userMessageIdsRef.current.add(messageId)
+      const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
+      const fileCount = successfulFiles.length
 
+      // Deliver FIRST, then commit to the UI. The previous order rendered the
+      // bubble and queued it for persistence before attempting the send, so a
+      // closed socket produced a message that looked sent, was stored as sent,
+      // and reached nobody — indistinguishable to the user from the Director
+      // ignoring them. Nothing below is allowed to run unless the bytes left.
+      const success = await sendMessageWhenConnected(messageText, undefined, fileCount, {
+        deepResearch: researchEnabled,
+        webSearch: webSearchEnabled,
+        extendedGeneration: extendedGenerationEnabled,
+        useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
+        fileUpload: !!sessionStoreName,
+        storeName: sessionStoreName,
+        ...buildSendOptions,
+        manualDeck: turnContext?.manualDeck,
+      })
+
+      if (!success) {
+        // Say so, and keep the text in the composer so it can be retried.
+        // Never render it as a sent message.
+        toast({
+          title: "Couldn't reach the Director",
+          description: 'Your message was not sent — the connection dropped and could not be reopened. It is still in the box; try again.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      session.userMessageIdsRef.current.add(messageId)
       session.setUserMessages(prev => [...prev, {
         id: messageId,
         text: messageText,
@@ -3615,27 +3600,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         }
       }
 
-      const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
-      const fileCount = successfulFiles.length
-
-      const success = sendMessage(messageText, undefined, fileCount, {
-        deepResearch: researchEnabled,
-        webSearch: webSearchEnabled,
-        extendedGeneration: extendedGenerationEnabled,
-        useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
-        fileUpload: !!sessionStoreName,
-        storeName: sessionStoreName,
-        ...buildSendOptions,
-        manualDeck: turnContext?.manualDeck,
-      })
-      if (success) {
-        setInputMessage("")
-        if (session.isResumedSession) {
-          session.setIsResumedSession(false)
-        }
-        if (successfulFiles.length > 0) {
-          clearAllFiles()
-        }
+      setInputMessage("")
+      if (session.isResumedSession) {
+        session.setIsResumedSession(false)
+      }
+      if (successfulFiles.length > 0) {
+        clearAllFiles()
       }
     } finally {
       setTimeout(() => {
@@ -3643,7 +3613,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }, 500)
     }
   }, [
-    inputMessage, isReady, sendMessage, currentSessionId, persistence,
+    inputMessage, isReady, sendMessage, sendMessageWhenConnected, currentSessionId, persistence,
     session.isResumedSession, connected, connecting, connect, isUnsavedSession,
     createSession, router, uploadedFiles, clearAllFiles, researchEnabled,
     webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled,
@@ -3897,21 +3867,44 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   ])
 
   // Handle action button clicks
-  const handleActionClick = useCallback((action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
+  const handleActionClick = useCallback(async (action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
     const messageId = crypto.randomUUID()
     const timestamp = Date.now()
 
-    session.answeredActionsRef.current.add(actionRequestMessageId)
-    console.log(`Marked action request ${actionRequestMessageId} as answered`)
-
     if (action.requires_input) {
+      session.answeredActionsRef.current.add(actionRequestMessageId)
       setPendingActionInput({ action, messageId, timestamp })
       setTimeout(() => {
         textareaRef.current?.focus()
       }, 100)
     } else {
-      session.userMessageIdsRef.current.add(messageId)
+      // Same rule as the composer: deliver first, commit after. Clicking a
+      // button into a closed socket used to mark the action answered, render
+      // the reply, show the generating loader and then quietly send nothing —
+      // leaving a deck that looked like it was building and never was.
+      const success = await sendMessageWhenConnected(action.label, undefined, undefined, {
+        deepResearch: researchEnabled,
+        webSearch: webSearchEnabled,
+        extendedGeneration: extendedGenerationEnabled,
+        useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
+        fileUpload: !!sessionStoreName,
+        storeName: sessionStoreName,
+        actionValue: action.value,
+        actionLabel: action.label,
+        ...buildSendOptions,
+      })
 
+      if (!success) {
+        toast({
+          title: "Couldn't reach the Director",
+          description: `"${action.label}" was not sent — the connection dropped and could not be reopened. Try again.`,
+          variant: 'destructive',
+        })
+        return
+      }
+
+      session.answeredActionsRef.current.add(actionRequestMessageId)
+      session.userMessageIdsRef.current.add(messageId)
       session.setUserMessages(prev => [...prev, {
         id: messageId,
         text: action.label,
@@ -3928,6 +3921,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         } as unknown as DirectorMessage, action.label)
       }
 
+      // Only now is the build genuinely under way, so only now show the loader.
       if (action.value === 'accept_strawman') {
         setIsGeneratingFinal(true)
         console.log('Starting final deck generation - showing loader')
@@ -3936,20 +3930,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         setTemplateReuseAwaitingInput(false)
         setIsGeneratingFinal(true)
       }
-
-      sendMessage(action.label, undefined, undefined, {
-        deepResearch: researchEnabled,
-        webSearch: webSearchEnabled,
-        extendedGeneration: extendedGenerationEnabled,
-        useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
-        fileUpload: !!sessionStoreName,
-        storeName: sessionStoreName,
-        actionValue: action.value,
-        actionLabel: action.label,
-        ...buildSendOptions,
-      })
     }
-  }, [sendMessage, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, canUseKnowledgeGraph, sessionStoreName, buildSendOptions, activeTemplate])
+  }, [sendMessageWhenConnected, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, canUseKnowledgeGraph, sessionStoreName, buildSendOptions, activeTemplate, session, toast])
 
   const handleCancelTemplateReuse = useCallback(() => {
     const sent = sendControlMessage('cancel_template_reuse')
@@ -4365,6 +4347,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                       setPendingActionInput(null)
                       setInputMessage("")
                     }}
+                    researchSettingsLocked={researchSettingsLocked}
                     researchEnabled={researchEnabled}
                     onResearchEnabledChange={setResearchEnabled}
                     webSearchEnabled={webSearchEnabled}

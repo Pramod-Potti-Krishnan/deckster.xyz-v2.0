@@ -77,6 +77,9 @@ export interface ChatInputProps {
   showKnowledgeGraphToggle: boolean
   knowledgeGraphAccess: 'locked' | 'setup' | 'ready' | 'unavailable' | 'loading'
   onKnowledgeGraphAccessClick: () => void
+  /** Research settings are spent at strawman generation; after that they are
+   *  frozen for the deck and the Director refuses late changes server-side. */
+  researchSettingsLocked?: boolean
   isReady: boolean
   isLoadingSession: boolean
   connected: boolean
@@ -119,6 +122,7 @@ export function ChatInput({
   showKnowledgeGraphToggle,
   knowledgeGraphAccess,
   onKnowledgeGraphAccessClick,
+  researchSettingsLocked = false,
   isReady,
   isLoadingSession,
   connected,
@@ -807,6 +811,12 @@ export function ChatInput({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-52">
+                  {researchSettingsLocked && (
+                    <div className="mx-2 mb-1 mt-2 rounded-md bg-gray-100 px-2 py-1.5 text-[10px] leading-snug text-gray-600 dark:bg-slate-800 dark:text-slate-300">
+                      Locked for this deck — research already ran. Start a new
+                      session to change these.
+                    </div>
+                  )}
                   <div className="flex items-center justify-between px-2 py-2">
                     <div className="flex items-center gap-2">
                       <Search className="h-4 w-4 text-gray-500 dark:text-slate-400" />
@@ -815,6 +825,7 @@ export function ChatInput({
                     <Switch
                       checked={researchEnabled}
                       onCheckedChange={onResearchEnabledChange}
+                      disabled={researchSettingsLocked}
                       className="scale-75"
                     />
                   </div>
@@ -826,6 +837,7 @@ export function ChatInput({
                     <Switch
                       checked={webSearchEnabled}
                       onCheckedChange={onWebSearchEnabledChange}
+                      disabled={researchSettingsLocked}
                       className="scale-75"
                     />
                   </div>
@@ -839,6 +851,7 @@ export function ChatInput({
                         <Switch
                           checked={knowledgeGraphEnabled}
                           onCheckedChange={onKnowledgeGraphEnabledChange}
+                          disabled={researchSettingsLocked}
                           className="scale-75"
                           aria-label="Use my knowledge graph for this deck"
                         />
