@@ -725,6 +725,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   );
   const reconnectOnErrorRef = useRef(options.reconnectOnError === true);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  // KG v2 (WS auth): timer that re-mints the Director identity token before it
+  // lapses. Without this the socket dies mid-deck-build (token TTL is 15m and
+  // ws_auth caps any token at 20m), and the frame that arrives at expiry is
+  // discarded server-side — which silently swallowed the strawman approval.
+  const authRefreshTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const pongDeadlineTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const awaitingPongRef = useRef(false);
   const lastCloseDiagnosticAtRef = useRef(0);
@@ -753,6 +758,52 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       };
     });
   }, []);
+
+  const clearAuthRefreshTimer = useCallback(() => {
+    if (authRefreshTimerRef.current) {
+      clearTimeout(authRefreshTimerRef.current);
+      authRefreshTimerRef.current = undefined;
+    }
+  }, []);
+
+  /**
+   * Re-mint the Director token and hand it to the open socket via an in-band
+   * `auth_refresh` frame, then re-arm. Fired at ~60% of the token lifetime so
+   * there is ample slack before the server-side expiry check trips.
+   */
+  const scheduleAuthRefresh = useCallback((expiresInSeconds: number) => {
+    clearAuthRefreshTimer();
+    if (!expiresInSeconds || expiresInSeconds <= 0) return;
+    const delayMs = Math.max(30_000, Math.floor(expiresInSeconds * 0.6) * 1000);
+    authRefreshTimerRef.current = setTimeout(async () => {
+      const socket = wsRef.current;
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      try {
+        const resp = await fetch(
+          `/api/director/ws-token?session_id=${encodeURIComponent(sessionIdRef.current)}`,
+          { cache: 'no-store' },
+        );
+        if (!resp.ok) throw new Error(`ws-token HTTP ${resp.status}`);
+        const body = await resp.json();
+        if (body?.auth_enabled === false) return; // tokenless deployment
+        if (!body?.auth_token) throw new Error('ws-token returned no token');
+        socket.send(JSON.stringify({
+          type: 'auth_refresh',
+          payload: { token: body.auth_token },
+        }));
+        debugLog('🔐 Director WS token refreshed');
+        scheduleAuthRefresh(
+          typeof body.expires_in === 'number' ? body.expires_in : expiresInSeconds,
+        );
+      } catch (refreshError) {
+        // Retry once quickly; if the socket dies the reconnect path re-mints.
+        console.warn('[WS AUTH] Token refresh failed, retrying shortly:', refreshError);
+        authRefreshTimerRef.current = setTimeout(
+          () => scheduleAuthRefresh(expiresInSeconds), 30_000,
+        );
+      }
+    }, delayMs);
+  }, [clearAuthRefreshTimer]);
 
   const clearReconnectTimer = useCallback((preservePendingAttempt = false) => {
     if (reconnectTimeoutRef.current) {
@@ -994,20 +1045,61 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       const started = true;
       void (async () => {
         let protocols: string[] | undefined;
-        try {
-          const tokenResponse = await fetch(
-            `/api/director/ws-token?session_id=${encodeURIComponent(sessionIdRef.current)}`,
-            { cache: 'no-store' },
-          );
-          if (tokenResponse.ok) {
+        let expiresInSeconds: number | null = null;
+
+        // Mint a short-lived, session-bound identity token and offer it as a
+        // WebSocket subprotocol.
+        //
+        // FAIL-CLOSED, deliberately: we only open a *tokenless* socket when the
+        // route explicitly answers auth_enabled=false (i.e. the deployment has
+        // no DIRECTOR_WS_AUTH_SECRET, so tokenless is the correct mode). Any
+        // other outcome — 401/403/410/503 or a network throw — used to fall
+        // through to a tokenless socket, which Director closes with 1013 the
+        // moment KG_ENABLED=true. That turned a recoverable token blip into a
+        // total, silent outage. Now we surface it and let the caller retry.
+        const tokenOutcome = await (async (): Promise<
+          { ok: true } | { ok: false; reason: string }
+        > => {
+          try {
+            const tokenResponse = await fetch(
+              `/api/director/ws-token?session_id=${encodeURIComponent(sessionIdRef.current)}`,
+              { cache: 'no-store' },
+            );
+            if (!tokenResponse.ok) {
+              return { ok: false, reason: `ws-token HTTP ${tokenResponse.status}` };
+            }
             const tokenBody = await tokenResponse.json();
-            if (tokenBody?.auth_enabled && tokenBody?.auth_token) {
+            if (tokenBody?.auth_enabled === false) {
+              return { ok: true }; // legitimate tokenless deployment
+            }
+            if (tokenBody?.auth_token) {
               // Never logged: the auth-bearing protocol carries the secret.
               protocols = ['deckster.v1', `deckster-auth.${tokenBody.auth_token}`];
+              expiresInSeconds =
+                typeof tokenBody.expires_in === 'number' ? tokenBody.expires_in : null;
+              return { ok: true };
             }
+            return { ok: false, reason: 'ws-token returned no token' };
+          } catch (tokenError) {
+            return { ok: false, reason: `ws-token unreachable: ${String(tokenError)}` };
           }
-        } catch (tokenError) {
-          debugLog('⚠️ Director WS token unavailable; opening legacy socket', tokenError);
+        })();
+
+        if (!tokenOutcome.ok) {
+          console.error('[WS AUTH] Could not obtain Director token:', tokenOutcome.reason);
+          isConnectingRef.current = false;
+          const err = new Error(
+            'Could not establish a secure connection to Deckster. Retrying…',
+          );
+          setState(prev => ({
+            ...prev,
+            error: err,
+            connecting: false,
+            connectionState: 'error',
+          }));
+          if (options.onError) options.onError(err);
+          scheduleReconnect('ws_token_failed');
+          return;
         }
 
         let ws: WebSocket;
@@ -1036,6 +1128,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         const isCurrentSocket = () => wsRef.current === ws;
 
         ws.onopen = () => {
+          if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);
           if (!isCurrentSocket()) {
             debugLog('⏭️ Ignoring open from stale WebSocket');
             try {
@@ -1665,6 +1758,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           }));
 
           wsRef.current = null;
+          clearAuthRefreshTimer();
           scheduleReconnect(`close:${event.code}`);
         };
       })();
