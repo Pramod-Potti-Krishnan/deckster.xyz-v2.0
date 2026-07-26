@@ -3216,6 +3216,24 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
+    // Upload readiness gate. The composer disables Send for this, but this is
+    // the only place every send path converges, and it is the last point at
+    // which we still know the truth: the Director is told uploads exist purely
+    // via `fileUpload`/`storeName` below, so sending while a file is still
+    // ingesting silently builds the deck without that document.
+    const stillUploading = uploadedFiles.find(f => f.status === 'uploading')
+    const failedUploadFile = uploadedFiles.find(f => f.status === 'error')
+    if (stillUploading || failedUploadFile) {
+      toast({
+        title: stillUploading ? 'Still processing your file' : 'Upload failed',
+        description: stillUploading
+          ? `${stillUploading.name} is still being processed. It will be ready in a moment.`
+          : `${failedUploadFile!.name} couldn't be uploaded. Remove it or try again before sending.`,
+        variant: stillUploading ? 'default' : 'destructive',
+      })
+      return
+    }
+
     // Pre-flight quota gate: block a new turn only when a plan cap is fully
     // exhausted AND there is no prepaid reserve to cover the overflow.
     const q = quota.status
