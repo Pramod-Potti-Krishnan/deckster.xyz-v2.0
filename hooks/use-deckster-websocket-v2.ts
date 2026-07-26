@@ -419,6 +419,10 @@ export interface UseDecksterWebSocketV2State {
   // Durable Director workflow state. This is authoritative for deciding whether
   // the next build starts from a manually edited blank presentation.
   directorWorkflowState: string | null;
+  // Monotonic: a strawman never un-exists. Authoritative signal (from the
+  // Director's sync_response) that research settings are now frozen for this
+  // deck — from the strawman onward those toggles have already been spent.
+  hasStrawman: boolean;
   slideCount: number | null;
   currentStatus: StatusUpdate['payload'] | null;
   slideStructure: SlideUpdate['payload'] | null;
@@ -464,6 +468,11 @@ export interface UseDecksterWebSocketV2Options {
 // NEXT_PUBLIC_WS_URL lets local UAT point the builder at a locally-run Director
 // (e.g. ws://localhost:8000/ws); falls back to the deployed Director otherwise.
 const DEFAULT_WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://directorv33-production.up.railway.app/ws';
+
+// How long a send will wait for a closed socket to come back before it gives
+// up and tells the user. Long enough to cover ordinary reconnect churn,
+// short enough that a genuinely dead connection is reported promptly.
+const SEND_RECONNECT_TIMEOUT_MS = 12000;
 
 export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = {}) {
   const { user } = useAuth();
@@ -603,6 +612,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         isBlankPresentation: cached.isBlankPresentation || false,
         activeVersion: cachedActiveVersion,
         directorWorkflowState: null,
+        hasStrawman: false,
         slideCount: cached.slideCount || null,
         currentStatus: cached.currentStatus || null,
         slideStructure: cached.slideStructure || null,
@@ -639,6 +649,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       isBlankPresentation: false,
       activeVersion: 'final', // Default to final when available, fallback to strawman/blank
       directorWorkflowState: null,
+        hasStrawman: false,
       slideCount: null,
       currentStatus: null,
       slideStructure: null,
@@ -1288,6 +1299,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 case 'sync_response':
                   // Sync protocol response - Director confirms whether to skip history
                   newState.directorWorkflowState = message.payload.current_state || null;
+                  // Latch, never clear: this is what freezes the research toggles.
+                  if (message.payload.has_strawman) {
+                    newState.hasStrawman = true;
+                  }
                   debugLog('🔄 Sync response received:', {
                     action: message.payload.action,
                     message_count: message.payload.message_count,
@@ -1351,6 +1366,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     break;
                   }
                   newState.directorWorkflowState = 'CONTENT_GENERATED';
+                  newState.hasStrawman = true;
 
                   // Extended-generation builds (Phase 4a) emit one ephemeral
                   // "Building slide N/M…" progress bubble per slide, then close the
@@ -2082,7 +2098,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           web_search: options?.webSearch ?? false,
           extended_generation: options?.extendedGeneration ?? true,
           file_upload: options?.fileUpload ?? !!effectiveStoreName,
-          ...(options?.useKnowledgeGraph && { use_knowledge_graph: true }),
+          use_knowledge_graph: options?.useKnowledgeGraph ?? false,
           ...(options?.theme && { theme: options.theme }),
           ...(options?.templateMode && { template_mode: true }),
           ...(options?.templateId && { template_id: options.templateId }),
@@ -2110,6 +2126,49 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return false;
     }
   }, []);
+
+  /**
+   * Send that survives a closed socket.
+   *
+   * `sendMessage` returns false when the socket is not OPEN — and callers used
+   * to have already rendered the user's bubble and queued it for persistence by
+   * then, so the message looked sent, was stored as sent, and reached nobody.
+   * The socket closes routinely here (duplicate-connection churn, token
+   * refresh, laptop sleep), which made "I typed and nothing happened" a normal
+   * outcome and looked like the Director ignoring typed input.
+   *
+   * So: ask the transport to reconnect, wait for OPEN, then send. Resolves
+   * false only when the socket genuinely could not be restored in time, and
+   * the caller must surface that rather than commit the message to the UI.
+   */
+  const sendMessageWhenConnected = useCallback(async (
+    text: string,
+    storeName?: string,
+    fileCount?: number,
+    options?: SendUserMessageOptions,
+    timeoutMs: number = SEND_RECONNECT_TIMEOUT_MS,
+  ): Promise<boolean> => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      return sendMessage(text, storeName, fileCount, options);
+    }
+
+    debugLog('🔌 Send requested on a closed socket — reconnecting first');
+    ensureConnected();
+
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 150));
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        // Give the Director's post-accept sync a beat to land so this message
+        // is not processed against a half-initialised session.
+        await new Promise(resolve => setTimeout(resolve, 250));
+        return sendMessage(text, storeName, fileCount, options);
+      }
+    }
+
+    console.error('❌ Send failed: socket could not be reopened within', timeoutMs, 'ms');
+    return false;
+  }, [sendMessage, ensureConnected]);
 
   const sendControlMessage = useCallback((type: ControlMessage['type']): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -2211,6 +2270,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       isBlankPresentation: false,
       activeVersion: 'final',
       directorWorkflowState: null,
+        hasStrawman: false,
       slideCount: null,
       currentStatus: null,
       slideStructure: null,
@@ -2417,6 +2477,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     ensureConnected,
     disconnect,
     sendMessage,
+    sendMessageWhenConnected,
     sendControlMessage,
     sendThemeSelection,
     clearMessages,
