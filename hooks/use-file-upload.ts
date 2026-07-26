@@ -10,6 +10,15 @@ const MAX_FILES = uploadConfig.maxFiles
 const RESEARCHER_BASE_URL = apiConfig.knowledgeServiceUrl.replace(/\/$/, '')
 const POLL_ATTEMPTS = 30
 const POLL_INTERVAL_MS = 3000
+// Per-request ceiling. The attempt budget above is meaningless without it:
+// a hung fetch blocks the loop forever rather than costing one attempt.
+const POLL_REQUEST_TIMEOUT_MS = 10000
+// Wall-clock stop so a slow-but-answering server still terminates.
+const POLL_DEADLINE_MS = 3 * 60 * 1000
+// Transient failures in a row before we call it lost.
+const MAX_CONSECUTIVE_TRANSIENT = 4
+// The session<->file link must survive a reload, so this write gets retries.
+const RECORD_ATTEMPTS = 3
 
 type StorageUploadUrlResponse = {
   signed_url: string
@@ -214,17 +223,58 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     fileId: string,
   ): Promise<IngestStatusResponse> => {
     let unknownCount = 0
+    let consecutiveTransient = 0
+    const deadline = Date.now() + POLL_DEADLINE_MS
     await sleep(2000)
 
     for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
-      const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/files/ingest-status/${jobId}`)
-      const body = await readResponseBody(response)
+      if (Date.now() > deadline) break
 
-      if (!response.ok) {
-        throw new Error(getErrorMessage(body, `Failed to check ingest status (${response.status})`))
+      let job: IngestStatusResponse
+      try {
+        // A per-request timeout is what keeps this loop alive. Without it a
+        // wedged Researcher (its event loop can stall for tens of seconds)
+        // leaves `fetch` pending forever, the loop never advances, and the
+        // overall attempt budget below can never be reached — the chip spins
+        // indefinitely and can reach neither 'success' nor 'error'.
+        const response = await fetch(
+          `${RESEARCHER_BASE_URL}/api/v1/files/ingest-status/${jobId}`,
+          { signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) },
+        )
+        const body = await readResponseBody(response)
+
+        if (response.status >= 500 || response.status === 429) {
+          throw new Error(getErrorMessage(body, `Researcher unavailable (${response.status})`))
+        }
+        if (!response.ok) {
+          // 4xx is a real answer about this job, not a blip — fail fast.
+          throw Object.assign(
+            new Error(getErrorMessage(body, `Failed to check ingest status (${response.status})`)),
+            { terminal: true },
+          )
+        }
+
+        job = body as IngestStatusResponse
+        consecutiveTransient = 0
+      } catch (error) {
+        if ((error as { terminal?: boolean })?.terminal) throw error
+
+        // Timeout, network drop, 5xx: the server may still be working.
+        consecutiveTransient += 1
+        if (consecutiveTransient >= MAX_CONSECUTIVE_TRANSIENT) {
+          throw new Error(
+            'Lost contact with the Researcher while processing this file. Please retry.',
+          )
+        }
+        console.warn(
+          `[FileUpload] ingest-status attempt ${attempt + 1} failed `
+          + `(${consecutiveTransient}/${MAX_CONSECUTIVE_TRANSIENT}), retrying:`,
+          error,
+        )
+        await sleep(POLL_INTERVAL_MS)
+        continue
       }
 
-      const job = body as IngestStatusResponse
       const progress = Math.min(95, 75 + Math.round((attempt / POLL_ATTEMPTS) * 20))
       updateFile(fileId, { uploadProgress: progress })
 
@@ -255,30 +305,50 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     fileUri: string,
     fileName: string | null,
   ) => {
+    // This write is what makes the upload survive a reload: it sets
+    // ChatSession.geminiStoreName, which the resume path reads back into
+    // `sessionStoreName` — the flag that tells the Director uploads exist.
+    // Losing it used to be a console.warn, which meant the chip went green,
+    // the send was allowed, and the NEXT page load silently forgot the
+    // document. So it retries, and a genuine failure fails the upload.
     const currentSessionId = sessionIdRef.current
-    if (!currentSessionId) return
-
-    try {
-      const response = await fetch(`/api/sessions/${currentSessionId}/files`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type || 'application/octet-stream',
-          geminiFileUri: fileUri,
-          geminiFileName: fileName,
-          geminiStoreName: researcherSessionId,
-        }),
-      })
-
-      if (!response.ok) {
-        const body = await readResponseBody(response)
-        console.warn('[FileUpload] File ingested but metadata save failed:', getErrorMessage(body, response.statusText))
-      }
-    } catch (error) {
-      console.warn('[FileUpload] File ingested but metadata save failed:', error)
+    if (!currentSessionId) {
+      throw new Error('Session went away before the file could be linked to it')
     }
+
+    let lastError = 'unknown error'
+    for (let attempt = 1; attempt <= RECORD_ATTEMPTS; attempt += 1) {
+      try {
+        const response = await fetch(`/api/sessions/${currentSessionId}/files`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type || 'application/octet-stream',
+            geminiFileUri: fileUri,
+            geminiFileName: fileName,
+            geminiStoreName: researcherSessionId,
+          }),
+        })
+
+        if (response.ok) return
+
+        const body = await readResponseBody(response)
+        lastError = getErrorMessage(body, response.statusText)
+        // A 4xx won't change on retry — stop paying for attempts.
+        if (response.status < 500 && response.status !== 429) break
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error)
+      }
+
+      if (attempt < RECORD_ATTEMPTS) await sleep(500 * attempt)
+    }
+
+    throw new Error(
+      `File was processed but could not be linked to this session (${lastError}). `
+      + 'Please remove it and try again.',
+    )
   }, [])
 
   const uploadFile = useCallback(async (file: File): Promise<UploadedFile> => {

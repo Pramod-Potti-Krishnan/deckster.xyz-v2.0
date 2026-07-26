@@ -140,6 +140,27 @@ export function ChatInput({
   themeSyncStatus = 'idle',
   themeSyncError,
 }: ChatInputProps) {
+  // An attached file that hasn't finished ingesting must block the send.
+  // The Director learns about uploads ONLY from the flags this composer puts
+  // on the outgoing message, so sending early tells it "no documents" and it
+  // builds the deck without them — silently, and unrecoverably for that turn.
+  const pendingUpload = uploadedFiles.find((file) => file.status === 'uploading')
+  const failedUpload = uploadedFiles.find((file) => file.status === 'error')
+  const uploadBlockReason = pendingUpload
+    ? `Waiting for ${pendingUpload.name} to finish processing…`
+    : failedUpload
+      ? `${failedUpload.name} couldn't be uploaded — remove it or try again`
+      : null
+  const isSendBlocked = Boolean(uploadBlockReason)
+
+  const guardedSubmit = (e?: React.FormEvent) => {
+    if (isSendBlocked) {
+      e?.preventDefault()
+      return
+    }
+    onSubmit(e)
+  }
+
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
   const [themePresets, setThemePresets] = useState<ThemePresetSummary[]>(FALLBACK_THEME_PRESETS)
   const [themePresetsLoading, setThemePresetsLoading] = useState(false)
@@ -489,8 +510,25 @@ export function ChatInput({
         </div>
       )}
 
+      {uploadBlockReason && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`mb-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+            pendingUpload
+              ? 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-300'
+              : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300'
+          }`}
+        >
+          {pendingUpload
+            ? <Loader2 className="h-3 w-3 animate-spin" />
+            : <AlertCircle className="h-3 w-3" />}
+          {uploadBlockReason}
+        </div>
+      )}
+
       {/* Main input container - Claude style */}
-      <form onSubmit={onSubmit}>
+      <form onSubmit={guardedSubmit}>
         <div className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:focus-within:border-slate-600">
           {/* File chips live inside the composer so the input grows with them */}
           {features.enableFileUploads && uploadedFiles.length > 0 && !isDraggingFiles && (
@@ -527,7 +565,7 @@ export function ChatInput({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
-                onSubmit()
+                guardedSubmit()
               }
               if (e.key === 'Escape' && pendingActionInput) {
                 e.preventDefault()
@@ -840,7 +878,9 @@ export function ChatInput({
             ) : (
               <button
                 type="submit"
-                disabled={!isReady || !inputMessage.trim()}
+                disabled={!isReady || !inputMessage.trim() || isSendBlocked}
+                title={uploadBlockReason ?? undefined}
+                aria-disabled={!isReady || !inputMessage.trim() || isSendBlocked}
                 className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
                   inputMessage.trim()
                     ? 'bg-purple-600 hover:bg-purple-700 text-white'
