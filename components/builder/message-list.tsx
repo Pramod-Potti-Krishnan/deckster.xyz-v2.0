@@ -45,6 +45,40 @@ export interface MessageListProps {
   currentStatus?: StatusUpdate['payload'] | null
 }
 
+function EvidenceBadge({ context }: { context?: SlideContextItem }) {
+  if (!context?.research_status && context?.research_ready == null) return null
+
+  const ready = context.research_ready ?? context.research_status === 'ok'
+  const citations = context.citation_count ?? 0
+  const label = ready
+    ? `Evidence ready${citations > 0 ? ` · ${citations}` : ''}`
+    : context.research_status?.startsWith('source_thin')
+      ? 'Evidence too thin'
+      : 'Evidence missing'
+  const title = [
+    context.source_types?.length
+      ? `Sources: ${context.source_types.join(', ')}`
+      : '',
+    context.research_issues?.length
+      ? `Issues: ${context.research_issues.join(', ')}`
+      : '',
+  ].filter(Boolean).join(' · ')
+
+  return (
+    <Badge
+      variant="secondary"
+      title={title || undefined}
+      className={
+        ready
+          ? "text-[9px] px-1.5 py-0 font-normal bg-emerald-50 text-emerald-700 border-emerald-200"
+          : "text-[9px] px-1.5 py-0 font-normal bg-amber-50 text-amber-700 border-amber-200"
+      }
+    >
+      {label}
+    </Badge>
+  )
+}
+
 export function MessageList({
   sessionId,
   userMessages,
@@ -429,6 +463,7 @@ export function MessageList({
                                       {ctx.narrative_role.replace(/_/g, ' ')}
                                     </Badge>
                                   )}
+                                  <EvidenceBadge context={ctx} />
                                   <span className="text-gray-400 dark:text-slate-500 text-[10px] uppercase ml-auto">{slide.slide_type}</span>
                                 </div>
                                 {ctx?.key_message && (
@@ -660,6 +695,7 @@ export function MessageList({
                                       {ctx.narrative_role.replace(/_/g, ' ')}
                                     </Badge>
                                   )}
+                                  <EvidenceBadge context={ctx} />
                                   <span className="text-gray-400 dark:text-slate-500 text-[10px] uppercase ml-auto">{slide.slide_type}</span>
                                 </div>
                                 {ctx?.key_message && (

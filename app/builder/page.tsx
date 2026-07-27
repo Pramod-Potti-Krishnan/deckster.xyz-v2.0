@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChatHistorySidebar } from "@/components/chat-history-sidebar"
 import { OnboardingModal } from "@/components/onboarding-modal"
 import { useFileUpload } from '@/hooks/use-file-upload'
+import type { UploadedFile } from '@/components/file-chip'
 import { features } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
@@ -122,6 +123,9 @@ const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 2
 const THEME_SYNC_TIMEOUT_MS = 20_000
+const isAttachedUpload = (file: UploadedFile) => (
+  file.status === 'success' || file.status === 'processing'
+)
 function normalizeTextLabsElementType(value: unknown): TextLabsComponentType | null {
   return normalizeSemanticComponentType(value)
 }
@@ -3397,7 +3401,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           } as unknown as DirectorMessage, messageText)
         }
 
-        const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
+        const successfulFiles = uploadedFiles.filter(isAttachedUpload)
         const fileCount = successfulFiles.length
 
         const success = sendMessage(messageText, undefined, fileCount, {
@@ -3505,7 +3509,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
             setInputMessage("")
 
-            const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
+            const successfulFiles = uploadedFiles.filter(isAttachedUpload)
             const fileCount = successfulFiles.length
 
             sendMessage(messageText, undefined, fileCount, {
@@ -3544,7 +3548,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       const messageId = crypto.randomUUID()
       const timestamp = Date.now()
 
-      const successfulFiles = uploadedFiles.filter(f => f.status === 'success')
+      const successfulFiles = uploadedFiles.filter(isAttachedUpload)
       const fileCount = successfulFiles.length
 
       // Deliver FIRST, then commit to the UI. The previous order rendered the
@@ -3682,7 +3686,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         throw new Error('Could not save the customized deck to session history.')
       }
 
-      const successfulFiles = uploadedFiles.filter(file => file.status === 'success')
+      const successfulFiles = uploadedFiles.filter(isAttachedUpload)
       const request = buildSessionHandoffRequest({
         userId,
         idempotencyKey,
@@ -4233,7 +4237,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   })}
                   presentationId={effectivePresentationId}
                   research={{
-                    useUploadedDocuments: uploadedFiles.some(file => file.status === 'success') || Boolean(sessionStoreName),
+                    useUploadedDocuments: uploadedFiles.some(isAttachedUpload) || Boolean(sessionStoreName),
                     useWebSearch: webSearchEnabled,
                     useDeepResearch: researchEnabled && webSearchEnabled,
                     useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
