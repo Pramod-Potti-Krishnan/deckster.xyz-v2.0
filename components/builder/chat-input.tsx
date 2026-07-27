@@ -144,14 +144,16 @@ export function ChatInput({
   themeSyncStatus = 'idle',
   themeSyncError,
 }: ChatInputProps) {
-  // An attached file that hasn't finished ingesting must block the send.
+  // Only raw transfer/session-linking blocks Send. Once a file is stored,
+  // background source enrichment is calm and non-blocking (`processing`);
+  // a degraded enrichment result remains a valid attachment too.
   // The Director learns about uploads ONLY from the flags this composer puts
   // on the outgoing message, so sending early tells it "no documents" and it
   // builds the deck without them — silently, and unrecoverably for that turn.
   const pendingUpload = uploadedFiles.find((file) => file.status === 'uploading')
   const failedUpload = uploadedFiles.find((file) => file.status === 'error')
   const uploadBlockReason = pendingUpload
-    ? `Waiting for ${pendingUpload.name} to finish processing…`
+    ? `Waiting for ${pendingUpload.name} to finish uploading…`
     : failedUpload
       ? `${failedUpload.name} couldn't be uploaded — remove it or try again`
       : null

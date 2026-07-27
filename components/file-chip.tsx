@@ -11,16 +11,22 @@ import {
   FileCode,
   Check,
   AlertCircle,
-  Loader2
+  AlertTriangle,
+  Loader2,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  getUploadStatusPresentation,
+  type UploadLifecycleStatus,
+} from '@/lib/upload-status'
 
 export interface UploadedFile {
   id: string
   name: string
   size: number
   type: string
-  status: 'uploading' | 'processing' | 'success' | 'error'
+  status: UploadLifecycleStatus
   uploadProgress: number
   errorMessage?: string
   geminiFileUri?: string
@@ -63,18 +69,27 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
   const FileIcon = getFileIcon(file.type)
   const isCompact = variant === 'compact'
   const isIcon = variant === 'icon'
+  const status = getUploadStatusPresentation(
+    file.status,
+    file.name,
+    file.errorMessage,
+  )
 
   if (isIcon) {
     return (
       <div
+        role="status"
+        aria-live="polite"
+        aria-label={status.ariaLabel}
         className={cn(
-          "group relative h-16 w-16 shrink-0 rounded-xl border bg-white shadow-sm transition-colors",
+          "group relative h-16 w-20 shrink-0 rounded-xl border bg-white shadow-sm transition-colors",
           file.status === 'success' && "border-gray-200",
           file.status === 'uploading' && "border-purple-200 bg-purple-50/50",
           file.status === 'processing' && "border-blue-200 bg-blue-50/50",
+          file.status === 'degraded' && "border-amber-200 bg-amber-50/70",
           file.status === 'error' && "border-destructive/40 bg-destructive/10"
         )}
-        title={file.name}
+        title={`${file.name} — ${status.label}${file.errorMessage ? `: ${file.errorMessage}` : ''}`}
       >
         <button
           type="button"
@@ -85,31 +100,55 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           <X className="h-2.5 w-2.5" />
         </button>
 
-        <div className="flex h-full flex-col items-center justify-center gap-1 px-1.5 py-1.5">
+        <div className="flex h-full flex-col items-center justify-center gap-0.5 px-1.5 py-1.5">
           <div className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-lg border",
+            "flex h-7 w-7 items-center justify-center rounded-lg border",
             getFileAccent(file.type)
           )}>
-            <FileIcon className="h-[18px] w-[18px]" />
+            <FileIcon className="h-4 w-4" />
           </div>
-          <span className="block max-w-full truncate text-[6px] font-medium leading-none text-gray-600">
+          <span className="block max-w-full truncate text-[7px] font-medium leading-none text-gray-600">
             {file.name}
+          </span>
+          <span className={cn(
+            "block max-w-full truncate text-[7px] font-medium leading-none",
+            file.status === 'degraded' ? "text-amber-700" :
+              file.status === 'error' ? "text-destructive" :
+                file.status === 'success' ? "text-emerald-700" :
+                  file.status === 'processing' ? "text-blue-700" :
+                    "text-purple-700"
+          )}>
+            {file.status === 'processing'
+              ? 'Enriching'
+              : file.status === 'degraded'
+                ? 'Partial'
+                : file.status === 'success'
+                  ? 'Ready'
+                  : file.status === 'error'
+                    ? 'Failed'
+                    : 'Uploading'}
           </span>
         </div>
 
         <div className="absolute bottom-1 right-1 rounded-full bg-white shadow-sm">
-          {(file.status === 'uploading' || file.status === 'processing') && (
+          {file.status === 'uploading' && (
             <Loader2 className="h-3 w-3 animate-spin text-purple-600" />
+          )}
+          {file.status === 'processing' && (
+            <Sparkles className="h-3 w-3 text-blue-600" />
           )}
           {file.status === 'success' && (
             <Check className="h-3 w-3 text-green-600" />
+          )}
+          {file.status === 'degraded' && (
+            <AlertTriangle className="h-3 w-3 text-amber-600" />
           )}
           {file.status === 'error' && (
             <AlertCircle className="h-3 w-3 text-destructive" />
           )}
         </div>
 
-        {(file.status === 'uploading' || file.status === 'processing') && (
+        {status.showProgress && (
           <Progress value={file.uploadProgress} className="absolute bottom-0 left-2 right-2 h-0.5" />
         )}
       </div>
@@ -117,16 +156,21 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
   }
 
   return (
-    <div className={cn(
-      "flex items-center border transition-colors",
-      isCompact
-        ? "gap-1.5 rounded-md px-2 py-1"
-        : "gap-2 rounded-lg px-3 py-2",
-      file.status === 'success' && "bg-secondary border-secondary",
-      file.status === 'uploading' && "bg-secondary/50 border-secondary",
-      file.status === 'processing' && "bg-blue-50/70 border-blue-200",
-      file.status === 'error' && "bg-destructive/10 border-destructive"
-    )}>
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={status.ariaLabel}
+      className={cn(
+        "flex items-center border transition-colors",
+        isCompact
+          ? "gap-1.5 rounded-md px-2 py-1"
+          : "gap-2 rounded-lg px-3 py-2",
+        file.status === 'success' && "bg-secondary border-secondary",
+        file.status === 'uploading' && "bg-secondary/50 border-secondary",
+        file.status === 'processing' && "bg-blue-50/70 border-blue-200",
+        file.status === 'degraded' && "bg-amber-50/70 border-amber-200",
+        file.status === 'error' && "bg-destructive/10 border-destructive"
+      )}>
       <FileIcon className={cn(
         "flex-shrink-0 text-muted-foreground",
         isCompact ? "h-3.5 w-3.5" : "h-4 w-4"
@@ -151,12 +195,17 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           </>
         )}
 
-        {(file.status === 'uploading' || file.status === 'processing') && (
+        {status.showProgress && (
           <Progress value={file.uploadProgress} className="h-1 mt-1" />
         )}
-        {file.status === 'processing' && (
-          <p className="text-[10px] text-blue-700 mt-1">
-            Uploaded · indexing in the background
+        {(file.status === 'processing' || file.status === 'success' || file.status === 'degraded') && (
+          <p className={cn(
+            "text-[10px] mt-1",
+            file.status === 'degraded' ? "text-amber-700" :
+              file.status === 'success' ? "text-emerald-700" :
+                "text-blue-700"
+          )} title={file.errorMessage}>
+            {status.label}
           </p>
         )}
 
@@ -168,14 +217,20 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
-        {(file.status === 'uploading' || file.status === 'processing') && (
+        {status.showActivity && (
           <Loader2 className={cn(
             "animate-spin text-muted-foreground",
             isCompact ? "h-3.5 w-3.5" : "h-4 w-4"
           )} />
         )}
+        {file.status === 'processing' && (
+          <Sparkles className={cn("text-blue-600", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+        )}
         {file.status === 'success' && (
           <Check className={cn("text-green-600", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+        )}
+        {file.status === 'degraded' && (
+          <AlertTriangle className={cn("text-amber-600", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
         )}
         {file.status === 'error' && (
           <AlertCircle className={cn("text-destructive", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
@@ -187,6 +242,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           className={cn(isCompact ? "h-5 w-5" : "h-6 w-6")}
           onClick={onRemove}
           type="button"
+          aria-label={`Remove ${file.name}`}
         >
           <X className="h-3 w-3" />
         </Button>
