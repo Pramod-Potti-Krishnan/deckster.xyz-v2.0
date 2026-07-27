@@ -12,6 +12,7 @@ import {
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
 import { guardDirectorLayoutUrlMessage } from '@/lib/director-layout-url-ingress';
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client';
+import type { UserChatMessage } from '@/lib/user-message-attachments';
 import { evaluateLayoutViewerUrl, sanitizeRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy';
 import {
   DIRECTOR_HEARTBEAT_INTERVAL_MS,
@@ -2462,7 +2463,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Update user messages in session cache (called from page.tsx when user messages are loaded/updated)
   // This is critical for the sync protocol to work correctly - skip_history needs to know about user messages
   const updateCacheUserMessages = useCallback((
-    userMessages: Array<{ id: string; text: string; timestamp: number }>
+    userMessages: UserChatMessage[]
   ) => {
     debugLog('💾 Updating cache with user messages:', userMessages.length);
 

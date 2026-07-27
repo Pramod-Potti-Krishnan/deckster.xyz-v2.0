@@ -13,6 +13,8 @@
     "lint": "next lint",
     "test:director-sync-recovery": "node scripts/test-director-sync-recovery.mjs",
     "test:golden-evidence-contract": "node scripts/test-golden-evidence-contract.mjs",
+    "test:build-progress-visibility": "node scripts/test-build-progress-visibility.mjs",
+    "test:user-message-attachments": "node scripts/test-user-message-attachments.mjs",
     "test:director-layout-url-ingress": "node scripts/test-director-layout-url-ingress.mjs",
     "test:layout-viewer-messaging": "node scripts/test-layout-viewer-messaging.mjs",
     "test:layout-viewer-url-policy": "node scripts/test-layout-viewer-url-policy.mjs",

@@ -84,6 +84,10 @@ import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
 import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import {
+  attachmentsFromPayload,
+  snapshotAttachedUploads,
+} from '@/lib/user-message-attachments'
+import {
   deriveBuilderStage,
   isPresentationCallbackCurrent,
   resolveEffectivePresentation,
@@ -462,7 +466,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const blueprintEditorV2Enabled = templateBuilderEnabled && process.env.NEXT_PUBLIC_BLUEPRINT_EDITOR_V2 === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
-  const activeTemplateRef = useRef<BuilderTemplateSelection | null>(null)
   const templateSelectionLockedRef = useRef(false)
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
@@ -567,10 +570,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   useEffect(() => {
     buildThemeSelectionRef.current = buildThemeSelection
   }, [buildThemeSelection])
-
-  useEffect(() => {
-    activeTemplateRef.current = activeTemplate
-  }, [activeTemplate])
 
   useEffect(() => {
     if (
@@ -1708,7 +1707,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         return
       }
 
-      if (!activeTemplateRef.current || !isGeneratingFinalRef.current) return
+      // Terminal build frames apply to ordinary and template builds alike.
+      // Restricting this guard to activeTemplate left the optimistic progress
+      // pulse stuck forever when a regular Slide Builder run ended in error.
+      if (!isGeneratingFinalRef.current) return
 
       if (message.type === 'presentation_url') {
         setIsGeneratingFinal(false)
@@ -3373,6 +3375,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         return
       }
 
+      const attachedFiles = uploadedFiles.filter(isAttachedUpload)
+      const messageAttachments = snapshotAttachedUploads(attachedFiles)
+      const messagePayload = messageAttachments.length > 0
+        ? { text: messageText, attachments: messageAttachments }
+        : { text: messageText }
+      const fileCount = attachedFiles.length
+
       // Template reuse skips the strawman→accept step that normally turns on the
       // build animation, so the right pane would sit static. Flip it on here so a
       // reuse turn runs the SAME live slide-build animation as a normal build (the
@@ -3392,7 +3401,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         session.setUserMessages(prev => [...prev, {
           id: messageId,
           text: messageText,
-          timestamp: timestamp
+          timestamp: timestamp,
+          attachments: messageAttachments,
         }])
 
         if (currentSessionId && persistence) {
@@ -3401,12 +3411,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             session_id: currentSessionId,
             timestamp: new Date(timestamp).toISOString(),
             type: 'chat_message',
-            payload: { text: messageText, action_value: action.value, action_label: action.label }
+            payload: {
+              ...messagePayload,
+              action_value: action.value,
+              action_label: action.label,
+            }
           } as unknown as DirectorMessage, messageText)
         }
-
-        const successfulFiles = uploadedFiles.filter(isAttachedUpload)
-        const fileCount = successfulFiles.length
 
         const success = sendMessage(messageText, undefined, fileCount, {
           deepResearch: researchEnabled,
@@ -3423,7 +3434,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         if (success) {
           setInputMessage("")
           setPendingActionInput(null)
-          if (successfulFiles.length > 0) {
+          if (attachedFiles.length > 0) {
             clearAllFiles()
           }
         }
@@ -3464,7 +3475,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             session.setUserMessages(prev => [...prev, {
               id: messageId,
               text: messageText,
-              timestamp: timestamp
+              timestamp: timestamp,
+              attachments: messageAttachments,
             }])
 
             // FIX 11: Save first message directly via API
@@ -3473,7 +3485,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 id: messageId,
                 messageType: 'chat_message',
                 timestamp: new Date(timestamp).toISOString(),
-                payload: { text: messageText },
+                payload: messagePayload,
                 userText: messageText,
               }
 
@@ -3513,9 +3525,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
             setInputMessage("")
 
-            const successfulFiles = uploadedFiles.filter(isAttachedUpload)
-            const fileCount = successfulFiles.length
-
             sendMessage(messageText, undefined, fileCount, {
               deepResearch: researchEnabled,
               webSearch: webSearchEnabled,
@@ -3526,7 +3535,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               ...buildSendOptions,
               manualDeck: turnContext?.manualDeck,
             })
-            if (successfulFiles.length > 0) {
+            if (attachedFiles.length > 0) {
               clearAllFiles()
             }
             return
@@ -3542,7 +3551,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         }
       }
 
-      // A resumed session used to get its own send path here: call connect(),
+      // A resumed session used to get its own send path here: trigger reconnection,
       // then immediately read `connected`/`isReady` — React state captured in
       // this closure, so still false however well the connect went — and either
       // bail with a toast or send and ignore the result. It duplicated the main
@@ -3551,9 +3560,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       // session too; all that is left to do here is retire the flag.
       const messageId = crypto.randomUUID()
       const timestamp = Date.now()
-
-      const successfulFiles = uploadedFiles.filter(isAttachedUpload)
-      const fileCount = successfulFiles.length
 
       // Deliver FIRST, then commit to the UI. The previous order rendered the
       // bubble and queued it for persistence before attempting the send, so a
@@ -3586,7 +3592,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       session.setUserMessages(prev => [...prev, {
         id: messageId,
         text: messageText,
-        timestamp: timestamp
+        timestamp: timestamp,
+        attachments: messageAttachments,
       }])
 
       if (currentSessionId && persistence) {
@@ -3595,7 +3602,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           session_id: currentSessionId,
           timestamp: new Date(timestamp).toISOString(),
           type: 'chat_message',
-          payload: { text: messageText }
+          payload: messagePayload
         } as DirectorMessage, messageText)
 
         if (!session.hasTitleFromUserMessageRef.current && !session.hasTitleFromPresentationRef.current) {
@@ -3612,7 +3619,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (session.isResumedSession) {
         session.setIsResumedSession(false)
       }
-      if (successfulFiles.length > 0) {
+      if (attachedFiles.length > 0) {
         clearAllFiles()
       }
     } finally {
@@ -3690,7 +3697,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         throw new Error('Could not save the customized deck to session history.')
       }
 
-      const successfulFiles = uploadedFiles.filter(isAttachedUpload)
+      const attachedFiles = uploadedFiles.filter(isAttachedUpload)
+      const attachments = snapshotAttachedUploads(attachedFiles)
       const request = buildSessionHandoffRequest({
         userId,
         idempotencyKey,
@@ -3732,7 +3740,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         idempotency_key: idempotencyKey,
         text: pending.messageText,
         store_name: sessionStoreName,
-        file_count: successfulFiles.length,
+        file_count: attachedFiles.length,
+        attachments,
         deep_research: researchEnabled,
         web_search: webSearchEnabled,
         extended_generation: extendedGenerationEnabled,
@@ -3842,11 +3851,17 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     pendingHandoffMemoryRef.current = null
     const timestamp = Date.now()
     const messageId = pending.idempotency_key
+    const attachments = attachmentsFromPayload({ attachments: pending.attachments })
     session.userMessageIdsRef.current.add(messageId)
     session.userMessageContentMapRef.current.set(pending.text.trim().toLowerCase(), messageId)
     session.setUserMessages(previous => previous.some(message => message.id === messageId)
       ? previous
-      : [...previous, { id: messageId, text: pending.text, timestamp }])
+      : [...previous, {
+          id: messageId,
+          text: pending.text,
+          timestamp,
+          attachments,
+        }])
     session.hasTitleFromUserMessageRef.current = true
     setInputMessage('')
     setSessionStoreName(pending.store_name)
@@ -3860,7 +3875,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       id: messageId,
       messageType: 'chat_message',
       timestamp: new Date(timestamp).toISOString(),
-      payload: { text: pending.text },
+      payload: attachments.length > 0
+        ? { text: pending.text, attachments }
+        : { text: pending.text },
       userText: pending.text,
     }
     void fetch(`/api/sessions/${encodeURIComponent(currentSessionId)}/messages`, {
@@ -4338,6 +4355,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         ephemeralMessageIds={ephemeralMessageIds}
                         onEphemeralFadeComplete={clearEphemeralIds}
                         currentStatus={currentStatus}
+                        isGeneratingFinal={isGeneratingFinal}
                       />
                     </div>
                   </ScrollArea>
