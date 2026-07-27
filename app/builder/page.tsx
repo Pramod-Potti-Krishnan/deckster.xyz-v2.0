@@ -533,6 +533,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [researchEnabled, setResearchEnabled] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  const handleResearchEnabledChange = useCallback((enabled: boolean) => {
+    setResearchEnabled(enabled)
+    if (enabled) setWebSearchEnabled(true)
+  }, [])
+  const handleWebSearchEnabledChange = useCallback((enabled: boolean) => {
+    setWebSearchEnabled(enabled)
+    if (!enabled) setResearchEnabled(false)
+  }, [])
   const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)
   const {
     isSubscribed: kgSubscribed,
@@ -3866,7 +3874,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setInputMessage('')
     setSessionStoreName(pending.store_name)
     setResearchEnabled(pending.deep_research)
-    setWebSearchEnabled(pending.web_search)
+    setWebSearchEnabled(pending.web_search || pending.deep_research)
     setExtendedGenerationEnabled(pending.extended_generation)
     setKnowledgeGraphEnabled(pending.use_knowledge_graph)
     clearAllFiles()
@@ -4375,9 +4383,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     }}
                     researchSettingsLocked={researchSettingsLocked}
                     researchEnabled={researchEnabled}
-                    onResearchEnabledChange={setResearchEnabled}
+                    onResearchEnabledChange={handleResearchEnabledChange}
                     webSearchEnabled={webSearchEnabled}
-                    onWebSearchEnabledChange={setWebSearchEnabled}
+                    onWebSearchEnabledChange={handleWebSearchEnabledChange}
                     knowledgeGraphEnabled={knowledgeGraphEnabled}
                     onKnowledgeGraphEnabledChange={setKnowledgeGraphEnabled}
                     showKnowledgeGraphToggle={showKnowledgeGraphToggle}

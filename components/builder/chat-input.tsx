@@ -822,7 +822,7 @@ export function ChatInput({
                   <div className="flex items-center justify-between px-2 py-2">
                     <div className="flex items-center gap-2">
                       <Search className="h-4 w-4 text-gray-500 dark:text-slate-400" />
-                      <span className="text-xs">Deep Research</span>
+                      <span className="text-xs">Deep research (includes web)</span>
                     </div>
                     <Switch
                       checked={researchEnabled}
