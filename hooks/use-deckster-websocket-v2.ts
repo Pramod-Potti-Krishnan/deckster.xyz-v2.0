@@ -2094,6 +2094,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     try {
       // Session-sticky store_name: prefer options.storeName (from session state) over positional param
       const effectiveStoreName = options?.storeName !== undefined ? options.storeName : (storeName || null);
+      const deepResearch = options?.deepResearch ?? false;
+      const webSearch = (options?.webSearch ?? false) || deepResearch;
 
       const message: UserMessage = {
         type: 'user_message',
@@ -2101,8 +2103,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           text,
           store_name: effectiveStoreName,
           ...(effectiveStoreName && { file_count: fileCount || 0 }),
-          deep_research: options?.deepResearch ?? false,
-          web_search: options?.webSearch ?? false,
+          deep_research: deepResearch,
+          web_search: webSearch,
           extended_generation: options?.extendedGeneration ?? true,
           file_upload: options?.fileUpload ?? !!effectiveStoreName,
           use_knowledge_graph: options?.useKnowledgeGraph ?? false,
