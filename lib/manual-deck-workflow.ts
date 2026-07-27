@@ -1,5 +1,6 @@
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 import type { TemplateOverrides } from '@/lib/template-mode'
+import type { UserMessageAttachment } from '@/lib/user-message-attachments'
 
 const ELEMENT_COLLECTION_KEYS = [
   'text_boxes',
@@ -61,6 +62,7 @@ export interface PendingHandoffSubmission {
   text: string
   store_name: string | null
   file_count: number
+  attachments?: UserMessageAttachment[]
   deep_research: boolean
   web_search: boolean
   extended_generation: boolean

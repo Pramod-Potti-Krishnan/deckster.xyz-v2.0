@@ -17,6 +17,10 @@ import {
   type CachedSessionState,
 } from '@/hooks/use-session-cache'
 import { unsavedBuilderSessionKey } from '@/lib/last-builder-session'
+import {
+  attachmentsFromPayload,
+  type UserChatMessage,
+} from '@/lib/user-message-attachments'
 
 interface UseBuilderSessionParams {
   user: any
@@ -37,7 +41,7 @@ interface UseBuilderSessionParams {
   disconnect: () => void
   clearMessages: () => void
   restoreMessages: (messages: DirectorMessage[], sessionState: any) => void
-  updateCacheUserMessages: (messages: Array<{ id: string; text: string; timestamp: number }>) => void
+  updateCacheUserMessages: (messages: UserChatMessage[]) => void
   messages: DirectorMessage[]
   toast: (opts: any) => any
   isUnsavedSession: boolean
@@ -84,7 +88,7 @@ export function useBuilderSession({
   const [isResumedSession, setIsResumedSession] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
 
-  const [userMessages, setUserMessages] = useState<Array<{ id: string; text: string; timestamp: number }>>(() => {
+  const [userMessages, setUserMessages] = useState<UserChatMessage[]>(() => {
     if (typeof window === 'undefined') return [];
     const cacheOwner = user?.id ?? user?.email ?? '';
     if (isAuthLoading || !cacheOwner) return [];
@@ -160,7 +164,8 @@ export function useBuilderSession({
         return {
           id: m.message_id,
           text: text,
-          timestamp: new Date(m.timestamp).getTime()
+          timestamp: new Date(m.timestamp).getTime(),
+          attachments: attachmentsFromPayload(m.payload),
         };
       });
 
@@ -175,6 +180,7 @@ export function useBuilderSession({
       if (persistence) {
         missingUserMessages.forEach((m: any) => {
           const text = m.payload?.text || m.content || '';
+          const attachments = attachmentsFromPayload(m.payload);
           debugLog('💾 [FIX 9] Saving recovered user message to database:', {
             id: m.message_id,
             text: text.substring(0, 50)
@@ -184,7 +190,7 @@ export function useBuilderSession({
             session_id: currentSessionId,
             timestamp: m.timestamp,
             type: 'chat_message',
-            payload: { text }
+            payload: attachments.length > 0 ? { text, attachments } : { text }
           } as DirectorMessage, text);
         });
       }
@@ -419,7 +425,7 @@ export function useBuilderSession({
             if (session.messages && session.messages.length > 0) {
               debugLog(`📥 Restoring ${session.messages.length} messages from database`)
 
-              const userMsgs: Array<{ id: string; text: string; timestamp: number }> = []
+              const userMsgs: UserChatMessage[] = []
               const botMsgs: DirectorMessage[] = []
               let lastActionRequestId: string | null = null
 
@@ -439,7 +445,8 @@ export function useBuilderSession({
                   userMsgs.push({
                     id: msg.id,
                     text: msg.userText,
-                    timestamp: new Date(msg.timestamp).getTime()
+                    timestamp: new Date(msg.timestamp).getTime(),
+                    attachments: attachmentsFromPayload(msg.payload),
                   })
                 } else {
                   debugLog('🤖 Classified as BOT message');

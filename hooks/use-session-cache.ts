@@ -12,6 +12,10 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import type { DirectorMessage, TokenUsagePayload } from './use-deckster-websocket-v2'
+import {
+  attachmentsFromPayload,
+  type UserChatMessage,
+} from '@/lib/user-message-attachments'
 
 export const SESSION_CACHE_VERSION = 2 // Increment when schema changes
 const DEFAULT_TTL = 24 * 60 * 60 * 1000 // 24 hours
@@ -32,7 +36,7 @@ export interface CachedSessionState {
 
   // WebSocket messages
   messages: DirectorMessage[]
-  userMessages: Array<{ id: string; text: string; timestamp: number }>
+  userMessages: UserChatMessage[]
 
   // Presentation URLs (blank/strawman/final versions - Builder V2)
   presentationUrl: string | null
@@ -72,7 +76,7 @@ export interface SessionCache {
   // Read operations
   getCachedState: () => CachedSessionState | null
   getCachedMessages: () => DirectorMessage[] | null
-  getCachedUserMessages: () => Array<{ id: string; text: string; timestamp: number }> | null
+  getCachedUserMessages: () => UserChatMessage[] | null
 
   // Write operations (synchronous)
   setCachedState: (state: Partial<CachedSessionState>) => void
@@ -316,6 +320,7 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
             id: message.message_id,
             text: userText,
             timestamp: Date.now(),
+            attachments: attachmentsFromPayload(message.payload),
           }
         ]
       }

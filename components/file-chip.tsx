@@ -38,6 +38,8 @@ interface FileChipProps {
   file: UploadedFile
   onRemove: () => void
   variant?: 'default' | 'compact' | 'icon'
+  removable?: boolean
+  showStatus?: boolean
 }
 
 function getFileIcon(mimeType: string) {
@@ -65,7 +67,13 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
 }
 
-export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps) {
+export function FileChip({
+  file,
+  onRemove,
+  variant = 'default',
+  removable = true,
+  showStatus = true,
+}: FileChipProps) {
   const FileIcon = getFileIcon(file.type)
   const isCompact = variant === 'compact'
   const isIcon = variant === 'icon'
@@ -80,7 +88,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
       <div
         role="status"
         aria-live="polite"
-        aria-label={status.ariaLabel}
+        aria-label={showStatus ? status.ariaLabel : `${file.name}: attached`}
         className={cn(
           "group relative h-16 w-20 shrink-0 rounded-xl border bg-white shadow-sm transition-colors",
           file.status === 'success' && "border-gray-200",
@@ -89,16 +97,20 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           file.status === 'degraded' && "border-amber-200 bg-amber-50/70",
           file.status === 'error' && "border-destructive/40 bg-destructive/10"
         )}
-        title={`${file.name} — ${status.label}${file.errorMessage ? `: ${file.errorMessage}` : ''}`}
+        title={showStatus
+          ? `${file.name} — ${status.label}${file.errorMessage ? `: ${file.errorMessage}` : ''}`
+          : `${file.name} — attached`}
       >
-        <button
-          type="button"
-          onClick={onRemove}
-          className="absolute -right-1 -top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-700"
-          aria-label={`Remove ${file.name}`}
-        >
-          <X className="h-2.5 w-2.5" />
-        </button>
+        {removable && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="absolute -right-1 -top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-700"
+            aria-label={`Remove ${file.name}`}
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+        )}
 
         <div className="flex h-full flex-col items-center justify-center gap-0.5 px-1.5 py-1.5">
           <div className={cn(
@@ -148,7 +160,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           )}
         </div>
 
-        {status.showProgress && (
+        {showStatus && status.showProgress && (
           <Progress value={file.uploadProgress} className="absolute bottom-0 left-2 right-2 h-0.5" />
         )}
       </div>
@@ -159,7 +171,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
     <div
       role="status"
       aria-live="polite"
-      aria-label={status.ariaLabel}
+      aria-label={showStatus ? status.ariaLabel : `${file.name}: attached`}
       className={cn(
         "flex items-center border transition-colors",
         isCompact
@@ -195,10 +207,10 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           </>
         )}
 
-        {status.showProgress && (
+        {showStatus && status.showProgress && (
           <Progress value={file.uploadProgress} className="h-1 mt-1" />
         )}
-        {(file.status === 'processing' || file.status === 'success' || file.status === 'degraded') && (
+        {showStatus && (file.status === 'processing' || file.status === 'success' || file.status === 'degraded') && (
           <p className={cn(
             "text-[10px] mt-1",
             file.status === 'degraded' ? "text-amber-700" :
@@ -209,7 +221,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           </p>
         )}
 
-        {file.status === 'error' && file.errorMessage && (
+        {showStatus && file.status === 'error' && file.errorMessage && (
           <p className="text-xs text-destructive mt-1" title={file.errorMessage}>
             {file.errorMessage}
           </p>
@@ -217,7 +229,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
-        {status.showActivity && (
+        {showStatus && status.showActivity && (
           <Loader2 className={cn(
             "animate-spin text-muted-foreground",
             isCompact ? "h-3.5 w-3.5" : "h-4 w-4"
@@ -236,16 +248,18 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           <AlertCircle className={cn("text-destructive", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
         )}
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(isCompact ? "h-5 w-5" : "h-6 w-6")}
-          onClick={onRemove}
-          type="button"
-          aria-label={`Remove ${file.name}`}
-        >
-          <X className="h-3 w-3" />
-        </Button>
+        {removable && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(isCompact ? "h-5 w-5" : "h-6 w-6")}
+            onClick={onRemove}
+            type="button"
+            aria-label={`Remove ${file.name}`}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
       </div>
     </div>
   )

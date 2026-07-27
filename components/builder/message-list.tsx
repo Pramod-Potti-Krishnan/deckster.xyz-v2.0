@@ -10,6 +10,7 @@ import {
   User,
   ChevronDown,
 } from "lucide-react"
+import { FileChip, type UploadedFile } from "@/components/file-chip"
 import {
   type DirectorMessage,
   type ChatMessage as V2ChatMessage,
@@ -20,13 +21,18 @@ import {
   type StatusUpdate,
 } from "@/hooks/use-deckster-websocket-v2"
 import { debugLog } from "@/lib/debug-log"
+import {
+  attachmentsFromPayload,
+  type UserChatMessage,
+} from "@/lib/user-message-attachments"
+import { shouldShowBuildWorkingPulse } from "@/lib/build-progress-visibility"
 import { hasLiveTrackedEphemeralMessage } from "@/lib/slide-compose-async"
 import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
 import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
 
 export interface MessageListProps {
   sessionId?: string | null
-  userMessages: Array<{ id: string; text: string; timestamp: number }>
+  userMessages: UserChatMessage[]
   messages: DirectorMessage[]
   userMessageIdsRef: React.RefObject<Set<string>>
   userMessageContentMapRef: React.RefObject<Map<string, string>>
@@ -43,6 +49,7 @@ export interface MessageListProps {
   // Thinking-stream: called after the fade animation finishes so the WS hook can drain its tracked IDs.
   onEphemeralFadeComplete?: () => void
   currentStatus?: StatusUpdate['payload'] | null
+  isGeneratingFinal?: boolean
 }
 
 function EvidenceBadge({ context }: { context?: SlideContextItem }) {
@@ -94,6 +101,7 @@ export function MessageList({
   ephemeralMessageIds,
   onEphemeralFadeComplete,
   currentStatus,
+  isGeneratingFinal = false,
 }: MessageListProps) {
   // Thinking-stream fade-out: when slide_update lands, fade tracked ephemeral
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
@@ -173,6 +181,7 @@ export function MessageList({
             id: m.message_id,
             text: text,
             timestamp: timestamp,
+            attachments: attachmentsFromPayload(mAny.payload),
             messageType: 'user' as const
           };
         }
@@ -398,11 +407,11 @@ export function MessageList({
     if (msg.type !== 'thinking_stream') return false
     return (msg.messages || []).some((m: V2ChatMessage) => !removedIds.has(m.message_id))
   })
-  const showWorkingPulse = Boolean(
-    currentStatus
-    && (currentStatus.status === 'thinking' || currentStatus.status === 'generating')
-    && !hasVisibleThinkingStream
-  )
+  const showWorkingPulse = shouldShowBuildWorkingPulse({
+    isGeneratingFinal,
+    hasVisibleThinkingStream,
+    currentStatus,
+  })
 
   return (
     <>
@@ -413,6 +422,27 @@ export function MessageList({
               <div className="flex-1 max-w-[85%] text-right">
                 <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">You</p>
                 <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{item.text}</p>
+                {item.attachments && item.attachments.length > 0 && (
+                  <div
+                    className="mt-2 flex flex-wrap justify-end gap-1.5"
+                    aria-label={`${item.attachments.length} attached file${item.attachments.length === 1 ? '' : 's'}`}
+                  >
+                    {item.attachments.map(attachment => (
+                      <FileChip
+                        key={attachment.id}
+                        file={{
+                          ...attachment,
+                          status: 'success',
+                          uploadProgress: 100,
+                        } satisfies UploadedFile}
+                        onRemove={() => undefined}
+                        removable={false}
+                        showStatus={false}
+                        variant="compact"
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex-shrink-0 w-6 h-6 rounded-full bg-gray-800 dark:bg-slate-700 flex items-center justify-center">
                 <User className="h-3 w-3 text-white" />
@@ -727,7 +757,7 @@ export function MessageList({
           </React.Fragment>
         )
       })}
-      {showWorkingPulse && currentStatus && (
+      {showWorkingPulse && (
         <div className="flex gap-3 animate-in fade-in duration-200">
           <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
             <Sparkles className="h-3 w-3 text-white" />
@@ -742,7 +772,7 @@ export function MessageList({
                   <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse [animation-delay:240ms]" />
                 </span>
                 <span className="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-slate-200">
-                  {currentStatus.text || 'Working...'}
+                  {currentStatus?.text || 'Preparing your slides…'}
                 </span>
               </div>
             </div>
