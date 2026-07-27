@@ -215,6 +215,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         original_filename: file.name,
         content_type: contentType,
         display_name: file.name,
+        respond_async: true,
       }),
     })
 
@@ -418,25 +419,6 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         provisionalFileName,
       )
 
-      const processingFile: UploadedFile = {
-        ...uploadedFile,
-        status: 'processing',
-        uploadProgress: 100,
-        geminiFileUri: provisionalFileUri,
-        geminiFileName: provisionalFileName,
-        geminiStoreName: researcherSessionId,
-      }
-      setFiles(prev => prev.map(f => f.id === fileId ? processingFile : f))
-
-      // Publish acceptance immediately rather than waiting for the enrich
-      // endpoint or its poll loop. This sets sessionStoreName in the builder,
-      // so Send is safe and non-blocking from this point onward.
-      try {
-        onUploadComplete?.([processingFile])
-      } catch (callbackError) {
-        console.error('[FileUpload] onUploadComplete callback failed:', callbackError)
-      }
-
       let processResult: ProcessUploadedResponse
       try {
         processResult = await processUploadedFile(
@@ -449,17 +431,43 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         const errorMessage = error instanceof Error
           ? error.message
           : 'Researcher could not start source enrichment'
-        const degradedFile: UploadedFile = {
-          ...processingFile,
-          status: 'degraded',
+        const failedFile: UploadedFile = {
+          ...uploadedFile,
+          status: 'error',
+          uploadProgress: 100,
           errorMessage,
+          geminiFileUri: provisionalFileUri,
+          geminiFileName: provisionalFileName,
+          geminiStoreName: researcherSessionId,
         }
-        setFiles(prev => prev.map(f => f.id === fileId ? degradedFile : f))
+        setFiles(prev => prev.map(f => f.id === fileId ? failedFile : f))
         toast({
-          title: 'Uploaded with limited source enrichment',
-          description: `${file.name}: ${errorMessage}. You can continue chatting.`,
+          title: 'Source processing could not start',
+          description: `${file.name} is stored, but must be retried or removed before sending: ${errorMessage}`,
+          variant: 'destructive',
         })
-        return degradedFile
+        return failedFile
+      }
+
+      const processingFile: UploadedFile = {
+        ...uploadedFile,
+        status: 'processing',
+        uploadProgress: 100,
+        geminiFileUri: processResult.file_uri
+          || processResult.storage_path
+          || provisionalFileUri,
+        geminiFileName: processResult.file_name || provisionalFileName,
+        geminiStoreName: researcherSessionId,
+      }
+      setFiles(prev => prev.map(f => f.id === fileId ? processingFile : f))
+
+      // The Researcher has now durably registered the ingest job (202 for
+      // respond_async clients). Publish the attachment before polling so Send
+      // is safe and source enrichment remains non-blocking.
+      try {
+        onUploadComplete?.([processingFile])
+      } catch (callbackError) {
+        console.error('[FileUpload] onUploadComplete callback failed:', callbackError)
       }
 
       if (processResult.job_id) {

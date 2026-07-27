@@ -134,6 +134,10 @@ const chatInputSource = fs.readFileSync(
   new URL('../components/builder/chat-input.tsx', import.meta.url),
   'utf8',
 )
+const uploadHookSource = fs.readFileSync(
+  new URL('../hooks/use-file-upload.ts', import.meta.url),
+  'utf8',
+)
 assert.doesNotMatch(
   chipSource,
   /file\.status === 'uploading'\s*\|\|\s*file\.status === 'processing'/,
@@ -153,6 +157,16 @@ assert.doesNotMatch(
   chatInputSource,
   /pendingUpload[\s\S]{0,120}status === 'processing'/,
   'background enrichment must not block the composer',
+)
+assert.match(
+  uploadHookSource,
+  /respond_async:\s*true/,
+  'the frontend must ask Researcher to durably enqueue small files',
+)
+assert.ok(
+  uploadHookSource.indexOf('processResult = await processUploadedFile')
+    < uploadHookSource.indexOf('onUploadComplete?.([processingFile])'),
+  'Send may be enabled only after Researcher has registered the ingest job',
 )
 
 console.log('upload status contract tests passed')
