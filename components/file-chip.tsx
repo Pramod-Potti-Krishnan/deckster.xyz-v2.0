@@ -20,7 +20,7 @@ export interface UploadedFile {
   name: string
   size: number
   type: string
-  status: 'uploading' | 'success' | 'error'
+  status: 'uploading' | 'processing' | 'success' | 'error'
   uploadProgress: number
   errorMessage?: string
   geminiFileUri?: string
@@ -71,6 +71,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           "group relative h-16 w-16 shrink-0 rounded-xl border bg-white shadow-sm transition-colors",
           file.status === 'success' && "border-gray-200",
           file.status === 'uploading' && "border-purple-200 bg-purple-50/50",
+          file.status === 'processing' && "border-blue-200 bg-blue-50/50",
           file.status === 'error' && "border-destructive/40 bg-destructive/10"
         )}
         title={file.name}
@@ -97,7 +98,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
         </div>
 
         <div className="absolute bottom-1 right-1 rounded-full bg-white shadow-sm">
-          {file.status === 'uploading' && (
+          {(file.status === 'uploading' || file.status === 'processing') && (
             <Loader2 className="h-3 w-3 animate-spin text-purple-600" />
           )}
           {file.status === 'success' && (
@@ -108,7 +109,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           )}
         </div>
 
-        {file.status === 'uploading' && (
+        {(file.status === 'uploading' || file.status === 'processing') && (
           <Progress value={file.uploadProgress} className="absolute bottom-0 left-2 right-2 h-0.5" />
         )}
       </div>
@@ -123,6 +124,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
         : "gap-2 rounded-lg px-3 py-2",
       file.status === 'success' && "bg-secondary border-secondary",
       file.status === 'uploading' && "bg-secondary/50 border-secondary",
+      file.status === 'processing' && "bg-blue-50/70 border-blue-200",
       file.status === 'error' && "bg-destructive/10 border-destructive"
     )}>
       <FileIcon className={cn(
@@ -149,8 +151,13 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
           </>
         )}
 
-        {file.status === 'uploading' && (
+        {(file.status === 'uploading' || file.status === 'processing') && (
           <Progress value={file.uploadProgress} className="h-1 mt-1" />
+        )}
+        {file.status === 'processing' && (
+          <p className="text-[10px] text-blue-700 mt-1">
+            Uploaded · indexing in the background
+          </p>
         )}
 
         {file.status === 'error' && file.errorMessage && (
@@ -161,7 +168,7 @@ export function FileChip({ file, onRemove, variant = 'default' }: FileChipProps)
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
-        {file.status === 'uploading' && (
+        {(file.status === 'uploading' || file.status === 'processing') && (
           <Loader2 className={cn(
             "animate-spin text-muted-foreground",
             isCompact ? "h-3.5 w-3.5" : "h-4 w-4"

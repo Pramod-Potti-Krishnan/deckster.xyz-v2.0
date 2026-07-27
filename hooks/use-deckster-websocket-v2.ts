@@ -201,6 +201,12 @@ export interface SlideContextItem {
   narrative_role?: string;
   key_message?: string;
   content_type?: string;
+  subtype?: string | null;
+  research_status?: string | null;
+  research_ready?: boolean | null;
+  research_issues?: string[];
+  citation_count?: number | null;
+  source_types?: string[];
   subtypes?: {
     chart_subtype?: string | null;
     infographic_subtype?: string | null;

@@ -390,24 +390,75 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       updateFile(fileId, { uploadProgress: 65 })
 
       const processResult = await processUploadedFile(researcherSessionId, uploadUrl.storage_path, file, contentType)
-      updateFile(fileId, { uploadProgress: processResult.job_id ? 75 : 95 })
+      const provisionalFileName = processResult.file_name || file.name
+      const provisionalFileUri = processResult.file_uri
+        || processResult.storage_path
+        || uploadUrl.storage_path
 
-      const ingestResult = processResult.job_id
-        ? await pollIngestStatus(processResult.job_id, fileId)
-        : null
+      // Link the uploaded object to the chat session immediately. Vector
+      // indexing continues in the background, but the Director now knows an
+      // upload exists and its source-readiness gate will wait before Stage 4.
+      await recordUploadedFile(
+        researcherSessionId,
+        file,
+        provisionalFileUri,
+        provisionalFileName,
+      )
 
-      const fileName = ingestResult?.file_name || processResult.file_name || file.name
-      const fileUri = processResult.file_uri || ingestResult?.storage_path || processResult.storage_path || uploadUrl.storage_path
+      if (processResult.job_id) {
+        const processingFile: UploadedFile = {
+          ...uploadedFile,
+          status: 'processing',
+          uploadProgress: 75,
+          geminiFileUri: provisionalFileUri,
+          geminiFileName: provisionalFileName,
+          geminiStoreName: researcherSessionId,
+        }
+        setFiles(prev => prev.map(f => f.id === fileId ? processingFile : f))
 
-      await recordUploadedFile(researcherSessionId, file, fileUri, fileName)
+        void pollIngestStatus(processResult.job_id, fileId)
+          .then(ingestResult => {
+            const successFile: UploadedFile = {
+              ...processingFile,
+              status: 'success',
+              uploadProgress: 100,
+              geminiFileUri: processResult.file_uri
+                || ingestResult.storage_path
+                || provisionalFileUri,
+              geminiFileName: ingestResult.file_name || provisionalFileName,
+            }
+            setFiles(prev => prev.map(f => f.id === fileId ? successFile : f))
+            console.log(
+              `[FileUpload] Background indexing ready: ${file.name}, `
+              + `researcherSessionId=${researcherSessionId}`,
+            )
+          })
+          .catch(error => {
+            const errorMessage = error instanceof Error
+              ? error.message
+              : 'Researcher failed to index this file'
+            updateFile(fileId, {
+              status: 'error',
+              uploadProgress: 0,
+              errorMessage,
+            })
+            toast({
+              title: 'File indexing failed',
+              description: `${file.name}: ${errorMessage}`,
+              variant: 'destructive',
+            })
+          })
+
+        return processingFile
+      }
 
       // Update file status to success
       const successFile: UploadedFile = {
         ...uploadedFile,
         status: 'success',
         uploadProgress: 100,
-        geminiFileUri: fileUri,
-        geminiFileName: fileName,
+        geminiFileUri: provisionalFileUri,
+        geminiFileName: provisionalFileName,
         geminiStoreName: researcherSessionId,
       }
 
@@ -487,24 +538,24 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
 
     try {
       const uploadedFiles = await Promise.allSettled(uploadPromises)
-      const successfulUploads = uploadedFiles
+      const acceptedUploads = uploadedFiles
         .filter((result): result is PromiseFulfilledResult<UploadedFile> => result.status === 'fulfilled')
         .map(result => result.value)
 
-      if (successfulUploads.length > 0 && onUploadComplete) {
-        onUploadComplete(successfulUploads)
+      if (acceptedUploads.length > 0 && onUploadComplete) {
+        onUploadComplete(acceptedUploads)
       }
 
-      if (successfulUploads.length < validFiles.length) {
+      if (acceptedUploads.length < validFiles.length) {
         toast({
           title: 'Some uploads failed',
-          description: `${successfulUploads.length} of ${validFiles.length} files uploaded successfully.`,
+          description: `${acceptedUploads.length} of ${validFiles.length} files were accepted.`,
           variant: 'destructive'
         })
-      } else if (successfulUploads.length > 0) {
+      } else if (acceptedUploads.length > 0) {
         toast({
-          title: 'Upload successful',
-          description: `${successfulUploads.length} file(s) uploaded successfully.`
+          title: 'Upload accepted',
+          description: `${acceptedUploads.length} file(s) uploaded. Indexing continues in the background.`
         })
       }
     } catch (error) {
