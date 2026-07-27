@@ -124,7 +124,9 @@ const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 2
 const THEME_SYNC_TIMEOUT_MS = 20_000
 const isAttachedUpload = (file: UploadedFile) => (
-  file.status === 'success' || file.status === 'processing'
+  file.status === 'success'
+  || file.status === 'processing'
+  || file.status === 'degraded'
 )
 function normalizeTextLabsElementType(value: unknown): TextLabsComponentType | null {
   return normalizeSemanticComponentType(value)
@@ -3230,18 +3232,20 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
-    // Upload readiness gate. The composer disables Send for this, but this is
+    // Raw-upload readiness gate. Background source enrichment is explicitly
+    // non-blocking once the file is stored and linked to this session. The
+    // composer disables Send only for transport/link failures, and this is
     // the only place every send path converges, and it is the last point at
     // which we still know the truth: the Director is told uploads exist purely
     // via `fileUpload`/`storeName` below, so sending while a file is still
-    // ingesting silently builds the deck without that document.
+    // uploading silently builds the deck without that document.
     const stillUploading = uploadedFiles.find(f => f.status === 'uploading')
     const failedUploadFile = uploadedFiles.find(f => f.status === 'error')
     if (stillUploading || failedUploadFile) {
       toast({
-        title: stillUploading ? 'Still processing your file' : 'Upload failed',
+        title: stillUploading ? 'Still uploading your file' : 'Upload failed',
         description: stillUploading
-          ? `${stillUploading.name} is still being processed. It will be ready in a moment.`
+          ? `${stillUploading.name} is still being stored. It will be attached in a moment.`
           : `${failedUploadFile!.name} couldn't be uploaded. Remove it or try again before sending.`,
         variant: stillUploading ? 'default' : 'destructive',
       })

@@ -5,6 +5,10 @@ import { useToast } from '@/hooks/use-toast'
 import { UploadedFile } from '@/components/file-chip'
 import { validateFile } from '@/lib/file-validation'
 import { apiConfig, uploadConfig } from '@/lib/config'
+import {
+  resolveEnrichmentOutcome,
+  type IngestReadiness,
+} from '@/lib/upload-status'
 
 const MAX_FILES = uploadConfig.maxFiles
 const RESEARCHER_BASE_URL = apiConfig.knowledgeServiceUrl.replace(/\/$/, '')
@@ -26,7 +30,7 @@ type StorageUploadUrlResponse = {
   expires_in?: number
 }
 
-type ProcessUploadedResponse = {
+type ProcessUploadedResponse = IngestReadiness & {
   success?: boolean
   job_id?: string
   status?: string
@@ -36,15 +40,23 @@ type ProcessUploadedResponse = {
   storage_path?: string
   message?: string
   annotation_status?: string
+  parse_status?: string
+  error?: string | null
+  degraded_reason?: string | null
+  warning?: string | null
 }
 
-type IngestStatusResponse = {
+type IngestStatusResponse = IngestReadiness & {
   job_id: string
   session_id?: string
   file_name?: string
-  status: 'pending' | 'processing' | 'ready' | 'failed' | 'unknown'
+  status: 'pending' | 'processing' | 'ready' | 'degraded' | 'partial' | 'failed' | 'unknown'
   storage_path?: string
   error?: string | null
+  annotation_status?: string | null
+  parse_status?: string | null
+  degraded_reason?: string | null
+  warning?: string | null
 }
 
 interface UseFileUploadOptions {
@@ -278,7 +290,11 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       const progress = Math.min(95, 75 + Math.round((attempt / POLL_ATTEMPTS) * 20))
       updateFile(fileId, { uploadProgress: progress })
 
-      if (job.status === 'ready') {
+      if (
+        job.status === 'ready'
+        || job.status === 'degraded'
+        || job.status === 'partial'
+      ) {
         return job
       }
 
@@ -389,15 +405,12 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       await putFileToStorage(uploadUrl.signed_url, file, contentType)
       updateFile(fileId, { uploadProgress: 65 })
 
-      const processResult = await processUploadedFile(researcherSessionId, uploadUrl.storage_path, file, contentType)
-      const provisionalFileName = processResult.file_name || file.name
-      const provisionalFileUri = processResult.file_uri
-        || processResult.storage_path
-        || uploadUrl.storage_path
-
-      // Link the uploaded object to the chat session immediately. Vector
-      // indexing continues in the background, but the Director now knows an
-      // upload exists and its source-readiness gate will wait before Stage 4.
+      // The raw object now exists. Link it to the chat session before starting
+      // enrichment so the composer can stop presenting a blocking upload and
+      // the Director can safely receive a command while its own source-
+      // readiness gate waits for background indexing.
+      const provisionalFileName = file.name
+      const provisionalFileUri = uploadUrl.storage_path
       await recordUploadedFile(
         researcherSessionId,
         file,
@@ -405,31 +418,67 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         provisionalFileName,
       )
 
-      if (processResult.job_id) {
-        const processingFile: UploadedFile = {
-          ...uploadedFile,
-          status: 'processing',
-          uploadProgress: 75,
-          geminiFileUri: provisionalFileUri,
-          geminiFileName: provisionalFileName,
-          geminiStoreName: researcherSessionId,
-        }
-        setFiles(prev => prev.map(f => f.id === fileId ? processingFile : f))
+      const processingFile: UploadedFile = {
+        ...uploadedFile,
+        status: 'processing',
+        uploadProgress: 100,
+        geminiFileUri: provisionalFileUri,
+        geminiFileName: provisionalFileName,
+        geminiStoreName: researcherSessionId,
+      }
+      setFiles(prev => prev.map(f => f.id === fileId ? processingFile : f))
 
+      // Publish acceptance immediately rather than waiting for the enrich
+      // endpoint or its poll loop. This sets sessionStoreName in the builder,
+      // so Send is safe and non-blocking from this point onward.
+      try {
+        onUploadComplete?.([processingFile])
+      } catch (callbackError) {
+        console.error('[FileUpload] onUploadComplete callback failed:', callbackError)
+      }
+
+      let processResult: ProcessUploadedResponse
+      try {
+        processResult = await processUploadedFile(
+          researcherSessionId,
+          uploadUrl.storage_path,
+          file,
+          contentType,
+        )
+      } catch (error) {
+        const errorMessage = error instanceof Error
+          ? error.message
+          : 'Researcher could not start source enrichment'
+        const degradedFile: UploadedFile = {
+          ...processingFile,
+          status: 'degraded',
+          errorMessage,
+        }
+        setFiles(prev => prev.map(f => f.id === fileId ? degradedFile : f))
+        toast({
+          title: 'Uploaded with limited source enrichment',
+          description: `${file.name}: ${errorMessage}. You can continue chatting.`,
+        })
+        return degradedFile
+      }
+
+      if (processResult.job_id) {
         void pollIngestStatus(processResult.job_id, fileId)
           .then(ingestResult => {
-            const successFile: UploadedFile = {
+            const enrichment = resolveEnrichmentOutcome(ingestResult)
+            const completedFile: UploadedFile = {
               ...processingFile,
-              status: 'success',
+              status: enrichment.status,
               uploadProgress: 100,
+              errorMessage: enrichment.detail,
               geminiFileUri: processResult.file_uri
                 || ingestResult.storage_path
                 || provisionalFileUri,
               geminiFileName: ingestResult.file_name || provisionalFileName,
             }
-            setFiles(prev => prev.map(f => f.id === fileId ? successFile : f))
+            setFiles(prev => prev.map(f => f.id === fileId ? completedFile : f))
             console.log(
-              `[FileUpload] Background indexing ready: ${file.name}, `
+              `[FileUpload] Background enrichment ${enrichment.status}: ${file.name}, `
               + `researcherSessionId=${researcherSessionId}`,
             )
           })
@@ -438,34 +487,42 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
               ? error.message
               : 'Researcher failed to index this file'
             updateFile(fileId, {
-              status: 'error',
-              uploadProgress: 0,
+              // The raw object is already stored and linked. A failed or
+              // unobservable enrichment job is degraded, not an upload
+              // failure, and must not block the user from chatting.
+              status: 'degraded',
+              uploadProgress: 100,
               errorMessage,
             })
             toast({
-              title: 'File indexing failed',
-              description: `${file.name}: ${errorMessage}`,
-              variant: 'destructive',
+              title: 'Uploaded with limited source enrichment',
+              description: `${file.name}: ${errorMessage}. You can continue chatting.`,
             })
           })
 
         return processingFile
       }
 
-      // Update file status to success
-      const successFile: UploadedFile = {
+      const enrichment = resolveEnrichmentOutcome(processResult)
+      const completedFile: UploadedFile = {
         ...uploadedFile,
-        status: 'success',
+        status: enrichment.status,
         uploadProgress: 100,
-        geminiFileUri: provisionalFileUri,
-        geminiFileName: provisionalFileName,
+        errorMessage: enrichment.detail,
+        geminiFileUri: processResult.file_uri
+          || processResult.storage_path
+          || provisionalFileUri,
+        geminiFileName: processResult.file_name || provisionalFileName,
         geminiStoreName: researcherSessionId,
       }
 
-      setFiles(prev => prev.map(f => f.id === fileId ? successFile : f))
-      console.log(`[FileUpload] Direct upload succeeded: ${file.name}, researcherSessionId=${researcherSessionId}`)
+      setFiles(prev => prev.map(f => f.id === fileId ? completedFile : f))
+      console.log(
+        `[FileUpload] Direct upload ${enrichment.status}: ${file.name}, `
+        + `researcherSessionId=${researcherSessionId}`,
+      )
 
-      return successFile
+      return completedFile
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Upload failed'
       console.error(`[FileUpload] Upload failed: ${file.name}`, error)
@@ -496,6 +553,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     requestStorageUploadUrl,
     toast,
     updateFile,
+    onUploadComplete,
   ])
 
   const handleFilesSelected = useCallback(async (selectedFiles: File[]) => {
@@ -542,10 +600,6 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         .filter((result): result is PromiseFulfilledResult<UploadedFile> => result.status === 'fulfilled')
         .map(result => result.value)
 
-      if (acceptedUploads.length > 0 && onUploadComplete) {
-        onUploadComplete(acceptedUploads)
-      }
-
       if (acceptedUploads.length < validFiles.length) {
         toast({
           title: 'Some uploads failed',
@@ -553,15 +607,21 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
           variant: 'destructive'
         })
       } else if (acceptedUploads.length > 0) {
+        const partialCount = acceptedUploads.filter(file => file.status === 'degraded').length
+        const enrichingCount = acceptedUploads.filter(file => file.status === 'processing').length
         toast({
           title: 'Upload accepted',
-          description: `${acceptedUploads.length} file(s) uploaded. Indexing continues in the background.`
+          description: partialCount > 0
+            ? `${acceptedUploads.length} file(s) uploaded; ${partialCount} has partial source enrichment.`
+            : enrichingCount > 0
+              ? `${acceptedUploads.length} file(s) uploaded. Source enrichment continues in the background.`
+              : `${acceptedUploads.length} file(s) uploaded and ready.`
         })
       }
     } catch (error) {
       console.error('File upload error:', error)
     }
-  }, [files.length, uploadFile, onUploadComplete, toast])
+  }, [files.length, uploadFile, toast])
 
   const removeFile = useCallback((fileId: string) => {
     setFiles(prev => prev.filter(f => f.id !== fileId))
