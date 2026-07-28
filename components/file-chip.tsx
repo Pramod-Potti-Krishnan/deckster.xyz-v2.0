@@ -93,6 +93,7 @@ export function FileChip({
           "group relative h-16 w-20 shrink-0 rounded-xl border bg-white shadow-sm transition-colors",
           file.status === 'success' && "border-gray-200",
           file.status === 'uploading' && "border-purple-200 bg-purple-50/50",
+          file.status === 'stored' && "border-slate-200 bg-slate-50/70",
           file.status === 'processing' && "border-blue-200 bg-blue-50/50",
           file.status === 'degraded' && "border-amber-200 bg-amber-50/70",
           file.status === 'error' && "border-destructive/40 bg-destructive/10"
@@ -127,24 +128,30 @@ export function FileChip({
             file.status === 'degraded' ? "text-amber-700" :
               file.status === 'error' ? "text-destructive" :
                 file.status === 'success' ? "text-emerald-700" :
-                  file.status === 'processing' ? "text-blue-700" :
-                    "text-purple-700"
+                  file.status === 'stored' ? "text-slate-600" :
+                    file.status === 'processing' ? "text-blue-700" :
+                      "text-purple-700"
           )}>
-            {file.status === 'processing'
-              ? 'Enriching'
-              : file.status === 'degraded'
-                ? 'Partial'
-                : file.status === 'success'
-                  ? 'Ready'
-                  : file.status === 'error'
-                    ? 'Failed'
-                    : 'Uploading'}
+            {file.status === 'stored'
+              ? 'Stored'
+              : file.status === 'processing'
+                ? 'Enriching'
+                : file.status === 'degraded'
+                  ? 'Attention'
+                  : file.status === 'success'
+                    ? 'Searchable'
+                    : file.status === 'error'
+                      ? 'Failed'
+                      : 'Uploading'}
           </span>
         </div>
 
         <div className="absolute bottom-1 right-1 rounded-full bg-white shadow-sm">
           {file.status === 'uploading' && (
             <Loader2 className="h-3 w-3 animate-spin text-purple-600" />
+          )}
+          {file.status === 'stored' && (
+            <Check className="h-3 w-3 text-slate-600" />
           )}
           {file.status === 'processing' && (
             <Sparkles className="h-3 w-3 text-blue-600" />
@@ -179,6 +186,7 @@ export function FileChip({
           : "gap-2 rounded-lg px-3 py-2",
         file.status === 'success' && "bg-secondary border-secondary",
         file.status === 'uploading' && "bg-secondary/50 border-secondary",
+        file.status === 'stored' && "bg-slate-50/70 border-slate-200",
         file.status === 'processing' && "bg-blue-50/70 border-blue-200",
         file.status === 'degraded' && "bg-amber-50/70 border-amber-200",
         file.status === 'error' && "bg-destructive/10 border-destructive"
@@ -210,11 +218,12 @@ export function FileChip({
         {showStatus && status.showProgress && (
           <Progress value={file.uploadProgress} className="h-1 mt-1" />
         )}
-        {showStatus && (file.status === 'processing' || file.status === 'success' || file.status === 'degraded') && (
+        {showStatus && (file.status === 'stored' || file.status === 'processing' || file.status === 'success' || file.status === 'degraded') && (
           <p className={cn(
             "text-[10px] mt-1",
             file.status === 'degraded' ? "text-amber-700" :
               file.status === 'success' ? "text-emerald-700" :
+                file.status === 'stored' ? "text-slate-600" :
                 "text-blue-700"
           )} title={file.errorMessage}>
             {status.label}
@@ -234,6 +243,9 @@ export function FileChip({
             "animate-spin text-muted-foreground",
             isCompact ? "h-3.5 w-3.5" : "h-4 w-4"
           )} />
+        )}
+        {file.status === 'stored' && (
+          <Check className={cn("text-slate-600", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />
         )}
         {file.status === 'processing' && (
           <Sparkles className={cn("text-blue-600", isCompact ? "h-3.5 w-3.5" : "h-4 w-4")} />

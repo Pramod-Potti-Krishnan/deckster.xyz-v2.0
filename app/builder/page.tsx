@@ -129,6 +129,7 @@ const BUILDER_SESSION_OPTIONS_VERSION = 2
 const THEME_SYNC_TIMEOUT_MS = 20_000
 const isAttachedUpload = (file: UploadedFile) => (
   file.status === 'success'
+  || file.status === 'stored'
   || file.status === 'processing'
   || file.status === 'degraded'
 )

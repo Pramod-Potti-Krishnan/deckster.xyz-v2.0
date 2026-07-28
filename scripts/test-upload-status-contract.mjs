@@ -37,12 +37,21 @@ const plain = value => JSON.parse(JSON.stringify(value))
 }
 
 {
+  const stored = getUploadStatusPresentation('stored', 'brief.pdf')
+  assert.equal(stored.blocksSend, false)
+  assert.equal(stored.showActivity, false)
+  assert.equal(stored.showProgress, false)
+  assert.equal(stored.label, 'Stored')
+  assert.match(stored.ariaLabel, /stored and attached/)
+}
+
+{
   const enriching = getUploadStatusPresentation('processing', 'brief.pdf')
   assert.equal(enriching.blocksSend, false)
   assert.equal(enriching.showActivity, false)
   assert.equal(enriching.showProgress, false)
-  assert.equal(enriching.label, 'Uploaded — enriching sources in background')
-  assert.match(enriching.ariaLabel, /uploaded; enriching sources in the background/)
+  assert.equal(enriching.label, 'Enriching in background')
+  assert.match(enriching.ariaLabel, /stored and enriching sources in the background/)
 }
 
 {
@@ -50,7 +59,7 @@ const plain = value => JSON.parse(JSON.stringify(value))
   assert.equal(ready.blocksSend, false)
   assert.equal(ready.showActivity, false)
   assert.equal(ready.showProgress, false)
-  assert.equal(ready.label, 'Sources ready')
+  assert.equal(ready.label, 'Searchable')
 }
 
 {
@@ -62,7 +71,7 @@ const plain = value => JSON.parse(JSON.stringify(value))
   assert.equal(partial.blocksSend, false)
   assert.equal(partial.showActivity, false)
   assert.equal(partial.showProgress, false)
-  assert.equal(partial.label, 'Uploaded — source enrichment is partial')
+  assert.equal(partial.label, 'Stored — partial / needs attention')
   assert.match(partial.ariaLabel, /No tables were extracted/)
 }
 
@@ -105,6 +114,17 @@ assert.deepEqual(
     },
   })),
   { status: 'degraded', detail: 'vector_index_failed' },
+)
+assert.deepEqual(
+  plain(resolveEnrichmentOutcome({
+    status: 'ready',
+    readiness: {
+      fully_ready: true,
+      semantic_query_verified: false,
+      degraded_reasons: ['semantic_query_not_verified'],
+    },
+  })),
+  { status: 'degraded', detail: 'semantic_query_not_verified' },
 )
 assert.deepEqual(
   plain(resolveEnrichmentOutcome({ success: false, warning: 'fallback only' })),
@@ -150,8 +170,8 @@ assert.match(
 )
 assert.match(
   builderSource,
-  /file\.status === 'success'[\s\S]*file\.status === 'processing'[\s\S]*file\.status === 'degraded'/,
-  'ready, enriching, and partial uploads all remain attached to Director requests',
+  /file\.status === 'success'[\s\S]*file\.status === 'stored'[\s\S]*file\.status === 'processing'[\s\S]*file\.status === 'degraded'/,
+  'stored, enriching, ready, and partial uploads all remain attached to Director requests',
 )
 assert.doesNotMatch(
   chatInputSource,
@@ -160,13 +180,23 @@ assert.doesNotMatch(
 )
 assert.match(
   uploadHookSource,
+  /status:\s*'stored'/,
+  'the durable-object boundary must produce a distinct Stored attachment state',
+)
+assert.match(
+  uploadHookSource,
   /respond_async:\s*true/,
   'the frontend must ask Researcher to durably enqueue small files',
 )
 assert.ok(
-  uploadHookSource.indexOf('processResult = await processUploadedFile')
-    < uploadHookSource.indexOf('onUploadComplete?.([processingFile])'),
-  'Send may be enabled only after Researcher has registered the ingest job',
+  uploadHookSource.indexOf('await recordUploadedFile')
+    < uploadHookSource.indexOf('onUploadComplete?.([storedFile])'),
+  'Send may be enabled once the durable object is linked to the session',
+)
+assert.ok(
+  uploadHookSource.indexOf('onUploadComplete?.([storedFile])')
+    < uploadHookSource.indexOf('processResult = await processUploadedFile'),
+  'source enrichment starts after the non-blocking Stored attachment is visible',
 )
 
 console.log('upload status contract tests passed')
