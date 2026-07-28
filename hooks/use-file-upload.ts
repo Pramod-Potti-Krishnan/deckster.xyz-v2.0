@@ -419,6 +419,23 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         provisionalFileName,
       )
 
+      // Storage durability is the UX boundary. Stop the upload spinner and
+      // publish the attachment now; extraction/indexing continues separately.
+      const storedFile: UploadedFile = {
+        ...uploadedFile,
+        status: 'stored',
+        uploadProgress: 100,
+        geminiFileUri: provisionalFileUri,
+        geminiFileName: provisionalFileName,
+        geminiStoreName: researcherSessionId,
+      }
+      setFiles(prev => prev.map(f => f.id === fileId ? storedFile : f))
+      try {
+        onUploadComplete?.([storedFile])
+      } catch (callbackError) {
+        console.error('[FileUpload] onUploadComplete callback failed:', callbackError)
+      }
+
       let processResult: ProcessUploadedResponse
       try {
         processResult = await processUploadedFile(
@@ -432,25 +449,21 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
           ? error.message
           : 'Researcher could not start source enrichment'
         const failedFile: UploadedFile = {
-          ...uploadedFile,
-          status: 'error',
+          ...storedFile,
+          status: 'degraded',
           uploadProgress: 100,
           errorMessage,
-          geminiFileUri: provisionalFileUri,
-          geminiFileName: provisionalFileName,
-          geminiStoreName: researcherSessionId,
         }
         setFiles(prev => prev.map(f => f.id === fileId ? failedFile : f))
         toast({
-          title: 'Source processing could not start',
-          description: `${file.name} is stored, but must be retried or removed before sending: ${errorMessage}`,
-          variant: 'destructive',
+          title: 'Stored — source enrichment needs attention',
+          description: `${file.name} is attached and usable; indexing can be retried. ${errorMessage}`,
         })
         return failedFile
       }
 
       const processingFile: UploadedFile = {
-        ...uploadedFile,
+        ...storedFile,
         status: 'processing',
         uploadProgress: 100,
         geminiFileUri: processResult.file_uri
@@ -460,15 +473,6 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         geminiStoreName: researcherSessionId,
       }
       setFiles(prev => prev.map(f => f.id === fileId ? processingFile : f))
-
-      // The Researcher has now durably registered the ingest job (202 for
-      // respond_async clients). Publish the attachment before polling so Send
-      // is safe and source enrichment remains non-blocking.
-      try {
-        onUploadComplete?.([processingFile])
-      } catch (callbackError) {
-        console.error('[FileUpload] onUploadComplete callback failed:', callbackError)
-      }
 
       if (processResult.job_id) {
         void pollIngestStatus(processResult.job_id, fileId)
@@ -513,7 +517,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
 
       const enrichment = resolveEnrichmentOutcome(processResult)
       const completedFile: UploadedFile = {
-        ...uploadedFile,
+        ...storedFile,
         status: enrichment.status,
         uploadProgress: 100,
         errorMessage: enrichment.detail,
@@ -616,7 +620,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         })
       } else if (acceptedUploads.length > 0) {
         const partialCount = acceptedUploads.filter(file => file.status === 'degraded').length
-        const enrichingCount = acceptedUploads.filter(file => file.status === 'processing').length
+        const enrichingCount = acceptedUploads.filter(
+          file => file.status === 'stored' || file.status === 'processing',
+        ).length
         toast({
           title: 'Upload accepted',
           description: partialCount > 0

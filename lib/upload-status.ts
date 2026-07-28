@@ -1,5 +1,6 @@
 export type UploadLifecycleStatus =
   | 'uploading'
+  | 'stored'
   | 'processing'
   | 'success'
   | 'degraded'
@@ -16,6 +17,11 @@ export type IngestReadiness = {
   readiness?: {
     fully_ready?: boolean | null
     partial?: boolean | null
+    semantic_query_verified?: boolean | null
+    object_storage_status?: string | null
+    extraction_status?: string | null
+    table_extraction_status?: string | null
+    semantic_index_status?: string | null
     degraded_reasons?: string[] | null
     retryable_steps?: string[] | null
   } | null
@@ -69,6 +75,7 @@ export function resolveEnrichmentOutcome(
     || DEGRADED_ANNOTATION_STATUSES.has(annotationStatus)
     || readiness.readiness?.partial === true
     || readiness.readiness?.fully_ready === false
+    || readiness.readiness?.semantic_query_verified === false
     // Some current Researcher paths expose a usable-but-limited result as
     // status=ready plus an error/degradation reason.
     || (status === 'ready' && Boolean(explicitDetail))
@@ -98,26 +105,34 @@ export function getUploadStatusPresentation(
         showActivity: true,
         showProgress: true,
       }
+    case 'stored':
+      return {
+        label: 'Stored',
+        ariaLabel: `${fileName}: stored and attached`,
+        blocksSend: false,
+        showActivity: false,
+        showProgress: false,
+      }
     case 'processing':
       return {
-        label: 'Uploaded — enriching sources in background',
-        ariaLabel: `${fileName}: uploaded; enriching sources in the background`,
+        label: 'Enriching in background',
+        ariaLabel: `${fileName}: stored and enriching sources in the background`,
         blocksSend: false,
         showActivity: false,
         showProgress: false,
       }
     case 'success':
       return {
-        label: 'Sources ready',
-        ariaLabel: `${fileName}: uploaded and sources ready`,
+        label: 'Searchable',
+        ariaLabel: `${fileName}: stored, enriched, and searchable`,
         blocksSend: false,
         showActivity: false,
         showProgress: false,
       }
     case 'degraded':
       return {
-        label: 'Uploaded — source enrichment is partial',
-        ariaLabel: `${fileName}: uploaded; source enrichment is partial${detail ? `. ${detail}` : ''}`,
+        label: 'Stored — partial / needs attention',
+        ariaLabel: `${fileName}: stored; source enrichment is partial and may need attention${detail ? `. ${detail}` : ''}`,
         blocksSend: false,
         showActivity: false,
         showProgress: false,
