@@ -17,6 +17,9 @@ export type IngestReadiness = {
   readiness?: {
     fully_ready?: boolean | null
     partial?: boolean | null
+    text_extracted?: boolean | null
+    summary_ready?: boolean | null
+    inventory_ready?: boolean | null
     semantic_query_verified?: boolean | null
     object_storage_status?: string | null
     extraction_status?: string | null
@@ -25,6 +28,18 @@ export type IngestReadiness = {
     degraded_reasons?: string[] | null
     retryable_steps?: string[] | null
   } | null
+}
+
+export function getEnrichmentLabel(
+  readiness: IngestReadiness | null | undefined,
+): string {
+  const state = readiness?.readiness
+  if (state?.semantic_query_verified) return 'Searchable'
+  if (state?.inventory_ready && state?.summary_ready) {
+    return 'Research-ready · indexing'
+  }
+  if (state?.text_extracted) return 'Read · building inventory'
+  return 'Reading document'
 }
 
 export type EnrichmentOutcome = {
