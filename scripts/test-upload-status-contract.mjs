@@ -23,10 +23,42 @@ vm.runInNewContext(compiled.outputText, {
 })
 
 const {
+  getEnrichmentLabel,
   getUploadStatusPresentation,
   resolveEnrichmentOutcome,
 } = mod.exports
 const plain = value => JSON.parse(JSON.stringify(value))
+
+assert.equal(
+  getEnrichmentLabel({
+    readiness: {
+      text_extracted: true,
+      summary_ready: true,
+      inventory_ready: true,
+      semantic_query_verified: false,
+    },
+  }),
+  'Research-ready · indexing',
+)
+assert.equal(
+  getEnrichmentLabel({
+    readiness: {
+      text_extracted: true,
+      summary_ready: false,
+      inventory_ready: false,
+      semantic_query_verified: false,
+    },
+  }),
+  'Read · building inventory',
+)
+assert.equal(
+  getEnrichmentLabel({
+    readiness: {
+      semantic_query_verified: true,
+    },
+  }),
+  'Searchable',
+)
 
 {
   const uploading = getUploadStatusPresentation('uploading', 'brief.pdf')

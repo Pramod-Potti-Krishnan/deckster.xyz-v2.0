@@ -29,6 +29,7 @@ export interface UploadedFile {
   status: UploadLifecycleStatus
   uploadProgress: number
   errorMessage?: string
+  enrichmentLabel?: string
   geminiFileUri?: string
   geminiFileName?: string  // NEW: Gemini's internal file name
   geminiStoreName?: string // NEW: File Search Store resource name
@@ -132,7 +133,8 @@ export function FileChip({
                     file.status === 'processing' ? "text-blue-700" :
                       "text-purple-700"
           )}>
-            {file.status === 'stored'
+            {file.enrichmentLabel
+              || (file.status === 'stored'
               ? 'Stored'
               : file.status === 'processing'
                 ? 'Enriching'
@@ -142,7 +144,7 @@ export function FileChip({
                     ? 'Searchable'
                     : file.status === 'error'
                       ? 'Failed'
-                      : 'Uploading'}
+                      : 'Uploading')}
           </span>
         </div>
 
@@ -226,7 +228,7 @@ export function FileChip({
                 file.status === 'stored' ? "text-slate-600" :
                 "text-blue-700"
           )} title={file.errorMessage}>
-            {status.label}
+            {file.enrichmentLabel || status.label}
           </p>
         )}
 

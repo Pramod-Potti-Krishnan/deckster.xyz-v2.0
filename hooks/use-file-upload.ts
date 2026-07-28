@@ -6,19 +6,20 @@ import { UploadedFile } from '@/components/file-chip'
 import { validateFile } from '@/lib/file-validation'
 import { apiConfig, uploadConfig } from '@/lib/config'
 import {
+  getEnrichmentLabel,
   resolveEnrichmentOutcome,
   type IngestReadiness,
 } from '@/lib/upload-status'
 
 const MAX_FILES = uploadConfig.maxFiles
 const RESEARCHER_BASE_URL = apiConfig.knowledgeServiceUrl.replace(/\/$/, '')
-const POLL_ATTEMPTS = 30
-const POLL_INTERVAL_MS = 3000
+const POLL_ATTEMPTS = 120
+const POLL_INTERVAL_MS = 5000
 // Per-request ceiling. The attempt budget above is meaningless without it:
 // a hung fetch blocks the loop forever rather than costing one attempt.
 const POLL_REQUEST_TIMEOUT_MS = 10000
 // Wall-clock stop so a slow-but-answering server still terminates.
-const POLL_DEADLINE_MS = 3 * 60 * 1000
+const POLL_DEADLINE_MS = 10 * 60 * 1000
 // Transient failures in a row before we call it lost.
 const MAX_CONSECUTIVE_TRANSIENT = 4
 // The session<->file link must survive a reload, so this write gets retries.
@@ -289,7 +290,10 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       }
 
       const progress = Math.min(95, 75 + Math.round((attempt / POLL_ATTEMPTS) * 20))
-      updateFile(fileId, { uploadProgress: progress })
+      updateFile(fileId, {
+        uploadProgress: progress,
+        enrichmentLabel: getEnrichmentLabel(job),
+      })
 
       if (
         job.status === 'ready'
@@ -466,6 +470,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         ...storedFile,
         status: 'processing',
         uploadProgress: 100,
+        enrichmentLabel: getEnrichmentLabel(processResult),
         geminiFileUri: processResult.file_uri
           || processResult.storage_path
           || provisionalFileUri,
@@ -483,6 +488,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
               status: enrichment.status,
               uploadProgress: 100,
               errorMessage: enrichment.detail,
+              enrichmentLabel: enrichment.status === 'success'
+                ? 'Searchable'
+                : 'Stored · partial',
               geminiFileUri: processResult.file_uri
                 || ingestResult.storage_path
                 || provisionalFileUri,
@@ -521,6 +529,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         status: enrichment.status,
         uploadProgress: 100,
         errorMessage: enrichment.detail,
+        enrichmentLabel: enrichment.status === 'success'
+          ? 'Searchable'
+          : 'Stored · partial',
         geminiFileUri: processResult.file_uri
           || processResult.storage_path
           || provisionalFileUri,
