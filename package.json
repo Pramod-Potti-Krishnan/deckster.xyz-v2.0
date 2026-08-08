@@ -52,7 +52,8 @@
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",
     "start": "next start",
     "postinstall": "prisma generate",
-    "test:qa-citation-tiers": "node scripts/test-qa-citation-tiers.mjs"
+    "test:qa-citation-tiers": "node scripts/test-qa-citation-tiers.mjs",
+    "test:qa-limits": "node scripts/test-qa-limits.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
