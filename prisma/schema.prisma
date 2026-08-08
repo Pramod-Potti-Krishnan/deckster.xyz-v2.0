@@ -399,11 +399,170 @@ model PublishedDeck {
   republishedAt          DateTime? @map("republished_at")
   revokedAt              DateTime? @map("revoked_at")            // unpublished (row kept so the slug stays reserved)
 
+  // --- Rung 1: grounded Q&A -------------------------------------------------
+  // The Researcher session whose corpus backs this deck's Q&A. Today this always
+  // equals sessionId, but that equality is a CONVENTION, not a constraint —
+  // persist it so the join is a stored fact and a future re-key can't silently
+  // break Q&A.
+  researcherSessionId String? @map("researcher_session_id")
+  // Off by default: a public LLM endpoint on someone's client deck must be a
+  // deliberate act, never a side effect of publishing.
+  qaEnabled           Boolean @default(false) @map("qa_enabled")
+  // 'none' | 'building' | 'ready' | 'partial' | 'failed'
+  // 'partial' = slides indexed, but the research corpus was already gone.
+  qaCorpusStatus      String  @default("none") @map("qa_corpus_status")
+  // The version the corpus was frozen at. A republish invalidates it, and a
+  // mismatch defers everything with `not_ready` rather than answering stale.
+  qaCorpusVersion     Int?    @map("qa_corpus_version")
+  qaDailyCap          Int     @default(50)  @map("qa_daily_cap")
+  qaMonthlyCap        Int     @default(500) @map("qa_monthly_cap")
+  // Tone: style ONLY. Enforced structurally in Researcher (stage 1 grounds with
+  // the tone absent from its context; stage 2 only restyles text that already
+  // passed the gates), so no tone can move the refusal threshold.
+  qaTonePreset        String  @default("professional") @map("qa_tone_preset")
+  qaToneInstruction   String? @map("qa_tone_instruction")
+  // Whether PUBLIC web sources may be named to viewers. Deck slides always are
+  // (the viewer is looking at them); private uploads and research NEVER are.
+  qaCiteWebSources    Boolean @default(true) @map("qa_cite_web_sources")
+
   user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  questions DeckQuestion[]
+  faqItems  DeckFaqItem[]
+  qaSources PublishedDeckSource[]
+
   @@index([userId])
   @@map("fe_published_decks")
+}
+
+/// A question asked by a viewer on a published deck.
+///
+/// PRIVATE TO THE ASKER by construction. A deck sent to five clients must never
+/// let one see another's questions, so every public read is scoped by
+/// askerTokenHash — never by publishedDeckId alone. That is enforced in the
+/// query, not in the component.
+///
+/// Promotion to the public FAQ COPIES into DeckFaqItem; this row is never made
+/// public, so promoting one answer can never expose the thread it came from.
+model DeckQuestion {
+  id              String   @id @default(cuid())
+  publishedDeckId String   @map("published_deck_id")
+
+  // --- asker (anonymous by default) ---
+  /// sha256 of the follow-up token. The raw token exists only in the asker's
+  /// browser and their return link, so a database leak grants access to no thread.
+  askerTokenHash  String   @unique @map("asker_token_hash")
+  /// sha256(ip + secret). Rate limiting and abuse only; never displayed, not reversible.
+  askerIpHash     String   @map("asker_ip_hash")
+  askerEmail      String?  @map("asker_email")
+  askerName       String?  @map("asker_name")
+
+  question        String
+  /// Which deck version was live when asked (PublishedDeck.version).
+  deckVersion     Int      @default(0) @map("deck_version")
+
+  // --- the machine attempt ---
+  /// 'answered' | 'deferred' | 'owner_answered' | 'blocked'
+  status          String   @default("deferred")
+  /// 'answered' | 'no_evidence' | 'low_confidence' | 'unverified_claim'
+  /// | 'policy' | 'not_ready' | 'capped' | 'disabled' | 'rate_limited'
+  gateReason      String?  @map("gate_reason")
+  aiAnswer        String?  @map("ai_answer")
+  /// The FULL, tier-blind citation set. The owner and the audit trail see
+  /// everything, including private source names; only the VIEWER-facing
+  /// projection is filtered (see citationsForViewer).
+  aiCitations     Json?    @map("ai_citations")
+  confidence      Float?
+  retrievalTop    Float?   @map("retrieval_top")
+  modelUsed       String?  @map("model_used")
+  tokensIn        Int?     @map("tokens_in")
+  tokensOut       Int?     @map("tokens_out")
+  costCents       Int?     @map("cost_cents")
+
+  // --- the human follow-up ---
+  ownerAnswer     String?   @map("owner_answer")
+  ownerAnsweredAt DateTime? @map("owner_answered_at")
+  ownerReadAt     DateTime? @map("owner_read_at")
+  askerSeenAt     DateTime? @map("asker_seen_at")
+
+  // --- forward fields for rungs 3–4. Nullable, written by nobody in rung 1.
+  // Added now so a later rung needs no migration against a table that by then
+  // holds production question history.
+  /// 'text' | 'narration' | 'live_chat'
+  channel            String?  @default("text")
+  spoken             Boolean? @default(false)
+  answerAudioUrl     String?  @map("answer_audio_url")
+  narrationSessionId String?  @map("narration_session_id")
+  liveSessionId      String?  @map("live_session_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  deck PublishedDeck @relation(fields: [publishedDeckId], references: [id], onDelete: Cascade)
+  faq  DeckFaqItem?
+
+  @@index([publishedDeckId, createdAt])
+  @@index([publishedDeckId, status])
+  @@index([askerIpHash, createdAt])
+  @@map("fe_deck_questions")
+}
+
+/// An owner-approved, PUBLIC Q&A pair shown on /p/{slug}.
+///
+/// The only text on a published deck that carries the publisher's name — because
+/// a human approved it. AI answers never do.
+model DeckFaqItem {
+  id               String   @id @default(cuid())
+  publishedDeckId  String   @map("published_deck_id")
+  /// Nullable: an owner may author an FAQ entry with no originating question.
+  sourceQuestionId String?  @unique @map("source_question_id")
+
+  question         String
+  answer           String
+  /// Citations carried over at promotion, already filtered to what a viewer may see.
+  citations        Json?
+  sortOrder        Int      @default(0) @map("sort_order")
+  published        Boolean  @default(true)
+  /// Denormalised so the public byline survives a later profile rename.
+  approvedByName   String   @map("approved_by_name")
+  approvedAt       DateTime @default(now()) @map("approved_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  deck           PublishedDeck @relation(fields: [publishedDeckId], references: [id], onDelete: Cascade)
+  sourceQuestion DeckQuestion? @relation(fields: [sourceQuestionId], references: [id], onDelete: SetNull)
+
+  @@index([publishedDeckId, published, sortOrder])
+  @@map("fe_deck_faq_items")
+}
+
+/// Publish's OWN decision about which source documents may answer public questions.
+///
+/// Deliberately lives here, in the publish schema, NOT in knowledge/KG: the two
+/// are owned by different teams and must not collide. Keyed by
+/// published_qa_chunks.source_ref, so no Researcher table is altered or
+/// read-modified by this feature — the decision travels to Researcher on the
+/// freeze call and nowhere else.
+model PublishedDeckSource {
+  id              String   @id @default(cuid())
+  publishedDeckId String   @map("published_deck_id")
+  sourceRef       String   @map("source_ref")
+  /// 'deck' | 'web' | 'document' | 'research'
+  sourceKind      String   @map("source_kind")
+  /// Owner-facing label only. NEVER serialised to /p/{slug}.
+  sourceLabel     String?  @map("source_label")
+  chunkCount      Int      @default(0) @map("chunk_count")
+  /// Defaults are applied per KIND at freeze time: deck and public web allow,
+  /// uploads deny (opt-in), research inherits its parent. The costs are
+  /// asymmetric — a denied document is a missed answer (recoverable via the
+  /// inbox); an allowed confidential one is a leak (not).
+  allowedForQa    Boolean  @default(false) @map("allowed_for_qa")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  deck PublishedDeck @relation(fields: [publishedDeckId], references: [id], onDelete: Cascade)
+
+  @@unique([publishedDeckId, sourceRef])
+  @@index([publishedDeckId, allowedForQa])
+  @@map("fe_published_deck_sources")
 }
 
 // Element Conversation Models (for format panel chat-based AI)

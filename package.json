@@ -51,7 +51,8 @@
     "test:upload-status-contract": "node scripts/test-upload-status-contract.mjs",
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",
     "start": "next start",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:qa-citation-tiers": "node scripts/test-qa-citation-tiers.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
