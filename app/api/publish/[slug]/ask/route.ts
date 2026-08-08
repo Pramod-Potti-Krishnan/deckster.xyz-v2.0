@@ -47,11 +47,19 @@ const EST_TOKENS = 3000
  * Defers are a 200, not an error: the asker did nothing wrong, the question is
  * recorded, and the owner can still answer it. Only genuine caller faults
  * (missing deck, bad body, rate limit) get a non-200.
+ *
+ * Every defer carries the follow-up handle. A defer is only worth anything if
+ * the eventual answer can reach the person who asked — and for an anonymous
+ * asker this token is the ONLY route back. Withholding it on the paths that
+ * defer WITHOUT calling a model (corpus not ready, deck capped, Researcher
+ * unreachable) would store their question somewhere they can never read the
+ * reply from.
  */
 function deferResponse(
+  slug: string,
+  recorded: { id: string; token: string },
   message: string,
-  reason: string,
-  extra: Record<string, unknown> = {}
+  reason: string
 ) {
   return NextResponse.json({
     status: 'deferred',
@@ -59,7 +67,11 @@ function deferResponse(
     message,
     citations: [],
     provenanceLine: null,
-    ...extra,
+    followUp: {
+      questionId: recorded.id,
+      token: recorded.token,
+      url: `/p/${slug}/q/${recorded.token}`,
+    },
   })
 }
 
@@ -256,7 +268,7 @@ export async function POST(
     // 13 — corpus readiness. A deck whose corpus never froze must defer rather
     //     than answer from nothing.
     if (deck.qaCorpusStatus !== 'ready' && deck.qaCorpusStatus !== 'partial') {
-      await recordQuestion({
+      const recorded = await recordQuestion({
         deckId: deck.id,
         deckVersion: deck.version,
         ipHash,
@@ -267,6 +279,8 @@ export async function POST(
         gateReason: 'not_ready',
       })
       return deferResponse(
+        slug,
+        recorded,
         `That isn't ready to answer automatically yet. I've passed it to ${ownerName}.`,
         'not_ready'
       )
@@ -283,7 +297,7 @@ export async function POST(
       fitsWithinCaps(quota.caps, quota.spent, estCents) ||
       quota.walletBalanceCents >= estCents
     if (!affordable) {
-      await recordQuestion({
+      const recorded = await recordQuestion({
         deckId: deck.id,
         deckVersion: deck.version,
         ipHash,
@@ -294,6 +308,8 @@ export async function POST(
         gateReason: 'capped',
       })
       return deferResponse(
+        slug,
+        recorded,
         `I can't answer that automatically right now. I've passed it to ${ownerName}.`,
         'capped'
       )
@@ -316,7 +332,7 @@ export async function POST(
       })
     } catch (error) {
       console.error('[Publish QA] Researcher call failed:', error)
-      await recordQuestion({
+      const recorded = await recordQuestion({
         deckId: deck.id,
         deckVersion: deck.version,
         ipHash,
@@ -327,6 +343,8 @@ export async function POST(
         gateReason: 'not_ready',
       })
       return deferResponse(
+        slug,
+        recorded,
         `I couldn't work that out just now. I've passed it to ${ownerName}.`,
         'not_ready'
       )

@@ -85,6 +85,12 @@ export async function PATCH(
       passcodeHash?: string | null;
       allowPdf?: boolean;
       allowPptx?: boolean;
+      qaEnabled?: boolean;
+      qaDailyCap?: number;
+      qaMonthlyCap?: number;
+      qaTonePreset?: string;
+      qaToneInstruction?: string | null;
+      qaCiteWebSources?: boolean;
     } = {};
 
     if (body.visibility !== undefined) data.visibility = body.visibility;
@@ -100,6 +106,35 @@ export async function PATCH(
     }
     if (typeof body.allowPdf === 'boolean') data.allowPdf = body.allowPdf;
     if (typeof body.allowPptx === 'boolean') data.allowPptx = body.allowPptx;
+
+    // --- Q&A settings (rung 1) -------------------------------------------
+    // Enabling attaches a public LLM endpoint to this deck that spends the
+    // owner's wallet, so it rides the same version-CAS as visibility below:
+    // a concurrent republish must not be able to silently revert it on.
+    if (typeof body.qaEnabled === 'boolean') data.qaEnabled = body.qaEnabled;
+    // Caps are the owner's spend ceiling. Clamped rather than rejected — a
+    // nonsense value should land on a safe number, not leave the deck on the
+    // previous (possibly higher) one.
+    if (typeof body.qaDailyCap === 'number' && Number.isFinite(body.qaDailyCap)) {
+      data.qaDailyCap = Math.min(1000, Math.max(0, Math.trunc(body.qaDailyCap)));
+    }
+    if (typeof body.qaMonthlyCap === 'number' && Number.isFinite(body.qaMonthlyCap)) {
+      data.qaMonthlyCap = Math.min(20000, Math.max(0, Math.trunc(body.qaMonthlyCap)));
+    }
+    // Tone is STYLE ONLY. Researcher grounds with the tone absent from stage 1,
+    // so no value here can move a refusal threshold — an unknown preset is a
+    // cosmetic no-op, not a safety hole.
+    if (typeof body.qaTonePreset === 'string') {
+      const preset = body.qaTonePreset.trim().slice(0, 40);
+      if (preset) data.qaTonePreset = preset;
+    }
+    if (typeof body.qaToneInstruction === 'string') {
+      const instruction = body.qaToneInstruction.trim().slice(0, 200);
+      data.qaToneInstruction = instruction || null;
+    }
+    if (typeof body.qaCiteWebSources === 'boolean') {
+      data.qaCiteWebSources = body.qaCiteWebSources;
+    }
 
     if (Object.keys(data).length === 0) {
       return NextResponse.json(
