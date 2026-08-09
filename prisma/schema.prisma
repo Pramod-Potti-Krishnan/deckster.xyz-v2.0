@@ -450,10 +450,12 @@ model DeckQuestion {
   publishedDeckId String   @map("published_deck_id")
 
   // --- asker (anonymous by default) ---
-  /// sha256 of the follow-up token. The raw token exists only in the asker's
+  /// HMAC-SHA256 of the follow-up token. The raw token exists only in the asker's
   /// browser and their return link, so a database leak grants access to no thread.
   askerTokenHash  String   @unique @map("asker_token_hash")
-  /// sha256(ip + secret). Rate limiting and abuse only; never displayed, not reversible.
+  /// HMAC-SHA256(ip) keyed with the app secret. Rate limiting and abuse only;
+  /// never displayed. Keyed rather than a bare digest: the IPv4 space is small
+  /// enough to enumerate, so an unkeyed hash of an IP would be reversible.
   askerIpHash     String   @map("asker_ip_hash")
   askerEmail      String?  @map("asker_email")
   askerName       String?  @map("asker_name")

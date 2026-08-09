@@ -45,10 +45,12 @@ UPDATE "fe_published_decks"
 CREATE TABLE IF NOT EXISTS "fe_deck_questions" (
   "id" TEXT PRIMARY KEY,
   "published_deck_id" TEXT NOT NULL REFERENCES "fe_published_decks"("id") ON DELETE CASCADE,
-  -- sha256 of the follow-up token; the raw token lives only in the asker's
+  -- HMAC-SHA256 of the follow-up token; the raw token lives only in the asker's
   -- browser and return link, so a database read grants access to no thread.
   "asker_token_hash" TEXT NOT NULL UNIQUE,
-  -- sha256(ip + secret): rate limiting only, never displayed, not reversible.
+  -- HMAC-SHA256(ip) keyed with the app secret: rate limiting only, never
+  -- displayed. Keyed, not a bare digest — the IPv4 space is small enough to
+  -- enumerate, so an unkeyed hash of an IP would be reversible.
   "asker_ip_hash" TEXT NOT NULL,
   "asker_email" TEXT,
   "asker_name" TEXT,
