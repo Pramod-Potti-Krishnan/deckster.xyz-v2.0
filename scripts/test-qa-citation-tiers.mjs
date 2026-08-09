@@ -172,6 +172,45 @@ test('the viewer-facing corpus description discloses no counts or kinds', () => 
 });
 
 // ---------------------------------------------------------------------------
+// Duplicates — found in the first live UAT test
+// ---------------------------------------------------------------------------
+
+test('two chunks of the SAME slide produce ONE citation', () => {
+  // Long slides split into several chunks. Citing two of them showed the
+  // identical chip twice, which reads as two sources corroborating each other.
+  const { citations } = citationsForViewer(
+    [
+      { source_kind: 'deck', source_label: 'Slide 2 — Costs', slide_number: 2 },
+      { source_kind: 'deck', source_label: 'Slide 2 — Costs', slide_number: 2 },
+    ],
+    OPTS
+  );
+  assert.equal(citations.length, 1);
+});
+
+test('different slides still produce separate citations', () => {
+  const { citations } = citationsForViewer(
+    [
+      { source_kind: 'deck', source_label: 'Slide 2 — Costs', slide_number: 2 },
+      { source_kind: 'deck', source_label: 'Slide 5 — Team', slide_number: 5 },
+    ],
+    OPTS
+  );
+  assert.equal(citations.length, 2);
+});
+
+test('duplicate web sources collapse too', () => {
+  const { citations } = citationsForViewer(
+    [
+      { source_kind: 'web', source_label: 'Gartner', source_url: 'https://example.com/x' },
+      { source_kind: 'web', source_label: 'Gartner', source_url: 'https://example.com/x' },
+    ],
+    OPTS
+  );
+  assert.equal(citations.length, 1);
+});
+
+// ---------------------------------------------------------------------------
 
 let failed = 0;
 for (const [name, fn] of tests) {

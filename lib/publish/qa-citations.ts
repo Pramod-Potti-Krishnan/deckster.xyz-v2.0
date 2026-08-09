@@ -105,11 +105,27 @@ export function citationsForViewer(
   }
 
   return {
-    citations: publicCitations,
+    // Deduplicated. A long slide is split across several chunks, so an answer
+    // citing two chunks of the same slide would otherwise show the identical
+    // chip twice — which reads as two independent sources corroborating each
+    // other when it is really one. Keyed on what the viewer can distinguish.
+    citations: dedupeCitations(publicCitations),
     provenanceLine: usedPrivateSource
       ? `From ${options.ownerName}'s background material.`
       : null,
   }
+}
+
+function dedupeCitations(citations: PublicCitation[]): PublicCitation[] {
+  const seen = new Set<string>()
+  const out: PublicCitation[] = []
+  for (const citation of citations) {
+    const key = `${citation.kind}::${citation.href ?? ''}::${citation.label}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(citation)
+  }
+  return out
 }
 
 /**
