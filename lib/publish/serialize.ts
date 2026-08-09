@@ -37,6 +37,14 @@ export interface SerializedPublishedDeck {
   /** SOURCE deck's Layout updated_at at the last publish/republish/rotate */
   sourceUpdatedAt: string | null
   publicUrl: string
+  // --- Q&A (rung 1). Owner-facing settings; none of this reaches /p/{slug}.
+  qaEnabled: boolean
+  qaCorpusStatus: string
+  qaDailyCap: number
+  qaMonthlyCap: number
+  qaTonePreset: string
+  qaToneInstruction: string | null
+  qaCiteWebSources: boolean
 }
 
 export function serializePublishedDeck(deck: PublishedDeck): SerializedPublishedDeck {
@@ -58,5 +66,12 @@ export function serializePublishedDeck(deck: PublishedDeck): SerializedPublished
     revokedAt: deck.revokedAt ? deck.revokedAt.toISOString() : null,
     sourceUpdatedAt: deck.sourceUpdatedAt ?? null,
     publicUrl: publicUrlForSlug(deck.slug),
+    qaEnabled: deck.qaEnabled,
+    qaCorpusStatus: deck.qaCorpusStatus,
+    qaDailyCap: deck.qaDailyCap,
+    qaMonthlyCap: deck.qaMonthlyCap,
+    qaTonePreset: deck.qaTonePreset,
+    qaToneInstruction: deck.qaToneInstruction ?? null,
+    qaCiteWebSources: deck.qaCiteWebSources,
   }
 }

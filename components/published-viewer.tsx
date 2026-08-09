@@ -2,13 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Download, FileText, Maximize2, Minimize2, Presentation } from 'lucide-react'
+import {
+  ArrowRight,
+  Download,
+  FileText,
+  Maximize2,
+  MessageCircleQuestion,
+  Minimize2,
+  Presentation,
+} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  PublishedQaPanel,
+  useUnreadThreadCount,
+  type FaqItemView,
+} from '@/components/published-qa-panel'
 
 interface PublishedViewerProps {
   title: string
@@ -21,6 +34,13 @@ interface PublishedViewerProps {
   slideCount: number
   allowPdf: boolean
   allowPptx: boolean
+  /** Display name for the publisher — the only human name on this page. */
+  ownerName: string
+  /** Whether NEW questions are accepted. The FAQ stays readable either way:
+   *  turning off the live endpoint does not retract published answers. */
+  qaEnabled: boolean
+  /** SSR'd so the FAQ is readable before any JavaScript runs. */
+  initialFaq: FaqItemView[]
 }
 
 /**
@@ -38,15 +58,32 @@ export function PublishedViewer({
   slideCount,
   allowPdf,
   allowPptx,
+  ownerName,
+  qaEnabled,
+  initialFaq,
 }: PublishedViewerProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [qaOpen, setQaOpen] = useState(false)
+  // Reveal deep link for a cited slide, 0-based (`#/2` is slide 3).
+  const [slideHash, setSlideHash] = useState('')
+
+  // The Q&A affordance appears when the owner accepts questions OR has already
+  // published answers — a deck with an FAQ and questions since switched off is
+  // still worth opening.
+  const qaAvailable = qaEnabled || initialFaq.length > 0
+  const unreadCount = useUnreadThreadCount(slug, qaAvailable)
+
+  const handleCiteSlide = useCallback((slideNumber: number) => {
+    // Reveal counts from 0; citations carry human 1-based slide numbers.
+    setSlideHash(`#/${Math.max(0, slideNumber - 1)}`)
+  }, [])
 
   // The read-only viewer for the iframe. Downloads no longer go straight to the
   // public Downloads service from here — they route through the server gate at
   // /api/publish/{slug}/download/{format}, which enforces the passcode + the
   // per-format flags before proxying + streaming the file back.
-  const viewerUrl = `${layoutBaseUrl}/p/${snapshotPresentationId}?viewOnly=true`
+  const viewerUrl = `${layoutBaseUrl}/p/${snapshotPresentationId}?viewOnly=true${slideHash}`
   const downloadHref = (format: 'pdf' | 'pptx') => `/api/publish/${slug}/download/${format}`
 
   const canDownload = allowPdf || allowPptx
@@ -73,6 +110,23 @@ export function PublishedViewer({
           {title}
         </h1>
         <div className="flex flex-shrink-0 items-center gap-1">
+          {qaAvailable && (
+            <button
+              onClick={() => setQaOpen((value) => !value)}
+              className="relative flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
+              title={qaEnabled ? 'Ask a question about this deck' : 'Read answered questions'}
+              aria-expanded={qaOpen}
+            >
+              <MessageCircleQuestion className="h-4 w-4" />
+              <span className="hidden sm:inline">Ask</span>
+              {unreadCount > 0 && (
+                <span
+                  className="absolute right-1 top-1 h-2 w-2 rounded-full bg-indigo-500"
+                  aria-label={`${unreadCount} answered`}
+                />
+              )}
+            </button>
+          )}
           {canDownload && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -117,7 +171,9 @@ export function PublishedViewer({
         </div>
       </header>
 
-      {/* Stage — fit-contain 16:9 inside the remaining viewport */}
+      {/* Stage + Q&A. The panel NARROWS the stage rather than covering it, so a
+          cited slide stays visible when the reader clicks its citation. */}
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
       <div
         ref={stageRef}
         className={`flex-1 min-h-0 flex items-center justify-center bg-gray-100 dark:bg-slate-900 ${isFullscreen ? 'bg-black p-0' : 'p-4'}`}
@@ -140,6 +196,21 @@ export function PublishedViewer({
             allow="fullscreen"
           />
         </div>
+      </div>
+
+        {/* Hidden in fullscreen: presenting is the one moment the deck should
+            own the whole screen. */}
+        {qaAvailable && !isFullscreen && (
+          <PublishedQaPanel
+            slug={slug}
+            ownerName={ownerName}
+            initialFaq={initialFaq}
+            qaEnabled={qaEnabled}
+            open={qaOpen}
+            onClose={() => setQaOpen(false)}
+            onCiteSlide={handleCiteSlide}
+          />
+        )}
       </div>
 
       {/* Footer — the viral loop */}
