@@ -30,11 +30,22 @@ ALTER TABLE "fe_published_decks" ADD COLUMN IF NOT EXISTS "qa_tone_instruction" 
 -- private uploads and internal research NEVER are.
 ALTER TABLE "fe_published_decks" ADD COLUMN IF NOT EXISTS "qa_cite_web_sources" BOOLEAN NOT NULL DEFAULT true;
 
--- Backfill the explicit Researcher join key for decks published before this.
--- Safe: today ChatSession.id IS the Researcher session_id.
-UPDATE "fe_published_decks"
-   SET "researcher_session_id" = "session_id"
- WHERE "researcher_session_id" IS NULL;
+-- Backfill the Researcher join key for decks published before this column.
+--
+-- It is ChatSession.gemini_store_id — the Knowledge Service session id that
+-- uploads are stored under — NOT ChatSession.id. An earlier version of this
+-- migration backfilled from session_id on the assumption they were the same;
+-- they are not, so freezes looked for documents under an id with no rows and
+-- produced slides-only corpora with the publisher's uploads missing entirely.
+--
+-- Re-runnable: also REPAIRS rows written by that earlier version.
+UPDATE "fe_published_decks" d
+   SET "researcher_session_id" = s."gemini_store_id"
+  FROM "fe_chat_sessions" s
+ WHERE s."id" = d."session_id"
+   AND s."gemini_store_id" IS NOT NULL
+   AND ("researcher_session_id" IS NULL
+        OR "researcher_session_id" = d."session_id");
 
 -- ---------------------------------------------------------------------------
 -- 2. Questions — PRIVATE. No public read path; the API is the only reader.

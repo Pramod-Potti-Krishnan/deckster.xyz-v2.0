@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireDeckOwner } from '@/lib/publish/qa-owner'
 import { listQaCorpusSources } from '@/lib/publish/qa'
+import { stripLabelMarkup } from '@/lib/publish/qa-citations'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,8 +81,10 @@ export async function GET(
       sources: [...byRef.values()].map((row) => ({
         sourceRef: row.sourceRef,
         sourceKind: row.sourceKind,
-        // Owner-facing only. Never serialised to /p/{slug}.
-        sourceLabel: row.sourceLabel,
+        // Owner-facing only, never serialised to /p/{slug} — but slide titles
+        // are HTML, so the publish dialog was rendering raw <span style=…>
+        // at the owner too. Same strip as the viewer boundary.
+        sourceLabel: row.sourceLabel ? stripLabelMarkup(row.sourceLabel) : null,
         chunkCount: row.chunkCount,
         allowedForQa: row.allowedForQa,
       })),
