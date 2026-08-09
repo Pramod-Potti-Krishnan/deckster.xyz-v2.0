@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { getPresentation, updateSlideNarration, SlideNarrationFields } from '@/lib/layout-service-client'
+import { DeckQaInbox } from '@/components/deck-qa-inbox'
 
 // localStorage keys for panel UI state (shared across sessions)
 const COLLAPSED_STORAGE_KEY = 'deckster.notesPanel.collapsed'
@@ -24,10 +25,10 @@ const MAX_DRAIN_PASSES = 4
 const DRAIN_BACKOFF_MS = 600
 const DRAIN_RETRY_MS = 3000
 
-type NotesTab = 'script' | 'notes' | 'references'
+type NotesTab = 'script' | 'notes' | 'references' | 'qa'
 type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'syncing'
 
-const NOTES_TABS: NotesTab[] = ['script', 'notes', 'references']
+const NOTES_TABS: NotesTab[] = ['script', 'notes', 'references', 'qa']
 
 // Per-slide editable content. References are edited as one-per-line text
 // and converted to/from the Layout Service's string array on the wire.
@@ -71,6 +72,12 @@ function createSaverState(): SaverState {
 interface SlideNotesPanelProps {
   /** The presentation currently shown in the viewer (writes go here) */
   presentationId: string | null
+  /**
+   * The chat session, used to resolve this deck's PUBLISHED record for the Q&A
+   * inbox. Absent (or unpublished) simply means the Q&A tab has nothing to show
+   * — it never blocks the narration tabs, which are the panel's main job.
+   */
+  sessionId?: string | null
   /** 0-based index of the slide currently on screen */
   currentSlideIndex: number
   /** SlideUpdate payload from the WebSocket — speaker_notes fallback source */
@@ -122,6 +129,7 @@ export function SlideNotesPanel({
   presentationId,
   currentSlideIndex,
   slideStructure,
+  sessionId = null,
 }: SlideNotesPanelProps) {
   const { toast } = useToast()
 
@@ -145,6 +153,11 @@ export function SlideNotesPanel({
       return next
     })
   }, [])
+
+  // Questions waiting on the owner. Lives here rather than in the inbox so the
+  // count can badge the tab while the tab is closed — which is the only way a
+  // publisher learns a viewer is waiting without going looking.
+  const [unansweredQuestions, setUnansweredQuestions] = useState(0)
 
   const handleTabChange = useCallback((value: string) => {
     const tab = value as NotesTab
@@ -749,7 +762,17 @@ export function SlideNotesPanel({
       {/* Expanded panel — fixed height; the slide container's ResizeObserver
           fit-contain shrinks the 16:9 slide to make room. */}
       {expanded && (
-        <div className="flex-shrink-0 h-60 border-t border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900 flex flex-col">
+        <div
+          className={cn(
+            // The narration tabs are single textareas and 240px is plenty. A
+            // question QUEUE is not — at that height it shows one item and a
+            // scrollbar, which is the cramped-surface problem this panel exists
+            // to avoid. The slide container's ResizeObserver fit-contain
+            // absorbs the difference either way.
+            'flex-shrink-0 border-t border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900 flex flex-col',
+            activeTab === 'qa' ? 'h-96' : 'h-60'
+          )}
+        >
           <Tabs
             value={activeTab}
             onValueChange={handleTabChange}
@@ -760,6 +783,17 @@ export function SlideNotesPanel({
                 <TabsTrigger value="script" className="text-xs px-2.5 py-1">Script</TabsTrigger>
                 <TabsTrigger value="notes" className="text-xs px-2.5 py-1">Notes</TabsTrigger>
                 <TabsTrigger value="references" className="text-xs px-2.5 py-1">References</TabsTrigger>
+                <TabsTrigger value="qa" className="text-xs px-2.5 py-1">
+                  Q&amp;A
+                  {unansweredQuestions > 0 && (
+                    <span
+                      className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white"
+                      aria-label={`${unansweredQuestions} questions waiting`}
+                    >
+                      {unansweredQuestions > 99 ? '99+' : unansweredQuestions}
+                    </span>
+                  )}
+                </TabsTrigger>
               </TabsList>
               <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
                 {saveState === 'saving' && (
@@ -813,6 +847,20 @@ export function SlideNotesPanel({
                 placeholder={"Sources and citations for this slide — one per line…"}
                 className="h-full min-h-0 resize-none text-sm"
               />
+            </TabsContent>
+            {/* Deck-scoped, not slide-scoped: a viewer asks about the deck, so
+                the queue must not change as the owner clicks through slides.
+
+                forceMount, because Radix unmounts an inactive tab — and an
+                unmounted inbox never fetches, so the badge would only ever
+                appear AFTER opening the tab, which is the one moment it is no
+                longer needed. Hidden via CSS instead. */}
+            <TabsContent
+              forceMount
+              value="qa"
+              className="flex-1 min-h-0 mt-2 data-[state=inactive]:hidden"
+            >
+              <DeckQaInbox sessionId={sessionId} onUnansweredChange={setUnansweredQuestions} />
             </TabsContent>
           </Tabs>
         </div>

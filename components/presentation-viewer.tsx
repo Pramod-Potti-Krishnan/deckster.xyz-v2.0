@@ -3055,6 +3055,7 @@ export function PresentationViewer({
               presentationId={presentationId}
               currentSlideIndex={Math.max(0, currentSlide - 1)}
               slideStructure={slideStructure}
+              sessionId={sessionId ?? null}
             />
           )}
 
