@@ -519,7 +519,11 @@ model DeckFaqItem {
 
   question         String
   answer           String
-  /// Citations carried over at promotion, already filtered to what a viewer may see.
+  /// Citations carried over at promotion in REDACTED INTERNAL form: deck and
+  /// public-web entries keep their data, private ones collapse to a bare
+  /// `{source_kind:'redacted'}` marker. Stored this way (rather than as the
+  /// viewer projection) so the public read path can re-filter correctly and
+  /// idempotently — see redactCitationsForStorage.
   citations        Json?
   sortOrder        Int      @default(0) @map("sort_order")
   published        Boolean  @default(true)

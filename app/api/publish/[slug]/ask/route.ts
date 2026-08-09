@@ -165,6 +165,13 @@ export async function POST(
 
     // 6/7/8 — block list, per-IP burst, per-deck caps. One grouped query set,
     //     all counts, no model call.
+    //
+    //     The per-IP counts are deliberately NOT scoped to this deck: an
+    //     abusive caller must not get a fresh budget per deck simply by walking
+    //     a list of slugs. The cost is that a heavy asker on one publisher's
+    //     deck arrives rate-limited at another's — accepted, because the block
+    //     list and the per-deck caps below are the deck-scoped controls, and
+    //     this one exists purely to bound a single client.
     const [blocked, ipInWindow, ipToday, deckToday, deckThisMonth] = await Promise.all([
       prisma.deckQuestion.count({
         where: { publishedDeckId: deck.id, askerIpHash: ipHash, status: 'blocked' },

@@ -97,6 +97,10 @@ CREATE TABLE IF NOT EXISTS "fe_deck_faq_items" (
   "source_question_id" TEXT UNIQUE REFERENCES "fe_deck_questions"("id") ON DELETE SET NULL,
   "question" TEXT NOT NULL,
   "answer" TEXT NOT NULL,
+  -- Redacted INTERNAL citation shape (see redactCitationsForStorage): deck and
+  -- public-web entries keep their data; private ones are a bare marker with no
+  -- filename, page or quote. Never the viewer projection — the read path
+  -- filters again, and a projected shape would type-confuse it.
   "citations" JSONB,
   "sort_order" INTEGER NOT NULL DEFAULT 0,
   "published" BOOLEAN NOT NULL DEFAULT true,

@@ -113,6 +113,57 @@ export function citationsForViewer(
 }
 
 /**
+ * Marker kind for a source that grounded an answer but may never be named.
+ *
+ * Unrecognised by `citationsForViewer` ON PURPOSE, so it lands in T3 and earns
+ * a provenance line without carrying anything to leak.
+ */
+export const REDACTED_SOURCE_KIND = 'redacted'
+
+/**
+ * The form a citation takes when it is STORED on a public row (an FAQ entry).
+ *
+ * Storing the viewer projection here would be a type-confusion trap: the read
+ * path filters again, and a `PublicCitation` has no `source_kind`, so every
+ * citation would fall into T3 — silently dropping the citations AND fabricating
+ * a "used private material" line on answers grounded purely in deck slides.
+ * That is a false confidentiality signal, which is worse than no signal.
+ *
+ * So the stored form stays INTERNAL-shaped, and confidentiality is preserved by
+ * redaction rather than by projection: T1 and T2 keep their data, T3 collapses
+ * to a bare marker. Re-filtering on read is then correct AND idempotent, and no
+ * private filename is ever written to a row that gets served publicly.
+ */
+export function redactCitationsForStorage(
+  citations: InternalCitation[] | null | undefined
+): InternalCitation[] {
+  const all = Array.isArray(citations) ? citations : []
+  return all.map((citation) => {
+    const kind = (citation.source_kind || '') as SourceKind
+
+    if (T1.includes(kind)) {
+      return {
+        source_kind: kind,
+        source_label: citation.source_label ?? null,
+        slide_number: citation.slide_number ?? null,
+        quote: citation.quote ?? null,
+      }
+    }
+    if (T2.includes(kind)) {
+      // Kept whole: the publisher may flip `citeWebSources` later, and the read
+      // filter honours that. Redacting here would make the choice one-way.
+      return {
+        source_kind: kind,
+        source_label: citation.source_label ?? null,
+        source_url: citation.source_url ?? null,
+      }
+    }
+    // T3 — everything else. No label, no ref, no page, no quote, no URL.
+    return { source_kind: REDACTED_SOURCE_KIND }
+  })
+}
+
+/**
  * Fixed viewer-facing description of the corpus.
  *
  * Never mentions document counts, kinds or names. A count is itself a leak — it

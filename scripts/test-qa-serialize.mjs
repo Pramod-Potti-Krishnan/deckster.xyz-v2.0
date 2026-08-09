@@ -33,6 +33,7 @@ function load(relPath, aliases = {}) {
 }
 
 const citations = load('../lib/publish/qa-citations.ts');
+const { citationsForViewer, redactCitationsForStorage } = citations;
 const { serializeQuestionForOwner, serializeThreadForAsker, serializeFaqForViewer } = load(
   '../lib/publish/qa-serialize.ts',
   { '@/lib/publish/qa-citations': citations }
@@ -197,14 +198,85 @@ test('an FAQ entry is bylined, because a human approved it', () => {
 });
 
 test('FAQ citations are re-filtered on read, not trusted from storage', () => {
-  // Stored citations are already viewer-tier, but a bad write (or an older row
-  // written before the filter existed) must not become a public leak.
   const poisoned = {
     ...FAQ,
     citations: [{ source_kind: 'document', source_label: 'Acme_internal_model.xlsx' }],
   };
   const blob = JSON.stringify(serializeFaqForViewer(poisoned, OPTS));
   assert.ok(!blob.includes('Acme_internal_model'), 'a stored private citation was served');
+});
+
+// ---------------------------------------------------------------------------
+// The promote -> store -> serve round trip.
+//
+// This is the path the product actually takes, and it is where an earlier
+// version broke: promote stored the VIEWER projection, the read path filtered
+// again, and a PublicCitation has no `source_kind` — so every citation fell
+// into T3. The result was FAQ entries with no citations at all, each carrying
+// an invented "used private material" line. A false confidentiality signal is
+// worse than none, because the audience has no way to know it is false.
+//
+// The earlier test passed because it fed the INTERNAL shape, exercising a path
+// the real code never takes. These drive the real one.
+// ---------------------------------------------------------------------------
+
+const FROM_RESEARCHER = [
+  { source_kind: 'deck', source_label: 'Slide 4 — Unit economics', slide_number: 4 },
+  { source_kind: 'web', source_label: 'Gartner 2026', source_url: 'https://example.com/x' },
+  { source_kind: 'document', source_label: 'Acme_internal.pdf', page_number: 7, quote: 'margin' },
+];
+
+const promoted = (opts = OPTS) => ({
+  ...FAQ,
+  citations: JSON.parse(JSON.stringify(redactCitationsForStorage(FROM_RESEARCHER))),
+});
+
+test('a promoted FAQ entry keeps its citations when served', () => {
+  const served = serializeFaqForViewer(promoted(), OPTS);
+  assert.equal(served.citations.length, 2, 'citations were wiped by the read filter');
+  assert.equal(served.citations[0].label, 'Slide 4 — Unit economics');
+  assert.equal(served.citations[0].href, '/p/ab12cd34ef#/3');
+  assert.equal(served.citations[1].kind, 'web');
+});
+
+test('a promoted FAQ entry still admits that private material was used', () => {
+  assert.equal(serializeFaqForViewer(promoted(), OPTS).provenanceLine,
+    "From Priya's background material.");
+});
+
+test('an FAQ grounded only in slides gets NO provenance line', () => {
+  // The regression that mattered most: inventing "used private material" on an
+  // answer that used none tells the audience something untrue about the deck.
+  const deckOnly = {
+    ...FAQ,
+    citations: JSON.parse(JSON.stringify(redactCitationsForStorage([FROM_RESEARCHER[0]]))),
+  };
+  const served = serializeFaqForViewer(deckOnly, OPTS);
+  assert.equal(served.citations.length, 1);
+  assert.equal(served.provenanceLine, null, 'fabricated a private-source claim');
+});
+
+test('nothing identifying a private source is ever written to the FAQ row', () => {
+  const blob = JSON.stringify(redactCitationsForStorage(FROM_RESEARCHER));
+  for (const leak of ['Acme_internal', 'margin', '7']) {
+    assert.ok(!blob.includes(leak), `stored row leaked "${leak}": ${blob}`);
+  }
+});
+
+test('re-filtering a stored FAQ row is idempotent', () => {
+  // The read path runs on every request; running it twice must not degrade
+  // what the first pass produced.
+  const once = serializeFaqForViewer(promoted(), OPTS);
+  const twice = serializeFaqForViewer(promoted(), OPTS);
+  assert.deepEqual(JSON.stringify(once.citations), JSON.stringify(twice.citations));
+  assert.equal(once.provenanceLine, twice.provenanceLine);
+});
+
+test('turning off web citations later hides them from an ALREADY promoted entry', () => {
+  // Redaction keeps T2 whole precisely so this choice stays reversible.
+  const served = serializeFaqForViewer(promoted(), { ...OPTS, citeWebSources: false });
+  assert.equal(served.citations.length, 1);
+  assert.equal(served.citations[0].kind, 'slide');
 });
 
 // ---------------------------------------------------------------------------

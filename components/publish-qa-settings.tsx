@@ -57,6 +57,9 @@ const KIND_META: Record<string, { label: string; icon: typeof FileText; sensitiv
   research: { label: 'Research', icon: Search, sensitive: true },
 }
 
+/** How long a build may run before we offer a way out of it. */
+const BUILD_STALL_MS = 90_000
+
 /**
  * What the corpus is doing, and the one control that changes it.
  *
@@ -75,6 +78,17 @@ function CorpusStatusRow({
   onRebuild: () => void
   disabled: boolean
 }) {
+  const [stalled, setStalled] = useState(false)
+
+  useEffect(() => {
+    if (status !== 'building') {
+      setStalled(false)
+      return
+    }
+    const timer = setTimeout(() => setStalled(true), BUILD_STALL_MS)
+    return () => clearTimeout(timer)
+  }, [status])
+
   if (status === 'ready' || status === 'partial') {
     return (
       <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
@@ -86,10 +100,28 @@ function CorpusStatusRow({
 
   if (status === 'building') {
     return (
-      <p className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
-        <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin" />
-        Preparing this deck&apos;s content — questions asked meanwhile go to you.
-      </p>
+      <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+        <p className="flex items-center gap-1.5">
+          <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin" />
+          Preparing this deck&apos;s content — questions asked meanwhile go to you.
+        </p>
+        {/* The build runs in background work after the response. If that
+            instance is killed mid-flight, nothing ever writes a terminal
+            status and the deck sits in 'building' forever — answering nothing,
+            with no way out. So the retry stays reachable once a build has run
+            long enough to be suspicious. */}
+        {stalled && (
+          <button
+            type="button"
+            onClick={onRebuild}
+            disabled={disabled || rebuilding}
+            className="inline-flex items-center gap-1.5 underline underline-offset-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3 w-3 ${rebuilding ? 'animate-spin' : ''}`} />
+            Taking too long? Start again
+          </button>
+        )}
+      </div>
     )
   }
 

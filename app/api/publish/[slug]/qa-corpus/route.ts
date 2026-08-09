@@ -31,14 +31,15 @@ export async function GET(
     const owned = await requireDeckOwner(slug)
     if (owned.error) return owned.error
 
+    // No `stale` flag. The obvious computation — qaCorpusVersion !== version —
+    // is wrong: `version` is a lifecycle CAS counter that bumps on EVERY
+    // settings write, so toggling PDF download would report the corpus as
+    // stale. Real staleness is "frozen from an older snapshot", which needs the
+    // snapshot id the freeze used, and that is not recorded. A knowingly-wrong
+    // signal is worse than none, so this ships without one.
     return NextResponse.json({
       status: owned.deck.qaCorpusStatus,
       version: owned.deck.qaCorpusVersion,
-      // The corpus is stale when it was frozen from an older snapshot than the
-      // one currently published — republishing changes the deck viewers see
-      // without necessarily rebuilding what the answers are grounded in.
-      stale:
-        owned.deck.qaCorpusVersion !== null && owned.deck.qaCorpusVersion !== owned.deck.version,
       configured: isQaBackendConfigured(),
     })
   } catch (error) {

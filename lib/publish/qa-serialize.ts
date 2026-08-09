@@ -12,7 +12,7 @@
  * want: a new column cannot leak by being forgotten.
  */
 
-import { citationsForViewer, type PublicCitation } from '@/lib/publish/qa-citations'
+import { citationsForViewer, type InternalCitation } from '@/lib/publish/qa-citations'
 
 /** The subset of `DeckQuestion` these functions read. Structural, so both a
  *  Prisma row and a test fixture satisfy it. */
@@ -124,9 +124,13 @@ export function serializeThreadForAsker(row: QuestionRow, options: ViewerOptions
 }
 
 /**
- * Public FAQ entry. Citations were already filtered to the viewer tier at
- * promotion time, so this re-filters rather than trusting that: the FAQ is
- * public text and it is worth paying twice not to leak a private filename.
+ * Public FAQ entry.
+ *
+ * The stored citations are the REDACTED INTERNAL shape, so filtering them here
+ * is both correct and idempotent. It must NOT be handed the viewer projection:
+ * a `PublicCitation` carries no `source_kind`, so every entry would fall into
+ * T3 — dropping the citations and inventing a "used private material" line on
+ * answers grounded purely in slides. See `redactCitationsForStorage`.
  */
 export function serializeFaqForViewer(row: FaqRow, options: ViewerOptions) {
   const { citations, provenanceLine } = citationsForViewer(row.citations as never, options)
@@ -149,7 +153,10 @@ export function serializeFaqForOwner(row: FaqRow) {
     id: row.id,
     question: row.question,
     answer: row.answer,
-    citations: (row.citations ?? null) as PublicCitation[] | null,
+    // The REDACTED internal shape, not the viewer projection: T1/T2 intact,
+    // T3 collapsed to a bare marker. The owner sees what the row holds, which
+    // by construction names nothing private.
+    citations: (row.citations ?? null) as InternalCitation[] | null,
     sortOrder: row.sortOrder,
     published: row.published,
     approvedBy: row.approvedByName,

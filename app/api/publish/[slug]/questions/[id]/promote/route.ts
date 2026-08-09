@@ -11,16 +11,20 @@
  *      the server demands the text itself. Sending it back is the act of
  *      approval, and the byline then attaches to words the owner actually
  *      submitted. An owner's own answer needs no such proof.
- *   2. Citations are stored PRE-FILTERED to the viewer tier. The FAQ is public
- *      text and gets re-filtered on read as well — it is worth paying twice not
- *      to publish a private filename under someone's name.
+ *   2. Citations are stored REDACTED, not projected. The FAQ is public text, so
+ *      a private filename must never land in the row — but storing the viewer
+ *      projection would type-confuse the read filter, which filters again and
+ *      would drop every citation while inventing a "used private material" line
+ *      on answers grounded purely in slides. Redaction keeps the internal shape
+ *      so re-filtering stays correct and idempotent. See
+ *      `redactCitationsForStorage`.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { findOwnedQuestion, requireDeckOwner, validateOwnerText } from '@/lib/publish/qa-owner'
-import { citationsForViewer } from '@/lib/publish/qa-citations'
+import { redactCitationsForStorage } from '@/lib/publish/qa-citations'
 import { serializeFaqForOwner } from '@/lib/publish/qa-serialize'
 
 export const dynamic = 'force-dynamic'
@@ -80,13 +84,13 @@ export async function POST(
     }
     const faqQuestion = overrideQuestion ?? question.question
 
-    // (2) — filter at write time. The FAQ is public, and a stored private
-    // filename would be one forgotten filter away from being served.
-    const { citations } = citationsForViewer(question.aiCitations as never, {
-      slug,
-      citeWebSources: owned.deck.qaCiteWebSources,
-      ownerName: owned.deck.ownerName,
-    })
+    // (2) — REDACT at write time rather than project. The FAQ is public, so a
+    // private filename must never land in the row; but storing the viewer
+    // projection instead would type-confuse the read filter, which re-filters
+    // and would drop every citation while inventing a "used private material"
+    // line. Redaction keeps the internal shape (so re-filtering is correct and
+    // idempotent) while carrying nothing to leak.
+    const citations = redactCitationsForStorage(question.aiCitations as never)
     // Round-trip through JSON so optional fields that are `undefined` are
     // dropped rather than stored, and what lands in the column is plain data.
     const citationsJson = JSON.parse(JSON.stringify(citations)) as Prisma.InputJsonValue
