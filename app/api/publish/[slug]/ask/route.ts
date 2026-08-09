@@ -332,7 +332,7 @@ export async function POST(
 
     // 12/14 — the policy classifier and the gate chain both live in
     //     Researcher, so this single call covers them.
-    const allowedRefs = await allowedSourceRefs(deck.id)
+    const deniedRefs = await deniedSourceRefs(deck.id)
     let result
     try {
       result = await askResearcher({
@@ -343,7 +343,7 @@ export async function POST(
         ownerName,
         tonePreset: deck.qaTonePreset,
         toneInstruction: deck.qaToneInstruction,
-        allowedSourceRefs: allowedRefs,
+        excludedSourceRefs: deniedRefs,
       })
     } catch (error) {
       console.error('[Publish QA] Researcher call failed:', error)
@@ -428,19 +428,29 @@ export async function POST(
 }
 
 /**
- * The publisher's per-document allowlist. Publish owns this table — Researcher
- * is never asked to read it, and the knowledge/KG schema is not involved.
+ * The publisher's DENIALS. Publish owns this table — Researcher is never asked
+ * to read it, and the knowledge/KG schema is not involved.
  *
- * Returns null when no allowlist row exists, which means "the frozen corpus is
- * already the allowed set" (denied sources were never copied into it).
+ * Denials, not allowances, and the distinction is not academic. This previously
+ * sent an ALLOW-list built from stored rows, but a row exists only for a source
+ * the owner has actually toggled. Every source without a row — which is most of
+ * them — was therefore treated as denied. Touching one entry in the sources
+ * panel switched off every slide in the deck, retrieval returned nothing, and
+ * the deck answered `no_evidence` to questions plainly covered by its own
+ * slides. The publish UI meanwhile *synthesised* defaults for display, so it
+ * showed everything as allowed while the filter allowed none of it.
+ *
+ * A caller can always enumerate what it has DENIED. It cannot enumerate
+ * everything it allows, because a source it has never seen is allowed by
+ * default. So the deny-list is the only shape that is correct under partial
+ * knowledge.
  */
-async function allowedSourceRefs(deckId: string): Promise<string[] | null> {
+async function deniedSourceRefs(deckId: string): Promise<string[]> {
   const rows = await prisma.publishedDeckSource.findMany({
-    where: { publishedDeckId: deckId },
-    select: { sourceRef: true, allowedForQa: true },
+    where: { publishedDeckId: deckId, allowedForQa: false },
+    select: { sourceRef: true },
   })
-  if (rows.length === 0) return null
-  return rows.filter((row) => row.allowedForQa).map((row) => row.sourceRef)
+  return rows.map((row) => row.sourceRef)
 }
 
 async function recordQuestion(params: {

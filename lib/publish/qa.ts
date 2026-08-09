@@ -90,6 +90,8 @@ export async function askResearcher(params: {
   tonePreset: string
   toneInstruction?: string | null
   allowedSourceRefs?: string[] | null
+  /** The publisher's DENIALS. Absence of a decision means allowed. */
+  excludedSourceRefs?: string[] | null
 }): Promise<QaAnswerResult> {
   return post<QaAnswerResult>(
     '/api/v1/qa/answer',
@@ -101,10 +103,11 @@ export async function askResearcher(params: {
       owner_name: params.ownerName,
       tone_preset: params.tonePreset,
       tone_instruction: params.toneInstruction ?? null,
-      // null means "no allowlist recorded yet" — Researcher then retrieves over
-      // the whole frozen corpus, which is already the allowed set because
-      // denied sources were never copied into it at freeze time.
+      // Deliberately null: an allow-list cannot be built from partial
+      // knowledge without silently denying everything unlisted. Denials are
+      // sent instead — see `deniedSourceRefs` in the ask route.
       allowed_source_refs: params.allowedSourceRefs ?? null,
+      excluded_source_refs: params.excludedSourceRefs ?? [],
     },
     ANSWER_TIMEOUT_MS
   )
