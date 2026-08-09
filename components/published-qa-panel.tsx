@@ -141,6 +141,19 @@ export function PublishedQaPanel({
   const [asking, setAsking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [threads, setThreads] = useState<ThreadView[]>([])
+  // Answers the server hands back INLINE, with no question row and no
+  // follow-up token behind them: an FAQ match and a repeat of a question this
+  // browser already asked. Both are instant and free — no model call — and
+  // both used to vanish, because `loadThreads` rebuilds the list from stored
+  // tokens and these have none. The answer arrived over the wire and the page
+  // threw it away, so asking a question the owner had personally answered
+  // looked like nothing happened at all.
+  //
+  // Kept in their own state rather than merged into `threads`, because
+  // `loadThreads` replaces that array wholesale on every refresh. In memory
+  // only: with no row to re-fetch there is nothing to restore on reload, and
+  // an approved FAQ answer is already on the page in its own section.
+  const [instantAnswers, setInstantAnswers] = useState<ThreadView[]>([])
   const [loadingThreads, setLoadingThreads] = useState(false)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
   const [openFaqId, setOpenFaqId] = useState<string | null>(null)
@@ -181,6 +194,10 @@ export function PublishedQaPanel({
     writeSeen(slug, seen)
   }, [open, threads.length, slug])
 
+  // Newest first, same as `threads` — an inline answer is always the most
+  // recent thing the asker did.
+  const visibleThreads = [...instantAnswers, ...threads]
+
   const remaining = MAX_QUESTION_LENGTH - question.length
   const canSubmit = question.trim().length >= 3 && !asking && qaEnabled
 
@@ -210,6 +227,30 @@ export function PublishedQaPanel({
           questionId: data.followUp.questionId,
           askedAt: new Date().toISOString(),
         })
+      }
+      // An inline answer with no token is the FAQ / cached path. Render it as
+      // the reply to the question just asked, rather than discarding it.
+      if (!data?.followUp?.token && data?.status === 'answered' && data?.answer) {
+        setInstantAnswers((prev) => [
+          {
+            // `instant:` cannot collide with a server-generated question id, so
+            // this never shadows or is shadowed by a real thread.
+            id: `instant:${data.source ?? 'inline'}:${prev.length}:${text.slice(0, 40)}`,
+            question: text,
+            status: 'answered',
+            answer: data.answer as string,
+            // An FAQ answer carries the publisher's byline; a cached machine
+            // answer does not, and must not be given one.
+            answeredBy: (data.approvedBy as string | undefined) ?? null,
+            citations: (data.citations ?? []) as PublicCitationView[],
+            provenanceLine: (data.provenanceLine ?? null) as string | null,
+            awaitingOwner: false,
+            deferReason: null,
+            askedAt: new Date().toISOString(),
+            answeredAt: new Date().toISOString(),
+          },
+          ...prev,
+        ])
       }
       setQuestion('')
       await loadThreads()
@@ -304,18 +345,18 @@ export function PublishedQaPanel({
           </section>
         )}
 
-        {(threads.length > 0 || loadingThreads) && (
+        {(visibleThreads.length > 0 || loadingThreads) && (
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Your questions
             </h2>
-            {loadingThreads && threads.length === 0 ? (
+            {loadingThreads && visibleThreads.length === 0 ? (
               <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
               </p>
             ) : (
               <ul className="space-y-3">
-                {threads.map((thread) => (
+                {visibleThreads.map((thread) => (
                   <li key={thread.id}>
                     <QaExchange question={thread.question}>
                     {thread.answer ? (
@@ -382,7 +423,7 @@ export function PublishedQaPanel({
           </section>
         )}
 
-        {faq.length === 0 && threads.length === 0 && !loadingThreads && qaEnabled && (
+        {faq.length === 0 && visibleThreads.length === 0 && !loadingThreads && qaEnabled && (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Ask anything about this deck. Answers come from the deck and {ownerName}&apos;s
             research; anything else goes to {ownerName}.
