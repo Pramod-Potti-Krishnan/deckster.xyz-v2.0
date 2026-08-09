@@ -46,6 +46,16 @@ export async function refreshQaCorpus(deckId: string): Promise<CorpusStatus> {
         version: true,
         revokedAt: true,
         qaEnabled: true,
+        // Researcher stores uploaded-document chunks under the KNOWLEDGE
+        // SERVICE session id, which `app/api/upload/route.ts` persists here as
+        // `geminiStoreId` and uploads the file under. It is NOT ChatSession.id.
+        //
+        // The migration backfilled `researcher_session_id = session_id` on the
+        // assumption that those were the same thing. They are not, so every
+        // corpus freeze looked for documents under an id with no rows and
+        // silently produced a slides-only corpus — the publisher's uploads
+        // never appeared, not even as a toggle.
+        session: { select: { geminiStoreId: true } },
       },
     })
     // A deck unpublished while the build was queued must not get a corpus: the
@@ -60,6 +70,16 @@ export async function refreshQaCorpus(deckId: string): Promise<CorpusStatus> {
       console.error('[Publish QA] snapshot JSON unavailable for freeze:', deckId)
       await setStatus(deckId, 'failed')
       return 'failed'
+    }
+
+    // Prefer the live linkage over the backfilled column: the backfill wrote
+    // ChatSession.id, which never matches document_chunks.
+    const researcherSessionId = deck.session?.geminiStoreId || null
+    if (!researcherSessionId) {
+      console.info(
+        '[Publish QA] no knowledge-service session for deck %s — slides only',
+        deckId
+      )
     }
 
     // The publisher's denials travel IN on the freeze. Researcher never reads
@@ -77,7 +97,7 @@ export async function refreshQaCorpus(deckId: string): Promise<CorpusStatus> {
       // supersedes any corpus version below the newest one written.
       corpusVersion: deck.version,
       presentation,
-      sessionId: deck.researcherSessionId || deck.sessionId,
+      sessionId: researcherSessionId,
       excludedSourceRefs: denied.map((row) => row.sourceRef),
     })
 
@@ -86,7 +106,13 @@ export async function refreshQaCorpus(deckId: string): Promise<CorpusStatus> {
 
     await prisma.publishedDeck.update({
       where: { id: deckId },
-      data: { qaCorpusStatus: status, qaCorpusVersion: deck.version },
+      data: {
+        qaCorpusStatus: status,
+        qaCorpusVersion: deck.version,
+        // Correct the column as we go, so the wrong backfilled value is
+        // replaced by the id documents are actually stored under.
+        researcherSessionId,
+      },
     })
     return status
   } catch (error) {

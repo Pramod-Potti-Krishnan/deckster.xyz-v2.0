@@ -400,10 +400,17 @@ model PublishedDeck {
   revokedAt              DateTime? @map("revoked_at")            // unpublished (row kept so the slug stays reserved)
 
   // --- Rung 1: grounded Q&A -------------------------------------------------
-  // The Researcher session whose corpus backs this deck's Q&A. Today this always
-  // equals sessionId, but that equality is a CONVENTION, not a constraint —
-  // persist it so the join is a stored fact and a future re-key can't silently
-  // break Q&A.
+  // The Researcher session whose corpus backs this deck's Q&A.
+  //
+  // This is ChatSession.geminiStoreId — the KNOWLEDGE SERVICE session id, which
+  // `app/api/upload/route.ts` uploads documents under and Researcher stores
+  // `document_chunks.session_id` as. It is NOT ChatSession.id.
+  //
+  // An earlier comment here asserted the two were equal. They are not, and the
+  // migration backfilled this column from `session_id` on that assumption — so
+  // every corpus freeze searched for documents under an id with no rows and
+  // silently produced a slides-only corpus. `refreshQaCorpus` now resolves the
+  // live value and corrects this column as it goes.
   researcherSessionId String? @map("researcher_session_id")
   // Off by default: a public LLM endpoint on someone's client deck must be a
   // deliberate act, never a side effect of publishing.
