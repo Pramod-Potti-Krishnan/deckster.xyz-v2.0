@@ -90,6 +90,35 @@ export function serializeQuestionForOwner(row: QuestionRow) {
 }
 
 /**
+ * Why the machine did not answer, in words a viewer can act on.
+ *
+ * Researcher returns a tone-matched defer message on the ask response, but that
+ * is a one-shot: it is not stored, so reopening the thread showed only
+ * "Waiting on <owner>" with no indication that a decision had been made at all.
+ * An asker cannot tell "we are still thinking" from "we chose not to answer,
+ * a human will" — and the second is the honest description of every defer.
+ *
+ * Derived from the gate rather than storing prose, so no schema change and no
+ * stale copy. The raw gate name is NEVER exposed — it is internal vocabulary,
+ * and 'blocked' in particular must read like any other defer.
+ */
+const DEFER_EXPLANATIONS: Record<string, string> = {
+  no_evidence: "This isn't covered in the deck or its background material.",
+  low_confidence: "There wasn't enough in the material to answer confidently.",
+  unverified_claim: "The answer couldn't be verified against the source material.",
+  not_ready: "The deck's material wasn't ready when you asked.",
+  capped: "Automatic answers are paused on this deck right now.",
+  policy: 'This one is better answered personally.',
+}
+
+const DEFAULT_DEFER_EXPLANATION = 'This one needs a person.'
+
+export function deferExplanation(gateReason: string | null | undefined): string {
+  if (!gateReason) return DEFAULT_DEFER_EXPLANATION
+  return DEFER_EXPLANATIONS[gateReason] ?? DEFAULT_DEFER_EXPLANATION
+}
+
+/**
  * Asker view — their question, the answer, and nothing operational.
  *
  * The owner's answer takes precedence over the machine's: once a human has
@@ -118,6 +147,12 @@ export function serializeThreadForAsker(row: QuestionRow, options: ViewerOptions
     citations: hasOwnerAnswer ? [] : citations,
     provenanceLine: hasOwnerAnswer ? null : provenanceLine,
     awaitingOwner: !hasOwnerAnswer && row.status !== 'answered',
+    // Why it was not answered automatically. A blocked asker gets the generic
+    // fallback, never anything that reveals the block.
+    deferReason:
+      hasOwnerAnswer || row.status === 'answered'
+        ? null
+        : deferExplanation(row.status === 'blocked' ? null : row.gateReason),
     askedAt: row.createdAt.toISOString(),
     answeredAt: row.ownerAnsweredAt?.toISOString() ?? null,
   }
