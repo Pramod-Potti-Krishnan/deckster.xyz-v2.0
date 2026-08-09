@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { getServerSession } from 'next-auth';
 import type { PublishedDeck } from '@prisma/client';
 import { authOptions } from '@/lib/auth-options';
@@ -15,6 +16,7 @@ import {
   snapshotPresentation,
 } from '@/lib/publish/layout';
 import { isPublishVisibility, serializePublishedDeck } from '@/lib/publish/serialize';
+import { refreshQaCorpus } from '@/lib/publish/qa-corpus';
 
 /**
  * POST /api/publish
@@ -306,6 +308,19 @@ export async function POST(req: NextRequest) {
       // The record vanished between the CAS update and the re-read (e.g. the
       // session was deleted concurrently) — nothing coherent to serialize.
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+
+    // Rebuild the Q&A corpus AFTER the response. Embedding a deck takes tens of
+    // seconds; awaiting it would make every publish that slow, and a corpus
+    // failure would surface as a failed publish for something the owner may not
+    // even have enabled. `after()` runs it once the response is sent, which also
+    // means it survives on Vercel — a bare floating promise would not.
+    //
+    // A republish invalidates the old corpus: it was frozen from the previous
+    // snapshot, so leaving it would answer questions about slides that are no
+    // longer published.
+    if (record.qaEnabled) {
+      after(() => refreshQaCorpus(record.id));
     }
 
     return NextResponse.json({ deck: serializePublishedDeck(record), snapshotDeleted });

@@ -18,6 +18,7 @@ const PROD_APP_ORIGINS = ['https://deckster.xyz', 'https://www.deckster.xyz']
 
 export const PROD_LAYOUT_SERVICE_URL = 'https://web-production-f0d13.up.railway.app'
 export const PROD_DOWNLOAD_SERVICE_URL = 'https://web-production-4908a.up.railway.app'
+export const PROD_RESEARCHER_URL = 'https://researcher-v1.up.railway.app'
 
 const trimTrailingSlash = (value: string) => value.trim().replace(/\/+$/, '')
 
@@ -88,5 +89,26 @@ export function getDownloadServiceUrl(): string {
     PROD_DOWNLOAD_SERVICE_URL,
     ['NEXT_PUBLIC_DOWNLOAD_SERVICE_URL'],
     'Downloads Service'
+  )
+}
+
+/**
+ * Researcher origin for published-deck Q&A — guarded for the same reason as
+ * Layout, and arguably more sharply.
+ *
+ * Q&A is not a read: freeze WRITES `published_qa_chunks` keyed by the published
+ * deck id, and delete REMOVES them. A UAT deployment falling back to the
+ * production Researcher would write UAT corpora into production and, on
+ * unpublish, delete production rows. It also spends real money per question.
+ *
+ * `lib/kg-proxy.ts` keeps its unguarded `KNOWLEDGE_SERVICE_URL || <prod>` — the
+ * KG proxy predates this and is read-mostly. Q&A gets the strict resolver.
+ */
+export function getResearcherBaseUrl(): string {
+  return resolve(
+    [process.env.RESEARCHER_SERVICE_URL, process.env.KNOWLEDGE_SERVICE_URL],
+    PROD_RESEARCHER_URL,
+    ['RESEARCHER_SERVICE_URL', 'KNOWLEDGE_SERVICE_URL'],
+    'Researcher Service'
   )
 }

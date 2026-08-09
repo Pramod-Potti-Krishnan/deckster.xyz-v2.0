@@ -275,3 +275,30 @@ export async function getSnapshotSlideCountWithRetry(
   }
   return null
 }
+
+/**
+ * The FULL deck JSON. Used only by the Q&A corpus freeze, which needs the slide
+ * bodies rather than the two facts `getPresentationMeta` keeps.
+ *
+ * Longer timeout than the meta read: this one runs in background work after the
+ * response has been sent, so a slow Layout costs nobody a wait, and giving up
+ * early would just mean an unbuilt corpus.
+ */
+const PRESENTATION_JSON_TIMEOUT_MS = 30000
+
+export async function getPresentationJson(
+  presentationId: string
+): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await fetch(
+      `${getLayoutServiceBaseUrl()}/api/presentations/${presentationId}`,
+      { signal: AbortSignal.timeout(PRESENTATION_JSON_TIMEOUT_MS) }
+    )
+    if (!response.ok) return null
+    const data = await response.json()
+    return data && typeof data === 'object' ? (data as Record<string, unknown>) : null
+  } catch (error) {
+    console.error('[Publish] Presentation JSON fetch error:', presentationId, error)
+    return null
+  }
+}

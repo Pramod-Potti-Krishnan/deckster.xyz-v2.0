@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { PublishQaSettings } from '@/components/publish-qa-settings'
 import { useToast } from '@/hooks/use-toast'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
@@ -790,6 +791,15 @@ export function PublishDialog({
         </div>
       </div>
       <p className="text-xs text-muted-foreground">Sharing settings save as you change them.</p>
+
+      {/* Q&A lives in its own component rather than inline: it is a separable
+          concern with its own routes and its own failure modes, and this dialog
+          is already long. */}
+      {record && (
+        <div className="border-t border-border pt-4">
+          <PublishQaSettings record={record} onRecordChange={setRecord} disabled={busy} />
+        </div>
+      )}
     </div>
   )
 
