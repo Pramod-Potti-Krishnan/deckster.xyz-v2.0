@@ -15,6 +15,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import { unlockCookieName, verifyUnlockCookie } from '@/lib/publish/passcode'
 import { citationsForViewer } from '@/lib/publish/qa-citations'
@@ -107,6 +109,8 @@ export async function POST(
         qaCorpusVersion: true,
         qaDailyCap: true,
         qaMonthlyCap: true,
+        qaVisitorBurstLimit: true,
+        qaVisitorDailyLimit: true,
         qaTonePreset: true,
         qaToneInstruction: true,
         qaCiteWebSources: true,
@@ -163,6 +167,25 @@ export async function POST(
     const ipHash = hashAskerIp(clientIpFrom(request.headers))
     const now = new Date()
 
+    // Is this the deck's own owner, signed in and testing their own feature?
+    //
+    // Verified server-side against deck.userId — a caller cannot claim it. The
+    // per-IP limits exist to bound an ANONYMOUS client hammering a public
+    // endpoint, and the owner is not that: they are authenticated and they are
+    // paying for every answer. Without this, five questions locked the
+    // publisher out of their own deck for ten minutes, which made the feature
+    // untestable by the only person who can meaningfully test it.
+    //
+    // Never throws the request: an auth hiccup degrades to "treat as anonymous",
+    // which is the strict direction.
+    let isOwner = false
+    try {
+      const session = await getServerSession(authOptions)
+      if (session?.user?.id) isOwner = session.user.id === deck.userId
+    } catch (error) {
+      console.error('[Publish QA] owner check failed, treating as anonymous:', error)
+    }
+
     // 6/7/8 — block list, per-IP burst, per-deck caps. One grouped query set,
     //     all counts, no model call.
     //
@@ -206,6 +229,9 @@ export async function POST(
       deckThisMonth,
       deckDailyCap: deck.qaDailyCap,
       deckMonthlyCap: deck.qaMonthlyCap,
+      visitorBurstLimit: deck.qaVisitorBurstLimit,
+      visitorDailyLimit: deck.qaVisitorDailyLimit,
+      isOwner,
     })
     if (!verdict.allowed) {
       // 'blocked' is silent — an abusive caller learns nothing about why, and
