@@ -42,6 +42,8 @@ export interface SerializedPublishedDeck {
   qaCorpusStatus: string
   qaDailyCap: number
   qaMonthlyCap: number
+  qaVisitorBurstLimit: number
+  qaVisitorDailyLimit: number
   qaTonePreset: string
   qaToneInstruction: string | null
   qaCiteWebSources: boolean
@@ -70,6 +72,8 @@ export function serializePublishedDeck(deck: PublishedDeck): SerializedPublished
     qaCorpusStatus: deck.qaCorpusStatus,
     qaDailyCap: deck.qaDailyCap,
     qaMonthlyCap: deck.qaMonthlyCap,
+    qaVisitorBurstLimit: deck.qaVisitorBurstLimit,
+    qaVisitorDailyLimit: deck.qaVisitorDailyLimit,
     qaTonePreset: deck.qaTonePreset,
     qaToneInstruction: deck.qaToneInstruction ?? null,
     qaCiteWebSources: deck.qaCiteWebSources,

@@ -35,6 +35,8 @@ const {
   normaliseQuestion, questionSimilarity, matchFaq, evaluateLimits, validateQuestion,
   startOfUtcDay, startOfUtcMonth,
   IP_BURST_LIMIT, IP_DAILY_LIMIT, FAQ_MATCH_THRESHOLD,
+  clampVisitorBurst, clampVisitorDaily,
+  VISITOR_BURST_MIN, VISITOR_BURST_MAX, VISITOR_DAILY_MIN, VISITOR_DAILY_MAX,
 } = mod;
 
 const tests = [];
@@ -179,6 +181,78 @@ test('the deck monthly cap trips even when the day is quiet', () => {
 
 test('a cap of zero blocks everything', () => {
   assert.equal(evaluateLimits({ ...clean, deckDailyCap: 0 }).reason, 'capped');
+});
+
+// ---------------------------------------------------------------------------
+// Per-visitor limits: owner-adjustable, and the owner is exempt on own deck
+// ---------------------------------------------------------------------------
+
+test("a deck's own visitor limit overrides the deployment default", () => {
+  // The point of the setting: a deck in front of a live audience raises it, a
+  // quiet client deck lowers it, and neither has to match the global constant.
+  assert.equal(evaluateLimits({ ...clean, ipInWindow: 30, visitorBurstLimit: 40 }).allowed, true);
+  assert.equal(evaluateLimits({ ...clean, ipInWindow: 4, visitorBurstLimit: 5 }).allowed, true);
+  assert.equal(evaluateLimits({ ...clean, ipInWindow: 5, visitorBurstLimit: 5 }).reason, 'rate_limited');
+});
+
+test("a deck's own daily visitor limit overrides the deployment default", () => {
+  assert.equal(evaluateLimits({ ...clean, ipToday: 150, visitorDailyLimit: 200 }).allowed, true);
+  assert.equal(evaluateLimits({ ...clean, ipToday: 20, visitorDailyLimit: 20 }).reason, 'rate_limited');
+});
+
+test('with no per-deck limits stored, the deployment defaults still apply', () => {
+  // Rows created before the columns existed, and any caller that forgets to
+  // pass them, must not silently become unlimited.
+  assert.equal(evaluateLimits({ ...clean, ipInWindow: IP_BURST_LIMIT }).reason, 'rate_limited');
+  assert.equal(evaluateLimits({ ...clean, ipToday: IP_DAILY_LIMIT }).reason, 'rate_limited');
+});
+
+test('the deck owner is exempt from the per-visitor limits on their own deck', () => {
+  // This is why the exemption exists: the owner asking a handful of test
+  // questions was being treated as an anonymous abuser and locked out of their
+  // own feature. Ownership is established server-side against deck.userId.
+  assert.equal(evaluateLimits({ ...clean, ipInWindow: 9999, isOwner: true }).allowed, true);
+  assert.equal(evaluateLimits({ ...clean, ipToday: 9999, isOwner: true }).allowed, true);
+});
+
+test('the owner exemption does NOT extend to the deck spend caps', () => {
+  // The caps are the owner's own spend ceiling, so bypassing them for the owner
+  // would remove the only thing bounding cost on the account paying for it.
+  assert.equal(evaluateLimits({ ...clean, deckToday: 50, isOwner: true }).reason, 'capped');
+  assert.equal(
+    evaluateLimits({ ...clean, deckToday: 1, deckThisMonth: 500, isOwner: true }).reason,
+    'capped'
+  );
+});
+
+test('the owner exemption does NOT unblock a blocked asker', () => {
+  // Block is checked first and is unconditional; otherwise a blocked visitor who
+  // happened to be signed in as the owner would walk straight through.
+  assert.equal(evaluateLimits({ ...clean, blocked: 1, isOwner: true }).reason, 'blocked');
+});
+
+test('an owner-supplied limit is clamped, and never to zero', () => {
+  // 0 would make a deck that accepts questions and refuses every one on arrival
+  // — strictly worse than turning Q&A off, which is already a switch.
+  assert.equal(clampVisitorBurst(0), VISITOR_BURST_MIN);
+  assert.equal(clampVisitorBurst(-5), VISITOR_BURST_MIN);
+  assert.equal(clampVisitorBurst(10_000), VISITOR_BURST_MAX);
+  assert.equal(clampVisitorBurst(12.7), 12);
+  assert.equal(clampVisitorDaily(0), VISITOR_DAILY_MIN);
+  assert.equal(clampVisitorDaily(10_000), VISITOR_DAILY_MAX);
+});
+
+test('a clamped limit still throttles — there is no unlimited setting', () => {
+  const burst = clampVisitorBurst(Number.MAX_SAFE_INTEGER);
+  assert.equal(evaluateLimits({ ...clean, ipInWindow: burst, visitorBurstLimit: burst }).reason,
+    'rate_limited');
+});
+
+test('the default per-visitor allowance is 10 in a 5-minute window', () => {
+  // The number PK asked for. Asserted so a future edit to the constant is a
+  // deliberate decision rather than a drive-by.
+  assert.equal(IP_BURST_LIMIT, 10);
+  assert.equal(mod.IP_BURST_WINDOW_MS, 5 * 60 * 1000);
 });
 
 // ---------------------------------------------------------------------------

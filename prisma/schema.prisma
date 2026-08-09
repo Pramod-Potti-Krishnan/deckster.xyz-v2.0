@@ -423,6 +423,13 @@ model PublishedDeck {
   qaCorpusVersion     Int?    @map("qa_corpus_version")
   qaDailyCap          Int     @default(50)  @map("qa_daily_cap")
   qaMonthlyCap        Int     @default(500) @map("qa_monthly_cap")
+  // Per-VISITOR throttle, owner-adjustable. The caps above bound what the deck
+  // may spend in total; these bound what one client can take of it, so a single
+  // asker cannot drain the day's budget in a minute. A quiet client deck and a
+  // deck on stage at a conference want very different numbers, which is why
+  // this is a setting and not a constant.
+  qaVisitorBurstLimit Int     @default(10)  @map("qa_visitor_burst_limit")
+  qaVisitorDailyLimit Int     @default(40)  @map("qa_visitor_daily_limit")
   // Tone: style ONLY. Enforced structurally in Researcher (stage 1 grounds with
   // the tone absent from its context; stage 2 only restyles text that already
   // passed the gates), so no tone can move the refusal threshold.

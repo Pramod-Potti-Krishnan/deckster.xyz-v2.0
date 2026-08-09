@@ -7,6 +7,7 @@ import { hashPasscode, MIN_PASSCODE_LENGTH } from '@/lib/publish/passcode';
 import { deletePresentationSnapshot, retryDeleteStaleSnapshots } from '@/lib/publish/layout';
 import { isPublishVisibility, serializePublishedDeck } from '@/lib/publish/serialize';
 import { refreshQaCorpus, teardownQaCorpus } from '@/lib/publish/qa-corpus';
+import { clampVisitorBurst, clampVisitorDaily } from '@/lib/publish/qa-limits';
 
 /**
  * PATCH /api/publish/[slug]
@@ -90,6 +91,8 @@ export async function PATCH(
       qaEnabled?: boolean;
       qaDailyCap?: number;
       qaMonthlyCap?: number;
+      qaVisitorBurstLimit?: number;
+      qaVisitorDailyLimit?: number;
       qaTonePreset?: string;
       qaToneInstruction?: string | null;
       qaCiteWebSources?: boolean;
@@ -122,6 +125,21 @@ export async function PATCH(
     }
     if (typeof body.qaMonthlyCap === 'number' && Number.isFinite(body.qaMonthlyCap)) {
       data.qaMonthlyCap = Math.min(20000, Math.max(0, Math.trunc(body.qaMonthlyCap)));
+    }
+    // Per-visitor throttle. Clamped, and the floor is 1 rather than 0: a deck
+    // that takes questions and refuses every one on arrival is worse than one
+    // with Q&A switched off, and that switch already exists.
+    if (
+      typeof body.qaVisitorBurstLimit === 'number' &&
+      Number.isFinite(body.qaVisitorBurstLimit)
+    ) {
+      data.qaVisitorBurstLimit = clampVisitorBurst(body.qaVisitorBurstLimit);
+    }
+    if (
+      typeof body.qaVisitorDailyLimit === 'number' &&
+      Number.isFinite(body.qaVisitorDailyLimit)
+    ) {
+      data.qaVisitorDailyLimit = clampVisitorDaily(body.qaVisitorDailyLimit);
     }
     // Tone is STYLE ONLY. Researcher grounds with the tone absent from stage 1,
     // so no value here can move a refusal threshold — an unknown preset is a

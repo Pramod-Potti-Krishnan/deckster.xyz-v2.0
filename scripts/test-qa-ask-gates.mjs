@@ -89,6 +89,8 @@ const DECK = {
   qaCorpusVersion: 3,
   qaDailyCap: 50,
   qaMonthlyCap: 500,
+  qaVisitorBurstLimit: 10,
+  qaVisitorDailyLimit: 40,
   qaTonePreset: 'professional',
   qaToneInstruction: null,
   qaCiteWebSources: true,
@@ -120,6 +122,10 @@ function scenario(overrides = {}) {
       ...(overrides.counts ?? {}),
     },
     recentQuestions: overrides.recentQuestions ?? [],
+    // Who is calling. null = anonymous visitor, which is the normal case for a
+    // public endpoint and therefore the default.
+    session: overrides.session ?? null,
+    sessionThrows: overrides.sessionThrows ?? false,
     faqs: overrides.faqs ?? [],
     sources: overrides.sources ?? [],
     cookies: overrides.cookies ?? {},
@@ -170,6 +176,13 @@ function scenario(overrides = {}) {
       cookies: async () => ({ get: (name) => (state.cookies[name] ? { value: state.cookies[name] } : undefined) }),
     },
     '@/lib/prisma': { prisma },
+    'next-auth': {
+      getServerSession: async () => {
+        if (state.sessionThrows) throw new Error('auth backend down');
+        return state.session;
+      },
+    },
+    '@/lib/auth-options': { authOptions: {} },
     '@/lib/publish/qa': {
       isQaBackendConfigured: () => process.env.PUBLIC_QA_ENABLED === 'true',
       askResearcher: async (args) => {
@@ -266,7 +279,7 @@ test('a malformed question 400s without touching Researcher', async () => {
 });
 
 test('a rate-limited caller 429s without touching Researcher', async () => {
-  const { run, state } = scenario({ counts: { ipInWindow: 5 } });
+  const { run, state } = scenario({ counts: { ipInWindow: 10 } });
   const res = await run();
   assert.equal(res.status, 429);
   assert.ok(res.headers['Retry-After']);
@@ -279,6 +292,75 @@ test('a blocked asker 429s silently, and is not told they are blocked', async ()
   assert.equal(res.status, 429);
   assert.equal(state.researcherCalls, 0);
   assert.ok(!JSON.stringify(res.body).toLowerCase().includes('block'));
+});
+
+test("the deck's OWN visitor limit is what the route enforces", async () => {
+  // Not the deployment constant. An owner who raised the limit for a live event
+  // must actually get the higher number, and one who lowered it the lower.
+  const busy = scenario({ deck: { qaVisitorBurstLimit: 40 }, counts: { ipInWindow: 25 } });
+  assert.equal((await busy.run()).status, 200);
+  assert.equal(busy.state.researcherCalls, 1);
+
+  const strict = scenario({ deck: { qaVisitorBurstLimit: 5 }, counts: { ipInWindow: 5 } });
+  assert.equal((await strict.run()).status, 429);
+  assert.equal(strict.state.researcherCalls, 0);
+});
+
+test('the signed-in OWNER is not rate-limited on their own deck', async () => {
+  // The owner testing their own feature is not an anonymous abuser. Before this,
+  // a handful of test questions locked the publisher out of their own deck.
+  const { run, state } = scenario({
+    counts: { ipInWindow: 9999, ipToday: 9999 },
+    session: { user: { id: 'user-1' } },
+  });
+  const res = await run();
+  assert.equal(res.status, 200);
+  assert.equal(state.researcherCalls, 1);
+});
+
+test('a signed-in NON-owner gets no exemption', async () => {
+  // The exemption is scoped to THIS deck's owner. Any signed-in account slipping
+  // through would make the limiter bypassable by anyone who can register.
+  const { run, state } = scenario({
+    counts: { ipInWindow: 9999 },
+    session: { user: { id: 'someone-else' } },
+  });
+  assert.equal((await run()).status, 429);
+  assert.equal(state.researcherCalls, 0);
+});
+
+test('the owner exemption does not override the deck spend caps', async () => {
+  // Those caps are the owner's own ceiling and the only thing bounding cost on
+  // the account being billed.
+  const { run, state } = scenario({
+    counts: { deckToday: 50 },
+    session: { user: { id: 'user-1' } },
+  });
+  assert.equal((await run()).status, 429);
+  assert.equal(state.researcherCalls, 0);
+  assert.equal(state.walletCalls.length, 0);
+});
+
+test('the owner exemption does not unblock a blocked asker', async () => {
+  const { run, state } = scenario({
+    counts: { blocked: 1 },
+    session: { user: { id: 'user-1' } },
+  });
+  assert.equal((await run()).status, 429);
+  assert.equal(state.researcherCalls, 0);
+});
+
+test('an auth failure degrades to anonymous rather than exempting the caller', async () => {
+  // Fail strict: if we cannot establish who is calling, they are a visitor.
+  const original = console.error;
+  console.error = () => {};
+  try {
+    const { run, state } = scenario({ counts: { ipInWindow: 9999 }, sessionThrows: true });
+    assert.equal((await run()).status, 429);
+    assert.equal(state.researcherCalls, 0);
+  } finally {
+    console.error = original;
+  }
 });
 
 test('a capped deck defers WITHOUT calling Researcher and without billing', async () => {

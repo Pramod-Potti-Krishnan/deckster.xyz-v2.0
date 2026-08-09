@@ -50,6 +50,63 @@ const TONE_PRESETS: { value: string; label: string; hint: string }[] = [
   { value: 'technical', label: 'Technical', hint: 'Keeps technical terms rather than simplifying.' },
 ]
 
+/**
+ * How fast ONE visitor may ask.
+ *
+ * Presets rather than a free number field, because the useful choice here is
+ * not "which integer" but "what kind of audience is this deck in front of" —
+ * and the two numbers have to move together to stay coherent (a 5-minute burst
+ * bigger than the daily allowance is a setting that does nothing).
+ *
+ * There is no unlimited option: /ask spends the owner's wallet without asking
+ * the caller who they are, so some ceiling has to survive every setting. The
+ * deck's own daily/monthly caps below are the total spend ceiling; these decide
+ * how much of it a single client can take.
+ */
+const VISITOR_LIMIT_PRESETS: {
+  value: string
+  label: string
+  burst: number
+  daily: number
+  hint: string
+}[] = [
+  {
+    value: 'strict',
+    label: 'Strict — 5 every 5 minutes',
+    burst: 5,
+    daily: 20,
+    hint: 'For a deck shared with a small named audience.',
+  },
+  {
+    value: 'standard',
+    label: 'Standard — 10 every 5 minutes',
+    burst: 10,
+    daily: 40,
+    hint: 'Comfortable for a reader working through the deck.',
+  },
+  {
+    value: 'generous',
+    label: 'Generous — 20 every 5 minutes',
+    burst: 20,
+    daily: 100,
+    hint: 'For a deck you expect people to interrogate properly.',
+  },
+  {
+    value: 'event',
+    label: 'Live event — 40 every 5 minutes',
+    burst: 40,
+    daily: 200,
+    hint: 'For a room asking questions at once. Watch the daily cap below.',
+  },
+]
+
+/** Which preset the stored pair corresponds to, or 'custom' if it was set
+ *  through the API to something the presets do not offer. */
+function matchVisitorPreset(burst: number, daily: number): string {
+  const found = VISITOR_LIMIT_PRESETS.find((p) => p.burst === burst && p.daily === daily)
+  return found?.value ?? 'custom'
+}
+
 const KIND_META: Record<string, { label: string; icon: typeof FileText; sensitive: boolean }> = {
   deck: { label: 'Slides', icon: Layers, sensitive: false },
   web: { label: 'Web pages', icon: Globe, sensitive: false },
@@ -400,6 +457,46 @@ export function PublishQaSettings({
               disabled={busy}
               className="flex-shrink-0"
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="publish-qa-visitor-rate">How often one visitor can ask</Label>
+            <Select
+              value={matchVisitorPreset(record.qaVisitorBurstLimit, record.qaVisitorDailyLimit)}
+              onValueChange={(next) => {
+                const preset = VISITOR_LIMIT_PRESETS.find((p) => p.value === next)
+                if (!preset) return
+                void patch('qaVisitorRate', {
+                  qaVisitorBurstLimit: preset.burst,
+                  qaVisitorDailyLimit: preset.daily,
+                })
+              }}
+              disabled={busy}
+            >
+              <SelectTrigger id="publish-qa-visitor-rate">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {VISITOR_LIMIT_PRESETS.map((preset) => (
+                  <SelectItem key={preset.value} value={preset.value}>
+                    {preset.label}
+                  </SelectItem>
+                ))}
+                {matchVisitorPreset(record.qaVisitorBurstLimit, record.qaVisitorDailyLimit) ===
+                  'custom' && (
+                  <SelectItem value="custom" disabled>
+                    Custom — {record.qaVisitorBurstLimit} every 5 minutes
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {VISITOR_LIMIT_PRESETS.find(
+                (p) => p.value === matchVisitorPreset(record.qaVisitorBurstLimit, record.qaVisitorDailyLimit)
+              )?.hint ?? 'Set through the API.'}{' '}
+              Also {record.qaVisitorDailyLimit} per day each. You are exempt on your own deck, so
+              you can test it freely.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
