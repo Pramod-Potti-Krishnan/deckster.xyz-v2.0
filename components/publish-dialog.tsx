@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { PublishQaSettings } from '@/components/publish-qa-settings'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
@@ -792,15 +793,44 @@ export function PublishDialog({
       </div>
       <p className="text-xs text-muted-foreground">Sharing settings save as you change them.</p>
 
-      {/* Q&A lives in its own component rather than inline: it is a separable
-          concern with its own routes and its own failure modes, and this dialog
-          is already long. */}
-      {record && (
-        <div className="border-t border-border pt-4">
-          <PublishQaSettings record={record} onRecordChange={setRecord} disabled={busy} />
-        </div>
-      )}
     </div>
+  )
+
+  /**
+   * Sharing and Q&A as tabs rather than one stacked column.
+   *
+   * Stacked, the Q&A block pushed the dialog past the viewport and its controls
+   * became unreachable — the settings existed but could not be operated. Tabs
+   * bound the height instead of merely deferring the problem, and the split is
+   * honest: these are two different decisions (who may see this / may it answer
+   * questions) with separate routes behind them.
+   *
+   * Only rendered once a record exists — before publishing there is no Q&A to
+   * configure, so the pre-publish form stays a single plain column.
+   */
+  const liveSettingsTabs = record ? (
+    <Tabs defaultValue="sharing" className="w-full">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="sharing">Sharing</TabsTrigger>
+        <TabsTrigger value="qa">
+          Questions
+          {record.qaEnabled && (
+            <span
+              aria-label="on"
+              className="ml-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
+            />
+          )}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="sharing" className="mt-4">
+        {liveSettingsForm}
+      </TabsContent>
+      <TabsContent value="qa" className="mt-4">
+        <PublishQaSettings record={record} onRecordChange={setRecord} disabled={busy} />
+      </TabsContent>
+    </Tabs>
+  ) : (
+    liveSettingsForm
   )
 
   /**
@@ -833,7 +863,7 @@ export function PublishDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Share2 className="h-4 w-4" />
@@ -976,7 +1006,7 @@ export function PublishDialog({
               </p>
             </div>
 
-            {liveSettingsForm}
+            {liveSettingsTabs}
 
             {/* Four states, four different things to say. 'current' says nothing
                 (the quiet default). 'stale' is the amber call to action.

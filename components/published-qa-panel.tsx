@@ -10,6 +10,8 @@ import {
   Send,
   X,
 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { readThreads, rememberThread, type ThreadEntry } from '@/lib/publish/qa-threads'
 
 export interface PublicCitationView {
@@ -283,10 +285,8 @@ export function PublishedQaPanel({
                     />
                   </button>
                   {openFaqId === item.id && (
-                    <div className="border-t border-gray-100 px-3 py-2 dark:border-slate-700">
-                      <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
-                        {item.answer}
-                      </p>
+                    <div className="border-t border-gray-100 px-3 py-2.5 dark:border-slate-700">
+                      <AnswerBody text={item.answer} />
                       <Citations citations={item.citations} onCiteSlide={onCiteSlide} />
                       {item.provenanceLine && <Provenance line={item.provenanceLine} />}
                       {/* The one place a human's name appears — a person approved this text. */}
@@ -314,36 +314,29 @@ export function PublishedQaPanel({
             ) : (
               <ul className="space-y-3">
                 {threads.map((thread) => (
-                  <li
-                    key={thread.id}
-                    className="rounded-md border border-gray-200 p-3 dark:border-slate-700"
-                  >
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                      {thread.question}
-                    </p>
-
+                  <li key={thread.id}>
+                    <QaExchange question={thread.question}>
                     {thread.answer ? (
                       <>
-                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
-                          {thread.answer}
-                        </p>
+                        <AnswerBody text={thread.answer} />
                         <Citations citations={thread.citations} onCiteSlide={onCiteSlide} />
                         {thread.provenanceLine && <Provenance line={thread.provenanceLine} />}
                         {thread.answeredBy && (
-                          <p className="mt-2 flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
+                          <p className="mt-2.5 flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
                             <Check className="h-3 w-3" />
                             Answered by {thread.answeredBy}
                           </p>
                         )}
                       </>
                     ) : (
-                      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      <p className="flex items-center gap-1.5 text-[13px] text-slate-500 dark:text-slate-400">
+                        <Loader2 className="h-3 w-3 animate-spin" />
                         Waiting on {ownerName}.
                       </p>
                     )}
 
                     {thread.awaitingOwner && (
-                      <div className="mt-2 border-t border-gray-100 pt-2 dark:border-slate-700">
+                      <div className="mt-2.5 border-t border-gray-100 pt-2.5 dark:border-slate-700">
                         {/* Stated plainly rather than reassuringly: without this
                             link the thread really is unreachable, and that is the
                             price of not asking for an email. */}
@@ -369,6 +362,7 @@ export function PublishedQaPanel({
                         )}
                       </div>
                     )}
+                    </QaExchange>
                   </li>
                 ))}
               </ul>
@@ -441,6 +435,97 @@ export function PublishedQaPanel({
 }
 
 /**
+ * A generated answer, rendered.
+ *
+ * Markdown is enabled deliberately but NARROWLY. Researcher's prompt asks for a
+ * lead sentence plus an optional short list — nothing else — so only those
+ * elements are mapped. Anything the model emits outside that set (headings,
+ * tables, images, raw HTML) degrades to plain text rather than rendering,
+ * because this string is model output displayed under a publisher's deck and
+ * the safe failure is "looks plain", never "renders something unexpected".
+ *
+ * Links are NOT rendered as anchors. Citations are the only sanctioned way for
+ * an answer to point somewhere, and they go through the tiering boundary; an
+ * inline link would route around it.
+ */
+export function AnswerBody({ text }: { text: string }) {
+  return (
+    <div className="text-[13px] leading-[1.65] text-slate-700 dark:text-slate-300">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ node, ...props }) => <p {...props} className="mb-2 last:mb-0" />,
+          strong: ({ node, ...props }) => (
+            <strong {...props} className="font-semibold text-slate-900 dark:text-slate-100" />
+          ),
+          em: ({ node, ...props }) => <em {...props} className="italic" />,
+          ul: ({ node, ...props }) => (
+            <ul {...props} className="my-2 space-y-1.5 list-none pl-0" />
+          ),
+          ol: ({ node, ...props }) => (
+            <ol {...props} className="my-2 space-y-1.5 list-decimal pl-4 marker:text-slate-400" />
+          ),
+          li: ({ node, children, ...props }) => (
+            <li {...props} className="relative pl-4 leading-[1.6] last:mb-0">
+              {/* Own bullet rather than list-disc: a square reads as structure
+                  instead of a second voice, and stays aligned with wrapped text. */}
+              <span
+                aria-hidden
+                className="absolute left-0 top-[0.55em] h-1 w-1 rounded-[1px] bg-indigo-400 dark:bg-indigo-500"
+              />
+              {children}
+            </li>
+          ),
+          // Everything below is deliberately flattened.
+          h1: ({ node, ...props }) => <p {...props} className="mb-2 font-semibold" />,
+          h2: ({ node, ...props }) => <p {...props} className="mb-2 font-semibold" />,
+          h3: ({ node, ...props }) => <p {...props} className="mb-2 font-semibold" />,
+          a: ({ node, children, ...props }) => <span {...props}>{children}</span>,
+          code: ({ node, ...props }) => (
+            <code {...props} className="rounded bg-slate-100 px-1 py-0.5 text-[12px] dark:bg-slate-700" />
+          ),
+          blockquote: ({ node, children }) => <p className="mb-2">{children}</p>,
+          table: ({ node, children }) => <div>{children}</div>,
+          img: () => null,
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  )
+}
+
+/**
+ * One question and its answer, presented as an exchange.
+ *
+ * The asker's question is set apart and attributed ("You asked") rather than
+ * styled as a chat bubble. A bubble implies a conversation with a persona; this
+ * is a deck answering about itself, and the flatter treatment keeps the
+ * publisher's material the loudest thing on screen.
+ */
+function QaExchange({
+  question,
+  children,
+}: {
+  question: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800/40">
+      <div className="border-b border-gray-100 px-3.5 py-2.5 dark:border-slate-700">
+        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          You asked
+        </p>
+        <p className="text-[13px] font-medium leading-snug text-slate-900 dark:text-slate-100">
+          {question}
+        </p>
+      </div>
+      <div className="px-3.5 py-3">{children}</div>
+    </div>
+  )
+}
+
+/**
  * Cited slides are clickable and move the deck behind the panel — which only
  * works because the panel narrows the stage instead of covering it.
  */
@@ -453,13 +538,13 @@ function Citations({
 }) {
   if (citations.length === 0) return null
   return (
-    <ul className="mt-2 flex flex-wrap gap-1.5">
+    <ul className="mt-3 flex flex-wrap items-start gap-1.5 border-t border-gray-100 pt-2.5 dark:border-slate-700">
       {citations.map((citation, index) =>
         citation.kind === 'slide' && citation.slideNumber ? (
           <li key={index}>
             <button
               onClick={() => onCiteSlide(citation.slideNumber!)}
-              className="rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
+              className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-left text-[11px] leading-snug text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
               title="Go to this slide"
             >
               {citation.label}
@@ -471,7 +556,7 @@ function Citations({
               href={citation.href}
               target="_blank"
               rel="noopener noreferrer nofollow"
-              className="rounded border border-gray-200 px-1.5 py-0.5 text-xs text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+              className="rounded border border-gray-200 px-2 py-1 text-left text-[11px] leading-snug text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               {citation.label}
             </a>
