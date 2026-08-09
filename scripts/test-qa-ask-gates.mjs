@@ -154,7 +154,14 @@ function scenario(overrides = {}) {
       update: async () => ({}),
     },
     deckFaqItem: { findMany: async () => state.faqs },
-    publishedDeckSource: { findMany: async () => state.sources },
+    publishedDeckSource: {
+      findMany: async (args) => {
+        const want = args?.where?.allowedForQa
+        return want === undefined
+          ? state.sources
+          : state.sources.filter((row) => row.allowedForQa === want)
+      },
+    },
   };
 
   const shims = {
@@ -429,28 +436,37 @@ test('a Researcher defer is recorded and returned with its template copy', async
 // The allowlist crosses the boundary correctly
 // ---------------------------------------------------------------------------
 
-test('no allowlist rows means no filter is sent', async () => {
+test('no recorded decisions means nothing is denied', async () => {
   const { run, state } = scenario();
   await run();
-  assert.equal(state.researcherArgs.allowedSourceRefs, null);
+  assert.deepEqual(state.researcherArgs.excludedSourceRefs, []);
 });
 
-test('an allowlist denying everything sends [], not null', async () => {
-  // [] means "permit nothing". Sending null would mean "no filter" — the
-  // failure that let denied content stay reachable before a refreeze.
+test('only DENIED sources are sent, never an allow-list', async () => {
+  // The live regression: an allow-list built from stored rows treated every
+  // source WITHOUT a row as denied. Toggling one entry in the sources panel
+  // switched off all six slides, retrieval returned zero chunks, and the deck
+  // answered no_evidence to questions its own slides covered.
   const { run, state } = scenario({
-    sources: [{ sourceRef: 'doc_1', allowedForQa: false }, { sourceRef: 'doc_2', allowedForQa: false }],
+    sources: [
+      { sourceRef: 'slide_1', allowedForQa: true },
+      { sourceRef: 'doc_1', allowedForQa: false },
+    ],
   });
   await run();
-  assert.deepEqual(state.researcherArgs.allowedSourceRefs, []);
+  assert.deepEqual(state.researcherArgs.excludedSourceRefs, ['doc_1']);
+  assert.ok(
+    !(state.researcherArgs.allowedSourceRefs || []).length,
+    'an allow-list was sent — sources with no recorded decision would be denied'
+  );
 });
 
-test('a partial allowlist sends only the permitted refs', async () => {
+test('a source the owner explicitly allowed is NOT in the denial list', async () => {
   const { run, state } = scenario({
-    sources: [{ sourceRef: 'slide_1', allowedForQa: true }, { sourceRef: 'doc_1', allowedForQa: false }],
+    sources: [{ sourceRef: 'slide_1', allowedForQa: true }],
   });
   await run();
-  assert.deepEqual(state.researcherArgs.allowedSourceRefs, ['slide_1']);
+  assert.deepEqual(state.researcherArgs.excludedSourceRefs, []);
 });
 
 test("the deck's tone settings are forwarded to Researcher", async () => {
