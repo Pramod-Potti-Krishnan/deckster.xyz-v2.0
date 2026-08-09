@@ -44,6 +44,37 @@ export interface PublicCitation {
   quote?: string
 }
 
+/**
+ * Strip markup from a citation label.
+ *
+ * Slide titles are HTML — Layout wraps accent words in a themed span — and a
+ * corpus frozen before that was stripped at freeze time still carries it. The
+ * label is rendered as React text, so raw markup is SAFE but looks broken:
+ * a viewer saw `Slide 3 — Geopolitical <span style="color: var(--theme-title-
+ * accent, #f97316)">Concentration</span> and Trade Risks`.
+ *
+ * Done here as well as at freeze time because this is the last point before a
+ * viewer sees it, and it repairs corpora already frozen without needing a
+ * rebuild.
+ *
+ * The tag pattern tolerates `>` inside quoted attribute values — a blind
+ * `<[^>]*>` truncates at the first `>` in `content:'>'` and mangles the text.
+ */
+const HTML_TAG = /<\/?[a-zA-Z][^\s>]*(?:\s+[^\s=>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*))?)*\s*\/?>/g
+
+const ENTITIES: Record<string, string> = {
+  '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"',
+  '&#39;': "'", '&apos;': "'", '&nbsp;': ' ',
+}
+
+export function stripLabelMarkup(label: string): string {
+  return label
+    .replace(HTML_TAG, '')
+    .replace(/&[a-zA-Z#0-9]+;/g, (m) => ENTITIES[m] ?? m)
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 const T1: SourceKind[] = ['deck']
 const T2: SourceKind[] = ['web']
 
@@ -71,7 +102,9 @@ export function citationsForViewer(
         typeof citation.slide_number === 'number' ? citation.slide_number : undefined
       publicCitations.push({
         kind: 'slide',
-        label: citation.source_label || (slideNumber ? `Slide ${slideNumber}` : 'This deck'),
+        label:
+          stripLabelMarkup(citation.source_label || '') ||
+          (slideNumber ? `Slide ${slideNumber}` : 'This deck'),
         slideNumber,
         // The viewer iframe supports #/N deep links, 0-based.
         href: slideNumber ? `/p/${options.slug}#/${slideNumber - 1}` : undefined,
@@ -90,7 +123,10 @@ export function citationsForViewer(
       }
       publicCitations.push({
         kind: 'web',
-        label: citation.source_label || citation.source_url || 'Web source',
+        label:
+          stripLabelMarkup(citation.source_label || '') ||
+          citation.source_url ||
+          'Web source',
         href: citation.source_url || undefined,
         // Deliberately no quote: a quote from a page the viewer has not opened
         // adds nothing they cannot get from the link, and keeps the payload lean.
