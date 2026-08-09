@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -160,6 +160,7 @@ export function PublishQaSettings({
   const [needsRefreeze, setNeedsRefreeze] = useState(false)
   const [corpusStatus, setCorpusStatus] = useState(record.qaCorpusStatus)
   const [rebuilding, setRebuilding] = useState(false)
+  const autoBuiltRef = useRef(false)
 
   const patch = useCallback(
     async (field: string, body: Record<string, unknown>) => {
@@ -229,6 +230,25 @@ export function PublishQaSettings({
       setRebuilding(false)
     }
   }, [record.slug])
+
+  // Self-heal the one state that should be impossible.
+  //
+  // Publishing and enabling Q&A both schedule a build via `after()`, which runs
+  // AFTER the response is sent. If that background work does not survive on the
+  // host — a real possibility we cannot verify outside a deployed environment —
+  // the deck lands on qaEnabled=true with status 'none' and answers nothing,
+  // forever, until a human notices and presses a button.
+  //
+  // 'none' + enabled is therefore treated as "the trigger did not run" and
+  // repaired on sight. It cannot loop: refreshQaCorpus only ever writes
+  // 'building' and then a terminal status, never back to 'none', and the ref
+  // makes it once-per-mount regardless.
+  useEffect(() => {
+    if (!record.qaEnabled || corpusStatus !== 'none' || autoBuiltRef.current) return
+    autoBuiltRef.current = true
+    void rebuildCorpus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [record.qaEnabled, corpusStatus])
 
   const loadSources = useCallback(async () => {
     try {
