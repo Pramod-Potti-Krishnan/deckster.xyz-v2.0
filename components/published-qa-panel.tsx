@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check,
   ChevronDown,
+  Clock,
   Copy,
   Loader2,
   MessageCircleQuestion,
@@ -41,6 +42,7 @@ interface ThreadView {
   citations: PublicCitationView[]
   provenanceLine: string | null
   awaitingOwner: boolean
+  deferReason: string | null
   askedAt: string
   answeredAt: string | null
 }
@@ -329,10 +331,20 @@ export function PublishedQaPanel({
                         )}
                       </>
                     ) : (
-                      <p className="flex items-center gap-1.5 text-[13px] text-slate-500 dark:text-slate-400">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Waiting on {ownerName}.
-                      </p>
+                      <div className="space-y-1.5">
+                        {/* Deliberately NOT a spinner. A defer is a decision,
+                            not work in progress — a spinner made a finished
+                            answer look like a hung request. */}
+                        <p className="flex items-start gap-1.5 text-[13px] text-slate-600 dark:text-slate-300">
+                          <Clock className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
+                          <span>
+                            {thread.deferReason || 'This one needs a person.'}{' '}
+                            <span className="text-slate-500 dark:text-slate-400">
+                              Passed to {ownerName} — their answer appears here.
+                            </span>
+                          </span>
+                        </p>
+                      </div>
                     )}
 
                     {thread.awaitingOwner && (
