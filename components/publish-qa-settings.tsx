@@ -91,10 +91,36 @@ function CorpusStatusRow({
 
   if (status === 'ready' || status === 'partial') {
     return (
-      <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-        <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
-        Ready to answer questions.
-      </p>
+      <div className="space-y-1.5">
+        {status === 'ready' ? (
+          <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+            Ready to answer questions.
+          </p>
+        ) : (
+          // 'partial' means documents were EXPECTED and none arrived. Reporting
+          // that as "Ready" hid the one fact the owner needed: their upload is
+          // not in there, so nothing can answer from it.
+          <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            Answering from your slides only — your uploaded documents are not
+            included yet. Rebuild to pull them in.
+          </p>
+        )}
+        {/* Always reachable. A rebuild is how an owner applies a source change,
+            picks up an edited deck, or recovers from a bad build — but it used
+            to render only on failure, so the healthy states offered no way to
+            refresh at all. */}
+        <button
+          type="button"
+          onClick={onRebuild}
+          disabled={disabled || rebuilding}
+          className="inline-flex items-center gap-1.5 text-xs text-slate-600 underline underline-offset-2 transition-colors hover:text-slate-900 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-100"
+        >
+          <RefreshCw className={`h-3 w-3 ${rebuilding ? 'animate-spin' : ''}`} />
+          {rebuilding ? 'Rebuilding…' : 'Rebuild now'}
+        </button>
+      </div>
     )
   }
 
