@@ -28,7 +28,7 @@ vm.runInNewContext(compiled.outputText, {
   exports: mod.exports,
   require,
 });
-const { citationsForViewer, VIEWER_CORPUS_DESCRIPTION } = mod.exports;
+const { citationsForViewer, VIEWER_CORPUS_DESCRIPTION, stripLabelMarkup } = mod.exports;
 
 const OPTS = { slug: 'ab12cd34ef', citeWebSources: true, ownerName: 'Priya' };
 const tests = [];
@@ -208,6 +208,59 @@ test('duplicate web sources collapse too', () => {
     OPTS
   );
   assert.equal(citations.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// Labels are HTML — strip it before a viewer sees it
+// ---------------------------------------------------------------------------
+
+const THEMED =
+  'Slide 3 — Geopolitical <span style="color: var(--theme-title-accent, #f97316)">' +
+  'Concentration</span> and Trade Risks';
+
+test('theme markup never reaches a viewer-facing citation label', () => {
+  // Seen live: a corpus frozen before markup was stripped at freeze time still
+  // carries it, and the chip rendered the span attribute verbatim.
+  const { citations } = citationsForViewer(
+    [{ source_kind: 'deck', source_label: THEMED, slide_number: 3 }],
+    OPTS
+  );
+  assert.equal(citations[0].label, 'Slide 3 — Geopolitical Concentration and Trade Risks');
+  assert.ok(!citations[0].label.includes('<'));
+  assert.ok(!citations[0].label.includes('theme-title-accent'));
+});
+
+test('a label that is ONLY markup falls back to the slide number', () => {
+  const { citations } = citationsForViewer(
+    [{ source_kind: 'deck', source_label: '<span></span>', slide_number: 4 }],
+    OPTS
+  );
+  assert.equal(citations[0].label, 'Slide 4');
+});
+
+test('a > inside a quoted attribute does not truncate the label', () => {
+  // The trap a blind /<[^>]*>/ falls into — it would cut at the first > inside
+  // the style value and mangle everything after it.
+  assert.equal(
+    stripLabelMarkup(`<p style="content:'>'">Serviceable market</p>`),
+    'Serviceable market'
+  );
+});
+
+test('entities are decoded, not left raw', () => {
+  assert.equal(stripLabelMarkup('R&amp;D costs &lt;$1M'), 'R&D costs <$1M');
+});
+
+test('a plain label passes through untouched', () => {
+  assert.equal(stripLabelMarkup('Slide 2 — Market'), 'Slide 2 — Market');
+});
+
+test('web citation labels are stripped too', () => {
+  const { citations } = citationsForViewer(
+    [{ source_kind: 'web', source_label: '<b>Gartner</b> 2026', source_url: 'https://e.com/x' }],
+    OPTS
+  );
+  assert.equal(citations[0].label, 'Gartner 2026');
 });
 
 // ---------------------------------------------------------------------------
