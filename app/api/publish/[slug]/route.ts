@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { hashPasscode, MIN_PASSCODE_LENGTH } from '@/lib/publish/passcode';
 import { deletePresentationSnapshot, retryDeleteStaleSnapshots } from '@/lib/publish/layout';
 import { isPublishVisibility, serializePublishedDeck } from '@/lib/publish/serialize';
+import { refreshQaCorpus, teardownQaCorpus } from '@/lib/publish/qa-corpus';
 
 /**
  * PATCH /api/publish/[slug]
@@ -183,6 +185,14 @@ export async function PATCH(
       );
     }
 
+    // Q&A is off by default, so a deck's first publish never built a corpus.
+    // Switching it ON is therefore the moment to build one — otherwise the
+    // owner enables the feature and every question defers with 'not_ready'
+    // until they happen to republish.
+    if (data.qaEnabled === true && !existing.qaEnabled) {
+      after(() => refreshQaCorpus(updated.id));
+    }
+
     return NextResponse.json({ deck: serializePublishedDeck(updated) });
 
   } catch (error) {
@@ -330,6 +340,12 @@ export async function DELETE(
     if (!revoked) {
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
+
+    // Drop the frozen corpus with the deck. /ask already refuses a revoked
+    // deck before it reads anything, so this is hygiene rather than the
+    // security boundary — but leaving a corpus behind for a deck the owner
+    // deliberately revoked is not a defensible default.
+    after(() => teardownQaCorpus(revoked.id));
 
     return NextResponse.json({ deck: serializePublishedDeck(revoked), snapshotDeleted });
 

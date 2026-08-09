@@ -1,7 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, ChevronDown, FileText, Globe, Layers, Loader2, Search } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  FileText,
+  Globe,
+  Layers,
+  Loader2,
+  RefreshCw,
+  Search,
+} from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
@@ -47,6 +57,65 @@ const KIND_META: Record<string, { label: string; icon: typeof FileText; sensitiv
   research: { label: 'Research', icon: Search, sensitive: true },
 }
 
+/**
+ * What the corpus is doing, and the one control that changes it.
+ *
+ * Deliberately explicit about 'building' and 'failed' rather than showing a
+ * generic spinner: a deck that is collecting questions but cannot yet answer
+ * them is a state the owner needs to understand, not one to paper over.
+ */
+function CorpusStatusRow({
+  status,
+  rebuilding,
+  onRebuild,
+  disabled,
+}: {
+  status: string
+  rebuilding: boolean
+  onRebuild: () => void
+  disabled: boolean
+}) {
+  if (status === 'ready' || status === 'partial') {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+        <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+        Ready to answer questions.
+      </p>
+    )
+  }
+
+  if (status === 'building') {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+        <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin" />
+        Preparing this deck&apos;s content — questions asked meanwhile go to you.
+      </p>
+    )
+  }
+
+  return (
+    <div className="flex items-start gap-1.5 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+      <div className="space-y-1">
+        <p>
+          {status === 'failed'
+            ? "This deck's content could not be prepared, so questions are being collected for you rather than answered."
+            : "Questions are collected for you until this deck's content is prepared."}
+        </p>
+        <button
+          type="button"
+          onClick={onRebuild}
+          disabled={disabled || rebuilding}
+          className="inline-flex items-center gap-1.5 rounded border border-amber-300 px-2 py-1 font-medium transition-colors hover:bg-amber-100 disabled:opacity-50 dark:border-amber-800 dark:hover:bg-amber-900"
+        >
+          <RefreshCw className={`h-3 w-3 ${rebuilding ? 'animate-spin' : ''}`} />
+          {rebuilding ? 'Starting…' : 'Prepare now'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function PublishQaSettings({
   record,
   onRecordChange,
@@ -57,6 +126,8 @@ export function PublishQaSettings({
   const [sources, setSources] = useState<QaSource[] | null>(null)
   const [sourcesOpen, setSourcesOpen] = useState(false)
   const [needsRefreeze, setNeedsRefreeze] = useState(false)
+  const [corpusStatus, setCorpusStatus] = useState(record.qaCorpusStatus)
+  const [rebuilding, setRebuilding] = useState(false)
 
   const patch = useCallback(
     async (field: string, body: Record<string, unknown>) => {
@@ -82,6 +153,50 @@ export function PublishQaSettings({
     },
     [record.slug, onRecordChange]
   )
+
+  useEffect(() => {
+    setCorpusStatus(record.qaCorpusStatus)
+  }, [record.qaCorpusStatus])
+
+  // A build runs after the response, so the only way to learn it finished is to
+  // ask. Polling stops as soon as it leaves 'building' — no idle timer.
+  useEffect(() => {
+    if (corpusStatus !== 'building') return
+    let cancelled = false
+    const timer = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/publish/${record.slug}/qa-corpus`)
+        if (!response.ok) return
+        const data = await response.json()
+        if (cancelled) return
+        if (data?.status && data.status !== 'building') {
+          setCorpusStatus(data.status)
+          setRebuilding(false)
+          setNeedsRefreeze(false)
+        }
+      } catch {
+        // Transient; the next tick tries again.
+      }
+    }, 4000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [corpusStatus, record.slug])
+
+  const rebuildCorpus = useCallback(async () => {
+    setRebuilding(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/publish/${record.slug}/qa-corpus`, { method: 'POST' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Could not start the rebuild')
+      setCorpusStatus('building')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the rebuild')
+      setRebuilding(false)
+    }
+  }, [record.slug])
 
   const loadSources = useCallback(async () => {
     try {
@@ -160,15 +275,12 @@ export function PublishQaSettings({
 
       {record.qaEnabled && (
         <>
-          {record.qaCorpusStatus !== 'ready' && record.qaCorpusStatus !== 'partial' && (
-            <p className="flex items-start gap-1.5 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-              <span>
-                Questions are being collected, but answering starts once this deck&apos;s content
-                has been prepared. Republish to build it now.
-              </span>
-            </p>
-          )}
+          <CorpusStatusRow
+            status={corpusStatus}
+            rebuilding={rebuilding}
+            onRebuild={rebuildCorpus}
+            disabled={disabled}
+          />
 
           <div className="space-y-1.5">
             <Label htmlFor="publish-qa-tone">Answer style</Label>
@@ -314,13 +426,25 @@ export function PublishQaSettings({
                   Sources marked private are never named to viewers, even when an answer uses
                   them. Turn one off and it is not used at all.
                 </p>
-                {needsRefreeze && (
-                  <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                {needsRefreeze && corpusStatus !== 'building' && (
+                  <div className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-                    {/* Honest about WHEN it takes effect: the frozen corpus still
-                        holds the old content until a republish rebuilds it. */}
-                    <span>Republish the deck to apply the sources you turned off.</span>
-                  </p>
+                    {/* Honest about WHEN it takes effect: turning a source off
+                        records the decision, but the frozen corpus still holds
+                        its content until a rebuild drops it. */}
+                    <span>
+                      Not applied yet —{' '}
+                      <button
+                        type="button"
+                        onClick={rebuildCorpus}
+                        className="underline underline-offset-2"
+                        disabled={disabled || rebuilding}
+                      >
+                        rebuild now
+                      </button>{' '}
+                      to remove the sources you turned off.
+                    </span>
+                  </div>
                 )}
               </div>
             )}
