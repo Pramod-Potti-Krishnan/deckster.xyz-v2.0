@@ -190,6 +190,14 @@ export async function POST(
       }),
     ])
 
+    // ACCEPTED RACE: these counts are read outside a transaction, so N
+    // concurrent asks can each see the same sub-cap number and all proceed.
+    // The overshoot is bounded by request concurrency, and at ~3c per question
+    // a 50/day deck overshooting by even 100 questions costs single-digit
+    // dollars. Closing it properly means reserving a row before the model call
+    // (two writes instead of one, on the hot path) to make a budget guard exact
+    // that was never meant to be a security boundary. Revisit if caps are ever
+    // load-bearing for billing rather than for abuse.
     const verdict = evaluateLimits({
       blocked,
       ipInWindow,
