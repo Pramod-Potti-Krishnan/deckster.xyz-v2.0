@@ -130,9 +130,11 @@ export async function POST(request: NextRequest) {
 
     const results: { slide: number; status: string; detail?: string }[] = [];
 
-    // Sequential batches rather than one big Promise.all: the concurrency cap is
-    // the point, and `expected_updated_at` means two writes racing on the same
-    // presentation would 409 each other anyway.
+    // PHASE 1 — draft concurrently. Model calls are the slow part and they touch
+    // nothing shared, so this is where the parallelism belongs.
+    interface Drafted { index: number; slideId: string; full: string; compressed: string }
+    const drafted: Drafted[] = [];
+
     for (let start = 0; start < slides.length; start += CONCURRENCY) {
       const batch = slides.slice(start, start + CONCURRENCY);
       await Promise.all(
@@ -149,7 +151,7 @@ export async function POST(request: NextRequest) {
             return;
           }
           try {
-            const drafted = await draftSlideScript(
+            const script = await draftSlideScript(
               {
                 index,
                 title: slide.title ?? null,
@@ -160,20 +162,7 @@ export async function POST(request: NextRequest) {
               allocation.words,
               allocation.compressedWords
             );
-            // Both variants in ONE write: Layout drops a compressed script when
-            // `script` arrives without it, precisely so a stale compression can
-            // never outlive the words it compressed.
-            const write = await updateSlideNarration(
-              presentationId,
-              slideId,
-              { script: drafted.full, script_compressed: drafted.compressed },
-              String(presentation?.updated_at ?? '')
-            );
-            results.push({
-              slide: index + 1,
-              status: write?.success === false ? 'failed' : 'written',
-              detail: write?.success === false ? 'Layout rejected the write' : undefined,
-            });
+            drafted.push({ index, slideId, full: script.full, compressed: script.compressed });
           } catch (error) {
             results.push({
               slide: index + 1,
@@ -188,6 +177,47 @@ export async function POST(request: NextRequest) {
           }
         })
       );
+    }
+
+    // PHASE 2 — write SEQUENTIALLY, threading updated_at forward.
+    //
+    // Every narration write is guarded by `expected_updated_at`, and a
+    // successful write BUMPS it. Writing concurrently — or reusing the token
+    // from the initial GET — means the first write wins and every one after it
+    // is rejected as stale. That is exactly what happened: 1 of 6 written, the
+    // other 5 refused with a 409.
+    //
+    // So the token moves with each save, and a 409 is retried once against the
+    // value the server reports. One retry, not a loop: a second conflict means
+    // somebody else is editing the deck right now, and racing them is worse
+    // than saying so.
+    drafted.sort((a, b) => a.index - b.index);
+    let token = String(presentation?.updated_at ?? '');
+
+    for (const item of drafted) {
+      const fields = { script: item.full, script_compressed: item.compressed };
+      let write = await updateSlideNarration(presentationId, item.slideId, fields, token);
+
+      if (!write?.success && write?.status === 409 && write.currentUpdatedAt) {
+        token = write.currentUpdatedAt;
+        write = await updateSlideNarration(presentationId, item.slideId, fields, token);
+      }
+
+      if (write?.success) {
+        if (write.updatedAt) token = write.updatedAt;
+        results.push({ slide: item.index + 1, status: 'written' });
+      } else {
+        results.push({
+          slide: item.index + 1,
+          status: 'failed',
+          // Say WHICH rejection. "Layout rejected the write" hid a 409 behind
+          // words that could have meant anything.
+          detail:
+            write?.status === 409
+              ? 'the deck changed while writing — try again'
+              : write?.error?.message || `Layout returned ${write?.status ?? 'no response'}`,
+        });
+      }
     }
 
     results.sort((a, b) => a.slide - b.slide);

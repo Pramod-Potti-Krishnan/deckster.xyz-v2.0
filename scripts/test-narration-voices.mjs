@@ -552,6 +552,67 @@ test('the two variants of one slide are different objects', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Optimistic-concurrency threading
+//
+// Every narration write is guarded by `expected_updated_at`, and a successful
+// write BUMPS it. Reusing one token across many writes means the first wins and
+// the rest are refused — which is exactly what happened live: 1 of 6 slides
+// written, five "Layout rejected the write".
+//
+// Tested against the route's SOURCE rather than by driving the handler, because
+// the failure was structural (parallel writes sharing a stale token), and the
+// structure is what has to stay fixed.
+// ---------------------------------------------------------------------------
+
+const scriptRouteSource = fs.readFileSync(
+  new URL('../app/api/narration/script/route.ts', import.meta.url), 'utf8');
+
+test('the write phase threads updated_at forward instead of reusing one token', () => {
+  // The success path must move the token, or every write after the first is stale.
+  assert.ok(
+    /write\.updatedAt\)?\s*token\s*=\s*write\.updatedAt/.test(
+      scriptRouteSource.replace(/\s+/g, ' ')
+    ) || scriptRouteSource.includes('token = write.updatedAt'),
+    'a successful write does not update the token'
+  );
+});
+
+test('a 409 is retried against the value the server reports', () => {
+  assert.ok(
+    scriptRouteSource.includes('token = write.currentUpdatedAt'),
+    'a conflict does not adopt the server current updated_at'
+  );
+});
+
+test('writes are sequential — no Promise.all around updateSlideNarration', () => {
+  // The original bug in one line: concurrent writes cannot thread a token that
+  // only exists once the previous write has returned.
+  const writePhase = scriptRouteSource.slice(scriptRouteSource.indexOf('PHASE 2'));
+  assert.ok(
+    !writePhase.includes('Promise.all'),
+    'the write phase is parallel again — the token cannot be threaded'
+  );
+  assert.ok(writePhase.includes('for (const item of drafted)'), 'writes are not sequential');
+});
+
+test('drafting stays concurrent, because that is the slow part', () => {
+  const draftPhase = scriptRouteSource.slice(
+    scriptRouteSource.indexOf('PHASE 1'),
+    scriptRouteSource.indexOf('PHASE 2')
+  );
+  assert.ok(draftPhase.includes('Promise.all'), 'drafting lost its parallelism');
+});
+
+test('a rejected write says WHICH rejection', () => {
+  // "Layout rejected the write" hid a 409 behind words that could have meant
+  // anything, and cost a round of diagnosis.
+  // The QUOTED literal, not the phrase: the comment above the fix quotes the old
+  // message on purpose, and a test that cannot tell code from prose is noise.
+  assert.ok(!scriptRouteSource.includes("'Layout rejected the write'"));
+  assert.ok(scriptRouteSource.includes('the deck changed while writing'));
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {
