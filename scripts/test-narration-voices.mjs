@@ -671,6 +671,45 @@ test('the estimate says plainly that nothing has been charged', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Never pay for audio we cannot keep
+// ---------------------------------------------------------------------------
+
+const renderRouteSource = fs.readFileSync(
+  new URL('../app/api/narration/render/route.ts', import.meta.url), 'utf8');
+const mediaStoreSource = fs.readFileSync(
+  new URL('../lib/narration/media-store.ts', import.meta.url), 'utf8');
+
+test('storage is checked BEFORE the first paid call, not after', () => {
+  // The live failure: every segment was synthesised, every one was discarded
+  // because the bucket was unreachable, and the ledger reported 0c because it
+  // only counts what it manages to keep. The vendor was paid regardless.
+  const preflight = renderRouteSource.indexOf('mediaStoreStatus()');
+  const firstSynth = renderRouteSource.indexOf('await synthesize(');
+  assert.ok(preflight > 0, 'there is no storage preflight');
+  assert.ok(preflight < firstSynth, 'storage is checked after synthesis — money is already spent');
+});
+
+test('a storage failure names its cause', () => {
+  // "could not store the audio" is true of every storage failure and useful for
+  // none of them.
+  assert.ok(mediaStoreSource.includes('SUPABASE_SERVICE_ROLE_KEY is not set'));
+  assert.ok(renderRouteSource.includes('stored.reason'));
+});
+
+test('storage errors are logged at ERROR, not whispered at info', () => {
+  // The original logged at info "because it is an expected state before setup",
+  // which stopped being true the moment the bucket existed — and then hid a
+  // real failure behind a level nobody greps.
+  const putBlock = mediaStoreSource.slice(mediaStoreSource.indexOf('export async function putMedia'));
+  assert.ok(putBlock.includes('console.error'), 'upload failures are not logged as errors');
+  assert.ok(!putBlock.includes('console.info'), 'upload failures are still whispered');
+});
+
+test('putMedia returns a reason, not a bare boolean', () => {
+  assert.ok(/putMedia\([\s\S]{0,200}?Promise<\{ ok: boolean; reason\?: string \}>/.test(mediaStoreSource));
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {

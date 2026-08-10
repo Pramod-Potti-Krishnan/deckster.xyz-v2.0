@@ -111,7 +111,7 @@ export async function GET(
     // Best-effort and deliberately not awaited into the failure path: if the
     // bucket does not exist yet the clip is still served, just uncached, which
     // is exactly the behaviour before this store existed.
-    const persisted = await putMedia(path, body, contentType);
+    const persisted = (await putMedia(path, body, contentType)).ok;
 
     console.info(
       `[Narration] rendered sample voice=${voice.id} model=${voice.model} ` +

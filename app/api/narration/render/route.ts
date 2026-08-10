@@ -31,7 +31,7 @@ import {
   PCM_BYTES_PER_SAMPLE,
 } from '@/lib/narration/tts';
 import { pcmToWav } from '@/lib/narration/wav';
-import { putMedia } from '@/lib/narration/media-store';
+import { putMedia, mediaStoreStatus } from '@/lib/narration/media-store';
 import { getSessionVoiceId } from '@/lib/narration/voice-store';
 import {
   findReadySegment,
@@ -164,6 +164,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Narration is not available' }, { status: 503 });
     }
 
+    // Storage is checked BEFORE the first paid call, never after.
+    //
+    // Audio is charged the moment it is generated. Discovering afterwards that
+    // it cannot be stored means the vendor has been paid for bytes we then
+    // throw away — which is exactly what the first live render did: every
+    // segment synthesised, every segment discarded, and a ledger reporting 0c
+    // because it only counts what it managed to keep.
+    const storage = await mediaStoreStatus();
+    if (!storage.ok) {
+      return NextResponse.json(
+        {
+          error: `Recording is unavailable: ${storage.reason ?? 'the media store is unreachable'}`,
+          hint: 'Nothing was charged. Audio cannot be stored, so nothing was generated.',
+        },
+        { status: 503 }
+      );
+    }
+
     const results: { slide: number; variant: string; status: string; detail?: string }[] = [];
     let spentCents = 0;
 
@@ -187,19 +205,21 @@ export async function POST(request: NextRequest) {
               audio,
               result.format === 'pcm' ? 'audio/wav' : 'audio/mpeg'
             );
-            if (!stored) {
+            if (!stored.ok) {
               // Deliberately NOT recorded as ready. A segment whose audio is not
               // in the bucket is a row that promises sound it cannot produce,
               // and the player would hit a dead path mid-deck.
               await recordSegment(key, user.id, {
                 status: 'failed',
-                error: 'audio could not be stored',
+                error: `audio could not be stored: ${stored.reason ?? 'unknown'}`,
               });
               results.push({
                 slide: job.index + 1,
                 variant: job.variant,
                 status: 'failed',
-                detail: 'could not store the audio',
+                // Say WHY. "could not store the audio" is true of every storage
+                // failure and useful for none of them.
+                detail: stored.reason ?? 'could not store the audio',
               });
               return;
             }

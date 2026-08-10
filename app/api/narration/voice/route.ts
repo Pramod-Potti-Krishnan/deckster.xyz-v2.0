@@ -19,6 +19,7 @@ import {
   isKnownVoiceId,
 } from '@/lib/narration/voices';
 import { isNarrationConfigured } from '@/lib/narration/tts';
+import { mediaStoreStatus } from '@/lib/narration/media-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +71,10 @@ export async function GET(request: NextRequest) {
       // play. Saying which of the two is missing beats a generic playback
       // failure that looks like a broken voice.
       samplesReady: isNarrationConfigured(),
+      // Surfaced so the picker can warn BEFORE the record button is pressed.
+      // Storage being unreachable is not a rendering detail — it is the
+      // difference between paying for audio and keeping it.
+      storage: await mediaStoreStatus(),
     });
   } catch (error) {
     console.error('[Narration] voice read failed:', error);
