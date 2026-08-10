@@ -97,23 +97,55 @@ export async function putMedia(
   path: string,
   body: Buffer,
   contentType: string
-): Promise<boolean> {
+): Promise<{ ok: boolean; reason?: string }> {
   const supabase = admin()
-  if (!supabase) return false
+  if (!supabase) {
+    return { ok: false, reason: 'SUPABASE_SERVICE_ROLE_KEY is not set on this deployment' }
+  }
   try {
     const { error } = await supabase.storage
       .from(MEDIA_BUCKET)
       .upload(path, body, { contentType, upsert: true })
     if (error) {
-      // Most likely the bucket does not exist yet. Log once at info rather than
-      // error: it is an expected state before setup, not a fault.
-      console.info(`[Narration] media store unavailable (${error.message}) — serving without cache`)
-      return false
+      // Logged at ERROR, not info. The original version whispered this at info
+      // "because it is an expected state before setup" — which stopped being
+      // true the moment the bucket existed, and then hid a real failure behind
+      // a log level nobody greps.
+      console.error(`[Narration] ${MEDIA_BUCKET} upload failed for ${path}: ${error.message}`)
+      return { ok: false, reason: error.message }
     }
-    return true
+    return { ok: true }
   } catch (error) {
-    console.info('[Narration] media store threw, serving without cache:', error)
-    return false
+    const reason = error instanceof Error ? error.message : 'unknown storage error'
+    console.error(`[Narration] ${MEDIA_BUCKET} upload threw for ${path}:`, error)
+    return { ok: false, reason }
+  }
+}
+
+/**
+ * Can we store anything at all?
+ *
+ * Checked BEFORE synthesis, never after. Audio is paid for at the moment it is
+ * generated, so discovering afterwards that it cannot be stored means the
+ * vendor has already been paid for bytes we then throw away — which is exactly
+ * what happened on the first live render: every segment charged, every segment
+ * discarded, and a ledger reporting 0c because it only counts what it kept.
+ *
+ * A HEAD-equivalent on the bucket rather than a trial upload: it costs nothing
+ * and answers the only question that matters here — is the bucket reachable
+ * with the credentials this deployment has.
+ */
+export async function mediaStoreStatus(): Promise<{ ok: boolean; reason?: string }> {
+  const supabase = admin()
+  if (!supabase) {
+    return { ok: false, reason: 'SUPABASE_SERVICE_ROLE_KEY is not set on this deployment' }
+  }
+  try {
+    const { error } = await supabase.storage.from(MEDIA_BUCKET).list('', { limit: 1 })
+    if (error) return { ok: false, reason: error.message }
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : 'unknown storage error' }
   }
 }
 

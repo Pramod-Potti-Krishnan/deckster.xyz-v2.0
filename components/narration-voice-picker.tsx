@@ -94,6 +94,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
   const [effective, setEffective] = useState<string | null>(null)
   const [persistenceReady, setPersistenceReady] = useState(true)
   const [samplesReady, setSamplesReady] = useState(true)
+  const [storage, setStorage] = useState<{ ok: boolean; reason?: string }>({ ok: true })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [playing, setPlaying] = useState<string | null>(null)
@@ -121,6 +122,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
         setEffective(data.effectiveVoiceId ?? null)
         setPersistenceReady(data.persistenceReady !== false)
         setSamplesReady(data.samplesReady !== false)
+        if (data.storage) setStorage(data.storage)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -305,6 +307,16 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
           <span>
             Samples can&apos;t play on this deployment — <code>OPENROUTER_API_KEY</code> isn&apos;t
             set. Costs and speeds below are still accurate.
+          </span>
+        </p>
+      )}
+
+      {!storage.ok && (
+        <p className="mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
+          <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
+          <span>
+            Recording is unavailable — {storage.reason ?? 'the media store is unreachable'}.
+            Audio can&apos;t be stored, so nothing will be generated or charged.
           </span>
         </p>
       )}
@@ -536,7 +548,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
               size="sm"
               variant="outline"
               onClick={() => void runRender(false)}
-              disabled={rendering || !slug}
+              disabled={rendering || !slug || !storage.ok}
               className="flex-shrink-0"
             >
               {rendering ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
