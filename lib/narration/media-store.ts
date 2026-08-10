@@ -26,6 +26,24 @@ export const MEDIA_BUCKET = 'deck-media'
 
 let client: SupabaseClient | null = null
 
+/**
+ * Which piece of configuration is actually absent.
+ *
+ * `admin()` returns null when EITHER the project URL or the service-role key is
+ * missing, but both call sites reported "SUPABASE_SERVICE_ROLE_KEY is not set" —
+ * a guess dressed as a fact. It sent a debugging round after a key that was
+ * correctly configured, while the real gap went unnamed.
+ *
+ * Reports both names so the next person reads the answer instead of inferring
+ * it.
+ */
+export function missingMediaConfig(): string[] {
+  const missing: string[] = []
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missing.push('NEXT_PUBLIC_SUPABASE_URL')
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY')
+  return missing.length > 0 ? missing : ['(both are set — the client failed to build)']
+}
+
 function admin(): SupabaseClient | null {
   if (client) return client
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -100,7 +118,7 @@ export async function putMedia(
 ): Promise<{ ok: boolean; reason?: string }> {
   const supabase = admin()
   if (!supabase) {
-    return { ok: false, reason: 'SUPABASE_SERVICE_ROLE_KEY is not set on this deployment' }
+    return { ok: false, reason: `missing ${missingMediaConfig().join(' and ')}` }
   }
   try {
     const { error } = await supabase.storage
@@ -138,7 +156,7 @@ export async function putMedia(
 export async function mediaStoreStatus(): Promise<{ ok: boolean; reason?: string }> {
   const supabase = admin()
   if (!supabase) {
-    return { ok: false, reason: 'SUPABASE_SERVICE_ROLE_KEY is not set on this deployment' }
+    return { ok: false, reason: `missing ${missingMediaConfig().join(' and ')}` }
   }
   try {
     const { error } = await supabase.storage.from(MEDIA_BUCKET).list('', { limit: 1 })
