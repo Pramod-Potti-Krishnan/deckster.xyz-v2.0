@@ -18,7 +18,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, Loader2, Pause, Play, Zap } from 'lucide-react'
+import { AlertTriangle, Check, FileText, Loader2, Pause, Play, Zap } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 
 interface VoiceOption {
@@ -31,8 +32,23 @@ interface VoiceOption {
   sampleUrl: string
 }
 
+interface ScriptResult {
+  written: number
+  total: number
+  narrationMinutes: number
+  qaReserveMinutes: number
+  results: { slide: number; status: string; detail?: string }[]
+}
+
 interface Props {
   sessionId: string | null
+  /** Published slug — required to draft a script, since the budget and the
+   *  ownership check both live on the published deck. Absent = not published
+   *  yet, and the control says so rather than failing on click. */
+  slug?: string | null
+  /** Whether a session length has been set. Without one there is nothing to fit
+   *  a script to, and the button would only produce an error. */
+  hasBudget?: boolean
   /** Slides in the deck, used only to estimate cost. Absent → no estimate
    *  shown, rather than an estimate built on a guess. */
   slideCount?: number | null
@@ -56,7 +72,7 @@ function formatCost(usd: number): string {
   return `$${usd.toFixed(2)}`
 }
 
-export function NarrationVoicePicker({ sessionId, slideCount }: Props) {
+export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }: Props) {
   const { toast } = useToast()
   const [voices, setVoices] = useState<VoiceOption[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -68,6 +84,8 @@ export function NarrationVoicePicker({ sessionId, slideCount }: Props) {
   const [playing, setPlaying] = useState<string | null>(null)
   const [loadingAudio, setLoadingAudio] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [drafting, setDrafting] = useState(false)
+  const [scriptResult, setScriptResult] = useState<ScriptResult | null>(null)
 
   useEffect(() => {
     if (!sessionId) {
@@ -160,6 +178,33 @@ export function NarrationVoicePicker({ sessionId, slideCount }: Props) {
     },
     [sessionId, selected, toast]
   )
+
+  const generateScript = async (overwrite: boolean) => {
+    if (!slug) return
+    setDrafting(true)
+    setScriptResult(null)
+    try {
+      const response = await fetch('/api/narration/script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, overwrite }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Could not generate the script')
+      setScriptResult(data as ScriptResult)
+      toast({
+        title: `Wrote ${data.written} of ${data.total} slides`,
+        description: 'Read and edit them in the Script tab under the slide.',
+      })
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : 'Could not generate the script',
+        variant: 'destructive',
+      })
+    } finally {
+      setDrafting(false)
+    }
+  }
 
   if (!sessionId) {
     return (
@@ -299,6 +344,71 @@ export function NarrationVoicePicker({ sessionId, slideCount }: Props) {
             </div>
           )
         })}
+      </div>
+
+      {/* The script section sits BELOW the voices, in reading order: you pick who
+          speaks, then you give them something to say. */}
+      <div className="mt-2 flex-shrink-0 space-y-1.5 border-t border-gray-200 pt-2.5 dark:border-slate-700">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800 dark:text-slate-100">
+              <FileText className="h-3.5 w-3.5 text-slate-400" />
+              What the deck says
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              {!slug
+                ? 'Publish the deck first — the script is written to fit its session length.'
+                : !hasBudget
+                  ? 'Set how long the session is under Sharing, and the script will be written to fit it.'
+                  : 'Drafted from each slide, sized to the time it has. Edit any of it in the Script tab.'}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => void generateScript(false)}
+            disabled={drafting || !slug || !hasBudget}
+            className="flex-shrink-0"
+          >
+            {drafting ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
+            {drafting ? 'Writing…' : 'Write the script'}
+          </Button>
+        </div>
+
+        {scriptResult && (
+          <div className="rounded-md border border-gray-200 px-2.5 py-2 text-[11px] dark:border-slate-700">
+            <p className="text-slate-700 dark:text-slate-200">
+              Wrote <b>{scriptResult.written}</b> of {scriptResult.total} slides ·{' '}
+              {scriptResult.narrationMinutes} min of talking, {scriptResult.qaReserveMinutes} min
+              for questions.
+            </p>
+            {/* Slides that were kept or failed are named individually. A summary
+                count would hide the fact that a slide was skipped because its
+                draft invented a figure — which is the thing worth knowing. */}
+            {scriptResult.results.some((r) => r.status !== 'written') && (
+              <ul className="mt-1 space-y-0.5 text-slate-500 dark:text-slate-400">
+                {scriptResult.results
+                  .filter((r) => r.status !== 'written')
+                  .slice(0, 6)
+                  .map((r) => (
+                    <li key={r.slide}>
+                      Slide {r.slide}: {r.status}
+                      {r.detail ? ` — ${r.detail}` : ''}
+                    </li>
+                  ))}
+              </ul>
+            )}
+            {scriptResult.results.some((r) => r.status === 'kept') && (
+              <button
+                type="button"
+                onClick={() => void generateScript(true)}
+                disabled={drafting}
+                className="mt-1 underline hover:text-slate-700 dark:hover:text-slate-200"
+              >
+                Rewrite the ones I&apos;d already written too
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <p className="flex-shrink-0 pt-1.5 text-[10px] text-slate-400">

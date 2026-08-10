@@ -56,6 +56,11 @@ export interface SlideNarrationFields {
   script?: string
   speaker_notes?: string
   references?: string[]
+  /** The shorter variant, for when questions have eaten the clock. Send it
+   *  TOGETHER with `script` — Layout drops a compressed variant when `script`
+   *  arrives alone, because a compression of replaced words is worse than no
+   *  fallback at all. */
+  script_compressed?: string
 }
 
 // ============================================================================

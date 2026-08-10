@@ -851,7 +851,12 @@ export function PublishDialog({
         <PublishQaSettings record={record} onRecordChange={setRecord} disabled={busy} />
       </TabsContent>
       <TabsContent value="voice" className="mt-4">
-        <NarrationVoicePicker sessionId={sessionId} slideCount={slideCount ?? null} />
+        <NarrationVoicePicker
+          sessionId={sessionId}
+          slideCount={slideCount ?? null}
+          slug={record.slug}
+          hasBudget={Boolean(record.narrationBudgetMinutes)}
+        />
       </TabsContent>
     </Tabs>
   ) : (

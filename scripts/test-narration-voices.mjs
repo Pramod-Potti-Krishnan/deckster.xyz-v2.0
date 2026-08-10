@@ -15,15 +15,33 @@ import vm from 'node:vm';
 import ts from 'typescript';
 
 const require = createRequire(import.meta.url);
-function load(relPath) {
-  const source = fs.readFileSync(new URL(relPath, import.meta.url), 'utf8');
+const cache = new Map();
+
+/**
+ * Load a TypeScript module for testing.
+ *
+ * Relative ids are resolved against the MODULE being loaded, not against this
+ * test file — otherwise `lib/narration/draft.ts` importing `./budget` looks for
+ * `scripts/budget`. Cached, so a diamond import is one module instance and
+ * `instanceof` keeps working across it.
+ */
+function load(relPath, baseUrl = import.meta.url) {
+  const url = new URL(relPath.endsWith('.ts') ? relPath : `${relPath}.ts`, baseUrl);
+  if (cache.has(url.href)) return cache.get(url.href);
+
+  const source = fs.readFileSync(url, 'utf8');
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   });
   const mod = { exports: {} };
+  cache.set(url.href, mod.exports);
+  const localRequire = (id) =>
+    id.startsWith('.') ? load(id, url) : require(id);
   vm.runInNewContext(compiled.outputText, {
-    module: mod, exports: mod.exports, require, process, Buffer, JSON, Math,
+    module: mod, exports: mod.exports, require: localRequire,
+    process, Buffer, JSON, Math, fetch, console,
   });
+  cache.set(url.href, mod.exports);
   return mod.exports;
 }
 
@@ -358,6 +376,90 @@ test('the word budget is deliberately slower than conversational speech', () => 
   assert.equal(wordBudget(10), 1400);
   assert.equal(wordBudget(0), 0);
   assert.equal(wordBudget(-1), 0);
+});
+
+// ---------------------------------------------------------------------------
+// Dividing the speaking time between slides
+// ---------------------------------------------------------------------------
+
+const { allocate, allocatedSeconds, FALLBACK_SLIDE_SECONDS, MIN_SLIDE_SECONDS } =
+  load('../lib/narration/allocate.ts');
+
+const slidesWith = (...seconds) =>
+  seconds.map((d, i) => ({ slideId: `s${i}`, durationSeconds: d }));
+
+test('time is divided in PROPORTION to what each slide has to say', () => {
+  // The whole reason duration_seconds_estimate was re-threaded. An equal split
+  // would drag the title slide and race the dense one.
+  const a = allocate(slidesWith(20, 60, 20), 10, 0.55);
+  assert.ok(a[1].seconds > a[0].seconds * 2, 'the dense slide did not get more time');
+  assert.equal(a[0].seconds, a[2].seconds, 'equal estimates should get equal time');
+});
+
+test('the deck is scaled UP to fill the slot, not stopped at its estimates', () => {
+  // Estimates express the deck's SHAPE, not its absolute length. A 6-slide deck
+  // estimated at 5 minutes, given 15, should speak for 15.
+  const a = allocate(slidesWith(30, 30, 30), 15, 0.55);
+  assert.ok(Math.abs(allocatedSeconds(a) - 15 * 60) < 5, 'did not fill the slot');
+});
+
+test('a slide with no estimate is weighted, not dropped', () => {
+  const a = allocate(slidesWith(60, null, undefined, 60), 10, 0.55);
+  assert.equal(a.length, 4);
+  assert.ok(a[1].seconds > 0 && a[2].seconds > 0);
+  assert.equal(a[1].estimated, true, 'should be flagged as a fallback weight');
+  assert.equal(a[0].estimated, false);
+});
+
+test('no slide is left with too little time to say anything', () => {
+  // A slide that flashes past unnarrated reads as a bug, so the floor wins even
+  // when it pushes the deck over budget — the right direction to be wrong in.
+  const a = allocate(slidesWith(...Array(40).fill(30)), 1, 0.55);
+  for (const slot of a) assert.ok(slot.seconds >= MIN_SLIDE_SECONDS, 'below the floor');
+  assert.ok(allocatedSeconds(a) > 60, 'the floor should be allowed to overrun');
+});
+
+test('the compressed budget is smaller than the full one on every slide', () => {
+  for (const slot of allocate(slidesWith(45, 90, 15), 12, 0.55)) {
+    assert.ok(slot.compressedWords < slot.words, `slide ${slot.index} compressed is not shorter`);
+    assert.ok(slot.compressedWords > 0);
+  }
+});
+
+test('an empty deck or a missing budget allocates nothing rather than dividing by zero', () => {
+  // Length rather than deepEqual: the array is constructed inside the VM realm,
+  // so it is structurally empty but not reference-equal to an [] out here.
+  assert.equal(allocate([], 10, 0.55).length, 0);
+  assert.equal(allocate(slidesWith(30), 0, 0.55).length, 0);
+  assert.equal(allocate(slidesWith(30), -5, 0.55).length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// The numeric guard — the one failure that would embarrass a publisher
+// ---------------------------------------------------------------------------
+
+const { numbersAreGrounded } = load('../lib/narration/draft.ts');
+
+test('a figure the slide never mentioned is caught', () => {
+  const r = numbersAreGrounded('Revenue reached $9.9B this year.', 'Revenue reached $2.4B this year.');
+  assert.equal(r.ok, false);
+  assert.ok(r.missing.some((n) => n.includes('9.9')));
+});
+
+test('figures that ARE on the slide pass, regardless of formatting', () => {
+  // "$2.4B" in the source has to cover "2.4" in the script, and "1,200" has to
+  // cover "1200" — a guard that failed on formatting would be switched off.
+  assert.equal(numbersAreGrounded('It reached 2.4 billion.', 'SAM $2.4B by 2027').ok, true);
+  assert.equal(numbersAreGrounded('About 1200 units.', 'Shipped 1,200 units').ok, true);
+});
+
+test('small integers in ordinary prose are not treated as claims', () => {
+  // "three things", "step 2" — failing these would make the guard useless.
+  assert.equal(numbersAreGrounded('I want to cover 3 things today.', 'Agenda').ok, true);
+});
+
+test('a script with no numbers at all is grounded', () => {
+  assert.equal(numbersAreGrounded('This is the strategic context.', 'Context').ok, true);
 });
 
 // ---------------------------------------------------------------------------
