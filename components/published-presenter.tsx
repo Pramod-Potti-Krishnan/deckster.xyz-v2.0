@@ -29,6 +29,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Pause, Play, X } from 'lucide-react'
+import {
+  PresenterQuestion,
+  type AskedQuestion,
+  type HandState,
+} from '@/components/presenter-question'
 
 interface SlideAudio {
   slideId: string
@@ -68,6 +73,16 @@ interface Props {
   onExit: () => void
 }
 
+/**
+ * Whether a raised hand should interrupt the CURRENT slide or wait for it.
+ *
+ * It waits. Cutting the audio mid-sentence to take a question is what makes a
+ * machine feel like a machine; finishing the thought and then turning to the
+ * questioner is what a presenter does. The cost is a few seconds and it buys
+ * the entire impression.
+ */
+const PAUSE_AT_SLIDE_END = true
+
 export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   const [index, setIndex] = useState(0)
   const [running, setRunning] = useState(false)
@@ -76,8 +91,19 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   const [compressed, setCompressed] = useState(false)
   const [announced, setAnnounced] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
+  const [hand, setHand] = useState<HandState>('down')
+  const [asked, setAsked] = useState<AskedQuestion | null>(null)
+  // Q&A time is spent from the SAME clock as the narration, because it is the
+  // same room and the same hour. Tracked separately only so the audience can be
+  // told where their time went.
+  const [qaMs, setQaMs] = useState(0)
+  const qaStartedAt = useRef<number | null>(null)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  // Read inside audio callbacks, which close over the state they were created
+  // with — a ref is the only thing that sees the hand going up mid-slide.
+  const handRef = useRef<HandState>('down')
+  handRef.current = hand
   const silentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const startedAt = useRef<number | null>(null)
 
@@ -129,10 +155,20 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
     if (!current) return
 
     const segmentId = compressed ? current.compressed ?? current.full : current.full
-    const advance = () => setIndex((i) => (i + 1 < slides.length ? i + 1 : i))
+    const advance = () => {
+      // A raised hand is honoured HERE — at the boundary between slides — which
+      // is what makes the pause feel invited rather than interrupted.
+      if (PAUSE_AT_SLIDE_END && handRef.current === 'raised') {
+        setHand('asking')
+        setRunning(false)
+        return
+      }
+      setIndex((i) => (i + 1 < slides.length ? i + 1 : i))
+    }
     const finish = () => {
       setRunning(false)
       setStarted(true)
+      if (handRef.current === 'raised') setHand('asking')
     }
 
     if (!segmentId) {
@@ -185,6 +221,24 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
     return () => clearInterval(tick)
   }, [running]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The questioning clock starts when the deck stops and stops when it starts.
+  useEffect(() => {
+    if (hand === 'asking' || hand === 'answering' || hand === 'answered') {
+      if (qaStartedAt.current === null) qaStartedAt.current = Date.now()
+    } else if (qaStartedAt.current !== null) {
+      setQaMs((ms) => ms + (Date.now() - (qaStartedAt.current as number)))
+      qaStartedAt.current = null
+    }
+  }, [hand])
+
+  const resumeAfterQuestion = useCallback(() => {
+    setHand('down')
+    setAsked(null)
+    setIndex((i) => (i + 1 < slides.length ? i + 1 : i))
+    startedAt.current = Date.now() - elapsedMs
+    setRunning(true)
+  }, [slides.length, elapsedMs])
+
   const start = () => {
     setStarted(true)
     setRunning(true)
@@ -232,6 +286,34 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
             </p>
           )}
 
+          {/* The question surface sits ABOVE the transport, over the slide, so
+              the deck stays visible while it is being asked about. */}
+          {manifest.qaEnabled && hand !== 'down' && (
+            <div className="mb-2 flex justify-center px-2">
+              <PresenterQuestion
+                slug={slug}
+                state={hand}
+                pendingUntilSlideEnds={hand === 'raised'}
+                onRaise={() => setHand('raised')}
+                onCancel={() => {
+                  setHand('down')
+                  setAsked(null)
+                  if (!running) {
+                    startedAt.current = Date.now() - elapsedMs
+                    setRunning(true)
+                  }
+                }}
+                onAsked={(next) => {
+                  setAsked(next)
+                  setHand('answered')
+                }}
+                onResume={resumeAfterQuestion}
+                asked={asked}
+                onCiteSlide={onSlide}
+              />
+            </div>
+          )}
+
           <div className="flex items-center gap-3">
             <button
               onClick={toggle}
@@ -257,9 +339,26 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
               <p className="mt-1 text-[11px] text-white/70">
                 Slide {index + 1} of {slides.length}
                 {remainingMs !== null && ` · ${mmss(remainingMs)} left`}
+                {qaMs > 5000 && ` · ${mmss(qaMs)} on questions`}
                 {slide?.stale && ' · this slide has no recording'}
               </p>
             </div>
+
+            {/* Raising a hand does not stop anything immediately — it books the
+                next boundary. The label says so. */}
+            {manifest.qaEnabled && hand === 'down' && (
+              <PresenterQuestion
+                slug={slug}
+                state="down"
+                pendingUntilSlideEnds={false}
+                onRaise={() => setHand('raised')}
+                onCancel={() => setHand('down')}
+                onAsked={() => {}}
+                onResume={() => {}}
+                asked={null}
+                onCiteSlide={onSlide}
+              />
+            )}
 
             <button
               onClick={() => {
