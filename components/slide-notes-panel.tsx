@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { getPresentation, updateSlideNarration, SlideNarrationFields } from '@/lib/layout-service-client'
 import { DeckQaInbox } from '@/components/deck-qa-inbox'
-import { NarrationVoicePicker } from '@/components/narration-voice-picker'
 
 // localStorage keys for panel UI state (shared across sessions)
 const COLLAPSED_STORAGE_KEY = 'deckster.notesPanel.collapsed'
@@ -26,10 +25,10 @@ const MAX_DRAIN_PASSES = 4
 const DRAIN_BACKOFF_MS = 600
 const DRAIN_RETRY_MS = 3000
 
-type NotesTab = 'script' | 'notes' | 'references' | 'voice' | 'qa'
+type NotesTab = 'script' | 'notes' | 'references' | 'qa'
 type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'syncing'
 
-const NOTES_TABS: NotesTab[] = ['script', 'notes', 'references', 'voice', 'qa']
+const NOTES_TABS: NotesTab[] = ['script', 'notes', 'references', 'qa']
 
 // Per-slide editable content. References are edited as one-per-line text
 // and converted to/from the Layout Service's string array on the wire.
@@ -142,6 +141,8 @@ export function SlideNotesPanel({
   const [activeTab, setActiveTab] = useState<NotesTab>(() => {
     if (typeof window === 'undefined') return 'notes'
     const stored = window.localStorage.getItem(TAB_STORAGE_KEY) as NotesTab | null
+    // A stored tab that no longer exists — 'voice' moved to the publish dialog —
+    // falls back rather than leaving the panel on a tab with no content.
     return stored && NOTES_TABS.includes(stored) ? stored : 'notes'
   })
 
@@ -771,7 +772,7 @@ export function SlideNotesPanel({
             // to avoid. The slide container's ResizeObserver fit-contain
             // absorbs the difference either way.
             'flex-shrink-0 border-t border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900 flex flex-col',
-            activeTab === 'qa' || activeTab === 'voice' ? 'h-96' : 'h-60'
+            activeTab === 'qa' ? 'h-96' : 'h-60'
           )}
         >
           <Tabs
@@ -784,7 +785,6 @@ export function SlideNotesPanel({
                 <TabsTrigger value="script" className="text-xs px-2.5 py-1">Script</TabsTrigger>
                 <TabsTrigger value="notes" className="text-xs px-2.5 py-1">Notes</TabsTrigger>
                 <TabsTrigger value="references" className="text-xs px-2.5 py-1">References</TabsTrigger>
-                <TabsTrigger value="voice" className="text-xs px-2.5 py-1">Voice</TabsTrigger>
                 <TabsTrigger value="qa" className="text-xs px-2.5 py-1">
                   Q&amp;A
                   {unansweredQuestions > 0 && (
@@ -849,11 +849,6 @@ export function SlideNotesPanel({
                 placeholder={"Sources and citations for this slide — one per line…"}
                 className="h-full min-h-0 resize-none text-sm"
               />
-            </TabsContent>
-            {/* Deck-scoped like the inbox: one voice narrates the whole deck,
-                so this must not change as the owner clicks through slides. */}
-            <TabsContent value="voice" className="flex-1 min-h-0 mt-2">
-              <NarrationVoicePicker sessionId={sessionId} slideCount={slideIds.length || null} />
             </TabsContent>
             {/* Deck-scoped, not slide-scoped: a viewer asks about the deck, so
                 the queue must not change as the owner clicks through slides.

@@ -288,6 +288,79 @@ test('the schema-not-ready guard covers a missing TABLE as well as a missing COL
 });
 
 // ---------------------------------------------------------------------------
+// The time budget — how long the deck is allowed to speak for
+// ---------------------------------------------------------------------------
+
+const {
+  resolveBudget, suggestedReserveMinutes, wordBudget,
+  DEFAULT_QA_RESERVE_RATIO, MIN_NARRATION_MINUTES,
+} = load('../lib/narration/budget.ts');
+
+test("the default reserve is a fifth of the slot, PK's rule", () => {
+  assert.equal(DEFAULT_QA_RESERVE_RATIO, 0.2);
+  assert.equal(suggestedReserveMinutes(20), 4);
+  assert.equal(suggestedReserveMinutes(30), 6);
+  // Rounded, not floored: 15 minutes suggests 3, not 2.
+  assert.equal(suggestedReserveMinutes(15), 3);
+});
+
+test('a 20-minute slot resolves to 16 talking and 4 for questions', () => {
+  const b = resolveBudget(20, null);
+  assert.equal(b.totalMinutes, 20);
+  assert.equal(b.qaReserveMinutes, 4);
+  assert.equal(b.narrationMinutes, 16);
+  assert.equal(b.reserveIsDefault, true);
+});
+
+test("a publisher's own reserve is honoured and marked as chosen", () => {
+  const b = resolveBudget(20, 8);
+  assert.equal(b.qaReserveMinutes, 8);
+  assert.equal(b.narrationMinutes, 12);
+  // The distinction drives the UI: a suggestion is offered, a choice is shown.
+  assert.equal(b.reserveIsDefault, false);
+});
+
+test('a reserve of zero is a real choice, not an absent one', () => {
+  // 0 and null must not collapse: "no time for questions" is a decision,
+  // "I did not say" is not.
+  const b = resolveBudget(20, 0);
+  assert.equal(b.qaReserveMinutes, 0);
+  assert.equal(b.narrationMinutes, 20);
+  assert.equal(b.reserveIsDefault, false);
+});
+
+test('a reserve larger than the slot still leaves the deck something to say', () => {
+  // Clamped rather than rejected: the publisher can see the number and fix it,
+  // and a deck that never speaks is not a deck.
+  const b = resolveBudget(10, 99);
+  assert.equal(b.narrationMinutes, MIN_NARRATION_MINUTES);
+  assert.ok(b.qaReserveMinutes < 10);
+});
+
+test('no slot set means no budget, not a zero-minute deck', () => {
+  // Null is how a publisher says "let it run to its natural length". Treating
+  // that as 0 would fit every script into nothing.
+  for (const bad of [null, undefined, 0, -5]) {
+    assert.equal(resolveBudget(bad, null), null, `resolveBudget(${bad})`);
+  }
+});
+
+test('the compressed variant is about half the full script', () => {
+  const b = resolveBudget(20, 4);
+  assert.ok(b.compressedMinutes < b.narrationMinutes);
+  const ratio = b.compressedMinutes / b.narrationMinutes;
+  assert.ok(ratio > 0.4 && ratio < 0.7, `compressed ratio ${ratio} is not roughly half`);
+});
+
+test('the word budget is deliberately slower than conversational speech', () => {
+  // Presentation narration carries figures and proper nouns, which read slower
+  // than prose — and overrunning a slot is worse than finishing early.
+  assert.equal(wordBudget(10), 1400);
+  assert.equal(wordBudget(0), 0);
+  assert.equal(wordBudget(-1), 0);
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {

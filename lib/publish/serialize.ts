@@ -47,6 +47,10 @@ export interface SerializedPublishedDeck {
   qaTonePreset: string
   qaToneInstruction: string | null
   qaCiteWebSources: boolean
+  qaAutoAnswer: boolean
+  narrationEnabled: boolean
+  narrationBudgetMinutes: number | null
+  qaReserveMinutes: number | null
 }
 
 export function serializePublishedDeck(deck: PublishedDeck): SerializedPublishedDeck {
@@ -77,5 +81,9 @@ export function serializePublishedDeck(deck: PublishedDeck): SerializedPublished
     qaTonePreset: deck.qaTonePreset,
     qaToneInstruction: deck.qaToneInstruction ?? null,
     qaCiteWebSources: deck.qaCiteWebSources,
+    qaAutoAnswer: deck.qaAutoAnswer,
+    narrationEnabled: deck.narrationEnabled,
+    narrationBudgetMinutes: deck.narrationBudgetMinutes ?? null,
+    qaReserveMinutes: deck.qaReserveMinutes ?? null,
   }
 }

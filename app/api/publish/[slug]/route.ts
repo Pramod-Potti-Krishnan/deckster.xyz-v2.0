@@ -96,6 +96,10 @@ export async function PATCH(
       qaTonePreset?: string;
       qaToneInstruction?: string | null;
       qaCiteWebSources?: boolean;
+      qaAutoAnswer?: boolean;
+      narrationEnabled?: boolean;
+      narrationBudgetMinutes?: number | null;
+      qaReserveMinutes?: number | null;
     } = {};
 
     if (body.visibility !== undefined) data.visibility = body.visibility;
@@ -154,6 +158,34 @@ export async function PATCH(
     }
     if (typeof body.qaCiteWebSources === 'boolean') {
       data.qaCiteWebSources = body.qaCiteWebSources;
+    }
+    if (typeof body.qaAutoAnswer === 'boolean') {
+      data.qaAutoAnswer = body.qaAutoAnswer;
+    }
+
+    // --- Narration -------------------------------------------------------
+    if (typeof body.narrationEnabled === 'boolean') {
+      data.narrationEnabled = body.narrationEnabled;
+    }
+    // null is meaningful for both of these and must survive: it is how the
+    // publisher says "no slot set" and "use the suggested reserve". Coercing
+    // null to 0 would mean a deck budgeted at zero minutes, which is not the
+    // same thing at all.
+    if (body.narrationBudgetMinutes === null) {
+      data.narrationBudgetMinutes = null;
+    } else if (
+      typeof body.narrationBudgetMinutes === 'number' &&
+      Number.isFinite(body.narrationBudgetMinutes)
+    ) {
+      data.narrationBudgetMinutes = Math.min(480, Math.max(1, Math.trunc(body.narrationBudgetMinutes)));
+    }
+    if (body.qaReserveMinutes === null) {
+      data.qaReserveMinutes = null;
+    } else if (
+      typeof body.qaReserveMinutes === 'number' &&
+      Number.isFinite(body.qaReserveMinutes)
+    ) {
+      data.qaReserveMinutes = Math.min(480, Math.max(0, Math.trunc(body.qaReserveMinutes)));
     }
 
     if (Object.keys(data).length === 0) {

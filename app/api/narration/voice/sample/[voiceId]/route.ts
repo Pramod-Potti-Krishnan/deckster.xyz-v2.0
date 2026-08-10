@@ -30,21 +30,23 @@ export const dynamic = 'force-dynamic';
 /**
  * The preview line every voice reads.
  *
- * Real presentation narration rather than a pangram, and deliberately carrying
- * a percentage, a year, an em-dash beat and a topic pivot — those are what
- * separate a voice that can carry a deck from one that sounds fine on "the
- * quick brown fox".
+ * Deliberately about NOTHING. An earlier version used a line from a real deck
+ * about battery prices, which made the picker sound like it belonged to one
+ * presentation — useless for auditioning a voice you intend to use on your own.
+ *
+ * Topic-free, but still presentation-SHAPED, because that is what is being
+ * judged: a greeting to hear warmth, a number to hear how figures are read, an
+ * em-dash to hear whether it pauses, a triad for rhythm, and a forward push at
+ * the end to hear energy. About sixteen seconds.
  *
  * Changing this text changes every clip's content key, so old objects are
  * simply never read again. No invalidation step, no stale audio.
  */
 const SAMPLE_TEXT =
-  'Battery pack prices fell more than twenty-five percent last year — ' +
-  'the steepest drop since 2017. That changes the arithmetic on every ' +
-  'project in this deck. Let me show you where the capital should go.';
+  'Good morning, and thanks for making the time. I want to cover three ' +
+  'things — where we stand today, what changed this quarter, and the one ' +
+  "decision I'd like to reach before we finish. Let's start with where we stand.";
 
-/** L1. Survives for the life of a warm lambda — long enough to cover one
- *  publisher auditioning the whole rack in a sitting. */
 const memo = new Map<string, { body: Buffer; contentType: string }>();
 
 function audioResponse(body: Buffer, contentType: string, source: string) {
