@@ -39,6 +39,52 @@ export const RUNNING_LONG_LINE =
 export const DEFAULT_CLOSING_LINE =
   "That's the core of it. The detail is all in the deck, and I'm happy to take questions."
 
+/**
+ * How much of an answer is worth SAYING.
+ *
+ * About fifteen seconds. A spoken answer is not a written one read aloud: the
+ * audience is mid-presentation, they cannot re-read a sentence they missed, and
+ * a minute of speech to answer one question costs more of the session than the
+ * question was worth.
+ *
+ * So the deck says the short form and points at the written one, which is
+ * already on screen and already carries the citations.
+ */
+export const SPOKEN_ANSWER_MAX_WORDS = 35
+export const SPOKEN_ANSWER_TAIL = " There's more detail in the chat."
+
+/**
+ * The spoken form of an answer.
+ *
+ * Whole SENTENCES up to the budget, never a truncation — "the figure fell by
+ * twenty-five per" is worse than saying less. And a subset of already-verified
+ * text rather than a fresh generation, so nothing new can be introduced and no
+ * second model call sits between the question and the reply.
+ */
+export function spokenPrecis(text: string, maxWords = SPOKEN_ANSWER_MAX_WORDS): string {
+  const clean = text.replace(/\s+/g, ' ').trim()
+  if (!clean) return ''
+  const wordCount = (value: string) => value.split(' ').filter(Boolean).length
+  if (wordCount(clean) <= maxWords) return clean
+
+  const sentences = clean.match(/[^.!?]+[.!?]*/g) ?? [clean]
+  let out = ''
+  for (const sentence of sentences) {
+    const next = `${out}${sentence}`.trim()
+    // Accept a sentence only if the RESULT still fits. Checking `out` first —
+    // as an earlier version did — let the very first sentence through at any
+    // length, so an unpunctuated answer was read out in full.
+    if (wordCount(next) > maxWords) break
+    out = next
+  }
+  // Nothing fit, which means one sentence is longer than the whole budget. It
+  // still has to stop somewhere; a word boundary is the least-bad version of a
+  // bad case, and the pointer below tells the listener where the rest is.
+  if (!out) out = `${clean.split(' ').slice(0, maxWords).join(' ')}…`
+
+  return out.trim() + SPOKEN_ANSWER_TAIL
+}
+
 export function canSpeakAnswers(voiceId: string): boolean {
   return canSpeakLiveAnswers(getVoice(voiceId))
 }

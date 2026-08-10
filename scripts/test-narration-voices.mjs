@@ -1042,6 +1042,95 @@ test('the same answer is never spoken twice', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Two voices at once — the failure this round exists to fix
+// ---------------------------------------------------------------------------
+
+const { spokenPrecis, SPOKEN_ANSWER_MAX_WORDS, SPOKEN_ANSWER_TAIL } =
+  load('../lib/narration/spoken.ts');
+
+test('narration cannot resume while a reply is still being spoken', () => {
+  // Live: the answer audio was fire-and-forget, so pressing "Carry on" started
+  // the next slide over the top of it. Two voices at once.
+  assert.ok(presenterSource.includes('answerSpeaking'), 'no speaking state at all');
+  assert.ok(
+    /if \(running && !closing && !answerSpeaking\) playCurrent\(\)/.test(presenterSource),
+    'narration is not gated on the reply finishing'
+  );
+});
+
+test('the resume control says what it is waiting for, and offers a way past', () => {
+  // Blocking with no explanation is worse than the bug. It says "Skip and carry
+  // on" while speaking, so nobody is trapped by their own question.
+  assert.ok(/Skip and carry on/.test(questionSource));
+  assert.ok(/Answering…/.test(questionSource));
+});
+
+test('the question component owns its audio so resume can always stop it', () => {
+  assert.ok(/answerAudio = useRef/.test(questionSource));
+  assert.ok(/stopSpeaking/.test(questionSource));
+});
+
+test('a failed reply does not leave the deck believing it is still talking', () => {
+  // Otherwise a 502 on the speak call would freeze the run forever.
+  const speakEffect = questionSource.slice(questionSource.indexOf('setSpeaking(true)'));
+  assert.ok(
+    (speakEffect.match(/onSpeakingChange\?\.\(false\)/g) ?? []).length >= 3,
+    'not every failure path clears the speaking flag'
+  );
+});
+
+// ---------------------------------------------------------------------------
+// A spoken answer is not a written one read aloud
+// ---------------------------------------------------------------------------
+
+test('the spoken form is bounded to roughly fifteen seconds', () => {
+  // 35 words at ~140wpm. A minute of speech to answer one question costs more
+  // of the session than the question was worth.
+  assert.equal(SPOKEN_ANSWER_MAX_WORDS, 35);
+});
+
+test('it cuts on SENTENCES, never mid-phrase', () => {
+  const long =
+    'Prices fell twenty-five per cent last year. That was the steepest drop since 2017. ' +
+    'It was driven by low mineral prices, intense competition, and manufacturers reaching ' +
+    'economies of scale across every major region of the world market.'
+  const said = spokenPrecis(long)
+  assert.ok(said.includes('Prices fell twenty-five per cent last year.'));
+  // Nothing may end mid-word: the last thing before the pointer is punctuation.
+  const body = said.replace(SPOKEN_ANSWER_TAIL, '').trim()
+  assert.ok(/[.!?…]$/.test(body), `spoken form ends mid-phrase: ${body.slice(-40)}`);
+});
+
+test('it points at the written answer rather than pretending to be complete', () => {
+  const long = Array.from({ length: 80 }, (_, i) => `word${i}`).join(' ') + '.'
+  assert.ok(spokenPrecis(long).endsWith(SPOKEN_ANSWER_TAIL));
+});
+
+test('a short answer is spoken whole, with no pointer bolted on', () => {
+  const short = 'About nine months on monthly billing.'
+  assert.equal(spokenPrecis(short), short);
+});
+
+test('a single over-long sentence still stops somewhere', () => {
+  const runOn = Array.from({ length: 90 }, (_, i) => `w${i}`).join(' ')
+  const said = spokenPrecis(runOn)
+  assert.ok(said.split(' ').length < 45, 'an unpunctuated answer is read in full');
+});
+
+test('the spoken form is a SUBSET of verified text, not a new generation', () => {
+  // No second model call between the question and the reply — nothing new can
+  // be introduced, and no latency is added to a pause someone is sitting in.
+  const fn = spokenSource.slice(spokenSource.indexOf('export function spokenPrecis'));
+  assert.ok(!/fetch|synthesize|openrouter/i.test(fn.slice(0, 900)));
+});
+
+test('a question asked mid-presentation joins the written thread', () => {
+  // It is still a question this person asked of this deck, and for a deferred
+  // one the token is the only route back to the owner's reply.
+  assert.ok(questionSource.includes('rememberThread'));
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {
