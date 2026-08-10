@@ -210,9 +210,19 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || 'Could not generate the script')
       setScriptResult(data as ScriptResult)
+      // The Script tab is a different component with no shared ancestor holding
+      // this state; without the nudge it keeps showing the empty box the author
+      // left behind before opening this dialog.
+      window.dispatchEvent(new CustomEvent('deckster:narration-script-written'))
+      const covered = (data.results ?? []).filter(
+        (r: { status: string }) => r.status === 'written' || r.status === 'kept'
+      ).length
       toast({
-        title: `Wrote ${data.written} of ${data.total} slides`,
-        description: 'Read and edit them in the Script tab under the slide.',
+        title:
+          covered === data.total
+            ? `All ${data.total} slides have a script`
+            : `${covered} of ${data.total} slides have a script`,
+        description: 'Open the Script tab under any slide to read or edit it.',
       })
     } catch (error) {
       toast({
@@ -430,18 +440,50 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
 
         {scriptResult && (
           <div className="rounded-md border border-gray-200 px-2.5 py-2 text-[11px] dark:border-slate-700">
-            <p className="text-slate-700 dark:text-slate-200">
-              Wrote <b>{scriptResult.written}</b> of {scriptResult.total} slides ·{' '}
-              {scriptResult.narrationMinutes} min of talking, {scriptResult.qaReserveMinutes} min
-              for questions.
-            </p>
+            {/* Lead with COVERAGE, not with the write count. "Wrote 5 of 6"
+                beside "Slide 3: kept" reads as one slide missing when in fact
+                every slide has a script — the kept one just already had yours. */}
+            {(() => {
+              const covered = scriptResult.results.filter(
+                (r) => r.status === 'written' || r.status === 'kept'
+              ).length
+              const missing = scriptResult.results.filter(
+                (r) => r.status !== 'written' && r.status !== 'kept'
+              )
+              return (
+                <p className="text-slate-700 dark:text-slate-200">
+                  {covered === scriptResult.total ? (
+                    <>
+                      <b>All {scriptResult.total} slides</b> have a script
+                      {scriptResult.written < covered &&
+                        ` — wrote ${scriptResult.written}, kept ${covered - scriptResult.written} you had already written`}
+                      .
+                    </>
+                  ) : (
+                    <>
+                      <b>
+                        {covered} of {scriptResult.total}
+                      </b>{' '}
+                      slides have a script — {missing.length} still{' '}
+                      {missing.length === 1 ? 'needs' : 'need'} one.
+                    </>
+                  )}{' '}
+                  <span className="text-slate-500 dark:text-slate-400">
+                    {scriptResult.narrationMinutes} min of talking, {scriptResult.qaReserveMinutes}{' '}
+                    min for questions. Read them in the Script tab under each slide.
+                  </span>
+                </p>
+              )
+            })()}
             {/* Slides that were kept or failed are named individually. A summary
                 count would hide the fact that a slide was skipped because its
                 draft invented a figure — which is the thing worth knowing. */}
-            {scriptResult.results.some((r) => r.status !== 'written') && (
-              <ul className="mt-1 space-y-0.5 text-slate-500 dark:text-slate-400">
+            {scriptResult.results.some(
+              (r) => r.status !== 'written' && r.status !== 'kept'
+            ) && (
+              <ul className="mt-1 space-y-0.5 text-amber-700 dark:text-amber-400">
                 {scriptResult.results
-                  .filter((r) => r.status !== 'written')
+                  .filter((r) => r.status !== 'written' && r.status !== 'kept')
                   .slice(0, 6)
                   .map((r) => (
                     <li key={r.slide}>
@@ -475,8 +517,8 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
               {estimate
                 ? estimate.toRender === 0
                   ? 'Everything is already recorded in this voice — nothing to pay for.'
-                  : `${estimate.toRender} segment${estimate.toRender === 1 ? '' : 's'} to record · about ${estimate.estimatedMinutes} min of audio · ${estimate.estimatedCents}¢`
-                : 'Only what has changed is recorded. Editing one slide costs one segment.'}
+                  : `${estimate.toRender} segment${estimate.toRender === 1 ? '' : 's'} to record · about ${estimate.estimatedMinutes} min of audio · ${estimate.estimatedCents}¢. Nothing has been charged yet.`
+                : 'Turns each slide\u2019s script into audio in the voice above. You see the price before anything is charged, and only what has changed is recorded.'}
             </p>
           </div>
           {estimate && estimate.toRender > 0 ? (
@@ -498,7 +540,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
               className="flex-shrink-0"
             >
               {rendering ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
-              {rendering ? 'Checking…' : 'Check the cost'}
+              {rendering ? 'Checking…' : 'Record the narration'}
             </Button>
           )}
         </div>

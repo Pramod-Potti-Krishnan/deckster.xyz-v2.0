@@ -160,6 +160,8 @@ export function SlideNotesPanel({
   // count can badge the tab while the tab is closed — which is the only way a
   // publisher learns a viewer is waiting without going looking.
   const [unansweredQuestions, setUnansweredQuestions] = useState(0)
+  // Bumped to force an authoritative re-read after a script is written elsewhere.
+  const [reloadToken, setReloadToken] = useState(0)
 
   const handleTabChange = useCallback((value: string) => {
     const tab = value as NotesTab
@@ -412,7 +414,19 @@ export function SlideNotesPanel({
     return () => {
       cancelled = true
     }
-  }, [presentationId, slideListLength, mergeDeck, getSaver])
+  }, [presentationId, slideListLength, reloadToken, mergeDeck, getSaver])
+
+  // Scripts can be written from somewhere else entirely — the publish dialog's
+  // "Write the script" drafts all of them at once. This panel has no idea that
+  // happened, so without this the author closes the dialog, opens the Script
+  // tab, and sees the empty box they left behind. A window event is the honest
+  // mechanism here: the two components have no shared ancestor holding this
+  // state, and inventing one to carry a refresh signal would be worse.
+  useEffect(() => {
+    const onExternalWrite = () => setReloadToken((token) => token + 1)
+    window.addEventListener('deckster:narration-script-written', onExternalWrite)
+    return () => window.removeEventListener('deckster:narration-script-written', onExternalWrite)
+  }, [])
 
   // --- Saving --------------------------------------------------------------
   // Re-queue a slide's dirty fields onto ITS presentation's saver so a later drain

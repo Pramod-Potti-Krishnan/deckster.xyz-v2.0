@@ -613,6 +613,64 @@ test('a rejected write says WHICH rejection', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Telling the author what happened, and where it went
+// ---------------------------------------------------------------------------
+
+const pickerSource = fs.readFileSync(
+  new URL('../components/narration-voice-picker.tsx', import.meta.url), 'utf8');
+const notesPanelSource = fs.readFileSync(
+  new URL('../components/slide-notes-panel.tsx', import.meta.url), 'utf8');
+
+test('the summary counts COVERAGE, not writes', () => {
+  // "Wrote 5 of 6" beside "Slide 3: kept" read as one slide missing when every
+  // slide in fact had a script. A kept slide is covered, not absent.
+  assert.ok(
+    pickerSource.includes("r.status === 'written' || r.status === 'kept'"),
+    'coverage still ignores kept slides'
+  );
+});
+
+test('a kept slide is not listed as a problem', () => {
+  assert.ok(
+    pickerSource.includes("r.status !== 'written' && r.status !== 'kept'"),
+    'kept slides are still shown in the problem list'
+  );
+});
+
+test('the author is told where the script actually went', () => {
+  // The single most common confusion: the words are written somewhere the
+  // author is not currently looking.
+  assert.ok(/Script tab/.test(pickerSource), 'the Script tab is never named');
+});
+
+test('writing a script nudges the notes panel to re-read', () => {
+  // The panel loads before the dialog is opened, so without this the author
+  // closes the dialog, opens the Script tab, and sees the empty box they left.
+  assert.ok(
+    pickerSource.includes("deckster:narration-script-written"),
+    'the picker never announces the write'
+  );
+  assert.ok(
+    notesPanelSource.includes("deckster:narration-script-written"),
+    'the notes panel never listens for it'
+  );
+  assert.ok(
+    notesPanelSource.includes('reloadToken'),
+    'the panel listens but has no way to force a re-read'
+  );
+});
+
+test('the record control says it records, not that it checks a price', () => {
+  // "Check the cost" gave no signal that it was the way to record at all.
+  assert.ok(pickerSource.includes("'Record the narration'"));
+  assert.ok(!pickerSource.includes("'Check the cost'"));
+});
+
+test('the estimate says plainly that nothing has been charged', () => {
+  assert.ok(/Nothing has been charged yet/.test(pickerSource));
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {
