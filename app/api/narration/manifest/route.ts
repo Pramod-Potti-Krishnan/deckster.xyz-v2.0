@@ -18,6 +18,7 @@ import { unlockCookieName, verifyUnlockCookie } from '@/lib/publish/passcode';
 import { getPresentation } from '@/lib/layout-service-client';
 import { getSessionVoiceId } from '@/lib/narration/voice-store';
 import { buildManifest } from '@/lib/narration/manifest';
+import { resolveBudget } from '@/lib/narration/budget';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,10 @@ export async function GET(request: NextRequest) {
     let sessionId: string | null = null;
     let ownerId: string | null = null;
     let allowed = false;
+    // The session's shape, so the player knows when it is running late and
+    // whether the audience may interrupt at all.
+    let budget: ReturnType<typeof resolveBudget> = null;
+    let qaEnabled = false;
 
     if (slug) {
       const deck = await prisma.publishedDeck.findUnique({
@@ -42,6 +47,9 @@ export async function GET(request: NextRequest) {
           visibility: true,
           passcodeHash: true,
           narrationEnabled: true,
+          narrationBudgetMinutes: true,
+          qaReserveMinutes: true,
+          qaEnabled: true,
           session: { select: { finalPresentationId: true } },
         },
       });
@@ -56,6 +64,8 @@ export async function GET(request: NextRequest) {
       presentationId = deck.session?.finalPresentationId ?? null;
       sessionId = deck.sessionId;
       ownerId = deck.userId;
+      budget = resolveBudget(deck.narrationBudgetMinutes, deck.qaReserveMinutes);
+      qaEnabled = deck.qaEnabled;
 
       if (deck.visibility === 'restricted') {
         const cookieStore = await cookies();
@@ -105,7 +115,7 @@ export async function GET(request: NextRequest) {
     const slides: Record<string, unknown>[] = (presentation?.slides as never) ?? [];
 
     const manifest = await buildManifest(presentationId, slides, voiceId ?? '');
-    return NextResponse.json(manifest);
+    return NextResponse.json({ ...manifest, budget, qaEnabled });
   } catch (error) {
     console.error('[Narration] manifest failed:', error);
     return NextResponse.json({ error: 'Could not load the narration' }, { status: 500 });
