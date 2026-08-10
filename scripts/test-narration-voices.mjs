@@ -197,6 +197,57 @@ test('empty PCM still produces a valid (silent) container, not a crash', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Content addressing — what stops us paying to render the same clip twice
+// ---------------------------------------------------------------------------
+
+const { contentKey, voiceSamplePath, MEDIA_BUCKET } = load('../lib/narration/media-store.ts');
+
+const SAMPLE = 'Battery pack prices fell more than twenty-five percent last year.';
+
+test('the same text, model and voice always key to the same object', () => {
+  const a = contentKey({ text: SAMPLE, model: 'fish-audio/s2.1-pro', providerVoice: 'alloy' });
+  const b = contentKey({ text: SAMPLE, model: 'fish-audio/s2.1-pro', providerVoice: 'alloy' });
+  assert.equal(a, b, 'keys are not stable — every request would re-render');
+  assert.ok(a.length >= 12, 'key is too short to be collision-safe');
+});
+
+test('changing ANY input that changes the audio changes the key', () => {
+  const base = { text: SAMPLE, model: 'fish-audio/s2.1-pro', providerVoice: 'alloy' };
+  const key = contentKey(base);
+  // Re-wording the sample script.
+  assert.notEqual(contentKey({ ...base, text: SAMPLE + ' And one more thing.' }), key);
+  // Repointing a voice at a different model — the case that would otherwise
+  // serve the OLD vendor's audio under the new voice for a year.
+  assert.notEqual(contentKey({ ...base, model: 'microsoft/mai-voice-2-flash' }), key);
+  // A different voice on the same model.
+  assert.notEqual(contentKey({ ...base, providerVoice: 'echo' }), key);
+});
+
+test('every shipped voice keys to a distinct object', () => {
+  const keys = NARRATION_VOICES.map((v) =>
+    voiceSamplePath(v.id, contentKey({ text: SAMPLE, model: v.model, providerVoice: v.providerVoice }),
+      v.responseFormat === 'pcm' ? 'wav' : 'mp3')
+  );
+  assert.equal(new Set(keys).size, keys.length, 'two voices would share a stored clip');
+});
+
+test('the stored path carries the voice, the key and a playable extension', () => {
+  const gemini = getVoice('puck');
+  const path = voiceSamplePath(gemini.id, 'abc123', 'wav');
+  assert.ok(path.startsWith('voice-samples/'), 'samples must be namespaced in the bucket');
+  assert.ok(path.includes('puck'));
+  assert.ok(path.endsWith('.wav'), 'Gemini is PCM and must be stored as WAV a browser can play');
+  assert.equal(MEDIA_BUCKET, 'deck-media');
+});
+
+test('mp3 voices are stored as mp3 and Gemini as wav', () => {
+  for (const v of NARRATION_VOICES) {
+    const ext = v.responseFormat === 'pcm' ? 'wav' : 'mp3';
+    assert.ok(voiceSamplePath(v.id, 'k', ext).endsWith(ext));
+  }
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {
