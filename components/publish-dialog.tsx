@@ -31,6 +31,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { PublishQaSettings } from '@/components/publish-qa-settings'
+import { PublishSessionControls } from '@/components/publish-session-controls'
+import { NarrationVoicePicker } from '@/components/narration-voice-picker'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -810,9 +812,13 @@ export function PublishDialog({
    */
   const liveSettingsTabs = record ? (
     <Tabs defaultValue="sharing" className="w-full">
-      <TabsList className="grid w-full grid-cols-2">
+      <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="sharing">Sharing</TabsTrigger>
-        <TabsTrigger value="qa">
+        {/* Disabled rather than hidden when the master switch is off: a tab that
+            vanishes reads as a missing feature, while a dimmed one reads as a
+            feature you have not switched on — which is the truth, and it points
+            at the switch that turns it on. */}
+        <TabsTrigger value="qa" disabled={!record.qaEnabled}>
           Questions
           {record.qaEnabled && (
             <span
@@ -821,12 +827,31 @@ export function PublishDialog({
             />
           )}
         </TabsTrigger>
+        <TabsTrigger value="voice" disabled={!record.narrationEnabled}>
+          Voice
+          {record.narrationEnabled && (
+            <span
+              aria-label="on"
+              className="ml-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
+            />
+          )}
+        </TabsTrigger>
       </TabsList>
-      <TabsContent value="sharing" className="mt-4">
+      <TabsContent value="sharing" className="mt-4 space-y-5">
         {liveSettingsForm}
+        {/* The master switches sit UNDER sharing, not in a tab of their own:
+            they are the decisions this dialog exists to make, and burying them
+            one level down would leave the main tab describing only who can see
+            the deck while what it DOES lived elsewhere. */}
+        <div className="border-t border-gray-200 pt-4 dark:border-slate-700">
+          <PublishSessionControls record={record} onRecordChange={setRecord} disabled={busy} />
+        </div>
       </TabsContent>
       <TabsContent value="qa" className="mt-4">
         <PublishQaSettings record={record} onRecordChange={setRecord} disabled={busy} />
+      </TabsContent>
+      <TabsContent value="voice" className="mt-4">
+        <NarrationVoicePicker sessionId={sessionId} slideCount={slideCount ?? null} />
       </TabsContent>
     </Tabs>
   ) : (
@@ -863,7 +888,7 @@ export function PublishDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[85dvh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Share2 className="h-4 w-4" />

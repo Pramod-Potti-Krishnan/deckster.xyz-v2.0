@@ -438,6 +438,23 @@ model PublishedDeck {
   // Whether PUBLIC web sources may be named to viewers. Deck slides always are
   // (the viewer is looking at them); private uploads and research NEVER are.
   qaCiteWebSources    Boolean @default(true) @map("qa_cite_web_sources")
+  // Off = every question goes to the owner and nothing is answered
+  // automatically. On (default) = the machine answers what it can and defers
+  // the rest, which is the behaviour that shipped first.
+  qaAutoAnswer        Boolean @default(true) @map("qa_auto_answer")
+
+  // --- Narration -------------------------------------------------------
+  // Off by default for the same reason Q&A is: publishing must never silently
+  // attach generated speech to someone's client deck.
+  narrationEnabled       Boolean @default(false) @map("narration_enabled")
+  // The slot this deck has to fill, in minutes. Null = no budget set, so the
+  // script is drafted to its natural length rather than fitted to a clock.
+  narrationBudgetMinutes Int?    @map("narration_budget_minutes")
+  // Minutes held back for questions. Null = derive it (20% of the budget).
+  // Stored separately from the derived value so "never chose" stays distinct
+  // from "chose exactly the default", which is what lets the UI show a
+  // suggestion rather than a decision the publisher never made.
+  qaReserveMinutes       Int?    @map("qa_reserve_minutes")
 
   user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
