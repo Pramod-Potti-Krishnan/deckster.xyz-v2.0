@@ -248,6 +248,46 @@ test('mp3 voices are stored as mp3 and Gemini as wav', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Table names — the Prisma MODEL name is not the TABLE name
+// ---------------------------------------------------------------------------
+
+const voiceStoreSource = fs.readFileSync(
+  new URL('../lib/narration/voice-store.ts', import.meta.url), 'utf8');
+const schemaSource = fs.readFileSync(
+  new URL('../prisma/schema.prisma', import.meta.url), 'utf8');
+const migrationSource = fs.readFileSync(
+  new URL('../prisma/sql/20260810_narration_voice.sql', import.meta.url), 'utf8');
+
+test('raw SQL uses the mapped table name, not the Prisma model name', () => {
+  // The bug this exists for: the model is `ChatSession`, so `chat_sessions` reads
+  // as the obvious table — but every frontend table carries an `fe_` prefix and
+  // the real name is `fe_chat_sessions`. Postgres raised 42P01 and the picker
+  // silently showed an empty voice list. Raw SQL gets no compile-time check, so
+  // this is the check.
+  const mapped = schemaSource.match(/model ChatSession[\s\S]*?@@map\("([^"]+)"\)/);
+  assert.ok(mapped, 'could not find ChatSession @@map in schema.prisma');
+  const table = mapped[1];
+  assert.equal(table, 'fe_chat_sessions');
+
+  for (const source of [voiceStoreSource, migrationSource]) {
+    assert.ok(source.includes(table), `does not reference the mapped table ${table}`);
+    // The unprefixed name must not appear as a standalone table reference.
+    assert.ok(
+      !/\b(FROM|UPDATE|ALTER TABLE|INTO)\s+chat_sessions\b/i.test(source),
+      'references the unmapped table name `chat_sessions`'
+    );
+  }
+});
+
+test('the schema-not-ready guard covers a missing TABLE as well as a missing COLUMN', () => {
+  // Guarding only 42703 was the second half of the same bug: the code degraded
+  // gracefully for a column that had not been added yet, but threw for a table
+  // that did not exist — which is the very failure a wrong name produces.
+  assert.ok(voiceStoreSource.includes('42703'), 'undefined_column not handled');
+  assert.ok(voiceStoreSource.includes('42P01'), 'undefined_table not handled');
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {

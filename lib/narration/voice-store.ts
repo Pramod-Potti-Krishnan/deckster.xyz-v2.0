@@ -4,7 +4,7 @@
  * Deliberately raw SQL rather than a Prisma model field, and that choice is the
  * whole safety story for this change.
  *
- * `chat_sessions.narration_voice_id` is added by
+ * `fe_chat_sessions.narration_voice_id` is added by
  * `prisma/sql/20260810_narration_voice.sql`, which a human applies to Supabase
  * by hand — we never run `prisma migrate` against that database. If the column
  * were declared on the Prisma model, the generated client would name it in the
@@ -21,13 +21,27 @@
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_VOICE_ID, isKnownVoiceId } from './voices'
 
-/** Postgres 42703 — undefined_column. The one error that means "not migrated
- *  yet" rather than "something is wrong". */
-function isMissingColumn(error: unknown): boolean {
+/**
+ * Errors that mean "the schema has not caught up yet" rather than "something is
+ * wrong": 42703 undefined_column and 42P01 undefined_table.
+ *
+ * Both, not just the first. The original version guarded only for a missing
+ * COLUMN — and then the query named the wrong table (`chat_sessions` rather than
+ * `fe_chat_sessions`; every frontend table carries the `fe_` prefix). Postgres
+ * raised 42P01, the guard did not recognise it, the error was re-thrown, and the
+ * picker rendered an EMPTY voice list with no error shown. A guard that covers
+ * one shape of "not there yet" and not the adjacent one is barely a guard.
+ */
+function isSchemaNotReady(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
+  const code = (error as { code?: string } | null)?.code
   return (
+    code === '42703' ||
+    code === '42P01' ||
     message.includes('42703') ||
-    (message.includes('narration_voice_id') && message.toLowerCase().includes('does not exist'))
+    message.includes('42P01') ||
+    (message.includes('narration_voice_id') && message.toLowerCase().includes('does not exist')) ||
+    (message.includes('fe_chat_sessions') && message.toLowerCase().includes('does not exist'))
   )
 }
 
@@ -45,7 +59,7 @@ export async function getSessionVoiceId(
   try {
     const rows = await prisma.$queryRaw<{ narration_voice_id: string | null }[]>`
       SELECT narration_voice_id
-        FROM chat_sessions
+        FROM fe_chat_sessions
        WHERE id = ${sessionId} AND user_id = ${userId}
        LIMIT 1
     `
@@ -56,7 +70,7 @@ export async function getSessionVoiceId(
     // default and can pick again.
     return { voiceId: isKnownVoiceId(stored) ? stored : null, persisted: true }
   } catch (error) {
-    if (isMissingColumn(error)) return { voiceId: null, persisted: false }
+    if (isSchemaNotReady(error)) return { voiceId: null, persisted: false }
     throw error
   }
 }
@@ -77,13 +91,13 @@ export async function setSessionVoiceId(
     // just a filter. A caller who guesses a session id must not be able to
     // write to it.
     const count = await prisma.$executeRaw`
-      UPDATE chat_sessions
+      UPDATE fe_chat_sessions
          SET narration_voice_id = ${id}
        WHERE id = ${sessionId} AND user_id = ${userId}
     `
     return { persisted: true, found: count > 0 }
   } catch (error) {
-    if (isMissingColumn(error)) return { persisted: false, found: true }
+    if (isSchemaNotReady(error)) return { persisted: false, found: true }
     throw error
   }
 }
