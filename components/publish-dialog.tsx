@@ -32,6 +32,11 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { PublishQaSettings } from '@/components/publish-qa-settings'
 import { PublishSessionControls } from '@/components/publish-session-controls'
+import {
+  PublishWizard,
+  type WizardChoices,
+  type WizardStepResult,
+} from '@/components/publish-wizard'
 import { NarrationVoicePicker } from '@/components/narration-voice-picker'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
@@ -487,50 +492,138 @@ export function PublishDialog({
     void patchSettings('passcode', body, () => {})
   }, [passcode, pendingRestricted, visibility, patchSettings])
 
-  const handlePublish = useCallback(async (republish: boolean) => {
+  // Progress through the post-publish work. Null while the wizard is collecting
+  // choices; an array once publishing has begun.
+  const [wizardProgress, setWizardProgress] = useState<WizardStepResult[] | null>(null)
+  // Republish runs the SAME wizard, pre-filled. A republished deck has changed,
+  // so its scripts and its audio may no longer match it — offering the same
+  // "write / record" steps is the only place that staleness gets resolved.
+  const [republishing, setRepublishing] = useState(false)
+
+  /**
+   * Publish, then do everything the choices implied.
+   *
+   * The order is forced rather than chosen: freezing the corpus, drafting a
+   * script and recording audio all need a published deck to hang off. So the
+   * publish happens first and the rest is reported step by step — which is also
+   * the only moment when watching progress is genuinely useful.
+   *
+   * A step that fails does NOT abort the rest. A deck that published but could
+   * not record is still published, and telling someone their deck failed
+   * because the audio did would be false.
+   */
+  const runWizard = useCallback(async (choices: WizardChoices) => {
+    const steps: WizardStepResult[] = [
+      { label: 'Publishing the deck', status: 'running' },
+      { label: 'Applying your settings', status: 'pending' },
+      {
+        label: 'Writing the script',
+        status: choices.narrationEnabled && choices.writeScript ? 'pending' : 'skipped',
+      },
+      {
+        label: 'Recording the narration',
+        status: choices.narrationEnabled && choices.recordNarration ? 'pending' : 'skipped',
+      },
+    ]
+    const update = (i: number, patch: Partial<WizardStepResult>) => {
+      steps[i] = { ...steps[i], ...patch }
+      setWizardProgress([...steps])
+    }
+    setWizardProgress([...steps])
     setIsPublishing(true)
+
     try {
-      const body: Record<string, unknown> = { sessionId }
-      if (!republish) {
-        // First publish (or re-publish after unpublish): send the whole form
-        body.visibility = visibility
-        body.allowPdf = allowPdf
-        body.allowPptx = allowPptx
-        if (passcode) body.passcode = passcode
-      }
-      const response = await fetch('/api/publish', {
+      const publishResponse = await fetch('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          sessionId,
+          visibility: choices.visibility,
+          allowPdf: choices.allowPdf,
+          allowPptx: choices.allowPptx,
+          ...(choices.passcode ? { passcode: choices.passcode } : {}),
+        }),
       })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to publish')
+      const published = await publishResponse.json().catch(() => ({}))
+      if (!publishResponse.ok || !published?.deck) {
+        update(0, { status: 'failed', detail: published?.error || 'Could not publish' })
+        return
       }
-      if (!data?.deck) throw new Error('The server did not return the published deck')
-      setRecord(data.deck)
-      syncFormFromRecord(data.deck)
-      // The snapshot was just re-taken from the live deck, so the baseline the
-      // server stored is current by construction — unless it couldn't read one,
-      // which the echoed record tells us (null sourceUpdatedAt → unverifiable).
-      setStaleness(stalenessAfterResnapshot(data.deck))
-      setCurrentSlideCount(data.deck?.slideCount ?? null)
-      toast({
-        title: republish ? 'Deck republished' : 'Deck published',
-        description: republish
-          ? 'The shared link now shows the latest version of your deck.'
-          : 'Your deck is live. Share the link with your audience.',
+      const deck = published.deck as SerializedPublishedDeck
+      setRecord(deck)
+      syncFormFromRecord(deck)
+      setStaleness(stalenessAfterResnapshot(deck))
+      setCurrentSlideCount(deck?.slideCount ?? null)
+      update(0, { status: 'done' })
+
+      // The feature switches live on the published record, so they can only be
+      // applied once it exists.
+      update(1, { status: 'running' })
+      const settings = await fetch(`/api/publish/${deck.slug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          qaEnabled: choices.qaEnabled,
+          qaAutoAnswer: choices.qaAutoAnswer,
+          narrationEnabled: choices.narrationEnabled,
+          narrationBudgetMinutes: choices.narrationBudgetMinutes,
+          qaReserveMinutes: choices.qaReserveMinutes,
+        }),
       })
+      const settled = await settings.json().catch(() => ({}))
+      if (settings.ok && settled?.deck) setRecord(settled.deck)
+      update(1, settings.ok ? { status: 'done' } : { status: 'failed', detail: settled?.error })
+
+      if (steps[2].status === 'pending') {
+        update(2, { status: 'running' })
+        const script = await fetch('/api/narration/script', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: deck.slug }),
+        })
+        const scripted = await script.json().catch(() => ({}))
+        update(
+          2,
+          script.ok
+            ? {
+                status: 'done',
+                detail: `${scripted.written ?? 0} of ${scripted.total ?? 0} slides written`,
+              }
+            : { status: 'failed', detail: scripted?.error }
+        )
+      }
+
+      if (steps[3].status === 'pending') {
+        update(3, { status: 'running' })
+        const render = await fetch('/api/narration/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: deck.slug }),
+        })
+        const rendered = await render.json().catch(() => ({}))
+        update(
+          3,
+          render.ok
+            ? {
+                status: 'done',
+                detail: `${rendered.rendered ?? 0} segments · ${rendered.spentCents ?? 0}¢`,
+              }
+            : { status: 'failed', detail: rendered?.error }
+        )
+      }
+
+      toast({ title: 'Your deck is live', description: 'Share the link with your audience.' })
     } catch (error) {
       toast({
-        title: republish ? 'Republish failed' : 'Publish failed',
+        title: 'Publish failed',
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive',
       })
     } finally {
       setIsPublishing(false)
     }
-  }, [sessionId, visibility, allowPdf, allowPptx, passcode, syncFormFromRecord, toast])
+  }, [sessionId, syncFormFromRecord, toast])
+
 
   /**
    * Republish re-snapshots the SLIDES only — it deliberately sends no settings.
@@ -551,8 +644,9 @@ export function PublishDialog({
       })
       return
     }
-    void handlePublish(true)
-  }, [blocksRepublish, pendingRestricted, handlePublish, toast])
+    setWizardProgress(null)
+    setRepublishing(true)
+  }, [blocksRepublish, pendingRestricted, toast])
 
   const handleRotate = useCallback(async () => {
     if (!record) return
@@ -672,54 +766,6 @@ export function PublishDialog({
 
   // Pre-publish form: nothing is persisted until the Publish button, so the
   // controls stay plain (no auto-save, no per-field buttons).
-  const settingsForm = (
-    <div className="space-y-4">
-      {visibilitySelect}
-
-      {visibility === 'restricted' && (
-        <div className="space-y-1.5">
-          <Label htmlFor="publish-passcode">Passcode</Label>
-          <Input
-            id="publish-passcode"
-            type="text"
-            value={passcode}
-            onChange={(e) => setPasscode(e.target.value)}
-            placeholder="Choose a passcode for viewers"
-            disabled={busy}
-            autoComplete="off"
-          />
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="publish-allow-pdf" className="font-normal">
-            Allow PDF download
-          </Label>
-          <Switch
-            id="publish-allow-pdf"
-            checked={allowPdf}
-            onCheckedChange={setAllowPdf}
-            disabled={busy}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <Label htmlFor="publish-allow-pptx" className="font-normal">
-            Allow PPTX download
-          </Label>
-          <Switch
-            id="publish-allow-pptx"
-            checked={allowPptx}
-            onCheckedChange={setAllowPptx}
-            disabled={busy}
-          />
-        </div>
-      </div>
-    </div>
-  )
-
-  // Live form: every control writes through on change, so there is no
-  // "Save settings" button to forget to press (and nothing to silently discard).
   const liveSettingsForm = (
     <div className="space-y-4">
       {visibilitySelect}
@@ -918,25 +964,29 @@ export function PublishDialog({
           loadErrorNotice
         ) : !isLive ? (
           <>
-            {settingsForm}
-            <DialogFooter>
-              <Button
-                onClick={() => handlePublish(false)}
-                disabled={busy || needsPasscode}
-                title={needsPasscode ? 'Set a passcode for restricted visibility' : undefined}
-                className="w-full sm:w-auto"
-              >
-                {isPublishing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Publishing…
-                  </>
-                ) : (
-                  'Publish'
-                )}
-              </Button>
-            </DialogFooter>
+            <PublishWizard
+              sessionId={sessionId}
+              slideCount={currentSlideCount ?? slideCount ?? null}
+              record={null}
+              busy={busy}
+              progress={wizardProgress}
+              onPublish={runWizard}
+              onCancel={() => onOpenChange(false)}
+            />
           </>
+        ) : republishing && record ? (
+          <PublishWizard
+            sessionId={sessionId}
+            slideCount={currentSlideCount ?? slideCount ?? null}
+            record={record}
+            busy={busy}
+            progress={wizardProgress}
+            onPublish={runWizard}
+            onCancel={() => {
+              setRepublishing(false)
+              setWizardProgress(null)
+            }}
+          />
         ) : (
           <div className="space-y-5">
             {loadError && loadErrorNotice}
