@@ -957,7 +957,7 @@ test('the closing rides in the same content-addressed ledger', () => {
 test('a defer is never read aloud as if it were an answer', () => {
   // Only an answered question is queued for speaking; a defer is shown in
   // words, which is what a defer is.
-  assert.ok(/asking === 'presenter' && asked\.answer/.test(questionSource));
+  assert.ok(/\(questionTime \|\| asking === 'presenter'\) && next\.answer/.test(questionSource));
 });
 
 test('the same answer is never spoken twice', () => {
@@ -1116,7 +1116,7 @@ test('the control is Ask, not Raise hand', () => {
 test('the panel is on the RIGHT, not centred', () => {
   // A question is an aside. A modal in the middle of the slide says the
   // presentation stopped for it, which in the written case is untrue.
-  assert.ok(/absolute right-0 top-0/.test(questionSource));
+  assert.ok(/absolute right-3 top-3/.test(questionSource));
   // The PANEL is right-anchored; buttons inside it centre their own icons,
   // which is a different thing and must not fail this.
   assert.ok(!/<aside[^>]*justify-center/.test(questionSource));
@@ -1125,9 +1125,14 @@ test('the panel is on the RIGHT, not centred', () => {
 test('a WRITTEN answer never pauses the presentation', () => {
   // The whole point of the two modes: one interrupts, one does not.
   assert.ok(/'written' \| 'presenter'/.test(questionSource));
-  const queue = questionSource.slice(questionSource.indexOf("if (asking === 'presenter'"));
-  assert.ok(queue.startsWith("if (asking === 'presenter' && asked.answer) onQueueForPresenter"),
-    'written answers are queued for speaking');
+  // Queued only when the presenter is meant to say it — mid-deck that means the
+  // "presenter" mode, and after the deck it means question time.
+  assert.ok(
+    /if \(\(questionTime \|\| asking === 'presenter'\) && next\.answer\) onQueueForPresenter/.test(
+      questionSource
+    ),
+    'written answers are queued for speaking'
+  );
 });
 
 test('a spoken answer waits for the END of the slide', () => {
@@ -1187,6 +1192,86 @@ test('the next slide is fetched while the current one speaks', () => {
 test('cached blobs are revoked when the presentation ends', () => {
   // Object URLs outlive their component unless revoked.
   assert.ok(/URL\.revokeObjectURL/.test(presenterSource));
+});
+
+// ---------------------------------------------------------------------------
+// The ask panel, and the session that does not end with the deck
+// ---------------------------------------------------------------------------
+
+test('the panel is solid, not translucent', () => {
+  // Text over a slide through a translucent panel is unreadable, which is the
+  // one thing a panel full of text must not be.
+  assert.ok(!/bg-white\/9\d/.test(questionSource), 'the panel is still see-through');
+  assert.ok(/bg-white shadow-2xl/.test(questionSource));
+});
+
+test('the panel is only as tall as it needs to be', () => {
+  // It took the full height of the stage to show two lines.
+  assert.ok(!/flex h-full/.test(questionSource), 'the panel still claims the whole height');
+  assert.ok(/maxHeight: 'calc\(100% - 1\.5rem\)'/.test(questionSource));
+});
+
+test('one question at a time — it is not a chat', () => {
+  // Asking during a presentation is a single act: you have a question, you ask
+  // it, you wait for it to be dealt with. A running thread invites a
+  // conversation the presenter is not having.
+  assert.ok(/const \[asked, setAsked\] = useState<AskedQuestion \| null>/.test(questionSource));
+  assert.ok(!/answers\.map/.test(questionSource), 'the panel still renders a thread');
+  assert.ok(/\{!asked && \(/.test(questionSource), 'the composer stays open with a question in flight');
+});
+
+test('asking again is a deliberate act', () => {
+  assert.ok(/Ask something else/.test(questionSource));
+});
+
+test('the deck ending does NOT end the session', () => {
+  // The closing says there is time for questions. Ending the deck and then
+  // refusing to take one makes the deck a liar — and the reserve minutes were
+  // set aside for exactly this.
+  assert.ok(/inQuestionTime/.test(presenterSource));
+  // Two paths reach the end — with a closing recorded and without one — and BOTH
+  // must open question time. Hanging it off the closing alone meant every deck
+  // recorded before the closing existed finished and then refused to take a
+  // question.
+  assert.equal(
+    (presenterSource.match(/setInQuestionTime\(true\)/g) ?? []).length,
+    2,
+    'only one of the two ending paths opens question time'
+  );
+  // Slice to the end of the function rather than a guessed character count —
+  // an arbitrary window made this fail on a correct implementation once already.
+  const finishStart = presenterSource.indexOf('const finish = () =>');
+  const finish = presenterSource.slice(finishStart, presenterSource.indexOf('\n    }', finishStart));
+  assert.ok(/setInQuestionTime\(true\)/.test(finish), 'a deck with no closing ends silently');
+});
+
+test('in question time an answer is spoken immediately', () => {
+  // There is no slide left to finish, so waiting for a boundary would be a rule
+  // outliving its reason.
+  assert.ok(
+    /if \(inQuestionTime && queued\.length > 0 && !answerSpeaking\) setAnswerSpeaking\(true\)/.test(
+      presenterSource
+    )
+  );
+  assert.ok(/if \(!inQuestionTime\) setIndex/.test(presenterSource), 'it still tries to advance a slide');
+});
+
+test('question time offers no written-only option', () => {
+  // Offering to stay silent during the one part of the session that exists for
+  // talking is not a choice worth having.
+  assert.ok(/canSpeak && !questionTime/.test(questionSource));
+  assert.ok(/\(questionTime \|\| asking === 'presenter'\)/.test(questionSource));
+});
+
+test('the Q&A clock reads the ref BEFORE the updater runs', () => {
+  // Live: "29773230:59 on questions". A setState updater runs in a later render,
+  // by which point the ref had been nulled — so `Date.now() - null` became
+  // `Date.now()`. The `as number` cast is what stopped the compiler catching it.
+  assert.ok(/const startedAt = qaStartedAt\.current/.test(presenterSource));
+  assert.ok(
+    !/Date\.now\(\) - \(qaStartedAt\.current as number\)/.test(presenterSource),
+    'the ref is still read inside the updater'
+  );
 });
 
 // ---------------------------------------------------------------------------
