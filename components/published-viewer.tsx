@@ -190,7 +190,12 @@ export function PublishedViewer({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          {manifest && !presenting && (
+          {/* ONE control. "Present" and "Play" were the same act described two
+              ways — this is an interactive presentation, not a video, and
+              offering both invited the reading that one of them is a passive
+              watch. A deck with narration presents; a deck without one still
+              goes fullscreen, which is what presenting meant before. */}
+          {manifest && !presenting ? (
             <button
               onClick={() => {
                 setPresenting(true)
@@ -199,20 +204,21 @@ export function PublishedViewer({
                 }
               }}
               className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-slate-700"
-              title="Play this deck with narration"
+              title="Present this deck"
             >
               <PlayCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">Play</span>
+              <span className="hidden sm:inline">Present</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleToggleFullscreen}
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
+              title={isFullscreen ? 'Exit fullscreen' : 'Present fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Present'}</span>
             </button>
           )}
-          <button
-            onClick={handleToggleFullscreen}
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
-            title={isFullscreen ? 'Exit fullscreen' : 'Present fullscreen'}
-          >
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Present'}</span>
-          </button>
         </div>
       </header>
 

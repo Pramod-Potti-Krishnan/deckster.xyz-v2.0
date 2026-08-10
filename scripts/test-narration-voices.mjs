@@ -833,8 +833,11 @@ test('a slide with no audio is SHOWN silently, never skipped', () => {
 });
 
 test('a segment that fails to load does not stall the run', () => {
-  const onError = presenterSource.slice(presenterSource.indexOf("addEventListener('error'"));
-  assert.ok(onError.includes('SILENT_SLIDE_MS'), 'a failed segment leaves the deck stuck');
+  // The recovery is now a named function shared by every failure path — a
+  // segment that will not fetch, will not decode, or will not play.
+  assert.ok(/const fallToSilence = \(\) =>/.test(presenterSource));
+  const recover = presenterSource.slice(presenterSource.indexOf('const fallToSilence'));
+  assert.ok(recover.slice(0, 400).includes('SILENT_SLIDE_MS'), 'a failed segment leaves the deck stuck');
 });
 
 test('running late switches to the compressed script rather than truncating', () => {
@@ -874,82 +877,6 @@ test('a deck without narration still works', () => {
   const fetchBlock = viewerSource.slice(viewerSource.indexOf('api/narration/manifest'));
   assert.ok(/catch \{/.test(fetchBlock), 'a narration failure is not contained');
   assert.ok(/if \(!response\.ok \|\| cancelled\) return/.test(fetchBlock));
-});
-
-// ---------------------------------------------------------------------------
-// Raising a hand: an invited pause, not an interruption
-// ---------------------------------------------------------------------------
-
-const questionSource = fs.readFileSync(
-  new URL('../components/presenter-question.tsx', import.meta.url), 'utf8');
-
-test('a raised hand waits for the slide to finish', () => {
-  // Cutting the audio mid-sentence is what makes a machine feel like a machine.
-  // Finishing the thought and then turning to the questioner is what a
-  // presenter does — a few seconds for the entire impression.
-  assert.ok(presenterSource.includes('PAUSE_AT_SLIDE_END'));
-  const advance = presenterSource.slice(presenterSource.indexOf('const advance = () =>'));
-  assert.ok(
-    advance.includes("handRef.current === 'raised'"),
-    'the hand is not honoured at the slide boundary'
-  );
-});
-
-test('a hand raised on the LAST slide is still taken', () => {
-  // Otherwise the question most likely to be asked — the one at the end — is
-  // the one that gets dropped.
-  const finish = presenterSource.slice(presenterSource.indexOf('const finish = () =>'));
-  assert.ok(
-    /handRef\.current === 'raised'/.test(finish.slice(0, 300)),
-    'a hand raised on the final slide is ignored'
-  );
-});
-
-test('the hand is read through a ref, not through closure state', () => {
-  // Audio callbacks close over the state they were created with, so a plain
-  // state read would never see the hand go up mid-slide.
-  assert.ok(/const handRef = useRef/.test(presenterSource));
-  assert.ok(/handRef\.current = hand/.test(presenterSource));
-});
-
-test('questions reuse the SAME /ask endpoint as the written panel', () => {
-  // Every gate, citation rule and spend control already lives there. A second
-  // path would be a second place for them to drift out of agreement.
-  assert.ok(questionSource.includes('/api/publish/${slug}/ask'));
-  assert.ok(
-    !/researcher|qa_answer/i.test(questionSource),
-    'the presenter talks to the model directly, bypassing the gates'
-  );
-});
-
-test('citations stay clickable during the presentation', () => {
-  // A spoken answer cannot be verified; a chip can.
-  assert.ok(questionSource.includes('onCiteSlide'));
-  assert.ok(/citation\.slideNumber/.test(questionSource));
-});
-
-test('a deferred answer is shown as a defer, not as silence', () => {
-  assert.ok(/asked\.deferred|deferMessage/.test(questionSource));
-});
-
-test('the question box only exists when the deck accepts questions', () => {
-  assert.ok(
-    /manifest\.qaEnabled && hand/.test(presenterSource),
-    'the hand control ignores whether Q&A is enabled'
-  );
-});
-
-test('cancelling a question resumes the run', () => {
-  // Otherwise raising a hand and changing your mind leaves the deck stopped
-  // forever with no obvious way back.
-  const cancel = presenterSource.slice(presenterSource.indexOf('onCancel={() => {'));
-  assert.ok(cancel.includes('setRunning(true)'), 'cancelling strands the run');
-});
-
-test('time spent on questions is counted and shown', () => {
-  // It comes out of the same hour. The audience should see where it went.
-  assert.ok(/qaMs/.test(presenterSource));
-  assert.ok(/on questions/.test(presenterSource));
 });
 
 // ---------------------------------------------------------------------------
@@ -1009,7 +936,7 @@ test('the run always ends on the closing, not on the last slide', () => {
   // A deck that closes ends on purpose.
   assert.ok(presenterSource.includes('manifest.closing'));
   const finish = presenterSource.slice(presenterSource.indexOf('const finish = () =>'));
-  assert.ok(/closingRef\.current/.test(finish.slice(0, 500)), 'the ending is not reached');
+  assert.ok(/closingRef\.current/.test(finish.slice(0, 900)), 'the ending is not reached');
 });
 
 test('the closing is written to work from ANY point', () => {
@@ -1027,56 +954,17 @@ test('the closing rides in the same content-addressed ledger', () => {
   assert.ok(renderRouteSource.includes("variant: 'closing'"));
 });
 
-test('the answer is SPOKEN after it is shown, never instead', () => {
-  // A spoken answer cannot be re-read or checked against a citation. The text
-  // and the chips are the record; the audio is only the delivery.
-  assert.ok(questionSource.includes('speaksAnswers'));
-  // Both are required before anything is spoken: no id means nothing to look
-  // up, no answer means a defer, and a defer is shown in words rather than read
-  // aloud as if it were an answer.
-  assert.ok(/!asked\?\.questionId \|\| !asked\.answer/.test(questionSource));
+test('a defer is never read aloud as if it were an answer', () => {
+  // Only an answered question is queued for speaking; a defer is shown in
+  // words, which is what a defer is.
+  assert.ok(/asking === 'presenter' && asked\.answer/.test(questionSource));
 });
 
 test('the same answer is never spoken twice', () => {
-  assert.ok(/spokenFor\.current === asked\.questionId/.test(questionSource));
-});
-
-// ---------------------------------------------------------------------------
-// Two voices at once — the failure this round exists to fix
-// ---------------------------------------------------------------------------
-
-const { spokenPrecis, SPOKEN_ANSWER_MAX_WORDS, SPOKEN_ANSWER_TAIL } =
-  load('../lib/narration/spoken.ts');
-
-test('narration cannot resume while a reply is still being spoken', () => {
-  // Live: the answer audio was fire-and-forget, so pressing "Carry on" started
-  // the next slide over the top of it. Two voices at once.
-  assert.ok(presenterSource.includes('answerSpeaking'), 'no speaking state at all');
-  assert.ok(
-    /if \(running && !closing && !answerSpeaking\) playCurrent\(\)/.test(presenterSource),
-    'narration is not gated on the reply finishing'
-  );
-});
-
-test('the resume control says what it is waiting for, and offers a way past', () => {
-  // Blocking with no explanation is worse than the bug. It says "Skip and carry
-  // on" while speaking, so nobody is trapped by their own question.
-  assert.ok(/Skip and carry on/.test(questionSource));
-  assert.ok(/Answering…/.test(questionSource));
-});
-
-test('the question component owns its audio so resume can always stop it', () => {
-  assert.ok(/answerAudio = useRef/.test(questionSource));
-  assert.ok(/stopSpeaking/.test(questionSource));
-});
-
-test('a failed reply does not leave the deck believing it is still talking', () => {
-  // Otherwise a 502 on the speak call would freeze the run forever.
-  const speakEffect = questionSource.slice(questionSource.indexOf('setSpeaking(true)'));
-  assert.ok(
-    (speakEffect.match(/onSpeakingChange\?\.\(false\)/g) ?? []).length >= 3,
-    'not every failure path clears the speaking flag'
-  );
+  // Each queued answer is removed from the queue as it finishes, and recorded
+  // as spoken so the panel reveals it rather than replaying it.
+  assert.ok(/setQueued\(\(prev\) => prev\.slice\(1\)\)/.test(presenterSource));
+  assert.ok(/setSpokenAnswerIds/.test(presenterSource));
 });
 
 // ---------------------------------------------------------------------------
@@ -1199,6 +1087,106 @@ test('writing and recording default ON when narration is switched on', () => {
 
 test('the review step states the cost before anything is charged', () => {
   assert.ok(/before anything is charged/.test(wizardSource));
+});
+
+// ---------------------------------------------------------------------------
+// Asking during a presentation
+// ---------------------------------------------------------------------------
+
+const questionSource = fs.readFileSync(
+  new URL('../components/presenter-question.tsx', import.meta.url), 'utf8');
+const { spokenPrecis, SPOKEN_ANSWER_MAX_WORDS, SPOKEN_ANSWER_TAIL } =
+  load('../lib/narration/spoken.ts');
+
+
+test('present and play are ONE control, not two', () => {
+  // They were the same act described two ways, and offering both invited the
+  // reading that one of them is a passive watch. This is an interactive
+  // presentation, not a video.
+  assert.ok(!/>Play<|Play this deck/.test(viewerSource), 'a separate Play control survives');
+  assert.ok(/Present this deck/.test(viewerSource));
+});
+
+test('the control is Ask, not Raise hand', () => {
+  assert.ok(!/Raise hand/.test(presenterSource));
+  assert.ok(!/HandState/.test(presenterSource));
+  assert.ok(/>Ask</.test(presenterSource));
+});
+
+test('the panel is on the RIGHT, not centred', () => {
+  // A question is an aside. A modal in the middle of the slide says the
+  // presentation stopped for it, which in the written case is untrue.
+  assert.ok(/absolute right-0 top-0/.test(questionSource));
+  // The PANEL is right-anchored; buttons inside it centre their own icons,
+  // which is a different thing and must not fail this.
+  assert.ok(!/<aside[^>]*justify-center/.test(questionSource));
+});
+
+test('a WRITTEN answer never pauses the presentation', () => {
+  // The whole point of the two modes: one interrupts, one does not.
+  assert.ok(/'written' \| 'presenter'/.test(questionSource));
+  const queue = questionSource.slice(questionSource.indexOf("if (asking === 'presenter'"));
+  assert.ok(queue.startsWith("if (asking === 'presenter' && asked.answer) onQueueForPresenter"),
+    'written answers are queued for speaking');
+});
+
+test('a spoken answer waits for the END of the slide', () => {
+  // Interrupting a thought to answer something else costs the thought and does
+  // not make the answer better.
+  assert.ok(/ANSWER_AT_SLIDE_END/.test(presenterSource));
+  const advance = presenterSource.slice(presenterSource.indexOf('const advance = () =>'));
+  assert.ok(/queuedRef\.current\.length > 0/.test(advance.slice(0, 400)));
+});
+
+test('the question is SENT immediately, not at the boundary', () => {
+  // The rest of the slide is spent working on the answer rather than making the
+  // asker wait for it afterwards.
+  const submit = questionSource.slice(questionSource.indexOf('const submit'));
+  assert.ok(submit.indexOf('/ask') < submit.indexOf('onQueueForPresenter'));
+});
+
+test('nothing about a spoken answer is shown until it has been said', () => {
+  // Reading the answer while the presenter says it means doing neither.
+  assert.ok(/const hidden = asked\.mode === 'presenter' && !alreadySpoken/.test(questionSource));
+  assert.ok(/asked\.answer && !hidden/.test(questionSource));
+});
+
+test('answers render as MARKDOWN, not as raw text', () => {
+  // The answer prompt asks for short lists and bold labels; rendering them
+  // literally put ** and - on the screen.
+  assert.ok(questionSource.includes('AnswerBody'));
+  assert.ok(!/whitespace-pre-wrap/.test(questionSource));
+});
+
+test('a question on the last slide is still answered before the deck closes', () => {
+  const finish = presenterSource.slice(presenterSource.indexOf('const finish = () =>'));
+  assert.ok(/queuedRef\.current\.length > 0/.test(finish.slice(0, 300)));
+});
+
+// ---------------------------------------------------------------------------
+// Audio that does not thin out
+// ---------------------------------------------------------------------------
+
+test('a segment is fetched WHOLE before a note of it plays', () => {
+  // Handing a URL to `new Audio` starts playback while the file is still
+  // downloading, so a slow moment mid-file makes the browser stall — which
+  // sounds like the presenter fading out, not like a network problem.
+  assert.ok(/const segmentUrl = useCallback/.test(presenterSource));
+  assert.ok(/URL\.createObjectURL\(await response\.blob\(\)\)/.test(presenterSource));
+  assert.ok(
+    !/new Audio\(\s*`\/api\/narration\/segment/.test(presenterSource),
+    'a segment is still streamed straight from the endpoint'
+  );
+});
+
+test('the next slide is fetched while the current one speaks', () => {
+  assert.ok(/const prefetch = useCallback/.test(presenterSource));
+  assert.ok(/Warm the next slide while this one speaks/.test(presenterSource));
+});
+
+test('cached blobs are revoked when the presentation ends', () => {
+  // Object URLs outlive their component unless revoked.
+  assert.ok(/URL\.revokeObjectURL/.test(presenterSource));
 });
 
 // ---------------------------------------------------------------------------

@@ -28,12 +28,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Pause, Play, X } from 'lucide-react'
-import {
-  PresenterQuestion,
-  type AskedQuestion,
-  type HandState,
-} from '@/components/presenter-question'
+import { Loader2, MessageCircleQuestion, Pause, Play, X } from 'lucide-react'
+import { PresenterQuestion, type AskedQuestion } from '@/components/presenter-question'
 
 interface SlideAudio {
   slideId: string
@@ -79,14 +75,16 @@ interface Props {
 }
 
 /**
- * Whether a raised hand should interrupt the CURRENT slide or wait for it.
+ * A question asked of the presenter is answered at the END of the slide, never
+ * inside it.
  *
- * It waits. Cutting the audio mid-sentence to take a question is what makes a
- * machine feel like a machine; finishing the thought and then turning to the
- * questioner is what a presenter does. The cost is a few seconds and it buys
- * the entire impression.
+ * The audience is listening to a thought; interrupting it to answer something
+ * else costs them the thought and does not make the answer any better. So the
+ * question is SENT immediately — the whole rest of the slide is spent working on
+ * it — and the answer is spoken in the gap that was always going to exist
+ * between one slide and the next.
  */
-const PAUSE_AT_SLIDE_END = true
+const ANSWER_AT_SLIDE_END = true
 
 export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   const [index, setIndex] = useState(0)
@@ -96,8 +94,13 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   const [compressed, setCompressed] = useState(false)
   const [announced, setAnnounced] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
-  const [hand, setHand] = useState<HandState>('down')
-  const [asked, setAsked] = useState<AskedQuestion | null>(null)
+  const [askOpen, setAskOpen] = useState(false)
+  // Answers waiting to be spoken at the next slide boundary, and the record of
+  // which have been said — the panel reveals a spoken answer's detail only
+  // after the presenter has actually said it.
+  const [queued, setQueued] = useState<AskedQuestion[]>([])
+  const [speakingAnswerId, setSpeakingAnswerId] = useState<string | null>(null)
+  const [spokenAnswerIds, setSpokenAnswerIds] = useState<string[]>([])
   // Q&A time is spent from the SAME clock as the narration, because it is the
   // same room and the same hour. Tracked separately only so the audience can be
   // told where their time went.
@@ -112,8 +115,10 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   // Read inside audio callbacks, which close over the state they were created
   // with — a ref is the only thing that sees the hand going up mid-slide.
-  const handRef = useRef<HandState>('down')
-  handRef.current = hand
+  // Read inside audio callbacks, which close over the state they were created
+  // with — a ref is the only thing that sees a question arrive mid-slide.
+  const queuedRef = useRef<AskedQuestion[]>([])
+  queuedRef.current = queued
   // Guards against the closing re-triggering itself when it finishes.
   const closingRef = useRef(false)
   const silentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -122,6 +127,57 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   const slides = manifest.slides
   const slide = slides[index]
   const budgetMs = manifest.budget ? manifest.budget.narrationMinutes * 60_000 : null
+
+  /**
+   * Segment audio, whole, before a note of it plays.
+   *
+   * Each slide used to be handed straight to `new Audio(url)`, which starts
+   * playing while it is still downloading — so a slow moment mid-file makes the
+   * browser play what it has and stall, which sounds like the presenter fading
+   * out rather than like a network problem. Fetching the blob first removes the
+   * failure mode entirely: playback cannot outrun a file that has already
+   * arrived.
+   *
+   * Segments are seconds long and tens of kilobytes, so holding a couple in
+   * memory costs nothing worth measuring.
+   */
+  const blobCache = useRef<Map<string, string>>(new Map())
+
+  const segmentUrl = useCallback(
+    async (segmentId: string): Promise<string | null> => {
+      const cached = blobCache.current.get(segmentId)
+      if (cached) return cached
+      try {
+        const response = await fetch(
+          `/api/narration/segment/${segmentId}?slug=${encodeURIComponent(slug)}`
+        )
+        if (!response.ok) return null
+        const url = URL.createObjectURL(await response.blob())
+        blobCache.current.set(segmentId, url)
+        return url
+      } catch {
+        return null
+      }
+    },
+    [slug]
+  )
+
+  /** Fetch the NEXT slide while this one is still speaking, so the gap between
+   *  slides is a beat rather than a download. */
+  const prefetch = useCallback(
+    (segmentId: string | null) => {
+      if (segmentId && !blobCache.current.has(segmentId)) void segmentUrl(segmentId)
+    },
+    [segmentUrl]
+  )
+
+  useEffect(() => {
+    const cache = blobCache.current
+    return () => {
+      for (const url of cache.values()) URL.revokeObjectURL(url)
+      cache.clear()
+    }
+  }, [])
 
   const clearTimers = useCallback(() => {
     if (silentTimer.current) clearTimeout(silentTimer.current)
@@ -188,20 +244,18 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
 
     const segmentId = compressed ? current.compressed ?? current.full : current.full
     const advance = () => {
-      // A raised hand is honoured HERE — at the boundary between slides — which
-      // is what makes the pause feel invited rather than interrupted.
-      if (PAUSE_AT_SLIDE_END && handRef.current === 'raised') {
-        setHand('asking')
-        setRunning(false)
+      // The boundary is where a question gets answered — never inside a slide.
+      if (ANSWER_AT_SLIDE_END && queuedRef.current.length > 0) {
+        setAnswerSpeaking(true)
         return
       }
       setIndex((i) => (i + 1 < slides.length ? i + 1 : i))
     }
     const finish = () => {
-      if (handRef.current === 'raised') {
-        setRunning(false)
-        setStarted(true)
-        setHand('asking')
+      // A question asked on the last slide is still answered before the deck
+      // closes — otherwise the one most likely to be asked is the one dropped.
+      if (queuedRef.current.length > 0) {
+        setAnswerSpeaking(true)
         return
       }
       // Always end on the closing. A deck that simply stops after its last
@@ -227,16 +281,7 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
     }
 
     setLoading(true)
-    const element = new Audio(
-      `/api/narration/segment/${segmentId}?slug=${encodeURIComponent(slug)}`
-    )
-    audioRef.current = element
-    element.addEventListener('playing', () => setLoading(false))
-    element.addEventListener('ended', () => {
-      if (index + 1 < slides.length) advance()
-      else finish()
-    })
-    element.addEventListener('error', () => {
+    const fallToSilence = () => {
       // A segment that will not load must not stall the run. Fall through to
       // the silent dwell, so the deck keeps moving.
       setLoading(false)
@@ -244,28 +289,101 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
         if (index + 1 < slides.length) advance()
         else finish()
       }, SILENT_SLIDE_MS)
-    })
-    void element.play().catch(() => setLoading(false))
-  }, [clearTimers, compressed, index, slides, slug])
+    }
+
+    void (async () => {
+      const url = await segmentUrl(segmentId)
+      if (!url) return fallToSilence()
+      const element = new Audio(url)
+      audioRef.current = element
+      element.addEventListener('playing', () => setLoading(false))
+      element.addEventListener('ended', () => {
+        if (index + 1 < slides.length) advance()
+        else finish()
+      })
+      element.addEventListener('error', fallToSilence)
+      void element.play().catch(() => setLoading(false))
+
+      // Warm the next slide while this one speaks.
+      const next = slides[index + 1]
+      if (next) prefetch(compressed ? next.compressed ?? next.full : next.full)
+    })()
+  }, [clearTimers, compressed, index, slides, segmentUrl, prefetch])
+
+  /**
+   * Answer the queued question out loud, then let the deck continue.
+   *
+   * Nothing about the answer is revealed until this finishes: the panel keeps it
+   * hidden while `speakingAnswerId` is set, because reading the answer while the
+   * presenter says it means doing neither properly.
+   */
+  useEffect(() => {
+    if (!answerSpeaking) return
+    const next = queuedRef.current[0]
+    if (!next) {
+      setAnswerSpeaking(false)
+      return
+    }
+    clearTimers()
+    setSpeakingAnswerId(next.questionId)
+
+    const done = () => {
+      if (next.questionId) setSpokenAnswerIds((prev) => [...prev, next.questionId as string])
+      setSpeakingAnswerId(null)
+      setQueued((prev) => prev.slice(1))
+      setAnswerSpeaking(false)
+      // Straight on to the next slide. The pause existed for the answer, not
+      // for a button — making someone click "carry on" after every question
+      // turns a presentation into a form.
+      setIndex((i) => (i + 1 < slides.length ? i + 1 : i))
+    }
+
+    if (!next.questionId || !manifest.speaksAnswers) {
+      done()
+      return
+    }
+
+    void (async () => {
+      try {
+        const response = await fetch('/api/narration/speak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, kind: 'answer', questionId: next.questionId }),
+        })
+        if (!response.ok) return done()
+        const element = new Audio(URL.createObjectURL(await response.blob()))
+        audioRef.current = element
+        element.addEventListener('ended', done)
+        element.addEventListener('error', done)
+        void element.play().catch(done)
+      } catch {
+        // The written answer is still there — a failed reading must not strand
+        // the presentation.
+        done()
+      }
+    })()
+  }, [answerSpeaking, manifest.speaksAnswers, slides.length, slug, clearTimers])
 
   // The closing segment, played whenever the run reaches an ending — the last
   // slide, or the clock.
   useEffect(() => {
     if (!closing || !manifest.closing) return
     clearTimers()
-    const element = new Audio(
-      `/api/narration/segment/${manifest.closing}?slug=${encodeURIComponent(slug)}`
-    )
-    audioRef.current = element
     const done = () => {
       setClosing(false)
       setRunning(false)
       setStarted(true)
     }
-    element.addEventListener('ended', done)
-    element.addEventListener('error', done)
-    void element.play().catch(done)
-  }, [closing, manifest.closing, slug, clearTimers])
+    void (async () => {
+      const url = await segmentUrl(manifest.closing as string)
+      if (!url) return done()
+      const element = new Audio(url)
+      audioRef.current = element
+      element.addEventListener('ended', done)
+      element.addEventListener('error', done)
+      void element.play().catch(done)
+    })()
+  }, [closing, manifest.closing, clearTimers, segmentUrl])
 
   useEffect(() => {
     // `answerSpeaking` gates this as well as the resume control does. The button
@@ -288,24 +406,17 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
     return () => clearInterval(tick)
   }, [running]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The questioning clock starts when the deck stops and stops when it starts.
+  // Time spent answering out loud. It comes out of the same hour, so it is
+  // counted — but only the SPOKEN kind: a written answer costs the session
+  // nothing, because the deck never stopped.
   useEffect(() => {
-    if (hand === 'asking' || hand === 'answering' || hand === 'answered') {
+    if (answerSpeaking) {
       if (qaStartedAt.current === null) qaStartedAt.current = Date.now()
     } else if (qaStartedAt.current !== null) {
       setQaMs((ms) => ms + (Date.now() - (qaStartedAt.current as number)))
       qaStartedAt.current = null
     }
-  }, [hand])
-
-  const resumeAfterQuestion = useCallback(() => {
-    setAnswerSpeaking(false)
-    setHand('down')
-    setAsked(null)
-    setIndex((i) => (i + 1 < slides.length ? i + 1 : i))
-    startedAt.current = Date.now() - elapsedMs
-    setRunning(true)
-  }, [slides.length, elapsedMs])
+  }, [answerSpeaking])
 
   const start = () => {
     setStarted(true)
@@ -327,6 +438,21 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
 
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col justify-end">
+      {/* On the right, over the deck. A question is an aside — a modal in the
+          middle of the slide would say the presentation had stopped for it,
+          which in the written case is not even true. */}
+      {manifest.qaEnabled && (
+        <PresenterQuestion
+          slug={slug}
+          open={askOpen}
+          onClose={() => setAskOpen(false)}
+          onQueueForPresenter={(asked) => setQueued((prev) => [...prev, asked])}
+          onCiteSlide={onSlide}
+          canSpeak={Boolean(manifest.speaksAnswers)}
+          speakingAnswerId={speakingAnswerId}
+          spokenAnswerIds={spokenAnswerIds}
+        />
+      )}
       {/* Nothing plays until this is pressed. */}
       {!started && (
         <div className="pointer-events-auto absolute inset-0 flex items-center justify-center bg-black/55 backdrop-blur-[2px]">
@@ -352,36 +478,6 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
             <p className="self-center rounded-full bg-amber-500/90 px-3 py-1 text-[11px] font-medium text-amber-950">
               Running long — switching to the short version so we finish.
             </p>
-          )}
-
-          {/* The question surface sits ABOVE the transport, over the slide, so
-              the deck stays visible while it is being asked about. */}
-          {manifest.qaEnabled && hand !== 'down' && (
-            <div className="mb-2 flex justify-center px-2">
-              <PresenterQuestion
-                slug={slug}
-                state={hand}
-                pendingUntilSlideEnds={hand === 'raised'}
-                onRaise={() => setHand('raised')}
-                onCancel={() => {
-                  setHand('down')
-                  setAsked(null)
-                  if (!running) {
-                    startedAt.current = Date.now() - elapsedMs
-                    setRunning(true)
-                  }
-                }}
-                speaksAnswers={manifest.speaksAnswers}
-                onSpeakingChange={setAnswerSpeaking}
-                onAsked={(next) => {
-                  setAsked(next)
-                  setHand('answered')
-                }}
-                onResume={resumeAfterQuestion}
-                asked={asked}
-                onCiteSlide={onSlide}
-              />
-            </div>
           )}
 
           <div className="flex items-center gap-3">
@@ -414,20 +510,18 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
               </p>
             </div>
 
-            {/* Raising a hand does not stop anything immediately — it books the
-                next boundary. The label says so. */}
-            {manifest.qaEnabled && hand === 'down' && (
-              <PresenterQuestion
-                slug={slug}
-                state="down"
-                pendingUntilSlideEnds={false}
-                onRaise={() => setHand('raised')}
-                onCancel={() => setHand('down')}
-                onAsked={() => {}}
-                onResume={() => {}}
-                asked={null}
-                onCiteSlide={onSlide}
-              />
+            {manifest.qaEnabled && (
+              <button
+                onClick={() => setAskOpen((open) => !open)}
+                className="flex h-9 items-center gap-1.5 rounded-full bg-white/15 px-3 text-sm text-white transition-colors hover:bg-white/25"
+                title="Ask a question"
+              >
+                <MessageCircleQuestion className="h-4 w-4" />
+                <span className="hidden sm:inline">Ask</span>
+                {queued.length > 0 && (
+                  <span className="rounded-full bg-white/25 px-1.5 text-[10px]">{queued.length}</span>
+                )}
+              </button>
             )}
 
             <button
