@@ -953,6 +953,95 @@ test('time spent on questions is counted and shown', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Speaking: the answer, the apology, and the ending
+// ---------------------------------------------------------------------------
+
+const spokenSource = fs.readFileSync(
+  new URL('../lib/narration/spoken.ts', import.meta.url), 'utf8');
+const speakRouteSource = fs.readFileSync(
+  new URL('../app/api/narration/speak/route.ts', import.meta.url), 'utf8');
+
+test('the speak endpoint NEVER synthesises caller-supplied text', () => {
+  // A public endpoint that speaks arbitrary text is a free TTS service on
+  // somebody else's wallet. The words are always ours: a constant in the
+  // codebase, or an answer this deck already produced and stored.
+  assert.ok(
+    !/body\.text|body\.answer\b/.test(speakRouteSource),
+    'the caller can supply the words to be spoken'
+  );
+  assert.ok(speakRouteSource.includes('body.questionId'), 'answers are not looked up by id');
+  assert.ok(
+    /findFirst\([\s\S]{0,200}publishedDeckId: deck\.id/.test(speakRouteSource),
+    'a question id from another deck could be spoken here'
+  );
+});
+
+test('only voices measured fast enough may speak answers', () => {
+  assert.ok(spokenSource.includes('canSpeakLiveAnswers'));
+  assert.ok(
+    /if \(!canSpeakAnswers\(voiceId\)\) return null/.test(spokenSource),
+    'a slow voice can still be asked to answer live'
+  );
+  assert.ok(speakRouteSource.includes('canSpeakAnswers'), 'the route does not enforce it');
+});
+
+test('spoken answers are NOT cached, fixed lines are', () => {
+  // An answer will not be said again, so a stored object and a ledger row would
+  // both be pure cost. An announcement is identical for every deck in the
+  // system and is rendered once per voice, forever.
+  const answerFn = spokenSource.slice(spokenSource.indexOf('export async function speakAnswer'));
+  assert.ok(!answerFn.includes('putMedia'), 'per-question audio is being stored');
+  const fixedFn = spokenSource.slice(
+    spokenSource.indexOf('export async function speakFixedLine'),
+    spokenSource.indexOf('export async function speakAnswer')
+  );
+  assert.ok(fixedFn.includes('getMedia') && fixedFn.includes('putMedia'));
+});
+
+test('a failed announcement never stops the presentation', () => {
+  const fixedFn = spokenSource.slice(spokenSource.indexOf('export async function speakFixedLine'));
+  assert.ok(/catch \(error\)[\s\S]{0,200}return null/.test(fixedFn));
+  assert.ok(/on-screen notice/.test(presenterSource), 'no written fallback for the announcement');
+});
+
+test('the run always ends on the closing, not on the last slide', () => {
+  // A deck that simply stops ends on whatever its final slide happened to say.
+  // A deck that closes ends on purpose.
+  assert.ok(presenterSource.includes('manifest.closing'));
+  const finish = presenterSource.slice(presenterSource.indexOf('const finish = () =>'));
+  assert.ok(/closingRef\.current/.test(finish.slice(0, 500)), 'the ending is not reached');
+});
+
+test('the closing is written to work from ANY point', () => {
+  // Its whole job is to end a session that ran out of time, so it cannot refer
+  // to "the last slide" or open with "finally".
+  assert.ok(/never refer to/.test(scriptRouteSource));
+  assert.ok(/DEFAULT_CLOSING_LINE/.test(spokenSource));
+  assert.ok(!/and finally/i.test(spokenSource.slice(spokenSource.indexOf('DEFAULT_CLOSING_LINE'), spokenSource.indexOf('DEFAULT_CLOSING_LINE') + 220)));
+});
+
+test('the closing rides in the same content-addressed ledger', () => {
+  // A reserved slide id keeps it in one cache with no special-casing, so it
+  // re-renders when its words change and not otherwise.
+  assert.ok(renderRouteSource.includes("CLOSING_SLIDE_ID = '__closing__'"));
+  assert.ok(renderRouteSource.includes("variant: 'closing'"));
+});
+
+test('the answer is SPOKEN after it is shown, never instead', () => {
+  // A spoken answer cannot be re-read or checked against a citation. The text
+  // and the chips are the record; the audio is only the delivery.
+  assert.ok(questionSource.includes('speaksAnswers'));
+  // Both are required before anything is spoken: no id means nothing to look
+  // up, no answer means a defer, and a defer is shown in words rather than read
+  // aloud as if it were an answer.
+  assert.ok(/!asked\?\.questionId \|\| !asked\.answer/.test(questionSource));
+});
+
+test('the same answer is never spoken twice', () => {
+  assert.ok(/spokenFor\.current === asked\.questionId/.test(questionSource));
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {

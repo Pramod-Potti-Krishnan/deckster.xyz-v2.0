@@ -41,6 +41,7 @@ import {
   type SegmentVariant,
 } from '@/lib/narration/segments';
 import { debitWallet, InsufficientFundsError } from '@/lib/wallet';
+import { DEFAULT_CLOSING_LINE } from '@/lib/narration/spoken';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -53,6 +54,10 @@ const CONCURRENCY = 3;
 /** Both variants of every slide. `closing` is deck-level and arrives with the
  *  closing-segment work, not here. */
 const VARIANTS: SegmentVariant[] = ['full', 'compressed'];
+
+/** The closing is deck-level, not slide-level, but the ledger is keyed by slide.
+ *  A reserved id keeps it in the same cache with no special-casing anywhere. */
+const CLOSING_SLIDE_ID = '__closing__';
 
 interface Job {
   slideId: string;
@@ -84,6 +89,7 @@ export async function POST(request: NextRequest) {
         userId: true,
         sessionId: true,
         narrationEnabled: true,
+        narrationClosingScript: true,
         session: { select: { finalPresentationId: true } },
       },
     });
@@ -118,6 +124,14 @@ export async function POST(request: NextRequest) {
         }
       }
     });
+
+    // The closing rides with the deck. A synthetic slide id keeps it in the same
+    // content-addressed ledger as everything else, so it re-renders when its
+    // words change and not otherwise.
+    const closingScript = (deck.narrationClosingScript ?? DEFAULT_CLOSING_LINE).trim();
+    if (closingScript) {
+      jobs.push({ slideId: CLOSING_SLIDE_ID, index: slides.length, variant: 'closing', script: closingScript });
+    }
 
     if (jobs.length === 0) {
       return NextResponse.json(

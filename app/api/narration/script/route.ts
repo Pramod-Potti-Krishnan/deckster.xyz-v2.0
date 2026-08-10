@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
         sessionId: true,
         narrationBudgetMinutes: true,
         qaReserveMinutes: true,
+        narrationClosingScript: true,
         session: { select: { finalPresentationId: true } },
       },
     });
@@ -220,6 +221,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // The closing. Drafted from the deck's own titles rather than from any one
+    // slide, because its job is to end a session from ANY point — including one
+    // cut short at slide four. "And finally..." would be a lie there.
+    let closing = deck.narrationClosingScript;
+    if (!closing || overwrite) {
+      try {
+        const titles = slides
+          .map((slide, i) => `${i + 1}. ${slide.title ?? ''}`.trim())
+          .filter((line) => line.length > 3)
+          .join('\n');
+        const drafted = await draftSlideScript(
+          {
+            index: 0,
+            title: 'Closing',
+            bodyText:
+              `This deck covers:\n${titles}\n\n` +
+              'Write the CLOSING line the presenter says to end the session. It must ' +
+              'make sense whether the deck finished or was cut short — never refer to ' +
+              '"the last slide" or "finally". Land the through-line in one or two ' +
+              'sentences, then hand over to questions.',
+            speakerNotes: null,
+            pacingHints: null,
+          },
+          45,
+          25
+        );
+        closing = drafted.full;
+        await prisma.publishedDeck.update({
+          where: { slug },
+          data: { narrationClosingScript: closing },
+        });
+      } catch (error) {
+        // A deck without its own closing still gets one — the default line ends
+        // a session just as well, it simply says nothing specific.
+        console.error('[Narration] closing draft failed, using the default:', error);
+      }
+    }
+
     results.sort((a, b) => a.slide - b.slide);
     const written = results.filter((r) => r.status === 'written').length;
 
@@ -228,6 +267,7 @@ export async function POST(request: NextRequest) {
       total: slides.length,
       narrationMinutes: budget.narrationMinutes,
       qaReserveMinutes: budget.qaReserveMinutes,
+      closing: Boolean(closing),
       // Surfaced rather than hidden: the per-slide floor can push a deck with
       // many tiny slides past its slot, and a publisher should hear that from
       // us rather than from a clock in the room.
