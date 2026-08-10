@@ -603,3 +603,50 @@ model PublishedDeckSource {
 }
 
 // Element Conversation Models (for format panel chat-based AI)
+
+/// Rendered narration audio, one row per slide-and-variant.
+///
+/// The UNIQUE index IS the cache: a `ready` row for
+/// (slideId, variant, scriptHash, renderSpecHash, kind) is proof that this exact
+/// audio already exists. Edit one slide's script and one hash changes, so one
+/// segment re-renders and the rest are untouched; change the voice and
+/// renderSpecHash changes for every row, so the whole deck re-renders — which is
+/// why the price has to be quoted before that is allowed to start.
+model MediaSegment {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  /// The SOURCE presentation, not a publish snapshot: audio is rendered once
+  /// and inherited by every snapshot taken from it.
+  presentationId  String   @map("presentation_id")
+  /// Stable slide id, so a segment survives insert / delete / reorder.
+  slideId         String   @map("slide_id")
+  /// full | compressed | closing
+  variant         String
+  /// sha256 of the exact words spoken.
+  scriptHash      String   @map("script_hash")
+  /// sha256 of voice id + model + provider voice + format + engine version.
+  renderSpecHash  String   @map("render_spec_hash")
+  kind            String   @default("audio")
+  /// pending | ready | failed
+  status          String   @default("pending")
+  /// Object path inside the `deck-media` bucket. Null until ready.
+  assetPath       String?  @map("asset_path")
+  durationMs      Int?     @map("duration_ms")
+  bytes           Int?
+  voiceId         String   @map("voice_id")
+  /// What this segment actually cost, so a deck's spend is auditable segment by
+  /// segment rather than being a number that appeared on an invoice.
+  costCents       Int      @default(0) @map("cost_cents")
+  error           String?
+  /// Provenance marking (D-AV29). Present and null: it needs a signing
+  /// certificate that does not exist yet, so adding it later is a backfill.
+  c2paManifestId  String?  @map("c2pa_manifest_id")
+  watermarkId     String?  @map("watermark_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([slideId, variant, scriptHash, renderSpecHash, kind], map: "fe_media_segments_content_key")
+  @@index([presentationId, status])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("fe_media_segments")
+}

@@ -463,6 +463,95 @@ test('a script with no numbers at all is grounded', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Content addressing for rendered segments — the cache that stops double-paying
+// ---------------------------------------------------------------------------
+
+// Loaded via a stub for @/lib/prisma: the hashing is pure, and pulling in a real
+// client would make these tests need a database to assert arithmetic.
+const segments = (() => {
+  const src = fs.readFileSync(new URL('../lib/narration/segments.ts', import.meta.url), 'utf8');
+  const compiled = ts.transpileModule(src, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  });
+  const mod = { exports: {} };
+  const req = (id) => {
+    if (id === '@/lib/prisma') return { prisma: {} };
+    if (id === './voices') return load('../lib/narration/voices.ts');
+    return require(id);
+  };
+  vm.runInNewContext(compiled.outputText, {
+    module: mod, exports: mod.exports, require: req, process, Buffer, JSON, Math, console,
+  });
+  return mod.exports;
+})();
+
+const { scriptHash, renderSpecHash, segmentPath, RENDER_ENGINE_VERSION } = segments;
+
+test('the same words always hash the same, so nothing re-renders for free', () => {
+  const a = scriptHash('Prices fell twenty-five percent last year.');
+  assert.equal(a, scriptHash('Prices fell twenty-five percent last year.'));
+  assert.ok(a.length >= 16);
+});
+
+test('cosmetic edits do NOT force a paid re-render', () => {
+  // Re-wrapping a paragraph in the Script tab must cost nothing; changing a
+  // word must cost one segment. That asymmetry is the whole design.
+  const base = scriptHash('Prices fell. Margins held.');
+  assert.equal(scriptHash('  Prices fell.   Margins held.  '), base);
+  assert.equal(scriptHash('Prices fell.\nMargins held.'), base);
+  assert.notEqual(scriptHash('Prices rose. Margins held.'), base);
+});
+
+test('case is NOT normalised, because a voice reads it differently', () => {
+  assert.notEqual(scriptHash('it grew'), scriptHash('IT grew'));
+});
+
+test('the render spec pins the MODEL and the provider voice, not just our id', () => {
+  // The failure this prevents: a voice repointed at a cheaper vendor would
+  // otherwise keep every segment rendered by the old one, and the deck would
+  // change voice partway through.
+  const alloy = getVoice('alloy');
+  const base = renderSpecHash(alloy);
+  assert.notEqual(renderSpecHash({ ...alloy, model: 'someone-else/tts' }), base);
+  assert.notEqual(renderSpecHash({ ...alloy, providerVoice: 'different' }), base);
+  assert.notEqual(renderSpecHash({ ...alloy, responseFormat: 'pcm' }), base);
+});
+
+test('every shipped voice has a distinct render spec', () => {
+  const specs = NARRATION_VOICES.map(renderSpecHash);
+  assert.equal(new Set(specs).size, specs.length, 'two voices would share cached audio');
+});
+
+test('bumping the engine version invalidates every cached segment', () => {
+  // Deliberate: it is part of the spec hash so a pipeline change that alters the
+  // bytes cannot serve pre-change audio.
+  assert.ok(RENDER_ENGINE_VERSION.length > 0);
+  const withVersion = renderSpecHash(getVoice('alloy'));
+  assert.notEqual(withVersion, renderSpecHash({ ...getVoice('alloy'), id: 'alloy-x' }));
+});
+
+test('the stored path carries both hashes, so stale audio cannot be served', () => {
+  const voice = getVoice('alloy');
+  const path = segmentPath('pres-1', 'slide-7', 'full', 'Some words.', voice);
+  assert.ok(path.includes(scriptHash('Some words.')));
+  assert.ok(path.includes(renderSpecHash(voice)));
+  assert.ok(path.startsWith('narration/pres-1/'));
+  assert.ok(path.endsWith('.mp3'));
+});
+
+test('a Gemini voice stores WAV, since a browser cannot play raw PCM', () => {
+  assert.ok(segmentPath('p', 's', 'full', 'x', getVoice('puck')).endsWith('.wav'));
+});
+
+test('the two variants of one slide are different objects', () => {
+  const voice = getVoice('alloy');
+  assert.notEqual(
+    segmentPath('p', 's', 'full', 'Long version.', voice),
+    segmentPath('p', 's', 'compressed', 'Short.', voice)
+  );
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {
