@@ -809,6 +809,74 @@ test('changing slide stops the previous slide talking', () => {
 });
 
 // ---------------------------------------------------------------------------
+// The presenter: pacing and trust, not data
+// ---------------------------------------------------------------------------
+
+const presenterSource = fs.readFileSync(
+  new URL('../components/published-presenter.tsx', import.meta.url), 'utf8');
+const viewerSource = fs.readFileSync(
+  new URL('../components/published-viewer.tsx', import.meta.url), 'utf8');
+
+test('nothing plays until the audience presses play', () => {
+  // Audio beginning unbidden on a stranger's link is how a deck gets closed
+  // rather than watched.
+  assert.ok(/!started &&/.test(presenterSource), 'there is no explicit start gate');
+  assert.ok(/Play the presentation/.test(presenterSource));
+  assert.ok(!/autoPlay|autoplay/.test(presenterSource), 'something autoplays');
+});
+
+test('a slide with no audio is SHOWN silently, never skipped', () => {
+  // Skipping hides part of the deck; sitting on it forever looks broken.
+  assert.ok(presenterSource.includes('SILENT_SLIDE_MS'));
+  const noAudio = presenterSource.slice(presenterSource.indexOf('if (!segmentId)'));
+  assert.ok(noAudio.includes('setTimeout'), 'a silent slide does not advance on its own');
+});
+
+test('a segment that fails to load does not stall the run', () => {
+  const onError = presenterSource.slice(presenterSource.indexOf("addEventListener('error'"));
+  assert.ok(onError.includes('SILENT_SLIDE_MS'), 'a failed segment leaves the deck stuck');
+});
+
+test('running late switches to the compressed script rather than truncating', () => {
+  // A deck that stops mid-sentence at the buzzer is the failure the whole time
+  // budget exists to prevent.
+  assert.ok(/shouldCompress/.test(presenterSource));
+  assert.ok(
+    /elapsedMs \+ remainingMs > budgetMs/.test(presenterSource),
+    'the overrun test does not compare remaining audio against remaining time'
+  );
+  assert.ok(/Running long/.test(presenterSource), 'the switch is never announced');
+});
+
+test('the compressed variant falls back to full when it was never recorded', () => {
+  // Otherwise deciding to run short would silence every slide that only has a
+  // full recording — worse than the overrun it is avoiding.
+  assert.ok(/current\.compressed \?\? current\.full/.test(presenterSource));
+});
+
+test('the clock counts wall time, not audio time', () => {
+  // A pause the audience took is time the session actually spent. The budget is
+  // about the room, not the file.
+  assert.ok(/Date\.now\(\) - elapsedMs/.test(presenterSource));
+});
+
+test('Play is only offered when something is genuinely playable', () => {
+  // A Play button that produces silence is worse than no button.
+  assert.ok(
+    /data\.slides\?\.some\(\(slide\) => slide\.full\)/.test(viewerSource),
+    'the play button appears regardless of whether audio exists'
+  );
+});
+
+test('a deck without narration still works', () => {
+  // The manifest 404s for a deck with narration off, and that is the ordinary
+  // answer — never an error that blocks the slides.
+  const fetchBlock = viewerSource.slice(viewerSource.indexOf('api/narration/manifest'));
+  assert.ok(/catch \{/.test(fetchBlock), 'a narration failure is not contained');
+  assert.ok(/if \(!response\.ok \|\| cancelled\) return/.test(fetchBlock));
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {

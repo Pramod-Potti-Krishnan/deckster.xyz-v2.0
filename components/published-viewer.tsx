@@ -10,7 +10,12 @@ import {
   MessageCircleQuestion,
   Minimize2,
   Presentation,
+  PlayCircle,
 } from 'lucide-react'
+import {
+  PublishedPresenter,
+  type NarrationManifest,
+} from '@/components/published-presenter'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +70,10 @@ export function PublishedViewer({
   const stageRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [qaOpen, setQaOpen] = useState(false)
+  // The narrated run. Null until we know there is anything to play — the deck
+  // is perfectly usable without it, so nothing here may block the slides.
+  const [manifest, setManifest] = useState<NarrationManifest | null>(null)
+  const [presenting, setPresenting] = useState(false)
   // Reveal deep link for a cited slide, 0-based (`#/2` is slide 3).
   const [slideHash, setSlideHash] = useState('')
 
@@ -87,6 +96,27 @@ export function PublishedViewer({
   const downloadHref = (format: 'pdf' | 'pptx') => `/api/publish/${slug}/download/${format}`
 
   const canDownload = allowPdf || allowPptx
+
+  // Ask once whether this deck can narrate. A 404 is the ordinary answer for a
+  // deck with narration off, so it is not treated as an error.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const response = await fetch(`/api/narration/manifest?slug=${encodeURIComponent(slug)}`)
+        if (!response.ok || cancelled) return
+        const data = (await response.json()) as NarrationManifest
+        // Offered only when something is genuinely playable. A "Play" button
+        // that produces silence is worse than no button.
+        if (data.slides?.some((slide) => slide.full)) setManifest(data)
+      } catch {
+        /* narration is optional — the deck stands without it */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
 
   useEffect(() => {
     const handleChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
@@ -160,6 +190,21 @@ export function PublishedViewer({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          {manifest && !presenting && (
+            <button
+              onClick={() => {
+                setPresenting(true)
+                if (!document.fullscreenElement) {
+                  stageRef.current?.requestFullscreen().catch(() => {})
+                }
+              }}
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-slate-700"
+              title="Play this deck with narration"
+            >
+              <PlayCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Play</span>
+            </button>
+          )}
           <button
             onClick={handleToggleFullscreen}
             className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
@@ -195,6 +240,17 @@ export function PublishedViewer({
             title={title}
             allow="fullscreen"
           />
+          {presenting && manifest && (
+            <PublishedPresenter
+              slug={slug}
+              manifest={manifest}
+              onSlide={handleCiteSlide}
+              onExit={() => {
+                setPresenting(false)
+                if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+              }}
+            />
+          )}
         </div>
       </div>
 
