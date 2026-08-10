@@ -22,6 +22,7 @@ import {
   speakAnswer,
   speakFixedLine,
   canSpeakAnswers,
+  spokenPrecis,
   RUNNING_LONG_LINE,
 } from '@/lib/narration/spoken';
 import { isNarrationConfigured } from '@/lib/narration/tts';
@@ -111,7 +112,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'That question has no spoken answer' }, { status: 404 });
     }
 
-    const spoken = await speakAnswer(text, voice);
+    // Said short, and pointed at the written answer for the rest. A minute of
+    // speech to answer one question costs more of the session than the question
+    // was worth, and the full text is already on screen with its citations.
+    const spoken = await speakAnswer(spokenPrecis(text), voice);
     if (!spoken) return NextResponse.json({ error: 'Could not speak that' }, { status: 502 });
 
     // Metered against the publisher, like every other model call this deck

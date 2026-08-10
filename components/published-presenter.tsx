@@ -105,6 +105,9 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   const qaStartedAt = useRef<number | null>(null)
   // The closing plays after the last slide, or the moment the clock beats us.
   const [closing, setClosing] = useState(false)
+  // True while a reply is being spoken. Narration must not resume over it —
+  // two voices at once was the failure that made this whole change necessary.
+  const [answerSpeaking, setAnswerSpeaking] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
   // Read inside audio callbacks, which close over the state they were created
@@ -265,11 +268,14 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   }, [closing, manifest.closing, slug, clearTimers])
 
   useEffect(() => {
-    if (running && !closing) playCurrent()
+    // `answerSpeaking` gates this as well as the resume control does. The button
+    // is the intended path; this is the guarantee — narration cannot start over
+    // a reply no matter which path got here.
+    if (running && !closing && !answerSpeaking) playCurrent()
     else if (!closing) clearTimers()
     // playCurrent changes identity when the slide does, which is exactly when a
     // new segment should start.
-  }, [running, index, compressed]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [running, index, compressed, answerSpeaking]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The clock. Wall time, not audio time: a pause the audience took is time the
   // session actually spent, and the budget is about the room, not the file.
@@ -293,6 +299,7 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   }, [hand])
 
   const resumeAfterQuestion = useCallback(() => {
+    setAnswerSpeaking(false)
     setHand('down')
     setAsked(null)
     setIndex((i) => (i + 1 < slides.length ? i + 1 : i))
@@ -365,6 +372,7 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
                   }
                 }}
                 speaksAnswers={manifest.speaksAnswers}
+                onSpeakingChange={setAnswerSpeaking}
                 onAsked={(next) => {
                   setAsked(next)
                   setHand('answered')

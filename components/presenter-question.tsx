@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Clock, Hand, Loader2, Send, X } from 'lucide-react'
+import { rememberThread } from '@/lib/publish/qa-threads'
 
 export type HandState = 'down' | 'raised' | 'asking' | 'answering' | 'answered'
 
@@ -49,6 +50,9 @@ interface Props {
   /** Whether this deck's voice is fast enough to answer out loud. */
   speaksAnswers?: boolean
   onResume: () => void
+  /** Told to the presenter so it cannot resume narration over a reply that is
+   *  still being spoken — the failure this whole change exists to fix. */
+  onSpeakingChange?: (speaking: boolean) => void
   asked: AskedQuestion | null
   onCiteSlide: (slideNumber: number) => void
 }
@@ -57,6 +61,7 @@ export function PresenterQuestion({
   slug,
   state,
   speaksAnswers,
+  onSpeakingChange,
   pendingUntilSlideEnds,
   onRaise,
   onCancel,
@@ -70,6 +75,17 @@ export function PresenterQuestion({
   const [error, setError] = useState<string | null>(null)
 
   const spokenFor = useRef<string | null>(null)
+  const answerAudio = useRef<HTMLAudioElement | null>(null)
+  const [speaking, setSpeaking] = useState(false)
+
+  const stopSpeaking = useCallback(() => {
+    answerAudio.current?.pause()
+    answerAudio.current = null
+    setSpeaking(false)
+    onSpeakingChange?.(false)
+  }, [onSpeakingChange])
+
+  useEffect(() => () => { answerAudio.current?.pause() }, [])
 
   /**
    * Say the answer out loud.
@@ -83,6 +99,8 @@ export function PresenterQuestion({
     if (!speaksAnswers || !asked?.questionId || !asked.answer) return
     if (spokenFor.current === asked.questionId) return
     spokenFor.current = asked.questionId
+    setSpeaking(true)
+    onSpeakingChange?.(true)
     void (async () => {
       try {
         const response = await fetch('/api/narration/speak', {
@@ -90,14 +108,28 @@ export function PresenterQuestion({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slug, kind: 'answer', questionId: asked.questionId }),
         })
-        if (!response.ok) return
-        const blob = await response.blob()
-        void new Audio(URL.createObjectURL(blob)).play().catch(() => {})
+        if (!response.ok) {
+          setSpeaking(false)
+          onSpeakingChange?.(false)
+          return
+        }
+        const element = new Audio(URL.createObjectURL(await response.blob()))
+        answerAudio.current = element
+        const done = () => {
+          setSpeaking(false)
+          onSpeakingChange?.(false)
+        }
+        element.addEventListener('ended', done)
+        element.addEventListener('error', done)
+        void element.play().catch(done)
       } catch {
-        /* the written answer is already on screen — audio is additive */
+        // The written answer is already on screen — audio is additive, and its
+        // failure must not leave the deck believing it is still talking.
+        setSpeaking(false)
+        onSpeakingChange?.(false)
       }
     })()
-  }, [asked, speaksAnswers, slug])
+  }, [asked, speaksAnswers, slug, onSpeakingChange])
 
   const submit = useCallback(async () => {
     const text = question.trim()
@@ -115,6 +147,18 @@ export function PresenterQuestion({
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data?.error || 'That question could not be sent.')
+      // Recorded in the SAME browser-side thread list the written panel reads.
+      // A question asked mid-presentation is still a question this person asked
+      // of this deck — it belongs in the record, not only in the overlay that
+      // disappears when the run ends. It is also the only route back to the
+      // owner's eventual reply on a deferred one.
+      if (data?.followUp?.token) {
+        rememberThread(slug, {
+          token: data.followUp.token,
+          questionId: data.followUp.questionId,
+          askedAt: new Date().toISOString(),
+        })
+      }
       onAsked({
         question: text,
         questionId:
@@ -238,12 +282,26 @@ export function PresenterQuestion({
             </p>
           )}
 
-          <button
-            onClick={onResume}
-            className="mt-1 rounded-md bg-indigo-600 px-3 py-1.5 text-sm text-white"
-          >
-            Carry on
-          </button>
+          {/* Resuming while the reply is still being spoken is what put two
+              voices on top of each other. The control says what it is waiting
+              for, and offers a way past it rather than trapping anyone. */}
+          <div className="mt-1 flex items-center gap-2">
+            <button
+              onClick={() => {
+                stopSpeaking()
+                onResume()
+              }}
+              className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm text-white"
+            >
+              {speaking ? 'Skip and carry on' : 'Carry on'}
+            </button>
+            {speaking && (
+              <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Answering…
+              </span>
+            )}
+          </div>
         </div>
       )}
     </div>
