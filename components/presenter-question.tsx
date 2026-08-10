@@ -18,7 +18,7 @@
  * interrupted. It costs a few seconds and buys the entire impression.
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Clock, Hand, Loader2, Send, X } from 'lucide-react'
 
 export type HandState = 'down' | 'raised' | 'asking' | 'answering' | 'answered'
@@ -30,6 +30,7 @@ interface Citation {
 
 export interface AskedQuestion {
   question: string
+  questionId: string | null
   answer: string | null
   deferred: boolean
   deferMessage: string | null
@@ -45,6 +46,8 @@ interface Props {
   onRaise: () => void
   onCancel: () => void
   onAsked: (asked: AskedQuestion) => void
+  /** Whether this deck's voice is fast enough to answer out loud. */
+  speaksAnswers?: boolean
   onResume: () => void
   asked: AskedQuestion | null
   onCiteSlide: (slideNumber: number) => void
@@ -53,6 +56,7 @@ interface Props {
 export function PresenterQuestion({
   slug,
   state,
+  speaksAnswers,
   pendingUntilSlideEnds,
   onRaise,
   onCancel,
@@ -64,6 +68,36 @@ export function PresenterQuestion({
   const [question, setQuestion] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const spokenFor = useRef<string | null>(null)
+
+  /**
+   * Say the answer out loud.
+   *
+   * Only for voices measured fast enough to start inside the live-answer
+   * threshold — and always AFTER the text is on screen, never instead of it.
+   * A spoken answer cannot be re-read or verified against a citation; the text
+   * and the chips are the record, the audio is the delivery.
+   */
+  useEffect(() => {
+    if (!speaksAnswers || !asked?.questionId || !asked.answer) return
+    if (spokenFor.current === asked.questionId) return
+    spokenFor.current = asked.questionId
+    void (async () => {
+      try {
+        const response = await fetch('/api/narration/speak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, kind: 'answer', questionId: asked.questionId }),
+        })
+        if (!response.ok) return
+        const blob = await response.blob()
+        void new Audio(URL.createObjectURL(blob)).play().catch(() => {})
+      } catch {
+        /* the written answer is already on screen — audio is additive */
+      }
+    })()
+  }, [asked, speaksAnswers, slug])
 
   const submit = useCallback(async () => {
     const text = question.trim()
@@ -83,6 +117,8 @@ export function PresenterQuestion({
       if (!response.ok) throw new Error(data?.error || 'That question could not be sent.')
       onAsked({
         question: text,
+        questionId:
+          typeof data?.followUp?.questionId === 'string' ? data.followUp.questionId : null,
         answer: typeof data.answer === 'string' ? data.answer : null,
         deferred: data.status === 'deferred',
         deferMessage: typeof data.message === 'string' ? data.message : null,

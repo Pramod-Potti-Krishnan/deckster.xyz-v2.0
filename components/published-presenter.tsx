@@ -55,6 +55,11 @@ interface Budget {
 export interface NarrationManifest {
   voiceName: string
   slides: SlideAudio[]
+  closing: string | null
+  closingDurationMs: number | null
+  /** Whether this deck's voice starts speaking fast enough to answer out loud.
+   *  A nine-second wait after asking reads as broken, not thoughtful. */
+  speaksAnswers?: boolean
   missing: number
   totalDurationMs: number
   budget: Budget | null
@@ -98,12 +103,16 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   // told where their time went.
   const [qaMs, setQaMs] = useState(0)
   const qaStartedAt = useRef<number | null>(null)
+  // The closing plays after the last slide, or the moment the clock beats us.
+  const [closing, setClosing] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
   // Read inside audio callbacks, which close over the state they were created
   // with — a ref is the only thing that sees the hand going up mid-slide.
   const handRef = useRef<HandState>('down')
   handRef.current = hand
+  // Guards against the closing re-triggering itself when it finishes.
+  const closingRef = useRef(false)
   const silentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const startedAt = useRef<number | null>(null)
 
@@ -142,11 +151,31 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   }, [budgetMs, compressed, slides, index, elapsedMs])
 
   useEffect(() => {
-    if (shouldCompress && !compressed) {
-      setCompressed(true)
-      setAnnounced(true)
-    }
-  }, [shouldCompress, compressed])
+    if (!shouldCompress || compressed) return
+    setCompressed(true)
+    setAnnounced(true)
+    // Said out loud, not just shown. The audience is listening, not reading —
+    // and a presenter who is running late says so rather than putting a caption
+    // on the wall. Best-effort: a failed announcement must never stop the run,
+    // and the on-screen notice remains either way.
+    void (async () => {
+      try {
+        const response = await fetch('/api/narration/speak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, kind: 'announcement' }),
+        })
+        if (!response.ok) return
+        const blob = await response.blob()
+        const element = new Audio(URL.createObjectURL(blob))
+        // Layered over the narration deliberately: interrupting the slide to
+        // announce that we are short of time would cost more time.
+        void element.play().catch(() => {})
+      } catch {
+        /* the on-screen notice is the fallback */
+      }
+    })()
+  }, [shouldCompress, compressed, slug])
 
   /** Play the current slide, or hold it silently if it has no usable audio. */
   const playCurrent = useCallback(() => {
@@ -166,9 +195,22 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
       setIndex((i) => (i + 1 < slides.length ? i + 1 : i))
     }
     const finish = () => {
+      if (handRef.current === 'raised') {
+        setRunning(false)
+        setStarted(true)
+        setHand('asking')
+        return
+      }
+      // Always end on the closing. A deck that simply stops after its last
+      // slide ends on whatever that slide happened to say; a deck that closes
+      // ends on purpose.
+      if (manifest.closing && !closingRef.current) {
+        closingRef.current = true
+        setClosing(true)
+        return
+      }
       setRunning(false)
       setStarted(true)
-      if (handRef.current === 'raised') setHand('asking')
     }
 
     if (!segmentId) {
@@ -203,9 +245,28 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
     void element.play().catch(() => setLoading(false))
   }, [clearTimers, compressed, index, slides, slug])
 
+  // The closing segment, played whenever the run reaches an ending — the last
+  // slide, or the clock.
   useEffect(() => {
-    if (running) playCurrent()
-    else clearTimers()
+    if (!closing || !manifest.closing) return
+    clearTimers()
+    const element = new Audio(
+      `/api/narration/segment/${manifest.closing}?slug=${encodeURIComponent(slug)}`
+    )
+    audioRef.current = element
+    const done = () => {
+      setClosing(false)
+      setRunning(false)
+      setStarted(true)
+    }
+    element.addEventListener('ended', done)
+    element.addEventListener('error', done)
+    void element.play().catch(done)
+  }, [closing, manifest.closing, slug, clearTimers])
+
+  useEffect(() => {
+    if (running && !closing) playCurrent()
+    else if (!closing) clearTimers()
     // playCurrent changes identity when the slide does, which is exactly when a
     // new segment should start.
   }, [running, index, compressed]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -303,6 +364,7 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
                     setRunning(true)
                   }
                 }}
+                speaksAnswers={manifest.speaksAnswers}
                 onAsked={(next) => {
                   setAsked(next)
                   setHand('answered')

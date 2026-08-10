@@ -18,7 +18,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { getVoice } from './voices'
+import { canSpeakLiveAnswers, getVoice } from './voices'
 import { renderSpecHash, scriptHash, type SegmentVariant } from './segments'
 
 export interface SlideAudio {
@@ -39,6 +39,13 @@ export interface NarrationManifest {
   voiceId: string
   voiceName: string
   slides: SlideAudio[]
+  /** The segment that ends a session from ANY point. Reserved out of the budget
+   *  so it can never be squeezed out — a deck may be consumed to zero, but never
+   *  past the point where there is no ending. */
+  closing: string | null
+  closingDurationMs: number | null
+  /** Whether this deck's voice starts speaking fast enough to answer live. */
+  speaksAnswers: boolean
   /** Slides with a script but no usable audio. */
   missing: number
   totalDurationMs: number
@@ -112,10 +119,15 @@ export async function buildManifest(
     }
   })
 
+  const closingRow = rows.find((r) => r.variant === 'closing') ?? null
+
   return {
     voiceId: voice.id,
     voiceName: voice.name,
     slides: resolved,
+    closing: closingRow?.id ?? null,
+    closingDurationMs: closingRow?.durationMs ?? null,
+    speaksAnswers: canSpeakLiveAnswers(voice),
     missing,
     totalDurationMs,
   }

@@ -455,6 +455,11 @@ model PublishedDeck {
   // from "chose exactly the default", which is what lets the UI show a
   // suggestion rather than a decision the publisher never made.
   qaReserveMinutes       Int?    @map("qa_reserve_minutes")
+  // The closing segment's words. Written to make sense from ANY point in the
+  // deck, because its whole job is to end a session that ran out of time —
+  // "that's the core of it, the detail is in the deck" works after slide 4 or
+  // slide 20, where "and finally..." does not.
+  narrationClosingScript String? @map("narration_closing_script")
 
   user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
