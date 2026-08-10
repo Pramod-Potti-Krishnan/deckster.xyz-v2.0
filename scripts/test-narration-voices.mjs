@@ -1131,6 +1131,77 @@ test('a question asked mid-presentation joins the written thread', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Publishing is a set of decisions, not a button
+// ---------------------------------------------------------------------------
+
+const wizardSource = fs.readFileSync(
+  new URL('../components/publish-wizard.tsx', import.meta.url), 'utf8');
+const dialogSource = fs.readFileSync(
+  new URL('../components/publish-dialog.tsx', import.meta.url), 'utf8');
+
+test('every choice is offered BEFORE the deck is published', () => {
+  // The old flow asked two questions, published, and only then revealed that
+  // the deck could also answer questions and narrate itself. You had to publish
+  // something before you could find out what you were publishing.
+  for (const choice of ['qaEnabled', 'qaAutoAnswer', 'narrationEnabled', 'narrationBudgetMinutes']) {
+    assert.ok(wizardSource.includes(choice), `${choice} is not offered pre-publish`);
+  }
+});
+
+test('the wizard shows how many steps there are', () => {
+  // A wizard that hides its own length is a form that keeps asking for one
+  // more thing.
+  assert.ok(/STEPS = \['Audience', 'Questions', 'Narration', 'Review'\]/.test(wizardSource));
+});
+
+test('republish opens the SAME wizard, pre-filled', () => {
+  // A republished deck has changed, so its scripts and audio may no longer
+  // match it — this is the only place that staleness gets resolved.
+  assert.ok(dialogSource.includes('setRepublishing(true)'));
+  assert.ok(/record=\{record\}/.test(dialogSource), 'republish does not pre-fill from the record');
+});
+
+test('the wizard opens on current settings, never on defaults', () => {
+  // Otherwise republishing would silently revert every choice already made.
+  assert.ok(/record\?\.qaEnabled \?\? false/.test(wizardSource));
+  assert.ok(/record\?\.narrationEnabled \?\? false/.test(wizardSource));
+  assert.ok(/record\?\.visibility as WizardChoices\['visibility'\]\) \?\?/.test(wizardSource));
+});
+
+test('a failed step does not abort the ones after it', () => {
+  // A deck that published but could not record is still published, and saying
+  // otherwise would be false.
+  const run = dialogSource.slice(dialogSource.indexOf('const runWizard'));
+  const failed = (run.match(/status: 'failed'/g) ?? []).length;
+  assert.ok(failed >= 3, 'steps do not report failure independently');
+  assert.ok(!/return;?\s*\}\s*update\(2/.test(run), 'a failure aborts the remaining work');
+});
+
+test('narration work is skipped, not failed, when it was never asked for', () => {
+  // "Skipped" and "failed" mean different things and a progress list that
+  // conflates them is lying about what happened.
+  // It appears inside a ternary, so match the value rather than a whole line.
+  assert.ok(dialogSource.includes("'skipped'"), 'nothing is ever skipped');
+  assert.ok(
+    /choices\.narrationEnabled && choices\.writeScript\s*\?\s*'pending'\s*:\s*'skipped'/.test(
+      dialogSource
+    ),
+    'narration work is not conditional on having been asked for'
+  );
+});
+
+test('writing and recording default ON when narration is switched on', () => {
+  // A deck that narrates but has no script and no audio is a setting, not a
+  // feature.
+  assert.ok(/writeScript: true/.test(wizardSource));
+  assert.ok(/recordNarration: true/.test(wizardSource));
+});
+
+test('the review step states the cost before anything is charged', () => {
+  assert.ok(/before anything is charged/.test(wizardSource));
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {
