@@ -63,6 +63,9 @@ interface Props {
    *  when the written detail is allowed to appear. */
   speakingAnswerId: string | null
   spokenAnswerIds: string[]
+  /** The deck has finished and the reserve time is running. Questions are
+   *  answered immediately, because there is no slide left to wait for. */
+  questionTime?: boolean
 }
 
 export function PresenterQuestion({
@@ -74,12 +77,16 @@ export function PresenterQuestion({
   canSpeak,
   speakingAnswerId,
   spokenAnswerIds,
+  questionTime,
 }: Props) {
   const [question, setQuestion] = useState('')
   const [mode, setMode] = useState<AskMode>('written')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [answers, setAnswers] = useState<AskedQuestion[]>([])
+  // ONE question, not a thread. Asking during a presentation is a single act:
+  // you have a question, you ask it, and you wait for it to be dealt with. A
+  // running chat invites a conversation the presenter is not having.
+  const [asked, setAsked] = useState<AskedQuestion | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -113,7 +120,7 @@ export function PresenterQuestion({
         })
       }
 
-      const asked: AskedQuestion = {
+      const next: AskedQuestion = {
         question: text,
         questionId: typeof data?.followUp?.questionId === 'string' ? data.followUp.questionId : null,
         answer: typeof data.answer === 'string' ? data.answer : null,
@@ -124,23 +131,30 @@ export function PresenterQuestion({
         mode: asking,
       }
 
-      setAnswers((prev) => [asked, ...prev])
-      if (asking === 'presenter' && asked.answer) onQueueForPresenter(asked)
+      setAsked(next)
+      // In question time every answer is spoken: the deck has stopped, the time
+      // was reserved for this, and offering a "written only" option would be
+      // offering to stay silent during the one part of the session that exists
+      // for talking.
+      if ((questionTime || asking === 'presenter') && next.answer) onQueueForPresenter(next)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'That question could not be sent.')
     } finally {
       setSending(false)
     }
-  }, [question, mode, slug, onQueueForPresenter])
+  }, [question, mode, slug, onQueueForPresenter, questionTime])
 
   if (!open) return null
 
   return (
-    <aside className="pointer-events-auto absolute right-0 top-0 flex h-full w-full max-w-sm flex-col bg-white/97 shadow-2xl backdrop-blur dark:bg-slate-900/97">
+    <aside
+      className="pointer-events-auto absolute right-3 top-3 flex w-full max-w-sm flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+      style={{ maxHeight: 'calc(100% - 1.5rem)' }}
+    >
       <header className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-3 py-2 dark:border-slate-700">
         <p className="flex items-center gap-1.5 text-sm font-medium text-slate-900 dark:text-slate-100">
           <MessageCircleQuestion className="h-4 w-4 text-slate-400" />
-          Ask a question
+          {questionTime ? 'Questions' : 'Ask a question'}
         </p>
         <button
           onClick={onClose}
@@ -151,91 +165,96 @@ export function PresenterQuestion({
         </button>
       </header>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
-        {answers.map((asked, i) => {
-          // A spoken answer reveals nothing until it has been said. Reading and
-          // listening at once means doing neither.
-          const speaking = asked.mode === 'presenter' && speakingAnswerId === asked.questionId
-          const alreadySpoken =
-            asked.mode !== 'presenter' ||
-            (asked.questionId !== null && spokenAnswerIds.includes(asked.questionId))
-          const hidden = asked.mode === 'presenter' && !alreadySpoken
+      {asked && (
+        <div className="min-h-0 overflow-y-auto px-3 py-2.5">
+          {(() => {
+            // A spoken answer reveals nothing until it has been said. Reading and
+            // listening at once means doing neither.
+            const speaking = asked.mode === 'presenter' && speakingAnswerId === asked.questionId
+            const alreadySpoken =
+              asked.mode !== 'presenter' ||
+              (asked.questionId !== null && spokenAnswerIds.includes(asked.questionId))
+            const hidden = asked.mode === 'presenter' && !alreadySpoken
 
-          return (
-            <div
-              key={`${asked.questionId ?? 'q'}-${i}`}
-              className="rounded-md border border-gray-200 px-2.5 py-2 dark:border-slate-700"
-            >
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">You asked</p>
-              <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                {asked.question}
-              </p>
-
-              {asked.mode === 'presenter' && !asked.answer && !asked.deferred && (
-                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Working on it…
+            return (
+              <>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">You asked</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                  {asked.question}
                 </p>
-              )}
-              {speaking && (
-                <p className="mt-1.5 text-xs text-indigo-600 dark:text-indigo-400">
-                  The presenter is answering this now…
-                </p>
-              )}
-              {hidden && !speaking && asked.answer && (
-                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                  Ready — the presenter answers at the end of this slide.
-                </p>
-              )}
 
-              {/* Markdown, not raw text. The answer prompt asks for short lists
-                  and bold labels, and rendering them literally put ** and - on
-                  the screen. */}
-              {asked.answer && !hidden && (
-                <div className="mt-1.5">
-                  <AnswerBody text={asked.answer} />
-                </div>
-              )}
+                {asked.mode === 'presenter' && !asked.answer && !asked.deferred && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Working on it…
+                  </p>
+                )}
+                {speaking && (
+                  <p className="mt-1.5 text-xs text-indigo-600 dark:text-indigo-400">
+                    The presenter is answering this now…
+                  </p>
+                )}
+                {hidden && !speaking && asked.answer && (
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    Ready — the presenter answers at the end of this slide.
+                  </p>
+                )}
 
-              {asked.deferred && (
-                <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-300">
-                  {asked.deferMessage ?? 'That one needs a person — it has been passed on.'}
-                </p>
-              )}
+                {/* Markdown, not raw text. The answer prompt asks for short lists
+                    and bold labels, and rendering them literally put ** and - on
+                    the screen. */}
+                {asked.answer && !hidden && (
+                  <div className="mt-1.5">
+                    <AnswerBody text={asked.answer} />
+                  </div>
+                )}
 
-              {asked.citations.length > 0 && !hidden && (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {asked.citations.map((citation, c) => (
-                    <button
-                      key={`${citation.label}-${c}`}
-                      onClick={() =>
-                        citation.slideNumber ? onCiteSlide(citation.slideNumber) : undefined
-                      }
-                      disabled={!citation.slideNumber}
-                      className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700 disabled:cursor-default dark:bg-indigo-950 dark:text-indigo-300"
-                    >
-                      {citation.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {asked.provenanceLine && !hidden && (
-                <p className="mt-1 text-[11px] italic text-slate-500">{asked.provenanceLine}</p>
-              )}
-            </div>
-          )
-        })}
+                {asked.deferred && (
+                  <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-300">
+                    {asked.deferMessage ?? 'That one needs a person — it has been passed on.'}
+                  </p>
+                )}
 
-        {answers.length === 0 && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Ask anything about this deck. It keeps presenting while you type.
-          </p>
-        )}
-      </div>
+                {asked.citations.length > 0 && !hidden && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {asked.citations.map((citation, c) => (
+                      <button
+                        key={`${citation.label}-${c}`}
+                        onClick={() =>
+                          citation.slideNumber ? onCiteSlide(citation.slideNumber) : undefined
+                        }
+                        disabled={!citation.slideNumber}
+                        className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700 disabled:cursor-default dark:bg-indigo-950 dark:text-indigo-300"
+                      >
+                        {citation.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {asked.provenanceLine && !hidden && (
+                  <p className="mt-1 text-[11px] italic text-slate-500">{asked.provenanceLine}</p>
+                )}
 
+                {/* Done with this one. Asking again is a deliberate act, not the
+                    next line of a chat. */}
+                {(asked.answer && !hidden) || asked.deferred ? (
+                  <button
+                    onClick={() => setAsked(null)}
+                    className="mt-2 text-xs text-indigo-600 underline dark:text-indigo-400"
+                  >
+                    Ask something else
+                  </button>
+                ) : null}
+              </>
+            )
+          })()}
+        </div>
+      )}
+
+      {!asked && (
       <div className="flex-shrink-0 space-y-2 border-t border-gray-200 px-3 py-2.5 dark:border-slate-700">
         {/* The choice comes BEFORE the question, because it changes what asking
             means — one interrupts the presentation and one does not. */}
-        {canSpeak && (
+        {canSpeak && !questionTime && (
           <div className="flex gap-1 rounded-md bg-slate-100 p-0.5 text-xs dark:bg-slate-800">
             {(
               [
@@ -258,9 +277,11 @@ export function PresenterQuestion({
           </div>
         )}
         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-          {mode === 'written' || !canSpeak
-            ? 'Answered here. The presentation keeps going.'
-            : 'The presenter finishes this slide, then answers out loud.'}
+          {questionTime
+            ? 'The deck is finished — ask anything and it answers straight away.'
+            : mode === 'written' || !canSpeak
+              ? 'Answered here. The presentation keeps going.'
+              : 'The presenter finishes this slide, then answers out loud.'}
         </p>
 
         <div className="flex items-end gap-1.5">
@@ -290,6 +311,7 @@ export function PresenterQuestion({
         </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
+      )}
     </aside>
   )
 }

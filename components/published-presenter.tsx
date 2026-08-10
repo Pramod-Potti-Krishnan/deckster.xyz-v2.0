@@ -108,6 +108,10 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
   const qaStartedAt = useRef<number | null>(null)
   // The closing plays after the last slide, or the moment the clock beats us.
   const [closing, setClosing] = useState(false)
+  // The deck has finished but the session has not. The reserve minutes were set
+  // aside for exactly this, and the closing invites questions — so ending the
+  // deck and then refusing to take one makes the deck a liar.
+  const [inQuestionTime, setInQuestionTime] = useState(false)
   // True while a reply is being spoken. Narration must not resume over it —
   // two voices at once was the failure that made this whole change necessary.
   const [answerSpeaking, setAnswerSpeaking] = useState(false)
@@ -268,6 +272,14 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
       }
       setRunning(false)
       setStarted(true)
+      // Question time starts whether or not a closing was recorded. Hanging it
+      // off the closing alone meant a deck without one — every deck recorded
+      // before the closing existed — finished and then refused to take a
+      // question, which is the exact fault this change is fixing.
+      if (manifest.qaEnabled) {
+        setInQuestionTime(true)
+        setAskOpen(true)
+      }
     }
 
     if (!segmentId) {
@@ -317,6 +329,13 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
    * hidden while `speakingAnswerId` is set, because reading the answer while the
    * presenter says it means doing neither properly.
    */
+  // In question time there is no slide to wait for, so a queued answer is
+  // spoken the moment it arrives. Making someone wait for a boundary that no
+  // longer exists would be a rule outliving its reason.
+  useEffect(() => {
+    if (inQuestionTime && queued.length > 0 && !answerSpeaking) setAnswerSpeaking(true)
+  }, [inQuestionTime, queued.length, answerSpeaking])
+
   useEffect(() => {
     if (!answerSpeaking) return
     const next = queuedRef.current[0]
@@ -334,8 +353,9 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
       setAnswerSpeaking(false)
       // Straight on to the next slide. The pause existed for the answer, not
       // for a button — making someone click "carry on" after every question
-      // turns a presentation into a form.
-      setIndex((i) => (i + 1 < slides.length ? i + 1 : i))
+      // turns a presentation into a form. In question time there is no next
+      // slide; the deck simply waits for whatever comes.
+      if (!inQuestionTime) setIndex((i) => (i + 1 < slides.length ? i + 1 : i))
     }
 
     if (!next.questionId || !manifest.speaksAnswers) {
@@ -362,7 +382,7 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
         done()
       }
     })()
-  }, [answerSpeaking, manifest.speaksAnswers, slides.length, slug, clearTimers])
+  }, [answerSpeaking, manifest.speaksAnswers, slides.length, slug, clearTimers, inQuestionTime])
 
   // The closing segment, played whenever the run reaches an ending — the last
   // slide, or the clock.
@@ -373,6 +393,12 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
       setClosing(false)
       setRunning(false)
       setStarted(true)
+      // Straight into question time. The closing has just said there is time for
+      // questions; the deck has to mean it.
+      if (manifest.qaEnabled) {
+        setInQuestionTime(true)
+        setAskOpen(true)
+      }
     }
     void (async () => {
       const url = await segmentUrl(manifest.closing as string)
@@ -413,8 +439,14 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
     if (answerSpeaking) {
       if (qaStartedAt.current === null) qaStartedAt.current = Date.now()
     } else if (qaStartedAt.current !== null) {
-      setQaMs((ms) => ms + (Date.now() - (qaStartedAt.current as number)))
+      // Read the ref BEFORE the updater, not inside it. A setState updater runs
+      // during a later render, by which point the line below has nulled the
+      // ref — so `Date.now() - null` became `Date.now()`, and the clock read
+      // "29773230:59 on questions". The `as number` cast is what stopped the
+      // compiler from catching it.
+      const startedAt = qaStartedAt.current
       qaStartedAt.current = null
+      setQaMs((ms) => ms + (Date.now() - startedAt))
     }
   }, [answerSpeaking])
 
@@ -451,6 +483,7 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
           canSpeak={Boolean(manifest.speaksAnswers)}
           speakingAnswerId={speakingAnswerId}
           spokenAnswerIds={spokenAnswerIds}
+          questionTime={inQuestionTime}
         />
       )}
       {/* Nothing plays until this is pressed. */}
@@ -481,6 +514,7 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
           )}
 
           <div className="flex items-center gap-3">
+            {!inQuestionTime && (
             <button
               onClick={toggle}
               aria-label={running ? 'Pause' : 'Resume'}
@@ -494,6 +528,7 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
                 <Play className="h-4 w-4" />
               )}
             </button>
+            )}
 
             <div className="min-w-0 flex-1">
               <div className="h-1 overflow-hidden rounded-full bg-white/20">
@@ -503,8 +538,10 @@ export function PublishedPresenter({ slug, manifest, onSlide, onExit }: Props) {
                 />
               </div>
               <p className="mt-1 text-[11px] text-white/70">
-                Slide {index + 1} of {slides.length}
-                {remainingMs !== null && ` · ${mmss(remainingMs)} left`}
+                {inQuestionTime ? 'Questions' : `Slide ${index + 1} of ${slides.length}`}
+                {inQuestionTime
+                  ? ' · ask anything, or close when you\u2019re done'
+                  : remainingMs !== null && ` · ${mmss(remainingMs)} left`}
                 {qaMs > 5000 && ` · ${mmss(qaMs)} on questions`}
                 {slide?.stale && ' · this slide has no recording'}
               </p>
