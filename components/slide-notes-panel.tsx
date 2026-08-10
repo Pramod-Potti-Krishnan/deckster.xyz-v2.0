@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { getPresentation, updateSlideNarration, SlideNarrationFields } from '@/lib/layout-service-client'
 import { DeckQaInbox } from '@/components/deck-qa-inbox'
+import { SlideScriptPreview } from '@/components/slide-script-preview'
 
 // localStorage keys for panel UI state (shared across sessions)
 const COLLAPSED_STORAGE_KEY = 'deckster.notesPanel.collapsed'
@@ -837,13 +838,21 @@ export function SlideNotesPanel({
               </div>
             </div>
 
-            <TabsContent value="script" className="flex-1 min-h-0 mt-2">
+            <TabsContent value="script" className="flex-1 min-h-0 mt-2 flex flex-col">
+              {/* Above the words, not below: the question "does this sound
+                  right?" occurs while reading them, and the answer should not
+                  require leaving the tab. */}
+              <SlideScriptPreview
+                presentationId={presentationId}
+                slideId={slideIds[currentSlideIndex] ?? null}
+                refreshToken={reloadToken}
+              />
               <Textarea
                 value={draft.script}
                 onChange={(e) => handleFieldChange('script', e.target.value)}
                 disabled={disabled}
                 placeholder="Write the spoken narration for this slide…"
-                className="h-full min-h-0 resize-none text-sm"
+                className="flex-1 min-h-0 resize-none text-sm"
               />
             </TabsContent>
             <TabsContent value="notes" className="flex-1 min-h-0 mt-2">

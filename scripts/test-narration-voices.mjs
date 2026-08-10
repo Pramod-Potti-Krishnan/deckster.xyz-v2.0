@@ -739,6 +739,76 @@ test('a null client with BOTH values set still says something useful', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Playback: a stale slide plays NOTHING, and audio is no more reachable than
+// the deck it speaks for
+// ---------------------------------------------------------------------------
+
+const manifestSource = fs.readFileSync(
+  new URL('../lib/narration/manifest.ts', import.meta.url), 'utf8');
+const segmentRouteSource = fs.readFileSync(
+  new URL('../app/api/narration/segment/[segmentId]/route.ts', import.meta.url), 'utf8');
+const previewSource = fs.readFileSync(
+  new URL('../components/slide-script-preview.tsx', import.meta.url), 'utf8');
+
+test('a segment is matched on the CURRENT script hash, never on recency', () => {
+  // Speaking words the author has replaced, over the slide they replaced them
+  // on, is the worst failure available here — worse than silence, because
+  // silence is obviously missing and wrong words sound authoritative.
+  assert.ok(manifestSource.includes('scriptHash(script)'), 'no hash comparison');
+  assert.ok(
+    /r\.scriptHash === wanted/.test(manifestSource),
+    'segments are not matched against the current script'
+  );
+  assert.ok(
+    !/orderBy[\s\S]{0,80}createdAt/.test(manifestSource),
+    'falls back to the most recent recording instead of the correct one'
+  );
+});
+
+test('a slide with a script but no matching recording is marked stale', () => {
+  assert.ok(/const stale = hasScript && !fullRow/.test(manifestSource));
+});
+
+test('the manifest only reads READY segments', () => {
+  // A pending row is a render that may never have finished, and a failed one is
+  // a record of an attempt. Either would give a slide that plays nothing while
+  // claiming it can.
+  assert.ok(/status: 'ready'/.test(manifestSource));
+});
+
+test('audio is gated by the same rules as the deck it belongs to', () => {
+  assert.ok(segmentRouteSource.includes('verifyUnlockCookie'), 'restricted decks are not gated');
+  assert.ok(segmentRouteSource.includes('narrationEnabled'), 'narration-off decks still serve audio');
+  assert.ok(segmentRouteSource.includes('revokedAt'), 'revoked decks still serve audio');
+});
+
+test('a published deck cannot be used as a key to another deck audio', () => {
+  // The check that stops "any valid slug" from unlocking any segment.
+  assert.ok(
+    segmentRouteSource.includes('finalPresentationId === segment.presentationId'),
+    'the segment is not verified to belong to the named deck'
+  );
+});
+
+test('a forbidden segment 404s rather than 403s', () => {
+  // A 403 would confirm that a segment exists for a deck the caller cannot open.
+  const denial = segmentRouteSource.slice(segmentRouteSource.indexOf('if (!allowed)'));
+  assert.ok(denial.includes('status: 404'), 'denial leaks existence via 403');
+});
+
+test('the creator preview refuses to play a stale slide', () => {
+  assert.ok(previewSource.includes('audio?.stale'), 'stale slides are still playable');
+  assert.ok(/Record it again/.test(previewSource), 'stale state gives no way forward');
+});
+
+test('changing slide stops the previous slide talking', () => {
+  assert.ok(
+    /elementRef\.current\?\.pause\(\)[\s\S]{0,80}\[slideId\]/.test(previewSource),
+    'audio keeps playing over the next slide'
+  );
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {
