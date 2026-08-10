@@ -710,6 +710,35 @@ test('putMedia returns a reason, not a bare boolean', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Say which variable is missing, not which one you assume
+// ---------------------------------------------------------------------------
+
+test('the missing-config message is not hard-coded to one variable', () => {
+  // admin() is null when EITHER the url or the key is absent, but both call
+  // sites named the service-role key — which sent a debugging round after a key
+  // that was correctly set, while the real gap went unnamed.
+  assert.ok(mediaStoreSource.includes('missingMediaConfig'));
+  assert.ok(
+    !/reason: 'SUPABASE_SERVICE_ROLE_KEY is not set/.test(mediaStoreSource),
+    'still blames one variable regardless of which is missing'
+  );
+});
+
+test('both configuration names can be reported', () => {
+  const fn = mediaStoreSource.slice(
+    mediaStoreSource.indexOf('export function missingMediaConfig'));
+  assert.ok(fn.includes('NEXT_PUBLIC_SUPABASE_URL'));
+  assert.ok(fn.includes('SUPABASE_SERVICE_ROLE_KEY'));
+});
+
+test('a null client with BOTH values set still says something useful', () => {
+  // Otherwise the banner reads "missing " and we are guessing again.
+  const fn = mediaStoreSource.slice(
+    mediaStoreSource.indexOf('export function missingMediaConfig'));
+  assert.ok(/missing\.length > 0 \? missing :/.test(fn), 'empty case falls through to a blank message');
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {
