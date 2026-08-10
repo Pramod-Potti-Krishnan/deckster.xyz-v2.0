@@ -18,7 +18,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, FileText, Loader2, Pause, Play, Zap } from 'lucide-react'
+import { AlertTriangle, Check, FileText, Loader2, Pause, Play, Volume2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 
@@ -38,6 +38,21 @@ interface ScriptResult {
   narrationMinutes: number
   qaReserveMinutes: number
   results: { slide: number; status: string; detail?: string }[]
+}
+
+interface RenderResult {
+  rendered: number
+  reused: number
+  total: number
+  spentCents: number
+  results: { slide: number; variant: string; status: string; detail?: string }[]
+}
+
+interface RenderEstimate {
+  toRender: number
+  alreadyRendered: number
+  estimatedCents: number
+  estimatedMinutes: number
 }
 
 interface Props {
@@ -86,6 +101,9 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [drafting, setDrafting] = useState(false)
   const [scriptResult, setScriptResult] = useState<ScriptResult | null>(null)
+  const [rendering, setRendering] = useState(false)
+  const [estimate, setEstimate] = useState<RenderEstimate | null>(null)
+  const [renderResult, setRenderResult] = useState<RenderResult | null>(null)
 
   useEffect(() => {
     if (!sessionId) {
@@ -203,6 +221,42 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
       })
     } finally {
       setDrafting(false)
+    }
+  }
+
+  /**
+   * Price first, then spend.
+   *
+   * Changing the voice invalidates every segment at once, so the difference
+   * between "3 slides" and "the whole deck" is the difference between a cent and
+   * a dollar. The publisher meets that number here rather than on an invoice.
+   */
+  const runRender = async (confirmed: boolean) => {
+    if (!slug) return
+    setRendering(true)
+    if (!confirmed) setRenderResult(null)
+    try {
+      const response = await fetch('/api/narration/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, estimate: !confirmed }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.error || 'Could not render the narration')
+      if (confirmed) {
+        setEstimate(null)
+        setRenderResult(data as RenderResult)
+        toast({ title: `Rendered ${data.rendered} segment${data.rendered === 1 ? '' : 's'}` })
+      } else {
+        setEstimate(data as RenderEstimate)
+      }
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : 'Could not render the narration',
+        variant: 'destructive',
+      })
+    } finally {
+      setRendering(false)
     }
   }
 
@@ -406,6 +460,68 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
               >
                 Rewrite the ones I&apos;d already written too
               </button>
+            )}
+          </div>
+        )}
+        {/* Rendering comes after the script, in the order the work happens:
+            choose a voice, write the words, then pay to have them spoken. */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-2 dark:border-slate-800">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-slate-800 dark:text-slate-100">
+              <Volume2 className="h-3.5 w-3.5 text-slate-400" />
+              Record the narration
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              {estimate
+                ? estimate.toRender === 0
+                  ? 'Everything is already recorded in this voice — nothing to pay for.'
+                  : `${estimate.toRender} segment${estimate.toRender === 1 ? '' : 's'} to record · about ${estimate.estimatedMinutes} min of audio · ${estimate.estimatedCents}¢`
+                : 'Only what has changed is recorded. Editing one slide costs one segment.'}
+            </p>
+          </div>
+          {estimate && estimate.toRender > 0 ? (
+            <div className="flex flex-shrink-0 items-center gap-1.5">
+              <Button size="sm" variant="ghost" onClick={() => setEstimate(null)} disabled={rendering}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={() => void runRender(true)} disabled={rendering}>
+                {rendering ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
+                Record for {estimate.estimatedCents}¢
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void runRender(false)}
+              disabled={rendering || !slug}
+              className="flex-shrink-0"
+            >
+              {rendering ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
+              {rendering ? 'Checking…' : 'Check the cost'}
+            </Button>
+          )}
+        </div>
+
+        {renderResult && (
+          <div className="rounded-md border border-gray-200 px-2.5 py-2 text-[11px] dark:border-slate-700">
+            <p className="text-slate-700 dark:text-slate-200">
+              Recorded <b>{renderResult.rendered}</b>
+              {renderResult.reused > 0 && `, reused ${renderResult.reused} already done`} ·{' '}
+              {renderResult.spentCents}¢
+            </p>
+            {renderResult.results.some((r) => r.status !== 'rendered') && (
+              <ul className="mt-1 space-y-0.5 text-slate-500 dark:text-slate-400">
+                {renderResult.results
+                  .filter((r) => r.status !== 'rendered')
+                  .slice(0, 5)
+                  .map((r) => (
+                    <li key={`${r.slide}-${r.variant}`}>
+                      Slide {r.slide} ({r.variant}): {r.status}
+                      {r.detail ? ` — ${r.detail}` : ''}
+                    </li>
+                  ))}
+              </ul>
             )}
           </div>
         )}
