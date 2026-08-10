@@ -877,6 +877,82 @@ test('a deck without narration still works', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Raising a hand: an invited pause, not an interruption
+// ---------------------------------------------------------------------------
+
+const questionSource = fs.readFileSync(
+  new URL('../components/presenter-question.tsx', import.meta.url), 'utf8');
+
+test('a raised hand waits for the slide to finish', () => {
+  // Cutting the audio mid-sentence is what makes a machine feel like a machine.
+  // Finishing the thought and then turning to the questioner is what a
+  // presenter does — a few seconds for the entire impression.
+  assert.ok(presenterSource.includes('PAUSE_AT_SLIDE_END'));
+  const advance = presenterSource.slice(presenterSource.indexOf('const advance = () =>'));
+  assert.ok(
+    advance.includes("handRef.current === 'raised'"),
+    'the hand is not honoured at the slide boundary'
+  );
+});
+
+test('a hand raised on the LAST slide is still taken', () => {
+  // Otherwise the question most likely to be asked — the one at the end — is
+  // the one that gets dropped.
+  const finish = presenterSource.slice(presenterSource.indexOf('const finish = () =>'));
+  assert.ok(
+    /handRef\.current === 'raised'/.test(finish.slice(0, 300)),
+    'a hand raised on the final slide is ignored'
+  );
+});
+
+test('the hand is read through a ref, not through closure state', () => {
+  // Audio callbacks close over the state they were created with, so a plain
+  // state read would never see the hand go up mid-slide.
+  assert.ok(/const handRef = useRef/.test(presenterSource));
+  assert.ok(/handRef\.current = hand/.test(presenterSource));
+});
+
+test('questions reuse the SAME /ask endpoint as the written panel', () => {
+  // Every gate, citation rule and spend control already lives there. A second
+  // path would be a second place for them to drift out of agreement.
+  assert.ok(questionSource.includes('/api/publish/${slug}/ask'));
+  assert.ok(
+    !/researcher|qa_answer/i.test(questionSource),
+    'the presenter talks to the model directly, bypassing the gates'
+  );
+});
+
+test('citations stay clickable during the presentation', () => {
+  // A spoken answer cannot be verified; a chip can.
+  assert.ok(questionSource.includes('onCiteSlide'));
+  assert.ok(/citation\.slideNumber/.test(questionSource));
+});
+
+test('a deferred answer is shown as a defer, not as silence', () => {
+  assert.ok(/asked\.deferred|deferMessage/.test(questionSource));
+});
+
+test('the question box only exists when the deck accepts questions', () => {
+  assert.ok(
+    /manifest\.qaEnabled && hand/.test(presenterSource),
+    'the hand control ignores whether Q&A is enabled'
+  );
+});
+
+test('cancelling a question resumes the run', () => {
+  // Otherwise raising a hand and changing your mind leaves the deck stopped
+  // forever with no obvious way back.
+  const cancel = presenterSource.slice(presenterSource.indexOf('onCancel={() => {'));
+  assert.ok(cancel.includes('setRunning(true)'), 'cancelling strands the run');
+});
+
+test('time spent on questions is counted and shown', () => {
+  // It comes out of the same hour. The audience should see where it went.
+  assert.ok(/qaMs/.test(presenterSource));
+  assert.ok(/on questions/.test(presenterSource));
+});
+
+// ---------------------------------------------------------------------------
 
 let passed = 0;
 for (const [name, fn] of tests) {
