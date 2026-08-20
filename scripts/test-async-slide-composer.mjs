@@ -40,6 +40,7 @@ const {
   shouldUseIncomingComposePresentationUrl,
   shiftSlideComposeTargetsAfterInsert,
   canPollCompleteSlideComposeJob,
+  markSlideStateFrameProcessed,
   SLIDE_COMPOSE_WATCHDOG_MS,
 } = module.exports
 
@@ -168,6 +169,48 @@ assert.equal(JSON.stringify(topLevelReady.payload), JSON.stringify({
   slide_index: 3,
   presentation_id: 'deck-1',
 }))
+
+const topLevelBuilt = normalizeSlideComposeSocketFrame({
+  type: 'slide_built',
+  message_id: 'msg-built-1',
+  session_id: 'session-1',
+  timestamp: '2026-07-07T00:00:00Z',
+  presentation_id: 'deck-1',
+  slide_index: 3,
+  thumbnail_url: 'https://cdn.test/3.png?v=1',
+  qa_verdict: 'green',
+})
+
+assert.equal(JSON.stringify(topLevelBuilt.payload), JSON.stringify({
+  presentation_id: 'deck-1',
+  slide_index: 3,
+  thumbnail_url: 'https://cdn.test/3.png?v=1',
+  qa_verdict: 'green',
+}))
+
+const processedStateFrames = new Set()
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, topLevelReady), true)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, topLevelReady), false)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, {
+  ...topLevelReady,
+  type: 'slide_built',
+}), true)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, {
+  ...topLevelReady,
+  session_id: 'another-session',
+}), true)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, {
+  type: 'slide_ready',
+  message_id: 'msg-no-thumbnail',
+}), true)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, {
+  type: 'slide_ready',
+  message_id: 'msg-no-thumbnail',
+}), false)
+assert.equal(markSlideStateFrameProcessed(processedStateFrames, {
+  type: 'chat_message',
+  message_id: 'msg-chat',
+}), true)
 
 const payloadFailed = {
   type: 'slide_failed',

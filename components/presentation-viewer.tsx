@@ -48,6 +48,7 @@ import {
   resolveSlideComposeViewerState,
   resolveSlideViewerNavigationInfo,
 } from '@/lib/slide-compose-async'
+import { applyStageFThumbnailUrls } from '@/lib/stage-f-thumbnails'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -280,6 +281,7 @@ interface PresentationViewerProps {
   templateModeAvailable?: boolean
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
+  thumbnailUrlsBySlide?: Record<number, string>
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
   templateCurrentSlideIndex?: number
@@ -534,6 +536,7 @@ export function PresentationViewer({
   templateModeAvailable = false,
   composeJobs = [],
   onRefineSlide,
+  thumbnailUrlsBySlide = {},
   templateSnapshot = null,
   templateSnapshotLoading = false,
   templateCurrentSlideIndex,
@@ -700,22 +703,30 @@ export function PresentationViewer({
     // Use totalSlides when: CRUD modified, count mismatch, or no structure
     if (slidesModifiedByCrud || structureCountMismatch || !slideStructure || !slideStructure.slides) {
       if (totalSlides > 0) {
-        return Array.from({ length: totalSlides }, (_, i) => ({
+        const fallbackSlides: SlideThumbnail[] = Array.from({ length: totalSlides }, (_, i) => ({
           slideNumber: i + 1,
-          title: `Slide ${i + 1}`
+          title: `Slide ${i + 1}`,
         }))
+        return applyStageFThumbnailUrls(fallbackSlides, thumbnailUrlsBySlide)
       }
       return []
     }
 
     // slideStructure is fresh and matches totalSlides - use rich data
-    return slideStructure.slides.map((slide: any, index: number) => ({
-      slideNumber: index + 1,
-      slideId: slide.slide_id || slide.id || null,
-      title: slide.title || slide.slide_type || `Slide ${index + 1}`,
-      content: slide.narrative || slide.key_points?.join(', ')
-    }))
-  }, [slideStructure, totalSlides, slidesModifiedByCrud])
+    const structureSlides: SlideThumbnail[] = slideStructure.slides.map((slide: any, index: number) => {
+      const slideIndex = Number(slide.slide_index)
+      const actualSlideIndex = Number(slide.actual_slide_index ?? slide.real_slide_index)
+      return {
+        slideNumber: index + 1,
+        slideId: slide.slide_id || slide.id || null,
+        slideIndex: Number.isInteger(slideIndex) && slideIndex >= 0 ? slideIndex : index,
+        actualSlideIndex: Number.isInteger(actualSlideIndex) && actualSlideIndex >= 0 ? actualSlideIndex : undefined,
+        title: slide.title || slide.slide_type || `Slide ${index + 1}`,
+        content: slide.narrative || slide.key_points?.join(', '),
+      }
+    })
+    return applyStageFThumbnailUrls(structureSlides, thumbnailUrlsBySlide)
+  }, [slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide])
 
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {

@@ -7,6 +7,7 @@ import type { TemplateOverrides } from '@/lib/template-mode';
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import {
   buildSlideComposeProgressStatus,
+  markSlideStateFrameProcessed,
   normalizeSlideComposeSocketFrame,
 } from '@/lib/slide-compose-async';
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
@@ -29,7 +30,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_ready' | 'slide_failed' | 'theme_sync';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync';
   payload: any;
 }
 
@@ -287,6 +288,22 @@ export interface SlideComposeReady {
     replaced_slide_id?: string | null;
     presentation_id: string;
     presentation_url?: string | null;
+    thumbnail_url?: string | null;
+  };
+}
+
+export interface SlideBuilt {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'slide_built';
+  payload: {
+    presentation_id: string;
+    slide_index: number;
+    slide_count?: number | null;
+    thumbnail_url?: string | null;
+    qa_verdict?: string | null;
+    qa_skipped_reason?: string | null;
   };
 }
 
@@ -332,7 +349,7 @@ export interface ThemeSyncMessage {
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage;
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage;
 
 export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
   return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
@@ -459,6 +476,7 @@ export interface UseDecksterWebSocketV2Options {
   onMessage?: (message: DirectorMessage) => void;
   onPresentationReady?: (url: string) => void;
   onSlideComposeProgress?: (message: SlideComposeProgress) => void;
+  onSlideBuilt?: (message: SlideBuilt) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onSessionStateChange?: (state: {
@@ -487,6 +505,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Generate stable session and user IDs
   const sessionIdRef = useRef<string>('');
   const userIdRef = useRef<string>('');
+  const processedStateFrameKeysRef = useRef<Set<string>>(new Set());
 
   // CRITICAL FIX: Initialize session ID with priority order:
   // 1. Use existing session ID from database/URL (if provided)
@@ -1227,6 +1246,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               });
             }
 
+            if (!markSlideStateFrameProcessed(
+              processedStateFrameKeysRef.current,
+              message,
+            )) {
+              debugLog('Ignoring duplicate state frame:', message.type, message.message_id);
+              return;
+            }
+
             // Add client-side timestamp for message ordering
             const messageWithTimestamp = {
               ...message,
@@ -1247,6 +1274,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 message.type !== 'slide_context' &&
                 message.type !== 'token_usage' &&
                 message.type !== 'slide_progress' &&
+                message.type !== 'slide_built' &&
                 message.type !== 'slide_ready' &&
                 message.type !== 'slide_failed' &&
                 message.type !== 'theme_sync' &&
@@ -1661,6 +1689,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     job_id: message.payload.job_id,
                     slide_index: message.payload.slide_index,
                     presentation_id: message.payload.presentation_id,
+                    thumbnail_url: message.payload.thumbnail_url,
+                  });
+                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  newState.currentStatus = null;
+                  break;
+
+                case 'slide_built':
+                  debugLog('slide_built received:', {
+                    slide_index: message.payload.slide_index,
+                    presentation_id: message.payload.presentation_id,
+                    has_thumbnail: !!message.payload.thumbnail_url,
+                    qa_verdict: message.payload.qa_verdict,
+                    qa_skipped_reason: message.payload.qa_skipped_reason,
                   });
                   newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
                   newState.currentStatus = null;
@@ -1692,7 +1733,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               return newState;
             });
 
-            if (message.type === 'slide_progress') {
+            if (message.type === 'slide_built') {
+              options.onSlideBuilt?.(message);
+            } else if (message.type === 'slide_progress') {
               options.onSlideComposeProgress?.(message);
             } else if (message.type === 'slide_ready' && !blockedIngress) {
               options.onSlideComposeReady?.(message);

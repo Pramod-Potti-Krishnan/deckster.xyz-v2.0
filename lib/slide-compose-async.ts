@@ -8,6 +8,28 @@ export type AsyncSlideComposeRequest<T extends Record<string, unknown>> = T & {
 // preserving FIFO, and a Slide Builder pass can take about 120s. Keep this
 // client watchdog above that budget until a backend heartbeat replaces it.
 export const SLIDE_COMPOSE_WATCHDOG_MS = 480_000
+const MAX_PROCESSED_STATE_FRAME_IDS = 1000
+const STATE_FRAME_TYPES = new Set(['slide_built', 'slide_ready', 'slide_failed'])
+
+export function markSlideStateFrameProcessed(
+  processedFrameKeys: Set<string>,
+  message: { type?: unknown; message_id?: unknown; session_id?: unknown },
+): boolean {
+  const frameType = String(message.type || '')
+  if (!STATE_FRAME_TYPES.has(frameType)) return true
+  const messageId = typeof message.message_id === 'string' ? message.message_id.trim() : ''
+  if (!messageId) return true
+  const sessionId = typeof message.session_id === 'string' ? message.session_id.trim() : ''
+  const frameKey = `${sessionId}:${frameType}:${messageId}`
+  if (processedFrameKeys.has(frameKey)) return false
+
+  processedFrameKeys.add(frameKey)
+  if (processedFrameKeys.size > MAX_PROCESSED_STATE_FRAME_IDS) {
+    const oldest = processedFrameKeys.values().next().value
+    if (oldest) processedFrameKeys.delete(oldest)
+  }
+  return true
+}
 
 export interface SlideComposeProgressStatusInput {
   text?: unknown
@@ -52,7 +74,7 @@ export function withAsyncSlideComposeFields<T extends Record<string, unknown>>(
 export function normalizeSlideComposeSocketFrame<T extends { type?: string; payload?: unknown } & Record<string, unknown>>(
   raw: T,
 ): T {
-  if ((raw.type === 'slide_ready' || raw.type === 'slide_failed') && !raw.payload) {
+  if ((raw.type === 'slide_ready' || raw.type === 'slide_failed' || raw.type === 'slide_built') && !raw.payload) {
     const { type, message_id, session_id, timestamp, ...payload } = raw
     return {
       message_id,
