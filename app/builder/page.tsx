@@ -3168,6 +3168,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
     return layoutServiceApis.sendElementCommand('getTemplateSlotCatalog', { slideIndex })
   }, [layoutServiceApis])
+
   // MDC P8 (K5): execute a chat-invoked element add through the SAME pipeline
   // as the element panel, then report the outcome to the Director.
   elementDirectiveRunnerRef.current = (payload) => {
@@ -3198,7 +3199,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           await layoutServiceApis.goToSlide(target)
           await new Promise(resolve => setTimeout(resolve, 400))
         }
-        await handleTextLabsGenerate(formData)
+        await handleApprovedTextLabsGenerate(formData, 'generate')
         report('inserted')
         toast({ title: 'Element added', description: `Added to slide ${target + 1} from chat.` })
       } catch (error) {

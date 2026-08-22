@@ -28,9 +28,11 @@ export function buildFormDataForDirective(
 ): TextLabsFormData | null {
   switch (elementType) {
     case 'TEXT_BOX':
-      return { ...BASE, prompt, componentType: 'TEXT_BOX', itemsPerInstance: 1, textboxConfig: {} }
+      // semanticRole/geometryMode became required upstream — mirror the panel's
+      // defaults (BODY_TEXT + AUTO) for chat-invoked adds.
+      return { ...BASE, prompt, componentType: 'TEXT_BOX', itemsPerInstance: 1, textboxConfig: {}, semanticRole: 'BODY_TEXT', geometryMode: 'AUTO' }
     case 'METRICS':
-      return { ...BASE, prompt, componentType: 'METRICS', metricsConfig: {} }
+      return { ...BASE, prompt, componentType: 'METRICS', metricsConfig: {}, metricsFitMode: 'AUTO' }
     case 'TABLE':
       return { ...BASE, prompt, componentType: 'TABLE', tableConfig: {} }
     case 'CHART':
