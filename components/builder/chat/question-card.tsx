@@ -102,7 +102,7 @@ export function QuestionCard({
                         }))
                       }
                       className={[
-                        "text-xs h-7 px-2.5 rounded-full border transition-colors",
+                        "text-xs h-auto min-h-7 py-1 px-2.5 rounded-full border transition-colors max-w-full whitespace-normal text-left",
                         isSelected
                           ? "bg-purple-600 text-white border-purple-600"
                           : sug.recommended
@@ -135,7 +135,7 @@ export function QuestionCard({
             size="sm"
             onClick={submit}
             disabled={answeredCount === 0}
-            className="text-xs h-7 bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700"
+            className="text-xs h-7 max-w-full bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700"
           >
             Send answers{answeredCount > 0 ? ` (${answeredCount}/${questionSet.questions.length})` : ""}
           </Button>
@@ -152,8 +152,8 @@ export function QuestionCard({
               onClick={() => onActionClick(action, messageId)}
               className={
                 action.primary
-                  ? "text-xs h-7 bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700"
-                  : "text-xs h-7 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
+                  ? "text-xs h-auto min-h-7 py-1 max-w-full whitespace-normal text-left bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700"
+                  : "text-xs h-auto min-h-7 py-1 max-w-full whitespace-normal text-left border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
               }
             >
               {action.label}
