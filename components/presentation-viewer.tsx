@@ -822,11 +822,16 @@ export function PresentationViewer({
     }
   }, [isEditMode, onEditModeChange])
 
+  // MDC P8 fix: onSlideChange arrives as an inline arrow from the page, so a
+  // useCallback keyed on it churns every parent render — and this handler sits
+  // in the onApiReady effect's deps, which turned that churn into an
+  // onApiReady -> setState -> re-render loop (React #185). Route through the
+  // existing effect-synced onSlideChangeRef instead; identity stays stable.
   const handleGoToSlide = useCallback(async (slideIndex: number) => {
     debugLog(`🎯 Navigating to slide ${slideIndex + 1}`)
     const nextSlide = slideIndex + 1
     setCurrentSlide(nextSlide)
-    onSlideChange?.(nextSlide)
+    onSlideChangeRef.current?.(nextSlide)
 
     if (!iframeRef.current) {
       debugLog('❌ Iframe not ready')
@@ -840,7 +845,7 @@ export function PresentationViewer({
       console.warn('goToSlide response timed out; keeping optimistic slide state and sending fallback navigation.', error)
       postCommand(iframeRef.current, 'goToSlide', { index: slideIndex })
     }
-  }, [onSlideChange])
+  }, [])
 
   // Poll for slide info updates via postMessage (with exponential backoff)
   useEffect(() => {
