@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
-import { debugLog } from '@/lib/debug-log';
+import { debugLog } from '@/lib/debug-log'
+import { CHAT_DIRECTIVES, CHAT_MENTIONS } from '@/lib/mdc-flags'
+import { parseSlideMentions } from '@/lib/mdc-mentions';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
@@ -30,7 +32,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive';
   payload: any;
 }
 
@@ -48,6 +50,9 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'slide_ready',
   'slide_failed',
   'theme_sync',
+  // MDC (K3/K5): directive frames — handled out-of-band, never rendered in chat.
+  'session_directive',
+  'element_directive',
 ]);
 
 function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
@@ -477,6 +482,10 @@ export interface UseDecksterWebSocketV2Options {
   onPresentationReady?: (url: string) => void;
   onSlideComposeProgress?: (message: SlideComposeProgress) => void;
   onSlideBuilt?: (message: SlideBuilt) => void;
+  // MDC P4 (K3): Director instructs a capable client to start a new session.
+  onSessionDirective?: (payload: import('@/types/mdc').SessionDirectivePayload) => void;
+  // MDC P8 (K5): run an element generation through the FE panel pipeline.
+  onElementDirective?: (payload: import('@/types/mdc').ElementDirectivePayload) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onSessionStateChange?: (state: {
@@ -747,6 +756,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectStabilityTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  // MDC P6: latest slideStructure for @mention parsing inside sendMessage
+  // (stable [] deps) — effect-synced; a same-tick slide_update race only
+  // affects mention resolution, never message delivery.
+  const slideStructureRef = useRef<SlideUpdate['payload'] | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const pendingReconnectAttemptRef = useRef<number | null>(null);
   const pendingSessionReconnectRef = useRef<string | null>(null);
@@ -1278,6 +1291,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 message.type !== 'slide_ready' &&
                 message.type !== 'slide_failed' &&
                 message.type !== 'theme_sync' &&
+                (message.type as string) !== 'session_directive' &&
+              (message.type as string) !== 'element_directive' &&
                 !isDuplicate;
 
               const newState = {
@@ -1733,6 +1748,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               return newState;
             });
 
+            if ((message.type as string) === 'session_directive') {
+              // MDC P4 (K3): never rendered in chat; only capable clients receive
+              // it (K6), but double-gate on the flag for safety.
+              if (CHAT_DIRECTIVES) {
+                const payload = (message as unknown as { payload: import('@/types/mdc').SessionDirectivePayload }).payload;
+                debugLog('🧭 session_directive received:', payload);
+                options.onSessionDirective?.(payload);
+              }
+              return;
+            }
+
+            if ((message.type as string) === 'element_directive') {
+              if (CHAT_DIRECTIVES) {
+                const payload = (message as unknown as { payload: import('@/types/mdc').ElementDirectivePayload }).payload;
+                debugLog('🧩 element_directive received:', payload);
+                options.onElementDirective?.(payload);
+              }
+              return;
+            }
+
             if (message.type === 'slide_built') {
               options.onSlideBuilt?.(message);
             } else if (message.type === 'slide_progress') {
@@ -2123,18 +2158,18 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   ]);
 
   // Send message to server (v4.14: includes feature flags and session-sticky file state)
+  useEffect(() => {
+    slideStructureRef.current = state.slideStructure;
+  }, [state.slideStructure]);
+
   const sendMessage = useCallback((
     text: string,
     storeName?: string,
     fileCount?: number,
     options?: SendUserMessageOptions,
   ): boolean => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.error('❌ Cannot send message: WebSocket not connected');
-      return false;
-    }
 
-    try {
+    const buildUserMessage = (): UserMessage => {
       // Session-sticky store_name: prefer options.storeName (from session state) over positional param
       const effectiveStoreName = options?.storeName !== undefined ? options.storeName : (storeName || null);
       const deepResearch = options?.deepResearch ?? false;
@@ -2161,8 +2196,31 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.handoffIdempotencyKey && {
             handoff_idempotency_key: options.handoffIdempotencyKey,
           }),
+          // MDC K6 (P4): advertise client capabilities on every message so the
+          // Director only sends the new frame types to capable clients.
+          ...(CHAT_DIRECTIVES && { client_caps: ['mdc1'] }),
+          // MDC K1 (P6): typed slide references parsed from @[Slide N: …]
+          // mention tokens (v1: slides only, §12-Q5).
+          ...(CHAT_MENTIONS && (() => {
+            const slides = (slideStructureRef.current?.slides || []).map((sl: any, i: number) => ({
+              index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null,
+            }));
+            const refs = parseSlideMentions(text, slides);
+            return refs.length > 0 ? { references: refs } : {};
+          })()),
         },
       };
+      return message;
+    };
+
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot send message: WebSocket not connected');
+      return false;
+    }
+
+    try {
+      const message = buildUserMessage();
+      const effectiveStoreName = message.data.store_name;
 
       debugLog(
         '📤 Sending message:',
@@ -2221,6 +2279,21 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     console.error('❌ Send failed: socket could not be reopened within', timeoutMs, 'ms');
     return false;
   }, [sendMessage, ensureConnected]);
+
+  // MDC P8 (K5): report a directive outcome back to the Director.
+  const sendElementDirectiveResult = useCallback((data: import('@/types/mdc').ElementDirectiveResult['data']): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot send element_directive_result: WebSocket not connected');
+      return false;
+    }
+    try {
+      wsRef.current.send(JSON.stringify({ type: 'element_directive_result', data }));
+      return true;
+    } catch (error) {
+      console.error('Failed to send element_directive_result:', error);
+      return false;
+    }
+  }, []);
 
   const sendControlMessage = useCallback((type: ControlMessage['type']): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -2530,6 +2603,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     disconnect,
     sendMessage,
     sendMessageWhenConnected,
+    sendElementDirectiveResult,
     sendControlMessage,
     sendThemeSelection,
     clearMessages,

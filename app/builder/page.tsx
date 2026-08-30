@@ -472,6 +472,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const blueprintEditorV2Enabled = templateBuilderEnabled && process.env.NEXT_PUBLIC_BLUEPRINT_EDITOR_V2 === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
+  // MDC P4: late-bound handle so the WS hook options (declared earlier) can
+  // trigger the New Chat flow defined further down.
+  const handleNewChatWrappedRef = useRef<(() => void) | null>(null)
+  // MDC P8: late-bound element-directive runner (defined after the Text Labs
+  // hook below; the WS options are declared earlier).
+  const elementDirectiveRunnerRef = useRef<((payload: import('@/types/mdc').ElementDirectivePayload) => void) | null>(null)
   const templateSelectionLockedRef = useRef(false)
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
@@ -697,6 +703,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
+    goToSlide: (slideIndex: number) => Promise<void>
   } | null>(null)
   const composeViewerApiRef = useRef<SlideComposeViewerApi | null>(null)
 
@@ -1633,6 +1640,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     hasStrawman,
     sendMessage,
     sendMessageWhenConnected,
+    sendElementDirectiveResult,
     sendControlMessage,
     sendThemeSelection,
     clearMessages,
@@ -1796,6 +1804,26 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           thumbnail_url,
         ),
       )
+    },
+    // MDC P4 (K3): Director-confirmed new-deck handoff. Start a fresh session
+    // and auto-send the captured brief (section 12-Q2 LOCKED). The send goes
+    // through sendMessageWhenConnected, which waits for the fresh socket.
+    onElementDirective: (payload) => {
+      elementDirectiveRunnerRef.current?.(payload)
+    },
+    onSessionDirective: (payload) => {
+      if (payload.directive !== 'new_session') return
+      const prefill = (payload.prefill_prompt || '').trim()
+      handleNewChatWrappedRef.current?.()
+      if (prefill && payload.auto_send) {
+        const ts = Date.now()
+        session.setUserMessages(prev => [...prev, { id: `user-nd-${ts}`, text: prefill, timestamp: ts }])
+        // Dedupe (I-D/F1): upstream's sendMessageWhenConnected owns the
+        // closed-socket case — it reconnects, waits for OPEN, then sends.
+        void sendMessageWhenConnected(prefill, undefined, undefined, {})
+      } else if (prefill) {
+        setInputMessage(prefill)
+      }
     },
     onSlideComposeReady: (message: SlideComposeReady) => {
       const payload = message.payload
@@ -3143,6 +3171,45 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     return layoutServiceApis.sendElementCommand('getTemplateSlotCatalog', { slideIndex })
   }, [layoutServiceApis])
 
+  // MDC P8 (K5): execute a chat-invoked element add through the SAME pipeline
+  // as the element panel, then report the outcome to the Director.
+  elementDirectiveRunnerRef.current = (payload) => {
+    void (async () => {
+      const report = (status: 'inserted' | 'failed' | 'dismissed', error?: string) =>
+        sendElementDirectiveResult({
+          directive_id: payload.directive_id, status,
+          element_id: null, error: error ?? null,
+        })
+      try {
+        const { buildFormDataForDirective } = await import('@/lib/mdc-element-directive')
+        const formData = buildFormDataForDirective(payload.element_type, payload.prompt)
+        if (!formData) {
+          report('failed', `unsupported element type ${payload.element_type}`)
+          return
+        }
+        const slideCount = slideStructure?.slides?.length ?? 0
+        const target = payload.slide_index
+        if (target < 0 || (slideCount > 0 && target >= slideCount)) {
+          report('failed', 'target slide out of range')
+          return
+        }
+        if (currentSlideIndexRef.current !== target) {
+          if (!layoutServiceApis?.goToSlide) {
+            report('failed', 'viewer navigation unavailable')
+            return
+          }
+          await layoutServiceApis.goToSlide(target)
+          await new Promise(resolve => setTimeout(resolve, 400))
+        }
+        await handleApprovedTextLabsGenerate(formData, 'generate')
+        report('inserted')
+        toast({ title: 'Element added', description: `Added to slide ${target + 1} from chat.` })
+      } catch (error) {
+        report('failed', error instanceof Error ? error.message : 'generation failed')
+      }
+    })()
+  }
+
   // File upload state
   const {
     files: uploadedFiles,
@@ -4056,6 +4123,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearAllFiles()
     session.handleNewChat()
   }, [builderOptionsScope, clearAllFiles, session.handleNewChat])
+  handleNewChatWrappedRef.current = handleNewChatWrapped
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
@@ -4393,6 +4461,31 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         hasSeenWelcomeRef={session.hasSeenWelcomeRef}
                         answeredActionsRef={session.answeredActionsRef}
                         onActionClick={handleActionClick}
+                        onSubmitAnswers={(text: string) => {
+                          // MDC (P2/P3): QuestionCard composed answers ride the
+                          // normal send path — same optimistic append + options
+                          // as a typed message (no action_value).
+                          const ts = Date.now()
+                          const mid = `user-qa-${ts}`
+                          session.setUserMessages(prev => [...prev, { id: mid, text, timestamp: ts }])
+                          if (currentSessionId && persistence) {
+                            persistence.queueMessage({
+                              message_id: mid,
+                              session_id: currentSessionId,
+                              timestamp: new Date(ts).toISOString(),
+                              type: 'chat_message',
+                              payload: { text }
+                            } as unknown as DirectorMessage, text)
+                          }
+                          sendMessage(text, undefined, undefined, {
+                            deepResearch: researchEnabled,
+                            webSearch: webSearchEnabled,
+                            extendedGeneration: extendedGenerationEnabled,
+                            useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
+                            fileUpload: !!sessionStoreName,
+                            storeName: sessionStoreName,
+                          })
+                        }}
                         messagesEndRef={messagesEndRef}
                         slideContextByIndex={slideContextByIndex}
                         ephemeralFadeToken={ephemeralFadeToken}
@@ -4407,6 +4500,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   <ChatInput
                     inputMessage={inputMessage}
                     onInputChange={setInputMessage}
+                    mentionSlides={
+                      // MDC P6: @slide picker source (flag-gated inside ChatInput)
+                      (slideStructure?.slides || []).map((sl: { title?: string; slide_id?: string }, i: number) => ({
+                        index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null,
+                      }))
+                    }
                     onSubmit={handleSendMessage}
                     uploadedFiles={uploadedFiles}
                     onFilesSelected={handleFilesSelected}

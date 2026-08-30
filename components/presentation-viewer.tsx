@@ -295,6 +295,8 @@ interface PresentationViewerProps {
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
+    // MDC P8: index-based navigation for chat-invoked element placement.
+    goToSlide: (slideIndex: number) => Promise<void>
   } | null) => void
   onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
 }
@@ -2099,11 +2101,13 @@ export function PresentationViewer({
       getSelectionInfo: handleGetSelectionInfo,
       updateSectionContent: handleUpdateSectionContent,
       sendTextBoxCommand: handleSendTextBoxCommand,
-      sendElementCommand: handleSendElementCommand
+      sendElementCommand: handleSendElementCommand,
+      // MDC P8: index-based navigation for chat-invoked element placement.
+      goToSlide: handleGoToSlide
     })
 
     return () => onApiReady(null)
-  }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand])
+  }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand, handleGoToSlide])
 
   useEffect(() => {
     if (!onComposeApiReady) return

@@ -29,6 +29,10 @@ import { shouldShowBuildWorkingPulse } from "@/lib/build-progress-visibility"
 import { hasLiveTrackedEphemeralMessage } from "@/lib/slide-compose-async"
 import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
 import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
+// MDC (P2): flag-gated clarity rendering — flag-off keeps the exact legacy JSX.
+import { QuestionCard } from "@/components/builder/chat/question-card"
+import { CHAT_CLARITY, CHAT_QUESTIONS } from "@/lib/mdc-flags"
+import type { QuestionSet } from "@/types/mdc"
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -39,6 +43,9 @@ export interface MessageListProps {
   hasSeenWelcomeRef: React.RefObject<boolean>
   answeredActionsRef: React.RefObject<Set<string>>
   onActionClick: (action: ActionRequest['payload']['actions'][0], messageId: string) => void
+  // MDC (P2/P3): sends a composed answer through the normal chat send path.
+  // Optional — when absent, structured question rendering falls back to plain.
+  onSubmitAnswers?: (text: string) => void
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   // Rich strawman: per-slide context keyed by slide_index. Drives narrative_role chip + key_message subtitle.
   slideContextByIndex?: Record<number, SlideContextItem> | null
@@ -95,6 +102,7 @@ export function MessageList({
   hasSeenWelcomeRef,
   answeredActionsRef,
   onActionClick,
+  onSubmitAnswers,
   messagesEndRef,
   slideContextByIndex,
   ephemeralFadeToken,
@@ -530,8 +538,21 @@ export function MessageList({
                         </div>
                       )}
 
-                      {/* Action Buttons */}
-                      {actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                      {/* Action Buttons — MDC (P2): card treatment behind CHAT_CLARITY */}
+                      {CHAT_CLARITY && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                        <div className="mt-3">
+                          <QuestionCard
+                            promptText={actionRequest.payload.prompt_text}
+                            actions={actionRequest.payload.actions}
+                            messageId={actionRequest.message_id}
+                            onActionClick={onActionClick}
+                            questionSet={(actionRequest.payload as { question_set?: QuestionSet }).question_set ?? null}
+                            structuredEnabled={CHAT_QUESTIONS}
+                            onSubmitAnswers={onSubmitAnswers}
+                          />
+                        </div>
+                      )}
+                      {!CHAT_CLARITY && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
                         <div className="mt-3">
                           <p className="text-xs text-gray-700 dark:text-slate-200 mb-2">{actionRequest.payload.prompt_text}</p>
                           <div className="flex flex-wrap gap-1.5">
@@ -665,6 +686,27 @@ export function MessageList({
                 const actionMsg = msg as ActionRequest
                 if (answeredActionsRef.current.has(actionMsg.message_id)) {
                   return null
+                }
+                if (CHAT_CLARITY) {
+                  return (
+                    <div className="flex gap-3 animate-in fade-in duration-200">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                        <Sparkles className="h-3 w-3 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                        <QuestionCard
+                          promptText={actionMsg.payload.prompt_text}
+                          actions={actionMsg.payload.actions}
+                          messageId={actionMsg.message_id}
+                          onActionClick={onActionClick}
+                          questionSet={(actionMsg.payload as { question_set?: QuestionSet }).question_set ?? null}
+                          structuredEnabled={CHAT_QUESTIONS}
+                          onSubmitAnswers={onSubmitAnswers}
+                        />
+                      </div>
+                    </div>
+                  )
                 }
                 return (
                   <div className="flex gap-3 animate-in fade-in duration-200">
