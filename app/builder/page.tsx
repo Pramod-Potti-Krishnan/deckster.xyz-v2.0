@@ -1806,8 +1806,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       )
     },
     // MDC P4 (K3): Director-confirmed new-deck handoff. Start a fresh session
-    // and auto-send the captured brief (section 12-Q2 LOCKED). The send rides
-    // the pending-send queue, which flushes when the new session's socket opens.
+    // and auto-send the captured brief (section 12-Q2 LOCKED). The send goes
+    // through sendMessageWhenConnected, which waits for the fresh socket.
     onElementDirective: (payload) => {
       elementDirectiveRunnerRef.current?.(payload)
     },
@@ -1818,7 +1818,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (prefill && payload.auto_send) {
         const ts = Date.now()
         session.setUserMessages(prev => [...prev, { id: `user-nd-${ts}`, text: prefill, timestamp: ts }])
-        sendMessage(prefill, undefined, undefined, {})
+        // Dedupe (I-D/F1): upstream's sendMessageWhenConnected owns the
+        // closed-socket case — it reconnects, waits for OPEN, then sends.
+        void sendMessageWhenConnected(prefill, undefined, undefined, {})
       } else if (prefill) {
         setInputMessage(prefill)
       }

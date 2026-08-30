@@ -756,8 +756,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectStabilityTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
-  // MDC P4: frames queued while the socket wasn't OPEN; flushed on onopen.
-  const pendingSendsRef = useRef<Array<{ json: string; queuedAt: number }>>([]);
   // MDC P6: latest slideStructure for @mention parsing inside sendMessage
   // (stable [] deps) — effect-synced; a same-tick slide_update race only
   // affects mention resolution, never message delivery.
@@ -1207,22 +1205,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           }
           isConnectingRef.current = false;
           hasConnectedRef.current = true;
-
-        // MDC P4: flush queued sends (drop anything older than 15s — a stale
-        // frame from a dead attempt must not fire into a fresh session).
-        if (pendingSendsRef.current.length > 0) {
-          const now = Date.now();
-          const toSend = pendingSendsRef.current.filter(f => now - f.queuedAt < 15_000);
-          pendingSendsRef.current = [];
-          for (const frame of toSend) {
-            try {
-              ws.send(frame.json);
-              debugLog('📦 Flushed queued message');
-            } catch (e) {
-              console.error('Failed to flush queued message:', e);
-            }
-          }
-        }
 
           // Start heartbeat to keep connection alive
           startHeartbeat(ws);
@@ -2232,20 +2214,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     };
 
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      // MDC P4 (per GOLDEN_PATH_NEWCHAT_CLEAN_SESSION_PROMPT.md): buffer the
-      // frame instead of silently dropping it — New Chat churns the socket and
-      // the first message (incl. the K3 auto-send) raced it. Flushed in onopen;
-      // capped and age-limited so a dead connection can't grow a stale queue.
-      try {
-        const buffered = buildUserMessage();
-        pendingSendsRef.current.push({ json: JSON.stringify(buffered), queuedAt: Date.now() });
-        if (pendingSendsRef.current.length > 5) pendingSendsRef.current.shift();
-        debugLog('📦 Queued message while socket not OPEN (will flush on open)');
-        return true;
-      } catch {
-        console.error('❌ Cannot send message: WebSocket not connected');
-        return false;
-      }
+      console.error('❌ Cannot send message: WebSocket not connected');
+      return false;
     }
 
     try {
