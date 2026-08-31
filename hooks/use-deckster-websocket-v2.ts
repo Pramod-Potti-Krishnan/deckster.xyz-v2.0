@@ -25,6 +25,18 @@ import {
   resolveDirectorReconnectPlan,
   shouldReconnectDirectorOnOnline,
 } from '@/lib/director-reconnect-policy';
+import {
+  buildControlEndpointFromWsUrl,
+  createBuildControlRequestId,
+  isCurrentBuildControlTransportSnapshot,
+  scrubBuildControlCapabilityMessages,
+} from '@/lib/build-control-helpers';
+import type {
+  BuildPhaseMessage as BuildPhaseSocketMessage,
+  BuildEventMessage as BuildEventSocketMessage,
+  SlideBuiltMessage as SlideBuiltSocketMessage,
+  BuildControlData,
+} from '@/types/build-narration';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -32,7 +44,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive' | 'build_phase' | 'build_event' | 'build_control_capability';
   payload: any;
 }
 
@@ -53,6 +65,10 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   // MDC (K3/K5): directive frames — handled out-of-band, never rendered in chat.
   'session_directive',
   'element_directive',
+  // Build Narration: typed frames — rendered on the canvas, never in chat.
+  'build_phase',
+  'build_event',
+  'build_control_capability',
 ]);
 
 function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
@@ -354,7 +370,19 @@ export interface ThemeSyncMessage {
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage;
+export interface BuildControlCapability {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'build_control_capability';
+  payload: {
+    control_token: string;
+  };
+}
+
+// D1: `SlideBuilt` (above) is the one slide_built message type — narration's
+// reducer taps its dispatch rather than adding a parallel case.
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage | BuildPhaseSocketMessage | BuildEventSocketMessage | BuildControlCapability;
 
 export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
   return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
@@ -490,6 +518,13 @@ export interface UseDecksterWebSocketV2Options {
   onElementDirective?: (payload: import('@/types/mdc').ElementDirectivePayload) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
+  // Build Narration typed frames (Director BUILD_EVENTS_ENABLED). Payloads
+  // only — the frames never enter messages[]/state. slide_built reuses uat's
+  // onSlideBuilt (above) — one frame, one dispatch (D1).
+  onBuildPhase?: (payload: BuildPhaseSocketMessage['payload']) => void;
+  onBuildEvent?: (payload: BuildEventSocketMessage['payload']) => void;
+  // sync_response.build_state (mid-flight/paused build re-hydration).
+  onBuildStateSync?: (buildState: unknown) => void;
   onSessionStateChange?: (state: {
     presentationUrl?: string;
     presentationId?: string;
@@ -504,6 +539,7 @@ export interface UseDecksterWebSocketV2Options {
 // NEXT_PUBLIC_WS_URL lets local UAT point the builder at a locally-run Director
 // (e.g. ws://localhost:8000/ws); falls back to the deployed Director otherwise.
 const DEFAULT_WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://directorv33-production.up.railway.app/ws';
+const BUILD_CONTROL_HTTP_TIMEOUT_MS = 4000;
 
 // How long a send will wait for a closed socket to come back before it gives
 // up and tells the user. Long enough to cover ordinary reconnect churn,
@@ -635,7 +671,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         sessionId: sessionIdRef.current,
         userId: userIdRef.current,
         error: null,
-        messages: cached.messages || [],
+        messages: scrubBuildControlCapabilityMessages(cached.messages),
         presentationUrl: cachedDisplayUrl || cached.presentationUrl || null,
         strawmanPreviewUrl: cached.strawmanPreviewUrl || null,
         finalPresentationUrl: cached.finalPresentationUrl || null,
@@ -714,12 +750,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // arriving before React applies restoreMessages update would overwrite
       // the 140+ DB-loaded messages with just the few WS messages.
       const existingCached = sessionCache.getCachedState();
-      const existingMessages = existingCached?.messages || [];
+      const existingMessages = scrubBuildControlCapabilityMessages(existingCached?.messages);
       const existingUserMessages = existingCached?.userMessages || [];
 
       // Merge: existing cached messages + new state messages
       // This ensures we never lose messages due to React's async state batching
-      const allMessages = [...existingMessages, ...newState.messages];
+      const allMessages = scrubBuildControlCapabilityMessages([
+        ...existingMessages,
+        ...newState.messages,
+      ]);
 
       // Deduplicate by message_id (Map keeps last occurrence for duplicate keys)
       const uniqueMessages = Array.from(
@@ -756,6 +795,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   }, [sessionCache]);
 
   const wsRef = useRef<WebSocket | null>(null);
+  // Ephemeral per-connection capability. It is intentionally never copied to
+  // React state or sessionStorage, and is cleared before every reconnect.
+  const buildControlTokenRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectStabilityTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   // MDC P6: latest slideStructure for @mention parsing inside sendMessage
@@ -1073,7 +1115,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
       // Include message_count so Director can validate cache completeness
       // If count doesn't match Supabase, Director should send full history regardless of skip_history
-      const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}`;
+      // Explicit capability opt-in prevents a newly deployed Director from
+      // sending a secret frame to older frontend bundles that would treat it
+      // as ordinary chat/cache data during a rolling deploy.
+      const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}&build_control_capability=1`;
 
       // DEBUG: Comprehensive logging of connection parameters
       debugLog('🔌 [WEBSOCKET] Initiating connection to Director', {
@@ -1089,6 +1134,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       });
       debugLog(`🔌 Connecting to Director v3.4: ${wsUrl}`);
 
+      // Build Narration: a fresh socket always renegotiates its control
+      // capability; never reuse a prior connection's token.
+      buildControlTokenRef.current = null;
       // KG v2 (WS auth): mint a short-lived, session-bound identity token and
       // offer it as a WebSocket subprotocol. Director requires this when
       // KG_ENABLED=true; when DIRECTOR_WS_AUTH_SECRET is unset the route
@@ -1269,13 +1317,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               return;
             }
 
+            // Build Narration round 3: the control capability is transport
+            // state, never chat data — capture the token, keep the secret out
+            // of logs, and let shouldAddToMessages exclude it below.
+            if (message.type === 'build_control_capability') {
+              const token = (message as BuildControlCapability).payload?.control_token;
+              buildControlTokenRef.current =
+                typeof token === 'string' && token.length > 0 ? token : null;
+            }
+
             // Add client-side timestamp for message ordering
             const messageWithTimestamp = {
               ...message,
               clientTimestamp: Date.now()
             } as DirectorMessage & { clientTimestamp: number };
 
-            debugLog('📨 Received message:', message.type, message);
+            if (message.type === 'build_control_capability') {
+              debugLog('📨 Received build_control_capability', { token_present: Boolean((message as BuildControlCapability).payload?.control_token) });
+            } else {
+              debugLog('📨 Received message:', message.type, message);
+            }
 
             setStateWithCache(prev => {
               // Prevent duplicate messages by checking message_id
@@ -1295,6 +1356,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 message.type !== 'theme_sync' &&
                 (message.type as string) !== 'session_directive' &&
               (message.type as string) !== 'element_directive' &&
+                message.type !== 'build_phase' &&
+                message.type !== 'build_event' &&
+                message.type !== 'build_control_capability' &&
                 !isDuplicate;
 
               const newState = {
@@ -1743,6 +1807,27 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   newState.currentStatus = null;
                   break;
 
+                // Build Narration frames: no hook-state mutation — surfaced via
+                // the post-setState callbacks (slide_built taps the case above).
+                case 'build_phase':
+                  debugLog('🎬 build_phase received:', {
+                    build_id: (message.payload as any).build_id,
+                    phase: (message.payload as any).phase,
+                  });
+                  break;
+
+                case 'build_event':
+                  debugLog('🧠 build_event received:', {
+                    seq: (message.payload as any).seq,
+                    scope: (message.payload as any).scope,
+                    stage: (message.payload as any).stage,
+                  });
+                  break;
+
+                case 'build_control_capability':
+                  debugLog('🔐 build-control capability received');
+                  break;
+
                 default:
                   break;
               }
@@ -1778,10 +1863,18 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               options.onSlideComposeReady?.(message);
             } else if (message.type === 'slide_failed') {
               options.onSlideComposeFailed?.(message);
+            } else if (message.type === 'build_phase') {
+              options.onBuildPhase?.((message as any).payload);
+            } else if (message.type === 'build_event') {
+              options.onBuildEvent?.((message as any).payload);
+            } else if (message.type === 'sync_response' && (message.payload as any)?.build_state) {
+              options.onBuildStateSync?.((message.payload as any).build_state);
             }
 
             // Trigger message callback
-            if (options.onMessage) {
+            // The capability is security material owned only by this transport;
+            // never fan it out through generic message consumers.
+            if (options.onMessage && message.type !== 'build_control_capability') {
               options.onMessage(message);
             }
           } catch (error) {
@@ -1861,6 +1954,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           }));
 
           wsRef.current = null;
+          buildControlTokenRef.current = null;
           clearAuthRefreshTimer();
           scheduleReconnect(`close:${event.code}`);
         };
@@ -2139,6 +2233,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     if (socket) {
       socket.close();
     }
+    buildControlTokenRef.current = null;
 
     isConnectingRef.current = false;
     hasConnectedRef.current = false;
@@ -2339,6 +2434,131 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, []);
 
+  // Build Narration Phase 5: pause/resume/stop a running deck build.
+  // Requires Director BUILD_CONTROL_ENABLED; the ack is the resulting
+  // build_phase frame (paused/building/stopped).
+  const sendBuildControl = useCallback((action: BuildControlData['action'], buildId?: string): string | null => {
+    const requestId = createBuildControlRequestId(
+      typeof globalThis.crypto?.randomUUID === 'function'
+        ? globalThis.crypto.randomUUID.bind(globalThis.crypto)
+        : null,
+    );
+    // One immutable transport attempt owns one socket capability. A reconnect
+    // rotates that capability, so its asynchronous HTTP failure must never
+    // fall back through the replacement socket/session with stale authority.
+    const requestSessionId = sessionIdRef.current;
+    const requestUserId = userIdRef.current;
+    const requestControlToken = buildControlTokenRef.current;
+    const requestSocket = wsRef.current;
+    const transportSnapshot = {
+      sessionId: requestSessionId,
+      userId: requestUserId,
+      controlToken: requestControlToken,
+      socket: requestSocket,
+    };
+    const data = {
+      session_id: requestSessionId,
+      user_id: requestUserId,
+      action,
+      ...(buildId ? { build_id: buildId } : {}),
+      request_id: requestId,
+      ...(requestControlToken ? { control_token: requestControlToken } : {}),
+    };
+    if (!data.session_id || !data.user_id) return null;
+    const sendWsFallback = (): boolean => {
+      if (!requestSocket || !isCurrentBuildControlTransportSnapshot(transportSnapshot, {
+        sessionId: sessionIdRef.current,
+        userId: userIdRef.current,
+        controlToken: buildControlTokenRef.current,
+        socket: wsRef.current,
+      })) {
+        debugLog('build_control fallback suppressed after connection identity changed', {
+          request_id: requestId,
+        });
+        return false;
+      }
+      if (requestSocket.readyState !== WebSocket.OPEN) {
+        console.error('❌ Cannot send build_control: original WebSocket not connected');
+        return false;
+      }
+      try {
+        const message = {
+          type: 'build_control' as const,
+          data: {
+            action,
+            ...(buildId ? { build_id: buildId } : {}),
+            request_id: requestId,
+            session_id: requestSessionId,
+            user_id: requestUserId,
+            ...(requestControlToken ? { control_token: requestControlToken } : {}),
+          },
+        };
+        debugLog('📤 Sending build_control via WebSocket fallback:', {
+          action,
+          build_id: buildId,
+          request_id: requestId,
+          has_control_token: Boolean(requestControlToken),
+        });
+        requestSocket.send(JSON.stringify(message));
+        return true;
+      } catch (error) {
+        console.error('Failed to send build_control over WebSocket:', error);
+        return false;
+      }
+    }
+    const endpoint = buildControlEndpointFromWsUrl(DEFAULT_WS_URL)
+    if (endpoint && typeof fetch === 'function') {
+      debugLog('📤 Sending build_control via HTTP:', {
+        session_id: data.session_id,
+        user_id: data.user_id,
+        action,
+        build_id: buildId,
+        request_id: requestId,
+        has_control_token: Boolean(requestControlToken),
+      });
+      const controller = typeof AbortController === 'function' ? new AbortController() : null
+      let fallbackAttempted = false
+      const sendWsFallbackOnce = () => {
+        if (fallbackAttempted) return false
+        fallbackAttempted = true
+        return sendWsFallback()
+      }
+      const timeoutId = setTimeout(() => {
+        debugLog('build_control HTTP timed out; falling back to WebSocket', { request_id: requestId })
+        controller?.abort()
+        sendWsFallbackOnce()
+      }, BUILD_CONTROL_HTTP_TIMEOUT_MS)
+      try {
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          ...(controller ? { signal: controller.signal } : {}),
+        })
+          .then((response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`)
+            clearTimeout(timeoutId)
+          })
+          .catch((error) => {
+            clearTimeout(timeoutId)
+            debugLog('build_control HTTP failed; falling back to WebSocket', error)
+            sendWsFallbackOnce()
+          })
+      } catch (error) {
+        clearTimeout(timeoutId)
+        debugLog('build_control HTTP threw; falling back to WebSocket', error)
+        sendWsFallbackOnce()
+      }
+      return requestId
+    }
+    try {
+      return sendWsFallback() ? requestId : null
+    } catch (error) {
+      console.error('Failed to send build_control:', error);
+      return null;
+    }
+  }, []);
+
   // Switch between blank, strawman and final versions (Builder V2)
   const switchVersion = useCallback((version: 'blank' | 'strawman' | 'final') => {
     setStateWithCache(prev => {
@@ -2527,7 +2747,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     setStateWithCache(prev => ({
       ...prev,
-      messages: safeHistoricalMessages,
+      messages: scrubBuildControlCapabilityMessages(safeHistoricalMessages),
       // CRITICAL FIX: Use computed display URL based on activeVersion
       // This ensures the correct presentation version is shown
       presentationUrl: displayUrl,
@@ -2609,6 +2829,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     sendElementDirectiveResult,
     sendControlMessage,
     sendThemeSelection,
+    sendBuildControl,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,

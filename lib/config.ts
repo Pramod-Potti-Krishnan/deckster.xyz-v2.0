@@ -48,6 +48,12 @@ export const config = {
     slideComposerTraceEnabled: process.env.NEXT_PUBLIC_SLIDE_COMPOSER_TRACE_ENABLED === 'true',
     slideRefinerEnabled: process.env.NEXT_PUBLIC_SLIDE_REFINER_ENABLED === 'true',
     couponAuthEnabled: process.env.NEXT_PUBLIC_COUPON_AUTH_ENABLED === 'true',
+    // Build Narration Canvas (BUILD_COT_NARRATION_PLAN): deck-build chain-of-thought
+    // moves from chat bubbles onto an animated canvas overlay. Dark by default.
+    buildNarrationEnabled: process.env.NEXT_PUBLIC_BUILD_NARRATION === 'true',
+    // Pause/Stop/Resume controls for deck builds (Phase 5; requires Director
+    // BUILD_CONTROL_ENABLED). Only rendered inside the narration canvas.
+    buildControlEnabled: process.env.NEXT_PUBLIC_BUILD_CONTROL === 'true',
   },
 
   // File Upload Configuration

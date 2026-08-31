@@ -33,6 +33,7 @@ import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
 import { QuestionCard } from "@/components/builder/chat/question-card"
 import { CHAT_CLARITY, CHAT_QUESTIONS } from "@/lib/mdc-flags"
 import type { QuestionSet } from "@/types/mdc"
+import { shouldRerouteEphemeral } from "@/lib/build-narration-heuristics"
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -57,6 +58,10 @@ export interface MessageListProps {
   onEphemeralFadeComplete?: () => void
   currentStatus?: StatusUpdate['payload'] | null
   isGeneratingFinal?: boolean
+  // Build Narration (NEXT_PUBLIC_BUILD_NARRATION): when true, the ephemeral
+  // thinking-stream is rerouted to the canvas + DirectorPresence and never
+  // renders in chat. False/undefined = today's behavior, byte-for-byte.
+  suppressEphemeral?: boolean
 }
 
 function EvidenceBadge({ context }: { context?: SlideContextItem }) {
@@ -110,6 +115,7 @@ export function MessageList({
   onEphemeralFadeComplete,
   currentStatus,
   isGeneratingFinal = false,
+  suppressEphemeral,
 }: MessageListProps) {
   // Thinking-stream fade-out: when slide_update lands, fade tracked ephemeral
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
@@ -353,7 +359,9 @@ export function MessageList({
               trackedEphemeralIds,
             )
 
-            if (isLiveTrackedGroup) {
+            // D5: with narration on, the thinking stream lives on the canvas +
+            // DirectorPresence — never in chat. Flag-off keeps uat's condition.
+            if (!shouldRerouteEphemeral(!!suppressEphemeral) && isLiveTrackedGroup) {
               processedMessages.push({
                 messageType: 'bot',
                 type: 'thinking_stream',
@@ -407,7 +415,7 @@ export function MessageList({
     }
 
     return processedMessages;
-  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef]);
+  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef, suppressEphemeral]);
 
   const hasVisibleThinkingStream = processedMessages.some((item) => {
     if (item.messageType !== 'bot') return false
@@ -419,6 +427,7 @@ export function MessageList({
     isGeneratingFinal,
     hasVisibleThinkingStream,
     currentStatus,
+    narrationOwnsChat: !!suppressEphemeral,
   })
 
   return (

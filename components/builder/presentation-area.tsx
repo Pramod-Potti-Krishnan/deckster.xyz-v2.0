@@ -5,6 +5,7 @@ import { PresentationViewer, TextBoxFormatting, type RefineElementRequest, type 
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
 import { PublishControls } from "@/components/publish-dialog"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
+import { BuildCanvas, type BuildCanvasProps } from "@/components/build-narration/build-canvas"
 import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-strip"
 // Branding ("powered by deckster") lives inside PresentationViewer's
 // slide column so it tracks the slide's right edge, not the container.
@@ -114,6 +115,11 @@ export interface PresentationAreaProps {
   onTemplateSlideChange?: (slideIndex: number) => void
   onTemplateElementSelect?: (overrideKey: string | null) => void
   onTemplateBlueprintChange?: (blueprint: TemplateBlueprint) => void
+  // Build Narration Canvas (NEXT_PUBLIC_BUILD_NARRATION). When active, the
+  // canvas overlays the stage and the legacy SlideBuildingLoader mounts are
+  // suppressed. Both undefined when the flag is off — zero behavior change.
+  buildNarration?: BuildCanvasProps['narration'] | null
+  buildNarrationApi?: Pick<BuildCanvasProps, 'onPin' | 'control'> | null
 }
 
 export function PresentationArea({
@@ -176,10 +182,20 @@ export function PresentationArea({
   onTemplateSlideChange,
   onTemplateElementSelect,
   onTemplateBlueprintChange,
+  buildNarration = null,
+  buildNarrationApi = null,
 }: PresentationAreaProps) {
+  const narrationActive = !!(buildNarration && buildNarration.active)
   return (
     <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+      <div className={narrationActive ? "flex-1 flex flex-col min-w-0 min-h-0 relative" : "flex-1 flex flex-col min-w-0 min-h-0"}>
+        {narrationActive && buildNarration && (
+          <BuildCanvas
+            narration={buildNarration}
+            onPin={buildNarrationApi?.onPin ?? (() => {})}
+            control={buildNarrationApi?.control}
+          />
+        )}
         {presentationUrl ? (
           <PresentationViewer
             presentationUrl={presentationUrl}
@@ -275,13 +291,16 @@ export function PresentationArea({
             onTemplateElementSelect={onTemplateElementSelect}
             onTemplateBlueprintChange={onTemplateBlueprintChange}
             toolbarOffset={toolbarOffset}
-            isGenerating={isGeneratingFinal || isGeneratingStrawman}
+            isGenerating={narrationActive ? false : (isGeneratingFinal || isGeneratingStrawman)}
             generatingMode={isGeneratingFinal ? 'default' : 'strawman'}
             className="flex-1"
           />
         ) : (
           <div className="flex-1 flex items-center justify-center min-h-0 p-4">
-            {(currentStatus || isGeneratingFinal || isGeneratingStrawman) ? (
+            {narrationActive ? (
+              /* BuildCanvas (above) owns the stage while narration is active. */
+              <div className="w-full h-full" aria-hidden />
+            ) : (currentStatus || isGeneratingFinal || isGeneratingStrawman) ? (
               <SlideBuildingLoader
                 className="w-full h-full"
                 mode={isGeneratingFinal ? 'default' : 'strawman'}

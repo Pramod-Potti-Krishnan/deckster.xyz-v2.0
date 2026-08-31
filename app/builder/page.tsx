@@ -13,6 +13,9 @@ import { OnboardingModal } from "@/components/onboarding-modal"
 import { useFileUpload } from '@/hooks/use-file-upload'
 import type { UploadedFile } from '@/components/file-chip'
 import { features } from '@/lib/config'
+import { useBuildNarration } from '@/hooks/use-build-narration'
+import { effectiveNarrationEnabled } from '@/lib/build-narration-heuristics'
+import { DirectorPresence } from '@/components/build-narration/director-presence'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent } from '@/components/slide-generation-panel'
@@ -1155,6 +1158,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const [templateReuseAwaitingInput, setTemplateReuseAwaitingInput] = useState(false)
   const [isGeneratingStrawman, setIsGeneratingStrawman] = useState(false)
   const isGeneratingFinalRef = useRef(false)
+  // Build Narration: the WS hook's options are constructed before the
+  // narration hook exists, so typed-frame callbacks route through this ref
+  // (populated in an effect after useBuildNarration below).
+  const buildNarrationHandlersRef = useRef<{
+    onBuildPhase?: (payload: any) => void
+    onBuildEvent?: (payload: any) => void
+    onSlideBuilt?: (payload: any) => void
+    onBuildStateSync?: (buildState: unknown) => void
+  }>({})
   // Persist isUnsavedSession in sessionStorage so it survives page refresh.
   // Without this, refreshing after immediateConnection generates a UUID loses
   // the "unsaved" flag, causing persistence and uploads to hit 404.
@@ -1643,6 +1655,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendElementDirectiveResult,
     sendControlMessage,
     sendThemeSelection,
+    sendBuildControl,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,
@@ -1804,6 +1817,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           thumbnail_url,
         ),
       )
+      // Build Narration (D1): the same shared frame feeds the canvas reducer.
+      buildNarrationHandlersRef.current.onSlideBuilt?.(message.payload)
     },
     // MDC P4 (K3): Director-confirmed new-deck handoff. Start a fresh session
     // and auto-send the captured brief (section 12-Q2 LOCKED). The send goes
@@ -1825,6 +1840,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         setInputMessage(prefill)
       }
     },
+    // Build Narration: typed-frame ref-forwarders (WS options precede the
+    // useBuildNarration hook, so the handlers land via a ref).
+    onBuildPhase: (payload) => buildNarrationHandlersRef.current.onBuildPhase?.(payload),
+    onBuildEvent: (payload) => buildNarrationHandlersRef.current.onBuildEvent?.(payload),
+    onBuildStateSync: (buildState) => buildNarrationHandlersRef.current.onBuildStateSync?.(buildState),
     onSlideComposeReady: (message: SlideComposeReady) => {
       const payload = message.payload
       const readyJob = slideComposeJobsRef.current[payload.job_id]
@@ -2260,6 +2280,49 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const quota = useQuota(tokenUsage, tokenUsageMessageId ?? undefined)
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
+  const effectiveBuildNarrationEnabled = effectiveNarrationEnabled(
+    features.buildNarrationEnabled,
+    Boolean(activeTemplate),
+  )
+
+  // Build Narration Canvas (NEXT_PUBLIC_BUILD_NARRATION) — inert when the flag
+  // is off (the hook returns the initial inactive state and skips all effects).
+  const {
+    narration: buildNarration,
+    pinSlide: pinNarrationSlide,
+    onBuildPhase: narrationOnBuildPhase,
+    onBuildEvent: narrationOnBuildEvent,
+    onSlideBuilt: narrationOnSlideBuilt,
+    syncBuildState: narrationSyncBuildState,
+    markControl: markNarrationControl,
+  } = useBuildNarration({
+    // Template-reuse builds keep their own progress UI for now (untested
+    // overlay interaction with the template panels) — narration excludes them.
+    enabled: effectiveBuildNarrationEnabled,
+    sessionId: currentSessionId,
+    messages,
+    currentStatus,
+    slideStructure,
+    isGeneratingFinal,
+    isGeneratingStrawman,
+    finalPresentationUrl,
+    // Snapshot hydration already refuses inactive/complete states, so a
+    // restored finished session can never resurrect the canvas.
+  })
+
+  // Route typed narration frames from the WS hook into the reducer. With the
+  // flag off the ref stays empty — frames from a new Director are dropped at
+  // the callback boundary (nothing accumulates).
+  useEffect(() => {
+    buildNarrationHandlersRef.current = effectiveBuildNarrationEnabled
+      ? {
+          onBuildPhase: narrationOnBuildPhase,
+          onBuildEvent: narrationOnBuildEvent,
+          onSlideBuilt: narrationOnSlideBuilt,
+          onBuildStateSync: narrationSyncBuildState,
+      }
+      : {}
+  }, [effectiveBuildNarrationEnabled, narrationOnBuildPhase, narrationOnBuildEvent, narrationOnSlideBuilt, narrationSyncBuildState])
 
   const directorOwnedPresentation = useMemo(
     () => resolveEffectivePresentation({
@@ -2276,11 +2339,25 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     ? slideCount
     : directorOwnedPresentation.slideCount
   const effectivePresentationUrl = useMemo(
-    () => withSlideComposerRefreshToken(
-      templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
-      templateModeSourcePresentationId ? 0 : directorOwnedPresentation.refreshToken,
-    ),
-    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl],
+    () => {
+      // D11 (PK 2026-08-31): with narration on, the strawman never presents
+      // as a deck — the canvas owns the stage and walks the outline itself.
+      // The viewer keeps the blank presentation until the real build lands.
+      // Flag-off (and template mode, where the effective flag is false) keeps
+      // today's strawman review exactly.
+      if (
+        effectiveBuildNarrationEnabled
+        && !templateModeSourcePresentationUrl
+        && activeVersion === 'strawman'
+      ) {
+        return blankPresentationUrl || null
+      }
+      return withSlideComposerRefreshToken(
+        templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
+        templateModeSourcePresentationId ? 0 : directorOwnedPresentation.refreshToken,
+      )
+    },
+    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, effectiveBuildNarrationEnabled, activeVersion, blankPresentationUrl],
   )
 
   const themeSyncTargetRef = useRef({
@@ -4495,9 +4572,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         onEphemeralFadeComplete={clearEphemeralIds}
                         currentStatus={currentStatus}
                         isGeneratingFinal={isGeneratingFinal}
+                        suppressEphemeral={effectiveBuildNarrationEnabled}
                       />
                     </div>
                   </ScrollArea>
+
+                  {effectiveBuildNarrationEnabled && (
+                    <DirectorPresence narration={buildNarration} currentStatus={currentStatus} />
+                  )}
 
                   <ChatInput
                     inputMessage={inputMessage}
@@ -4672,6 +4754,37 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             currentStatus={currentStatus}
             isGeneratingFinal={isGeneratingFinal}
             isGeneratingStrawman={isGeneratingStrawman}
+            buildNarration={effectiveBuildNarrationEnabled ? buildNarration : null}
+            buildNarrationApi={
+              effectiveBuildNarrationEnabled
+                ? {
+                    onPin: pinNarrationSlide,
+                    // Pause/Stop/Resume (Phase 5) — needs BOTH flags; the
+                    // component renders nothing when enabled is false.
+                    control: {
+                      enabled: features.buildControlEnabled,
+                      onPause: () => {
+                        const requestId = sendBuildControl('pause', buildNarration.buildId ?? undefined)
+                        if (requestId) {
+                          markNarrationControl('pause_requested', buildNarration.buildId, requestId)
+                        }
+                      },
+                      onResume: () => {
+                        const requestId = sendBuildControl('resume', buildNarration.buildId ?? undefined)
+                        if (requestId) {
+                          markNarrationControl('resume_requested', buildNarration.buildId, requestId)
+                        }
+                      },
+                      onStop: () => {
+                        const requestId = sendBuildControl('stop', buildNarration.buildId ?? undefined)
+                        if (requestId) {
+                          markNarrationControl('stop_requested', buildNarration.buildId, requestId)
+                        }
+                      },
+                    },
+                  }
+                : null
+            }
             onApiReady={setLayoutServiceApis}
             onComposeApiReady={handleComposeApiReady}
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
