@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 // MDC P6 (K1): @slide mention support — inert unless NEXT_PUBLIC_CHAT_MENTIONS.
 import { SlideMentionPopover } from "@/components/builder/chat/mention-popover"
-import { mentionToken, type MentionSlide } from "@/lib/mdc-mentions"
+import { filterMentionSlides, mentionToken, type MentionSlide } from "@/lib/mdc-mentions"
 import { CHAT_MENTIONS } from "@/lib/mdc-flags"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -593,6 +593,23 @@ export function ChatInput({
             value={inputMessage}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => {
+              // MDC P6 (UAT 2026-08-30): while the @mention picker is open,
+              // Enter/Tab select the top match — they must never send the
+              // message (Enter used to fire the bare tag as its own turn,
+              // so the actual ask arrived reference-less and G3 re-asked).
+              if (CHAT_MENTIONS && mentionSlides && mentionSlides.length > 0
+                  && (e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey) {
+                const m = /@([\w ]{0,30})$/.exec(inputMessage)
+                if (m) {
+                  const candidates = filterMentionSlides(mentionSlides, m[1] || '')
+                  if (candidates.length > 0) {
+                    e.preventDefault()
+                    const before = inputMessage.slice(0, m.index)
+                    onInputChange(`${before}${mentionToken(candidates[0])} `)
+                    return
+                  }
+                }
+              }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
                 guardedSubmit()

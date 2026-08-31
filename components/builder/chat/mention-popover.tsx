@@ -9,7 +9,7 @@
 
 import React from "react"
 import { Layers } from "lucide-react"
-import type { MentionSlide } from "@/lib/mdc-mentions"
+import { filterMentionSlides, type MentionSlide } from "@/lib/mdc-mentions"
 
 export interface SlideMentionPopoverProps {
   slides: MentionSlide[]
@@ -19,10 +19,7 @@ export interface SlideMentionPopoverProps {
 }
 
 export function SlideMentionPopover({ slides, query, onSelect }: SlideMentionPopoverProps) {
-  const q = query.trim().toLowerCase()
-  const filtered = slides.filter(
-    (s) => !q || String(s.index + 1).startsWith(q) || (s.title || "").toLowerCase().includes(q),
-  )
+  const filtered = filterMentionSlides(slides, query)
   if (filtered.length === 0) return null
 
   return (

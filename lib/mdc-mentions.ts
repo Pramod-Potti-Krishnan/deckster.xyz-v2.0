@@ -44,3 +44,12 @@ export function parseSlideMentions(
   }
   return refs
 }
+
+/** Filter for the @mention picker — by 1-based number prefix or title substring.
+ *  Single source of truth for the popover AND the input's Enter/Tab selection. */
+export function filterMentionSlides(slides: MentionSlide[], query: string): MentionSlide[] {
+  const q = query.trim().toLowerCase()
+  return slides.filter(
+    (s) => !q || String(s.index + 1).startsWith(q) || (s.title || '').toLowerCase().includes(q),
+  )
+}
