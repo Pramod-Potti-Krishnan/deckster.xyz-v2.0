@@ -429,7 +429,7 @@ export function MessageList({
             <div key={item.id} className="flex gap-3 justify-end animate-in fade-in duration-200">
               <div className="flex-1 max-w-[85%] text-right">
                 <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">You</p>
-                <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{item.text}</p>
+                <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap break-words">{item.text}</p>
                 {item.attachments && item.attachments.length > 0 && (
                   <div
                     className="mt-2 flex flex-wrap justify-end gap-1.5"
