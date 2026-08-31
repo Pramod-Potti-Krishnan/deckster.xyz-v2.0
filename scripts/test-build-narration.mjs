@@ -218,6 +218,13 @@ run('control capability: cache scrub removes only secret-bearing transport frame
   assert.match(websocketHookSource, /messages: scrubBuildControlCapabilityMessages\(safeHistoricalMessages\)/);
 });
 
+run('socket ingress: the allowlist admits every narration frame AND slide_built (port review F-1)', () => {
+  const allowlist = websocketHookSource.match(/KNOWN_DIRECTOR_MESSAGE_TYPES[^[]*\[([\s\S]*?)\]\);/)[1];
+  for (const type of ['slide_built', 'build_phase', 'build_event', 'build_control_capability']) {
+    assert.equal(new RegExp(`['"]${type}['"]`).test(allowlist), true, `${type} missing from ingress allowlist`);
+  }
+});
+
 run('control ownership: a new build cancels the old timer; retired frames do not cancel the new timer', () => {
   assert.equal(shouldRetirePendingControl('b1', 'b1', [], 'b2'), true);
   assert.equal(shouldRetirePendingControl('b2', 'b2', ['b1'], 'b1'), false);

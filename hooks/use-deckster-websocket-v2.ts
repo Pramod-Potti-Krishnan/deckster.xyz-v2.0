@@ -59,6 +59,11 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'slide_context',
   'token_usage',
   'slide_progress',
+  // Port review F-1: absent from this allowlist on uat, so uat's own Stage-F
+  // slide_built case (and D1's shared frame) was unreachable from a real
+  // socket — every frame dropped at ingress. Deliberate flag-off fix: it
+  // activates uat's already-shipped dispatch case and thumbnail path.
+  'slide_built',
   'slide_ready',
   'slide_failed',
   'theme_sync',

@@ -186,6 +186,11 @@ export function PresentationArea({
   buildNarrationApi = null,
 }: PresentationAreaProps) {
   const narrationActive = !!(buildNarration && buildNarration.active)
+  // Port review F-4 (D11): while narration owns the stage and the strawman is
+  // the active version, the viewer is pointed at the blank deck — its toolbar,
+  // download/publish and edit surfaces must be inert, not merely covered by
+  // the canvas. Flag-off (narration inactive) keeps today's behavior exactly.
+  const hiddenStrawman = narrationActive && activeVersion === 'strawman'
   return (
     <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
       <div className={narrationActive ? "flex-1 flex flex-col min-w-0 min-h-0 relative" : "flex-1 flex flex-col min-w-0 min-h-0"}>
@@ -207,22 +212,24 @@ export function PresentationArea({
             activeVersion={activeVersion as any}
             isBlankPresentation={isBlankPresentation}
             onVersionSwitch={onVersionSwitch}
-            showControls={true}
+            showControls={!hiddenStrawman}
             downloadControls={
-              <>
-                <PresentationDownloadControls
-                  presentationUrl={presentationUrl}
-                  presentationId={presentationId}
-                  slideCount={slideCount}
-                  stage={currentStage}
-                />
-                <PublishControls
-                  sessionId={publishSessionId ?? null}
-                  deckTitle={deckTitle ?? null}
-                  slideCount={slideCount}
-                  hasFinalDeck={hasFinalDeck}
-                />
-              </>
+              hiddenStrawman ? undefined : (
+                <>
+                  <PresentationDownloadControls
+                    presentationUrl={presentationUrl}
+                    presentationId={presentationId}
+                    slideCount={slideCount}
+                    stage={currentStage}
+                  />
+                  <PublishControls
+                    sessionId={publishSessionId ?? null}
+                    deckTitle={deckTitle ?? null}
+                    slideCount={slideCount}
+                    hasFinalDeck={hasFinalDeck}
+                  />
+                </>
+              )
             }
             onSlideChange={(slideNum) => {
               if (templateModeOn) {
@@ -291,7 +298,7 @@ export function PresentationArea({
             onTemplateElementSelect={onTemplateElementSelect}
             onTemplateBlueprintChange={onTemplateBlueprintChange}
             toolbarOffset={toolbarOffset}
-            isGenerating={narrationActive ? false : (isGeneratingFinal || isGeneratingStrawman)}
+            isGenerating={narrationActive ? hiddenStrawman : (isGeneratingFinal || isGeneratingStrawman)}
             generatingMode={isGeneratingFinal ? 'default' : 'strawman'}
             className="flex-1"
           />
