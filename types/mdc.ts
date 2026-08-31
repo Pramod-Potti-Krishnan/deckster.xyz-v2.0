@@ -45,6 +45,8 @@ export interface QuestionSpec {
 }
 
 export interface QuestionSet {
+  /** 1-2 line lead-in; structured cards render this INSTEAD of prompt_text. */
+  intro?: string | null
   id: string
   questions: QuestionSpec[]
 }

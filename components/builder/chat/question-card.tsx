@@ -16,7 +16,7 @@
  * Old-Director sessions (no question_set) always get PLAIN mode.
  */
 
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { HelpCircle } from "lucide-react"
 import type { QuestionSet } from "@/types/mdc"
@@ -53,6 +53,24 @@ export function QuestionCard({
   )
   const [selected, setSelected] = useState<Record<string, string>>({})
   const [freeText, setFreeText] = useState<Record<string, string>>({})
+  // UAT 2026-08-30: reveal questions one by one — a tall all-at-once card
+  // auto-scrolled the chat past its own first question.
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      cardRef.current?.scrollIntoView({ block: "nearest" })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [])
+  const answered = (qid: string) => Boolean(selected[qid] || (freeText[qid] || "").trim())
+  const firstOpenIdx = questionSet
+    ? questionSet.questions.findIndex((q) => !answered(q.id))
+    : -1
+  const visibleCount = questionSet
+    ? firstOpenIdx === -1
+      ? questionSet.questions.length
+      : firstOpenIdx + 1
+    : 0
 
   const answeredCount = useMemo(() => {
     if (!questionSet) return 0
@@ -74,18 +92,20 @@ export function QuestionCard({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50/60 dark:bg-slate-900/40 p-3">
+    <div ref={cardRef} className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50/60 dark:bg-slate-900/40 p-3">
       <div className="flex items-center gap-1.5 mb-1.5">
         <HelpCircle className="h-3 w-3 text-purple-600 dark:text-purple-400" />
         <span className="text-[10px] font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-400">
           {structured ? "Quick questions" : "Your input"}
         </span>
       </div>
-      <p className="text-xs text-gray-700 dark:text-slate-200 mb-2 whitespace-pre-wrap">{promptText}</p>
+      <p className="text-xs text-gray-700 dark:text-slate-200 mb-2 whitespace-pre-wrap">
+        {structured ? (questionSet?.intro || "A few quick questions:") : promptText}
+      </p>
 
       {structured && questionSet && (
         <div className="space-y-3 mb-3">
-          {questionSet.questions.map((q) => (
+          {questionSet.questions.slice(0, visibleCount).map((q) => (
             <div key={q.id}>
               <p className="text-xs font-medium text-gray-800 dark:text-slate-100 mb-1.5">{q.text}</p>
               <div className="flex flex-wrap gap-1.5">
@@ -137,7 +157,9 @@ export function QuestionCard({
             disabled={answeredCount === 0}
             className="text-xs h-7 bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700"
           >
-            Send answers{answeredCount > 0 ? ` (${answeredCount}/${questionSet.questions.length})` : ""}
+            {visibleCount < questionSet.questions.length
+              ? `Send answers (${answeredCount}/${questionSet.questions.length} — more coming as you answer)`
+              : `Send answers${answeredCount > 0 ? ` (${answeredCount}/${questionSet.questions.length})` : ""}`}
           </Button>
         </div>
       )}
