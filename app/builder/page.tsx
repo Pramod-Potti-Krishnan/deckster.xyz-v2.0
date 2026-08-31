@@ -4461,23 +4461,25 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         hasSeenWelcomeRef={session.hasSeenWelcomeRef}
                         answeredActionsRef={session.answeredActionsRef}
                         onActionClick={handleActionClick}
-                        onSubmitAnswers={(text: string) => {
+                        onSubmitAnswers={(text: string, displayText?: string) => {
+                          const echo = displayText || text
                           // MDC (P2/P3): QuestionCard composed answers ride the
                           // normal send path — same optimistic append + options
                           // as a typed message (no action_value).
                           const ts = Date.now()
                           const mid = `user-qa-${ts}`
-                          session.setUserMessages(prev => [...prev, { id: mid, text, timestamp: ts }])
+                          session.setUserMessages(prev => [...prev, { id: mid, text: echo, timestamp: ts }])
                           if (currentSessionId && persistence) {
                             persistence.queueMessage({
                               message_id: mid,
                               session_id: currentSessionId,
                               timestamp: new Date(ts).toISOString(),
                               type: 'chat_message',
-                              payload: { text }
-                            } as unknown as DirectorMessage, text)
+                              payload: { text: echo }
+                            } as unknown as DirectorMessage, echo)
                           }
                           sendMessage(text, undefined, undefined, {
+                            displayText,
                             deepResearch: researchEnabled,
                             webSearch: webSearchEnabled,
                             extendedGeneration: extendedGenerationEnabled,
