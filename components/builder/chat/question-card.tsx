@@ -35,8 +35,10 @@ export interface QuestionCardProps {
   onActionClick: (action: ActionShape, messageId: string) => void
   questionSet?: QuestionSet | null
   structuredEnabled?: boolean
-  /** Sends a composed free-form reply through the normal chat send path. */
-  onSubmitAnswers?: (text: string) => void
+  /** Sends a composed free-form reply through the normal chat send path.
+   *  displayText is the compact human echo (UAT 2026-08-30): the transcript
+   *  shows "Answers: A · B · C" while the Director consumes the full prose. */
+  onSubmitAnswers?: (text: string, displayText?: string) => void
 }
 
 export function QuestionCard({
@@ -88,7 +90,10 @@ export function QuestionCard({
       })
       .filter(Boolean)
     if (parts.length === 0) return
-    onSubmitAnswers(parts.join("\n"))
+    const answersOnly = questionSet.questions
+      .map((q) => (freeText[q.id] || "").trim() || selected[q.id])
+      .filter(Boolean)
+    onSubmitAnswers(parts.join("\n"), `Answers: ${answersOnly.join(" · ")}`)
   }
 
   return (

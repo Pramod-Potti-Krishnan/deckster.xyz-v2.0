@@ -390,6 +390,8 @@ export interface UserMessage {
 }
 
 export interface SendUserMessageOptions {
+  /** Compact transcript echo for composed answers (Director stores it). */
+  displayText?: string;
   deepResearch?: boolean;
   webSearch?: boolean;
   extendedGeneration?: boolean;
@@ -2201,6 +2203,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(CHAT_DIRECTIVES && { client_caps: ['mdc1'] }),
           // MDC K1 (P6): typed slide references parsed from @[Slide N: …]
           // mention tokens (v1: slides only, §12-Q5).
+          ...(options?.displayText ? { display_text: options.displayText } : {}),
           ...(CHAT_MENTIONS && (() => {
             const slides = (slideStructureRef.current?.slides || []).map((sl: any, i: number) => ({
               index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null,
