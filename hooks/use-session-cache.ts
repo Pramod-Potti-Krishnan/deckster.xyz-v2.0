@@ -16,6 +16,7 @@ import {
   attachmentsFromPayload,
   type UserChatMessage,
 } from '@/lib/user-message-attachments'
+import { scrubBuildControlCapabilityMessages } from '@/lib/build-control-helpers'
 
 export const SESSION_CACHE_VERSION = 2 // Increment when schema changes
 const DEFAULT_TTL = 24 * 60 * 60 * 1000 // 24 hours
@@ -141,6 +142,13 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
         sessionStorage.removeItem(key)
         return null
       }
+      const scrubbedMessages = scrubBuildControlCapabilityMessages(parsed.messages)
+      if ((parsed.messages?.length ?? 0) !== scrubbedMessages.length) {
+        // Defense in depth for caches written by a partially rolled-out or
+        // older client. Never hydrate or retain a transport capability.
+        parsed.messages = scrubbedMessages
+        sessionStorage.setItem(key, JSON.stringify(parsed))
+      }
       return parsed
     } catch (error) {
       console.error('❌ Failed to read from cache:', error)
@@ -231,6 +239,9 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
       })
       return
     }
+    const safeState = state.messages
+      ? { ...state, messages: scrubBuildControlCapabilityMessages(state.messages) }
+      : state
 
     try {
       const key = sessionCacheKey(currentUserId, currentSessionId)
@@ -238,7 +249,7 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
 
       const updated: CachedSessionState = {
         ...existing,
-        ...state,
+        ...safeState,
         ownerUserId: currentUserId,
         lastUpdated: Date.now(),
         version: SESSION_CACHE_VERSION,
@@ -267,7 +278,7 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
         console.warn('⚠️ sessionStorage quota exceeded, attempting to trim cache')
 
         try {
-          const trimmed = trimCache(state)
+          const trimmed = trimCache(safeState)
           const key = sessionCacheKey(currentUserId, currentSessionId)
           const existing = getCachedState() || {} as CachedSessionState
 
@@ -296,6 +307,7 @@ export function useSessionCache(options: SessionCacheOptions): SessionCache {
    * Uses sessionIdRef.current for latest sessionId
    */
   const appendMessage = useCallback((message: DirectorMessage, userText?: string): void => {
+    if (message.type === 'build_control_capability') return
     // FIX 8: Remove 'enabled' check - sessionIdRef.current is sufficient
     const currentSessionId = sessionIdRef.current
     if (!currentSessionId) {
