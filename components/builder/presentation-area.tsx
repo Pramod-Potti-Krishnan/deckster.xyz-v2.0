@@ -6,6 +6,8 @@ import { PresentationDownloadControls } from "@/components/presentation-download
 import { PublishControls } from "@/components/publish-dialog"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
 import { BuildCanvas, type BuildCanvasProps } from "@/components/build-narration/build-canvas"
+import { StagePlaceholder } from "@/components/build-narration/stage-placeholder"
+import { shouldShowBlankPlaceholder } from "@/lib/build-narration-heuristics"
 import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-strip"
 // Branding ("powered by deckster") lives inside PresentationViewer's
 // slide column so it tracks the slide's right edge, not the container.
@@ -120,6 +122,12 @@ export interface PresentationAreaProps {
   // suppressed. Both undefined when the flag is off — zero behavior change.
   buildNarration?: BuildCanvasProps['narration'] | null
   buildNarrationApi?: Pick<BuildCanvasProps, 'onPin' | 'control'> | null
+  // Canvas v2 R1: the narration flag itself (placeholder shows before any
+  // build starts, when buildNarration is still inactive) + the per-session
+  // dismissal of the blank-landing placeholder.
+  buildNarrationEnabled?: boolean
+  blankPlaceholderDismissed?: boolean
+  onDismissBlankPlaceholder?: () => void
 }
 
 export function PresentationArea({
@@ -184,8 +192,25 @@ export function PresentationArea({
   onTemplateBlueprintChange,
   buildNarration = null,
   buildNarrationApi = null,
+  buildNarrationEnabled = false,
+  blankPlaceholderDismissed = false,
+  onDismissBlankPlaceholder,
 }: PresentationAreaProps) {
   const narrationActive = !!(buildNarration && buildNarration.active)
+  // Canvas v2 R1: cover the blank landing deck with the designed placeholder.
+  const showBlankPlaceholder = shouldShowBlankPlaceholder(
+    buildNarrationEnabled,
+    activeVersion,
+    isBlankPresentation,
+    blankPlaceholderDismissed,
+  )
+  const stageChrome = showBlankPlaceholder
+    ? {
+        placeholder: (
+          <StagePlaceholder mode="overlay" onDismiss={onDismissBlankPlaceholder} />
+        ),
+      }
+    : null
   // Port review F-4 (D11): while narration owns the stage and the strawman is
   // the active version, the viewer is pointed at the blank deck — its toolbar,
   // download/publish and edit surfaces must be inert, not merely covered by
@@ -300,6 +325,7 @@ export function PresentationArea({
             toolbarOffset={toolbarOffset}
             isGenerating={narrationActive ? hiddenStrawman : (isGeneratingFinal || isGeneratingStrawman)}
             generatingMode={isGeneratingFinal ? 'default' : 'strawman'}
+            stageChrome={stageChrome}
             className="flex-1"
           />
         ) : (
@@ -312,6 +338,10 @@ export function PresentationArea({
                 className="w-full h-full"
                 mode={isGeneratingFinal ? 'default' : 'strawman'}
               />
+            ) : buildNarrationEnabled ? (
+              /* Canvas v2 R1: designed 16:9 placeholder for the no-URL case
+                 (no dismiss — there is no blank deck to reveal). */
+              <StagePlaceholder mode="standalone" />
             ) : (
               <div className="text-center">
                 <img src="/logo-icon.png" alt="" aria-hidden className="h-16 w-16 mx-auto mb-4 opacity-40" />

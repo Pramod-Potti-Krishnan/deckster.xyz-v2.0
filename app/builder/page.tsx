@@ -2285,6 +2285,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     Boolean(activeTemplate),
   )
 
+  // Canvas v2 R1: per-session dismissal of the blank-landing placeholder.
+  const [blankPlaceholderDismissed, setBlankPlaceholderDismissed] = useState(false)
+  useEffect(() => {
+    setBlankPlaceholderDismissed(false)
+  }, [currentSessionId])
+
   // Build Narration Canvas (NEXT_PUBLIC_BUILD_NARRATION) — inert when the flag
   // is off (the hook returns the initial inactive state and skips all effects).
   const {
@@ -4754,6 +4760,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             currentStatus={currentStatus}
             isGeneratingFinal={isGeneratingFinal}
             isGeneratingStrawman={isGeneratingStrawman}
+            buildNarrationEnabled={effectiveBuildNarrationEnabled}
+            blankPlaceholderDismissed={blankPlaceholderDismissed}
+            onDismissBlankPlaceholder={() => setBlankPlaceholderDismissed(true)}
             buildNarration={effectiveBuildNarrationEnabled ? buildNarration : null}
             buildNarrationApi={
               effectiveBuildNarrationEnabled

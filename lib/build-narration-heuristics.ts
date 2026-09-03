@@ -215,6 +215,21 @@ export function effectiveNarrationEnabled(globalFlag: boolean, hasActiveTemplate
   return globalFlag === true && hasActiveTemplate !== true;
 }
 
+// Canvas v2 R1: the blank backend deck is real and editable, but on landing it
+// reads as an ugly grey slide — cover it with the designed placeholder until
+// the user dismisses it or a real version (strawman/final) takes the stage.
+// Pure so the vm suite can pin the truth table; flag off ⇒ never.
+export function shouldShowBlankPlaceholder(
+  narrationEnabled: boolean,
+  activeVersion: string | null | undefined,
+  isBlankPresentation: boolean | null | undefined,
+  dismissed: boolean | null | undefined,
+): boolean {
+  if (narrationEnabled !== true) return false;
+  if (dismissed === true) return false;
+  return activeVersion === 'blank' && isBlankPresentation === true;
+}
+
 // ---------------------------------------------------------------------------
 // Reducer
 // ---------------------------------------------------------------------------

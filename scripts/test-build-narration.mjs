@@ -127,6 +127,23 @@ run('effective flag: template builds keep ephemerals in chat', () => {
   assert.equal(effectiveNarrationEnabled(false, false), false);
 });
 
+run('blank placeholder (v2 R1): flag off NEVER shows; only undismissed blank landing shows', () => {
+  const { shouldShowBlankPlaceholder } = mod.exports;
+  // flag off ⇒ never, regardless of everything else
+  assert.equal(shouldShowBlankPlaceholder(false, 'blank', true, false), false);
+  assert.equal(shouldShowBlankPlaceholder(undefined, 'blank', true, false), false);
+  // the one showing state
+  assert.equal(shouldShowBlankPlaceholder(true, 'blank', true, false), true);
+  // dismissal wins
+  assert.equal(shouldShowBlankPlaceholder(true, 'blank', true, true), false);
+  // real versions never show it
+  assert.equal(shouldShowBlankPlaceholder(true, 'strawman', true, false), false);
+  assert.equal(shouldShowBlankPlaceholder(true, 'final', true, false), false);
+  // blank version but not actually a blank presentation
+  assert.equal(shouldShowBlankPlaceholder(true, 'blank', false, false), false);
+  assert.equal(shouldShowBlankPlaceholder(true, 'blank', undefined, false), false);
+});
+
 run('control transport: derives HTTP endpoint from ws/wss URLs and drops query state', () => {
   assert.equal(
     buildControlEndpointFromWsUrl('wss://director.example/ws'),
