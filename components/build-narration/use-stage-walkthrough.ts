@@ -36,25 +36,33 @@ export function useStageWalkthrough({
   currentSlideIndex,
 }: StageWalkthroughArgs) {
   const reduced = useReducedMotion()
-  const lastCommandedRef = useRef<number | null>(null)
+  // Recently commanded indexes (small window): the viewer reports slide
+  // changes with polling lag, so a report one step behind a fresh command is
+  // still ours — only an index we never commanded recently is user navigation.
+  const recentCommandsRef = useRef<number[]>([])
   const cancelledRef = useRef(false)
   const phaseRef = useRef<NarrationPhase>(phase)
+
+  const command = (index: number, navigateFn: (i: number) => void) => {
+    recentCommandsRef.current = [...recentCommandsRef.current.slice(-2), index]
+    navigateFn(index)
+  }
 
   // Phase change re-arms automation and clears the cancel latch.
   useEffect(() => {
     if (phaseRef.current !== phase) {
       phaseRef.current = phase
       cancelledRef.current = false
-      lastCommandedRef.current = null
+      recentCommandsRef.current = []
     }
   }, [phase])
 
-  // User navigation detection: a slide index we did not command cancels
-  // automation for the remainder of the phase.
+  // User navigation detection: a slide index we did not recently command
+  // cancels automation for the remainder of the phase.
   useEffect(() => {
     if (!enabled) return
-    if (lastCommandedRef.current === null) return
-    if (currentSlideIndex !== lastCommandedRef.current) {
+    if (recentCommandsRef.current.length === 0) return
+    if (!recentCommandsRef.current.includes(currentSlideIndex)) {
       cancelledRef.current = true
     }
   }, [enabled, currentSlideIndex])
@@ -65,8 +73,7 @@ export function useStageWalkthrough({
     if (phase !== 'strawman' && phase !== 'awaiting_user') return
     if (reduced || slideCount <= 1 || cancelledRef.current) return
     let i = 0
-    lastCommandedRef.current = 0
-    navigate(0)
+    command(0, navigate)
     const t = setInterval(() => {
       if (cancelledRef.current) {
         clearInterval(t)
@@ -75,12 +82,10 @@ export function useStageWalkthrough({
       i += 1
       if (i >= slideCount) {
         clearInterval(t)
-        lastCommandedRef.current = 0
-        navigate(0)
+        command(0, navigate)
         return
       }
-      lastCommandedRef.current = i
-      navigate(i)
+      command(i, navigate)
     }, WALK_STEP_MS)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,8 +96,7 @@ export function useStageWalkthrough({
     if (!enabled || !navigate) return
     if (phase !== 'building' && phase !== 'qa' && phase !== 'finalizing') return
     if (cancelledRef.current || focusSlide === null) return
-    lastCommandedRef.current = focusSlide
-    navigate(focusSlide)
+    command(focusSlide, navigate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, phase, focusSlide, navigate])
 }

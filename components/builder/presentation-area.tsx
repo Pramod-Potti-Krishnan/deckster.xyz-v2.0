@@ -230,7 +230,7 @@ export function PresentationArea({
     navigate: narrationNavigate,
     currentSlideIndex,
   })
-  // F-4's export-safety, re-derived for v2 (hiddenStrawman is gone):
+  // F-4 export-safety, re-derived for v2 (the old hidden-strawman state is gone):
   // Download/Publish only when the deck on stage is a settled artifact.
   const exportsAllowed = exportControlsAllowed(narrationActive, narrationPhase)
   // Toolbar hidden only while nothing real is on stage yet.

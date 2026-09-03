@@ -964,4 +964,51 @@ run('v2 snapshot: v2 roundtrips the new fields; v1 payloads are rejected', () =>
   assert.equal(normalized.buildPresentationId, null);
 });
 
+// ---------------------------------------------------------------------------
+// Canvas v2 P5 — load-bearing source pins for the stage rework
+// ---------------------------------------------------------------------------
+
+const pageSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8');
+const presentationAreaSource = fs.readFileSync(
+  new URL('../components/builder/presentation-area.tsx', import.meta.url),
+  'utf8',
+);
+const viewerSource = fs.readFileSync(
+  new URL('../components/presentation-viewer.tsx', import.meta.url),
+  'utf8',
+);
+const frameGlowSource = fs.readFileSync(
+  new URL('../components/build-narration/slide-frame-glow.tsx', import.meta.url),
+  'utf8',
+);
+
+run('v2 pins: the D11 blank-URL guard is gone; centerStageFor drives the memo', () => {
+  assert.ok(!/activeVersion === 'strawman'[\s\S]{0,120}blankPresentationUrl \|\| null/.test(pageSource),
+    'old D11 blank-URL branch still present');
+  assert.ok(pageSource.includes('centerStageFor({'), 'centerStageFor not consumed by the page');
+  assert.ok(pageSource.includes('getPresentationViewerUrl(buildNarration.buildPresentationId)'),
+    'final_fill URL derivation missing');
+});
+
+run('v2 pins: hiddenStrawman is gone; export gating + planning-only toolbar suppression', () => {
+  assert.ok(!presentationAreaSource.includes('hiddenStrawman'), 'hiddenStrawman survives');
+  assert.ok(presentationAreaSource.includes('exportControlsAllowed(narrationActive, narrationPhase)'));
+  assert.ok(presentationAreaSource.includes("narrationPhase === 'planning'"), 'toolbar suppression changed');
+  assert.ok(presentationAreaSource.includes('isGenerating={narrationActive ? false'),
+    'legacy loader must never mount under narration');
+});
+
+run('v2 pins: viewer slots are conditional and fullscreen-suppressed', () => {
+  for (const slot of ['stageChrome?.ribbon', 'stageChrome?.footer', 'stageChrome?.frame', 'stageChrome?.placeholder']) {
+    assert.ok(viewerSource.includes(slot), `${slot} missing`);
+  }
+  assert.ok((viewerSource.match(/!isFullscreen && stageChrome\?\./g) || []).length >= 4,
+    'every slot must be gated on !isFullscreen');
+});
+
+run('v2 pins: click-shield only during write phases; glow never intercepts', () => {
+  assert.match(frameGlowSource, /SHIELD_PHASES[^=]*=\s*\['building',\s*'qa',\s*'finalizing'\]/);
+  assert.ok(frameGlowSource.includes("'pointer-events-none absolute -inset-[3px]"), 'glow wrapper must be pointer-events-none');
+});
+
 console.log(`build-narration heuristics: ${testCount} tests passed`);
