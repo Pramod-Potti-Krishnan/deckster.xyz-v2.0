@@ -127,28 +127,81 @@ run('effective flag: template builds keep ephemerals in chat', () => {
   assert.equal(effectiveNarrationEnabled(false, false), false);
 });
 
-run('blank placeholder (v2 R1 rev 2): contentless deck => placeholder; content/build/dismiss => never', () => {
+run('blank placeholder (v2 R1 rev 3): stays through idle AND planning; steps aside from strawman on', () => {
   const { shouldShowBlankPlaceholder } = mod.exports;
   const landing = {
     dismissed: false, hasSlideStructure: false, isGenerating: false,
-    narrationActive: false, hasPresentationUrl: true,
+    phase: 'idle', hasPresentationUrl: true,
   };
   // flag off ⇒ never, regardless of everything else
   assert.equal(shouldShowBlankPlaceholder(false, landing), false);
   assert.equal(shouldShowBlankPlaceholder(undefined, landing), false);
-  // the showing state: any contentless deck on stage, idle — INCLUDING one a
-  // restore mislabelled 'final' (the gate no longer looks at activeVersion)
+  // shows on a contentless deck at rest — INCLUDING one a restore mislabelled
+  // 'final' (the gate never looks at activeVersion)
   assert.equal(shouldShowBlankPlaceholder(true, landing), true);
+  // PK live finding 2026-09-03: PLANNING keeps the placeholder (nothing real
+  // to show yet; ribbon/glow render around it)
+  assert.equal(shouldShowBlankPlaceholder(true, { ...landing, phase: 'planning' }), true);
+  // from strawman onward the real deck owns the stage
+  for (const phase of ['strawman', 'awaiting_user', 'building', 'qa', 'finalizing', 'complete', 'paused', 'stopped', 'error']) {
+    assert.equal(shouldShowBlankPlaceholder(true, { ...landing, phase }), false, phase);
+  }
   // dismissal wins
   assert.equal(shouldShowBlankPlaceholder(true, { ...landing, dismissed: true }), false);
   // authored content is NEVER covered
   assert.equal(shouldShowBlankPlaceholder(true, { ...landing, hasSlideStructure: true }), false);
-  // an in-flight legacy generation keeps its loader
+  // a legacy (non-narrated) generation keeps its loader
   assert.equal(shouldShowBlankPlaceholder(true, { ...landing, isGenerating: true }), false);
-  // active narration owns the stage
-  assert.equal(shouldShowBlankPlaceholder(true, { ...landing, narrationActive: true }), false);
   // nothing on stage at all → the standalone branch handles it, not the overlay
   assert.equal(shouldShowBlankPlaceholder(true, { ...landing, hasPresentationUrl: false }), false);
+});
+
+run('decision gates freeze the build clock (PK 2026-09-03): waited time never counts', () => {
+  let s = initialNarrationState();
+  s = step(s, { type: 'session_start', ts: T0 });
+  assert.equal(s.startedAt, T0);
+  // plan gate arrives 10s in
+  s = step(s, { type: 'awaiting_user', ts: T0 + 10_000 });
+  assert.equal(s.phase, 'awaiting_user');
+  assert.equal(s.waitingSince, T0 + 10_000);
+  // user thinks for 30s, then the strawman generation starts
+  s = step(s, { type: 'planning_resumed', ts: T0 + 40_000 });
+  assert.equal(s.phase, 'planning');
+  assert.equal(s.waitingSince, null);
+  // startedAt shifted by the 30s wait: elapsed at resume = 10s, not 40s
+  assert.equal(s.startedAt, T0 + 30_000);
+  // the strawman-accept gate does the same via 'accepted'
+  s = step(s, { type: 'strawman', ghosts: [{ index: 0, title: 'A', points: [] }], ts: T0 + 45_000 });
+  s = step(s, { type: 'awaiting_user', ts: T0 + 50_000 });
+  s = step(s, { type: 'accepted', ts: T0 + 110_000 });
+  assert.equal(s.phase, 'building');
+  // second wait of 60s also excluded
+  assert.equal(s.startedAt, T0 + 90_000);
+  // planning_resumed outside a wait is a no-op
+  const same = step(s, { type: 'planning_resumed', ts: T0 + 120_000 });
+  assert.equal(same, s);
+});
+
+run('plan gate detection: the hook matches accept_plan AND accept_strawman', () => {
+  assert.match(narrationHookSource, /accept_strawman.*accept_plan|accept_plan.*accept_strawman/s);
+});
+
+run('reconnect repair (PK 2026-09-03): replayed action_request upserts instead of being dropped', () => {
+  assert.ok(websocketHookSource.includes('upsertActionRequest'), 'upsert branch missing from WS hook');
+  assert.match(websocketHookSource, /message\.type === 'action_request' && isDuplicate/);
+});
+
+run('persistence (PK 2026-09-03): every unpersisted message is queued, not only the last per commit', () => {
+  const builderSessionSource = fs.readFileSync(
+    new URL('../hooks/use-builder-session.ts', import.meta.url),
+    'utf8',
+  );
+  const persistEffect = builderSessionSource.match(
+    /persist EVERY unpersisted message[\s\S]*?\}, \[messages, currentSessionId, persistence, isUnsavedSession\]\)/,
+  );
+  assert.ok(persistEffect, 'all-messages persist effect missing');
+  assert.match(persistEffect[0], /for \(const msg of messages\)/);
+  assert.ok(!persistEffect[0].includes('messages[messages.length - 1]'), 'last-message-only pattern back');
 });
 
 run('control transport: derives HTTP endpoint from ws/wss URLs and drops query state', () => {

@@ -245,8 +245,11 @@ export function PresentationArea({
         ? (slideStructure?.slides ?? slideStructure).length > 0
         : slideStructure,
     ),
-    isGenerating: isGeneratingFinal || isGeneratingStrawman,
-    narrationActive,
+    // Legacy loader veto only when narration is NOT active (mirrors the
+    // viewer's isGenerating suppression): under narration, planning keeps the
+    // placeholder up with ribbon/glow around it.
+    isGenerating: narrationActive ? false : isGeneratingFinal || isGeneratingStrawman,
+    phase: narrationActive ? narrationPhase : 'idle',
     hasPresentationUrl: Boolean(presentationUrl),
   })
   const focusContext =

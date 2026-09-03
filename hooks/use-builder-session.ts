@@ -753,45 +753,46 @@ export function useBuilderSession({
     user,
   ])
 
-  // Persist bot messages received from WebSocket
+  // Persist bot messages received from WebSocket.
+  // PK 2026-09-03: persist EVERY unpersisted message, not only the last one —
+  // React 18 batches back-to-back Director frames (e.g. the plan chat + the
+  // plan-confirmation action card) into one commit, so a last-message-only
+  // effect silently dropped the non-last rows and a later restore lost them.
   useEffect(() => {
     if (!currentSessionId || !persistence || messages.length === 0 || isUnsavedSession) return
 
-    const lastMessage = messages[messages.length - 1]
+    for (const msg of messages) {
+      if (persistedMessageIdsRef.current.has(msg.message_id)) continue
 
-    if (persistedMessageIdsRef.current.has(lastMessage.message_id)) {
-      debugLog('⏭️ Skipping duplicate persistence for message:', lastMessage.message_id)
-      return
-    }
+      if ((msg as any).role === 'user') {
+        const userText = (msg as any).payload?.text || (msg as any).content || '';
+        debugLog('💾 Persisting Director-replayed user message:', msg.message_id, userText.substring(0, 30))
+        persistedMessageIdsRef.current.add(msg.message_id)
+        userMessageIdsRef.current.add(msg.message_id)
+        persistence.queueMessage(msg, userText)
+        continue
+      }
 
-    if ((lastMessage as any).role === 'user') {
-      const userText = (lastMessage as any).payload?.text || (lastMessage as any).content || '';
-      debugLog('💾 Persisting Director-replayed user message:', lastMessage.message_id, userText.substring(0, 30))
-      persistedMessageIdsRef.current.add(lastMessage.message_id)
-      userMessageIdsRef.current.add(lastMessage.message_id)
-      persistence.queueMessage(lastMessage, userText)
-      return
-    }
+      if (msg.type !== 'chat_message') {
+        debugLog('💾 Persisting bot message:', msg.type, msg.message_id)
+        persistedMessageIdsRef.current.add(msg.message_id)
+        persistence.queueMessage(msg)
+      } else if (!userMessageIdsRef.current.has(msg.message_id)) {
+        debugLog('💾 Persisting bot chat_message (welcome/initial):', msg.message_id)
+        persistedMessageIdsRef.current.add(msg.message_id)
+        persistence.queueMessage(msg)
+      }
 
-    if (lastMessage.type !== 'chat_message') {
-      debugLog('💾 Persisting bot message:', lastMessage.type, lastMessage.message_id)
-      persistedMessageIdsRef.current.add(lastMessage.message_id)
-      persistence.queueMessage(lastMessage)
-    } else if (!userMessageIdsRef.current.has(lastMessage.message_id)) {
-      debugLog('💾 Persisting bot chat_message (welcome/initial):', lastMessage.message_id)
-      persistedMessageIdsRef.current.add(lastMessage.message_id)
-      persistence.queueMessage(lastMessage)
-    }
-
-    if (lastMessage.type === 'slide_update') {
-      const slideUpdate = lastMessage as SlideUpdate
-      const presentationTitle = slideUpdate.payload.metadata.main_title
-      if (presentationTitle) {
-        debugLog('📝 Updating session title from presentation:', presentationTitle)
-        persistence.updateMetadata({
-          title: presentationTitle
-        })
-        hasTitleFromPresentationRef.current = true
+      if (msg.type === 'slide_update') {
+        const slideUpdate = msg as SlideUpdate
+        const presentationTitle = slideUpdate.payload.metadata.main_title
+        if (presentationTitle) {
+          debugLog('📝 Updating session title from presentation:', presentationTitle)
+          persistence.updateMetadata({
+            title: presentationTitle
+          })
+          hasTitleFromPresentationRef.current = true
+        }
       }
     }
   }, [messages, currentSessionId, persistence, isUnsavedSession])

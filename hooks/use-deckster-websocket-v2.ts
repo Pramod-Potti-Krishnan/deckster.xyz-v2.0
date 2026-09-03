@@ -1366,9 +1366,24 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 message.type !== 'build_control_capability' &&
                 !isDuplicate;
 
+              // Reconnect-replay repair (PK 2026-09-03): Director replays
+              // pending decision gates with a DETERMINISTIC message_id
+              // (msg_plan_confirm_<session>). The duplicate guard silently
+              // dropped the replay, so a card lost to a mid-session restore
+              // could never come back. Upsert action_request frames by id
+              // instead: the replay is authoritative for its own card.
+              const upsertActionRequest =
+                message.type === 'action_request' && isDuplicate;
+
               const newState = {
                 ...prev,
-                messages: shouldAddToMessages ? [...prev.messages, messageWithTimestamp] : prev.messages,
+                messages: shouldAddToMessages
+                  ? [...prev.messages, messageWithTimestamp]
+                  : upsertActionRequest
+                    ? prev.messages.map(m =>
+                        m.message_id === message.message_id ? messageWithTimestamp : m,
+                      )
+                    : prev.messages,
               };
 
               if (blockedIngress) {

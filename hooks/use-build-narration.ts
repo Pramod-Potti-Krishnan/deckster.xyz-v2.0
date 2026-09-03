@@ -201,7 +201,11 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
         dispatch({ type: 'ephemeral', id: m.message_id, text: String(m.payload?.text || ''), ts: Date.now() })
       } else if (m.type === 'action_request') {
         const actions = Array.isArray(m.payload?.actions) ? m.payload.actions : []
-        if (actions.some((a: any) => a?.value === 'accept_strawman')) {
+        // Both decision gates pause the build clock: the PLAN confirmation
+        // ("Yes, let's build it!" → accept_plan) and the strawman Accept
+        // (accept_strawman). PK 2026-09-03: the timer must not run while the
+        // Director is waiting on the user.
+        if (actions.some((a: any) => a?.value === 'accept_strawman' || a?.value === 'accept_plan')) {
           dispatch({ type: 'awaiting_user', ts: Date.now() })
         }
       }
@@ -242,6 +246,9 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
   useEffect(() => {
     if (!enabled || !isGeneratingStrawman) return
     dispatch({ type: 'session_start', ts: Date.now() })
+    // The plan gate was answered and Director is generating the strawman:
+    // leave awaiting_user (resumes the paused build clock via toPhase).
+    dispatch({ type: 'planning_resumed', ts: Date.now() })
   }, [enabled, isGeneratingStrawman])
 
   // Final URL → complete, settle, dismiss.
