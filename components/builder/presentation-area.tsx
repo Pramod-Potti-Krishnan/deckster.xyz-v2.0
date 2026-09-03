@@ -235,13 +235,20 @@ export function PresentationArea({
   const exportsAllowed = exportControlsAllowed(narrationActive, narrationPhase)
   // Toolbar hidden only while nothing real is on stage yet.
   const toolbarSuppressed = narrationActive && narrationPhase === 'planning'
-  // Canvas v2 R1: cover the blank landing deck with the designed placeholder.
-  const showBlankPlaceholder = shouldShowBlankPlaceholder(
-    buildNarrationEnabled,
-    activeVersion,
-    isBlankPresentation,
-    blankPlaceholderDismissed,
-  )
+  // Canvas v2 R1 (rev 2): cover any CONTENTLESS landing deck with the designed
+  // placeholder — restore can mislabel a fresh deck 'final', so the gate keys
+  // on authored content (slide structure), not on the version label.
+  const showBlankPlaceholder = shouldShowBlankPlaceholder(buildNarrationEnabled, {
+    dismissed: blankPlaceholderDismissed,
+    hasSlideStructure: Boolean(
+      slideStructure && Array.isArray(slideStructure?.slides ?? slideStructure)
+        ? (slideStructure?.slides ?? slideStructure).length > 0
+        : slideStructure,
+    ),
+    isGenerating: isGeneratingFinal || isGeneratingStrawman,
+    narrationActive,
+    hasPresentationUrl: Boolean(presentationUrl),
+  })
   const focusContext =
     narrationActive && slideContextByIndex ? slideContextByIndex[currentSlideIndex] : null
   // Canvas v2 R2/R3: narration chrome anchors to the slide via the viewer slots.

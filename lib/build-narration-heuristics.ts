@@ -223,19 +223,30 @@ export function effectiveNarrationEnabled(globalFlag: boolean, hasActiveTemplate
   return globalFlag === true && hasActiveTemplate !== true;
 }
 
-// Canvas v2 R1: the blank backend deck is real and editable, but on landing it
-// reads as an ugly grey slide — cover it with the designed placeholder until
-// the user dismisses it or a real version (strawman/final) takes the stage.
-// Pure so the vm suite can pin the truth table; flag off ⇒ never.
+// Canvas v2 R1 (rev 2, PK 2026-09-03): the landing deck is real and editable,
+// but a deck with NO AUTHORED CONTENT reads as an ugly grey/template slide —
+// cover it with the designed placeholder until the user dismisses it, a build
+// starts, or authored content exists. Keyed on content, not on activeVersion:
+// session restore can label a contentless deck 'final' (its inference prefers
+// final > strawman > blank), which is exactly how the first gate was dodged
+// on a fresh entry. Pure so the vm suite pins the truth table; flag off ⇒
+// never; a deck with real slide structure is NEVER covered.
 export function shouldShowBlankPlaceholder(
   narrationEnabled: boolean,
-  activeVersion: string | null | undefined,
-  isBlankPresentation: boolean | null | undefined,
-  dismissed: boolean | null | undefined,
+  args: {
+    dismissed?: boolean | null;
+    hasSlideStructure?: boolean | null;
+    isGenerating?: boolean | null;
+    narrationActive?: boolean | null;
+    hasPresentationUrl?: boolean | null;
+  },
 ): boolean {
   if (narrationEnabled !== true) return false;
-  if (dismissed === true) return false;
-  return activeVersion === 'blank' && isBlankPresentation === true;
+  if (args.dismissed === true) return false;
+  if (args.hasSlideStructure === true) return false;
+  if (args.isGenerating === true) return false;
+  if (args.narrationActive === true) return false;
+  return args.hasPresentationUrl === true;
 }
 
 // Canvas v2 R2: every status line carries an icon. Pure slug→key map (the

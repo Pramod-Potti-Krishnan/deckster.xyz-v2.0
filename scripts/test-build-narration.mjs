@@ -127,21 +127,28 @@ run('effective flag: template builds keep ephemerals in chat', () => {
   assert.equal(effectiveNarrationEnabled(false, false), false);
 });
 
-run('blank placeholder (v2 R1): flag off NEVER shows; only undismissed blank landing shows', () => {
+run('blank placeholder (v2 R1 rev 2): contentless deck => placeholder; content/build/dismiss => never', () => {
   const { shouldShowBlankPlaceholder } = mod.exports;
+  const landing = {
+    dismissed: false, hasSlideStructure: false, isGenerating: false,
+    narrationActive: false, hasPresentationUrl: true,
+  };
   // flag off ⇒ never, regardless of everything else
-  assert.equal(shouldShowBlankPlaceholder(false, 'blank', true, false), false);
-  assert.equal(shouldShowBlankPlaceholder(undefined, 'blank', true, false), false);
-  // the one showing state
-  assert.equal(shouldShowBlankPlaceholder(true, 'blank', true, false), true);
+  assert.equal(shouldShowBlankPlaceholder(false, landing), false);
+  assert.equal(shouldShowBlankPlaceholder(undefined, landing), false);
+  // the showing state: any contentless deck on stage, idle — INCLUDING one a
+  // restore mislabelled 'final' (the gate no longer looks at activeVersion)
+  assert.equal(shouldShowBlankPlaceholder(true, landing), true);
   // dismissal wins
-  assert.equal(shouldShowBlankPlaceholder(true, 'blank', true, true), false);
-  // real versions never show it
-  assert.equal(shouldShowBlankPlaceholder(true, 'strawman', true, false), false);
-  assert.equal(shouldShowBlankPlaceholder(true, 'final', true, false), false);
-  // blank version but not actually a blank presentation
-  assert.equal(shouldShowBlankPlaceholder(true, 'blank', false, false), false);
-  assert.equal(shouldShowBlankPlaceholder(true, 'blank', undefined, false), false);
+  assert.equal(shouldShowBlankPlaceholder(true, { ...landing, dismissed: true }), false);
+  // authored content is NEVER covered
+  assert.equal(shouldShowBlankPlaceholder(true, { ...landing, hasSlideStructure: true }), false);
+  // an in-flight legacy generation keeps its loader
+  assert.equal(shouldShowBlankPlaceholder(true, { ...landing, isGenerating: true }), false);
+  // active narration owns the stage
+  assert.equal(shouldShowBlankPlaceholder(true, { ...landing, narrationActive: true }), false);
+  // nothing on stage at all → the standalone branch handles it, not the overlay
+  assert.equal(shouldShowBlankPlaceholder(true, { ...landing, hasPresentationUrl: false }), false);
 });
 
 run('control transport: derives HTTP endpoint from ws/wss URLs and drops query state', () => {
