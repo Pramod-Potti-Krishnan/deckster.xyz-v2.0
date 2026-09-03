@@ -9,8 +9,16 @@ import { StagePlaceholder } from "@/components/build-narration/stage-placeholder
 import { StageRibbon } from "@/components/build-narration/stage-ribbon"
 import { StageProgressFooter } from "@/components/build-narration/stage-progress-footer"
 import { SlideFrameGlow } from "@/components/build-narration/slide-frame-glow"
+import { QAPill } from "@/components/build-narration/qa-pill"
+import { SlideContextCard } from "@/components/build-narration/slide-context-card"
+import { useStageWalkthrough } from "@/components/build-narration/use-stage-walkthrough"
 import type { PauseStopControlProps } from "@/components/build-narration/pause-stop-control"
-import { shouldShowBlankPlaceholder, type NarrationState } from "@/lib/build-narration-heuristics"
+import type { SlideContextItem } from "@/hooks/use-deckster-websocket-v2"
+import {
+  exportControlsAllowed,
+  shouldShowBlankPlaceholder,
+  type NarrationState,
+} from "@/lib/build-narration-heuristics"
 import type { SlideComposeThumbnailJob } from "@/components/slide-thumbnail-strip"
 // Branding ("powered by deckster") lives inside PresentationViewer's
 // slide column so it tracks the slide's right edge, not the container.
@@ -135,6 +143,10 @@ export interface PresentationAreaProps {
   buildNarrationEnabled?: boolean
   blankPlaceholderDismissed?: boolean
   onDismissBlankPlaceholder?: () => void
+  // Canvas v2 R3: research context per slide + viewer navigation for the deck
+  // walkthrough (0-based postMessage goToSlide — never remounts the iframe).
+  slideContextByIndex?: Record<number, SlideContextItem> | null
+  narrationNavigate?: ((slideIndex: number) => void) | null
 }
 
 export function PresentationArea({
@@ -202,8 +214,27 @@ export function PresentationArea({
   buildNarrationEnabled = false,
   blankPlaceholderDismissed = false,
   onDismissBlankPlaceholder,
+  slideContextByIndex = null,
+  narrationNavigate = null,
 }: PresentationAreaProps) {
   const narrationActive = !!(buildNarration && buildNarration.active)
+  const narrationPhase = buildNarration?.phase ?? 'idle'
+  // Canvas v2 R3: the deck walkthrough — auto-step the real strawman once,
+  // then follow freshly built slides during the write phases; user navigation
+  // cancels automation for the remainder of the phase.
+  useStageWalkthrough({
+    enabled: narrationActive,
+    phase: narrationPhase,
+    slideCount: buildNarration?.slideCount ?? 0,
+    focusSlide: buildNarration?.focusSlide ?? null,
+    navigate: narrationNavigate,
+    currentSlideIndex,
+  })
+  // F-4's export-safety, re-derived for v2 (hiddenStrawman is gone):
+  // Download/Publish only when the deck on stage is a settled artifact.
+  const exportsAllowed = exportControlsAllowed(narrationActive, narrationPhase)
+  // Toolbar hidden only while nothing real is on stage yet.
+  const toolbarSuppressed = narrationActive && narrationPhase === 'planning'
   // Canvas v2 R1: cover the blank landing deck with the designed placeholder.
   const showBlankPlaceholder = shouldShowBlankPlaceholder(
     buildNarrationEnabled,
@@ -211,7 +242,9 @@ export function PresentationArea({
     isBlankPresentation,
     blankPlaceholderDismissed,
   )
-  // Canvas v2 R2: narration chrome anchors to the slide via the viewer slots.
+  const focusContext =
+    narrationActive && slideContextByIndex ? slideContextByIndex[currentSlideIndex] : null
+  // Canvas v2 R2/R3: narration chrome anchors to the slide via the viewer slots.
   const stageChrome =
     showBlankPlaceholder || (narrationActive && buildNarration)
       ? {
@@ -224,19 +257,25 @@ export function PresentationArea({
             ) : undefined,
           frame:
             narrationActive && buildNarration ? (
-              <SlideFrameGlow phase={buildNarration.phase} />
+              <>
+                <SlideFrameGlow phase={buildNarration.phase} />
+                {narrationPhase === 'qa' ? <QAPill narration={buildNarration} /> : null}
+              </>
             ) : undefined,
           footer:
             narrationActive && buildNarration ? (
-              <StageProgressFooter narration={buildNarration} />
+              <StageProgressFooter
+                narration={buildNarration}
+                researchCard={
+                  <SlideContextCard
+                    context={focusContext}
+                    slideIndex={narrationActive ? currentSlideIndex : null}
+                  />
+                }
+              />
             ) : undefined,
         }
       : null
-  // Port review F-4 (D11): while narration owns the stage and the strawman is
-  // the active version, the viewer is pointed at the blank deck — its toolbar,
-  // download/publish and edit surfaces must be inert, not merely covered by
-  // the canvas. Flag-off (narration inactive) keeps today's behavior exactly.
-  const hiddenStrawman = narrationActive && activeVersion === 'strawman'
   return (
     <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -251,9 +290,9 @@ export function PresentationArea({
             activeVersion={activeVersion as any}
             isBlankPresentation={isBlankPresentation}
             onVersionSwitch={onVersionSwitch}
-            showControls={!hiddenStrawman}
+            showControls={!toolbarSuppressed}
             downloadControls={
-              hiddenStrawman ? undefined : (
+              !exportsAllowed ? undefined : (
                 <>
                   <PresentationDownloadControls
                     presentationUrl={presentationUrl}
@@ -337,7 +376,7 @@ export function PresentationArea({
             onTemplateElementSelect={onTemplateElementSelect}
             onTemplateBlueprintChange={onTemplateBlueprintChange}
             toolbarOffset={toolbarOffset}
-            isGenerating={narrationActive ? hiddenStrawman : (isGeneratingFinal || isGeneratingStrawman)}
+            isGenerating={narrationActive ? false : (isGeneratingFinal || isGeneratingStrawman)}
             generatingMode={isGeneratingFinal ? 'default' : 'strawman'}
             stageChrome={stageChrome}
             className="flex-1"

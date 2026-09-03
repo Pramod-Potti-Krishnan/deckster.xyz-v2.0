@@ -873,4 +873,95 @@ run('phaseLabelFor covers every phase', () => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Canvas v2 R3 — center-stage policy, export gating, build-id adoption
+// ---------------------------------------------------------------------------
+
+run('v2 center stage: flag off / template / no id / settled phases => default', () => {
+  const { centerStageFor } = mod.exports;
+  const base = {
+    narrationEnabled: true, templateOverride: false, phase: 'building',
+    buildPresentationId: 'pres-1', finalPresentationUrl: null,
+  };
+  assert.equal(centerStageFor(base), 'final_fill');
+  assert.equal(centerStageFor({ ...base, narrationEnabled: false }), 'default');
+  assert.equal(centerStageFor({ ...base, templateOverride: true }), 'default');
+  assert.equal(centerStageFor({ ...base, buildPresentationId: null }), 'default');
+  assert.equal(centerStageFor({ ...base, finalPresentationUrl: 'https://layout/p/pres-1' }), 'default');
+  for (const phase of ['idle', 'planning', 'strawman', 'awaiting_user', 'complete']) {
+    assert.equal(centerStageFor({ ...base, phase }), 'default', phase);
+  }
+  // partial decks stay on stage through halts and errors (stop is non-destructive)
+  for (const phase of ['qa', 'finalizing', 'paused', 'stopped', 'error']) {
+    assert.equal(centerStageFor({ ...base, phase }), 'final_fill', phase);
+  }
+});
+
+run('v2 export gating: settled artifacts only; inactive narration keeps legacy behavior', () => {
+  const { exportControlsAllowed } = mod.exports;
+  assert.equal(exportControlsAllowed(false, 'building'), true); // flag-off/legacy
+  for (const phase of ['awaiting_user', 'complete', 'idle']) {
+    assert.equal(exportControlsAllowed(true, phase), true, phase);
+  }
+  for (const phase of ['planning', 'strawman', 'building', 'qa', 'finalizing', 'paused', 'stopped', 'error']) {
+    assert.equal(exportControlsAllowed(true, phase), false, phase);
+  }
+});
+
+run('v2 build id: adopted from slide_built and build_phase; qa_skipped stored', () => {
+  let s = initialNarrationState();
+  s = step(s, { type: 'typed_phase', payload: { build_id: 'b1', phase: 'building', presentation_id: 'pres-9' }, ts: T0 });
+  assert.equal(s.buildPresentationId, 'pres-9');
+  s = step(s, {
+    type: 'typed_slide_built',
+    payload: { presentation_id: 'pres-9', slide_index: 0, slide_count: 3, build_id: 'b1', qa_verdict: 'amber', qa_skipped_reason: 'screenshot timeout' },
+    ts: T0 + 1,
+  });
+  assert.equal(s.buildPresentationId, 'pres-9');
+  assert.equal(s.qaSkipped[0], 'screenshot timeout');
+  assert.equal(s.qaVerdicts[0], 'amber');
+});
+
+run('v2 build id: a fresh build resets it; retired-build frames cannot set it', () => {
+  let s = initialNarrationState();
+  s = step(s, { type: 'typed_phase', payload: { build_id: 'b1', phase: 'building', presentation_id: 'pres-old' }, ts: T0 });
+  // new build id supersedes: state resets, old id must not leak
+  s = step(s, { type: 'typed_phase', payload: { build_id: 'b2', phase: 'planning' }, ts: T0 + 10 });
+  assert.equal(s.buildId, 'b2');
+  assert.equal(s.buildPresentationId, null);
+  // a delayed frame from the retired b1 is ignored entirely
+  const after = step(s, {
+    type: 'typed_slide_built',
+    payload: { presentation_id: 'pres-old', slide_index: 1, slide_count: 3, build_id: 'b1' },
+    ts: T0 + 11,
+  });
+  assert.equal(after.buildPresentationId, null);
+  assert.equal(after.slideStates[1], undefined);
+});
+
+run('v2 snapshot: v2 roundtrips the new fields; v1 payloads are rejected', () => {
+  let s = initialNarrationState();
+  s = step(s, { type: 'typed_phase', payload: { build_id: 'b1', phase: 'building', presentation_id: 'pres-9' }, ts: T0 });
+  s = step(s, {
+    type: 'typed_slide_built',
+    payload: { presentation_id: 'pres-9', slide_index: 0, slide_count: 3, build_id: 'b1', qa_skipped_reason: 'x' },
+    ts: T0 + 1,
+  });
+  const raw = serializeNarration(s, T0 + 2);
+  const restored = deserializeNarration(raw, T0 + 3, 60_000);
+  assert.ok(restored);
+  assert.equal(restored.buildPresentationId, 'pres-9');
+  assert.equal(restored.qaSkipped[0], 'x');
+  const v1 = JSON.stringify({ v: 1, savedAt: T0 + 2, state: s });
+  assert.equal(deserializeNarration(v1, T0 + 3, 60_000), null);
+  // forward-compat: a v2 snapshot missing the new fields normalizes them in
+  const stripped = JSON.parse(raw);
+  delete stripped.state.qaSkipped;
+  delete stripped.state.buildPresentationId;
+  const normalized = deserializeNarration(JSON.stringify(stripped), T0 + 3, 60_000);
+  assert.ok(normalized);
+  eqJson(normalized.qaSkipped, {});
+  assert.equal(normalized.buildPresentationId, null);
+});
+
 console.log(`build-narration heuristics: ${testCount} tests passed`);

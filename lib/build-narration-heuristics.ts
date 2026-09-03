@@ -82,6 +82,12 @@ export interface NarrationState {
   slidesDone: number;
   thumbnails: Record<number, string>;
   qaVerdicts: Record<number, string>;
+  /** Canvas v2 R3: QA fail-open reasons per slide (slide_built.qa_skipped_reason). */
+  qaSkipped: Record<number, string>;
+  /** Canvas v2 R3: the FINAL deck's presentation id, learned from the first
+   *  slide_built/build_phase frame that carries it — lets the center swap to
+   *  the filling deck long before the official presentation_url message. */
+  buildPresentationId: string | null;
   focusSlide: number | null;
   pinnedSlide: number | null;
   control: NarrationControl;
@@ -112,6 +118,8 @@ export function initialNarrationState(): NarrationState {
     slidesDone: 0,
     thumbnails: {},
     qaVerdicts: {},
+    qaSkipped: {},
+    buildPresentationId: null,
     focusSlide: null,
     pinnedSlide: null,
     control: 'running',
@@ -257,6 +265,49 @@ export function iconKeyForStage(stage: string | null | undefined): string {
 }
 
 // ---------------------------------------------------------------------------
+// Canvas v2 R3 — center-stage policy (replaces D11's blank-URL guard)
+// ---------------------------------------------------------------------------
+
+// What the viewer's center should show. 'default' = whatever the socket state
+// already says (blank/strawman/final via activeVersion). 'final_fill' = the
+// deck being written right now, addressed by buildPresentationId — used from
+// the first slide_built until the official presentation_url message lands.
+export type CenterStage = 'default' | 'final_fill';
+
+export function centerStageFor(args: {
+  narrationEnabled: boolean;
+  templateOverride: boolean;
+  phase: NarrationPhase;
+  buildPresentationId: string | null;
+  finalPresentationUrl: string | null;
+}): CenterStage {
+  if (args.narrationEnabled !== true) return 'default';
+  if (args.templateOverride === true) return 'default';
+  if (args.finalPresentationUrl) return 'default';
+  if (!args.buildPresentationId) return 'default';
+  if (
+    args.phase === 'idle' ||
+    args.phase === 'planning' ||
+    args.phase === 'strawman' ||
+    args.phase === 'awaiting_user' ||
+    args.phase === 'complete'
+  ) {
+    return 'default';
+  }
+  // building / qa / finalizing / paused / stopped / error keep the partial
+  // deck on stage — stop is non-destructive and errors keep what landed.
+  return 'final_fill';
+}
+
+// F-4's export-safety, re-derived for v2 (hiddenStrawman is gone): Download /
+// Publish render only when the deck on stage is a settled artifact — never a
+// placeholder or a mid-write partial. Narration inactive ⇒ legacy behavior.
+export function exportControlsAllowed(active: boolean, phase: NarrationPhase): boolean {
+  if (!active) return true;
+  return phase === 'awaiting_user' || phase === 'complete' || phase === 'idle';
+}
+
+// ---------------------------------------------------------------------------
 // Reducer
 // ---------------------------------------------------------------------------
 
@@ -362,7 +413,13 @@ function normalizeNarrationState(state: NarrationState): NarrationState {
     state.control === 'stop_requested'
       ? settledControlForPhase(state.phase)
       : state.control;
-  return { ...state, control, retiredBuildIds: normalizedRetiredBuildIds(state) };
+  return {
+    ...state,
+    control,
+    retiredBuildIds: normalizedRetiredBuildIds(state),
+    qaSkipped: state.qaSkipped || {},
+    buildPresentationId: state.buildPresentationId ?? null,
+  };
 }
 
 function typedStateForBuild(state: NarrationState, buildId?: string | null): NarrationState | null {
@@ -538,6 +595,9 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       if (typeof p.slide_count === 'number' && p.slide_count > 0) {
         next = { ...next, slideCount: p.slide_count };
       }
+      if (p.presentation_id && next.buildPresentationId !== p.presentation_id) {
+        next = { ...next, buildPresentationId: p.presentation_id };
+      }
       // The hook supplies pendingControl only while it owns a live request +
       // timeout. Without that proof, a typed phase is authoritative and must
       // settle any orphaned optimistic state restored from an older render.
@@ -632,6 +692,12 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       if (p.qa_verdict) {
         next = { ...next, qaVerdicts: { ...next.qaVerdicts, [p.slide_index]: p.qa_verdict } };
       }
+      if (p.qa_skipped_reason) {
+        next = { ...next, qaSkipped: { ...next.qaSkipped, [p.slide_index]: p.qa_skipped_reason } };
+      }
+      if (p.presentation_id && next.buildPresentationId !== p.presentation_id) {
+        next = { ...next, buildPresentationId: p.presentation_id };
+      }
       if (next.pinnedSlide === null) next = { ...next, focusSlide: p.slide_index };
       return next;
     }
@@ -646,7 +712,7 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
 // owns the actual storage calls.
 // ---------------------------------------------------------------------------
 
-export const NARRATION_SNAPSHOT_VERSION = 1;
+export const NARRATION_SNAPSHOT_VERSION = 2;
 
 export interface NarrationSnapshot {
   v: number;
