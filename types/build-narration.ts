@@ -59,6 +59,7 @@ export interface SlideBuiltPayload {
   build_id?: string | null;
   thumbnail_url?: string | null;
   qa_verdict?: string | null;
+  qa_skipped_reason?: string | null;
 }
 
 export interface BuildPhaseMessage {

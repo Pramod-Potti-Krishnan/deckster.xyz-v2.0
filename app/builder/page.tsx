@@ -14,7 +14,7 @@ import { useFileUpload } from '@/hooks/use-file-upload'
 import type { UploadedFile } from '@/components/file-chip'
 import { features } from '@/lib/config'
 import { useBuildNarration } from '@/hooks/use-build-narration'
-import { effectiveNarrationEnabled } from '@/lib/build-narration-heuristics'
+import { centerStageFor, effectiveNarrationEnabled } from '@/lib/build-narration-heuristics'
 import { DirectorPresence } from '@/components/build-narration/director-presence'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
@@ -88,7 +88,7 @@ import {
   themeSelectionFingerprint,
   type BuildThemeSelection,
 } from '@/lib/theme-builder'
-import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
+import { LAYOUT_SERVICE_URL, getPresentationViewerUrl } from '@/lib/layout-service-client'
 import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import {
@@ -2285,6 +2285,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     Boolean(activeTemplate),
   )
 
+  // Canvas v2 R1: per-session dismissal of the blank-landing placeholder.
+  const [blankPlaceholderDismissed, setBlankPlaceholderDismissed] = useState(false)
+  useEffect(() => {
+    setBlankPlaceholderDismissed(false)
+  }, [currentSessionId])
+
+  // Canvas v2 R3: stable viewer navigation for the deck walkthrough (0-based;
+  // postMessage goToSlide never remounts the iframe).
+  const narrationNavigate = useCallback(
+    (slideIndex: number) => {
+      void layoutServiceApis?.goToSlide?.(slideIndex)
+    },
+    [layoutServiceApis],
+  )
+
   // Build Narration Canvas (NEXT_PUBLIC_BUILD_NARRATION) — inert when the flag
   // is off (the hook returns the initial inactive state and skips all effects).
   const {
@@ -2333,31 +2348,36 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }),
     [presentationId, presentationUrl, slideComposerOverride, slideCount],
   )
-  const effectivePresentationId = templateModeSourcePresentationId
-    ?? directorOwnedPresentation.presentationId
+  // Canvas v2 R3 (amends D11): the stage always shows the real artifact. The
+  // strawman shows AS a deck (with narration chrome around it), and from the
+  // first slide_built the center swaps to the FILLING final deck, addressed by
+  // the id the typed frames carry — long before the official presentation_url.
+  const narrationCenterStage = centerStageFor({
+    narrationEnabled: effectiveBuildNarrationEnabled,
+    templateOverride: Boolean(templateModeSourcePresentationUrl),
+    phase: buildNarration.phase,
+    buildPresentationId: buildNarration.buildPresentationId,
+    finalPresentationUrl,
+  })
+  const effectivePresentationId = narrationCenterStage === 'final_fill'
+    ? buildNarration.buildPresentationId
+    : (templateModeSourcePresentationId ?? directorOwnedPresentation.presentationId)
   const effectiveSlideCount = templateModeSourcePresentationId
     ? slideCount
     : directorOwnedPresentation.slideCount
   const effectivePresentationUrl = useMemo(
     () => {
-      // D11 (PK 2026-08-31): with narration on, the strawman never presents
-      // as a deck — the canvas owns the stage and walks the outline itself.
-      // The viewer keeps the blank presentation until the real build lands.
-      // Flag-off (and template mode, where the effective flag is false) keeps
-      // today's strawman review exactly.
-      if (
-        effectiveBuildNarrationEnabled
-        && !templateModeSourcePresentationUrl
-        && activeVersion === 'strawman'
-      ) {
-        return blankPresentationUrl || null
+      if (narrationCenterStage === 'final_fill' && buildNarration.buildPresentationId) {
+        // Same /p/{id} formula the Director uses for the official URL, so the
+        // final presentation_url handoff does not remount the iframe.
+        return getPresentationViewerUrl(buildNarration.buildPresentationId)
       }
       return withSlideComposerRefreshToken(
         templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
         templateModeSourcePresentationId ? 0 : directorOwnedPresentation.refreshToken,
       )
     },
-    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, effectiveBuildNarrationEnabled, activeVersion, blankPresentationUrl],
+    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, narrationCenterStage, buildNarration.buildPresentationId],
   )
 
   const themeSyncTargetRef = useRef({
@@ -4754,6 +4774,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             currentStatus={currentStatus}
             isGeneratingFinal={isGeneratingFinal}
             isGeneratingStrawman={isGeneratingStrawman}
+            buildNarrationEnabled={effectiveBuildNarrationEnabled}
+            blankPlaceholderDismissed={blankPlaceholderDismissed}
+            onDismissBlankPlaceholder={() => setBlankPlaceholderDismissed(true)}
+            slideContextByIndex={effectiveBuildNarrationEnabled ? slideContextByIndex : null}
+            narrationNavigate={effectiveBuildNarrationEnabled ? narrationNavigate : null}
             buildNarration={effectiveBuildNarrationEnabled ? buildNarration : null}
             buildNarrationApi={
               effectiveBuildNarrationEnabled

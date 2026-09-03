@@ -268,6 +268,18 @@ interface PresentationViewerProps {
   // Generation overlay: keeps viewer mounted but overlays loader
   isGenerating?: boolean
   generatingMode?: 'default' | 'strawman'
+  // Build Narration v2: narration-agnostic chrome slots anchored to the slide.
+  // ribbon renders above the slide container, footer below it (both plain flex
+  // children — the container's ResizeObserver absorbs their height), frame and
+  // placeholder render INSIDE the sized 16:9 box (frame around/over the
+  // iframe, placeholder covering it). All slots skipped in fullscreen; the
+  // whole prop null/undefined ⇒ byte-identical output to today.
+  stageChrome?: {
+    ribbon?: React.ReactNode
+    footer?: React.ReactNode
+    frame?: React.ReactNode
+    placeholder?: React.ReactNode
+  } | null
   // Template Builder: the WS session id (source for "Save as Template") + gate
   sessionId?: string | null
   deckOwnerSessionId?: string | null
@@ -526,6 +538,7 @@ export function PresentationViewer({
   connecting,
   isGenerating,
   generatingMode,
+  stageChrome = null,
   sessionId,
   deckOwnerSessionId,
   templateSavePresentationId,
@@ -2943,6 +2956,11 @@ export function PresentationViewer({
       <div className={`flex-1 flex min-h-0 min-w-0 ${isFullscreen ? 'bg-black' : ''}`}>
         {/* Left: Presentation Area */}
         <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${isFullscreen ? 'bg-black' : 'overflow-hidden bg-gray-100 dark:bg-slate-800'}`}>
+          {/* Build Narration v2: ribbon slot — above the slide, height absorbed
+              by the slide container's ResizeObserver fit-contain. */}
+          {!isFullscreen && stageChrome?.ribbon ? (
+            <div className="flex-shrink-0">{stageChrome.ribbon}</div>
+          ) : null}
           {/* Presentation Iframe */}
           <div
             ref={slideContainerRef}
@@ -3027,6 +3045,14 @@ export function PresentationViewer({
                   />
                 )}
                 </div>
+                {/* Build Narration v2: frame slot — perimeter glow / QA pill /
+                    click-shield at exact slide geometry (components own their
+                    own positioning and pointer-events). */}
+                {!isFullscreen && stageChrome?.frame}
+                {/* Build Narration v2: placeholder slot — covers the iframe
+                    (blank-landing card). Rendered after frame so it stacks
+                    above it. */}
+                {!isFullscreen && stageChrome?.placeholder}
               </div>
             ) : viewerUrlDecision.status === 'blocked' ? (
               <div
@@ -3067,6 +3093,12 @@ export function PresentationViewer({
             )}
           </div>
 
+          {/* Build Narration v2: footer slot — below the slide (CoT lines,
+              stage dots, research card). Same height-absorption rule as the
+              notes panel beneath it. */}
+          {!isFullscreen && stageChrome?.footer ? (
+            <div className="flex-shrink-0">{stageChrome.footer}</div>
+          ) : null}
           {/* Script | Notes | References — collapsible panel below the slide.
               The slide container's ResizeObserver fit-contain absorbs the
               height change; hidden while presenting fullscreen. */}

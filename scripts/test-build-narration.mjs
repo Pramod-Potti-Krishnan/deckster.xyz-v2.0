@@ -127,6 +127,23 @@ run('effective flag: template builds keep ephemerals in chat', () => {
   assert.equal(effectiveNarrationEnabled(false, false), false);
 });
 
+run('blank placeholder (v2 R1): flag off NEVER shows; only undismissed blank landing shows', () => {
+  const { shouldShowBlankPlaceholder } = mod.exports;
+  // flag off ⇒ never, regardless of everything else
+  assert.equal(shouldShowBlankPlaceholder(false, 'blank', true, false), false);
+  assert.equal(shouldShowBlankPlaceholder(undefined, 'blank', true, false), false);
+  // the one showing state
+  assert.equal(shouldShowBlankPlaceholder(true, 'blank', true, false), true);
+  // dismissal wins
+  assert.equal(shouldShowBlankPlaceholder(true, 'blank', true, true), false);
+  // real versions never show it
+  assert.equal(shouldShowBlankPlaceholder(true, 'strawman', true, false), false);
+  assert.equal(shouldShowBlankPlaceholder(true, 'final', true, false), false);
+  // blank version but not actually a blank presentation
+  assert.equal(shouldShowBlankPlaceholder(true, 'blank', false, false), false);
+  assert.equal(shouldShowBlankPlaceholder(true, 'blank', undefined, false), false);
+});
+
 run('control transport: derives HTTP endpoint from ws/wss URLs and drops query state', () => {
   assert.equal(
     buildControlEndpointFromWsUrl('wss://director.example/ws'),
@@ -274,12 +291,27 @@ run('template exclusion: disabled narration advances the transcript cursor', () 
   );
 });
 
-run('typed stage dots: matrix is exactly Plan -> Validate -> Render', () => {
+run('typed stage dots: matrix is exactly Plan -> Validate -> Render; style rides Render', () => {
   const match = stageDotsSource.match(/const TYPED_STAGES[^=]*=\s*\[([\s\S]*?)\n\]/);
   assert.ok(match, 'TYPED_STAGES declaration not found');
   const labels = [...match[1].matchAll(/label:\s*['"]([^'"]+)['"]/g)].map((item) => item[1]);
   eqJson(labels, ['Plan', 'Validate', 'Render']);
-  assert.doesNotMatch(match[1], /\bStyle\b|['"]style['"]/i);
+  // v2: the SB stage_d 'style' beat maps onto the Render dot — never a 4th dot.
+  assert.match(match[1], /'style'/);
+  assert.doesNotMatch(match[1], /label:\s*['"]Style['"]/);
+});
+
+run('stage icons (v2 R2): every documented slug has a key; unknowns default', () => {
+  const { iconKeyForStage } = mod.exports;
+  const slugs = ['framing', 'research', 'outline', 'slide_layouts', 'slide_research',
+    'theme', 'package', 'plan', 'validate', 'render', 'insert', 'content', 'qa', 'style'];
+  for (const slug of slugs) {
+    assert.equal(iconKeyForStage(slug), slug, `${slug} must map to its own icon key`);
+  }
+  assert.equal(iconKeyForStage('progress'), 'default');
+  assert.equal(iconKeyForStage('unknown-slug'), 'default');
+  assert.equal(iconKeyForStage(null), 'default');
+  assert.equal(iconKeyForStage(undefined), 'default');
 });
 
 // ---------------------------------------------------------------------------
@@ -839,6 +871,144 @@ run('phaseLabelFor covers every phase', () => {
   for (const p of ['planning', 'strawman', 'awaiting_user', 'building', 'qa', 'finalizing', 'complete', 'paused', 'stopped', 'error']) {
     assert.ok(phaseLabelFor(p).length > 0, p);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Canvas v2 R3 — center-stage policy, export gating, build-id adoption
+// ---------------------------------------------------------------------------
+
+run('v2 center stage: flag off / template / no id / settled phases => default', () => {
+  const { centerStageFor } = mod.exports;
+  const base = {
+    narrationEnabled: true, templateOverride: false, phase: 'building',
+    buildPresentationId: 'pres-1', finalPresentationUrl: null,
+  };
+  assert.equal(centerStageFor(base), 'final_fill');
+  assert.equal(centerStageFor({ ...base, narrationEnabled: false }), 'default');
+  assert.equal(centerStageFor({ ...base, templateOverride: true }), 'default');
+  assert.equal(centerStageFor({ ...base, buildPresentationId: null }), 'default');
+  assert.equal(centerStageFor({ ...base, finalPresentationUrl: 'https://layout/p/pres-1' }), 'default');
+  for (const phase of ['idle', 'planning', 'strawman', 'awaiting_user', 'complete']) {
+    assert.equal(centerStageFor({ ...base, phase }), 'default', phase);
+  }
+  // partial decks stay on stage through halts and errors (stop is non-destructive)
+  for (const phase of ['qa', 'finalizing', 'paused', 'stopped', 'error']) {
+    assert.equal(centerStageFor({ ...base, phase }), 'final_fill', phase);
+  }
+});
+
+run('v2 export gating: settled artifacts only; inactive narration keeps legacy behavior', () => {
+  const { exportControlsAllowed } = mod.exports;
+  assert.equal(exportControlsAllowed(false, 'building'), true); // flag-off/legacy
+  for (const phase of ['awaiting_user', 'complete', 'idle']) {
+    assert.equal(exportControlsAllowed(true, phase), true, phase);
+  }
+  for (const phase of ['planning', 'strawman', 'building', 'qa', 'finalizing', 'paused', 'stopped', 'error']) {
+    assert.equal(exportControlsAllowed(true, phase), false, phase);
+  }
+});
+
+run('v2 build id: adopted from slide_built and build_phase; qa_skipped stored', () => {
+  let s = initialNarrationState();
+  s = step(s, { type: 'typed_phase', payload: { build_id: 'b1', phase: 'building', presentation_id: 'pres-9' }, ts: T0 });
+  assert.equal(s.buildPresentationId, 'pres-9');
+  s = step(s, {
+    type: 'typed_slide_built',
+    payload: { presentation_id: 'pres-9', slide_index: 0, slide_count: 3, build_id: 'b1', qa_verdict: 'amber', qa_skipped_reason: 'screenshot timeout' },
+    ts: T0 + 1,
+  });
+  assert.equal(s.buildPresentationId, 'pres-9');
+  assert.equal(s.qaSkipped[0], 'screenshot timeout');
+  assert.equal(s.qaVerdicts[0], 'amber');
+});
+
+run('v2 build id: a fresh build resets it; retired-build frames cannot set it', () => {
+  let s = initialNarrationState();
+  s = step(s, { type: 'typed_phase', payload: { build_id: 'b1', phase: 'building', presentation_id: 'pres-old' }, ts: T0 });
+  // new build id supersedes: state resets, old id must not leak
+  s = step(s, { type: 'typed_phase', payload: { build_id: 'b2', phase: 'planning' }, ts: T0 + 10 });
+  assert.equal(s.buildId, 'b2');
+  assert.equal(s.buildPresentationId, null);
+  // a delayed frame from the retired b1 is ignored entirely
+  const after = step(s, {
+    type: 'typed_slide_built',
+    payload: { presentation_id: 'pres-old', slide_index: 1, slide_count: 3, build_id: 'b1' },
+    ts: T0 + 11,
+  });
+  assert.equal(after.buildPresentationId, null);
+  assert.equal(after.slideStates[1], undefined);
+});
+
+run('v2 snapshot: v2 roundtrips the new fields; v1 payloads are rejected', () => {
+  let s = initialNarrationState();
+  s = step(s, { type: 'typed_phase', payload: { build_id: 'b1', phase: 'building', presentation_id: 'pres-9' }, ts: T0 });
+  s = step(s, {
+    type: 'typed_slide_built',
+    payload: { presentation_id: 'pres-9', slide_index: 0, slide_count: 3, build_id: 'b1', qa_skipped_reason: 'x' },
+    ts: T0 + 1,
+  });
+  const raw = serializeNarration(s, T0 + 2);
+  const restored = deserializeNarration(raw, T0 + 3, 60_000);
+  assert.ok(restored);
+  assert.equal(restored.buildPresentationId, 'pres-9');
+  assert.equal(restored.qaSkipped[0], 'x');
+  const v1 = JSON.stringify({ v: 1, savedAt: T0 + 2, state: s });
+  assert.equal(deserializeNarration(v1, T0 + 3, 60_000), null);
+  // forward-compat: a v2 snapshot missing the new fields normalizes them in
+  const stripped = JSON.parse(raw);
+  delete stripped.state.qaSkipped;
+  delete stripped.state.buildPresentationId;
+  const normalized = deserializeNarration(JSON.stringify(stripped), T0 + 3, 60_000);
+  assert.ok(normalized);
+  eqJson(normalized.qaSkipped, {});
+  assert.equal(normalized.buildPresentationId, null);
+});
+
+// ---------------------------------------------------------------------------
+// Canvas v2 P5 — load-bearing source pins for the stage rework
+// ---------------------------------------------------------------------------
+
+const pageSource = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8');
+const presentationAreaSource = fs.readFileSync(
+  new URL('../components/builder/presentation-area.tsx', import.meta.url),
+  'utf8',
+);
+const viewerSource = fs.readFileSync(
+  new URL('../components/presentation-viewer.tsx', import.meta.url),
+  'utf8',
+);
+const frameGlowSource = fs.readFileSync(
+  new URL('../components/build-narration/slide-frame-glow.tsx', import.meta.url),
+  'utf8',
+);
+
+run('v2 pins: the D11 blank-URL guard is gone; centerStageFor drives the memo', () => {
+  assert.ok(!/activeVersion === 'strawman'[\s\S]{0,120}blankPresentationUrl \|\| null/.test(pageSource),
+    'old D11 blank-URL branch still present');
+  assert.ok(pageSource.includes('centerStageFor({'), 'centerStageFor not consumed by the page');
+  assert.ok(pageSource.includes('getPresentationViewerUrl(buildNarration.buildPresentationId)'),
+    'final_fill URL derivation missing');
+});
+
+run('v2 pins: hiddenStrawman is gone; export gating + planning-only toolbar suppression', () => {
+  assert.ok(!presentationAreaSource.includes('hiddenStrawman'), 'hiddenStrawman survives');
+  assert.ok(presentationAreaSource.includes('exportControlsAllowed(narrationActive, narrationPhase)'));
+  assert.ok(presentationAreaSource.includes("narrationPhase === 'planning'"), 'toolbar suppression changed');
+  assert.ok(presentationAreaSource.includes('isGenerating={narrationActive ? false'),
+    'legacy loader must never mount under narration');
+});
+
+run('v2 pins: viewer slots are conditional and fullscreen-suppressed', () => {
+  for (const slot of ['stageChrome?.ribbon', 'stageChrome?.footer', 'stageChrome?.frame', 'stageChrome?.placeholder']) {
+    assert.ok(viewerSource.includes(slot), `${slot} missing`);
+  }
+  assert.ok((viewerSource.match(/!isFullscreen && stageChrome\?\./g) || []).length >= 4,
+    'every slot must be gated on !isFullscreen');
+});
+
+run('v2 pins: click-shield only during write phases; glow never intercepts', () => {
+  assert.match(frameGlowSource, /SHIELD_PHASES[^=]*=\s*\['building',\s*'qa',\s*'finalizing'\]/);
+  assert.ok(frameGlowSource.includes("'pointer-events-none absolute -inset-[3px]"), 'glow wrapper must be pointer-events-none');
 });
 
 console.log(`build-narration heuristics: ${testCount} tests passed`);

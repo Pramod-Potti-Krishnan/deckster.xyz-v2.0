@@ -13,4 +13,6 @@ export const PHASE_SWAP_S = 0.3
 export const QA_SHEEN_S = 2.4
 export const OVERLAY_DISSOLVE_S = 0.4
 export const DECK_SETTLE_S = 0.5
+// Canvas v2: one full orbit of the slide-frame comet.
+export const PERIMETER_ORBIT_S = 3.2
 export const PRESENCE_SHUFFLE_S = 1.8
