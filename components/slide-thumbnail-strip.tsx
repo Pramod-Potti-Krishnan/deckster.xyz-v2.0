@@ -12,7 +12,18 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { Copy, Trash2, Layout, ChevronUp, ChevronDown, Check, Loader2, AlertTriangle, RotateCcw, Wand2 } from 'lucide-react'
+import { Copy, Trash2, Layout, ChevronUp, ChevronDown, Check, Loader2, AlertTriangle, RotateCcw, Wand2, MoreHorizontal } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { getSlideMenuActions, slideMenuHasAnyAction } from '@/lib/slide-thumbnail-menu'
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
@@ -353,7 +364,6 @@ export function SlideThumbnailStrip({
     const isDragging = draggedSlide === realSlideNumber
     const isDropTarget = dropTarget === realSlideNumber
     const isItemProcessing = isProcessing === realSlideNumber
-    const canDelete = onDeleteSlide && slidesTotal > 1 && !isItemProcessing
     const refineJob = findRefineJob(slide, slideIndex)
     const isRefining = refineJob?.status === 'building'
     const canRefine = Boolean(onRefineSlide)
@@ -364,9 +374,103 @@ export function SlideThumbnailStrip({
     const titleText = isRefining ? (refineJob.lastProgressText || 'Refining slide') : displayTitle
     const thumbnailUrl = slide.thumbnailUrl?.trim()
 
+    // Canvas v2 P4: one action model feeds BOTH the right-click menu and the
+    // ⋯ dropdown, so the two can never drift. The hover delete button is gone.
+    const menuModel = getSlideMenuActions({
+      realSlideNumber,
+      slidesTotal,
+      isItemProcessing,
+      selectedCount: selectedSlides.length,
+      can: {
+        duplicate: Boolean(onDuplicateSlide),
+        changeLayout: Boolean(onChangeLayout),
+        reorder: Boolean(onReorderSlides),
+        deleteOne: Boolean(onDeleteSlide) && slidesTotal > 1,
+        deleteMulti: Boolean(onDeleteSlides),
+      },
+    })
+    const renderMenuItems = (C: {
+      Item: React.ComponentType<any>
+      Separator: React.ComponentType<any>
+      Sub: React.ComponentType<any>
+      SubTrigger: React.ComponentType<any>
+      SubContent: React.ComponentType<any>
+    }) => (
+      <>
+        {menuModel.duplicate && (
+          <C.Item onSelect={() => handleDuplicate(realSlideNumber)} disabled={menuModel.duplicate.disabled}>
+            <Copy className="mr-2 h-4 w-4" />
+            Duplicate Slide
+          </C.Item>
+        )}
+        {menuModel.changeLayout && (
+          <C.Sub>
+            <C.SubTrigger>
+              <Layout className="mr-2 h-4 w-4" />
+              Change Layout
+            </C.SubTrigger>
+            <C.SubContent className="w-48">
+              {SLIDE_LAYOUTS.map((layout) => (
+                <C.Item
+                  key={layout.id}
+                  onSelect={() => handleChangeLayout(realSlideNumber, layout.id)}
+                  disabled={menuModel.changeLayout!.disabled}
+                >
+                  {layout.icon}
+                  <span className="ml-2">{layout.name}</span>
+                </C.Item>
+              ))}
+            </C.SubContent>
+          </C.Sub>
+        )}
+        {(menuModel.moveUp || menuModel.moveDown) && <C.Separator />}
+        {menuModel.moveUp && (
+          <C.Item onSelect={() => handleMoveUp(realSlideNumber)} disabled={menuModel.moveUp.disabled}>
+            <ChevronUp className="mr-2 h-4 w-4" />
+            Move Up
+          </C.Item>
+        )}
+        {menuModel.moveDown && (
+          <C.Item onSelect={() => handleMoveDown(realSlideNumber)} disabled={menuModel.moveDown.disabled}>
+            <ChevronDown className="mr-2 h-4 w-4" />
+            Move Down
+          </C.Item>
+        )}
+        {menuModel.delete && (
+          <>
+            <C.Separator />
+            <C.Item
+              onSelect={() =>
+                menuModel.delete!.multi
+                  ? onDeleteSlides!(selectedSlides)
+                  : onDeleteSlide!(realSlideNumber - 1)
+              }
+              disabled={menuModel.delete.disabled}
+              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {menuModel.delete.label}
+            </C.Item>
+          </>
+        )}
+      </>
+    )
+    const showDotsMenu = slideMenuHasAnyAction(menuModel)
+
     const thumbnailContent = (
       <div
-        className="relative group"
+        className={cn(
+          "relative group flex-shrink-0 w-28 rounded-md border-2 transition-all duration-200 overflow-hidden",
+          "hover:border-blue-400 hover:shadow-md",
+          isActive
+            ? "border-blue-600 shadow-lg ring-2 ring-blue-500"
+            : isSelected
+            ? "border-blue-400 shadow-md"
+            : "border-slate-300 dark:border-slate-700",
+          isDragging && "opacity-50 scale-95",
+          isDropTarget && "border-green-500",
+          isItemProcessing && "opacity-70"
+        )}
         title="Click to navigate • Ctrl+Click to multi-select • Shift+Click for range • Right-click for options"
       >
         {/* Selection checkmark indicator */}
@@ -375,22 +479,6 @@ export function SlideThumbnailStrip({
                          flex items-center justify-center shadow-sm">
             <Check className="h-3 w-3" />
           </div>
-        )}
-
-        {/* Delete button - appears on hover */}
-        {canDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDeleteSlide(realSlideNumber - 1)
-            }}
-            className="absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full bg-red-500 text-white
-                       flex items-center justify-center opacity-0 group-hover:opacity-100
-                       transition-opacity duration-150 hover:bg-red-600 shadow-sm"
-            title="Delete slide"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
         )}
 
         {canRefine && (
@@ -431,17 +519,9 @@ export function SlideThumbnailStrip({
           onDrop={(e) => handleDrop(e, realSlideNumber)}
           onDragEnd={handleDragEnd}
           className={cn(
-            "relative flex-shrink-0 w-28 rounded-md border-2 transition-all duration-200 overflow-hidden group",
-            "hover:border-blue-400 hover:shadow-md",
+            "relative block w-full",
             "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-            isActive
-              ? "border-blue-600 shadow-lg ring-2 ring-blue-500"
-              : isSelected
-              ? "border-blue-400 shadow-md"
-              : "border-slate-300 dark:border-slate-700",
-            isDragging && "opacity-50 scale-95",
-            isDropTarget && "border-green-500",
-            isItemProcessing && "opacity-70 pointer-events-none",
+            isItemProcessing && "pointer-events-none",
             enableDragDrop && onReorderSlides && "cursor-grab active:cursor-grabbing"
           )}
           disabled={isItemProcessing}
@@ -486,32 +566,74 @@ export function SlideThumbnailStrip({
                 <Loader2 className="h-4 w-4 animate-spin" />
               </div>
             )}
-
-            {/* Slide number badge in corner */}
-            <div className={cn(
-              "absolute top-1.5 left-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded px-1 text-[9px] font-semibold leading-none shadow-sm",
-              thumbnailUrl
-                ? "bg-slate-900/80 text-white"
-                : isActive
-                ? "bg-blue-600 text-white"
-                : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
-            )}>
-              {visualNumber}
-            </div>
-          </div>
-
-          {/* Title strip below the mini-preview */}
-          <div className={cn(
-            "px-2 py-1.5 text-[10px] leading-tight text-left line-clamp-2 w-full",
-            isActive
-              ? "text-blue-900 font-medium bg-blue-50 dark:bg-slate-900 dark:text-blue-200"
-              : isSelected
-              ? "text-blue-800 bg-blue-50 dark:bg-slate-900 dark:text-blue-300"
-              : "text-slate-700 bg-white dark:bg-slate-900 dark:text-slate-300"
-          )}>
-            {titleText}
+            {/* Canvas v2 P4: no number badge over the image — the preview keeps
+                the slide's exact 16:9; the number lives in the row below. */}
           </div>
         </button>
+
+        {/* Title row below the preview: [number] [title…] [⋯] */}
+        <div className={cn(
+          "flex w-full items-start gap-1 px-1.5 py-1.5",
+          isActive
+            ? "bg-blue-50 dark:bg-slate-900"
+            : isSelected
+            ? "bg-blue-50 dark:bg-slate-900"
+            : "bg-white dark:bg-slate-900"
+        )}>
+          <button
+            onClick={(e) => handleSlideSelect(slideIndex, visualNumber, e)}
+            disabled={isItemProcessing}
+            className="flex min-w-0 flex-1 items-start gap-1 text-left focus:outline-none"
+            tabIndex={-1}
+          >
+            <span className={cn(
+              "flex-none text-[9px] font-semibold leading-[1.6] tabular-nums",
+              isActive
+                ? "text-blue-700 dark:text-blue-300"
+                : "text-slate-500 dark:text-slate-400"
+            )}>
+              {visualNumber}
+            </span>
+            <span className={cn(
+              "min-w-0 text-[10px] leading-tight line-clamp-2",
+              isActive
+                ? "text-blue-900 font-medium dark:text-blue-200"
+                : isSelected
+                ? "text-blue-800 dark:text-blue-300"
+                : "text-slate-700 dark:text-slate-300"
+            )}>
+              {titleText}
+            </span>
+          </button>
+          {showDotsMenu && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(
+                    "flex h-4 w-4 flex-none items-center justify-center rounded text-slate-500 transition-opacity duration-150",
+                    "hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200",
+                    "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+                    (isActive || isSelected) && "opacity-100"
+                  )}
+                  title="Slide options"
+                  aria-label={`Options for slide ${visualNumber}`}
+                >
+                  <MoreHorizontal className="h-3 w-3" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {renderMenuItems({
+                  Item: DropdownMenuItem,
+                  Separator: DropdownMenuSeparator,
+                  Sub: DropdownMenuSub,
+                  SubTrigger: DropdownMenuSubTrigger,
+                  SubContent: DropdownMenuSubContent,
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
     )
 
@@ -523,86 +645,14 @@ export function SlideThumbnailStrip({
             {thumbnailContent}
           </ContextMenuTrigger>
           <ContextMenuContent className="w-48">
-            {/* Duplicate */}
-            {onDuplicateSlide && (
-              <ContextMenuItem
-                onSelect={() => handleDuplicate(realSlideNumber)}
-                disabled={isItemProcessing}
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                Duplicate Slide
-              </ContextMenuItem>
-            )}
-
-            {/* Change Layout Submenu */}
-            {onChangeLayout && (
-              <ContextMenuSub>
-                <ContextMenuSubTrigger>
-                  <Layout className="mr-2 h-4 w-4" />
-                  Change Layout
-                </ContextMenuSubTrigger>
-                <ContextMenuSubContent className="w-48">
-                  {SLIDE_LAYOUTS.map((layout) => (
-                    <ContextMenuItem
-                      key={layout.id}
-                      onSelect={() => handleChangeLayout(realSlideNumber, layout.id)}
-                      disabled={isItemProcessing}
-                    >
-                      {layout.icon}
-                      <span className="ml-2">{layout.name}</span>
-                    </ContextMenuItem>
-                  ))}
-                </ContextMenuSubContent>
-              </ContextMenuSub>
-            )}
-
-            {/* Move Up/Down */}
-            {onReorderSlides && (
-              <>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                  onSelect={() => handleMoveUp(realSlideNumber)}
-                  disabled={isItemProcessing || realSlideNumber <= 1}
-                >
-                  <ChevronUp className="mr-2 h-4 w-4" />
-                  Move Up
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onSelect={() => handleMoveDown(realSlideNumber)}
-                  disabled={isItemProcessing || realSlideNumber >= slidesTotal}
-                >
-                  <ChevronDown className="mr-2 h-4 w-4" />
-                  Move Down
-                </ContextMenuItem>
-              </>
-            )}
-
-            {/* Delete - Always last, with separator */}
-            {/* If multiple slides selected, delete all; otherwise delete just this slide */}
-            {(onDeleteSlide || onDeleteSlides) && (
-              <>
-                <ContextMenuSeparator />
-                {selectedSlides.length > 1 && onDeleteSlides ? (
-                  <ContextMenuItem
-                    onSelect={() => onDeleteSlides(selectedSlides)}
-                    disabled={isItemProcessing || selectedSlides.length >= slidesTotal}
-                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete {selectedSlides.length} Slides
-                  </ContextMenuItem>
-                ) : onDeleteSlide && (
-                  <ContextMenuItem
-                    onSelect={() => onDeleteSlide(realSlideNumber - 1)}
-                    disabled={isItemProcessing || slidesTotal <= 1}
-                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Slide
-                  </ContextMenuItem>
-                )}
-              </>
-            )}
+            {/* Canvas v2 P4: identical action model as the ⋯ dropdown. */}
+            {renderMenuItems({
+              Item: ContextMenuItem,
+              Separator: ContextMenuSeparator,
+              Sub: ContextMenuSub,
+              SubTrigger: ContextMenuSubTrigger,
+              SubContent: ContextMenuSubContent,
+            })}
           </ContextMenuContent>
         </ContextMenu>
       )

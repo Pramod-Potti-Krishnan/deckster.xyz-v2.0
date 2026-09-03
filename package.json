@@ -59,7 +59,8 @@
     "test:qa": "npm run test:qa-citation-tiers && npm run test:qa-limits && npm run test:qa-serialize && npm run test:qa-ask-gates && npm run test:narration",
     "test:qa-ask-gates": "node scripts/test-qa-ask-gates.mjs",
     "test:narration": "node scripts/test-narration-voices.mjs",
-    "test:build-narration": "node scripts/test-build-narration.mjs"
+    "test:build-narration": "node scripts/test-build-narration.mjs",
+    "test:slide-thumbnail-menu": "node scripts/test-slide-thumbnail-menu.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
