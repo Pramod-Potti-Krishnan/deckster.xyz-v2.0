@@ -291,12 +291,27 @@ run('template exclusion: disabled narration advances the transcript cursor', () 
   );
 });
 
-run('typed stage dots: matrix is exactly Plan -> Validate -> Render', () => {
+run('typed stage dots: matrix is exactly Plan -> Validate -> Render; style rides Render', () => {
   const match = stageDotsSource.match(/const TYPED_STAGES[^=]*=\s*\[([\s\S]*?)\n\]/);
   assert.ok(match, 'TYPED_STAGES declaration not found');
   const labels = [...match[1].matchAll(/label:\s*['"]([^'"]+)['"]/g)].map((item) => item[1]);
   eqJson(labels, ['Plan', 'Validate', 'Render']);
-  assert.doesNotMatch(match[1], /\bStyle\b|['"]style['"]/i);
+  // v2: the SB stage_d 'style' beat maps onto the Render dot — never a 4th dot.
+  assert.match(match[1], /'style'/);
+  assert.doesNotMatch(match[1], /label:\s*['"]Style['"]/);
+});
+
+run('stage icons (v2 R2): every documented slug has a key; unknowns default', () => {
+  const { iconKeyForStage } = mod.exports;
+  const slugs = ['framing', 'research', 'outline', 'slide_layouts', 'slide_research',
+    'theme', 'package', 'plan', 'validate', 'render', 'insert', 'content', 'qa', 'style'];
+  for (const slug of slugs) {
+    assert.equal(iconKeyForStage(slug), slug, `${slug} must map to its own icon key`);
+  }
+  assert.equal(iconKeyForStage('progress'), 'default');
+  assert.equal(iconKeyForStage('unknown-slug'), 'default');
+  assert.equal(iconKeyForStage(null), 'default');
+  assert.equal(iconKeyForStage(undefined), 'default');
 });
 
 // ---------------------------------------------------------------------------

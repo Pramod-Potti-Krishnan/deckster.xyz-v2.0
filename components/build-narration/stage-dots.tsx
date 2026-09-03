@@ -9,7 +9,9 @@ import type { NarrationEvent } from '@/lib/build-narration-heuristics'
 const TYPED_STAGES: Array<{ key: string; label: string; match: string[] }> = [
   { key: 'plan', label: 'Plan', match: ['plan'] },
   { key: 'validate', label: 'Validate', match: ['validate'] },
-  { key: 'render', label: 'Render', match: ['render', 'insert'] },
+  // 'style' (SB stage_d) rides the Render dot — it is emitted on the wire but
+  // was previously unmatched, so a style beat lit nothing.
+  { key: 'render', label: 'Render', match: ['render', 'insert', 'style'] },
 ]
 
 type DotState = 'idle' | 'active' | 'done' | 'error'

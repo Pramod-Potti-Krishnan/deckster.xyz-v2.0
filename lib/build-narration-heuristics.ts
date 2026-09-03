@@ -230,6 +230,32 @@ export function shouldShowBlankPlaceholder(
   return activeVersion === 'blank' && isBlankPresentation === true;
 }
 
+// Canvas v2 R2: every status line carries an icon. Pure slug→key map (the
+// lucide lookup lives in components/build-narration/stage-icons.tsx) so the
+// vm suite can pin the vocabulary. Unknown slugs get 'default'.
+const STAGE_ICON_KEYS: Record<string, string> = {
+  framing: 'framing',
+  research: 'research',
+  outline: 'outline',
+  slide_layouts: 'slide_layouts',
+  slide_research: 'slide_research',
+  theme: 'theme',
+  package: 'package',
+  plan: 'plan',
+  validate: 'validate',
+  render: 'render',
+  insert: 'insert',
+  content: 'content',
+  qa: 'qa',
+  style: 'style',
+  progress: 'default',
+};
+
+export function iconKeyForStage(stage: string | null | undefined): string {
+  if (!stage) return 'default';
+  return STAGE_ICON_KEYS[stage] || 'default';
+}
+
 // ---------------------------------------------------------------------------
 // Reducer
 // ---------------------------------------------------------------------------
