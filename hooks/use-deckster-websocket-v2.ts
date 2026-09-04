@@ -48,6 +48,13 @@ export interface BaseMessage {
   payload: any;
 }
 
+// Frames that answer a user turn (vs. passive state ticks) — these unlock
+// the input's turn gate.
+const REPLY_FRAME_TYPES = new Set<string>([
+  'chat_message', 'action_request', 'presentation_init', 'presentation_url',
+  'sync_response', 'session_directive', 'element_directive',
+]);
+
 const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'chat_message',
   'action_request',
@@ -808,6 +815,24 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // MDC P6: latest slideStructure for @mention parsing inside sendMessage
   // (stable [] deps) — effect-synced; a same-tick slide_update race only
   // affects mention resolution, never message delivery.
+  // Turn gate (UAT 2026-08-31): one in-flight user turn at a time. Set on
+  // send, cleared by the first reply-bearing frame, a 60s safety timeout, or
+  // the user's explicit unlock (Esc) — a slow decision must not let a second
+  // turn queue behind it and produce two competing answers.
+  const [awaitingDirectorReply, setAwaitingDirectorReply] = useState(false);
+  const awaitReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearAwaitReply = useCallback(() => {
+    if (awaitReplyTimerRef.current) { clearTimeout(awaitReplyTimerRef.current); awaitReplyTimerRef.current = null; }
+    setAwaitingDirectorReply(false);
+  }, []);
+  const beginAwaitReply = useCallback(() => {
+    setAwaitingDirectorReply(true);
+    if (awaitReplyTimerRef.current) clearTimeout(awaitReplyTimerRef.current);
+    awaitReplyTimerRef.current = setTimeout(() => {
+      awaitReplyTimerRef.current = null;
+      setAwaitingDirectorReply(false);
+    }, 60_000);
+  }, []);
   const slideStructureRef = useRef<SlideUpdate['payload'] | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const pendingReconnectAttemptRef = useRef<number | null>(null);
@@ -1293,6 +1318,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             const parsedMessage = normalizeDirectorMessageFrame(JSON.parse(event.data)) as DirectorMessage & { type?: unknown };
             if (!isKnownDirectorMessageType(parsedMessage.type)) {
               return;
+            }
+
+            // Turn gate: any reply-bearing frame unlocks the input.
+            if (REPLY_FRAME_TYPES.has(parsedMessage.type as string)) {
+              clearAwaitReply();
             }
 
             const guardedMessage = guardDirectorLayoutUrlMessage(
@@ -2347,13 +2377,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
+      beginAwaitReply();
 
       return true;
     } catch (error) {
       console.error('Failed to send message:', error);
       return false;
     }
-  }, []);
+  }, [beginAwaitReply]);
 
   /**
    * Send that survives a closed socket.
@@ -2855,6 +2886,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     restoreMessages,
     switchVersion,
     updateCacheUserMessages,
+
+    awaitingDirectorReply,
+    stopAwaitingReply: clearAwaitReply,
 
     // Utility
     isReady: state.connected,

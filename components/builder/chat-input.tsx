@@ -63,6 +63,10 @@ export interface ChatInputProps {
   onInputChange: (value: string) => void
   /** MDC P6: deck slides for the @mention picker (absent => no mentions). */
   mentionSlides?: MentionSlide[]
+  /** Turn gate: a user turn is awaiting the Director's reply. */
+  awaitingReply?: boolean
+  /** Deliberate unlock (Esc) while awaiting a reply. */
+  onStopAwaiting?: () => void
   onSubmit: (e?: React.FormEvent) => void
   uploadedFiles: UploadedFile[]
   onFilesSelected: (files: File[]) => void
@@ -113,6 +117,8 @@ export function ChatInput({
   inputMessage,
   onInputChange,
   mentionSlides,
+  awaitingReply = false,
+  onStopAwaiting,
   onSubmit,
   uploadedFiles,
   onFilesSelected,
@@ -164,7 +170,7 @@ export function ChatInput({
     : failedUpload
       ? `${failedUpload.name} couldn't be uploaded — remove it or try again`
       : null
-  const isSendBlocked = Boolean(uploadBlockReason)
+  const isSendBlocked = Boolean(uploadBlockReason) || awaitingReply
 
   const guardedSubmit = (e?: React.FormEvent) => {
     if (isSendBlocked) {
@@ -614,6 +620,11 @@ export function ChatInput({
                 e.preventDefault()
                 guardedSubmit()
               }
+              if (e.key === 'Escape' && awaitingReply) {
+                e.preventDefault()
+                onStopAwaiting?.()
+                return
+              }
               if (e.key === 'Escape' && pendingActionInput) {
                 e.preventDefault()
                 onCancelAction()
@@ -630,6 +641,8 @@ export function ChatInput({
                     ? "Connecting..."
                     : isTemplateReuseRunning
                       ? "Director is working..."
+                    : awaitingReply
+                      ? "Director is replying… (Esc to type anyway)"
                     : pendingActionInput
                       ? "Type your changes... (ESC to cancel)"
                       : "Message Director..."
