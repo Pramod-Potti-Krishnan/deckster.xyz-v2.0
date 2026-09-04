@@ -1665,7 +1665,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     disconnect,
     isReady,
     sessionId: wsSessionId,
-    updateCacheUserMessages
+    updateCacheUserMessages,
+    awaitingDirectorReply,
+    stopAwaitingReply,
   } = useDecksterWebSocketV2({
     // Don't auto-connect when restoring an existing session from URL.
     // The useBuilderSession hook will connect AFTER DB load + restoreMessages,
@@ -4610,6 +4612,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null,
                       }))
                     }
+                    awaitingReply={awaitingDirectorReply}
+                    onStopAwaiting={stopAwaitingReply}
                     onSubmit={handleSendMessage}
                     uploadedFiles={uploadedFiles}
                     onFilesSelected={handleFilesSelected}
