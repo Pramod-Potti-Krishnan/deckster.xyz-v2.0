@@ -88,6 +88,10 @@ export interface NarrationState {
    *  slide_built/build_phase frame that carries it — lets the center swap to
    *  the filling deck long before the official presentation_url message. */
   buildPresentationId: string | null;
+  /** Set while phase === 'awaiting_user': when the wait began. Leaving the
+   *  wait shifts startedAt forward by the waited span, so Elapsed never
+   *  counts time spent thinking at a decision gate (PK 2026-09-03). */
+  waitingSince: number | null;
   focusSlide: number | null;
   pinnedSlide: number | null;
   control: NarrationControl;
@@ -120,6 +124,7 @@ export function initialNarrationState(): NarrationState {
     qaVerdicts: {},
     qaSkipped: {},
     buildPresentationId: null,
+    waitingSince: null,
     focusSlide: null,
     pinnedSlide: null,
     control: 'running',
@@ -237,7 +242,11 @@ export function shouldShowBlankPlaceholder(
     dismissed?: boolean | null;
     hasSlideStructure?: boolean | null;
     isGenerating?: boolean | null;
-    narrationActive?: boolean | null;
+    /** rev 3 (PK live test 2026-09-03): keyed on the narration PHASE, not on
+     *  narration being active — during planning there is still nothing real
+     *  to show, so the placeholder stays up (ribbon/glow render around it)
+     *  and only steps aside when the strawman actually lands. */
+    phase?: NarrationPhase | null;
     hasPresentationUrl?: boolean | null;
   },
 ): boolean {
@@ -245,7 +254,8 @@ export function shouldShowBlankPlaceholder(
   if (args.dismissed === true) return false;
   if (args.hasSlideStructure === true) return false;
   if (args.isGenerating === true) return false;
-  if (args.narrationActive === true) return false;
+  const phase = args.phase ?? 'idle';
+  if (phase !== 'idle' && phase !== 'planning') return false;
   return args.hasPresentationUrl === true;
 }
 
@@ -331,6 +341,7 @@ export type NarrationAction =
   | { type: 'strawman'; ghosts: GhostSlide[]; ts: number }
   | { type: 'awaiting_user'; ts: number }
   | { type: 'accepted'; ts: number } // accept clicked / isGeneratingFinal flipped
+  | { type: 'planning_resumed'; ts: number } // plan gate answered; strawman generation started
   | { type: 'final_url'; ts: number }
   | { type: 'pin'; slideIndex: number | null }
   | { type: 'control'; control: NarrationControl; ts: number }
@@ -378,7 +389,7 @@ const PHASE_LABELS: Record<NarrationPhase, string> = {
   idle: '',
   planning: 'Designing your deck plan…',
   strawman: 'Outline ready — shaping your slides…',
-  awaiting_user: 'Outline ready — waiting for your go-ahead',
+  awaiting_user: 'Waiting for your go-ahead',
   building: 'Building your slides…',
   qa: 'Running quality checks…',
   finalizing: 'Finishing your deck…',
@@ -394,12 +405,24 @@ export function phaseLabelFor(phase: NarrationPhase): string {
 
 function toPhase(state: NarrationState, phase: NarrationPhase, ts: number, label?: string): NarrationState {
   if (state.phase === phase && (!label || state.phaseLabel === label)) return state;
+  // Decision gates don't count as build time (PK 2026-09-03): entering
+  // awaiting_user stamps the wait start; leaving it shifts startedAt forward
+  // by the waited span, so the elapsed clock freezes while the user thinks.
+  let startedAt = state.startedAt ?? ts;
+  let waitingSince = state.waitingSince;
+  if (phase === 'awaiting_user' && state.phase !== 'awaiting_user') {
+    waitingSince = ts;
+  } else if (state.phase === 'awaiting_user' && phase !== 'awaiting_user' && waitingSince !== null) {
+    startedAt = startedAt + Math.max(0, ts - waitingSince);
+    waitingSince = null;
+  }
   return {
     ...state,
     active: phase !== 'idle',
     phase,
     phaseLabel: label || phaseLabelFor(phase),
-    startedAt: state.startedAt ?? ts,
+    startedAt,
+    waitingSince,
   };
 }
 
@@ -430,6 +453,7 @@ function normalizeNarrationState(state: NarrationState): NarrationState {
     retiredBuildIds: normalizedRetiredBuildIds(state),
     qaSkipped: state.qaSkipped || {},
     buildPresentationId: state.buildPresentationId ?? null,
+    waitingSince: state.waitingSince ?? null,
   };
 }
 
@@ -559,6 +583,12 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
     case 'accepted':
       if (!state.active && state.ghosts.length === 0) return state;
       return toPhase(state, 'building', action.ts);
+
+    case 'planning_resumed':
+      // The PLAN gate was answered (strawman generation started): only valid
+      // exit from awaiting_user back into working state pre-strawman.
+      if (state.phase !== 'awaiting_user') return state;
+      return toPhase(state, 'planning', action.ts);
 
     case 'final_url': {
       if (!state.active) return state;

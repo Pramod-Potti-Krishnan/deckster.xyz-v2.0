@@ -49,6 +49,10 @@ export function StageRibbon({ narration: n, control, className }: StageRibbonPro
   const isHalted = n.phase === 'paused' || n.phase === 'stopped'
   const isError = n.phase === 'error'
   const isComplete = n.phase === 'complete'
+  // Decision gates freeze the clock (PK 2026-09-03): the reducer shifts
+  // startedAt on exit so the wait is never counted; freezing the display here
+  // keeps the shown value from creeping while waiting.
+  const isWaiting = n.phase === 'awaiting_user'
   const latestDeck = n.deckEvents.length ? n.deckEvents[n.deckEvents.length - 1] : null
   const lastErrorText = isError
     ? [...n.deckEvents].reverse().find((e) => e.status === 'error')?.text || 'The build hit an error.'
@@ -107,7 +111,7 @@ export function StageRibbon({ narration: n, control, className }: StageRibbonPro
             <p className="truncate text-xs text-destructive/80">{lastErrorText}</p>
           ) : null}
         </div>
-        <Elapsed startedAt={n.startedAt} halted={isHalted || isComplete || isError} />
+        <Elapsed startedAt={n.startedAt} halted={isHalted || isComplete || isError || isWaiting} />
         {n.slideCount > 0 && (n.phase === 'building' || n.phase === 'qa' || n.phase === 'finalizing' || isHalted) && (
           <span className="flex-none text-xs text-muted-foreground">
             {n.slidesDone} of {n.slideCount} built
