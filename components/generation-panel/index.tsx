@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { defaultElementResearchSelection, isNonResearchVisualElement } from '@/lib/element-research-policy'
 import { TemplateSlotCatalog, TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import { GenerationPanelHeader } from './header'
+import { ComposerAtomEditor } from './composer-atom-editor'
 import { GenerationInput } from './shared/generation-input'
 import { TextBoxForm } from './forms/text-box-form'
 import { MetricsForm } from './forms/metrics-form'
@@ -94,6 +95,8 @@ function useMemoFromSavedGenerationConfig(
 }
 
 export function GenerationPanel({
+  composerTarget,
+  onComposerReplaced,
   isOpen,
   activationId,
   draftKey,
@@ -272,7 +275,7 @@ export function GenerationPanel({
   }, [activationId, draftKey, elementType, existingTextTarget?.elementId])
 
   useEffect(() => {
-    if (!isOpen || elementType !== 'TEXT_BOX') return
+    if (!isOpen || composerTarget || elementType !== 'TEXT_BOX') return
     let cancelled = false
     if (!getTemplateSlotCatalog) {
       setSlotCatalog({ slots: [] })
@@ -301,7 +304,7 @@ export function GenerationPanel({
         if (!cancelled) setSlotCatalogLoading(false)
       })
     return () => { cancelled = true }
-  }, [elementType, getTemplateSlotCatalog, isOpen, slideIndex])
+  }, [composerTarget, elementType, getTemplateSlotCatalog, isOpen, slideIndex])
 
   // Visibility logic
   const showGenerationInput = mode === 'generate' || mode === 'refine'
@@ -323,7 +326,7 @@ export function GenerationPanel({
 
   // Keyboard shortcuts: Escape to close, Cmd/Ctrl+Enter to generate
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || composerTarget) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isGenerating) {
@@ -338,7 +341,9 @@ export function GenerationPanel({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleFooterGenerate, isOpen, isGenerating, onClose, showGenerationInput])
+  }, [composerTarget, handleFooterGenerate, isOpen, isGenerating, onClose, showGenerationInput])
+
+  if (isOpen && composerTarget && onComposerReplaced) return <ComposerAtomEditor key={`${composerTarget.presentationId}:${composerTarget.slideIndex}:${composerTarget.collection}:${composerTarget.elementId}:${composerTarget.metadata.source.request_sha256}`} target={composerTarget} onClose={onClose} onReplaced={onComposerReplaced} />
 
   return (
     <div className="absolute inset-0 z-20 flex pointer-events-none">

@@ -21,6 +21,8 @@ export interface ElementContext {
 }
 
 export interface GenerationPanelProps {
+  composerTarget?: import("@/lib/composer-atoms").ComposerTarget | null
+  onComposerReplaced?: (target: import("@/lib/composer-atoms").ComposerTarget, originalTarget: import("@/lib/composer-atoms").ComposerTarget) => Promise<void>
   isOpen: boolean
   activationId: number
   draftKey?: string | null

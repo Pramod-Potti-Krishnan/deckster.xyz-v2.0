@@ -88,7 +88,7 @@ export default function RootLayout({
             <Toaster />
           </ThemeProvider>
         </SessionProvider>
-        <Analytics />
+        {process.env.NEXT_PUBLIC_COMPOSER_DIRECT_REGENERATE !== 'true' && <Analytics />}
       </body>
     </html>
   )

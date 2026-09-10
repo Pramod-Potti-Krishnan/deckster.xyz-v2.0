@@ -152,6 +152,8 @@ export interface TextBoxFormatting {
 }
 
 export interface RefineElementRequest {
+  element_metadata?: Record<string, unknown> | null
+  render_spec?: Record<string, unknown> | null
   elementId: string
   elementType: string
   componentType?: string
@@ -245,10 +247,11 @@ interface PresentationViewerProps {
     elementId: string,
     formatting: TextBoxFormatting | null,
     componentType?: string,
+    composerSelection?: Record<string, any>,
   ) => void
   onTextBoxDeselected?: () => void
   // Element panel callbacks (Image, Table, Chart, Infographic, Diagram)
-  onElementSelected?: (elementId: string, elementType: ElementType, properties: ElementProperties) => void
+  onElementSelected?: (elementId: string, elementType: ElementType, properties: ElementProperties, composerSelection?: Record<string, any>) => void
   onElementDeselected?: () => void
   onElementDeleted?: (elementId: string) => void
   // Text Labs Generation Panel - opens generation panel for the given element type
@@ -2365,6 +2368,8 @@ export function PresentationViewer({
       ) {
         onRefineElementRequested?.({
           elementId: String(event.data.elementId),
+          element_metadata: recordValue(event.data.element_metadata ?? event.data.elementMetadata ?? event.data.properties?.element_metadata),
+          render_spec: recordValue(event.data.render_spec ?? event.data.renderSpec ?? event.data.properties?.render_spec),
           elementType: String(event.data.elementType || event.data.componentType),
           componentType: event.data.componentType ? String(event.data.componentType) : undefined,
           slideIndex: typeof event.data.slideIndex === 'number' ? event.data.slideIndex : undefined,
@@ -2424,8 +2429,8 @@ export function PresentationViewer({
         await ensureEditMode()
 
         setSelectedTextBoxId(elementId)
-        onTextBoxSelected?.(elementId, formatting, componentType)
-        void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
+        onTextBoxSelected?.(elementId, formatting, componentType, event.data)
+        if (!event.data.element_metadata && !event.data.elementMetadata && !event.data.properties?.element_metadata) void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
           console.warn('[PresentationViewer] Failed to bring selected text box to front:', error)
         })
         debugLog(`📦 Text box selected: ${elementId} (${componentType || 'TEXT_BOX'})`)
@@ -2458,8 +2463,8 @@ export function PresentationViewer({
         await ensureEditMode()
 
         // Notify parent to show the appropriate format panel
-        onElementSelected?.(elementId, elementType, properties)
-        void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
+        onElementSelected?.(elementId, elementType, properties, event.data)
+        if (!event.data.element_metadata && !event.data.elementMetadata && !event.data.properties?.element_metadata) void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
           console.warn('[PresentationViewer] Failed to bring selected element to front:', error)
         })
         debugLog(`🎯 Element selected: ${elementType} (${elementId})`)

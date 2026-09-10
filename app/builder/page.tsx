@@ -24,6 +24,7 @@ import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerAp
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties, SlideLayoutType } from '@/types/elements'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { composerDirectEnabled, validateComposerMetadata, type ComposerTarget } from "@/lib/composer-atoms"
 import { GenerationPanel } from '@/components/generation-panel'
 import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
@@ -1063,6 +1064,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // Text Labs Generation Panel
   const generationPanel = useGenerationPanel()
+  const [composerTarget, setComposerTarget] = useState<ComposerTarget | null>(null)
+  const [composerRefreshToken, setComposerRefreshToken] = useState(0)
+  const composerTargetRef = useRef<ComposerTarget | null>(null)
+  composerTargetRef.current = composerTarget
+  const composerPendingSelection = useRef<string | null>(null)
+  const localComposerPresentationId = composerDirectEnabled() && /^[a-zA-Z0-9-]+$/.test(searchParams.get('composer_presentation_id') ?? '')
+    ? searchParams.get('composer_presentation_id') : null
   const blankElements = useBlankElements()
 
   // Z-index tracking for drawer stacking order
@@ -2361,14 +2369,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     buildPresentationId: buildNarration.buildPresentationId,
     finalPresentationUrl,
   })
-  const effectivePresentationId = narrationCenterStage === 'final_fill'
+  const effectivePresentationId = localComposerPresentationId ?? (narrationCenterStage === 'final_fill'
     ? buildNarration.buildPresentationId
-    : (templateModeSourcePresentationId ?? directorOwnedPresentation.presentationId)
-  const effectiveSlideCount = templateModeSourcePresentationId
+    : (templateModeSourcePresentationId ?? directorOwnedPresentation.presentationId))
+  const effectiveSlideCount = localComposerPresentationId ? 1 : templateModeSourcePresentationId
     ? slideCount
     : directorOwnedPresentation.slideCount
   const effectivePresentationUrl = useMemo(
     () => {
+      if (localComposerPresentationId) return `${getPresentationViewerUrl(localComposerPresentationId)}?composer_refresh=${composerRefreshToken}`
       if (narrationCenterStage === 'final_fill' && buildNarration.buildPresentationId) {
         // Same /p/{id} formula the Director uses for the official URL, so the
         // final presentation_url handoff does not remount the iframe.
@@ -2379,7 +2388,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         templateModeSourcePresentationId ? 0 : directorOwnedPresentation.refreshToken,
       )
     },
-    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, narrationCenterStage, buildNarration.buildPresentationId],
+    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, narrationCenterStage, buildNarration.buildPresentationId, localComposerPresentationId, composerRefreshToken],
   )
 
   const themeSyncTargetRef = useRef({
@@ -2565,7 +2574,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [getThemeSyncSnapshot, requestThemeSyncForPresentation])
 
   useEffect(() => {
-    if (!isReady || !effectivePresentationId || templateModeOn) {
+    if (!isReady || !effectivePresentationId || templateModeOn || localComposerPresentationId) {
       const current = themeSyncRef.current
       const currentFingerprint = themeSelectionFingerprint(buildThemeSelection)
       if (
@@ -3207,7 +3216,68 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     toast,
   })
 
+  const openComposerSelection = useCallback((elementId: string, selection?: Record<string, any>) => {
+    const metadata = selection?.element_metadata ?? selection?.elementMetadata ?? selection?.properties?.element_metadata
+    if (!composerDirectEnabled() || !metadata || !effectivePresentationId) {
+      if (composerTargetRef.current) generationPanel.closePanel()
+      composerTargetRef.current = null
+      setComposerTarget(null)
+      return false
+    }
+    try {
+      const valid = validateComposerMetadata(metadata)
+      const target: ComposerTarget = { elementId, presentationId: effectivePresentationId, slideIndex: currentSlideIndex,
+        collection: valid.owning_family === 'INFOGRAPHIC' ? 'infographics' : 'textboxes', metadata: valid }
+      composerTargetRef.current = target
+      setComposerTarget(target)
+      generationPanel.openPanelForEdit(valid.owning_family, elementId)
+      activateElementPanel()
+      setShowElementPanel(false); setShowTextBoxPanel(false); setShowFormatPanel(false)
+    } catch (error) {
+      composerTargetRef.current = null
+      setComposerTarget(null)
+      generationPanel.closePanel()
+      toast({ title: 'Unsupported saved element', description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+    }
+    return true
+  }, [activateElementPanel, currentSlideIndex, effectivePresentationId, generationPanel, toast])
+  const clearComposerSelection = useCallback(() => {
+    const hadComposerTarget = Boolean(composerTargetRef.current)
+    composerTargetRef.current = null
+    setComposerTarget(null)
+    if (hadComposerTarget) generationPanel.closePanel()
+  }, [generationPanel])
+  const handleComposerApiReady = useCallback((apis: typeof layoutServiceApis) => {
+    setLayoutServiceApis(apis)
+    if (apis && composerPendingSelection.current) {
+      const elementId = composerPendingSelection.current
+      composerPendingSelection.current = null
+      void apis.sendTextBoxCommand('selectTextBox', { elementId }).catch(error => {
+        toast({ title: 'Element saved', description: 'Select the replacement to continue editing.', variant: 'default' })
+        console.warn('[Composer] Replacement selection failed', error)
+      })
+    }
+  }, [toast])
+  const handleComposerReplaced = async (target: ComposerTarget, originalTarget: ComposerTarget) => {
+    const current = composerTargetRef.current
+    const stillSelected = current?.elementId === originalTarget.elementId
+      && current.metadata.source.request_sha256 === originalTarget.metadata.source.request_sha256
+      && current.presentationId === originalTarget.presentationId
+    if (stillSelected) {
+      setComposerTarget(target)
+      generationPanel.openPanelForEdit(target.metadata.owning_family, target.elementId)
+      composerPendingSelection.current = target.elementId
+    } else {
+      composerPendingSelection.current = current?.elementId ?? null
+    }
+    // Remount the real viewer so the removed atom's autosave timers cannot
+    // write stale DOM content over the server's committed replacement.
+    setComposerRefreshToken(value => value + 1)
+  }
+
   const handleOpenGenerationPanelInFront = useCallback(async (type: string) => {
+    composerTargetRef.current = null
+    setComposerTarget(null)
     activateElementPanel()
     await handleOpenGenerationPanel(type)
   }, [activateElementPanel, handleOpenGenerationPanel])
@@ -3216,6 +3286,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     componentType: TextLabsComponentType,
     elementId: string,
   ) => {
+    composerTargetRef.current = null
+    setComposerTarget(null)
     activateElementPanel()
     generationPanel.openPanelForElement(componentType, elementId)
   }, [activateElementPanel, generationPanel])
@@ -3238,6 +3310,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast])
 
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
+    if (openComposerSelection(payload.elementId, payload)) return
     if (!features.useTextLabsGeneration) return
 
     const componentType = normalizeTextLabsElementType(payload.componentType ?? payload.elementType)
@@ -3261,6 +3334,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     buildRefineContext,
     generationPanel,
     handleOpenBlankGenerationPanel,
+    openComposerSelection,
   ])
 
   const getTemplateSlotCatalog = useCallback(async (slideIndex: number) => {
@@ -4280,6 +4354,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             >
               {features.useTextLabsGeneration && (
                 <GenerationPanel
+                  composerTarget={composerTarget}
+                  onComposerReplaced={handleComposerReplaced}
                   isOpen={generationPanel.isOpen}
                   activationId={generationPanel.activationId}
                   draftKey={generationPanel.draftKey}
@@ -4287,6 +4363,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   onDraftChange={generationPanel.updateCurrentDraft}
                   elementType={generationPanel.elementType}
                   onClose={() => {
+                    setComposerTarget(null)
                     generationPanel.closePanel()
                   }}
                   onGenerate={handleApprovedTextLabsGenerate}
@@ -4750,6 +4827,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             </div>
           ) : (
           <PresentationArea
+            key={composerDirectEnabled() ? `${effectivePresentationId ?? "empty"}:${composerRefreshToken}` : undefined}
             presentationUrl={effectivePresentationUrl}
             presentationId={effectivePresentationId}
             slideCount={effectiveSlideCount}
@@ -4814,10 +4892,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   }
                 : null
             }
-            onApiReady={setLayoutServiceApis}
+            onApiReady={handleComposerApiReady}
             onComposeApiReady={handleComposeApiReady}
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
-            onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
+            onTextBoxSelected={(elementId, formatting, selectedComponentType, composerSelection) => {
+              if (openComposerSelection(elementId, composerSelection)) return
               if (features.useTextLabsGeneration) {
                 setSelectedTextBoxId(elementId)
                 setSelectedTextBoxFormatting(formatting)
@@ -4835,13 +4914,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             }}
             onTextBoxDeselected={() => {
+              clearComposerSelection()
               setSelectedTextBoxId(null)
               setSelectedTextBoxFormatting(null)
-              if (!generationPanel.isGenerating && (generationPanel.mode === 'edit' || generationPanel.mode === 'refine')) {
+              if (!composerTarget && !generationPanel.isGenerating && (generationPanel.mode === 'edit' || generationPanel.mode === 'refine')) {
                 generationPanel.closePanel()
               }
             }}
-            onElementSelected={(elementId, elementType, properties) => {
+            onElementSelected={(elementId, elementType, properties, composerSelection) => {
+              if (openComposerSelection(elementId, composerSelection)) return
               if (features.useTextLabsGeneration && isTextLabsMappable(elementType)) {
                 setSelectedElementId(elementId)
                 setSelectedElementType(elementType)
@@ -4861,20 +4942,23 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             }}
             onElementDeselected={() => {
+              clearComposerSelection()
               setSelectedElementId(null)
               setSelectedElementType(null)
               setSelectedElementProperties(null)
-              if (!generationPanel.isGenerating && (generationPanel.mode === 'edit' || generationPanel.mode === 'refine')) {
+              if (!composerTarget && !generationPanel.isGenerating && (generationPanel.mode === 'edit' || generationPanel.mode === 'refine')) {
                 generationPanel.closePanel()
               }
             }}
             onElementDeleted={(elementId) => {
-              const deletedActiveElement = selectedElementId === elementId
+              const deletedComposerTarget = composerTargetRef.current?.elementId === elementId
+              const deletedActiveElement = deletedComposerTarget || selectedElementId === elementId
                 || selectedTextBoxId === elementId
                 || generationPanel.editElementId === elementId
                 || generationPanel.refineContext?.elementId === elementId
                 || generationPanel.blankElementId === elementId
               if (!deletedActiveElement) return
+              if (deletedComposerTarget) clearComposerSelection()
               setSelectedElementId(null)
               setSelectedElementType(null)
               setSelectedElementProperties(null)

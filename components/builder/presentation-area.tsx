@@ -73,10 +73,11 @@ export interface PresentationAreaProps {
     elementId: string,
     formatting: TextBoxFormatting | null,
     componentType?: string,
+    composerSelection?: Record<string, any>,
   ) => void
   onTextBoxDeselected: () => void
   // Element selection
-  onElementSelected: (elementId: string, elementType: ElementType, properties: ElementProperties) => void
+  onElementSelected: (elementId: string, elementType: ElementType, properties: ElementProperties, composerSelection?: Record<string, any>) => void
   onElementDeselected: () => void
   onElementDeleted: (elementId: string) => void
   // Blank elements
@@ -329,14 +330,16 @@ export function PresentationArea({
               console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
               onEditModeChange?.(isEditing)
             }}
-            onTextBoxSelected={(elementId, formatting, componentType) => {
-              if (handleBlankElementClick(elementId, blankElements, onOpenBlankGenerationPanel)) return
-              onTextBoxSelected(elementId, formatting, componentType)
+            onTextBoxSelected={(elementId, formatting, componentType, composerSelection) => {
+              if (!(composerSelection?.element_metadata ?? composerSelection?.elementMetadata ?? composerSelection?.properties?.element_metadata)
+                && handleBlankElementClick(elementId, blankElements, onOpenBlankGenerationPanel)) return
+              onTextBoxSelected(elementId, formatting, componentType, composerSelection)
             }}
             onTextBoxDeselected={onTextBoxDeselected}
-            onElementSelected={(elementId, elementType, properties) => {
-              if (handleBlankElementClick(elementId, blankElements, onOpenBlankGenerationPanel)) return
-              onElementSelected(elementId, elementType, properties)
+            onElementSelected={(elementId, elementType, properties, composerSelection) => {
+              if (!(composerSelection?.element_metadata ?? composerSelection?.elementMetadata ?? composerSelection?.properties?.element_metadata)
+                && handleBlankElementClick(elementId, blankElements, onOpenBlankGenerationPanel)) return
+              onElementSelected(elementId, elementType, properties, composerSelection)
             }}
             onElementDeselected={onElementDeselected}
             onElementDeleted={onElementDeleted}
