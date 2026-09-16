@@ -1,10 +1,11 @@
 /** The accepted Composer source envelope. Renderer collection is storage only. */
 export const COMPOSER_VARIANTS = {
-  TEXT_BOX: ['rich_text', 'card', 'scenario_card', 'comparison_row', 'callout'],
-  METRICS: ['single', 'card', 'pill', 'total_band', 'shared_panel'],
-  TABLE: ['plain'],
-  INFOGRAPHIC: ['timeline.alternating_milestones', 'process.connected_steps'],
+  TEXT_BOX: ['rich_text', 'card', 'scenario_card', 'comparison_row', 'callout', 'custom'],
+  METRICS: ['single', 'card', 'pill', 'total_band', 'shared_panel', 'custom'],
+  TABLE: ['plain', 'custom'],
+  INFOGRAPHIC: ['timeline.alternating_milestones', 'process.connected_steps', 'custom'],
 } as const
+export const COMPOSER_CUSTOM_SCHEMA = 'composer-html-container-v1'
 export type ComposerFamily = keyof typeof COMPOSER_VARIANTS
 export interface ComposerMetadata {
   schema_version: 'deckster-element-source-v1'
@@ -25,6 +26,10 @@ export interface ComposerTarget {
 export interface ComposerSlot { id: string; label: string; role: string; path: string }
 export interface ComposerSource { element: Record<string, any>; request: Record<string, any>; metadata: ComposerMetadata; slots: ComposerSlot[] }
 export const composerDirectEnabled = () => process.env.NEXT_PUBLIC_COMPOSER_DIRECT_REGENERATE === 'true'
+export const composerIsCustom = (metadata: ComposerMetadata) => metadata.variant_id === 'custom'
+export function composerEditableVariants(metadata: ComposerMetadata): readonly string[] {
+  return composerIsCustom(metadata) ? ['custom'] : COMPOSER_VARIANTS[metadata.owning_family].filter(value => value !== 'custom')
+}
 
 export function validateComposerMetadata(value: unknown): ComposerMetadata {
   const m = value as ComposerMetadata | undefined
@@ -36,7 +41,7 @@ export function validateComposerMetadata(value: unknown): ComposerMetadata {
   const infographic = m.owning_family === 'INFOGRAPHIC'
   if (m.source.carrier !== (infographic ? 'generation_config' : 'render_spec')
     || m.source.request_pointer !== (infographic ? '/request' : '/generation/request')
-    || m.source.params_schema !== (infographic ? 'composer-infographic-atom-v1' : 'composer-text-atom-v2')) {
+    || m.source.params_schema !== (composerIsCustom(m) ? COMPOSER_CUSTOM_SCHEMA : infographic ? 'composer-infographic-atom-v1' : 'composer-text-atom-v2')) {
     throw new Error('This saved Composer source schema is unsupported.')
   }
   return m
@@ -57,31 +62,47 @@ export function readPointer(source: any, path: string): any {
 }
 export function hydrateComposerSource(element: Record<string, any>): ComposerSource {
   const metadata = validateComposerMetadata(element.element_metadata)
+  const custom = composerIsCustom(metadata)
   const carrier = element[metadata.source.carrier]
   const request = readPointer(carrier, metadata.source.request_pointer)
   const sourceHash = metadata.source.carrier === 'render_spec' ? carrier?.generation?.request_sha256 : carrier?.request_sha256
-  if (element.component_type !== metadata.owning_family || element.frame_owner !== 'layout'
+  if (element.component_type !== metadata.owning_family || element.frame_owner !== (custom && metadata.owning_family === 'INFOGRAPHIC' ? 'none' : 'layout')
     || element.style_owner !== (metadata.owning_family === 'INFOGRAPHIC' ? 'illustrator' : 'text_service')
     || carrier?.schema_version !== metadata.source.params_schema || sourceHash !== metadata.source.request_sha256
     || !request || request.render_mode !== 'precise' || request.schema_version !== metadata.source.params_schema || request.component_type !== metadata.owning_family
-    || request.variant_id !== metadata.variant_id || !Array.isArray(request.editable_slots) || !request.editable_slots.length) {
+    || request.variant_id !== metadata.variant_id || !Array.isArray(request.editable_slots)
+    || (!request.editable_slots.length && !(custom && metadata.owning_family === 'INFOGRAPHIC'))) {
     throw new Error('The stored source does not match this element’s metadata.')
   }
   const ids = new Set<string>(), paths = new Set<string>()
   const roles = new Set(['heading', 'body', 'value', 'label', 'delta', 'note', 'date', 'stage', 'cell'])
   for (const slot of request.editable_slots) {
     if (!slot || typeof slot.id !== 'string' || typeof slot.label !== 'string' || !roles.has(slot.role)
-      || typeof slot.path !== 'string' || !/^\/scene\/(?:node\/params|zone\/units\/(?:0|[1-9][0-9]*)\/atoms\/(?:0|[1-9][0-9]*)\/params)(?:\/cells\/(?:0|[1-9][0-9]*)\/text|\/(?:value|label|delta))?\/paragraphs\/(?:0|[1-9][0-9]*)\/runs\/(?:0|[1-9][0-9]*)\/text$/.test(slot.path)
+      || typeof slot.path !== 'string' || (custom
+        ? !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(slot.id) || slot.path !== `/content/${slot.id}`
+        : !/^\/scene\/(?:node\/params|zone\/units\/(?:0|[1-9][0-9]*)\/atoms\/(?:0|[1-9][0-9]*)\/params)(?:\/cells\/(?:0|[1-9][0-9]*)\/text|\/(?:value|label|delta))?\/paragraphs\/(?:0|[1-9][0-9]*)\/runs\/(?:0|[1-9][0-9]*)\/text$/.test(slot.path))
       || typeof readPointer(request, slot.path) !== 'string' || ids.has(slot.id) || paths.has(slot.path)) {
       throw new Error('The stored editable slots are invalid.')
     }
     ids.add(slot.id); paths.add(slot.path)
   }
+  if (custom) {
+    const graphic = metadata.owning_family === 'INFOGRAPHIC'
+    if (!request.content || Array.isArray(request.content) || typeof request.content !== 'object'
+      || !sameComposerJson(Object.keys(request.content).sort(), [...ids].sort())
+      || !request.template || typeof request.template.id !== 'string' || typeof request.template.html !== 'string' || !request.template.html
+      || !sameComposerJson(request.template.slots, request.editable_slots)
+      || (graphic && ids.size !== 0)
+      || !Number.isFinite(request.box?.width) || request.box.width <= 0 || !Number.isFinite(request.box?.height) || request.box.height <= 0
+      || !sameComposerJson(carrier.frame, { inset_px: graphic ? 0 : 7, client_width_px: request.box.width, client_height_px: request.box.height })) {
+      throw new Error('The stored container template, content slots or frame are invalid.')
+    }
+  }
   return { element, metadata, request, slots: request.editable_slots }
 }
 
 export function applyComposerEdits(source: ComposerSource, edits: Record<string, unknown>, variant: string) {
-  if (!(COMPOSER_VARIANTS[source.metadata.owning_family] as readonly string[]).includes(variant)) throw new Error('Unsupported structural variant.')
+  if (!composerEditableVariants(source.metadata).includes(variant)) throw new Error('Unsupported structural variant.')
   const request = structuredClone(source.request)
   const allowed = new Map(source.slots.map(slot => [slot.id, slot]))
   for (const [id, value] of Object.entries(edits)) {
@@ -107,10 +128,11 @@ export function sameComposerJson(left: unknown, right: unknown): boolean {
 
 export function buildComposerReplacement(source: ComposerSource, renderRequest: Record<string, any>, rendered: Record<string, any>) {
   const infographic = source.metadata.owning_family === 'INFOGRAPHIC'
+  const custom = composerIsCustom(source.metadata)
   const carrier = source.element[source.metadata.source.carrier]
   if (rendered.success !== true || rendered.component_type !== source.metadata.owning_family
     || rendered.schema_version !== renderRequest.schema_version || rendered.render_mode !== 'precise'
-    || rendered.variant_id !== renderRequest.variant_id || rendered.variant_registry_version !== 'composer-taxonomy-v1'
+    || rendered.variant_id !== renderRequest.variant_id || rendered.variant_registry_version !== (custom ? COMPOSER_CUSTOM_SCHEMA : 'composer-taxonomy-v1')
     || !sameComposerJson(rendered.render_request, renderRequest)
     || !sameComposerJson(rendered.editable_slots, renderRequest.editable_slots)
     || !sameComposerJson(rendered.frame, carrier.frame)
@@ -126,7 +148,7 @@ export function buildComposerReplacement(source: ComposerSource, renderRequest: 
     replacement.html_content = rendered.html
     // `items` is legacy persisted data, not the new typed source. Its original
     // null/array value remains untouched when editing source text.
-    replacement.infographic_type = rendered.render_request.scene.zone.kind
+    replacement.infographic_type = custom ? 'custom' : rendered.render_request.scene.zone.kind
     replacement.generation_config = { ...carrier, request: rendered.render_request, request_sha256: rendered.request_sha256, content_sha256: rendered.html_sha256, frame: rendered.frame }
   } else {
     replacement.content = rendered.html

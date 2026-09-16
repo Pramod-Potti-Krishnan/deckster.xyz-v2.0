@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { createHash } from 'node:crypto'
-import { applyComposerEdits, buildComposerReplacement, hydrateComposerSource, sameComposerJson, verifyComposerReadback } from '@/lib/composer-atoms'
+import { applyComposerEdits, buildComposerReplacement, composerIsCustom, hydrateComposerSource, sameComposerJson, verifyComposerReadback } from '@/lib/composer-atoms'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 const collections = { textboxes: 'text_boxes', infographics: 'infographics' } as const
 
-function localBase(raw: string | undefined, port: string) {
+function localBase(raw: string | undefined, port: string, allowedPorts: readonly string[] = [port]) {
   const url = new URL(raw ?? `http://127.0.0.1:${port}`)
-  if (url.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(url.hostname) || url.port !== port || url.username || url.password) throw new Error('The local Composer adapter only accepts its configured loopback services.')
+  if (url.protocol !== 'http:' || !['localhost', '127.0.0.1'].includes(url.hostname) || !allowedPorts.includes(url.port) || url.username || url.password) throw new Error('The local Composer adapter only accepts its configured loopback services.')
   return url.origin
 }
 async function guard(request: NextRequest) {
@@ -31,7 +31,7 @@ async function load(input: Record<string, any>) {
   const slideIndex = Number(input.slideIndex)
   if (!/^[a-zA-Z0-9-]+$/.test(presentationId ?? '') || !/^[a-zA-Z0-9_-]+$/.test(elementId ?? '') || !Object.hasOwn(collections, collection)
     || !Number.isInteger(slideIndex) || slideIndex < 0 || slideIndex > 999) throw new Error('Invalid element identity.')
-  const base = localBase(process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL, '8504')
+  const base = localBase(process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL, '8504', process.env.COMPOSER_LOCAL_ROUND === 'r17' ? ['8504', '8519'] : ['8504'])
   const presentation = await call(`${base}/api/presentations/${presentationId}`)
   const element = presentation.slides?.[slideIndex]?.[collections[collection as keyof typeof collections]]?.find((item: any) => item.id === elementId)
   if (!element) throw new Error('The selected element no longer exists.')
@@ -53,8 +53,12 @@ export async function POST(request: NextRequest) {
     if (!input.edits || Array.isArray(input.edits) || typeof input.edits !== 'object') throw new Error('Explicit edits are required.')
     const renderRequest = applyComposerEdits(source, input.edits, input.variant)
     const infographic = source.metadata.owning_family === 'INFOGRAPHIC'
-    const renderEndpoint = infographic ? '/v1.0/atomic/infographic/precise/render' : `/v1.2/atomic/${source.metadata.owning_family}`
-    const rendered = await call(localBase(infographic ? process.env.COMPOSER_ILLUSTRATOR_URL : process.env.COMPOSER_TEXT_URL, infographic ? '8507' : '8505') + renderEndpoint, renderRequest)
+    const custom = composerIsCustom(source.metadata)
+    const renderEndpoint = infographic ? `/v1.0/atomic/infographic/${custom ? 'custom' : 'precise'}/render` : `/v1.2/atomic/${source.metadata.owning_family}${custom ? '/custom' : ''}`
+    const serviceUrl = custom
+      ? infographic ? process.env.COMPOSER_CUSTOM_ILLUSTRATOR_URL : process.env.COMPOSER_CUSTOM_TEXT_URL
+      : infographic ? process.env.COMPOSER_ILLUSTRATOR_URL : process.env.COMPOSER_TEXT_URL
+    const rendered = await call(localBase(serviceUrl, custom ? infographic ? '8521' : '8520' : infographic ? '8507' : '8505') + renderEndpoint, renderRequest)
     const replacement = buildComposerReplacement(source, renderRequest, rendered)
     if (createHash('sha256').update(rendered.html, 'utf8').digest('hex') !== rendered.html_sha256) throw new Error('The owning service HTML hash does not match its content.')
     // No browser-side canonical hash. Layout checks the old service-bound source

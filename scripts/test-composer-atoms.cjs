@@ -4,7 +4,7 @@ const Module = require('node:module')
 const ts = require('typescript')
 const compiled = ts.transpileModule(fs.readFileSync('lib/composer-atoms.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
 const loaded = new Module('composer-atoms'); loaded._compile(compiled, 'composer-atoms.js')
-const { hydrateComposerSource, applyComposerEdits, validateComposerMetadata, pointerParts, buildComposerReplacement, verifyComposerReadback } = loaded.exports
+const { hydrateComposerSource, applyComposerEdits, validateComposerMetadata, pointerParts, buildComposerReplacement, verifyComposerReadback, composerEditableVariants } = loaded.exports
 const request = { schema_version: 'composer-text-atom-v2', render_mode: 'precise', component_type: 'TEXT_BOX', variant_id: 'scenario_card',
   scene: { node: { params: { paragraphs: [{ runs: [{ text: 'Measured card' }] }] } }, geometry: { x: 10.5 } },
   editable_slots: [{ id: 'title', label: 'Heading', role: 'heading', path: '/scene/node/params/paragraphs/0/runs/0/text' }] }
@@ -38,7 +38,7 @@ const hash = value => require('node:crypto').createHash('sha256').update(value).
 function responseFor(renderRequest, frame) {
   const html = '<div>Edited card</div>'
   return { success: true, schema_version: renderRequest.schema_version, render_mode: 'precise', component_type: renderRequest.component_type,
-    variant_id: renderRequest.variant_id, variant_registry_version: 'composer-taxonomy-v1', render_request: structuredClone(renderRequest),
+    variant_id: renderRequest.variant_id, variant_registry_version: renderRequest.variant_id === 'custom' ? 'composer-html-container-v1' : 'composer-taxonomy-v1', render_request: structuredClone(renderRequest),
     editable_slots: structuredClone(renderRequest.editable_slots), request_sha256: 'b'.repeat(64), html_sha256: hash(html), content_sha256: hash(html), html, frame: structuredClone(frame), renderer_version: 'test-renderer' }
 }
 const rendered = responseFor(changed, element.render_spec.frame)
@@ -70,6 +70,70 @@ const extra = structuredClone(nextSlide); extra.text_boxes.push(element)
 assert.throws(() => verifyComposerReadback(priorSlide, extra, 'textboxes', 'old', 'new'))
 const changedOther = structuredClone(nextSlide); changedOther.text_boxes[1].content = 'Changed'
 assert.throws(() => verifyComposerReadback(priorSlide, changedOther, 'textboxes', 'old', 'new'))
+
+const customRequest = {
+  schema_version: 'composer-html-container-v1', render_mode: 'precise', component_type: 'TEXT_BOX', variant_id: 'custom',
+  content: { title: 'Measured container' }, editable_slots: [{ id: 'title', label: 'Container title', role: 'heading', path: '/content/title' }],
+  box: { width: 466, height: 106 }, theme: { fonts: { heading: { family: 'Arial', weight: 600, size_px: 24 } }, colors: { ink: '#123456' } },
+  template: { id: 'golden-container', html: '<div>{{slot:title}}</div>', slots: [{ id: 'title', label: 'Container title', role: 'heading', path: '/content/title' }], box: { width: 466, height: 106 }, capacity: { title: 80 }, provenance: { deck: 'gold', page: 2 } },
+}
+function customElement(family = 'TEXT_BOX') {
+  const result = structuredClone(element), req = structuredClone(customRequest)
+  req.component_type = family
+  result.component_type = family
+  result.element_metadata.owning_family = family
+  result.element_metadata.variant_id = 'custom'
+  result.element_metadata.source.params_schema = req.schema_version
+  result.render_spec.schema_version = req.schema_version
+  result.render_spec.generation.request = req
+  if (family === 'INFOGRAPHIC') {
+    req.editable_slots = []; req.content = {}; req.template.slots = []; req.template.html = '<div style="border-top:2px solid"></div>'
+    result.style_owner = 'illustrator'; result.frame_owner = 'none'; result.infographic_type = 'custom'; result.items = null
+    result.element_metadata.source.carrier = 'generation_config'; result.element_metadata.source.request_pointer = '/request'
+    result.generation_config = { schema_version: req.schema_version, request: req, request_sha256: 'a'.repeat(64), frame: { ...result.render_spec.frame, inset_px: 0 } }
+    delete result.render_spec
+  }
+  return result
+}
+const custom = customElement(), customSource = hydrateComposerSource(custom)
+const changedCustom = applyComposerEdits(customSource, { title: 'Edited container' }, 'custom')
+assert.equal(changedCustom.content.title, 'Edited container')
+for (const key of ['template', 'theme', 'box', 'editable_slots']) assert.deepEqual(changedCustom[key], customRequest[key])
+assert.equal(customSource.request.content.title, 'Measured container')
+assert.deepEqual(composerEditableVariants(customSource.metadata), ['custom'])
+assert.ok(!composerEditableVariants(source.metadata).includes('custom'))
+assert.throws(() => applyComposerEdits(customSource, {}, 'card'))
+assert.throws(() => applyComposerEdits(source, {}, 'custom'))
+assert.throws(() => applyComposerEdits(customSource, { '/template/html': 'changed template' }, 'custom'))
+for (const family of ['TEXT_BOX', 'METRICS', 'TABLE', 'INFOGRAPHIC']) {
+  const saved = customElement(family), stored = hydrateComposerSource(saved)
+  const carrier = saved[stored.metadata.source.carrier]
+  const replaced = buildComposerReplacement(stored, stored.request, responseFor(stored.request, carrier.frame))
+  assert.equal(replaced.element_metadata.source.params_schema, 'composer-html-container-v1')
+  if (family === 'INFOGRAPHIC') { assert.equal(replaced.infographic_type, 'custom'); assert.deepEqual(stored.slots, []) }
+}
+const framedGraphic = customElement('INFOGRAPHIC'); framedGraphic.frame_owner = 'layout'
+assert.throws(() => hydrateComposerSource(framedGraphic))
+const framelessText = customElement(); framelessText.frame_owner = 'none'
+assert.throws(() => hydrateComposerSource(framelessText))
+for (const mutate of [
+  req => { req.editable_slots[0].path = '/template/html' },
+  req => { req.editable_slots[0].path = '/content/notTitle' },
+  req => { req.template.slots[0].label = 'Forged declaration' },
+  req => { req.content.undeclared = 'Uneditable fact' },
+  req => { delete req.content.title },
+  req => { req.editable_slots = []; req.template.slots = []; req.content = {} },
+  req => { req.box.width++ },
+  req => { req.editable_slots[0].id = 'constructor'; req.editable_slots[0].path = '/content/constructor'; req.content = { constructor: 'unsafe' }; req.template.slots = structuredClone(req.editable_slots) },
+]) {
+  const bad = customElement(); mutate(bad.render_spec.generation.request)
+  assert.throws(() => hydrateComposerSource(bad))
+}
+const renderedCustom = responseFor(changedCustom, custom.render_spec.frame)
+for (const mutate of [r => { r.render_request.template.html += '<div>forged</div>' }, r => { r.render_request.theme.colors.ink = '#ffffff' }, r => { r.frame.inset_px = 0 }, r => { r.variant_registry_version = 'composer-taxonomy-v1' }]) {
+  const bad = structuredClone(renderedCustom); mutate(bad)
+  assert.throws(() => buildComposerReplacement(customSource, changedCustom, bad))
+}
 
 async function apiCases() {
   process.env.NEXT_PUBLIC_COMPOSER_DIRECT_REGENERATE = 'true'; process.env.NODE_ENV = 'test'
@@ -106,6 +170,30 @@ async function apiCases() {
     else if (scenario === 'bad-readback') { assert.equal(result.body.replacementOutcome, 'committed'); assert.equal(result.body.committed, true) }
     else { assert.equal(result.body.replacementOutcome, 'not_sent'); assert.equal(calls.filter(c => c.url.endsWith('/recreate')).length, 0) }
   }
-  console.log('PASS: typed source edits, immutable fields/items, exact response binding, only edited-ID replacement, precommit failures and unknown/committed outcomes; all fetches mocked.')
+  process.env.COMPOSER_LOCAL_ROUND = 'r17'; process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL = 'http://127.0.0.1:8519'
+  for (const family of ['TEXT_BOX', 'METRICS', 'TABLE', 'INFOGRAPHIC']) {
+    const saved = customElement(family), graphic = family === 'INFOGRAPHIC', storage = graphic ? 'infographics' : 'text_boxes'
+    const target = graphic ? 'infographics' : 'textboxes', carrier = saved[graphic ? 'generation_config' : 'render_spec']
+    let committedPayload, ownerCalls = 0
+    global.fetch = async (url, options) => {
+      assert.equal(options.redirect, 'error')
+      if (url.includes('/atomic/')) {
+        assert.equal(url, graphic ? 'http://127.0.0.1:8521/v1.0/atomic/infographic/custom/render' : `http://127.0.0.1:8520/v1.2/atomic/${family}/custom`)
+        ownerCalls++
+        return { ok: true, json: async () => responseFor(JSON.parse(options.body), carrier.frame) }
+      }
+      if (url.endsWith('/recreate')) {
+        assert.equal(url, `http://127.0.0.1:8519/api/presentations/test/slides/0/${target}/old/recreate`)
+        committedPayload = JSON.parse(options.body).replacement
+        return { ok: true, json: async () => ({ id: 'new', replaced_element_id: 'old' }) }
+      }
+      assert.equal(url, 'http://127.0.0.1:8519/api/presentations/test')
+      return { ok: true, json: async () => ({ slides: [{ [storage]: [committedPayload ? { ...committedPayload, id: 'new' } : saved] }] }) }
+    }
+    const result = await route.exports.POST({ nextUrl: new URL('http://localhost:3017/api/composer/regenerate'), headers: new Headers({ origin: 'http://localhost:3017' }),
+      json: async () => ({ presentationId: 'test', slideIndex: 0, collection: target, elementId: 'old', expectedSourceSha256: 'a'.repeat(64), variant: 'custom', edits: graphic ? {} : { title: 'Edited container' } }) })
+    assert.equal(result.status, 200, JSON.stringify(result.body)); assert.equal(ownerCalls, 1)
+  }
+  console.log('PASS: atom/custom source edits, immutable template/theme/frame/items, strict slot pointers, isolated custom routes, exact response binding, only edited-ID replacement, precommit failures and unknown/committed outcomes; all fetches mocked.')
 }
 apiCases().catch(error => { console.error(error); process.exitCode = 1 })

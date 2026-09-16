@@ -22,6 +22,7 @@ const buildFingerprint = resolveBuildFingerprint()
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(process.env.COMPOSER_LOCAL_ROUND === 'r17' ? { distDir: '.next-r17' } : {}),
   env: {
     NEXT_PUBLIC_DECKSTER_BUILD_SHA: buildFingerprint,
   },

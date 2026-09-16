@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { COMPOSER_VARIANTS, readPointer, type ComposerSource, type ComposerTarget } from '@/lib/composer-atoms'
+import { composerEditableVariants, composerIsCustom, readPointer, type ComposerSource, type ComposerTarget } from '@/lib/composer-atoms'
 
 export function ComposerAtomEditor({ target, onClose, onReplaced }: {
   target: ComposerTarget
@@ -68,14 +68,15 @@ export function ComposerAtomEditor({ target, onClose, onReplaced }: {
   return <section className="flex h-full flex-col bg-white text-slate-900" aria-label="Composer element editor" data-composer-element-id={target.elementId} data-composer-source-hash={target.metadata.source.request_sha256}>
     <div className="border-b p-4"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold">{target.metadata.owning_family}</h2><button onClick={onClose} disabled={busy} aria-label="Close element editor">✕</button></div><p className="mt-1 text-sm text-slate-500">Edit this element’s saved content</p></div>
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      <label className="block text-sm font-medium">Variant<select aria-label="Variant" className="mt-1 block w-full rounded border p-2" value={variant} onChange={event => setVariant(event.target.value)} disabled={busy}>
-        {COMPOSER_VARIANTS[target.metadata.owning_family].map(value => <option key={value} value={value}>{value}</option>)}
-      </select></label>
+      {!composerIsCustom(target.metadata) && <label className="block text-sm font-medium">Variant<select aria-label="Variant" className="mt-1 block w-full rounded border p-2" value={variant} onChange={event => setVariant(event.target.value)} disabled={busy}>
+        {composerEditableVariants(target.metadata).map(value => <option key={value} value={value}>{value}</option>)}
+      </select></label>}
       {!source && !error && <p role="status">Loading saved values…</p>}
+      {source && !source.slots.length && <p role="status" className="text-sm text-slate-600">This graphic has no text. Select a label or annotation on the slide to edit it.</p>}
       {source?.slots.map(slot => <label key={slot.id} className="block text-sm font-medium">{slot.label}<span className="ml-2 text-xs font-normal text-slate-500">{slot.role}</span><textarea aria-label={slot.label} data-slot-id={slot.id} data-slot-role={slot.role} className="mt-1 block min-h-16 w-full rounded border p-2 font-normal" value={values[slot.id] ?? ''} disabled={busy} onChange={event => setValues(previous => ({ ...previous, [slot.id]: event.target.value }))}/></label>)}
       {error && <p role="alert" className="rounded bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {done && <p role="status">Element replaced.</p>}
     </div>
-    <div className="border-t p-4"><button className="w-full rounded bg-purple-700 px-4 py-3 font-medium text-white disabled:opacity-50" disabled={!source || busy || needsReload} onClick={regenerate}>{busy ? 'Regenerating…' : 'Regenerate element'}</button></div>
+    <div className="border-t p-4"><button className="w-full rounded bg-purple-700 px-4 py-3 font-medium text-white disabled:opacity-50" disabled={!source?.slots.length || busy || needsReload} onClick={regenerate}>{busy ? 'Regenerating…' : 'Regenerate element'}</button></div>
   </section>
 }

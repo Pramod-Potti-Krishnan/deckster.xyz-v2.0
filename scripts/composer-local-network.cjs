@@ -3,8 +3,12 @@ const fs = require('node:fs')
 const net = require('node:net')
 const dns = require('node:dns')
 const local = host => ['localhost', '127.0.0.1', '::1', '[::1]', undefined].includes(host)
+// A new isolated R17 process opts in; running shared processes keep their guard.
+const ports = process.env.COMPOSER_LOCAL_ROUND === 'r17'
+  ? [9, 3017, 8504, 8505, 8507, 8519, 8520, 8521]
+  : [9, 3006, 8504, 8505, 8507]
 function check(host, port, kind) {
-  const allowed = local(host) && [9, 3006, 8504, 8505, 8507].includes(Number(port))
+  const allowed = local(host) && ports.includes(Number(port))
   if (process.env.COMPOSER_NETWORK_LOG) fs.appendFileSync(process.env.COMPOSER_NETWORK_LOG, JSON.stringify({ time: new Date().toISOString(), kind, host, port, allowed }) + '\n')
   if (!allowed) throw new Error('COMPOSER_LOCAL_NETWORK_ONLY')
 }
