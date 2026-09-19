@@ -31,7 +31,8 @@ async function load(input: Record<string, any>) {
   const slideIndex = Number(input.slideIndex)
   if (!/^[a-zA-Z0-9-]+$/.test(presentationId ?? '') || !/^[a-zA-Z0-9_-]+$/.test(elementId ?? '') || !Object.hasOwn(collections, collection)
     || !Number.isInteger(slideIndex) || slideIndex < 0 || slideIndex > 999) throw new Error('Invalid element identity.')
-  const base = localBase(process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL, '8504', process.env.COMPOSER_LOCAL_ROUND === 'r17' ? ['8504', '8519'] : ['8504'])
+  const stage = process.env.COMPOSER_LOCAL_ROUND === 'stage1'
+  const base = localBase(process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL, stage ? '8526' : '8504', stage ? ['8526'] : process.env.COMPOSER_LOCAL_ROUND === 'r17' ? ['8504', '8519'] : ['8504'])
   const presentation = await call(`${base}/api/presentations/${presentationId}`)
   const element = presentation.slides?.[slideIndex]?.[collections[collection as keyof typeof collections]]?.find((item: any) => item.id === elementId)
   if (!element) throw new Error('The selected element no longer exists.')
@@ -54,11 +55,13 @@ export async function POST(request: NextRequest) {
     const renderRequest = applyComposerEdits(source, input.edits, input.variant)
     const infographic = source.metadata.owning_family === 'INFOGRAPHIC'
     const custom = composerIsCustom(source.metadata)
+    const stage = process.env.COMPOSER_LOCAL_ROUND === 'stage1'
+    if (stage && (!custom || infographic)) throw new Error('Stage 1 permits only its isolated custom Text owner.')
     const renderEndpoint = infographic ? `/v1.0/atomic/infographic/${custom ? 'custom' : 'precise'}/render` : `/v1.2/atomic/${source.metadata.owning_family}${custom ? '/custom' : ''}`
     const serviceUrl = custom
       ? infographic ? process.env.COMPOSER_CUSTOM_ILLUSTRATOR_URL : process.env.COMPOSER_CUSTOM_TEXT_URL
       : infographic ? process.env.COMPOSER_ILLUSTRATOR_URL : process.env.COMPOSER_TEXT_URL
-    const rendered = await call(localBase(serviceUrl, custom ? infographic ? '8521' : '8520' : infographic ? '8507' : '8505') + renderEndpoint, renderRequest)
+    const rendered = await call(localBase(serviceUrl, stage ? '8525' : custom ? infographic ? '8521' : '8520' : infographic ? '8507' : '8505') + renderEndpoint, renderRequest)
     const replacement = buildComposerReplacement(source, renderRequest, rendered)
     if (createHash('sha256').update(rendered.html, 'utf8').digest('hex') !== rendered.html_sha256) throw new Error('The owning service HTML hash does not match its content.')
     // No browser-side canonical hash. Layout checks the old service-bound source
