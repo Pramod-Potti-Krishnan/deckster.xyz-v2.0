@@ -46,6 +46,8 @@ import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/component
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { TopUpModal } from '@/components/builder/topup-modal'
 import { ManualDeckConflictDialog } from '@/components/builder/manual-deck-conflict-dialog'
+import { useDeckIdentity } from '@/hooks/use-deck-identity'
+import type { DeckIdentity } from '@/lib/deck-identity'
 import type { SlideComposeThumbnailJob } from '@/components/slide-thumbnail-strip'
 import {
   canPollCompleteSlideComposeJob,
@@ -532,9 +534,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       ...(hasTemplateOverrides ? { elementOverrides: templateOverrides } : {}),
     }
   }, [activeTemplate, hasTemplateOverrides, templateOverrides])
+  // Contract G3: who is presenting. Null when NEXT_PUBLIC_DECK_IDENTITY_ENABLED
+  // is off or nothing is known, so spreading it emits no `deck_identity` key.
+  const deckIdentity = useDeckIdentity()
+  // Handlers passed into the WS hook are captured once, so the directive-driven
+  // auto-send reads identity through a ref rather than a stale closure.
+  const deckIdentityRef = useRef<DeckIdentity | null>(deckIdentity)
+  useEffect(() => {
+    deckIdentityRef.current = deckIdentity
+  }, [deckIdentity])
   const buildSendOptions = useMemo(
-    () => ({ ...templateSendOptions, theme: buildThemeSelection }),
-    [templateSendOptions, buildThemeSelection],
+    () => ({
+      ...templateSendOptions,
+      theme: buildThemeSelection,
+      ...(deckIdentity ? { deckIdentity } : {}),
+    }),
+    [templateSendOptions, buildThemeSelection, deckIdentity],
   )
   const templateModeSourcePresentationId = templateModeOn
     ? templateSnapshot?.source_presentation_id ?? null
@@ -1837,7 +1852,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         session.setUserMessages(prev => [...prev, { id: `user-nd-${ts}`, text: prefill, timestamp: ts }])
         // Dedupe (I-D/F1): upstream's sendMessageWhenConnected owns the
         // closed-socket case — it reconnects, waits for OPEN, then sends.
-        void sendMessageWhenConnected(prefill, undefined, undefined, {})
+        void sendMessageWhenConnected(prefill, undefined, undefined, {
+          ...(deckIdentityRef.current ? { deckIdentity: deckIdentityRef.current } : {}),
+        })
       } else if (prefill) {
         setInputMessage(prefill)
       }
@@ -4049,6 +4066,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       templateMode: pending.template_mode,
       templateId: pending.template_id,
       elementOverrides: pending.element_overrides,
+      // Identity is recomputed here rather than carried through the handoff
+      // payload: it comes from this browser's profile + stored form, which the
+      // new session shares, so the replayed build carries the same values
+      // without widening the handoff contract.
+      ...(deckIdentity ? { deckIdentity } : {}),
       handoffIdempotencyKey: pending.idempotency_key,
     })
     if (!sent) {
@@ -4095,7 +4117,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       body: JSON.stringify({ messages: [persistedMessage] }),
     }).catch(error => console.warn('[Manual Deck] Could not persist handed-off user message.', error))
   }, [
-    clearAllFiles, currentSessionId, isReady, sendMessage,
+    clearAllFiles, currentSessionId, deckIdentity, isReady, sendMessage,
     session.hasTitleFromUserMessageRef, session.setUserMessages,
     session.userMessageContentMapRef, session.userMessageIdsRef,
   ])
@@ -4585,6 +4607,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                             useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
                             fileUpload: !!sessionStoreName,
                             storeName: sessionStoreName,
+                            ...(deckIdentity ? { deckIdentity } : {}),
                           })
                         }}
                         messagesEndRef={messagesEndRef}
