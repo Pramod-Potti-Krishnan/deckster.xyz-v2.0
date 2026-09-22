@@ -18,6 +18,9 @@ import { Label } from "@/components/ui/label"
 import { useDeckIdentityForm } from "@/hooks/use-deck-identity"
 import { isDeckIdentityEnabled, type DeckIdentityForm } from "@/lib/deck-identity"
 
+/** Director caps each identity field at 120 characters. */
+const DECK_IDENTITY_MAX_LENGTH = 120
+
 /**
  * "Presenter details" — the optional Builder form behind
  * NEXT_PUBLIC_DECK_IDENTITY_ENABLED (contract G3).
@@ -97,6 +100,7 @@ export function DeckIdentityDialog({ isDark = false }: { isDark?: boolean }) {
               </Label>
               <Input
                 id="deck-identity-company"
+                maxLength={DECK_IDENTITY_MAX_LENGTH}
                 value={draft.company ?? ""}
                 placeholder="Optional"
                 onChange={(event) =>
@@ -111,6 +115,7 @@ export function DeckIdentityDialog({ isDark = false }: { isDark?: boolean }) {
               </Label>
               <Input
                 id="deck-identity-confidentiality"
+                maxLength={DECK_IDENTITY_MAX_LENGTH}
                 value={draft.confidentiality ?? ""}
                 placeholder="Optional — e.g. Confidential"
                 onChange={(event) =>
@@ -125,6 +130,7 @@ export function DeckIdentityDialog({ isDark = false }: { isDark?: boolean }) {
               </Label>
               <Input
                 id="deck-identity-logo"
+                maxLength={DECK_IDENTITY_MAX_LENGTH}
                 value={draft.logoUrl ?? ""}
                 placeholder="Optional — https://…"
                 onChange={(event) =>

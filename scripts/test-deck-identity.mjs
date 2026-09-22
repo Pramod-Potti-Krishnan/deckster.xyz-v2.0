@@ -189,6 +189,76 @@ check('logo_url keeps https and drops anything else', () => {
   assert.equal(cleanLogoUrl(''), undefined);
 });
 
+check('logo_url drops embedded credentials', () => {
+  // A secret in the URL would ride into the package and every downstream log.
+  assert.equal(cleanLogoUrl('https://user:pass@cdn.example.com/logo.png'), undefined);
+  assert.equal(cleanLogoUrl('https://user@cdn.example.com/logo.png'), undefined);
+  assert.equal(cleanLogoUrl('https://:pass@cdn.example.com/logo.png'), undefined);
+  // `user@host` is also how a hostile URL is dressed up as a trusted one.
+  assert.equal(cleanLogoUrl('https://cdn.example.com@evil.test/logo.png'), undefined);
+  // The credential-free form of the same host still passes.
+  assert.equal(
+    cleanLogoUrl('https://cdn.example.com/logo.png'),
+    'https://cdn.example.com/logo.png',
+  );
+});
+
+check('logo_url with credentials never reaches the identity object', () => {
+  const built = buildDeckIdentity({
+    sessionName: 'Pramod Potti',
+    form: { logoUrl: 'https://user:pass@cdn.example.com/logo.png' },
+    now: FIXED_NOW,
+  });
+  assert.equal('logo_url' in built, false);
+  // ...and with no other form field, that leaves provenance at "profile".
+  assert.equal(built.source, 'profile');
+  assert.equal(JSON.stringify(built).includes('pass'), false);
+});
+
+// -------------------------------------------------------- invisible characters
+check('zero-width characters are stripped, not counted as content', () => {
+  for (const invisible of ['​', '‌', '‍', '﻿', '​﻿‍']) {
+    assert.equal(
+      buildDeckIdentity({ sessionName: invisible, form: { company: invisible }, now: FIXED_NOW }),
+      null,
+      `${JSON.stringify(invisible)} must read as empty`,
+    );
+  }
+  // Stripped from inside a real value too, without eating the value.
+  const built = buildDeckIdentity({
+    sessionName: 'Pramod​Potti',
+    form: { company: 'Deck﻿ster' },
+    now: FIXED_NOW,
+  });
+  assert.equal(built.presenter, 'PramodPotti');
+  assert.equal(built.company, 'Deckster');
+});
+
+check('internal whitespace is collapsed before the placeholder check', () => {
+  // The spaced-out variants must not slip past the placeholder set.
+  for (const spaced of ['Presenter  Name', 'Presenter\tName', 'Presenter\nName', ' Your   Company ']) {
+    const built = buildDeckIdentity({
+      sessionName: spaced,
+      form: { company: spaced },
+      now: FIXED_NOW,
+    });
+    assert.equal(built, null, `${JSON.stringify(spaced)} must be treated as a placeholder`);
+  }
+  // A zero-width character inside a placeholder does not smuggle it through.
+  assert.equal(
+    buildDeckIdentity({ sessionName: 'Presenter​ Name', now: FIXED_NOW }),
+    null,
+  );
+  // A legitimate value keeps its single spaces and loses its double ones.
+  const built = buildDeckIdentity({
+    sessionName: 'Pramod   Potti',
+    form: { company: 'Deckster   Labs' },
+    now: FIXED_NOW,
+  });
+  assert.equal(built.presenter, 'Pramod Potti');
+  assert.equal(built.company, 'Deckster Labs');
+});
+
 // -------------------------------------------------------------- the full shape
 check('the full object matches the contract shape', () => {
   const built = buildDeckIdentity({

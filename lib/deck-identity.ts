@@ -88,19 +88,38 @@ const PLACEHOLDER_VALUES: ReadonlySet<string> = new Set([
   'tbd',
 ]);
 
-/** Trim; return undefined for empty, non-string, or placeholder text. */
+/**
+ * Zero-width and BOM characters: invisible on screen but enough to make a
+ * value non-empty and to slip past the placeholder set. Stripped first so a
+ * paste of "​" reads as empty and "Presenter​ Name" still matches.
+ */
+const ZERO_WIDTH = /[​-‍﻿]/g;
+
+/**
+ * Trim; return undefined for empty, non-string, or placeholder text.
+ *
+ * Normalises before the placeholder check — zero-width characters removed and
+ * internal whitespace runs collapsed to one space — so "Presenter  Name" and
+ * "Presenter\tName" are caught by the same set as "Presenter Name". The
+ * normalised form is what gets returned and sent.
+ */
 export function cleanIdentityValue(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  if (PLACEHOLDER_VALUES.has(trimmed.toLowerCase())) return undefined;
-  return trimmed;
+  const normalized = value.replace(ZERO_WIDTH, '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return undefined;
+  if (PLACEHOLDER_VALUES.has(normalized.toLowerCase())) return undefined;
+  return normalized;
 }
 
 /**
  * The contract calls `logo_url` an "optional https URL". Anything that is not
  * an https:// URL is dropped rather than forwarded — a broken or `javascript:`
  * value would travel all the way to Layout's derivative logo.
+ *
+ * Embedded credentials (`https://user:pass@host/…`) are dropped too: they are
+ * never what someone means by a logo, they leak a secret into the package and
+ * into every downstream log, and `user@host` is also the classic way to make a
+ * hostile URL read as a trusted one.
  */
 export function cleanLogoUrl(value: unknown): string | undefined {
   const cleaned = cleanIdentityValue(value);
@@ -108,6 +127,7 @@ export function cleanLogoUrl(value: unknown): string | undefined {
   try {
     const url = new URL(cleaned);
     if (url.protocol !== 'https:') return undefined;
+    if (url.username || url.password) return undefined;
     return url.toString();
   } catch {
     return undefined;

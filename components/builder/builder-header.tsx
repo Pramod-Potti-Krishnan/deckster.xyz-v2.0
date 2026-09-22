@@ -12,6 +12,7 @@ import {
   BuildVersionGuard,
 } from "@/components/build-version-guard"
 import { DeckIdentityDialog } from "@/components/builder/deck-identity-dialog"
+import { isDeckIdentityEnabled } from "@/lib/deck-identity"
 
 export interface BuilderHeaderProps {
   wsError: any
@@ -89,8 +90,9 @@ export function BuilderHeader({
                 <Brain className="h-5 w-5" />
               </Link>
             </Button>
-            {/* Contract G3: renders nothing unless NEXT_PUBLIC_DECK_IDENTITY_ENABLED. */}
-            <DeckIdentityDialog isDark={isDark} />
+            {/* Contract G3. Gated here as well as inside the component, so with
+                the flag off nothing about it is even mounted. */}
+            {isDeckIdentityEnabled() && <DeckIdentityDialog isDark={isDark} />}
           </div>
 
           {/* Portal target for presentation toolbar */}
