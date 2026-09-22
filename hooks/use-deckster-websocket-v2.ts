@@ -7,6 +7,7 @@ import { parseSlideMentions } from '@/lib/mdc-mentions';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
+import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
 import {
   buildSlideComposeProgressStatus,
   markSlideStateFrameProcessed,
@@ -266,6 +267,10 @@ export interface SlideContext {
       deck_outline?: Array<{ slide_index: number; slide_title: string }>;
       deck_tables?: unknown[];
       theme_session_id?: string;
+      // Contract §2 (Director → frontend): additive, lets the post-build
+      // settings panel seed from the package instead of from nothing.
+      deck_identity?: DeckIdentity;
+      footer?: DeckFooterConfig;
     };
     slides: SlideContextItem[];
   };
@@ -423,6 +428,10 @@ export interface UserMessage {
     // Customized-slide workflow. Director latches this source before the
     // generated strawman/final presentation replaces the live blank deck.
     manual_deck?: ManualDeckContext;
+    // Deck identity (contract G3): who is presenting. Additive and optional —
+    // Director latches it from the first message that carries it. Only present
+    // when NEXT_PUBLIC_DECK_IDENTITY_ENABLED is on and something is known.
+    deck_identity?: DeckIdentity;
     // One-shot key seeded by POST /api/sessions/{id}/handoff. Director uses it
     // to suppress navigation/reconnect retries of the pending build request.
     handoff_idempotency_key?: string;
@@ -446,6 +455,8 @@ export interface SendUserMessageOptions {
   actionValue?: string;
   actionLabel?: string;
   manualDeck?: ManualDeckContext;
+  /** Contract G3 — omitted entirely when the flag is off or nothing is known. */
+  deckIdentity?: DeckIdentity;
   handoffIdempotencyKey?: string;
 }
 
@@ -2340,6 +2351,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.actionValue && { action_value: options.actionValue }),
           ...(options?.actionLabel && { action_label: options.actionLabel }),
           ...(options?.manualDeck && { manual_deck: options.manualDeck }),
+          ...(options?.deckIdentity && { deck_identity: options.deckIdentity }),
           ...(options?.handoffIdempotencyKey && {
             handoff_idempotency_key: options.handoffIdempotencyKey,
           }),
@@ -2374,7 +2386,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         '📤 Sending message:',
         text,
         effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
-        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
+        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, identity=${message.data.deck_identity ? 'yes' : 'no'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
       beginAwaitReply();
