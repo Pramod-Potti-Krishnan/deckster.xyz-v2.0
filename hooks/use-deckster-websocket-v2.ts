@@ -555,6 +555,15 @@ export type ControlMessage =
       data: { job_id: string };
     };
 
+export interface SetThemeMessage {
+  type: 'set_theme';
+  data: {
+    request_id: string;
+    theme: BuildThemeSelection;
+    presentation_id: string;
+  };
+}
+
 // Hook state
 export interface UseDecksterWebSocketV2State {
   connected: boolean;
