@@ -33,6 +33,8 @@ export interface ResearcherUploadOptions {
   file: File
   /** Threaded into process-uploaded (contract C-6), e.g. "template_ingest". */
   intent?: string
+  /** Composer alone stops after the signed PUT; never enqueue Researcher models. */
+  storageOnly?: boolean
   onProgress?: (progress: ResearcherUploadProgress) => void
 }
 
@@ -62,7 +64,7 @@ function getErrorMessage(body: any, fallback: string): string {
  * Throws Error with a human-readable message on any step failure.
  */
 export async function uploadFileToResearcher(options: ResearcherUploadOptions): Promise<ResearcherUploadResult> {
-  const { sessionId, userId, file, intent, onProgress } = options
+  const { sessionId, userId, file, intent, storageOnly = false, onProgress } = options
 
   if (!sessionId) {
     throw new Error('No session id for upload')
@@ -123,6 +125,15 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
   if (!putResponse.ok) {
     const putBody = await readResponseBody(putResponse)
     throw new Error(getErrorMessage(putBody, `Storage upload failed (${putResponse.status})`))
+  }
+
+  // Researcher UAT 67f9d1913fd11de9aeb68432874506fdd760c464 has no
+  // template-ingest intent bypass: /process-uploaded queues ordinary model
+  // processing. Composer only needs the original object. Existing callers
+  // retain the four-step upload path unless they explicitly opt into this.
+  if (storageOnly) {
+    onProgress?.({ percent: 100, stage: 'upload' })
+    return { researcherSessionId, storagePath, jobId: null, fileName: file.name }
   }
 
   // 4) Tell Researcher to process the uploaded object (with intent).

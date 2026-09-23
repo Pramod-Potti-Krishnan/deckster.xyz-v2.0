@@ -40,6 +40,8 @@ import type {
 // Extracted components
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
+import { ComposerLibraryDialog } from '@/components/builder/composer-library-dialog'
+import { COMPOSER_READY_KEY_PREFIX, type ComposerReady } from '@/lib/composer-library'
 import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
@@ -476,6 +478,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const [manualDeckHandoffBusy, setManualDeckHandoffBusy] = useState(false)
   const [manualDeckHandoffError, setManualDeckHandoffError] = useState<string | null>(null)
   const templateBuilderEnabled = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
+  const composerLibraryEnabled = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true'
+  const [showComposerLibrary, setShowComposerLibrary] = useState(false)
   const blueprintEditorV2Enabled = templateBuilderEnabled && process.env.NEXT_PUBLIC_BLUEPRINT_EDITOR_V2 === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
@@ -3206,6 +3210,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   })
 
   // Text Labs session (depends on the currently displayed presentation)
+  useEffect(() => {
+    if (!composerLibraryEnabled || session.isLoadingSession || !currentSessionId || currentSessionId === 'new' || !user) return
+    const key = `${COMPOSER_READY_KEY_PREFIX}${currentSessionId}`
+    try {
+      const staged = JSON.parse(sessionStorage.getItem(key) || 'null') as { user_id: string; result: ComposerReady } | null
+      if (!staged || staged.user_id !== (user.id || user.email) || staged.result?.session_id !== currentSessionId) return
+      if (applyTemplateIngestReady(staged.result, currentSessionId)) {
+        sessionStorage.removeItem(key)
+      } else {
+        toast({ title: 'Could not open template deck', description: 'The deck did not pass the viewer or session checks.', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Could not open template deck', description: 'The saved template result could not be read.', variant: 'destructive' })
+    }
+  }, [composerLibraryEnabled, currentSessionId, session.isLoadingSession, user, applyTemplateIngestReady, toast])
+
   const textLabsSession = useTextLabsSession(effectivePresentationId)
   const buildRefineContext = useElementRefinement({
     slideContextByIndex,
@@ -5084,6 +5104,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     templateBuilderEnabled={templateBuilderEnabled}
                     activeTemplate={activeTemplate}
                     onSelectTemplate={handleSelectTemplate}
+                    onOpenComposerLibrary={composerLibraryEnabled ? () => setShowComposerLibrary(true) : undefined}
                     onClearTemplate={handleClearTemplate}
                     templateSelectionLocked={generationSelectionsLocked}
                     isTemplateReuseRunning={Boolean(activeTemplate && isGeneratingFinal)}
@@ -5349,6 +5370,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       </div>
 
       {/* Chat History Sidebar */}
+      {composerLibraryEnabled && <ComposerLibraryDialog open={showComposerLibrary} onOpenChange={setShowComposerLibrary} />}
       <ChatHistorySidebar
         isOpen={showChatHistory}
         onClose={() => setShowChatHistory(false)}

@@ -101,6 +101,7 @@ export interface ChatInputProps {
   templateBuilderEnabled?: boolean
   activeTemplate?: TemplateSelection | null
   onSelectTemplate?: (template: TemplateSelection) => void
+  onOpenComposerLibrary?: () => void
   onClearTemplate?: () => void
   templateSelectionLocked?: boolean
   isTemplateReuseRunning?: boolean
@@ -146,6 +147,7 @@ export function ChatInput({
   templateBuilderEnabled,
   activeTemplate,
   onSelectTemplate,
+  onOpenComposerLibrary,
   onClearTemplate,
   templateSelectionLocked = false,
   isTemplateReuseRunning = false,
@@ -678,8 +680,10 @@ export function ChatInput({
               )}
 
               {/* Template Builder: reuse a saved template (sibling of attach) */}
-              {templateBuilderEnabled && onSelectTemplate && (
-                <TemplatePicker onSelect={onSelectTemplate} disabled={!user || isLoadingSession || templateSelectionLocked} />
+              {((templateBuilderEnabled && onSelectTemplate) || onOpenComposerLibrary) && (
+                <TemplatePicker onSelect={onSelectTemplate || (() => {})} disabled={!user || isLoadingSession}
+                  selectionLocked={templateSelectionLocked} onOpenLibrary={onOpenComposerLibrary}
+                  showSavedTemplates={!!(templateBuilderEnabled && onSelectTemplate)} />
               )}
 
               {/* Build-time Theme Builder selection */}
