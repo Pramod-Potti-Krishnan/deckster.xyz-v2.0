@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { useDecksterWebSocketV2, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeProgress, type SlideBuilt, type SlideComposeReady, type SlideComposeFailed } from "@/hooks/use-deckster-websocket-v2"
+import { useDecksterWebSocketV2, INGEST_JOB_KEY_PREFIX, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeProgress, type SlideBuilt, type SlideComposeReady, type SlideComposeFailed, type TemplateIngestReady, type TemplateIngestFailed, type IngestUploadRef } from "@/hooks/use-deckster-websocket-v2"
 import { useChatSessions } from "@/hooks/use-chat-sessions"
 import { useSessionPersistence } from "@/hooks/use-session-persistence"
 import { WebSocketErrorBoundary } from "@/components/error-boundary"
@@ -44,6 +44,8 @@ import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
+import { TemplateIngestReviewCards } from '@/components/template-ingest-review-cards'
+import { INGEST_INTENT_KEY_PREFIX, type IngestIntentPayload } from '@/components/template-ingest-dialog'
 import { TopUpModal } from '@/components/builder/topup-modal'
 import { ManualDeckConflictDialog } from '@/components/builder/manual-deck-conflict-dialog'
 import { useDeckIdentity } from '@/hooks/use-deck-identity'
@@ -1665,12 +1667,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     tokenUsage,
     tokenUsageMessageId,
     hasStrawman,
+    templateIngestResult,
+    templateIngestJobId,
     sendMessage,
     sendMessageWhenConnected,
     sendElementDirectiveResult,
     sendControlMessage,
     sendThemeSelection,
     sendBuildControl,
+    applyTemplateIngestReady,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,
@@ -1679,6 +1684,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     ensureConnected,
     disconnect,
     isReady,
+    socketSessionId,
+    connectionGeneration,
     sessionId: wsSessionId,
     updateCacheUserMessages,
     awaitingDirectorReply,
@@ -2291,6 +2298,25 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       toast({
         title: 'Slide failed',
         description: errors[0] ?? (payload.stage ? `Failed during ${payload.stage}.` : 'Slide Composer failed.'),
+        variant: 'destructive',
+      })
+    },
+    // Template Ingest (C-7): deck rebuilt from an uploaded presentation. The
+    // hook already promoted viewer_url to the session presentation; surface
+    // the save/optimize handoff here (existing template polling UI takes over).
+    onTemplateIngestReady: () => {
+      toast({
+        title: 'Template saved — optimizing…',
+        description: 'Your uploaded presentation was converted into a template.',
+      })
+    },
+    onTemplateIngestFailed: (message: TemplateIngestFailed) => {
+      const description = message.payload.error
+        || message.payload.errors?.[0]
+        || (message.payload.stage ? `Failed during ${message.payload.stage}.` : 'Template ingest failed.')
+      toast({
+        title: 'Template ingest failed',
+        description,
         variant: 'destructive',
       })
     },
@@ -3343,6 +3369,362 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }
     }
   })
+
+  // Template Ingest (C-7, review fix + round-4 durable ack): one-shot
+  // handoff. The upload dialog minted this session, staged
+  // `deckster_ingest_intent_<id>` in sessionStorage, and routed here.
+  // State machine:
+  //   STAGED       — key present, not yet sent. Effect reads WITHOUT deleting.
+  //   SENT-UNACKED — sendMessage returned true on an OPEN socket: set the
+  //                  per-session ref guard (prevents double-send within this
+  //                  mount) but KEEP the key. `sendMessage === true` only
+  //                  proves browser queuing, not Director receipt.
+  //   RETRY        — sendMessage returned false (socket not actually OPEN
+  //                  despite isReady): keep the key, leave the ref guard
+  //                  unset; the effect re-runs when `isReady` flips true
+  //                  again and retries the send.
+  //   ACKED        — the WS hook deletes the key when ANY ingest frame for
+  //                  THIS session arrives (Director emits a synchronous
+  //                  `state:"accepted"` template_ingest_update; ready/failed
+  //                  also count). That frame is the durable acknowledgement.
+  //   REMOUNT      — a fresh mount with the key still present (sent but never
+  //                  acked, e.g. the tab reloaded before Director got it)
+  //                  re-sends; Director's idempotent duplicate-job guard makes
+  //                  re-sends safe.
+  //   RECONNECT    — round-5 (R4-6): a NEW socket generation for the SAME
+  //                  session while the intent key still exists and no job
+  //                  record has appeared clears the sent guard — the previous
+  //                  send is presumed lost with the old socket, and the effect
+  //                  (which depends on `connectionGeneration`) re-sends.
+  //   ACK-TIMEOUT  — round-5 (R4-6): 20s after a successful send with no
+  //                  accepted/update frame having produced a job record (and
+  //                  the intent key still staged), the guard is cleared and a
+  //                  resend nonce re-runs the effect. Re-sends are idempotent
+  //                  (Director re-acks duplicates).
+  const ingestAutoSendSessionRef = useRef<string | null>(null)
+  // Round-5 (R4-6): socket generation the last send was dispatched on, the
+  // pending ack-timeout timer, one-per-mount chat-echo guard, and the nonce
+  // that re-runs the effect after an ack timeout.
+  const ingestAutoSendGenerationRef = useRef<number>(-1)
+  const ingestAckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ingestChatEchoSessionRef = useRef<string | null>(null)
+  const [ingestResendNonce, setIngestResendNonce] = useState(0)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED !== 'true') return // flag-off: byte-identical behavior
+    if (!currentSessionId || currentSessionId === 'new') return
+    if (!isReady) return
+    // Round-3 fix (review N1/F8): only send over a socket that was OPENED
+    // under this session. With the dialog's hard navigation this is belt and
+    // braces, but it also protects any future SPA path where a previous
+    // session's socket could still be the open one when this effect fires.
+    if (socketSessionId !== currentSessionId) {
+      console.warn('[TemplateIngest] Open socket belongs to a different session; deferring ingest handoff', {
+        socketSessionId,
+        currentSessionId,
+      })
+      return
+    }
+
+    const key = `${INGEST_INTENT_KEY_PREFIX}${currentSessionId}`
+    let raw: string | null = null
+    try {
+      raw = sessionStorage.getItem(key) // read only; consumed on Director's ack frame
+    } catch {
+      return
+    }
+    if (!raw) return
+
+    // Round-5 (R4-6): has ANY accepted/update frame produced a job record?
+    // (The hook consumes the intent key on the same frame, so a lingering
+    // intent key + no job record means Director never acknowledged.)
+    let hasJobRecord = false
+    try {
+      hasJobRecord = !!sessionStorage.getItem(`${INGEST_JOB_KEY_PREFIX}${currentSessionId}`)
+    } catch { /* treat as no record */ }
+
+    if (ingestAutoSendSessionRef.current === currentSessionId) {
+      if (
+        connectionGeneration !== ingestAutoSendGenerationRef.current &&
+        !hasJobRecord
+      ) {
+        // R4-6(1): new socket generation, intent still staged, no job record —
+        // the earlier send died with the old socket. Re-arm and fall through.
+        console.warn('[TemplateIngest] New connection with un-acked ingest intent — re-sending', {
+          sentGeneration: ingestAutoSendGenerationRef.current,
+          connectionGeneration,
+        })
+        ingestAutoSendSessionRef.current = null
+      } else {
+        return
+      }
+    }
+    if (hasJobRecord) {
+      // Director already acknowledged a job for this session; never double-send.
+      return
+    }
+
+    let intent: IngestIntentPayload | null = null
+    try {
+      intent = JSON.parse(raw) as IngestIntentPayload
+    } catch {
+      intent = null
+    }
+    if (!intent?.storage_path || !intent?.file_name || !intent?.kind) {
+      console.warn('[TemplateIngest] Ignoring malformed ingest intent payload')
+      ingestAutoSendSessionRef.current = currentSessionId
+      try { sessionStorage.removeItem(key) } catch { /* ignore */ }
+      return
+    }
+
+    const ingestUploadRef: IngestUploadRef = {
+      storage_path: intent.storage_path,
+      file_name: intent.file_name,
+      kind: intent.kind,
+    }
+    const messageText = 'Convert my uploaded presentation into a template'
+    const success = sendMessage(messageText, undefined, undefined, {
+      templateIngest: true,
+      ingestUploadRef,
+    })
+
+    if (!success) {
+      // Transient WS miss: the socket was not OPEN when we tried to send.
+      // Keep the staged key and the ref guard unset so the effect retries
+      // automatically when connectivity flips true again — no re-upload needed.
+      console.warn('[TemplateIngest] WebSocket not open yet; ingest handoff will retry on reconnect')
+      return
+    }
+
+    // Dispatched on an OPEN connection: guard against double-send within
+    // this connection generation. The one-shot key is deliberately NOT
+    // deleted here — round-4 durable ack: only an ingest frame for this
+    // session (the synchronous "accepted" update, or ready/failed) consumes
+    // it, in the WS hook's session-gated frame handler. If Director never
+    // received the message, the RECONNECT/ACK-TIMEOUT/REMOUNT paths re-send.
+    ingestAutoSendSessionRef.current = currentSessionId
+    ingestAutoSendGenerationRef.current = connectionGeneration
+
+    // Round-5 (R4-6): ack timeout. If 20s pass with the intent key still
+    // staged and no accepted/update frame having produced a job record,
+    // clear the sent guard and bump the nonce so the effect re-sends
+    // (idempotent — Director re-acks duplicates).
+    const sessionAtSend = currentSessionId
+    if (ingestAckTimerRef.current) clearTimeout(ingestAckTimerRef.current)
+    ingestAckTimerRef.current = setTimeout(() => {
+      ingestAckTimerRef.current = null
+      try {
+        const stillStaged = sessionStorage.getItem(key)
+        const jobRecord = sessionStorage.getItem(`${INGEST_JOB_KEY_PREFIX}${sessionAtSend}`)
+        if (stillStaged && !jobRecord) {
+          console.warn('[TemplateIngest] No Director acknowledgement within 20s — re-arming ingest resend')
+          if (ingestAutoSendSessionRef.current === sessionAtSend) {
+            ingestAutoSendSessionRef.current = null
+          }
+          setIngestResendNonce(n => n + 1)
+        }
+      } catch { /* sessionStorage unavailable — nothing to re-send from */ }
+    }, 20000)
+
+    // Mirror the normal send path: show the message in chat and persist it —
+    // once per mount+session (round-5: re-sends must not duplicate the echo).
+    if (ingestChatEchoSessionRef.current !== currentSessionId) {
+      ingestChatEchoSessionRef.current = currentSessionId
+      const messageId = crypto.randomUUID()
+      const timestamp = Date.now()
+      session.userMessageIdsRef.current.add(messageId)
+      session.setUserMessages(prev => [...prev, {
+        id: messageId,
+        text: messageText,
+        timestamp,
+      }])
+      if (persistence) {
+        persistence.queueMessage({
+          message_id: messageId,
+          session_id: currentSessionId,
+          timestamp: new Date(timestamp).toISOString(),
+          type: 'chat_message',
+          payload: { text: messageText },
+        } as DirectorMessage, messageText)
+        if (!session.hasTitleFromUserMessageRef.current && !session.hasTitleFromPresentationRef.current) {
+          persistence.updateMetadata({ title: `Template: ${intent.file_name}` })
+          session.hasTitleFromUserMessageRef.current = true
+        }
+      }
+    }
+  }, [currentSessionId, isReady, socketSessionId, connectionGeneration, ingestResendNonce, sendMessage, session, persistence, toast])
+
+  // Round-4 (BFCache liveness follow-up from the round-3 review): a page
+  // restored from the back/forward cache does not re-run mount effects, so a
+  // job record written while this page was frozen (e.g. the R3-2 path stored
+  // a terminal status for this session while another tab/page was live)
+  // would go unnoticed until a reload. `pageshow` with `event.persisted`
+  // re-arms the mount poller check below.
+  const [ingestPageShowNonce, setIngestPageShowNonce] = useState(0)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED !== 'true') return // flag-off: inert
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setIngestPageShowNonce(n => n + 1)
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
+
+  // Template Ingest (C-5, M-6): reconnect polling. If a non-terminal ingest job
+  // was persisted for this session (the tab reloaded / the WS dropped mid-job),
+  // poll Director's job endpoint via the Next proxy every 5s (max 60 attempts)
+  // and surface a completed job exactly like a template_ingest_ready frame.
+  // Round-4 (R3-2): a stored terminal 'complete'/'failed' status — written by
+  // the WS hook when the job's terminal frame arrived while ANOTHER session
+  // was displayed — is also fetched here (first check runs immediately), so
+  // returning to the origin session renders its result via the REST route.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED !== 'true') return // flag-off: inert
+    if (!currentSessionId || currentSessionId === 'new') return
+
+    const key = `${INGEST_JOB_KEY_PREFIX}${currentSessionId}`
+    let stored: { job_id?: string; status?: string } | null = null
+    try {
+      stored = JSON.parse(sessionStorage.getItem(key) || 'null')
+    } catch {
+      stored = null
+    }
+    if (!stored?.job_id) return
+    if ((stored.status || '').toLowerCase() === 'cancelled') {
+      // Terminal with nothing to render — clear the stale record.
+      try { sessionStorage.removeItem(key) } catch { /* ignore */ }
+      return
+    }
+
+    const jobId = stored.job_id
+    // Round-5 fix (R4-5): the ORIGIN session this poll was started for,
+    // captured BEFORE any await. After EVERY await we re-check BOTH the
+    // cleanup `cancelled` flag AND origin === currently displayed session
+    // (`currentSessionIdRef` — live, updated on SPA session switches). On a
+    // mismatch the resolved terminal result is recorded into the ORIGIN
+    // session's job record only (so returning to the origin renders it via
+    // this same poller) and is NEVER applied to the displayed session.
+    const originSessionId = currentSessionId
+    const originIsDisplayed = () =>
+      !cancelled && originSessionId === currentSessionIdRef.current
+    const persistOriginTerminal = (status: 'complete' | 'failed' | 'cancelled') => {
+      try {
+        sessionStorage.setItem(key, JSON.stringify({ job_id: jobId, status }))
+      } catch { /* ignore */ }
+    }
+    let attempts = 0
+    let cancelled = false
+    let timer: ReturnType<typeof setInterval> | null = null
+    const stop = () => { if (timer) clearInterval(timer) }
+    const pollOnce = async () => {
+      if (cancelled) return
+      attempts += 1
+      if (attempts > 60) {
+        stop()
+        return
+      }
+      // If the live WS already resolved the job (key cleared), stop polling.
+      try {
+        if (!sessionStorage.getItem(key)) {
+          stop()
+          return
+        }
+      } catch { /* keep polling */ }
+
+      try {
+        const res = await fetch(`/api/ingest-jobs/${encodeURIComponent(jobId)}`)
+        // R4-5 guard #1 (post-fetch): the page may have switched sessions
+        // (B→C) while this response was in flight.
+        if (cancelled) { stop(); return }
+        if (!res.ok) return // transient — keep polling until attempts cap
+        const body = await res.json()
+        // R4-5 guard #2 (post-json).
+        if (cancelled) { stop(); return }
+        const status = String(body?.status || body?.state || '').toLowerCase()
+        if (status === 'complete' || status === 'completed') {
+          stop()
+          const result = (body?.result || body) as TemplateIngestReady['payload']
+          if (!originIsDisplayed()) {
+            // Late B result with C displayed: record B's terminal status only.
+            persistOriginTerminal('complete')
+            return
+          }
+          if (result?.template_id || result?.viewer_url) {
+            // Round-5 (R4-5): the apply helper re-validates the origin
+            // session against the hook's displayed session at call time
+            // (belt and braces); a refusal keeps the origin job record.
+            const applied = applyTemplateIngestReady(result, originSessionId)
+            if (!applied) {
+              persistOriginTerminal('complete')
+              return
+            }
+            try { sessionStorage.removeItem(key) } catch { /* ignore */ }
+            toast({
+              title: 'Template saved',
+              description: 'Your uploaded presentation finished converting while you were away.',
+            })
+          } else {
+            // Terminal but unrenderable payload — clear the stale record.
+            try { sessionStorage.removeItem(key) } catch { /* ignore */ }
+          }
+        } else if (status === 'failed' || status === 'cancelled') {
+          stop()
+          if (!originIsDisplayed()) {
+            persistOriginTerminal(status as 'failed' | 'cancelled')
+            return
+          }
+          try { sessionStorage.removeItem(key) } catch { /* ignore */ }
+          if (status === 'failed') {
+            toast({
+              title: 'Template ingest failed',
+              // R4-11: Director's job body may carry `errors[]` (SB 413 /
+              // budget details) or FastAPI `detail` instead of `error`.
+              description: String(
+                body?.error || body?.errors?.[0] || body?.detail
+                || 'The uploaded presentation could not be converted.'
+              ),
+              variant: 'destructive',
+            })
+          }
+        } else if (status) {
+          try { sessionStorage.setItem(key, JSON.stringify({ job_id: jobId, status })) } catch { /* ignore */ }
+        }
+      } catch {
+        // network hiccup — keep polling until attempts cap
+      }
+    }
+
+    // First check runs immediately (renders a stored terminal result without
+    // the 5s delay), then every 5s until terminal/cap.
+    timer = setInterval(pollOnce, 5000)
+    void pollOnce()
+
+    return () => {
+      cancelled = true
+      stop()
+    }
+    // Round-5 (R4-6): `templateIngestJobId` re-arms the poller when the job
+    // record/state appears AFTER mount (the accepted/update frame landed
+    // later than the mount check); `connectionGeneration` re-arms it on each
+    // new socket so a reconnect re-checks the stored record.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSessionId, ingestPageShowNonce, templateIngestJobId, connectionGeneration])
+
+  // Template Ingest (C-5, M-6): cancel an in-flight ingest job over the WS
+  // (mirrors handleCancelTemplateReuse below).
+  const handleCancelTemplateIngest = useCallback(() => {
+    if (!templateIngestJobId) return
+    const sent = sendControlMessage('template_ingest_cancel', { job_id: templateIngestJobId })
+    if (!sent) {
+      toast({
+        title: 'Could not cancel template import',
+        description: 'Director is not connected. Reconnect the session and try again.',
+        variant: 'destructive',
+      })
+    }
+  }, [templateIngestJobId, sendControlMessage, toast])
 
   // FIXED: Clear loading state when final presentation URL arrives
   const lastFinalPresentationUrlRef = useRef<string | null>(null)
@@ -4619,6 +5001,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         isGeneratingFinal={isGeneratingFinal}
                         suppressEphemeral={effectiveBuildNarrationEnabled}
                       />
+                      {/* Template Ingest (C-5, M-6): cancel the in-flight ingest job */}
+                      {process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true' && templateIngestJobId && (
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={handleCancelTemplateIngest}
+                            className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline underline-offset-2 transition-colors"
+                          >
+                            Cancel import
+                          </button>
+                        </div>
+                      )}
+                      {/* Template Ingest (C-7) review cards: original slide PNGs + fidelity */}
+                      {templateIngestResult?.per_slide_fidelity && templateIngestResult.per_slide_fidelity.length > 0 && (
+                        <TemplateIngestReviewCards slides={templateIngestResult.per_slide_fidelity} />
+                      )}
                     </div>
                   </ScrollArea>
 

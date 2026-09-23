@@ -45,7 +45,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive' | 'build_phase' | 'build_event' | 'build_control_capability';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive' | 'build_phase' | 'build_event' | 'build_control_capability' | 'template_ingest_update' | 'template_ingest_ready' | 'template_ingest_failed';
   payload: any;
 }
 
@@ -82,6 +82,9 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'build_phase',
   'build_event',
   'build_control_capability',
+  'template_ingest_update',
+  'template_ingest_ready',
+  'template_ingest_failed',
 ]);
 
 function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
@@ -399,7 +402,84 @@ export interface BuildControlCapability {
 
 // D1: `SlideBuilt` (above) is the one slide_built message type — narration's
 // reducer taps its dispatch rather than adding a parallel case.
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage | BuildPhaseSocketMessage | BuildEventSocketMessage | BuildControlCapability;
+// Template Ingest (C-5/C-7): reference to the raw upload Researcher retained
+// for Director's ingest orchestrator.
+export interface IngestUploadRef {
+  storage_path: string;
+  file_name: string;
+  kind: string; // 'pptx' | 'ppt' | 'pdf'
+}
+
+// Template Ingest per-slide fidelity entry from the ready frame.
+export interface TemplateIngestSlideFidelity {
+  slide_index: number;
+  png_url?: string | null;
+  fidelity?: number | null;
+  reusability?: number | null;
+  warnings?: string[];
+  // R4-10: Slide Builder baked original artwork/text into a raster for this
+  // slide (squash/escalation). Locked slides are same-subject reuse only —
+  // the review card surfaces a lock badge + note. Optional/additive.
+  raster_locked?: boolean;
+}
+
+export interface TemplateIngestUpdate {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'template_ingest_update';
+  payload: {
+    session_id?: string;
+    job_id?: string;
+    state?: string;
+    text?: string;
+    // M-4: Director may emit `message` / `total_slides` instead of
+    // `text` / `slide_count`; accept both (additive).
+    message?: string;
+    progress?: number;
+    slide_index?: number;
+    slide_count?: number;
+    total_slides?: number;
+  };
+}
+
+// Template Ingest (C-5): sessionStorage key prefix for the active ingest job,
+// keyed by session id. Persisted while a job is in flight so the builder can
+// resume polling after a reload/reconnect; cleared on ready/failed.
+export const INGEST_JOB_KEY_PREFIX = 'deckster_ingest_job_';
+export const INGEST_INTENT_KEY_PREFIX = 'deckster_ingest_intent_';
+
+export interface TemplateIngestReady {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'template_ingest_ready';
+  payload: {
+    session_id?: string;
+    job_id?: string;
+    template_id: string;
+    presentation_id: string;
+    viewer_url: string;
+    slide_count?: number;
+    per_slide_fidelity?: TemplateIngestSlideFidelity[];
+  };
+}
+
+export interface TemplateIngestFailed {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'template_ingest_failed';
+  payload: {
+    session_id?: string;
+    job_id?: string;
+    stage?: string | null;
+    error?: string | null;
+    errors?: string[];
+  };
+}
+
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage | BuildPhaseSocketMessage | BuildEventSocketMessage | BuildControlCapability | TemplateIngestUpdate | TemplateIngestReady | TemplateIngestFailed;
 
 export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
   return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
@@ -425,6 +505,8 @@ export interface UserMessage {
     element_overrides?: TemplateOverrides;
     action_value?: string;
     action_label?: string;
+    template_ingest?: boolean;
+    ingest_upload_ref?: IngestUploadRef;
     // Customized-slide workflow. Director latches this source before the
     // generated strawman/final presentation replaces the live blank deck.
     manual_deck?: ManualDeckContext;
@@ -454,16 +536,24 @@ export interface SendUserMessageOptions {
   elementOverrides?: TemplateOverrides;
   actionValue?: string;
   actionLabel?: string;
+  templateIngest?: boolean;
+  ingestUploadRef?: IngestUploadRef;
   manualDeck?: ManualDeckContext;
   /** Contract G3 — omitted entirely when the flag is off or nothing is known. */
   deckIdentity?: DeckIdentity;
   handoffIdempotencyKey?: string;
 }
 
-export interface ControlMessage {
-  type: 'cancel_template_reuse';
-  data?: Record<string, never>;
-}
+export type ControlMessage =
+  | {
+      type: 'cancel_template_reuse';
+      data?: Record<string, never>;
+    }
+  // Template Ingest (C-5): cancel an in-flight ingest job.
+  | {
+      type: 'template_ingest_cancel';
+      data: { job_id: string };
+    };
 
 export interface SetThemeMessage {
   type: 'set_theme';
@@ -521,6 +611,9 @@ export interface UseDecksterWebSocketV2State {
   // Director token-usage ledger, emitted once per completed turn.
   tokenUsage: TokenUsagePayload | null;
   tokenUsageMessageId: string | null;
+  templateIngestResult: TemplateIngestReady['payload'] | null;
+  templateIngestError: string | null;
+  templateIngestJobId: string | null;
 }
 
 // Hook options
@@ -541,6 +634,8 @@ export interface UseDecksterWebSocketV2Options {
   onElementDirective?: (payload: import('@/types/mdc').ElementDirectivePayload) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
+  onTemplateIngestReady?: (message: TemplateIngestReady) => void;
+  onTemplateIngestFailed?: (message: TemplateIngestFailed) => void;
   // Build Narration typed frames (Director BUILD_EVENTS_ENABLED). Payloads
   // only — the frames never enter messages[]/state. slide_built reuses uat's
   // onSlideBuilt (above) — one frame, one dispatch (D1).
@@ -718,6 +813,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         ephemeralFadeToken: 0,
         tokenUsage: (cached as any).tokenUsage || null,
         tokenUsageMessageId: (cached as any).tokenUsageMessageId || null,
+        templateIngestResult: (cached as any).templateIngestResult || null,
+        templateIngestError: null,
+        templateIngestJobId: null,
       };
     }
 
@@ -755,6 +853,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralFadeToken: 0,
       tokenUsage: null,
       tokenUsageMessageId: null,
+      templateIngestResult: null,
+      templateIngestError: null,
+      templateIngestJobId: null,
     };
   };
 
@@ -818,9 +919,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   }, [sessionCache]);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const socketSessionRef = useRef<string | null>(null);
   // Ephemeral per-connection capability. It is intentionally never copied to
   // React state or sessionStorage, and is cleared before every reconnect.
   const buildControlTokenRef = useRef<string | null>(null);
+  // Round-5 fix (R4-6): monotonically increasing socket-generation counter,
+  // incremented on every successful `onopen`. Consumers (the builder's
+  // one-shot ingest handoff + mount poller) depend on it so a NEW connection
+  // for the SAME session can re-arm sent-but-unacknowledged work — the
+  // per-mount sent guard alone made a lost first send unrecoverable.
+  const [connectionGeneration, setConnectionGeneration] = useState(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectStabilityTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   // MDC P6: latest slideStructure for @mention parsing inside sendMessage
@@ -1159,7 +1267,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // Explicit capability opt-in prevents a newly deployed Director from
       // sending a secret frame to older frontend bundles that would treat it
       // as ordinary chat/cache data during a rolling deploy.
-      const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}&build_control_capability=1`;
+      const socketSessionId = sessionIdRef.current;
+      const wsUrl = `${DEFAULT_WS_URL}?session_id=${socketSessionId}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}&build_control_capability=1`;
 
       // DEBUG: Comprehensive logging of connection parameters
       debugLog('🔌 [WEBSOCKET] Initiating connection to Director', {
@@ -1281,6 +1390,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           }
 
           debugLog('✅ Connected to Director v3.4');
+          socketSessionRef.current = socketSessionId;
+          setConnectionGeneration(g => g + 1);
           clearReconnectTimer();
           reconnectPausedForOfflineRef.current = false;
           setReconnectStatus('idle', reconnectAttemptsRef.current);
@@ -1384,6 +1495,35 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               debugLog('📨 Received message:', message.type, message);
             }
 
+            // Round-4 fix (R3-2): resolve an ingest frame's ORIGIN session up
+            // front — payload/base session_id when Director sent one, else the
+            // immutable session this socket was opened under (closure const
+            // `socketSessionId`). EVERY ingest UI side effect below (reducer
+            // state, presentation-url adoption, page callbacks) is gated on the
+            // origin session matching the currently DISPLAYED session
+            // (`sessionIdRef.current` at dispatch time — the builder rebinds it
+            // on SPA session switches, e.g. B→C via the history sidebar).
+            // Mismatched frames must only update the origin session's persisted
+            // job record in sessionStorage; they must never mutate the visible
+            // session's state or clear another session's keys.
+            let ingestFrameSessionId: string | null = null;
+            if (
+              message.type === 'template_ingest_update' ||
+              message.type === 'template_ingest_ready' ||
+              message.type === 'template_ingest_failed'
+            ) {
+              ingestFrameSessionId = message.payload.session_id || message.session_id || socketSessionId;
+            }
+            const ingestFrameIsForDisplayedSession =
+              ingestFrameSessionId === null || ingestFrameSessionId === sessionIdRef.current;
+            if (ingestFrameSessionId !== null && !ingestFrameIsForDisplayedSession) {
+              debugLog('⏭️ Ingest frame belongs to a non-displayed session — UI side effects suppressed', {
+                type: message.type,
+                frameSession: ingestFrameSessionId,
+                displayedSession: sessionIdRef.current,
+              });
+            }
+
             setStateWithCache(prev => {
               // Prevent duplicate messages by checking message_id
               const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
@@ -1399,6 +1539,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 message.type !== 'slide_built' &&
                 message.type !== 'slide_ready' &&
                 message.type !== 'slide_failed' &&
+                message.type !== 'template_ingest_update' &&
+                message.type !== 'template_ingest_ready' &&
+                message.type !== 'template_ingest_failed' &&
                 message.type !== 'theme_sync' &&
                 (message.type as string) !== 'session_directive' &&
               (message.type as string) !== 'element_directive' &&
@@ -1868,6 +2011,103 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   newState.currentStatus = null;
                   break;
 
+                case 'template_ingest_update': {
+                  // Template Ingest progress pulse: reuse the existing status
+                  // affordance (working pulse under the chat) — Director also
+                  // sends ephemeral chat narration separately.
+                  debugLog('🧩 template_ingest_update:', message.payload);
+                  // Round-4 fix (R3-2): a late frame from another session's job
+                  // (e.g. origin B while the sidebar switched the page to C)
+                  // must not touch the displayed session's UI state.
+                  if (!ingestFrameIsForDisplayedSession) break;
+                  // M-4: Director may emit `message`/`total_slides` instead of
+                  // `text`/`slide_count` — accept both spellings.
+                  const ingestText = message.payload.text || message.payload.message;
+                  const ingestSlideCount = message.payload.slide_count ?? message.payload.total_slides;
+                  newState.currentStatus = {
+                    status: 'generating',
+                    text: ingestText
+                      || (typeof message.payload.slide_index === 'number' && ingestSlideCount
+                        ? `Rebuilding slide ${message.payload.slide_index + 1}/${ingestSlideCount}…`
+                        : 'Converting your presentation…'),
+                    ...(typeof message.payload.progress === 'number' ? { progress: message.payload.progress } : {}),
+                  } as StatusUpdate['payload'];
+                  if (message.payload.job_id) {
+                    newState.templateIngestJobId = message.payload.job_id;
+                  }
+                  break;
+                }
+
+                case 'template_ingest_ready': {
+                  // Mirror presentation_url handling: the rebuilt deck becomes the
+                  // session's final presentation.
+                  debugLog('🧩 template_ingest_ready:', {
+                    template_id: message.payload.template_id,
+                    presentation_id: message.payload.presentation_id,
+                    viewer_url: message.payload.viewer_url,
+                    slides: message.payload.per_slide_fidelity?.length ?? 0,
+                  });
+
+                  // Round-4 fix (R3-2): NEVER adopt another session's rebuilt
+                  // deck as the displayed session's presentation. A late ready
+                  // frame from origin session B while C is displayed is handled
+                  // outside the reducer (origin job record only).
+                  if (!ingestFrameIsForDisplayedSession) break;
+
+                  if (prev.ephemeralMessageIds.length > 0) {
+                    newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  }
+
+                  newState.templateIngestResult = message.payload;
+                  newState.templateIngestError = null;
+                  newState.templateIngestJobId = null;
+
+                  if (message.payload.viewer_url) {
+                    newState.finalPresentationUrl = message.payload.viewer_url;
+                    newState.finalPresentationId = message.payload.presentation_id;
+                    newState.deckOwnerSessionId = sessionIdRef.current;
+                    newState.isBlankPresentation = false;
+                    newState.activeVersion = 'final';
+                    newState.presentationUrl = message.payload.viewer_url;
+                    newState.presentationId = message.payload.presentation_id;
+                    if (typeof message.payload.slide_count === 'number') {
+                      newState.slideCount = message.payload.slide_count;
+                    } else if (message.payload.per_slide_fidelity?.length) {
+                      newState.slideCount = message.payload.per_slide_fidelity.length;
+                    }
+
+                    if (options.onPresentationReady) {
+                      options.onPresentationReady(message.payload.viewer_url);
+                    }
+                    if (options.onSessionStateChange) {
+                      try {
+                        options.onSessionStateChange({
+                          presentationUrl: message.payload.viewer_url,
+                          presentationId: message.payload.presentation_id,
+                          slideCount: newState.slideCount ?? undefined,
+                          currentStage: 6,
+                        });
+                      } catch (error) {
+                        console.error('❌ onSessionStateChange threw error (template_ingest_ready):', error);
+                      }
+                    }
+                  }
+
+                  newState.currentStatus = null;
+                  break;
+                }
+
+                case 'template_ingest_failed':
+                  debugLog('🧩 template_ingest_failed:', message.payload);
+                  // Round-4 fix (R3-2): same session gate as update/ready.
+                  if (!ingestFrameIsForDisplayedSession) break;
+                  newState.templateIngestError = message.payload.error
+                    || message.payload.errors?.join('; ')
+                    || 'Template ingest failed';
+                  newState.templateIngestJobId = null;
+                  newState.currentStatus = null;
+                  break;
+
                 // Build Narration frames: no hook-state mutation — surfaced via
                 // the post-setState callbacks (slide_built taps the case above).
                 case 'build_phase':
@@ -1924,12 +2164,102 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               options.onSlideComposeReady?.(message);
             } else if (message.type === 'slide_failed') {
               options.onSlideComposeFailed?.(message);
+            } else if (message.type === 'template_ingest_ready' && !blockedIngress && ingestFrameIsForDisplayedSession) {
+              options.onTemplateIngestReady?.(message);
+            } else if (message.type === 'template_ingest_failed' && ingestFrameIsForDisplayedSession) {
+              options.onTemplateIngestFailed?.(message);
             } else if (message.type === 'build_phase') {
               options.onBuildPhase?.((message as any).payload);
             } else if (message.type === 'build_event') {
               options.onBuildEvent?.((message as any).payload);
             } else if (message.type === 'sync_response' && (message.payload as any)?.build_state) {
               options.onBuildStateSync?.((message.payload as any).build_state);
+            }
+
+            // Template Ingest (C-5): persist the in-flight job so the builder can
+            // resume polling after a reload/reconnect; clear on terminal frames.
+            if (
+              process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true' &&
+              typeof window !== 'undefined'
+            ) {
+              try {
+                // Round-3 fix (review N1/F8): key these side effects off the
+                // FRAME's session (`ingestFrameSessionId`, resolved above) —
+                // never off mutable `sessionIdRef.current`. A late frame
+                // arriving on session A's socket can therefore never write or
+                // delete session B's keys.
+                if (message.type === 'template_ingest_update') {
+                  if (message.payload.job_id && ingestFrameSessionId) {
+                    sessionStorage.setItem(`${INGEST_JOB_KEY_PREFIX}${ingestFrameSessionId}`, JSON.stringify({
+                      job_id: message.payload.job_id,
+                      status: message.payload.state || 'processing',
+                    }));
+                  }
+                  // Round-4 fix (durable ack): ANY update frame — Director now
+                  // emits a synchronous `state:"accepted"` pulse — proves
+                  // Director received the origin session's ingest message, so
+                  // the one-shot upload intent is consumed HERE (not on
+                  // `sendMessage` success, which only proves browser queuing).
+                  // Until this runs, the builder keeps the key and re-sends on
+                  // remount; Director's idempotent duplicate-job guard makes
+                  // re-sends safe.
+                  if (ingestFrameSessionId) {
+                    sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${ingestFrameSessionId}`);
+                  }
+                } else if (
+                  (message.type === 'template_ingest_ready' ||
+                    message.type === 'template_ingest_failed') &&
+                  ingestFrameSessionId
+                ) {
+                  const ingestJobKey = `${INGEST_JOB_KEY_PREFIX}${ingestFrameSessionId}`;
+                  // Terminal frame for the origin session: its one-shot upload
+                  // intent is definitively consumed (durable ack).
+                  sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${ingestFrameSessionId}`);
+                  // When both the frame and the stored job row carry a job_id,
+                  // require them to match before touching the record — a
+                  // terminal frame for job X must not clear/overwrite the
+                  // record of a different job Y.
+                  let storedJob: { job_id?: string; status?: string } | null = null;
+                  let storedUnparsable = false;
+                  try {
+                    storedJob = JSON.parse(sessionStorage.getItem(ingestJobKey) || 'null');
+                  } catch {
+                    // Unparsable stored value — treat as stale.
+                    storedUnparsable = true;
+                  }
+                  const jobMatches = !(
+                    message.payload.job_id &&
+                    storedJob?.job_id &&
+                    storedJob.job_id !== message.payload.job_id
+                  );
+                  if (jobMatches) {
+                    if (ingestFrameIsForDisplayedSession) {
+                      // Displayed session: the UI just rendered the result —
+                      // the persisted job record is done.
+                      sessionStorage.removeItem(ingestJobKey);
+                    } else {
+                      // Round-4 fix (R3-2): the ORIGIN session is not the one
+                      // on screen. Do NOT render, and do NOT clear its keys —
+                      // persist the terminal status instead so returning to
+                      // the origin session triggers the existing mount poller,
+                      // which fetches and renders the result via the
+                      // /api/ingest-jobs REST route.
+                      const recordJobId = message.payload.job_id || storedJob?.job_id;
+                      if (recordJobId) {
+                        sessionStorage.setItem(ingestJobKey, JSON.stringify({
+                          job_id: recordJobId,
+                          status: message.type === 'template_ingest_ready' ? 'complete' : 'failed',
+                        }));
+                      } else if (storedUnparsable) {
+                        // Garbage record with no recoverable job id — clear it.
+                        sessionStorage.removeItem(ingestJobKey);
+                      }
+                    }
+                  }
+                }
+              } catch {
+                // sessionStorage unavailable — reconnect polling degrades gracefully
+              }
             }
 
             // Trigger message callback
@@ -2014,6 +2344,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             currentStatus: null,
           }));
 
+          socketSessionRef.current = null;
           wsRef.current = null;
           buildControlTokenRef.current = null;
           clearAuthRefreshTimer();
@@ -2350,6 +2681,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.elementOverrides && { element_overrides: options.elementOverrides }),
           ...(options?.actionValue && { action_value: options.actionValue }),
           ...(options?.actionLabel && { action_label: options.actionLabel }),
+          ...(options?.templateIngest && { template_ingest: true }),
+          ...(options?.ingestUploadRef && { ingest_upload_ref: options.ingestUploadRef }),
           ...(options?.manualDeck && { manual_deck: options.manualDeck }),
           ...(options?.deckIdentity && { deck_identity: options.deckIdentity }),
           ...(options?.handoffIdempotencyKey && {
@@ -2456,14 +2789,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, []);
 
-  const sendControlMessage = useCallback((type: ControlMessage['type']): boolean => {
+  const sendControlMessage = useCallback((type: ControlMessage['type'], data?: { job_id: string }): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send control message: WebSocket not connected');
       return false;
     }
 
     try {
-      const message: ControlMessage = { type };
+      const message = (data ? { type, data } : { type }) as ControlMessage;
       debugLog('📤 Sending control message:', type);
       wsRef.current.send(JSON.stringify(message));
       return true;
@@ -2622,6 +2955,89 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, []);
 
+  // Template Ingest (C-5): apply a completed ingest job fetched via the REST
+  // reconnect-polling path exactly as if the template_ingest_ready WS frame had
+  // arrived (same state setters as the reducer case above).
+  // Round-5 fix (R4-5): the caller MUST pass the origin session the poll was
+  // started for. A late REST response for session B resolving after the user
+  // switched the SPA to session C would otherwise adopt B's deck into C via
+  // mutable `sessionIdRef.current`. If the expected (origin) session is not
+  // the displayed session AT CALL TIME, this is a logged no-op returning
+  // false — belt and braces beneath the poller's own post-await guards.
+  const applyTemplateIngestReady = useCallback((
+    payload: TemplateIngestReady['payload'],
+    expectedSessionId: string,
+  ): boolean => {
+    if (expectedSessionId !== sessionIdRef.current) {
+      console.warn('[TemplateIngest] applyTemplateIngestReady refused: origin session is not the displayed session', {
+        expectedSessionId,
+        displayedSessionId: sessionIdRef.current,
+      });
+      return false;
+    }
+    const admission = guardDirectorLayoutUrlMessage(
+      { type: 'template_ingest_ready', payload }, LAYOUT_VIEWER_URL_POLICY,
+    );
+    if (admission.ingress?.status !== 'allowed') return false;
+    debugLog('🧩 applyTemplateIngestReady (poll path):', {
+      template_id: payload.template_id,
+      presentation_id: payload.presentation_id,
+      viewer_url: payload.viewer_url,
+    });
+
+    setStateWithCache(prev => {
+      const newState = { ...prev };
+      newState.templateIngestResult = payload;
+      newState.templateIngestError = null;
+      newState.templateIngestJobId = null;
+
+      if (payload.viewer_url) {
+        newState.finalPresentationUrl = payload.viewer_url;
+        newState.finalPresentationId = payload.presentation_id;
+        newState.deckOwnerSessionId = sessionIdRef.current;
+        newState.isBlankPresentation = false;
+        newState.activeVersion = 'final';
+        newState.presentationUrl = payload.viewer_url;
+        newState.presentationId = payload.presentation_id;
+        if (typeof payload.slide_count === 'number') {
+          newState.slideCount = payload.slide_count;
+        } else if (payload.per_slide_fidelity?.length) {
+          newState.slideCount = payload.per_slide_fidelity.length;
+        }
+
+        if (options.onPresentationReady) {
+          options.onPresentationReady(payload.viewer_url);
+        }
+        if (options.onSessionStateChange) {
+          try {
+            options.onSessionStateChange({
+              presentationUrl: payload.viewer_url,
+              presentationId: payload.presentation_id,
+              slideCount: newState.slideCount ?? undefined,
+              currentStage: 6,
+            });
+          } catch (error) {
+            console.error('❌ onSessionStateChange threw error (applyTemplateIngestReady):', error);
+          }
+        }
+      }
+
+      newState.currentStatus = null;
+      return newState;
+    });
+
+    if (typeof window !== 'undefined') {
+      try {
+        // Equal to expectedSessionId — the guard above already proved it.
+        sessionStorage.removeItem(`${INGEST_JOB_KEY_PREFIX}${sessionIdRef.current}`);
+      } catch {
+        // ignore storage errors
+      }
+    }
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setStateWithCache]);
+
   // Switch between blank, strawman and final versions (Builder V2)
   const switchVersion = useCallback((version: 'blank' | 'strawman' | 'final') => {
     setStateWithCache(prev => {
@@ -2691,6 +3107,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralFadeToken: 0,
       tokenUsage: null,
       tokenUsageMessageId: null,
+      templateIngestResult: null,
+      templateIngestError: null,
+      templateIngestJobId: null,
     }));
   }, [sessionCache, setStateWithCache]);
 
@@ -2833,6 +3252,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralFadeToken: 0,
       tokenUsage: (sessionState as any).tokenUsage || null,
       tokenUsageMessageId: (sessionState as any).tokenUsageMessageId || null,
+      templateIngestResult: (sessionState as any).templateIngestResult || null,
+      templateIngestError: null,
+      templateIngestJobId: null,
     }));
   }, [setStateWithCache]);
 
@@ -2891,6 +3313,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     sendMessageWhenConnected,
     sendElementDirectiveResult,
     sendControlMessage,
+    applyTemplateIngestReady,
     sendThemeSelection,
     sendBuildControl,
     clearMessages,
@@ -2904,5 +3327,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     // Utility
     isReady: state.connected,
+    socketSessionId: socketSessionRef.current,
+    // Round-5 fix (R4-6): bumps on every socket `onopen`. Effects that must
+    // re-arm per-connection (ingest resend, job-record polling) depend on it.
+    connectionGeneration,
   };
 }
