@@ -1831,6 +1831,46 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
                 case 'slide_update':
                   debugLog('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
+                  // Composer reconnect replays the completed native deck's slide
+                  // metadata through the older strawman frame. Its immutable
+                  // adopted target stays final regardless of ready/sync ordering.
+                  if (COMPOSER_LIBRARY_ENABLED && prev.composerAdoption &&
+                      prev.deckOwnerSessionId === sessionIdRef.current &&
+                      prev.finalPresentationId === prev.composerAdoption.presentation_id) {
+                    const replayId = message.payload.metadata?.preview_presentation_id ||
+                      message.payload.preview_presentation_id ||
+                      (message.payload as any).strawman?.preview_presentation_id ||
+                      (message.payload as any).presentation_id;
+                    const replayUrl = message.payload.preview_url || message.payload.metadata?.preview_url ||
+                      (message.payload as any).strawman?.preview_url || (message.payload as any).url;
+                    if (blockedIngress || message.payload.is_blank || replayUrl !== prev.finalPresentationUrl ||
+                        socketSessionId !== sessionIdRef.current ||
+                        (message.session_id && message.session_id !== sessionIdRef.current) ||
+                        replayId !== prev.composerAdoption.presentation_id) break;
+                    newState.slideStructure = message.payload;
+                    newState.slideCount = message.payload.slides?.length || prev.slideCount;
+                    // Only Director sync supplies workflow state; this metadata
+                    // replay must not invent a ready/complete acknowledgement.
+                    newState.directorWorkflowState = prev.directorWorkflowState;
+                    newState.activeVersion = 'final';
+                    newState.isBlankPresentation = false;
+                    newState.presentationUrl = prev.finalPresentationUrl;
+                    newState.presentationId = prev.finalPresentationId;
+                    newState.currentStatus = null;
+                    try {
+                      options.onSessionStateChange?.({
+                        presentationUrl: prev.finalPresentationUrl || undefined,
+                        presentationId: prev.finalPresentationId || undefined,
+                        slideCount: newState.slideCount ?? undefined,
+                        slideStructure: message.payload,
+                        currentStage: 6,
+                        activeVersion: 'final',
+                      });
+                    } catch (error) {
+                      console.error('Could not persist Composer slide metadata:', error);
+                    }
+                    break;
+                  }
                   newState.slideStructure = message.payload;
 
                   if (

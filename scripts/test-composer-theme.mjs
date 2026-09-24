@@ -13,7 +13,7 @@ const plain = value => JSON.parse(JSON.stringify(value))
 // No socket, timer, database, or HTTP operation leaves this process.
 function harness(enabled, cached = null) {
   let cursor = 0; const slots = []; const modules = new Map(); const sockets = []
-  const storage = new Map()
+  const storage = new Map(); const persistence = []
   const cache = {
     getCachedState: () => cached, isCacheValid: () => true,
     setCachedState: state => { cached = { ...cached, ...state } },
@@ -66,7 +66,7 @@ function harness(enabled, cached = null) {
   }
   const { useDecksterWebSocketV2 } = load(path.join(root, 'hooks/use-deckster-websocket-v2.ts'))
   let hook
-  function render() { cursor = 0; hook = useDecksterWebSocketV2({ existingSessionId: 'session-a', autoConnect: false }); return hook }
+  function render() { cursor = 0; hook = useDecksterWebSocketV2({ existingSessionId: 'session-a', autoConnect: false, onSessionStateChange: value => persistence.push(value) }); return hook }
   const sync = (adoption = marker, presentationId = 'deck-a', sessionId = 'session-a') => {
     sockets.at(-1).onmessage({ data: JSON.stringify({ message_id: String(Math.random()), session_id: sessionId, type: 'sync_response', payload: {
       current_state: 'COMPLETE', has_strawman: true, action: 'skip_history', message_count: 0, presentation_id: presentationId,
@@ -74,7 +74,12 @@ function harness(enabled, cached = null) {
     } }) }); return render()
   }
   render()
-  return { render, sync, get cache() { return cached }, sockets, async connect() {
+  const replay = (presentationId = 'deck-a', sessionId = 'session-a', blank = false, previewUrl = url) => {
+    sockets.at(-1).onmessage({ data: JSON.stringify({ message_id: String(Math.random()), session_id: sessionId, type: 'slide_update', payload: {
+      operation: 'full_update', is_blank: blank, preview_url: previewUrl, metadata: { preview_presentation_id: presentationId }, slides: [{ slide_id: 'native-slide-a' }],
+    } }) }); return render()
+  }
+  return { render, sync, replay, persistence, get cache() { return cached }, sockets, async connect() {
     hook.connect(); await new Promise(resolve => setImmediate(resolve))
     assert.ok(sockets.length, 'actual hook created its mocked transport'); sockets.at(-1).open(); return render()
   } }
@@ -87,6 +92,20 @@ hook = fresh.sync()
 assert.deepEqual(plain(hook.composerAdoption), marker)
 assert.equal(hook.sendThemeSelection({ mode: 'auto' }, 'frozen', 'deck-a'), false)
 assert.equal(fresh.sockets[0].sent.length, 0)
+hook = fresh.replay()
+assert.equal(hook.directorWorkflowState, 'COMPLETE', 'completed sync followed by native metadata must not become a strawman')
+assert.equal(hook.activeVersion, 'final')
+assert.equal(hook.slideStructure.slides[0].slide_id, 'native-slide-a')
+assert.equal(fresh.persistence.at(-1).currentStage, 6)
+assert.equal(fresh.persistence.at(-1).activeVersion, 'final')
+const structure = plain(hook.slideStructure); const saves = fresh.persistence.length
+for (const args of [['foreign-deck'], ['deck-a', 'foreign-session'], ['deck-a', 'session-a', true], ['deck-a', 'session-a', false, 'http://localhost:8531/p/different']]) {
+  hook = fresh.replay(...args)
+  assert.equal(hook.activeVersion, 'final')
+  assert.equal(hook.directorWorkflowState, 'COMPLETE')
+  assert.deepEqual(plain(hook.slideStructure), structure)
+}
+assert.equal(fresh.persistence.length, saves, 'foreign and blank replays cannot persist a different target')
 assert.deepEqual(plain(fresh.cache.composerAdoption), marker, 'provenance is retained in the existing owner-scoped cache')
 
 for (const cached of [fresh.cache, null]) {
@@ -111,6 +130,12 @@ assert.equal(hook.applyTemplateIngestReady(ready, 'session-a'), true)
 assert.deepEqual(plain(initial.render().composerAdoption), marker)
 hook = await initial.connect()
 assert.equal(hook.sendThemeSelection({ mode: 'auto' }, 'adopt-open', 'deck-a'), false)
+hook = initial.replay()
+assert.equal(hook.activeVersion, 'final', 'ready before metadata replay stays final even before sync')
+assert.equal(hook.directorWorkflowState, null, 'metadata never invents an authoritative completion acknowledgement')
+hook = initial.sync()
+assert.equal(hook.directorWorkflowState, 'COMPLETE')
+assert.equal(initial.persistence.at(-1).currentStage, 6)
 
 const malformed = harness(true)
 await malformed.connect()
@@ -135,4 +160,7 @@ hook = legacy.sync()
 assert.equal(hook.composerAdoption, null)
 assert.equal(hook.sendThemeSelection({ mode: 'auto' }, 'legacy-after-sync', 'deck-a'), true)
 assert.equal(legacy.sockets[0].sent.length, 2)
+hook = legacy.replay()
+assert.equal(hook.activeVersion, 'strawman', 'flag-off metadata replay preserves the legacy transition')
+assert.equal(legacy.persistence.at(-1).currentStage, 4)
 console.log('Composer theme: actual hook initial admission, sync race, reload/cache, reconnect, foreign/malformed provenance and flag-off transport passed.')

@@ -69,6 +69,11 @@ targets never send `set_theme`, including initial adoption, reconnect, reload,
 or explicit reapplication. The Builder reports source-theme preservation
 without inventing an applied acknowledgement. With the library flag off,
 legacy theme synchronization is unchanged.
+Completed Composer sessions replay native slide metadata through Director’s
+legacy `slide_update` frame. For the same owned adopted presentation, this
+updates slide IDs/count while keeping the final deck and stage 6. It does not
+synthesize workflow completion; Director sync remains authoritative. Blank or
+foreign-target replays cannot replace that adopted deck.
 
 Offline checks are `scripts/test-composer-library.mjs`,
 `scripts/test-composer-storage-upload.mjs`, `scripts/test-composer-picker.mjs`,
