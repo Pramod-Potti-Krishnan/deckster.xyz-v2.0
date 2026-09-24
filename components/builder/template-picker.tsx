@@ -28,7 +28,10 @@ type TemplatePickerMode = 'generation' | 'review'
 interface TemplatePickerProps {
   onSelect: (template: TemplateSelection) => void
   disabled?: boolean
+  selectionLocked?: boolean
   mode?: TemplatePickerMode
+  onOpenLibrary?: () => void
+  showSavedTemplates?: boolean
 }
 
 interface TemplatePickerContentProps {
@@ -55,7 +58,12 @@ export function TemplatePickerContent({
 
   const refresh = useCallback(async () => {
     const res = await listTemplates()
-    setTemplates(res?.templates ?? [])
+    const listed = res?.templates ?? []
+    // With the library enabled, Composer carriers use its own open path and
+    // cannot enter legacy review or reuse. Preserve flag-off picker behavior.
+    setTemplates(process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true'
+      ? listed.filter((template) => !('stage_template_summary' in template))
+      : listed)
   }, [listTemplates])
 
   useEffect(() => {
@@ -251,7 +259,7 @@ export function TemplatePickerContent({
  * which then carries template_mode/template_id on the next send). See
  * TEMPLATE_PLAN.md §6 (retrieval = in-chat control beside attach).
  */
-export function TemplatePicker({ onSelect, disabled, mode = 'generation' }: TemplatePickerProps) {
+export function TemplatePicker({ onSelect, disabled, selectionLocked = false, mode = 'generation', onOpenLibrary, showSavedTemplates = true }: TemplatePickerProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -260,7 +268,7 @@ export function TemplatePicker({ onSelect, disabled, mode = 'generation' }: Temp
         <button
           type="button"
           className="flex items-center justify-center rounded-lg p-1.5 text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-200 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={disabled}
+          disabled={disabled || (selectionLocked && !onOpenLibrary)}
           title="Reuse a saved template"
           aria-label="Reuse a saved template"
         >
@@ -268,7 +276,13 @@ export function TemplatePicker({ onSelect, disabled, mode = 'generation' }: Temp
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        <TemplatePickerContent onSelect={onSelect} isOpen={open} mode={mode} />
+        {onOpenLibrary && <DropdownMenuItem onSelect={() => { setOpen(false); onOpenLibrary() }}>
+          <LayoutTemplate className="mr-2 h-4 w-4" /> Template library
+        </DropdownMenuItem>}
+        {onOpenLibrary && showSavedTemplates && <DropdownMenuSeparator />}
+        {showSavedTemplates && (selectionLocked && onOpenLibrary
+          ? <DropdownMenuItem disabled>Template selection is locked for this deck</DropdownMenuItem>
+          : <TemplatePickerContent onSelect={onSelect} isOpen={open} mode={mode} />)}
       </DropdownMenuContent>
     </DropdownMenu>
   )

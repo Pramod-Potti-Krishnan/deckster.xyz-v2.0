@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react'
+import type { ComposerAdoption } from '@/lib/composer-theme-policy'
 import type { DirectorMessage, TokenUsagePayload } from './use-deckster-websocket-v2'
 import {
   attachmentsFromPayload,
@@ -33,6 +34,7 @@ export const sessionMetadataCacheKey = (userId: string, sessionId: string) =>
 
 // Cached session state structure
 export interface CachedSessionState {
+  composerAdoption?: ComposerAdoption | null
   ownerUserId: string
 
   // WebSocket messages

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
+import { composerThemeFromSync, composerThemeSyncBlocked, readComposerAdoption, type ComposerAdoption } from '@/lib/composer-theme-policy';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log'
 import { CHAT_DIRECTIVES, CHAT_MENTIONS } from '@/lib/mdc-flags'
@@ -99,6 +100,7 @@ export interface SyncResponse {
   type: 'sync_response';
   role: 'assistant';
   payload: {
+    composer_adoption?: ComposerAdoption;
     action: 'skip_history' | 'send_history' | 'send_delta';
     message_count: number;
     current_state: string;
@@ -455,6 +457,7 @@ export interface TemplateIngestReady {
   timestamp: string;
   type: 'template_ingest_ready';
   payload: {
+    composer_adoption?: ComposerAdoption;
     session_id?: string;
     job_id?: string;
     template_id: string;
@@ -566,6 +569,8 @@ export interface SetThemeMessage {
 
 // Hook state
 export interface UseDecksterWebSocketV2State {
+  composerAdoption: ComposerAdoption | null;
+  composerThemeResolved: boolean;
   connected: boolean;
   connecting: boolean;
   connectionState: 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -658,6 +663,7 @@ export interface UseDecksterWebSocketV2Options {
 // (e.g. ws://localhost:8000/ws); falls back to the deployed Director otherwise.
 const DEFAULT_WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://directorv33-production.up.railway.app/ws';
 const BUILD_CONTROL_HTTP_TIMEOUT_MS = 4000;
+const COMPOSER_LIBRARY_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true';
 
 // How long a send will wait for a closed socket to come back before it gives
 // up and tells the user. Long enough to cover ordinary reconnect churn,
@@ -781,6 +787,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           : cached.finalPresentationId;
 
       return {
+        composerAdoption: COMPOSER_LIBRARY_ENABLED ? readComposerAdoption(cached.composerAdoption, cached.finalPresentationId) : null,
+        composerThemeResolved: false,
         connected: false,
         connecting: false,
         connectionState: 'disconnected',
@@ -821,6 +829,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     // No cache or invalid cache - return default state
     return {
+      composerAdoption: null,
+      composerThemeResolved: false,
       connected: false,
       connecting: false,
       connectionState: 'disconnected',
@@ -861,6 +871,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   const [state, setState] = useState<UseDecksterWebSocketV2State>(() => getInitialState());
 
+  // Synchronous transport guard: a cached deck can render before the new
+  // socket's authoritative sync arrives. Never let onopen race theme apply.
+  const composerThemeRef = useRef({ sessionId: sessionIdRef.current, composerAdoption: state.composerAdoption, composerThemeResolved: state.composerThemeResolved });
+  composerThemeRef.current = { sessionId: sessionIdRef.current, composerAdoption: state.composerAdoption, composerThemeResolved: state.composerThemeResolved };
+
   // Wrapper for setState that also writes to cache
   const setStateWithCache = useCallback((
     updateFn: (prev: UseDecksterWebSocketV2State) => UseDecksterWebSocketV2State
@@ -892,6 +907,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // Write to sessionStorage cache (synchronous, instant)
       // Preserve existing userMessages - they're managed by page.tsx via updateCacheUserMessages
       sessionCache.setCachedState({
+        ...(COMPOSER_LIBRARY_ENABLED ? { composerAdoption: newState.composerAdoption } : {}),
         messages: uniqueMessages,
         presentationUrl: newState.presentationUrl,
         strawmanPreviewUrl: newState.strawmanPreviewUrl,
@@ -1239,9 +1255,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
 
     isConnectingRef.current = true;
+    if (COMPOSER_LIBRARY_ENABLED) composerThemeRef.current = { ...composerThemeRef.current, composerThemeResolved: false };
 
     setState(prev => ({
       ...prev,
+      ...(COMPOSER_LIBRARY_ENABLED ? { composerThemeResolved: false } : {}),
       connecting: true,
       connectionState: 'connecting',
       error: null,
@@ -1617,6 +1635,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   break;
 
                 case 'sync_response':
+                  if (COMPOSER_LIBRARY_ENABLED && socketSessionId === sessionIdRef.current &&
+                      (!message.session_id || message.session_id === sessionIdRef.current)) {
+                    const themeState = composerThemeFromSync(message.payload.composer_adoption, message.payload.presentation_id, Boolean(blockedIngress));
+                    Object.assign(newState, themeState);
+                    composerThemeRef.current = { sessionId: sessionIdRef.current, ...themeState };
+                  }
                   // Sync protocol response - Director confirms whether to skip history
                   newState.directorWorkflowState = message.payload.current_state || null;
                   // Latch, never clear: this is what freezes the research toggles.
@@ -1807,6 +1831,46 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
                 case 'slide_update':
                   debugLog('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
+                  // Composer reconnect replays the completed native deck's slide
+                  // metadata through the older strawman frame. Its immutable
+                  // adopted target stays final regardless of ready/sync ordering.
+                  if (COMPOSER_LIBRARY_ENABLED && prev.composerAdoption &&
+                      prev.deckOwnerSessionId === sessionIdRef.current &&
+                      prev.finalPresentationId === prev.composerAdoption.presentation_id) {
+                    const replayId = message.payload.metadata?.preview_presentation_id ||
+                      message.payload.preview_presentation_id ||
+                      (message.payload as any).strawman?.preview_presentation_id ||
+                      (message.payload as any).presentation_id;
+                    const replayUrl = message.payload.preview_url || message.payload.metadata?.preview_url ||
+                      (message.payload as any).strawman?.preview_url || (message.payload as any).url;
+                    if (blockedIngress || message.payload.is_blank || replayUrl !== prev.finalPresentationUrl ||
+                        socketSessionId !== sessionIdRef.current ||
+                        (message.session_id && message.session_id !== sessionIdRef.current) ||
+                        replayId !== prev.composerAdoption.presentation_id) break;
+                    newState.slideStructure = message.payload;
+                    newState.slideCount = message.payload.slides?.length || prev.slideCount;
+                    // Only Director sync supplies workflow state; this metadata
+                    // replay must not invent a ready/complete acknowledgement.
+                    newState.directorWorkflowState = prev.directorWorkflowState;
+                    newState.activeVersion = 'final';
+                    newState.isBlankPresentation = false;
+                    newState.presentationUrl = prev.finalPresentationUrl;
+                    newState.presentationId = prev.finalPresentationId;
+                    newState.currentStatus = null;
+                    try {
+                      options.onSessionStateChange?.({
+                        presentationUrl: prev.finalPresentationUrl || undefined,
+                        presentationId: prev.finalPresentationId || undefined,
+                        slideCount: newState.slideCount ?? undefined,
+                        slideStructure: message.payload,
+                        currentStage: 6,
+                        activeVersion: 'final',
+                      });
+                    } catch (error) {
+                      console.error('Could not persist Composer slide metadata:', error);
+                    }
+                    break;
+                  }
                   newState.slideStructure = message.payload;
 
                   if (
@@ -2575,6 +2639,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     setState(prev => ({
       ...prev,
       sessionId: nextSessionId,
+      ...(COMPOSER_LIBRARY_ENABLED ? { composerAdoption: null, composerThemeResolved: false } : {}),
       connected: false,
       connecting: shouldReconnect,
       connectionState: shouldReconnect ? 'connecting' : 'disconnected',
@@ -2811,6 +2876,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     requestId: string,
     presentationId: string,
   ): boolean => {
+    if (COMPOSER_LIBRARY_ENABLED && (composerThemeRef.current.sessionId !== sessionIdRef.current ||
+        composerThemeSyncBlocked(true, composerThemeRef.current, presentationId))) return false;
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot sync theme: WebSocket not connected');
       return false;
@@ -2979,6 +3046,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       { type: 'template_ingest_ready', payload }, LAYOUT_VIEWER_URL_POLICY,
     );
     if (admission.ingress?.status !== 'allowed') return false;
+    const composerAdoption = COMPOSER_LIBRARY_ENABLED
+      ? readComposerAdoption(payload.composer_adoption, payload.presentation_id) : null;
+    if (composerAdoption) composerThemeRef.current = { sessionId: expectedSessionId, composerAdoption, composerThemeResolved: true };
     debugLog('🧩 applyTemplateIngestReady (poll path):', {
       template_id: payload.template_id,
       presentation_id: payload.presentation_id,
@@ -2987,6 +3057,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     setStateWithCache(prev => {
       const newState = { ...prev };
+      if (composerAdoption) Object.assign(newState, { composerAdoption, composerThemeResolved: true });
       newState.templateIngestResult = payload;
       newState.templateIngestError = null;
       newState.templateIngestJobId = null;
@@ -3083,6 +3154,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     setStateWithCache(prev => ({
       ...prev,
+      composerAdoption: null,
+      composerThemeResolved: false,
       messages: [],
       presentationUrl: null,
       strawmanPreviewUrl: null,

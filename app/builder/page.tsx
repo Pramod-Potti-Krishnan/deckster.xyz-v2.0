@@ -1,5 +1,7 @@
 "use client"
 
+import { composerThemeSyncBlocked } from '@/lib/composer-theme-policy'
+
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
@@ -40,6 +42,8 @@ import type {
 // Extracted components
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
+import { ComposerLibraryDialog } from '@/components/builder/composer-library-dialog'
+import { COMPOSER_READY_KEY_PREFIX, type ComposerReady } from '@/lib/composer-library'
 import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
@@ -476,6 +480,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const [manualDeckHandoffBusy, setManualDeckHandoffBusy] = useState(false)
   const [manualDeckHandoffError, setManualDeckHandoffError] = useState<string | null>(null)
   const templateBuilderEnabled = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
+  const composerLibraryEnabled = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true'
+  const [showComposerLibrary, setShowComposerLibrary] = useState(false)
   const blueprintEditorV2Enabled = templateBuilderEnabled && process.env.NEXT_PUBLIC_BLUEPRINT_EDITOR_V2 === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
@@ -1667,6 +1673,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     tokenUsage,
     tokenUsageMessageId,
     hasStrawman,
+    composerAdoption,
+    composerThemeResolved,
     templateIngestResult,
     templateIngestJobId,
     sendMessage,
@@ -2425,16 +2433,24 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, narrationCenterStage, buildNarration.buildPresentationId],
   )
 
+  const composerThemeBlocked = composerThemeSyncBlocked(composerLibraryEnabled,
+    { composerAdoption, composerThemeResolved }, effectivePresentationId)
+  const composerThemeFrozen = composerLibraryEnabled && composerAdoption?.presentation_id === effectivePresentationId
+
   const themeSyncTargetRef = useRef({
     isReady,
     presentationId: effectivePresentationId,
     templateModeOn,
+    composerThemeBlocked,
+    composerThemeFrozen,
     selection: buildThemeSelection,
   })
   themeSyncTargetRef.current = {
     isReady,
     presentationId: effectivePresentationId,
     templateModeOn,
+    composerThemeBlocked,
+    composerThemeFrozen,
     selection: buildThemeSelection,
   }
 
@@ -2442,6 +2458,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     targetPresentationId: string,
   ): ThemeSyncRequestResult => {
     const target = themeSyncTargetRef.current
+    if (target.composerThemeBlocked) {
+      return { ok: false, code: 'failed', error: target.composerThemeFrozen
+        ? 'This template keeps its stored source theme.'
+        : 'Waiting for the presentation theme policy from Director.' }
+    }
     if (target.templateModeOn) {
       return {
         ok: false,
@@ -2523,6 +2544,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [clearThemeSyncTimeout, commitThemeSync, sendThemeSelection])
 
   const ensureThemeReady = useCallback(async (targetPresentationId: string) => {
+    if (themeSyncTargetRef.current.composerThemeBlocked) {
+      return { ready: false, code: 'failed', error: themeSyncTargetRef.current.composerThemeFrozen
+        ? 'This template keeps its stored source theme.'
+        : 'Waiting for the presentation theme policy from Director.' } as const
+    }
     const current = getThemeSyncSnapshot()
     const desiredFingerprint = themeSelectionFingerprint(
       themeSyncTargetRef.current.selection,
@@ -2608,6 +2634,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [getThemeSyncSnapshot, requestThemeSyncForPresentation])
 
   useEffect(() => {
+    if (composerThemeBlocked) {
+      latestThemeSyncRequestRef.current = null
+      latestThemeSyncKeyRef.current = null
+      clearThemeSyncTimeout()
+      commitThemeSync(IDLE_THEME_SYNC)
+      return
+    }
     if (!isReady || !effectivePresentationId || templateModeOn) {
       const current = themeSyncRef.current
       const currentFingerprint = themeSelectionFingerprint(buildThemeSelection)
@@ -2668,6 +2701,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     isReady,
     requestThemeSyncForPresentation,
     templateModeOn,
+    composerThemeBlocked,
   ])
 
   useEffect(() => clearThemeSyncTimeout, [clearThemeSyncTimeout])
@@ -3206,6 +3240,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   })
 
   // Text Labs session (depends on the currently displayed presentation)
+  useEffect(() => {
+    if (!composerLibraryEnabled || session.isLoadingSession || !currentSessionId || currentSessionId === 'new' || !user) return
+    const key = `${COMPOSER_READY_KEY_PREFIX}${currentSessionId}`
+    try {
+      const staged = JSON.parse(sessionStorage.getItem(key) || 'null') as { user_id: string; result: ComposerReady } | null
+      if (!staged || staged.user_id !== (user.id || user.email) || staged.result?.session_id !== currentSessionId) return
+      if (applyTemplateIngestReady(staged.result, currentSessionId)) {
+        sessionStorage.removeItem(key)
+      } else {
+        toast({ title: 'Could not open template deck', description: 'The deck did not pass the viewer or session checks.', variant: 'destructive' })
+      }
+    } catch {
+      toast({ title: 'Could not open template deck', description: 'The saved template result could not be read.', variant: 'destructive' })
+    }
+  }, [composerLibraryEnabled, currentSessionId, session.isLoadingSession, user, applyTemplateIngestReady, toast])
+
   const textLabsSession = useTextLabsSession(effectivePresentationId)
   const buildRefineContext = useElementRefinement({
     slideContextByIndex,
@@ -5084,6 +5134,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     templateBuilderEnabled={templateBuilderEnabled}
                     activeTemplate={activeTemplate}
                     onSelectTemplate={handleSelectTemplate}
+                    onOpenComposerLibrary={composerLibraryEnabled ? () => setShowComposerLibrary(true) : undefined}
                     onClearTemplate={handleClearTemplate}
                     templateSelectionLocked={generationSelectionsLocked}
                     isTemplateReuseRunning={Boolean(activeTemplate && isGeneratingFinal)}
@@ -5349,6 +5400,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       </div>
 
       {/* Chat History Sidebar */}
+      {composerLibraryEnabled && <ComposerLibraryDialog open={showComposerLibrary} onOpenChange={setShowComposerLibrary} />}
       <ChatHistorySidebar
         isOpen={showChatHistory}
         onClose={() => setShowChatHistory(false)}
