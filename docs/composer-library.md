@@ -60,7 +60,18 @@ signed-in user and session again before `applyTemplateIngestReady` applies the
 shared viewer allowlist and persists the deck state. Jobs can resume from a
 per-user browser-session record without creating another deck.
 
+Composer keeps the uploaded source theme. Its local ready result carries a
+compact `composer_adoption` marker; Director restores the same marker on
+`sync_response` only after durable owner/session/presentation verification.
+The hook retains this provenance in its existing owner-scoped cache and waits
+for each new connection's sync before allowing theme mutation. Composer
+targets never send `set_theme`, including initial adoption, reconnect, reload,
+or explicit reapplication. The Builder reports source-theme preservation
+without inventing an applied acknowledgement. With the library flag off,
+legacy theme synchronization is unchanged.
+
 Offline checks are `scripts/test-composer-library.mjs`,
-`scripts/test-composer-storage-upload.mjs`, and `scripts/test-composer-picker.mjs`.
+`scripts/test-composer-storage-upload.mjs`, `scripts/test-composer-picker.mjs`,
+and `scripts/test-composer-theme.mjs`.
 They use mocked network, database, and UI dependencies. Full type checks must be compared with fresh plain UAT using
 identical dependency inputs; inherited failures are not fixed here.

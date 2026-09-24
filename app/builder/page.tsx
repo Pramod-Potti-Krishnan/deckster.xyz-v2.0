@@ -1,5 +1,7 @@
 "use client"
 
+import { composerThemeSyncBlocked } from '@/lib/composer-theme-policy'
+
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
@@ -1671,6 +1673,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     tokenUsage,
     tokenUsageMessageId,
     hasStrawman,
+    composerAdoption,
+    composerThemeResolved,
     templateIngestResult,
     templateIngestJobId,
     sendMessage,
@@ -2429,16 +2433,24 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, narrationCenterStage, buildNarration.buildPresentationId],
   )
 
+  const composerThemeBlocked = composerThemeSyncBlocked(composerLibraryEnabled,
+    { composerAdoption, composerThemeResolved }, effectivePresentationId)
+  const composerThemeFrozen = composerLibraryEnabled && composerAdoption?.presentation_id === effectivePresentationId
+
   const themeSyncTargetRef = useRef({
     isReady,
     presentationId: effectivePresentationId,
     templateModeOn,
+    composerThemeBlocked,
+    composerThemeFrozen,
     selection: buildThemeSelection,
   })
   themeSyncTargetRef.current = {
     isReady,
     presentationId: effectivePresentationId,
     templateModeOn,
+    composerThemeBlocked,
+    composerThemeFrozen,
     selection: buildThemeSelection,
   }
 
@@ -2446,6 +2458,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     targetPresentationId: string,
   ): ThemeSyncRequestResult => {
     const target = themeSyncTargetRef.current
+    if (target.composerThemeBlocked) {
+      return { ok: false, code: 'failed', error: target.composerThemeFrozen
+        ? 'This template keeps its stored source theme.'
+        : 'Waiting for the presentation theme policy from Director.' }
+    }
     if (target.templateModeOn) {
       return {
         ok: false,
@@ -2527,6 +2544,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [clearThemeSyncTimeout, commitThemeSync, sendThemeSelection])
 
   const ensureThemeReady = useCallback(async (targetPresentationId: string) => {
+    if (themeSyncTargetRef.current.composerThemeBlocked) {
+      return { ready: false, code: 'failed', error: themeSyncTargetRef.current.composerThemeFrozen
+        ? 'This template keeps its stored source theme.'
+        : 'Waiting for the presentation theme policy from Director.' } as const
+    }
     const current = getThemeSyncSnapshot()
     const desiredFingerprint = themeSelectionFingerprint(
       themeSyncTargetRef.current.selection,
@@ -2612,6 +2634,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [getThemeSyncSnapshot, requestThemeSyncForPresentation])
 
   useEffect(() => {
+    if (composerThemeBlocked) {
+      latestThemeSyncRequestRef.current = null
+      latestThemeSyncKeyRef.current = null
+      clearThemeSyncTimeout()
+      commitThemeSync(IDLE_THEME_SYNC)
+      return
+    }
     if (!isReady || !effectivePresentationId || templateModeOn) {
       const current = themeSyncRef.current
       const currentFingerprint = themeSelectionFingerprint(buildThemeSelection)
@@ -2672,6 +2701,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     isReady,
     requestThemeSyncForPresentation,
     templateModeOn,
+    composerThemeBlocked,
   ])
 
   useEffect(() => clearThemeSyncTimeout, [clearThemeSyncTimeout])

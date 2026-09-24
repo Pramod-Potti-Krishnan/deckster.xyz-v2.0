@@ -1,3 +1,5 @@
+import type { ComposerAdoption } from './composer-theme-policy'
+
 /** Composer library contracts. No credentials or legacy ingest activation. */
 export const COMPOSER_READY_KEY_PREFIX = 'deckster_composer_ready_'
 
@@ -9,6 +11,7 @@ export interface ComposerTemplate {
 }
 
 export interface ComposerReady {
+  composer_adoption?: ComposerAdoption
   session_id: string
   template_id: string
   presentation_id: string
@@ -55,6 +58,7 @@ export function composerReadyResult(job: ComposerJob, expectedSessionId: string)
     throw new Error('The completed deck does not belong to the requested session.')
   }
   return {
+    composer_adoption: { schema_version: 'composer-adoption-v1', template_id: result.template_id, presentation_id: result.presentation_id, frozen_theme: true },
     session_id: expectedSessionId,
     template_id: result.template_id,
     presentation_id: result.presentation_id,

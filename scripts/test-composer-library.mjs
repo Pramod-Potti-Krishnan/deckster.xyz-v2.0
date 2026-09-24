@@ -27,7 +27,7 @@ assert.equal(validateComposerFile({ name: 'deck.PPTX', size: 1 }), null)
 for (const file of [{ name: 'deck.pdf', size: 1 }, { name: 'deck.pptx', size: 0 }, { name: 'deck.pptx', size: 104857601 }]) assert.ok(validateComposerFile(file))
 const ready = { session_id: 'owned-session', template_id: 'template-1', presentation_id: 'deck-1', viewer_url: 'http://127.0.0.1:8531/p/deck-1', slide_count: 3 }
 assert.equal(composerReadyResult({ status: 'queued' }, ready.session_id), null)
-assert.deepEqual(JSON.parse(JSON.stringify(composerReadyResult({ status: 'complete', checkpoint: { result: ready } }, ready.session_id))), ready)
+assert.deepEqual(JSON.parse(JSON.stringify(composerReadyResult({ status: 'complete', checkpoint: { result: ready } }, ready.session_id))), { ...ready, composer_adoption: { schema_version: 'composer-adoption-v1', template_id: ready.template_id, presentation_id: ready.presentation_id, frozen_theme: true } })
 assert.throws(() => composerReadyResult({ status: 'complete', checkpoint: { result: ready } }, 'other-session'))
 assert.throws(() => composerReadyResult({ status: 'complete', checkpoint: { result: { ...ready, viewer_url: '' } } }, ready.session_id))
 
