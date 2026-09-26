@@ -20,6 +20,22 @@ export type CtaLocation =
   | "pricing_max"
   | "pricing_full_page"
   | "final_cta"
+  | "v3_hero_build"
+  | "v3_hero_drop"
+  | "v3_zoom_approve"
+  | "v3_zoom_keep"
+  | "v3_zoom_regenerate"
+  | "v3_experts_pause"
+  | "v3_experts_steer"
+  | "v3_theme_switch"
+  | "v3_pricing_starter"
+  | "v3_pricing_pro"
+  | "v3_pricing_max"
+  | "v3_pricing_full_page"
+  | "v3_close_build"
+  | "v3_close_drop"
+  | "v3_header_build"
+  | "v3_header_sign_in"
 
 export function trackCta(location: CtaLocation, props?: Record<string, string>) {
   track("cta_click", { location, ...props })
