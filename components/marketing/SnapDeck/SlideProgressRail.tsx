@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { trackSlideView } from "@/lib/analytics"
-import { HEADER_OFFSET_PX, SCROLL_TOLERANCE_PX } from "./constants"
-import { getSlides } from "./use-snap-navigation"
+import { SCROLL_TOLERANCE_PX } from "./constants"
+import { getHeaderOffsetPx, getSlides } from "./use-snap-navigation"
 
 interface SlideInfo {
   id: string
@@ -15,6 +15,7 @@ function readSlides(): SlideInfo[] {
     id: el.id || `slide-${i}`,
     label:
       el.dataset.slideLabel ||
+      el.dataset.label ||
       (el.id ? el.id.charAt(0).toUpperCase() + el.id.slice(1) : `Slide ${i + 1}`),
   }))
 }
@@ -32,7 +33,7 @@ function readSlides(): SlideInfo[] {
  * Slide changes fire a debounced `slide_view` analytics event, giving a
  * per-slide funnel without extra wiring in the sections themselves.
  */
-export function SlideProgressRail() {
+export function SlideProgressRail({ variant = "default" }: { variant?: "default" | "v3" }) {
   const [slides, setSlides] = useState<SlideInfo[]>([])
   const [active, setActive] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -46,7 +47,7 @@ export function SlideProgressRail() {
       if (rafId !== null) return
       rafId = requestAnimationFrame(() => {
         const els = getSlides()
-        const currentTop = window.scrollY + HEADER_OFFSET_PX + SCROLL_TOLERANCE_PX
+        const currentTop = window.scrollY + getHeaderOffsetPx() + SCROLL_TOLERANCE_PX
         let idx = 0
         for (let i = 0; i < els.length; i++) {
           if (els[i].offsetTop <= currentTop) idx = i
@@ -82,6 +83,40 @@ export function SlideProgressRail() {
   }, [active, slides])
 
   if (slides.length === 0) return null
+
+  if (variant === "v3") {
+    return (
+      <nav aria-label="Slides" className="rail">
+        <span className="rail__n" aria-hidden="true">
+          {String(active + 1).padStart(2, "0")}/{String(slides.length).padStart(2, "0")}
+        </span>
+        {slides.map((slide, i) => {
+          const isActive = i === active
+          return (
+            <button
+              key={slide.id}
+              type="button"
+              aria-label={`Slide ${i + 1} of ${slides.length}: ${slide.label}`}
+              aria-current={isActive ? "true" : undefined}
+              onClick={() => {
+                const target = getSlides()[i]
+                if (!target) return
+                const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                window.scrollTo({
+                  top: target.offsetTop - getHeaderOffsetPx(),
+                  behavior: reducedMotion ? "auto" : "smooth",
+                })
+              }}
+              className={`rail__dot${isActive ? " is-active" : ""}`}
+            >
+              <i aria-hidden="true" />
+              <span>{slide.label}</span>
+            </button>
+          )
+        })}
+      </nav>
+    )
+  }
 
   return (
     <nav
