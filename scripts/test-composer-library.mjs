@@ -110,4 +110,40 @@ assert.deepEqual(JSON.parse(calls.at(-1).options.body), upload)
 assert.equal(ownershipQueries.at(-1).where.id, 'session-1')
 assert.equal((await request('POST', ['templates', 'template-1', 'use'], { session_id: 'session-1' })).status, 202)
 assert.equal((await request('GET', ['jobs', 'job-1'])).status, 202)
+
+const immediateTimer = callback => { queueMicrotask(callback); return 1 }
+const pollResponses = [
+  Response.json({ error: 'Template library is temporarily unavailable.' }, { status: 502 }),
+  Response.json({ job_id: 'job-1', status: 'assembling' }),
+  Response.json({ job_id: 'job-1', status: 'complete' }),
+]
+const polledPaths = []
+const pollContracts = load('../lib/composer-library.ts', {
+  fetch: async path => { polledPaths.push(path); return pollResponses.shift() },
+  setTimeout: immediateTimer,
+  clearTimeout: () => {},
+})
+const progress = []
+const completed = await pollContracts.waitForComposerJob('job-1', new AbortController().signal, job => progress.push(job.status))
+assert.equal(completed.status, 'complete')
+assert.deepEqual(progress, ['assembling', 'complete'])
+assert.deepEqual(polledPaths, Array(3).fill('/api/composer-library/jobs/job-1'))
+
+let outageRequests = 0
+const outageContracts = load('../lib/composer-library.ts', {
+  fetch: async () => { outageRequests++; return Response.json({ error: 'Service unavailable.' }, { status: 502 }) },
+  setTimeout: immediateTimer,
+  clearTimeout: () => {},
+})
+await assert.rejects(outageContracts.waitForComposerJob('job-1', new AbortController().signal, () => {}), /Service unavailable/)
+assert.equal(outageRequests, 4)
+
+let missingRequests = 0
+const missingContracts = load('../lib/composer-library.ts', {
+  fetch: async () => { missingRequests++; return Response.json({ error: 'Missing job.' }, { status: 404 }) },
+  setTimeout: immediateTimer,
+  clearTimeout: () => {},
+})
+await assert.rejects(missingContracts.waitForComposerJob('job-1', new AbortController().signal, () => {}), /Missing job/)
+assert.equal(missingRequests, 1)
 console.log('Composer library: URL admission, session ownership, file validation, flag-off, identity, route and reference-only proxy checks passed.')
