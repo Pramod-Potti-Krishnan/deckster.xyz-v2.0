@@ -67,6 +67,10 @@ export function composerReadyResult(job: ComposerJob, expectedSessionId: string)
   }
 }
 
+class ComposerRequestError extends Error {
+  constructor(message: string, readonly status: number) { super(message) }
+}
+
 export async function composerRequest<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/api/composer-library/${path}`, {
     method: body === undefined ? 'GET' : 'POST',
@@ -77,7 +81,10 @@ export async function composerRequest<T>(path: string, body?: unknown, signal?: 
   const result = await response.json()
   if (!response.ok) {
     const detail = result?.detail
-    throw new Error(typeof detail === 'string' ? detail : detail?.message || result?.error || 'Template library request failed.')
+    throw new ComposerRequestError(
+      typeof detail === 'string' ? detail : detail?.message || result?.error || 'Template library request failed.',
+      response.status,
+    )
   }
   return result as T
 }
@@ -85,17 +92,30 @@ export async function composerRequest<T>(path: string, body?: unknown, signal?: 
 export async function waitForComposerJob(
   jobId: string, signal: AbortSignal, onProgress: (job: ComposerJob) => void,
 ): Promise<ComposerJob> {
+  const pause = () => new Promise<void>((resolve, reject) => {
+    const aborted = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')) }
+    const timer = setTimeout(() => { signal.removeEventListener('abort', aborted); resolve() }, 5000)
+    signal.addEventListener('abort', aborted, { once: true })
+    if (signal.aborted) aborted()
+  })
+  let consecutiveServiceErrors = 0
   for (let attempt = 0; attempt < 360; attempt++) {
-    const job = await composerRequest<ComposerJob>(`jobs/${encodeURIComponent(jobId)}`, undefined, signal)
+    let job: ComposerJob
+    try {
+      job = await composerRequest<ComposerJob>(`jobs/${encodeURIComponent(jobId)}`, undefined, signal)
+      consecutiveServiceErrors = 0
+    } catch (error) {
+      // The Director proxy can briefly return 502 during an active replay.
+      // Keep polling the same job, so a completed deck is never duplicated.
+      if (!(error instanceof ComposerRequestError) || ![502, 503, 504].includes(error.status) ||
+          ++consecutiveServiceErrors > 3) throw error
+      await pause()
+      continue
+    }
     onProgress(job)
     if (job.status === 'complete') return job
     if (['failed', 'cancelled'].includes(job.status)) throw new Error(job.errors?.join(' ') || 'Template job did not complete.')
-    await new Promise<void>((resolve, reject) => {
-      const aborted = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')) }
-      const timer = setTimeout(() => { signal.removeEventListener('abort', aborted); resolve() }, 5000)
-      signal.addEventListener('abort', aborted, { once: true })
-      if (signal.aborted) aborted()
-    })
+    await pause()
   }
   throw new Error('The template job is still running. Reopen the library to check its progress.')
 }
