@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { usePathname } from "next/navigation"
 import { trackSlideView } from "@/lib/analytics"
 import { SCROLL_TOLERANCE_PX } from "./constants"
 import { getHeaderOffsetPx, getSlides } from "./use-snap-navigation"
@@ -34,6 +35,7 @@ function readSlides(): SlideInfo[] {
  * per-slide funnel without extra wiring in the sections themselves.
  */
 export function SlideProgressRail({ variant = "default" }: { variant?: "default" | "v3" }) {
+  const pathname = usePathname()
   const [slides, setSlides] = useState<SlideInfo[]>([])
   const [active, setActive] = useState(0)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -64,7 +66,7 @@ export function SlideProgressRail({ variant = "default" }: { variant?: "default"
       window.removeEventListener("resize", update)
       if (rafId !== null) cancelAnimationFrame(rafId)
     }
-  }, [])
+  }, [pathname])
 
   // Debounce slide_view so a fast flick through the deck only records the
   // slide the visitor actually lands on.
