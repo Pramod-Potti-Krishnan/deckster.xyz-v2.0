@@ -7,7 +7,7 @@ export interface ExpertsContent {
   eyebrow: string
   title: string
   lede: string
-  you: { initials: string; name: string; role: string }
+  you: { name: string; role: string }
   director: { name: string; role: string }
   agents: readonly { id: string; name: string; role: string; color: string }[]
   gates: readonly { number: string; name: string; action: string }[]
@@ -26,7 +26,7 @@ export function Experts({ copy }: { copy: ExpertsContent }) {
             <p className="lede" data-reveal style={{ "--d": 2 } as CSSProperties}>{copy.lede}</p>
             <div className="org" data-reveal style={{ "--d": 3 } as CSSProperties}>
               <div className="org__you">
-                <span className="av">{copy.you.initials}</span>
+                <span className="av" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="8" r="4" fill="currentColor" /><path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" fill="currentColor" /></svg></span>
                 <div><b>{copy.you.name}</b><br /><span>{copy.you.role}</span></div>
               </div>
               <div className="org__line" />

@@ -13,12 +13,12 @@ export function HeaderV3() {
   return (
     <header className="hdr" data-v3-header>
       <div className="hdr__in">
-        <Link className="hdr__logo" href="/v3" aria-label={header.home}>
+        <Link className="hdr__logo" href="/" aria-label={header.home}>
           <svg className="lg" aria-hidden="true"><use href="#logo" /></svg>
           <span className="wm">{header.wordmark}</span>
         </Link>
         <nav aria-label="Main navigation">
-          {nav.map((item) => <Link key={item.label} href={item.href} className={item.label === "Build" && pathname === "/v3" ? "is-here" : undefined}>{item.label}</Link>)}
+          {nav.map((item) => <Link key={item.label} href={item.href} className={pathname === item.href.split("#")[0] ? "is-here" : undefined}>{item.label}</Link>)}
         </nav>
         <div className="hdr__cta">
           {status === "loading" ? (

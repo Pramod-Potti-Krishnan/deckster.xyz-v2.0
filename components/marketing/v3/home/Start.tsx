@@ -22,7 +22,7 @@ export function Start() {
               <BuildCta className="btn btn--primary" location="v3_hero_build">
                 {copy.build} <svg className="arrow" aria-hidden="true"><use href="#arrow" /></svg>
               </BuildCta>
-              <TrackedLink className="btn btn--ghost" href="/templates" location="v3_hero_drop">{copy.drop}</TrackedLink>
+              <TrackedLink className="btn btn--ghost" href="/bring" location="v3_hero_drop">{copy.drop}</TrackedLink>
             </div>
             <div className="trust" data-reveal style={{ "--d": 4 } as CSSProperties}>
               {copy.trust.map((item) => <span key={item}>{item}</span>)}

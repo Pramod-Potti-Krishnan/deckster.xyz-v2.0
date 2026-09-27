@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, type CSSProperties } from "react"
 
 type GraphNode = {
   x: number
@@ -18,7 +18,7 @@ export type KnowledgeGraphCopy = {
   stats: { decks: string; facts: string; sources: string }
 }
 
-export function KnowledgeGraphCanvas({ copy }: { copy: KnowledgeGraphCopy }) {
+export function KnowledgeGraphCanvas({ copy, style }: { copy: KnowledgeGraphCopy; style?: CSSProperties }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const decksRef = useRef<HTMLElement>(null)
   const factsRef = useRef<HTMLElement>(null)
@@ -114,7 +114,7 @@ export function KnowledgeGraphCanvas({ copy }: { copy: KnowledgeGraphCopy }) {
   }, [])
 
   return (
-    <div className="kg" data-reveal>
+    <div className="kg" data-reveal style={style}>
       <canvas id="kg-canvas" ref={canvasRef} aria-hidden="true" />
       <div className="kg__legend">
         <span><i style={{ background: "#9C93FF" }} />{copy.legend.research}</span>
