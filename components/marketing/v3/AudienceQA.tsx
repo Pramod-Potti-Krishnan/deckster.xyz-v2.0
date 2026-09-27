@@ -26,7 +26,8 @@ export function AudienceQA({ copy, style, dataRevealDelay }: { copy: AudienceQAC
     let timer: ReturnType<typeof setTimeout>
     const push = () => {
       const entry = copy.sequence[count % copy.sequence.length]
-      setMessages((previous) => [...previous, { index: count, entry }].slice(-3))
+      const item = { index: count, entry }
+      setMessages((previous) => [...previous, item].slice(-3))
       count += 1
       timer = setTimeout(push, entry.who === "viewer" ? 1600 : 4200)
     }
