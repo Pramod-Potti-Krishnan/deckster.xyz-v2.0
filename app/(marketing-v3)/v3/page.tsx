@@ -1,6 +1,9 @@
 import type { Metadata } from "next"
 import { Start } from "@/components/marketing/v3/home/Start"
 import { ZoomBuild } from "@/components/marketing/v3/ZoomBuild"
+import { Bring } from "@/components/marketing/v3/home/Bring"
+import { Knowledge } from "@/components/marketing/v3/home/Knowledge"
+import { Experts } from "@/components/marketing/v3/home/Experts"
 import { V3_CONTENT } from "@/lib/marketing/v3-content"
 
 export const metadata: Metadata = {
@@ -10,5 +13,5 @@ export const metadata: Metadata = {
 }
 
 export default function MarketingV3HomePage() {
-  return <main><Start /><ZoomBuild /></main>
+  return <main><Start /><ZoomBuild /><Bring copy={V3_CONTENT.bring} /><Knowledge copy={V3_CONTENT.knowledge} /><Experts copy={V3_CONTENT.experts} /></main>
 }
