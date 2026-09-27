@@ -544,6 +544,27 @@
 .mv3 .wave{min-width:0;overflow:hidden}
 .mv3 .player__bar{gap:10px}
 
+/* ---------- showcase deck theme (navy · gold · Inter) for the crisp target slide ---------- */
+.mv3 .tile--target .sl{background:#FFFFFF;color:#16203A;font-family:var(--font-inter),var(--font-body)}
+.mv3 .sl__eyebrow{color:#385b9d}
+.mv3 .sl__title{font-family:var(--font-inter),var(--font-display);color:#16203A;letter-spacing:-.015em}
+.mv3 .sl__title em{color:#385b9d}
+.mv3 .sl__m{border-color:#B9C6E3;border-top-color:#e8a013;background:#fff}
+.mv3 .sl__m:nth-child(2){border-top-color:#385b9d}.mv3 .sl__m:nth-child(3){border-top-color:#c74a4e}
+.mv3 .sl__m b{color:#16203a;font-family:var(--font-inter),var(--font-display)}.mv3 .sl__m span{color:#8791A3}
+.mv3 .sl__chart{border-color:#B9C6E3}
+.mv3 .sl__chart h4{color:#16203A}.mv3 .sl__chart .sub{color:#8791A3}
+.mv3 .bars{border-bottom-color:#B9C6E3}
+.mv3 .bar i{background:#5579bc}
+.mv3 .sl--waterfall .bar.total i{background:#16203a}
+.mv3 .sl .bar i b{color:#16203a}
+.mv3 .bar > span{color:#5b6472}
+.mv3 .sl__side .box{border-color:#B9C6E3;background:#eceff7}
+.mv3 .sl__side .box b{color:#16203A}.mv3 .sl__side .box p{color:#3a4358}
+.mv3 .sl__band{background:#d6ddef;color:#16203A}
+.mv3 .sl__foot,.mv3 .sl__num{color:#8791A3}
+.mv3 .sl::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:#385b9d}
+
 /* The scroll container is html, so this route-scoped exception cannot descend from .mv3. */
 html.snap-deck.mv3-page{scroll-padding-top:56px}
 @media (prefers-reduced-motion:reduce){html.snap-deck.mv3-page{scroll-behavior:auto}}
