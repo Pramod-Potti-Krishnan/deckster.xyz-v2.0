@@ -564,6 +564,7 @@
 .mv3 .sl__band{background:#d6ddef;color:#16203A}
 .mv3 .sl__foot,.mv3 .sl__num{color:#8791A3}
 .mv3 .sl::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:#385b9d}
+.mv3 .org__you .av svg{display:block}
 
 /* The scroll container is html, so this route-scoped exception cannot descend from .mv3. */
 html.snap-deck.mv3-page{scroll-padding-top:56px}

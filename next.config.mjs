@@ -46,6 +46,11 @@ const nextConfig = {
     return [
       { source: '/resources', destination: '/learn', permanent: true },
       { source: '/resources/:slug', destination: '/learn/:slug', permanent: true },
+      { source: '/v3', destination: '/', permanent: false },
+      { source: '/templates', destination: '/bring#library', permanent: false },
+      { source: '/examples', destination: '/bring#library', permanent: false },
+      { source: '/integrations', destination: '/bring#inout', permanent: false },
+      { source: '/agents', destination: '/experts', permanent: false },
     ];
   },
   // Headers for security
