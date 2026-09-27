@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { useReveal } from "./use-reveal"
 
 export function useV3Deck() {
+  const pathname = usePathname()
   useReveal()
   useEffect(() => {
     const html = document.documentElement
@@ -32,5 +34,5 @@ export function useV3Deck() {
       if (raf !== null) cancelAnimationFrame(raf)
       html.classList.remove("mv3-page")
     }
-  }, [])
+  }, [pathname])
 }

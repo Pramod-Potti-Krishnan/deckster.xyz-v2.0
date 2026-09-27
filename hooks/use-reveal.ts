@@ -1,8 +1,11 @@
 "use client"
 
 import { useEffect } from "react"
+import { usePathname } from "next/navigation"
 
 export function useReveal() {
+  const pathname = usePathname()
+
   useEffect(() => {
     const sections = document.querySelectorAll<HTMLElement>(".mv3 main > section.slide")
     const observer = new IntersectionObserver(
@@ -13,5 +16,5 @@ export function useReveal() {
     )
     sections.forEach((section) => observer.observe(section))
     return () => observer.disconnect()
-  }, [])
+  }, [pathname])
 }
