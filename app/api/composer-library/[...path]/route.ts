@@ -61,10 +61,19 @@ async function proxy(req: NextRequest, context: RouteContext) {
         chunks.push(chunk.value)
       }
       const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-      const keys = upload ? ['session_id', 'researcher_session_id', 'storage_path', 'file_name', 'kind'] : ['session_id']
+      const keys = upload ? ['session_id', 'researcher_session_id', 'storage_path', 'file_name', 'kind'] : ['session_id', 'brief']
+      const required = upload ? keys : ['session_id']
       if (!payload || Array.isArray(payload) || Object.keys(payload).some(key => !keys.includes(key)) ||
-          !keys.every(key => typeof payload[key] === 'string' && payload[key].length > 0) ||
+          !required.every(key => typeof payload[key] === 'string' && payload[key].length > 0) ||
           !safeId(payload.session_id) || upload && payload.kind !== 'pptx') throw new Error('invalid reference')
+      if (use && payload.brief !== undefined) {
+        if (process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED !== 'true') {
+          return NextResponse.json({ error: 'New-topic templates are not enabled.' }, { status: 404 })
+        }
+        if (typeof payload.brief !== 'string' || payload.brief.trim().length < 20 ||
+            payload.brief.trim().length > 4000) throw new Error('invalid brief')
+        payload.brief = payload.brief.trim()
+      }
       if (upload) {
         // Researcher's public session metadata is not an ownership authority.
         // The storage namespace must be this authenticated Builder session.

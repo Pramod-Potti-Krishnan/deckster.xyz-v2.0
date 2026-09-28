@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { FileUp, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/hooks/use-auth'
 import { useChatSessions } from '@/hooks/use-chat-sessions'
 import { uploadFileToResearcher } from '@/lib/researcher-upload'
@@ -30,6 +31,9 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
   const [progress, setProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
+  const [newBrief, setNewBrief] = useState('')
+  const [newTopicTemplateId, setNewTopicTemplateId] = useState<string | null>(null)
+  const newTopicEnabled = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED === 'true'
   const controllerRef = useRef<AbortController | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -120,15 +124,22 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
     })
   }
 
-  const useTemplate = (template: ComposerTemplate) => {
+  const useTemplate = (template: ComposerTemplate, brief?: string) => {
     if (!userId || busy) return
+    if (brief !== undefined && (brief.trim().length < 20 || brief.trim().length > 4000)) {
+      setError('Describe the new presentation in 20 to 4,000 characters.')
+      return
+    }
     void run(async signal => {
       setProgress('Preparing a new deck…')
       requireComposerServiceUrl(process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL, 'layout-builder-v75-uat.up.railway.app')
       const sessionId = crypto.randomUUID()
-      if (!await createSession(sessionId, `Template: ${template.name}`)) throw new Error('Could not create the deck session.')
+      if (!await createSession(sessionId, brief ? `New topic: ${brief.trim().slice(0, 80)}` : `Template: ${template.name}`)) {
+        throw new Error('Could not create the deck session.')
+      }
       if (signal.aborted) return
-      const job = await composerRequest<ComposerJob>(`templates/${encodeURIComponent(template.id)}/use`, { session_id: sessionId }, signal)
+      const job = await composerRequest<ComposerJob>(`templates/${encodeURIComponent(template.id)}/use`,
+        { session_id: sessionId, ...(brief ? { brief: brief.trim() } : {}) }, signal)
       await finishJob({ job_id: job.job_id, session_id: sessionId, kind: 'use' }, signal)
     })
   }
@@ -160,12 +171,26 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
         <div className="max-h-72 space-y-2 overflow-y-auto border-t pt-4">
           {loading && !templates.length ? <p className="text-sm text-muted-foreground">Loading templates…</p>
             : !templates.length ? <p className="text-sm text-muted-foreground">Your uploaded templates will appear here.</p>
-              : templates.map(template => <div key={template.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium" title={template.name}>{template.name}</p>
-                  <p className="text-xs text-muted-foreground">{template.stage_template_summary?.slide_count ?? template.slide_count ?? 0} slides</p>
+              : templates.map(template => <div key={template.id} className="space-y-3 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium" title={template.name}>{template.name}</p>
+                    <p className="text-xs text-muted-foreground">{template.stage_template_summary?.slide_count ?? template.slide_count ?? 0} slides</p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button size="sm" variant="outline" disabled={busy || !userId} onClick={() => useTemplate(template)}>Use original</Button>
+                    {newTopicEnabled && <Button size="sm" variant="outline" disabled={busy || !userId}
+                      onClick={() => { setNewTopicTemplateId(template.id); setNewBrief(''); setError(null) }}>New topic</Button>}
+                  </div>
                 </div>
-                <Button size="sm" variant="outline" disabled={busy || !userId} onClick={() => useTemplate(template)}>Use template</Button>
+                {newTopicEnabled && newTopicTemplateId === template.id && <div className="space-y-2">
+                  <label htmlFor="composer-new-brief" className="text-sm font-medium">Describe the new presentation</label>
+                  <Textarea id="composer-new-brief" value={newBrief} disabled={busy} maxLength={4000}
+                    placeholder="What is the topic, audience, and key message? Include any numbers you want shown."
+                    onChange={event => setNewBrief(event.target.value)} />
+                  <Button size="sm" disabled={busy || newBrief.trim().length < 20}
+                    onClick={() => useTemplate(template, newBrief)}>Create deck</Button>
+                </div>}
               </div>)}
         </div>
       </DialogContent>
