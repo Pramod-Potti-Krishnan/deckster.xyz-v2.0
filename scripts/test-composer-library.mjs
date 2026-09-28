@@ -109,6 +109,16 @@ assert.equal((await request('POST', ['upload-reference'], upload)).status, 202)
 assert.deepEqual(JSON.parse(calls.at(-1).options.body), upload)
 assert.equal(ownershipQueries.at(-1).where.id, 'session-1')
 assert.equal((await request('POST', ['templates', 'template-1', 'use'], { session_id: 'session-1' })).status, 202)
+const newBrief = 'Explain how coastal habitats recover after a major storm.'
+assert.equal((await request('POST', ['templates', 'template-1', 'use'], { session_id: 'session-1', brief: newBrief })).status, 404)
+env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED = 'true'
+for (const brief of ['', 'Too short', 'x'.repeat(4001), 7]) {
+  assert.equal((await request('POST', ['templates', 'template-1', 'use'], { session_id: 'session-1', brief })).status, 400)
+}
+const beforeNewTopic = calls.length
+assert.equal((await request('POST', ['templates', 'template-1', 'use'], { session_id: 'session-1', brief: `  ${newBrief}  ` })).status, 202)
+assert.equal(calls.length, beforeNewTopic + 1)
+assert.deepEqual(JSON.parse(calls.at(-1).options.body), { session_id: 'session-1', brief: newBrief })
 assert.equal((await request('GET', ['jobs', 'job-1'])).status, 202)
 
 const immediateTimer = callback => { queueMicrotask(callback); return 1 }
