@@ -3,8 +3,8 @@ import { HeaderV3 } from "@/components/marketing/v3/HeaderV3"
 import { SvgDefs } from "@/components/marketing/v3/SvgDefs"
 import { V3Runtime } from "@/components/marketing/v3/V3Runtime"
 import { SnapDeck } from "@/components/marketing/SnapDeck/SnapDeck"
-import { SlideNavArrows } from "@/components/marketing/SnapDeck/SlideNavArrows"
 import { SlideProgressRail } from "@/components/marketing/SnapDeck/SlideProgressRail"
+import { V3_CONTENT } from "@/lib/marketing/v3-content"
 import "@/styles/marketing-v3.css"
 
 const display = Bricolage_Grotesque({ subsets: ["latin"], axes: ["opsz"], weight: "variable", variable: "--font-display" })
@@ -19,10 +19,9 @@ export default function MarketingV3Layout({ children }: Readonly<{ children: Rea
       <SvgDefs />
       <SnapDeck headerOffsetPx={56} />
       <V3Runtime />
-      <HeaderV3 />
+      <HeaderV3 copy={{ nav: V3_CONTENT.nav, menuExtra: V3_CONTENT.menuExtra, header: V3_CONTENT.header }} />
       {children}
       <SlideProgressRail variant="v3" />
-      <div className="hidden max-[820px]:contents"><SlideNavArrows /></div>
     </div>
   )
 }

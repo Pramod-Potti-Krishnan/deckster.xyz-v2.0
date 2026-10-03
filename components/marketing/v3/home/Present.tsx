@@ -1,7 +1,8 @@
 import type { CSSProperties } from "react"
-import { showcaseAlt } from "@/lib/marketing/v3-content"
+import { showcaseAlt, type V3Feature } from "@/lib/marketing/v3-content"
 import { AudienceQA, type AudienceQACopy } from "../AudienceQA"
 import { SlideChip } from "../SlideChip"
+import { StatusPill, statusOf } from "../StatusPill"
 import { Waveform } from "../Waveform"
 
 export interface PresentCopy {
@@ -10,13 +11,13 @@ export interface PresentCopy {
   title: string
   lede: string
   player: { urlPrefix: string; urlSlug: string; access: string; caption: string; time: string; voice: string }
-  qa: AudienceQACopy
-  ladder: readonly { status: "live" | "build" | "next"; statusLabel: string; text: string }[]
+  qa: AudienceQACopy & { feature: V3Feature }
+  ladder: readonly { feature: V3Feature; text: string }[]
 }
 
-export function Present({ copy }: { copy: PresentCopy }) {
+export function Present({ copy, n, total }: { copy: PresentCopy; n: number; total: number }) {
   return (
-    <section className="slide slide--night compact" id="present" data-snap="slide" data-slide-label={copy.label} data-label={copy.label}>
+    <section className="slide slide--night compact" id="present" data-snap="slide" data-chapter="Present" data-slide-label={copy.label} data-label={copy.label}>
       <div className="glow glow--coral" style={{ width: "50vw", height: "50vw", right: "-14vw", top: "-10vh", opacity: 0.28 }} />
       <div className="glow glow--violet" style={{ width: "50vw", height: "50vw", left: "-16vw", bottom: "-20vh", opacity: 0.35 }} />
       <div className="grain" />
@@ -33,7 +34,7 @@ export function Present({ copy }: { copy: PresentCopy }) {
               {copy.player.urlPrefix}<b>{copy.player.urlSlug}</b><span className="lock">{copy.player.access}</span>
             </div>
             <div className="player__slide">
-              <img src="/marketing/v3/slides/deck-04.jpg" alt={showcaseAlt(4)} width={1280} height={720} />
+              <img src="/marketing/v3/slides/deck-04.jpg" alt={showcaseAlt(4)} width={1280} height={720} loading="lazy" decoding="async" />
               <span className="player__cap">{copy.player.caption}</span>
             </div>
             <div className="player__bar">
@@ -43,15 +44,15 @@ export function Present({ copy }: { copy: PresentCopy }) {
               <span className="player__voice">{copy.player.voice}</span>
             </div>
           </div>
-          <AudienceQA copy={copy.qa} />
+          <AudienceQA copy={copy.qa} status={statusOf(copy.qa.feature)} />
         </div>
         <div className="ladder pub--sm" data-reveal style={{ "--d": 2 } as CSSProperties}>
           {copy.ladder.map((item) => (
-            <div key={item.text}><span className={`pill pill--${item.status}`}>{item.statusLabel}</span>{item.text}</div>
+            <div key={item.text}><StatusPill feature={item.feature} />{item.text}</div>
           ))}
         </div>
       </div>
-      <SlideChip number={7} label={copy.label} />
+      <SlideChip number={n} total={total} label={copy.label} />
     </section>
   )
 }

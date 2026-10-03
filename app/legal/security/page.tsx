@@ -25,9 +25,8 @@ export default function SecurityPage() {
             <Section>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
                     {[
-                        { icon: Shield, title: "SOC 2 Type II", desc: "We are SOC 2 Type II compliant, verifying that our security controls are effective and strictly followed.", color: "text-purple-600" },
                         { icon: Lock, title: "End-to-End Encryption", desc: "All data is encrypted in transit using TLS 1.2+ and at rest using AES-256 encryption standards.", color: "text-blue-600" },
-                        { icon: FileCheck, title: "GDPR Compliant", desc: "We are fully compliant with GDPR regulations and provide tools to help you manage your data privacy.", color: "text-green-600" },
+                        { icon: FileCheck, title: "Data Privacy", desc: "Your presentations are yours. Our Privacy Policy explains what we collect, how it is used, and how to contact us about your data.", color: "text-green-600" },
                         { icon: Server, title: "Secure Infrastructure", desc: "Hosted on AWS with multiple availability zones, automated backups, and 24/7 monitoring.", color: "text-orange-600" },
                         { icon: Eye, title: "Regular Audits", desc: "We conduct regular third-party penetration testing and security audits to identify vulnerabilities.", color: "text-pink-600" },
                         { icon: Key, title: "Access Controls", desc: "Strict role-based access controls (RBAC) and multi-factor authentication (MFA) for all internal access.", color: "text-indigo-600" }
@@ -69,9 +68,9 @@ export default function SecurityPage() {
                         We value the security community's help in keeping our platform safe. If you believe you've found a security vulnerability, please report it to security@deckster.xyz. We respond to all reports within 24 hours.
                     </p>
 
-                    <h2>Compliance Certifications</h2>
+                    <h2>Security Questions</h2>
                     <p>
-                        We maintain compliance with major industry standards to ensure your data is handled with the utmost care. You can request our latest compliance reports by contacting our sales team.
+                        Need to know how we handle your data, or have a question for a vendor review? Email security@deckster.xyz and we will get back to you.
                     </p>
                 </motion.div>
             </Section>

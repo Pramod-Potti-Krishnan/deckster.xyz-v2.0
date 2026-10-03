@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Header, Footer } from "@/components/layout"
 import { PageHeader } from "@/components/marketing/PageHeader"
@@ -52,8 +51,6 @@ export default function HelpPage() {
   // Contact form state
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showSuccess, setShowSuccess] = useState(false)
 
   const faqItems: FAQItem[] = [
     {
@@ -187,20 +184,13 @@ export default function HelpPage() {
 
   const categories = ["all", ...Array.from(new Set(faqItems.map(item => item.category)))]
 
-  const handleSubmitSupport = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-
-    // TODO: Implement actual support ticket submission
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    setIsSubmitting(false)
-    setShowSuccess(true)
-    setSubject("")
-    setMessage("")
-
-    setTimeout(() => setShowSuccess(false), 5000)
-  }
+  // There is no ticketing backend: the form builds a mailto: link that opens
+  // the visitor's own email app, pre-filled from the fields below.
+  const SUPPORT_EMAIL = "support@deckster.xyz"
+  const mailtoHref = (() => {
+    const body = (user?.email ? `${message}\n\n(Account: ${user.email})` : message).replace(/\r?\n/g, "\r\n")
+    return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  })()
 
   if (isLoading) {
     return (
@@ -472,15 +462,7 @@ export default function HelpPage() {
                 <CardDescription>Get help from our support team</CardDescription>
               </CardHeader>
               <CardContent>
-                {showSuccess && (
-                  <Alert className="mb-6 border-green-200 bg-green-50">
-                    <AlertDescription className="text-green-800">
-                      Your message has been sent! We'll get back to you as soon as we can.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <form onSubmit={handleSubmitSupport} className="space-y-4">
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -499,7 +481,6 @@ export default function HelpPage() {
                       placeholder="Brief description of your issue"
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
-                      required
                     />
                   </div>
 
@@ -511,19 +492,20 @@ export default function HelpPage() {
                       rows={6}
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
-                      required
                     />
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? "Sending..." : "Send Message"}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                    <Button asChild>
+                      <a href={mailtoHref}>Open in your email app</a>
                     </Button>
                     <p className="text-sm text-muted-foreground">
-                      We&apos;ll reply by email as soon as we can.
+                      Prefer your own mail client? Write to{" "}
+                      <span className="select-all font-medium text-foreground">{SUPPORT_EMAIL}</span>
+                      {" "}directly. We&apos;ll reply by email as soon as we can.
                     </p>
                   </div>
-                </form>
+                </div>
 
                 <div className="mt-8 pt-8 border-t">
                   <h3 className="font-medium mb-4">Other Ways to Get Help</h3>

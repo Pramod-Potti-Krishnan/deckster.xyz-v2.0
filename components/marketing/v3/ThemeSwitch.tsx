@@ -13,7 +13,7 @@ export interface ThemeVariant {
 
 export interface ThemeSwitchCopy {
   variants: readonly ThemeVariant[]
-  studio: { title: string; lead: string }
+  panel: { title: string; items: readonly { text: string; status: string; word: string }[] }
 }
 
 export function ThemeSwitch({ copy }: { copy: ThemeSwitchCopy }) {
@@ -22,21 +22,19 @@ export function ThemeSwitch({ copy }: { copy: ThemeSwitchCopy }) {
 
   return (
     <div className="themes" style={{ marginTop: 30 }} data-reveal>
-      <div className="themes__stage">
-        {[0, 1, 2].map((slot) => (
-          <div className={`shot${slot === 0 ? " shot--wide" : ""}`} key={slot}>
-            {copy.variants.map((variant) => (
-              <img
-                key={variant.id}
-                data-theme={variant.id}
-                className={variant.id === active ? "is-on" : undefined}
-                src={`/marketing/v3/slides/${variant.images[slot]}`}
-                alt={`${variant.name} theme preview, slide ${slot + 1}`}
-                aria-hidden={variant.id !== active}
-                width={1280}
-                height={720}
-              />
-            ))}
+      <div className="themes__stage themes__stage--2">
+        {(current?.images ?? []).map((image, slot) => (
+          <div className={`shot${slot === 0 ? " shot--wide" : ""}`} key={`${current?.id}-${slot}`}>
+            {/* Only the active look is in the page; switching loads the next one. */}
+            <img
+              className="is-on"
+              src={`/marketing/v3/slides/${image}`}
+              alt={`${current?.name} look, slide ${slot + 1}`}
+              width={1280}
+              height={720}
+              loading="lazy"
+              decoding="async"
+            />
           </div>
         ))}
       </div>
@@ -59,7 +57,10 @@ export function ThemeSwitch({ copy }: { copy: ThemeSwitchCopy }) {
             </button>
           ))}
         </div>
-        <div className="studio"><b>{copy.studio.title}</b>{copy.studio.lead}<strong data-theme-name>{current?.name}</strong>.</div>
+        <div className="studio">
+          <b>{copy.panel.title}</b>
+          {copy.panel.items.map((item) => <span key={item.text} style={{ display: "inline-flex", alignItems: "center", gap: 6, margin: "2px 12px 2px 0" }}>{item.text} <span className={`st st--sm st--${item.status}`}>{item.word}</span></span>)}
+        </div>
       </div>
     </div>
   )

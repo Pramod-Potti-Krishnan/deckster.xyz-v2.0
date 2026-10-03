@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react"
 import { SlideChip } from "../SlideChip"
 import { ExpertsLoop, type ExpertsLoopContent } from "../ExpertsLoop"
+import { statusOf } from "../StatusPill"
 
 export interface ExpertsContent {
   label: string
@@ -14,9 +15,9 @@ export interface ExpertsContent {
   loop: ExpertsLoopContent
 }
 
-export function Experts({ copy }: { copy: ExpertsContent }) {
+export function Experts({ copy, n, total }: { copy: ExpertsContent; n: number; total: number }) {
   return (
-    <section className="slide slide--paper" id="experts" data-snap="slide" data-slide-label={copy.label} data-label={copy.label}>
+    <section className="slide slide--paper" id="experts" data-snap="slide" data-chapter="Build" data-slide-label={copy.label} data-label={copy.label}>
       <div className="grain" />
       <div className="slide__inner">
         <div className="cols cols--tight">
@@ -46,10 +47,10 @@ export function Experts({ copy }: { copy: ExpertsContent }) {
               ))}
             </div>
           </div>
-          <ExpertsLoop copy={copy.loop} />
+          <ExpertsLoop copy={copy.loop} status={statusOf("buildControl")} />
         </div>
       </div>
-      <SlideChip number={5} label={copy.label} />
+      <SlideChip number={n} total={total} label={copy.label} />
     </section>
   )
 }

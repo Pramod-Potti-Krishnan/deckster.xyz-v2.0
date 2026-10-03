@@ -2,6 +2,7 @@ import type { CSSProperties } from "react"
 import { PRICING_TIERS } from "@/lib/marketing/homepage-v2-pricing"
 import { TrackedLink } from "../BuildCta"
 import { SlideChip } from "../SlideChip"
+import { StatusPill } from "../StatusPill"
 
 export interface PricingHomeCopy {
   label: string
@@ -15,12 +16,14 @@ export interface PricingHomeCopy {
     suffix: string
     blurb: string
     features: readonly string[]
+    betaFeature?: string
     note: string
     cta: string
     tag?: string
   }[]
   more: string
   moreLink: string
+  fullLink: string
 }
 
 const tierHref = (id: "starter" | "pro" | "max") =>
@@ -29,9 +32,9 @@ const tierHref = (id: "starter" | "pro" | "max") =>
 const tierLocation = (id: "starter" | "pro" | "max") =>
   (`v3_pricing_${id}` as const)
 
-export function Pricing({ copy }: { copy: PricingHomeCopy }) {
+export function Pricing({ copy, n, total }: { copy: PricingHomeCopy; n: number; total: number }) {
   return (
-    <section className="slide slide--paper" id="pricing" data-snap="slide" data-slide-label={copy.label} data-label={copy.label}>
+    <section className="slide slide--paper" id="pricing" data-snap="slide" data-chapter="Plans" data-slide-label={copy.label} data-label={copy.label}>
       <div className="grain" />
       <div className="slide__inner">
         <div className="center">
@@ -46,17 +49,18 @@ export function Pricing({ copy }: { copy: PricingHomeCopy }) {
               <div className="tier__name">{tier.name}</div>
               <div className="tier__price"><b>{tier.price}</b><span>{tier.suffix}</span></div>
               <p className="tier__blurb">{tier.blurb}</p>
-              <ul>{tier.features.map((feature, index) => <li className={index === 0 && tier.id !== "starter" ? "plus" : undefined} key={feature}>{feature}</li>)}</ul>
+              <ul>{tier.features.map((feature, index) => <li className={index === 0 && tier.id !== "starter" ? "plus" : undefined} key={feature}>{feature}{feature === tier.betaFeature && <> <StatusPill feature="knowledgeGraph" small /></>}</li>)}</ul>
               <p className="tier__note">{tier.note}</p>
               <TrackedLink className={`btn btn--${tier.id === "pro" ? "primary" : "ghost"}`} href={tierHref(tier.id)} location={tierLocation(tier.id)}>{tier.cta}</TrackedLink>
             </div>
           ))}
         </div>
         <p className="small center" style={{ marginTop: 16, "--d": 4 } as CSSProperties} data-reveal>
-          {copy.more} <TrackedLink className="" href="/pricing" location="v3_pricing_full_page"><span style={{ color: "var(--accent)", fontWeight: 600 }}>{copy.moreLink}</span></TrackedLink>
+          {copy.more} <a href="/auth/signin" style={{ color: "var(--accent)", fontWeight: 600 }}>{copy.moreLink}</a>{" · "}
+          <TrackedLink className="" href="/pricing" location="v3_pricing_full_page"><span style={{ color: "var(--accent)", fontWeight: 600 }}>{copy.fullLink}</span></TrackedLink>
         </p>
       </div>
-      <SlideChip number={9} label={copy.label} />
+      <SlideChip number={n} total={total} label={copy.label} />
     </section>
   )
 }

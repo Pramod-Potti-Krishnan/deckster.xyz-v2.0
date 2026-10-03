@@ -1,29 +1,21 @@
 import type { CSSProperties } from "react"
-import { V3_CONTENT } from "@/lib/marketing/v3-content"
+import { V3_CONTENT, V3_STATUS_WORDS, showcaseAlt } from "@/lib/marketing/v3-content"
 import type { Metadata } from "next"
 import { FooterV3 } from "@/components/marketing/v3/FooterV3"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
+import { v3Metadata } from "@/lib/marketing/v3-metadata"
 import { BuildCta } from "@/components/marketing/v3/BuildCta"
 
 const copy = V3_CONTENT.pages.about
 
-export const metadata: Metadata = {
-  title: { absolute: copy.metadata.title },
-  alternates: { canonical: "/about" },
-}
-
-const STACK_IMAGES = [
-  "theme-abstract-slide-01.jpg",
-  "theme-industrial-slide-01.jpg",
-  "theme-hero-vibrant-slide-01.jpg",
-] as const
+export const metadata: Metadata = v3Metadata({ path: "/about", title: copy.metadata.title, description: copy.metadata.description })
 
 const PRINCIPLE_COLORS = ["var(--coral)", "var(--violet)", "var(--mint)"] as const
 
 export default function AboutV3Page() {
   return (
     <main>
-      <section className="slide slide--night" id="start" data-snap="slide" data-slide-label={copy.start.label} data-label={copy.start.label}>
+      <section className="slide slide--night is-in" id="start" data-snap="slide" data-slide-label={copy.start.label} data-label={copy.start.label}>
         <div className="glow glow--coral" style={{ width: "56vw", height: "56vw", left: "-20vw", top: "-24vw", opacity: .3 }} />
         <div className="glow glow--violet" style={{ width: "50vw", height: "50vw", right: "-18vw", bottom: "-20vw", opacity: .4 }} />
         <div className="dots" /><div className="grain" />
@@ -36,7 +28,7 @@ export default function AboutV3Page() {
               <div className="trust" data-reveal style={{ "--d": 3 } as CSSProperties}>{copy.start.trust.map((item) => <span key={item}>{item}</span>)}</div>
             </div>
             <div className="stack" data-reveal style={{ "--d": 2 } as CSSProperties}>
-              {STACK_IMAGES.map((name) => <div className="stack__card" key={name}><img src={`/marketing/v3/slides/${name}`} alt="" width={1280} height={720} /></div>)}
+              {copy.start.images.map((slot) => <div className="stack__card" key={slot}><img src={`/marketing/v3/slides/deck-${String(slot).padStart(2, "0")}.jpg`} alt={showcaseAlt(slot)} width={1280} height={720} /></div>)}
             </div>
           </div>
         </div>
@@ -68,10 +60,12 @@ export default function AboutV3Page() {
           <div className="center">
             <span className="eyebrow" data-reveal>{copy.story.eyebrow}</span>
             <h2 className="h2 balance" data-reveal style={{ "--d": 1 } as CSSProperties}>{copy.story.title}</h2>
+            <p className="lede balance" data-reveal style={{ "--d": 2 } as CSSProperties}>{copy.story.lede}</p>
           </div>
-          <div className="steps">
-            {copy.story.steps.map((item, index) => <div className="step" key={item.number} data-reveal style={{ "--d": index + 2 } as CSSProperties}>
-              <span className="n">{item.number}</span><b>{item.title}</b><p>{item.body}</p>
+          <div className="ladder4">
+            {copy.story.columns.map((column, index) => <div className="col" key={column.status} data-reveal style={{ "--d": index + 3 } as CSSProperties}>
+              <span className={`st st--${column.status}`}>{V3_STATUS_WORDS[column.status]}</span>
+              <ul>{column.items.map((item) => <li key={item}>{item}</li>)}</ul>
             </div>)}
           </div>
         </div>

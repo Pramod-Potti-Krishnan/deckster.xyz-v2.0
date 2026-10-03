@@ -98,9 +98,16 @@ export function KnowledgeGraphCanvas({ copy, style }: { copy: KnowledgeGraphCopy
           context.stroke()
         }
       })
-      frame = requestAnimationFrame(draw)
+      frame = visible ? requestAnimationFrame(draw) : 0
     }
 
+    // Only animate while the graph is on screen.
+    let visible = true
+    const io = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting
+      if (visible && !frame) frame = requestAnimationFrame(draw)
+    })
+    io.observe(canvas)
     resize()
     const observer = new ResizeObserver(resize)
     observer.observe(canvas)
@@ -108,6 +115,7 @@ export function KnowledgeGraphCanvas({ copy, style }: { copy: KnowledgeGraphCopy
     frame = requestAnimationFrame(draw)
     return () => {
       cancelAnimationFrame(frame)
+      io.disconnect()
       observer.disconnect()
       window.removeEventListener("resize", resize)
     }
