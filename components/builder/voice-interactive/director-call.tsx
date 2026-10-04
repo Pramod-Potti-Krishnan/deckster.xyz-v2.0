@@ -1,6 +1,6 @@
 "use client"
 
-import type { KeyboardEvent } from "react"
+import { useEffect, useRef, type KeyboardEvent } from "react"
 import { HelpCircle, Keyboard, Mic, MicOff, PhoneCall, PhoneOff, Rows3, UserRound, Volume2, VolumeX } from "lucide-react"
 import { formatCallDuration } from "@/lib/studio-voice-interactive"
 import { DirectorCharacter, type DirectorCharacterState } from "./director-character"
@@ -72,7 +72,15 @@ const STATUS: Record<DirectorCharacterState, { title: string; detail: string }> 
 
 /** Voice strip or interactive stage. Messages, questions and the composer stay the Builder's own. */
 export function DirectorCallPanel({ call, awaitingReply, building, latestDirectorText, latestUserText, pendingAsk, focusComposer }: DirectorCallPanelProps) {
-  if (call.mode === "chat") return null
+  const sectionRef = useRef<HTMLElement>(null)
+  const open = call.mode !== "chat"
+  // Starting a call replaces the entry button; keep keyboard focus inside the call.
+  useEffect(() => {
+    if (!open) return
+    const active = document.activeElement
+    if (!active || active === document.body) sectionRef.current?.focus()
+  }, [open])
+  if (!open) return null
   const state = characterState(call, awaitingReply, building)
   const status = STATUS[state]
   const interactive = call.mode === "interactive"
@@ -127,7 +135,7 @@ export function DirectorCallPanel({ call, awaitingReply, building, latestDirecto
 
   if (!interactive) {
     return (
-      <section data-director-call="voice" aria-label="Director voice call" onKeyDown={onKeyDown}>
+      <section ref={sectionRef} tabIndex={-1} data-director-call="voice" aria-label="Director voice call" onKeyDown={onKeyDown}>
         {controls}
         <div data-director-call-strip="true">
           <div data-director-call-portrait="true"><DirectorCharacter state={state} portrait withBackground={false} /></div>
@@ -143,7 +151,7 @@ export function DirectorCallPanel({ call, awaitingReply, building, latestDirecto
   }
 
   return (
-    <section data-director-call="interactive" aria-label="Interactive Director" onKeyDown={onKeyDown}>
+    <section ref={sectionRef} tabIndex={-1} data-director-call="interactive" aria-label="Interactive Director" onKeyDown={onKeyDown}>
       {controls}
       <div data-director-call-stage="true">
         <DirectorCharacter state={state} withBackground={false} />

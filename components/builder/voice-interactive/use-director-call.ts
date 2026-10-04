@@ -79,14 +79,16 @@ export function useDirectorCall({ enabled, messages, scope, focusComposer }: Use
     setSpeaking(false)
   }, [])
 
-  const end = useCallback(() => {
+  const stop = useCallback((restoreFocus: boolean) => {
     stopSpeaking()
     setOutputOnState(false)
     setMode("chat")
     setStartedAt(null)
     spokenIdRef.current = null
-    requestAnimationFrame(() => focusRef.current?.())
+    if (restoreFocus) requestAnimationFrame(() => focusRef.current?.())
   }, [stopSpeaking])
+  /** User End: stop media and return focus to the composer. */
+  const end = useCallback(() => stop(true), [stop])
 
   const start = useCallback((next: Exclude<DirectorCallMode, "chat">) => {
     if (!enabled) return
@@ -158,8 +160,8 @@ export function useDirectorCall({ enabled, messages, scope, focusComposer }: Use
     const prev = scopeRef.current
     scopeRef.current = next
     const switched = next.some((part, i) => prev[i] != null && prev[i] !== part)
-    if (switched && mode !== "chat") end()
-  }, [scopeKey, mode, end])
+    if (switched && mode !== "chat") stop(false)
+  }, [scopeKey, mode, stop])
 
   // Hidden tab / page hide stops output; unmount stops everything.
   useEffect(() => {

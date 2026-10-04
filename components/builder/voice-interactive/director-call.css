@@ -8,6 +8,8 @@
 [data-studio-director-header="true"] [data-director-call-pill="true"] { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; background: var(--ss-active); color: var(--ss-teal); font-size: 10px; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 [data-studio-director-header="true"] [data-director-call-pill="true"] > span[aria-hidden="true"] { width: 6px; height: 6px; border-radius: 50%; background: var(--ss-teal); }
 
+[data-director-call]:focus { outline: none; }
+[data-director-call]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: -2px; }
 [data-director-call] { flex: 0 0 auto; display: flex; flex-direction: column; min-width: 0; border-bottom: 1px solid var(--ss-line); background: var(--ss-panel); color: var(--ss-text); }
 [data-director-call] [data-director-call-controls="true"] { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--ss-line); }
 [data-director-call] [data-director-call-controls="true"] > button { width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; padding: 0; border: 1px solid var(--ss-line); border-radius: 50%; background: var(--ss-panel); color: var(--ss-text); cursor: pointer; }
