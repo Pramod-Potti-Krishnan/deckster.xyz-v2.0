@@ -64,12 +64,12 @@ export default function SecurityPage() {
 
                     <h2>Vulnerability Disclosure</h2>
                     <p>
-                        We value the security community's help in keeping our platform safe. If you believe you've found a security vulnerability, please report it to security@deckster.xyz and we will get back to you.
+                        We value the security community's help in keeping our platform safe. If you believe you've found a security vulnerability, please report it to support@deckster.xyz and we will get back to you.
                     </p>
 
                     <h2>Security Questions</h2>
                     <p>
-                        Need to know how we handle your data, or have a question for a vendor review? Email security@deckster.xyz and we will get back to you.
+                        Need to know how we handle your data, or have a question for a vendor review? Email support@deckster.xyz and we will get back to you.
                     </p>
                 </motion.div>
             </Section>
