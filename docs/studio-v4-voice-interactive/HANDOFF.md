@@ -1,6 +1,6 @@
 # Studio v4 Director voice & interactive avatar: handoff
 
-Branch `studio-v4-voice-interactive`, cut from `origin/studio-v4-dev` at `574091f`. It is not merged, pushed to a deployed branch, or deployed. It needs the Architect's review and approval before integration.
+Branch `studio-v4-voice-interactive` (local, not pushed), cut from `origin/studio-v4-dev` at `574091f`. It is not merged, pushed to a deployed branch, or deployed. It needs the Architect's review and approval before integration.
 
 ## What it does
 
@@ -71,6 +71,20 @@ Changed (shared seams, kept small):
 - `app/builder/page.tsx`: three imports, the `voiceInteractive` constant, one `useDirectorCall(...)` call, header `actions`, and one gated `<DirectorCallPanel>`. Nothing else in the Builder, socket hook, composer or question card changed.
 - `package.json`: one test script.
 - `.env.example`: the default-off flag, with a comment.
+
+## Verification (4 Oct, seat-2 Mac)
+
+| Check | Result |
+|---|---|
+| `npm run test:studio-voice-interactive` (new) | 55/55 pass: flag truth table, capability truth, local-voice choice, reply text, pending ask, static OFF/no-media guards |
+| Existing checks: `builder-presentation-ownership`, `director-websocket-reconnect`, `director-sync-recovery`, `user-message-attachments`, `deck-identity`, `build-narration`, `qa`, `narration` | All pass |
+| `tsc --noEmit` | No new errors. 11 pre-existing errors in Stripe and `mock-token` files are unrelated; on this Mac they come from the local `node_modules` versions. |
+| `next build --experimental-build-mode=compile` with flags on | Compiles, exit 0. Compile mode defers env inlining, so the OFF bundle was checked at runtime instead (next row). |
+| Live headless Chromium on `next dev`, using a temporary harness route that mirrors the Builder wiring (deleted afterwards) | All pass. Flag ON: entry buttons; voice/interactive switch with no timer reset and the draft kept; opt-in speech reads only new replies, newest wins, never overlaps; no local voice disables the control with its reason; hidden tab stops speech; session/deck switch ends the call while a first assignment does not; End restores focus to the composer; Escape returns focus to the composer; Tab order and accessible names; reduced motion gives `data-motion="reduced"`; "Answer in chat" focuses the real card; a keyboard start puts focus on the call section (re-run at `5dc39e5`). Flag OFF (unset and `TRUE`): header has exactly its original 3 children, no call DOM, and zero `getUserMedia`, `speechSynthesis`, timer or WebSocket activity. |
+| Scope-change end while focus is inside the call: focus now goes to the composer instead of BODY (added after the last live run; covered only by tsc and the static tests) | Not re-run live |
+| Signed-in Builder end to end | **Not run.** It needs a real sign-in, and no auth bypass was used. The first enablement on the dev app should do a typed turn in voice and in interactive, answer a real question card, and End during a build to confirm generation continues. |
+
+Screenshots: `light-wide.png`, `dark-short.png` and `narrow-mobile.png` are static renders of the real components with the shell tokens. `live-*.png` come from the live harness in headless Chromium. None of them is the signed-in Builder.
 
 ## Visual departures from the mockups (functionality first)
 

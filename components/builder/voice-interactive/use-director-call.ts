@@ -80,12 +80,14 @@ export function useDirectorCall({ enabled, messages, scope, focusComposer }: Use
   }, [])
 
   const stop = useCallback((restoreFocus: boolean) => {
+    // A scope-change end only moves focus if it was inside the call that is closing.
+    const focusInCall = typeof document !== "undefined" && !!document.activeElement?.closest?.("[data-director-call]")
     stopSpeaking()
     setOutputOnState(false)
     setMode("chat")
     setStartedAt(null)
     spokenIdRef.current = null
-    if (restoreFocus) requestAnimationFrame(() => focusRef.current?.())
+    if (restoreFocus || focusInCall) requestAnimationFrame(() => focusRef.current?.())
   }, [stopSpeaking])
   /** User End: stop media and return focus to the composer. */
   const end = useCallback(() => stop(true), [stop])
