@@ -19,14 +19,22 @@ export interface HeroFilmCopy {
   tail: string
   url: string
   published: string
+  narrating: string
+  voice: string
+  askWho: string
+  ask: string
+  answerWho: string
+  answer: string
+  source: string
 }
 
-type Scene = 0 | 1 | 2 | 3 | 4 // brief, plan, build, refine, publish
-type Camera = "deck" | "slide" | "element"
+type Scene = 0 | 1 | 2 | 3 | 4 | 5 // brief, plan, build, refine, publish, present
+type Camera = "deck" | "slide" | "element" | "present"
 
 // The world is the same 3×3 deck as the scroll zoom (slide 2): 320×180 tiles, 16 px gaps.
 const WW = 992, WH = 572, TW = 320, TH = 180, EW = 185, EH = 98
-const CENTER = { deck: { x: WW / 2, y: WH / 2 }, slide: { x: 496, y: 286 }, element: { x: 439.5, y: 306.5 } }
+// "present" frames the top-middle slide (the five-step model) full screen, as a published deck plays.
+const CENTER = { deck: { x: WW / 2, y: WH / 2 }, slide: { x: 496, y: 286 }, element: { x: 439.5, y: 306.5 }, present: { x: 496, y: 90 } }
 const ORDER = [0, 1, 2, 3, 5, 6, 7, 8, 4] // build order: the crisp centre slide lands last
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -35,12 +43,13 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
  * Explains the product without a scroll. Runs only while on screen; reduced-motion visitors get
  * the finished frame (deck built, chart refined, link published).
  */
-export function HeroFilm({ copy, tiles, target, youLabel, statusWord }: {
+export function HeroFilm({ copy, tiles, target, youLabel, statusWord, betaWord }: {
   copy: HeroFilmCopy
   tiles: readonly { src: string; alt: string }[]
   target: ReactNode
   youLabel: string
   statusWord: string
+  betaWord: string
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
@@ -55,6 +64,7 @@ export function HeroFilm({ copy, tiles, target, youLabel, statusWord }: {
   const [agent, setAgent] = useState<"hidden" | "working" | "done">("hidden")
   const [waterfall, setWaterfall] = useState(true)
   const [published, setPublished] = useState(true)
+  const [qa, setQa] = useState(0) // 0 none, 1 question, 2 answer
 
   useEffect(() => {
     const frame = frameRef.current
@@ -71,7 +81,7 @@ export function HeroFilm({ copy, tiles, target, youLabel, statusWord }: {
 
   const reset = useCallback(() => {
     setScene(0); setBrief(""); setFiles(0); setApproved(false); setBuilt(0)
-    setCamera("deck"); setRequest(""); setAgent("hidden"); setWaterfall(false); setPublished(false)
+    setCamera("deck"); setRequest(""); setAgent("hidden"); setWaterfall(false); setPublished(false); setQa(0)
   }, [])
 
   useEffect(() => {
@@ -117,7 +127,15 @@ export function HeroFilm({ copy, tiles, target, youLabel, statusWord }: {
         setCamera("deck")
         await wait(1200)
         setPublished(true)
-        await wait(3000)
+        await wait(2200)
+        // the published deck presents itself and takes a question (beta)
+        setScene(5)
+        setCamera("present")
+        await wait(1900)
+        setQa(1)
+        await wait(1500)
+        setQa(2)
+        await wait(3600)
       }
     }
     void run()
@@ -128,6 +146,7 @@ export function HeroFilm({ copy, tiles, target, youLabel, statusWord }: {
   const scale = {
     deck: Math.min((W * .9) / WW, (H * .84) / WH),
     slide: Math.min((W * .9) / TW, (H * .86) / TH),
+    present: Math.min((W * .98) / TW, (H * .98) / TH),
     element: Math.min((W * .88) / EW, (H * .74) / EH),
   }[camera]
   const c = CENTER[camera]
@@ -176,6 +195,19 @@ export function HeroFilm({ copy, tiles, target, youLabel, statusWord }: {
           {agent === "working"
             ? <>{copy.working}<span className="dots" aria-hidden="true"><i /><i /><i /></span></>
             : <>{copy.agent}<b>{copy.bold}</b>{copy.tail}</>}
+        </div>
+
+        <div className={`film__present${scene === 5 ? " is-on" : ""}`}>
+          <div className="film__qa">
+            <div className={`film__q${qa >= 1 ? " is-on" : ""}`}><span className="k">{copy.askWho}</span>{copy.ask}</div>
+            <div className={`film__a${qa >= 2 ? " is-on" : ""}`}><span className="k">{copy.answerWho}</span>{copy.answer}<span className="film__src">{copy.source}</span></div>
+          </div>
+          <div className="film__narr">
+            <span className="play" aria-hidden="true"><svg width="10" height="12" viewBox="0 0 12 14"><path d="M0 0l12 7-12 7z" fill="currentColor" /></svg></span>
+            <span className="film__wave" aria-hidden="true">{Array.from({ length: 24 }, (_, i) => <i key={i} style={{ ["--i" as string]: i }} />)}</span>
+            <span>{copy.narrating}</span>
+            <span className="st st--beta st--sm">{betaWord}</span>
+          </div>
         </div>
 
         <div className={`film__link${published && scene === 4 ? " is-on" : ""}`}>

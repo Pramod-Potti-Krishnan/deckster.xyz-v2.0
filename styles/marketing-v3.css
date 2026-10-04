@@ -776,7 +776,7 @@ html.snap-deck.mv3-page{scroll-padding-top:56px}
   .mv3 .tier--hi::after{content:"";position:absolute;inset:-2px;border-radius:inherit;padding:2px;background:conic-gradient(from var(--v3a),transparent 0 62%,var(--violet) 78%,var(--coral) 88%,transparent 96%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:v3spin 5s linear infinite;pointer-events:none}
   @keyframes v3spin{to{--v3a:360deg}}
   /* closing: the word that changes */
-  .mv3 .cycle{display:inline-block;animation:v3word .55s cubic-bezier(.2,.9,.2,1.1) both}
+  .mv3 .cyc__w.is-on{animation:v3word .55s cubic-bezier(.2,.9,.2,1.1) both}
   @keyframes v3word{from{opacity:0;transform:translateY(.35em) rotate(-3deg);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
   /* player: the deck presents itself */
   .mv3 .player__slide img{transition:opacity .8s var(--ease)}
@@ -801,3 +801,23 @@ html.snap-deck.mv3-page{scroll-padding-top:56px}
 .v3-spot{position:fixed;inset:0;z-index:55;pointer-events:none;opacity:0;transition:opacity .6s;background:radial-gradient(520px circle at var(--mx,50%) var(--my,50%),rgba(140,128,255,.10),transparent 60%);mix-blend-mode:screen}
 html.mv3-spot-on .v3-spot{opacity:1}
 html.mv3-on-paper .v3-spot{opacity:0}
+.mv3 .cyc{display:inline-grid;vertical-align:baseline}
+.mv3 .cyc__w{grid-area:1/1;justify-self:center;visibility:hidden;white-space:nowrap}
+.mv3 .cyc__w.is-on{visibility:visible}
+/* hero film · present scene: the published deck plays itself and answers a viewer (beta) */
+.mv3 .film__present{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .5s var(--ease)}
+.mv3 .film__present.is-on{opacity:1}
+.mv3 .film__narr{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:12px;background:rgba(12,13,19,.88);border:1px solid var(--rule-d);font:500 11px var(--font-mono,"JetBrains Mono",monospace);color:var(--snow-2);white-space:nowrap}
+.mv3 .film__narr .play{width:24px;height:24px;border-radius:99px;background:var(--snow);color:var(--night);display:grid;place-items:center;flex:none}
+.mv3 .film__narr .st{margin-left:auto}
+.mv3 .film__wave{display:flex;align-items:center;gap:2px;height:18px;flex:1;min-width:40px}
+.mv3 .film__wave i{flex:1;max-width:3px;border-radius:2px;background:var(--violet-d);height:30%;animation:wave 1.1s ease-in-out infinite;animation-delay:calc(var(--i)*-.07s);--a:calc(20 + var(--i) * 3)}
+.mv3 .film__qa{position:absolute;right:12px;top:12px;width:min(62%,330px);display:flex;flex-direction:column;gap:8px}
+.mv3 .film__q,.mv3 .film__a{padding:9px 12px;border-radius:12px;font-size:12.5px;line-height:1.4;opacity:0;transform:translateY(10px);transition:opacity .45s var(--ease),transform .45s cubic-bezier(.2,.9,.2,1.2)}
+.mv3 .film__q.is-on,.mv3 .film__a.is-on{opacity:1;transform:none}
+.mv3 .film__q{align-self:flex-start;background:rgba(12,13,19,.9);border:1px solid var(--rule-d);color:var(--snow-2);border-bottom-left-radius:4px}
+.mv3 .film__a{align-self:flex-end;background:rgba(40,22,18,.92);border:1px solid rgba(255,123,95,.55);color:var(--snow);border-bottom-right-radius:4px}
+.mv3 .film__q .k,.mv3 .film__a .k{display:block;font:600 9px var(--font-mono,"JetBrains Mono",monospace);letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px;color:var(--snow-3)}
+.mv3 .film__a .k{color:var(--coral-d)}
+.mv3 .film__a .film__src{display:block;margin-top:5px;font:500 10px var(--font-mono,"JetBrains Mono",monospace);color:var(--snow-3)}
+@media (max-width:560px){.mv3 .film__qa{width:78%}.mv3 .film__q,.mv3 .film__a{font-size:11px}.mv3 .film__narr span:nth-child(3){overflow:hidden;text-overflow:ellipsis}}

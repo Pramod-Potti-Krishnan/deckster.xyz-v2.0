@@ -101,7 +101,7 @@ export const V3_CONTENT = {
     agentSource: " · data, labels and source kept",
     /** The hero film: the whole product loop in ~13 s, every step live in production today. */
     film: {
-      steps: ["Brief", "Plan", "Build", "Refine", "Publish"],
+      steps: ["Brief", "Plan", "Build", "Refine", "Publish", "Present"],
       brief: "Build a 16-slide operating-model review from my Q3 board pack.",
       files: ["Q3 board pack.pptx", "Throughput.xlsx"],
       planWho: "Director",
@@ -117,6 +117,14 @@ export const V3_CONTENT = {
       tail: " · data and source kept",
       url: "deckster.xyz/p/k3Tq9xV2aB",
       published: "Published",
+      /** Narration and audience questions are in beta (V3_FEATURES), so the scene carries a Beta pill. */
+      narrating: "Presenting itself · slide 2 of 16",
+      voice: "stock voice",
+      askWho: "Viewer",
+      ask: "How does the 48-hour rule handle vendor calls?",
+      answerWho: "Answer",
+      answer: "Up to £250k they stay with domain leadership; anything larger escalates after 48 hours.",
+      source: "From slide 6",
       tiles: [1, 2, 3, 4, 6, 7, 8, 9],
     },
     cue: "See how it builds",
@@ -411,7 +419,7 @@ export const V3_CONTENT = {
     label: "Begin",
     eyebrow: "Begin",
     titleLead: "Bring your ", titleAccent: "next", titleTail: " deck.",
-    titleAccents: ["next", "board", "sales", "launch", "investor"],
+    titleAccents: ["next", "board", "sales", "launch"],
     lede: "Give the Director one sentence, or attach the report, spreadsheet or old deck it should start from. You approve the plan before a single slide is built.",
     build: "Request early access", realDeck: "Open a real deck first", experts: "Meet the experts",
     code: "Have an access code? Sign in with Google and enter it.",

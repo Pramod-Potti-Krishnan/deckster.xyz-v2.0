@@ -38,6 +38,7 @@ export function Start({ n, total }: { n: number; total: number }) {
             target={<TargetSlide copy={V3_CONTENT.zoom.slide} />}
             youLabel={copy.cursor}
             statusWord={V3_STATUS_WORDS.live}
+            betaWord={V3_STATUS_WORDS.beta}
           />
         </div>
       </div>
