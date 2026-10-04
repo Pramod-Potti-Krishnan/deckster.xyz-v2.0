@@ -937,6 +937,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   const wsRef = useRef<WebSocket | null>(null);
   const socketSessionRef = useRef<string | null>(null);
+  // The token request is asynchronous, before a socket exists to detach.
+  // Retire its continuation when another attempt or lifecycle takes ownership.
+  const connectionAttemptGenerationRef = useRef(0);
   // A user turn belongs to one account/session lifecycle, including while
   // reconnecting. Track render-current intent without rebinding sessionIdRef
   // before the existing session-adoption effect owns the socket transition.
@@ -1283,6 +1286,21 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
 
     isConnectingRef.current = true;
+    const attemptGeneration = ++connectionAttemptGenerationRef.current;
+    const turnLifecycleGeneration = turnSubmissionLifecycleRef.current.generation;
+    const socketSessionId = sessionIdRef.current;
+    const socketUserId = userIdRef.current;
+    const isCurrentAttempt = () => (
+      connectionAttemptGenerationRef.current === attemptGeneration &&
+      sessionIdRef.current === socketSessionId &&
+      userIdRef.current === socketUserId &&
+      turnSubmissionLifecycleRef.current.active &&
+      turnSubmissionLifecycleRef.current.generation === turnLifecycleGeneration &&
+      turnSubmissionLifecycleRef.current.sessionId === socketSessionId &&
+      turnSubmissionLifecycleRef.current.userId === socketUserId &&
+      connectionDesiredRef.current &&
+      !manualDisconnectRef.current
+    );
     if (COMPOSER_LIBRARY_ENABLED) composerThemeRef.current = { ...composerThemeRef.current, composerThemeResolved: false };
 
     setState(prev => ({
@@ -1313,8 +1331,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // Explicit capability opt-in prevents a newly deployed Director from
       // sending a secret frame to older frontend bundles that would treat it
       // as ordinary chat/cache data during a rolling deploy.
-      const socketSessionId = sessionIdRef.current;
-      const wsUrl = `${DEFAULT_WS_URL}?session_id=${socketSessionId}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}&build_control_capability=1`;
+      const wsUrl = `${DEFAULT_WS_URL}?session_id=${socketSessionId}&user_id=${socketUserId}&skip_history=${skipHistory}&message_count=${totalMessageCount}&build_control_capability=1`;
 
       // DEBUG: Comprehensive logging of connection parameters
       debugLog('🔌 [WEBSOCKET] Initiating connection to Director', {
@@ -1358,7 +1375,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         > => {
           try {
             const tokenResponse = await fetch(
-              `/api/director/ws-token?session_id=${encodeURIComponent(sessionIdRef.current)}`,
+              `/api/director/ws-token?session_id=${encodeURIComponent(socketSessionId)}`,
               { cache: 'no-store' },
             );
             if (!tokenResponse.ok) {
@@ -1380,6 +1397,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             return { ok: false, reason: `ws-token unreachable: ${String(tokenError)}` };
           }
         })();
+
+        // A late success or failure belongs to the retired attempt. It cannot
+        // replace the current socket, publish an error, or schedule a retry.
+        if (!isCurrentAttempt()) return;
 
         if (!tokenOutcome.ok) {
           console.error('[WS AUTH] Could not obtain Director token:', tokenOutcome.reason);
@@ -1421,10 +1442,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           return;
         }
         wsRef.current = ws;
-        const isCurrentSocket = () => wsRef.current === ws;
+        const isCurrentSocket = () => wsRef.current === ws && isCurrentAttempt();
 
         ws.onopen = () => {
-          if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);
           if (!isCurrentSocket()) {
             debugLog('⏭️ Ignoring open from stale WebSocket');
             try {
@@ -1435,6 +1455,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             return;
           }
 
+          if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);
           debugLog('✅ Connected to Director v3.4');
           socketSessionRef.current = socketSessionId;
           setConnectionGeneration(g => g + 1);
@@ -2547,6 +2568,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       }
 
       reconnectPausedForOfflineRef.current = true;
+      connectionAttemptGenerationRef.current += 1;
+      isConnectingRef.current = false;
       clearReconnectTimer(true);
       clearReconnectStabilityTimer();
       stopHeartbeat();
@@ -2648,6 +2671,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     });
 
     sessionIdRef.current = nextSessionId;
+    connectionAttemptGenerationRef.current += 1;
     reconnectAttemptsRef.current = 0;
     clearReconnectTimer();
     clearReconnectStabilityTimer();
@@ -2702,6 +2726,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
     turnSubmissionLifecycleRef.current.generation += 1;
+    connectionAttemptGenerationRef.current += 1;
     debugLog('🔌 Disconnecting WebSocket');
 
     manualDisconnectRef.current = true;
