@@ -242,6 +242,7 @@ interface PresentationViewerProps {
   showControls?: boolean
   downloadControls?: React.ReactNode
   onSlideChange?: (slideNumber: number) => void
+  onThumbnailInvalidated?: (presentationId: string) => void
   onEditModeChange?: (isEditing: boolean) => void
   className?: string
   // Version switching support (Builder V2: now includes 'blank' version)
@@ -522,6 +523,7 @@ export function PresentationViewer({
   showControls = true,
   downloadControls,
   onSlideChange,
+  onThumbnailInvalidated,
   onEditModeChange,
   className = '',
   strawmanPreviewUrl,
@@ -736,6 +738,20 @@ export function PresentationViewer({
     slideMutationPendingRef.current = false
   }
   const renderSlideMutationOwner = slideMutationOwnerRef.current
+  const onThumbnailInvalidatedRef = useRef(onThumbnailInvalidated)
+  onThumbnailInvalidatedRef.current = onThumbnailInvalidated
+  const captureThumbnailInvalidation = useCallback(() => {
+    const owner = renderSlideMutationOwner
+    const iframe = iframeRef.current
+    const mountGeneration = slideMutationMountRef.current.generation
+    return () => {
+      if (!studioShell || !owner.presentationId || !iframe ||
+        !slideMutationMountRef.current.active ||
+        slideMutationMountRef.current.generation !== mountGeneration ||
+        slideMutationOwnerRef.current !== owner || iframeRef.current !== iframe) return
+      onThumbnailInvalidatedRef.current?.(owner.presentationId)
+    }
+  }, [studioShell, renderSlideMutationOwner])
   const beginStudioViewerInteraction = useCallback(() => {
     const owner = renderSlideMutationOwner
     const mountGeneration = slideMutationMountRef.current.generation
@@ -1335,6 +1351,7 @@ export function PresentationViewer({
         onSlideChangeRef.current?.(newSlideNumber)
         if (!isCurrentSlideMutation()) return
         setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+        if (studioShell) captureThumbnailInvalidation()()
 
         // Navigate iframe to the new slide (PowerPoint/Keynote behavior)
         await sendCommand(iframe, 'goToSlide', { index: newSlideIndex })
@@ -1379,11 +1396,12 @@ export function PresentationViewer({
         if (isCurrentSlideMutation()) setIsSlideMutationPending(false)
       }
     }
-  }, [currentSlide, totalSlides, toast, ensureEditMode, studioShell, renderSlideMutationOwner])
+  }, [currentSlide, totalSlides, toast, ensureEditMode, studioShell, renderSlideMutationOwner, captureThumbnailInvalidation])
 
   // Duplicate slide handler
   const handleDuplicateSlide = useCallback(async (slideIndex: number) => {
     if (!iframeRef.current) return
+    const invalidateThumbnails = captureThumbnailInvalidation()
 
     try {
       const result = await sendCommand(iframeRef.current, 'duplicateSlide', {
@@ -1399,6 +1417,7 @@ export function PresentationViewer({
         setTotalSlides(newTotal)
         setCurrentSlide(newSlideIndex + 1)
         setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+        invalidateThumbnails()
 
         toast({
           title: 'Slide Duplicated',
@@ -1415,7 +1434,7 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     }
-  }, [totalSlides, toast])
+  }, [totalSlides, toast, captureThumbnailInvalidation])
 
   // Open delete dialog for single slide
   const handleOpenDeleteDialog = useCallback((slideIndex: number) => {
@@ -1442,6 +1461,7 @@ export function PresentationViewer({
   // Confirm delete slide(s) - uses bulk deleteSlides endpoint
   const handleConfirmDelete = useCallback(async () => {
     if (!slidesToDelete || slidesToDelete.length === 0 || !iframeRef.current) return
+    const invalidateThumbnails = captureThumbnailInvalidation()
 
     setIsDeleting(true)
     try {
@@ -1470,6 +1490,7 @@ export function PresentationViewer({
 
       setTotalSlides(remainingCount)
       setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+      invalidateThumbnails()
       setSelectedSlideIndices([]) // Clear selection after delete
 
       // Adjust current slide if needed
@@ -1505,11 +1526,12 @@ export function PresentationViewer({
       setShowDeleteDialog(false)
       setSlidesToDelete(null)
     }
-  }, [slidesToDelete, totalSlides, currentSlide, toast])
+  }, [slidesToDelete, totalSlides, currentSlide, toast, captureThumbnailInvalidation])
 
   // Change slide layout handler
   const handleChangeLayout = useCallback(async (slideIndex: number, newLayout: SlideLayoutType) => {
     if (!iframeRef.current) return
+    const invalidateThumbnails = captureThumbnailInvalidation()
 
     try {
       const result = await sendCommand(iframeRef.current, 'changeSlideLayout', {
@@ -1519,6 +1541,7 @@ export function PresentationViewer({
       })
 
       if (result.success) {
+        invalidateThumbnails()
         toast({
           title: 'Layout Changed',
           description: `Slide ${slideIndex + 1} layout updated`
@@ -1534,11 +1557,12 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     }
-  }, [toast])
+  }, [toast, captureThumbnailInvalidation])
 
   // Reorder slides handler
   const handleReorderSlides = useCallback(async (fromIndex: number, toIndex: number) => {
     if (!iframeRef.current) return
+    const invalidateThumbnails = captureThumbnailInvalidation()
 
     try {
       const result = await sendCommand(iframeRef.current, 'reorderSlides', {
@@ -1552,6 +1576,7 @@ export function PresentationViewer({
           setCurrentSlide(toIndex + 1)
         }
         setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+        invalidateThumbnails()
 
         toast({
           title: 'Slide Moved',
@@ -1568,7 +1593,7 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     }
-  }, [currentSlide, toast, ensureEditMode])
+  }, [currentSlide, toast, ensureEditMode, captureThumbnailInvalidation])
 
   // === Layout Service v7.5.3 API Handlers ===
 

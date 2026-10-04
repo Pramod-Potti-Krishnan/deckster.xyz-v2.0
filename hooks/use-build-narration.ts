@@ -55,6 +55,8 @@ export interface UseBuildNarrationInputs {
   isGeneratingFinal: boolean
   isGeneratingStrawman: boolean
   finalPresentationUrl: string | null
+  /** Paired identity fences an older restored final against a newer build. */
+  finalPresentationId?: string | null
   /** True when the session restored as an already-finished deck. */
   restoredComplete?: boolean
 }
@@ -91,6 +93,7 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
     isGeneratingFinal,
     isGeneratingStrawman,
     finalPresentationUrl,
+    finalPresentationId = null,
     restoredComplete = false,
   } = inputs
 
@@ -106,6 +109,7 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
   const retiredControlRequestIdsRef = useRef<string[]>([])
   const controlRef = useRef<NarrationState['control']>('running')
   const prevGeneratingFinalRef = useRef(false)
+  const prevGeneratingStrawmanRef = useRef(false)
 
   const clearPendingControl = useCallback(() => {
     const pending = pendingControlRef.current
@@ -244,8 +248,10 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
 
   // Strawman-phase loader signal (pre-URL) keeps the canvas alive.
   useEffect(() => {
-    if (!enabled || !isGeneratingStrawman) return
-    dispatch({ type: 'session_start', ts: Date.now() })
+    const started = isGeneratingStrawman && !prevGeneratingStrawmanRef.current
+    prevGeneratingStrawmanRef.current = isGeneratingStrawman
+    if (!enabled || !started) return
+    dispatch({ type: 'session_start', fresh: true, ts: Date.now() })
     // The plan gate was answered and Director is generating the strawman:
     // leave awaiting_user (resumes the paused build clock via toPhase).
     dispatch({ type: 'planning_resumed', ts: Date.now() })
@@ -254,13 +260,21 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
   // Final URL → complete, settle, dismiss.
   useEffect(() => {
     if (!enabled || !finalPresentationUrl) return
-    dispatch({ type: 'final_url', ts: Date.now() })
-    if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current)
+    dispatch({ type: 'final_url', presentationId: finalPresentationId, ts: Date.now() })
+  }, [enabled, sessionId, finalPresentationUrl, finalPresentationId])
+
+  // The settle timer belongs to this completed build, not to a URL that can
+  // stay unchanged while another build/session becomes active.
+  useEffect(() => {
+    if (!enabled || narration.phase !== 'complete') return
+    clearPendingControl()
+    if (!narration.active) return
     dismissTimerRef.current = setTimeout(() => dispatch({ type: 'dismiss' }), COMPLETE_DISMISS_MS)
     return () => {
       if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current)
+      dismissTimerRef.current = null
     }
-  }, [enabled, finalPresentationUrl])
+  }, [enabled, sessionId, narration.active, narration.phase, narration.buildId, clearPendingControl])
 
   const pinSlide = useCallback((slideIndex: number | null) => {
     dispatch({ type: 'pin', slideIndex })

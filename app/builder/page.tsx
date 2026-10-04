@@ -28,6 +28,7 @@ import { useFileUpload } from '@/hooks/use-file-upload'
 import type { UploadedFile } from '@/components/file-chip'
 import { features } from '@/lib/config'
 import { useBuildNarration } from '@/hooks/use-build-narration'
+import { useStageFThumbnailCache } from '@/hooks/use-stage-f-thumbnail-cache'
 import { centerStageFor, effectiveNarrationEnabled } from '@/lib/build-narration-heuristics'
 import { DirectorPresence } from '@/components/build-narration/director-presence'
 import { cn } from '@/lib/utils'
@@ -87,9 +88,8 @@ import {
   resolveSlideComposeSessionId,
 } from '@/lib/slide-compose-job-recovery'
 import {
-  mergeStageFInsertedThumbnailUrl,
+  mergeStageFReadyThumbnailUrl,
   mergeStageFPresentationThumbnailUrl,
-  type SlideThumbnailUrlsByPresentation,
 } from '@/lib/stage-f-thumbnails'
 
 // Extracted hooks
@@ -776,7 +776,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     slideCount: number | null
     refreshToken: number
   } | null>(null)
-  const [slideThumbnailUrlsByPresentation, setSlideThumbnailUrlsByPresentation] = useState<SlideThumbnailUrlsByPresentation>({})
   const [slideComposeJobs, setSlideComposeJobs] = useState<Record<string, SlideComposeJobState>>({})
   const [slideComposePanelEvent, setSlideComposePanelEvent] = useState<SlideComposePanelEvent | null>(null)
   const slideComposerPresentationRef = useRef<{
@@ -1438,6 +1437,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     return null
   })
 
+  const {
+    thumbnailUrls: slideThumbnailUrlsByPresentation,
+    setThumbnailUrls: setSlideThumbnailUrlsByPresentation,
+    invalidateThumbnailUrls,
+  } = useStageFThumbnailCache({
+    enabled: studioShell,
+    ownerUserId: authScopeUserId,
+    sessionId: currentSessionId,
+  })
+
   const persistence = useSessionPersistence({
     sessionId: currentSessionId || '',
     userId: authScopeUserId,
@@ -1496,7 +1505,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setManualDeckHandoffBusy(false)
     setSlideComposerOverride(null)
     clearSlideComposerWork()
-    setSlideThumbnailUrlsByPresentation({})
+    if (!studioShell) setSlideThumbnailUrlsByPresentation({})
     setSlideComposeJobs({})
     Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
     slideComposeWatchdogsRef.current = {}
@@ -2044,7 +2053,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     },
     onSlideBuilt: (message: SlideBuilt) => {
       const { presentation_id, slide_index, thumbnail_url } = message.payload
-      setSlideThumbnailUrlsByPresentation(prev =>
+      const ownsThumbnail = !studioShell || message.session_id === currentSessionIdRef.current
+      if (ownsThumbnail) setSlideThumbnailUrlsByPresentation(prev =>
         mergeStageFPresentationThumbnailUrl(
           prev,
           presentation_id,
@@ -2109,11 +2119,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         return
       }
       setSlideThumbnailUrlsByPresentation(prev =>
-        mergeStageFInsertedThumbnailUrl(
+        mergeStageFReadyThumbnailUrl(
           prev,
           payload.presentation_id,
           payload.slide_index,
           payload.thumbnail_url,
+          payload.kind,
         ),
       )
       const presentationKey = payload.presentation_id
@@ -2594,8 +2605,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     isGeneratingFinal,
     isGeneratingStrawman,
     finalPresentationUrl,
-    // Snapshot hydration already refuses inactive/complete states, so a
-    // restored finished session can never resurrect the canvas.
+    finalPresentationId,
+    // Durable final identity fences outline/history replay without suppressing
+    // a distinct newer typed build or its recovery controls.
   })
 
   // Route typed narration frames from the WS hook into the reducer. With the
@@ -5235,7 +5247,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setIsGeneratingFinal(false)
     setTemplateReuseAwaitingInput(false)
     setIsGeneratingStrawman(false)
-    setSlideThumbnailUrlsByPresentation({})
+    if (!studioShell) setSlideThumbnailUrlsByPresentation({})
     setShowChatHistory(false)
     setSessionStoreName(null)
     // The KG switch is a per-deck privacy choice, never a global sticky bit.
@@ -6124,6 +6136,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 ? slideThumbnailUrlsByPresentation[effectivePresentationId] ?? {}
                 : {}
             }
+            onThumbnailInvalidated={studioShell ? invalidateThumbnailUrls : undefined}
             templateCurrentSlideIndex={templateSourceSlideIndex}
             selectedTemplateElementId={selectedTemplateElementId}
             blueprintEditorV2Enabled={blueprintEditorV2Enabled}
