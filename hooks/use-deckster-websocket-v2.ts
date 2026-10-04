@@ -16,6 +16,7 @@ import {
 } from '@/lib/slide-compose-async';
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
 import { mergeDirectorChatHistory } from '@/lib/director-chat-history';
+import { projectVerifiedOutlineReplay } from '@/lib/director-history-presentation';
 import { guardDirectorLayoutUrlMessage } from '@/lib/director-layout-url-ingress';
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client';
 import type { UserChatMessage } from '@/lib/user-message-attachments';
@@ -798,7 +799,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         sessionId: sessionIdRef.current,
         userId: userIdRef.current,
         error: null,
-        messages: scrubBuildControlCapabilityMessages(cached.messages),
+        messages: scrubBuildControlCapabilityMessages(cached.messages).map(message => {
+          const clean = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string };
+          delete clean.clientOutlineReplayOf;
+          return clean;
+        }),
         presentationUrl: cachedDisplayUrl || cached.presentationUrl || null,
         strawmanPreviewUrl: cached.strawmanPreviewUrl || null,
         finalPresentationUrl: cached.finalPresentationUrl || null,
@@ -1505,6 +1510,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             }
 
             const parsedMessage = normalizeDirectorMessageFrame(JSON.parse(event.data)) as DirectorMessage & { type?: unknown };
+            // Client replay provenance is assigned only after owned terminal
+            // state validates the wire frame; never accept a supplied marker.
+            delete (parsedMessage as DirectorMessage & { clientOutlineReplayOf?: string }).clientOutlineReplayOf;
             if (!isKnownDirectorMessageType(parsedMessage.type)) {
               return;
             }
@@ -1626,13 +1634,22 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               const upsertActionRequest =
                 message.type === 'action_request' && isDuplicate;
 
+              const transcriptMessage = projectVerifiedOutlineReplay(messageWithTimestamp, prev.messages, {
+                isTerminal: !blockedIngress && prev.activeVersion === 'final'
+                  && !!prev.finalPresentationId && !!prev.finalPresentationUrl,
+                socketSessionId,
+                displayedSessionId: sessionIdRef.current,
+                deckOwnerSessionId: prev.deckOwnerSessionId ?? null,
+                finalPresentationId: prev.finalPresentationId,
+                finalPresentationUrl: prev.finalPresentationUrl,
+              });
               const newState = {
                 ...prev,
                 messages: shouldAddToMessages
-                  ? [...prev.messages, messageWithTimestamp]
+                  ? [...prev.messages, transcriptMessage]
                   : upsertActionRequest
                     ? prev.messages.map(m =>
-                        m.message_id === message.message_id ? messageWithTimestamp : m,
+                        m.message_id === message.message_id ? transcriptMessage : m,
                       )
                     : prev.messages,
               };
@@ -1977,6 +1994,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       }
                     }
                     break; // Exit early - don't process as strawman
+                  }
+
+                  if (transcriptMessage.clientOutlineReplayOf) {
+                    // Completed Director reconnects retarget the saved outline
+                    // to the final viewer. Verified replay remains historical;
+                    // it must not switch the live final deck back to strawman.
+                    newState.directorWorkflowState = prev.directorWorkflowState;
+                    newState.currentStatus = null;
+                    break;
                   }
 
                   // EXISTING: Handle regular slide_update (strawman preview)
@@ -3293,8 +3319,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
 
     const safeHistoricalMessages = historicalMessages.map(message => {
+      const cleanMessage = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string };
+      delete cleanMessage.clientOutlineReplayOf;
       const guarded = guardDirectorLayoutUrlMessage(
-        message as DirectorMessage & { payload: Record<string, any> },
+        cleanMessage as DirectorMessage & { payload: Record<string, any> },
         LAYOUT_VIEWER_URL_POLICY,
       );
       if (guarded.ingress?.status === 'blocked') {
@@ -3392,7 +3420,18 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     setStateWithCache(prev => ({
       ...prev,
-      messages: mergeDirectorChatHistory(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages),
+      messages: mergeDirectorChatHistory(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages)
+        .reduce<DirectorMessage[]>((accepted, message) => {
+          accepted.push(projectVerifiedOutlineReplay(message, accepted, {
+            isTerminal: activeVersion === 'final' && !!sessionState.finalPresentationId && !!sessionState.finalPresentationUrl,
+            socketSessionId: sessionIdRef.current,
+            displayedSessionId: historySessionId,
+            deckOwnerSessionId: restoredDeckOwnerSessionId ?? null,
+            finalPresentationId: sessionState.finalPresentationId ?? null,
+            finalPresentationUrl: sessionState.finalPresentationUrl ?? null,
+          }));
+          return accepted;
+        }, []),
       // CRITICAL FIX: Use computed display URL based on activeVersion
       // This ensures the correct presentation version is shown
       presentationUrl: displayUrl,

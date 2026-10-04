@@ -23,6 +23,7 @@ import {
 import { debugLog } from "@/lib/debug-log"
 import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/lib/director-transcript"
 import { directorHistoryTimestamp } from "@/lib/director-chat-history"
+import { coalesceOutlineStateReplays, historicalActionStatuses, type HistoricalActionStatus } from "@/lib/director-history-presentation"
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -116,6 +117,19 @@ function EvidenceBadge({ context }: { context?: SlideContextItem }) {
   )
 }
 
+function HistoricalActionCard({ message, status, studio }: { message: ActionRequest; status: HistoricalActionStatus; studio: boolean }) {
+  const questions = (message.payload as { question_set?: QuestionSet }).question_set
+  return (
+    <div data-studio-director-ask={studio ? 'history' : undefined} data-studio-director-history-action={studio ? status : undefined} data-director-action-id={message.message_id} aria-label="Earlier Director choices">
+      <p data-studio-director-part="heading" className="text-[10px] text-muted-foreground">{status === 'answered' ? 'Answered' : 'Earlier step'}</p>
+      <p data-studio-director-part="prompt" className="text-xs whitespace-pre-wrap mb-2">{message.payload.prompt_text}</p>
+      {questions?.intro && <p className="text-xs whitespace-pre-wrap">{questions.intro}</p>}
+      {questions?.questions?.map(question => <div key={question.id} className="text-xs mb-2"><p>{question.text}</p><ul>{question.suggestions?.map((suggestion, index) => <li key={index}>{suggestion.label}</li>)}</ul></div>)}
+      <div className="flex flex-wrap gap-1.5">{message.payload.actions.map((action, index) => <Button key={index} data-studio-director-option={studio ? 'action' : undefined} size="sm" variant="outline" disabled>{action.label}</Button>)}</div>
+    </div>
+  )
+}
+
 export function MessageList({
   sessionId,
   userMessages,
@@ -139,6 +153,23 @@ export function MessageList({
   suppressEphemeral,
 }: MessageListProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const historicalActions = historicalActionStatuses(messages, answeredActionsRef.current)
+  const activeActionIds = new Set(messages.filter(message => message.type === 'action_request'
+    && (!sessionId || !message.session_id || message.session_id === sessionId)
+    && !historicalActions.has(message.message_id)).map(message => message.message_id))
+  // Old card callbacks may survive a parent history transition. Validate at
+  // interaction time against render-current IDs rather than a captured list.
+  const activeActionsRef = useRef(activeActionIds)
+  activeActionsRef.current = activeActionIds
+  const onCurrentActionClick = (action: ActionRequest['payload']['actions'][0], messageId: string) => {
+    if (!activeActionsRef.current.has(messageId) || answeredActionsRef.current.has(messageId)) return
+    onActionClick(action, messageId)
+  }
+  const currentAnswerSubmit = (messageId: string) => onSubmitAnswers
+    ? (text: string, displayText?: string) => {
+        if (activeActionsRef.current.has(messageId) && !answeredActionsRef.current.has(messageId)) onSubmitAnswers(text, displayText)
+      }
+    : undefined
   const isEmptyStudioConversation = studio && userMessages.length === 0 && messages.length === 0
   // Thinking-stream fade-out: when slide_update lands, fade tracked ephemeral
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
@@ -302,7 +333,7 @@ export function MessageList({
     });
 
     // Filter out duplicate welcome messages
-    const filtered = sorted.filter((item, index) => {
+    const filtered = coalesceOutlineStateReplays(sorted).filter((item, index) => {
       if (item.messageType === 'bot') {
         const msg = item as DirectorMessage;
         if (msg.type === 'chat_message') {
@@ -569,21 +600,22 @@ export function MessageList({
                       )}
 
                       {/* Action Buttons — MDC (P2): card treatment behind CHAT_CLARITY */}
-                      {(CHAT_CLARITY || studio) && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                      {actionRequest && historicalActions.has(actionRequest.message_id) && <HistoricalActionCard message={actionRequest} status={historicalActions.get(actionRequest.message_id)!} studio={studio} />}
+                      {(CHAT_CLARITY || studio) && actionRequest && !historicalActions.has(actionRequest.message_id) && (
                         <div className="mt-3">
                           <QuestionCard
                             studio={studio}
                             promptText={actionRequest.payload.prompt_text}
                             actions={actionRequest.payload.actions}
                             messageId={actionRequest.message_id}
-                            onActionClick={onActionClick}
+                            onActionClick={onCurrentActionClick}
                             questionSet={(actionRequest.payload as { question_set?: QuestionSet }).question_set ?? null}
                             structuredEnabled={CHAT_QUESTIONS}
-                            onSubmitAnswers={onSubmitAnswers}
+                            onSubmitAnswers={currentAnswerSubmit(actionRequest.message_id)}
                           />
                         </div>
                       )}
-                      {!CHAT_CLARITY && !studio && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                      {!CHAT_CLARITY && !studio && actionRequest && !historicalActions.has(actionRequest.message_id) && (
                         <div className="mt-3">
                           <p className="text-xs text-gray-700 dark:text-slate-200 mb-2">{actionRequest.payload.prompt_text}</p>
                           <div className="flex flex-wrap gap-1.5">
@@ -592,7 +624,7 @@ export function MessageList({
                                 key={i}
                                 size="sm"
                                 variant={action.primary ? "default" : "outline"}
-                                onClick={() => onActionClick(action, actionRequest.message_id)}
+                                onClick={() => onCurrentActionClick(action, actionRequest.message_id)}
                                 className={action.primary
                                   ? "text-xs h-7 bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700 dark:bg-slate-700"
                                   : "text-xs h-7 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
@@ -719,8 +751,8 @@ export function MessageList({
                 )
               } else if (msg.type === 'action_request') {
                 const actionMsg = msg as ActionRequest
-                if (answeredActionsRef.current.has(actionMsg.message_id)) {
-                  return null
+                if (historicalActions.has(actionMsg.message_id)) {
+                  return <HistoricalActionCard message={actionMsg} status={historicalActions.get(actionMsg.message_id)!} studio={studio} />
                 }
                 if (CHAT_CLARITY || studio) {
                   return (
@@ -735,10 +767,10 @@ export function MessageList({
                           promptText={actionMsg.payload.prompt_text}
                           actions={actionMsg.payload.actions}
                           messageId={actionMsg.message_id}
-                          onActionClick={onActionClick}
+                          onActionClick={onCurrentActionClick}
                           questionSet={(actionMsg.payload as { question_set?: QuestionSet }).question_set ?? null}
                           structuredEnabled={CHAT_QUESTIONS}
-                          onSubmitAnswers={onSubmitAnswers}
+                          onSubmitAnswers={currentAnswerSubmit(actionMsg.message_id)}
                         />
                       </div>
                     </div>
@@ -758,7 +790,7 @@ export function MessageList({
                             key={i}
                             size="sm"
                             variant={action.primary ? "default" : "outline"}
-                            onClick={() => onActionClick(action, actionMsg.message_id)}
+                            onClick={() => onCurrentActionClick(action, actionMsg.message_id)}
                             className={action.primary
                               ? "text-xs h-7 bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700 dark:bg-slate-700"
                               : "text-xs h-7 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"

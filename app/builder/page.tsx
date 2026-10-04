@@ -2653,8 +2653,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const effectivePresentationUrl = useMemo(
     () => {
       if (narrationCenterStage === 'final_fill' && buildNarration.buildPresentationId) {
-        // Same /p/{id} formula the Director uses for the official URL, so the
-        // final presentation_url handoff does not remount the iframe.
+        // Keep Director's canonical /p/{id}; the viewer separately admits a
+        // completed snapshot refresh when this mounted build frame is stale.
         return getPresentationViewerUrl(buildNarration.buildPresentationId)
       }
       return withSlideComposerRefreshToken(

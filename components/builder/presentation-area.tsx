@@ -308,6 +308,17 @@ export function PresentationArea({
             presentationUrl={presentationUrl}
             presentationId={presentationId}
             slideCount={slideCount}
+            completedBuildSnapshot={
+              buildNarrationEnabled && !templateModeOn && buildNarration?.phase === 'complete'
+              && buildNarration.buildId && buildNarration.buildPresentationId === presentationId
+              && activeVersion === 'final' && presentationUrl === finalPresentationUrl
+              ? {
+                  buildId: buildNarration.buildId,
+                  presentationId: buildNarration.buildPresentationId!,
+                  slideCount: buildNarration.slideCount,
+                }
+              : null
+            }
             slideStructure={slideStructure}
             strawmanPreviewUrl={strawmanPreviewUrl}
             finalPresentationUrl={finalPresentationUrl}

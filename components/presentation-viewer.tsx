@@ -51,6 +51,12 @@ import {
 } from '@/lib/layout-viewer-messaging'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
 import {
+  buildSnapshotNavigationUrl,
+  completedBuildSnapshotKey,
+  nativeSnapshotSlideCount,
+  type CompletedBuildSnapshot,
+} from '@/lib/build-viewer-snapshot'
+import {
   isMatchingSlideComposeCommandResponse,
   restoreSlideViewerSelection,
   resolveSlideComposeViewerState,
@@ -238,6 +244,7 @@ interface PresentationViewerProps {
   presentationUrl: string
   presentationId: string | null
   slideCount: number | null
+  completedBuildSnapshot?: CompletedBuildSnapshot | null
   slideStructure?: any // SlideUpdate payload from WebSocket
   showControls?: boolean
   downloadControls?: React.ReactNode
@@ -551,6 +558,7 @@ export function PresentationViewer({
   isGenerating,
   generatingMode,
   stageChrome = null,
+  completedBuildSnapshot = null,
   sessionId,
   deckOwnerSessionId,
   templateSavePresentationId,
@@ -654,6 +662,18 @@ export function PresentationViewer({
   const pendingDiagramStatesRef = useRef<Map<string, DiagramRendererStateUpdate>>(new Map())
   const onSlideChangeRef = useRef(onSlideChange)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
+  // Native saves can race React renders. Only a trusted saved/no-pending event
+  // clears a dirty history; forceSave/getPendingChanges fallbacks do not prove it.
+  const nativeSnapshotDirtyRef = useRef(false)
+  const [nativeSnapshotSafetyRevision, setNativeSnapshotSafetyRevision] = useState(0)
+  const [buildSnapshotRevision, setBuildSnapshotRevision] = useState(0)
+  const completedSnapshotRef = useRef<string | null>(null)
+  const snapshotProbeRef = useRef<object | null>(null)
+  const snapshotSelectionRef = useRef<{ source: string; index: number; restoring?: boolean } | null>(null)
+  const [nativeReadySource, setNativeReadySource] = useState<string | null>(null)
+  const snapshotCurrentSlideRef = useRef(currentSlide)
+  snapshotCurrentSlideRef.current = currentSlide
+  const nativeSnapshotStructureEditedRef = useRef(false)
   // Delete dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [slidesToDelete, setSlidesToDelete] = useState<number[] | null>(null)
@@ -706,9 +726,8 @@ export function PresentationViewer({
   const [isGridActive, setIsGridActive] = useState(false)
   const [isBordersActive, setIsBordersActive] = useState(false)
   const approvedIframeNavigationUrl = useMemo(() => {
-    if (!approvedPresentationUrl) return null
-    return new URL(approvedPresentationUrl).toString()
-  }, [approvedPresentationUrl])
+    return buildSnapshotNavigationUrl(approvedPresentationUrl, studioShell ? buildSnapshotRevision : 0)
+  }, [approvedPresentationUrl, studioShell, buildSnapshotRevision])
   const slideMutationOwnerRef = useRef({
     presentationId: presentationId ?? null,
     source: approvedIframeNavigationUrl,
@@ -744,6 +763,12 @@ export function PresentationViewer({
     const owner = renderSlideMutationOwner
     const iframe = iframeRef.current
     const mountGeneration = slideMutationMountRef.current.generation
+    // Every structural intent (duplicate/delete/reorder/layout as well as Add)
+    // retires the injected snapshot-count proof before its native command.
+    if (studioShell && owner.presentationId && iframe
+      && slideMutationMountRef.current.active
+      && slideMutationMountRef.current.generation === mountGeneration
+      && slideMutationOwnerRef.current === owner) nativeSnapshotStructureEditedRef.current = true
     return () => {
       if (!studioShell || !owner.presentationId || !iframe ||
         !slideMutationMountRef.current.active ||
@@ -781,11 +806,78 @@ export function PresentationViewer({
   useEffect(() => {
     if (studioShell) setIsSlideMutationPending(slideMutationPendingRef.current)
   }, [studioShell, renderSlideMutationOwner])
-  const viewerIsReady = Boolean(
+  const viewerHasLoaded = Boolean(
     iframeReady &&
     approvedIframeNavigationUrl &&
     loadedApprovedNavigationUrl === approvedIframeNavigationUrl
   )
+  const viewerIsReady = viewerHasLoaded && (!studioShell
+    || snapshotSelectionRef.current?.source !== approvedIframeNavigationUrl
+    || nativeReadySource === approvedIframeNavigationUrl)
+  const snapshotSafetyRef = useRef({ isEditMode, isSaving, saveStatus, composeJobs: composeJobs.length })
+  snapshotSafetyRef.current = { isEditMode, isSaving, saveStatus, composeJobs: composeJobs.length }
+  const snapshotBaseOwnerKey = JSON.stringify([
+    approvedPresentationUrl, presentationId, sessionId, deckOwnerSessionId,
+  ])
+  useEffect(() => {
+    completedSnapshotRef.current = null
+    snapshotProbeRef.current = null
+    snapshotSelectionRef.current = null
+    nativeSnapshotDirtyRef.current = false
+    nativeSnapshotStructureEditedRef.current = false
+    setNativeReadySource(null)
+  }, [snapshotBaseOwnerKey])
+  useEffect(() => {
+    if (isEditMode) nativeSnapshotDirtyRef.current = true
+  }, [isEditMode])
+  const completedBuildKey = completedBuildSnapshotKey(completedBuildSnapshot)
+  useEffect(() => {
+    if (!studioShell || !viewerIsReady || !completedBuildKey || !completedBuildSnapshot
+      || completedSnapshotRef.current === completedBuildKey || templateModeOn
+      || activeVersion !== 'final' || !sessionId || deckOwnerSessionId !== sessionId
+      || completedBuildSnapshot.presentationId !== presentationId) return
+    const owner = renderSlideMutationOwner
+    const iframe = iframeRef.current
+    const intent = viewerInteractionIntentRef.current
+    const probe = {}
+    const isCurrentAndSafe = () => {
+      const safety = snapshotSafetyRef.current
+      return iframe && iframeRef.current === iframe && slideMutationOwnerRef.current === owner
+        && slideMutationMountRef.current.active && snapshotProbeRef.current === probe
+        && viewerInteractionIntentRef.current === intent
+        && !safety.isEditMode && !safety.isSaving && safety.saveStatus === 'saved'
+        && !safety.composeJobs && !slideMutationPendingRef.current
+        && !nativeSnapshotDirtyRef.current && !nativeSnapshotStructureEditedRef.current
+        && !pendingDiagramStatesRef.current.size
+    }
+    snapshotProbeRef.current = probe
+    if (!isCurrentAndSafe()) return
+    void (async () => {
+      try {
+        const count = nativeSnapshotSlideCount(await sendCommand(iframe, 'getSlideCount'))
+        if (!isCurrentAndSafe() || count === null) return
+        const mode = await sendCommand(iframe, 'isEditModeActive')
+        if (!isCurrentAndSafe() || mode.success !== true || mode.isEditing !== false) return
+        // Injected count is valid for this unmodified build frame. Native CRUD
+        // would make it stale and is fenced above. Equal/newer frames stay put.
+        completedSnapshotRef.current = completedBuildKey
+        if (count >= completedBuildSnapshot.slideCount) return
+        const nextRevision = buildSnapshotRevision + 1
+        const source = buildSnapshotNavigationUrl(approvedPresentationUrl, nextRevision)
+        if (!source) return
+        snapshotSelectionRef.current = { source, index: Math.max(0, snapshotCurrentSlideRef.current - 1) }
+        setBuildSnapshotRevision(nextRevision)
+      } catch {
+        // An uncertain receipt never authorizes a reload. A later native-ready
+        // or explicit safe-state transition can retry this pending build event.
+      }
+    })()
+    return () => { if (snapshotProbeRef.current === probe) snapshotProbeRef.current = null }
+  }, [studioShell, viewerIsReady, completedBuildKey, completedBuildSnapshot?.presentationId,
+    templateModeOn, activeVersion, sessionId, deckOwnerSessionId, presentationId,
+    renderSlideMutationOwner, buildSnapshotRevision, approvedPresentationUrl,
+    isEditMode, isSaving, saveStatus, isSlideMutationPending, composeJobs.length,
+    nativeSnapshotSafetyRevision, nativeReadySource])
   useEffect(() => {
     if (!studioShell || !viewerIsReady || !studioWorkflowRequest || handledWorkflowRef.current === studioWorkflowRequest.key) return
     handledWorkflowRef.current = studioWorkflowRequest.key
@@ -854,6 +946,7 @@ export function PresentationViewer({
 
   // Handle iframe load event
   const handleIframeLoad = useCallback((event: React.SyntheticEvent<HTMLIFrameElement>) => {
+    if (studioShell && event.currentTarget !== iframeRef.current) return
     const loadedUrl = event.currentTarget.src
     if (!approvedIframeNavigationUrl || loadedUrl !== approvedIframeNavigationUrl) {
       setIframeReady(false)
@@ -865,7 +958,7 @@ export function PresentationViewer({
     setIframeReady(true)
     setPollingFailureCount(0) // Reset failure count on load
     lastSlideInfoRef.current = null
-  }, [approvedIframeNavigationUrl])
+  }, [approvedIframeNavigationUrl, studioShell])
 
   // Extract slide thumbnails from slideStructure
   // Use totalSlides when: CRUD ops occurred, OR slideStructure is stale/missing
@@ -909,6 +1002,13 @@ export function PresentationViewer({
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
     debugLog('🔘 Next button clicked!')
+    if (studioShell && snapshotSelectionRef.current) {
+      const next = Math.min(Math.max(1, totalSlides || currentSlide), snapshotCurrentSlideRef.current + 1)
+      snapshotSelectionRef.current.index = next - 1
+      setCurrentSlide(next)
+      onSlideChangeRef.current?.(next)
+      return
+    }
     if (!iframeRef.current) {
       debugLog('❌ Iframe not ready')
       return
@@ -930,6 +1030,13 @@ export function PresentationViewer({
 
   const handlePrevSlide = useCallback(async () => {
     debugLog('🔘 Prev button clicked!')
+    if (studioShell && snapshotSelectionRef.current) {
+      const previous = Math.max(1, snapshotCurrentSlideRef.current - 1)
+      snapshotSelectionRef.current.index = previous - 1
+      setCurrentSlide(previous)
+      onSlideChangeRef.current?.(previous)
+      return
+    }
     debugLog(`   Current slide: ${currentSlide}, Total: ${totalSlides}`)
     debugLog(`   Button should be disabled: ${currentSlide <= 1}`)
     if (!iframeRef.current) {
@@ -1025,6 +1132,10 @@ export function PresentationViewer({
     const nextSlide = slideIndex + 1
     setCurrentSlide(nextSlide)
     onSlideChangeRef.current?.(nextSlide)
+    if (snapshotSelectionRef.current) {
+      snapshotSelectionRef.current.index = Math.max(0, slideIndex)
+      return
+    }
 
     if (!iframeRef.current) {
       debugLog('❌ Iframe not ready')
@@ -1043,7 +1154,7 @@ export function PresentationViewer({
   // Poll for slide info updates via postMessage (with exponential backoff)
   useEffect(() => {
     // Don't poll if iframe isn't ready
-    if (!viewerIsReady) {
+    if (!viewerHasLoaded) {
       debugLog('⏸️ Polling paused - iframe not ready yet')
       return
     }
@@ -1060,15 +1171,46 @@ export function PresentationViewer({
     const backoffInterval = Math.min(baseInterval * Math.pow(2, pollingFailureCount), 10000)
 
     const interval = setInterval(async () => {
-      if (!iframeRef.current || !viewerIsReady) return
+      if (!iframeRef.current || !viewerHasLoaded) return
+      const polledFrame = iframeRef.current
+      const polledOwner = renderSlideMutationOwner
 
       try {
         const hasComposeJobs = composeJobs.length > 0
         const result = hasComposeJobs
-          ? await sendCommand(iframeRef.current, 'composeGetState')
-          : await sendCommand(iframeRef.current, 'getCurrentSlideInfo')
+          ? await sendCommand(polledFrame, 'composeGetState')
+          : await sendCommand(polledFrame, 'getCurrentSlideInfo')
+        if (iframeRef.current !== polledFrame || slideMutationOwnerRef.current !== polledOwner) return
         if (result.success && (result.data || hasComposeJobs)) {
           const data = result.data ?? result
+          const pendingSelection = snapshotSelectionRef.current
+          if (pendingSelection && pendingSelection.source === approvedIframeNavigationUrl
+            && iframeRef.current && resolveSlideViewerNavigationInfo(result)) {
+            if (pendingSelection.restoring) return
+            pendingSelection.restoring = true
+            try {
+              const frame = iframeRef.current
+              const info = resolveSlideViewerNavigationInfo(result)!
+              const requestedIndex = pendingSelection.index
+              const target = Math.min(requestedIndex, info.totalSlides - 1)
+              await sendCommand(frame, 'goToSlide', { index: target })
+              if (iframeRef.current !== frame || slideMutationOwnerRef.current !== polledOwner) return
+              const observed = resolveSlideViewerNavigationInfo(await sendCommand(frame, 'getCurrentSlideInfo'))
+              if (iframeRef.current !== frame || slideMutationOwnerRef.current !== polledOwner
+                || snapshotSelectionRef.current !== pendingSelection || pendingSelection.index !== requestedIndex
+                || observed?.currentVisualIndex !== target) return
+              snapshotSelectionRef.current = null
+              if (isGridActive) postCommand(frame, 'showGridOverlay')
+              if (isBordersActive) postCommand(frame, 'showBorderHighlight')
+              setCurrentSlide(target + 1)
+              onSlideChangeRef.current?.(target + 1)
+              setNativeReadySource(approvedIframeNavigationUrl)
+              return
+            } finally {
+              pendingSelection.restoring = false
+            }
+          }
+          if (studioShell && resolveSlideViewerNavigationInfo(result)) setNativeReadySource(approvedIframeNavigationUrl)
           const verifiedMinimumTotal = Math.max(0, totalSlides || 0, slideCount || 0)
           const {
             currentVisualIndex,
@@ -1104,7 +1246,8 @@ export function PresentationViewer({
     }, backoffInterval)
 
     return () => clearInterval(interval)
-  }, [composeJobs.length, pollingFailureCount, slideCount, totalSlides, viewerIsReady])
+  }, [composeJobs.length, pollingFailureCount, slideCount, totalSlides, viewerHasLoaded,
+    approvedIframeNavigationUrl, renderSlideMutationOwner, isGridActive, isBordersActive])
 
   // Force save handler (for Ctrl+S and retry on error)
   // IMPORTANT: Must be declared BEFORE the keyboard shortcuts useEffect that references it
@@ -1297,6 +1440,7 @@ export function PresentationViewer({
     )
     if (studioShell) slideMutationRequestRef.current = request
     slideMutationPendingRef.current = true
+    if (studioShell) nativeSnapshotStructureEditedRef.current = true
     setIsSlideMutationPending(true)
     let committedSlideNumber: number | null = null
     try {
@@ -2180,6 +2324,7 @@ export function PresentationViewer({
   }, [presentationId, currentSlide, triggerIframeRefresh])
 
   const handleComposePlaceholderAdd = useCallback((jobId: string, visualIndex: number, replaceJobId?: string) => {
+    if (studioShell && iframeRef.current) nativeSnapshotStructureEditedRef.current = true
     return sendCommand(
       iframeRef.current,
       'composePlaceholderAdd',
@@ -2198,6 +2343,7 @@ export function PresentationViewer({
     realSlideId?: string | null,
     targetPresentationId?: string | null,
   ) => {
+    if (studioShell && iframeRef.current) nativeSnapshotStructureEditedRef.current = true
     return sendCommand(
       iframeRef.current,
       'composeSlideReconcile',
@@ -2257,6 +2403,7 @@ export function PresentationViewer({
     realSlideId: string,
     targetPresentationId?: string | null,
   ) => {
+    if (studioShell && iframeRef.current) nativeSnapshotStructureEditedRef.current = true
     return sendCommand(
       iframeRef.current,
       'refineSlideReconcile',
@@ -2619,6 +2766,10 @@ export function PresentationViewer({
       // Handle save status updates from auto-save system
       if (type === 'save_status' || type === 'saveStatusChanged') {
         const status = event.data.status as SaveStatus
+        if (!['saved', 'unsaved', 'saving', 'error'].includes(status)) return
+        if (status !== 'saved') nativeSnapshotDirtyRef.current = true
+        else if (event.data.hasPendingChanges === false) nativeSnapshotDirtyRef.current = false
+        setNativeSnapshotSafetyRevision(value => value + 1)
         setSaveStatus(status)
         debugLog(`💾 Save status: ${status}`)
       }
