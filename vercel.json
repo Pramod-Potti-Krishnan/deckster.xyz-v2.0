@@ -2,8 +2,10 @@
   "framework": "nextjs",
   "buildCommand": "pnpm build",
   "devCommand": "pnpm dev",
-  "installCommand": "pnpm install",
-  "regions": ["iad1"],
+  "installCommand": "pnpm install --frozen-lockfile",
+  "regions": [
+    "iad1"
+  ],
   "functions": {
     "app/api/knowledge-graph/backfill/route.ts": {
       "maxDuration": 300
@@ -12,12 +14,7 @@
       "maxDuration": 30
     }
   },
-  "crons": [
-    {
-      "path": "/api/admin/cleanup-sessions",
-      "schedule": "0 2 * * *"
-    }
-  ],
+  "crons": [],
   "redirects": [
     {
       "source": "/slides",
