@@ -102,6 +102,11 @@ export const V3_CONTENT = {
     /** The hero film: the whole product loop in ~13 s, every step live in production today. */
     film: {
       steps: ["Brief", "Plan", "Build", "Refine", "Publish", "Present"],
+      introKicker: "Deckster in one take",
+      introTitle: "Watch one deck go from a brief to an audience.",
+      introSub: "You stay in charge at every step.",
+      outroTitle: "One brief. Your yes. A deck that presents itself.",
+      outroPoints: ["You approved the plan", "You refined the chart", "It presents and answers questions · beta"],
       brief: "Build a 16-slide operating-model review from my Q3 board pack.",
       files: ["Q3 board pack.pptx", "Throughput.xlsx"],
       planWho: "Director",

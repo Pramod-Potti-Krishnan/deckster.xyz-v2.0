@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 
 export interface HeroFilmCopy {
   steps: readonly string[]
+  introKicker: string
+  introTitle: string
+  introSub: string
+  outroTitle: string
+  outroPoints: readonly string[]
   brief: string
   files: readonly string[]
   planWho: string
@@ -65,6 +70,7 @@ export function HeroFilm({ copy, tiles, target, youLabel, statusWord, betaWord }
   const [waterfall, setWaterfall] = useState(true)
   const [published, setPublished] = useState(true)
   const [qa, setQa] = useState(0) // 0 none, 1 question, 2 answer
+  const [card, setCard] = useState<"intro" | "outro" | null>(null)
 
   useEffect(() => {
     const frame = frameRef.current
@@ -81,7 +87,7 @@ export function HeroFilm({ copy, tiles, target, youLabel, statusWord, betaWord }
 
   const reset = useCallback(() => {
     setScene(0); setBrief(""); setFiles(0); setApproved(false); setBuilt(0)
-    setCamera("deck"); setRequest(""); setAgent("hidden"); setWaterfall(false); setPublished(false); setQa(0)
+    setCamera("deck"); setRequest(""); setAgent("hidden"); setWaterfall(false); setPublished(false); setQa(0); setCard(null)
   }, [])
 
   useEffect(() => {
@@ -95,47 +101,54 @@ export function HeroFilm({ copy, tiles, target, youLabel, statusWord, betaWord }
       for (let i = 1; i <= text.length && !cancelled; i++) { set(text.slice(0, i)); await wait(speed) }
     }
     const run = async () => {
-      await wait(700)
       while (!cancelled) {
         if (!visible) { await wait(300); continue }
         reset()
-        await wait(500)
-        await type(copy.brief, setBrief, 24)
-        for (let i = 1; i <= copy.files.length; i++) { await wait(320); setFiles(i) }
+        // intro: what you are about to watch
+        setCard("intro")
+        await wait(3600)
+        setCard(null)
         await wait(700)
+        await type(copy.brief, setBrief, 42)
+        for (let i = 1; i <= copy.files.length; i++) { await wait(550); setFiles(i) }
+        await wait(1300)
         setScene(1)
-        await wait(1500)
+        await wait(2600)
         setApproved(true)
-        await wait(800)
+        await wait(1400)
         setScene(2)
-        for (let i = 1; i <= 9; i++) { await wait(170); setBuilt(i) }
-        await wait(900)
+        for (let i = 1; i <= 9; i++) { await wait(280); setBuilt(i) }
+        await wait(1600)
         setScene(3)
         setCamera("slide")
-        await wait(1700)
+        await wait(2600)
         setCamera("element")
-        await wait(1300)
-        await type(copy.request, setRequest, 34)
-        await wait(250)
+        await wait(2200)
+        await type(copy.request, setRequest, 58)
+        await wait(500)
         setAgent("working")
-        await wait(1200)
+        await wait(1900)
         setWaterfall(true)
         setAgent("done")
-        await wait(2600)
+        await wait(3800)
         setScene(4)
         setAgent("hidden")
         setCamera("deck")
-        await wait(1200)
+        await wait(2000)
         setPublished(true)
-        await wait(2200)
+        await wait(3200)
         // the published deck presents itself and takes a question (beta)
         setScene(5)
         setCamera("present")
-        await wait(1900)
+        await wait(2800)
         setQa(1)
-        await wait(1500)
+        await wait(2400)
         setQa(2)
-        await wait(3600)
+        await wait(4800)
+        // conclusion: what just happened
+        setCamera("deck")
+        setCard("outro")
+        await wait(5200)
       }
     }
     void run()
@@ -154,7 +167,7 @@ export function HeroFilm({ copy, tiles, target, youLabel, statusWord, betaWord }
   const tileFor = (index: number) => (index === 4 ? null : tiles[index < 4 ? index : index - 1])
 
   return (
-    <div className="film" ref={rootRef} data-reveal style={{ "--d": 2 } as CSSProperties} data-alt={camera} data-scene={scene}>
+    <div className="film" ref={rootRef} data-reveal style={{ "--d": 2 } as CSSProperties} data-alt={camera} data-scene={scene} data-card={card ?? undefined}>
       <div className="film__frame" ref={frameRef}>
         <div className="film__world" style={worldStyle}>
           {Array.from({ length: 9 }, (_, index) => {
@@ -210,12 +223,23 @@ export function HeroFilm({ copy, tiles, target, youLabel, statusWord, betaWord }
           </div>
         </div>
 
+        <div className={`film__card${card === "intro" ? " is-on" : ""}`} aria-hidden={card !== "intro"}>
+          <svg className="film__logo" aria-hidden="true"><use href="#logo" /></svg>
+          <span className="film__kicker">{copy.introKicker}</span>
+          <b className="film__title">{copy.introTitle}</b>
+          <span className="film__sub">{copy.introSub}</span>
+        </div>
+        <div className={`film__card film__card--outro${card === "outro" ? " is-on" : ""}`} aria-hidden={card !== "outro"}>
+          <b className="film__title">{copy.outroTitle}</b>
+          <ul className="film__points">{copy.outroPoints.map((point, i) => <li key={point} style={{ ["--i" as string]: i }}>{point}</li>)}</ul>
+        </div>
+
         <div className={`film__link${published && scene === 4 ? " is-on" : ""}`}>
           <span className="dots-3" aria-hidden="true"><i /><i /><i /></span>{copy.url}<span className="st st--live st--sm">{statusWord}</span>
         </div>
       </div>
       <ol className="film__steps" aria-label="How Deckster works">
-        {copy.steps.map((step, index) => <li key={step} className={index === scene ? "is-on" : index < scene ? "is-done" : undefined}>{step}</li>)}
+        {copy.steps.map((step, index) => <li key={step} className={card === "outro" ? "is-done" : card === "intro" ? undefined : index === scene ? "is-on" : index < scene ? "is-done" : undefined}>{step}</li>)}
       </ol>
     </div>
   )
