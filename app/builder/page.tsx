@@ -61,6 +61,9 @@ import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { StudioDirectorHeader } from '@/components/builder/chat/studio-director-header'
+import { DirectorCallEntry, DirectorCallPanel } from '@/components/builder/voice-interactive/director-call'
+import { useDirectorCall } from '@/components/builder/voice-interactive/use-director-call'
+import { STUDIO_VOICE_INTERACTIVE_ENABLED, latestDirectorReply, latestPendingAsk } from '@/lib/studio-voice-interactive'
 import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
 import { TemplateIngestReviewCards } from '@/components/template-ingest-review-cards'
 import { INGEST_INTENT_KEY_PREFIX, type IngestIntentPayload } from '@/components/template-ingest-dialog'
@@ -1161,6 +1164,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const blankElements = useBlankElements()
 
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const voiceInteractive = STUDIO_VOICE_INTERACTIVE_ENABLED
   const workspaceRef = useRef<HTMLDivElement>(null)
   const [workspaceWidth, setWorkspaceWidth] = useState(1100)
   const [workspaceInnerWidth, setWorkspaceInnerWidth] = useState(1100)
@@ -2675,6 +2679,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     studioSlideComposeCountsRef.current[effectivePresentationId] = effectiveSlideCount
   }
 
+  // Studio v4 Director voice / interactive call (default-off build flag). Shares this
+  // conversation's session, messages, composer and send path; owns no transport.
+  const directorCall = useDirectorCall({
+    enabled: voiceInteractive,
+    messages,
+    scope: [user?.id ?? user?.email, currentSessionId || wsSessionId, presentationId],
+    focusComposer: () => textareaRef.current?.focus(),
+  })
   const studioWelcome = studioShell && !blankPlaceholderDismissed && !isGeneratingFinal && !isGeneratingStrawman
     && (!effectivePresentationUrl || (isBlankPresentation && !(slideStructure?.slides ?? []).length))
   const workspaceLayout = allocateStudioWorkspace({
@@ -5647,7 +5659,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             >
               {showChat && (
                 <>
-                  {studioShell && <StudioDirectorHeader connectionState={connectionState} isLoadingSession={session.isLoadingSession} />}
+                  {studioShell && <StudioDirectorHeader connectionState={connectionState} isLoadingSession={session.isLoadingSession} actions={voiceInteractive ? <DirectorCallEntry call={directorCall} disabled={session.isLoadingSession} /> : undefined} />}
+                  {voiceInteractive && (
+                    <DirectorCallPanel
+                      call={directorCall}
+                      awaitingReply={awaitingDirectorReply}
+                      building={isGeneratingFinal || isGeneratingStrawman}
+                      latestDirectorText={latestDirectorReply(messages)?.text ?? null}
+                      latestUserText={session.userMessages[session.userMessages.length - 1]?.text ?? null}
+                      pendingAsk={latestPendingAsk(messages, session.answeredActionsRef.current)}
+                      focusComposer={() => textareaRef.current?.focus()}
+                    />
+                  )}
                   <TokenUsageStrip
                     displayMode={studioShell ? "warning" : "all"}
                     tokenUsage={tokenUsage}
