@@ -838,3 +838,7 @@ html.mv3-on-paper .v3-spot{opacity:0}
 .mv3 .film__points li::before{content:"✓ ";color:var(--st-live)}
 .mv3 .film__card.is-on .film__points li{opacity:1;transform:none}
 .mv3 .film[data-card="outro"] .film__present,.mv3 .film[data-card="outro"] .film__agent,.mv3 .film[data-card="outro"] .film__you{opacity:0}
+/* wordmark (logo L-B): solid display type instead of gradient text */
+.mv3 .wm{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--snow);font-weight:700;font-size:21px;letter-spacing:-.04em;font-variation-settings:"opsz" 60}
+.mv3 .hdr.is-light .wm,.mv3 .slide--paper .wm{background:none;color:var(--ink)}
+.mv3 .hdr__logo{gap:8px}
