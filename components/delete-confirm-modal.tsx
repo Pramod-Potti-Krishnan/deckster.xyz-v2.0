@@ -16,10 +16,11 @@ interface DeleteConfirmModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
-  title?: string
+  title?: string | null
   sessionTitles?: string[]
   isDeleting?: boolean
   deletionProgress?: { current: number; total: number }
+  studioSurface?: 'session-history'
 }
 
 export function DeleteConfirmModal({
@@ -29,7 +30,8 @@ export function DeleteConfirmModal({
   title,
   sessionTitles = [],
   isDeleting = false,
-  deletionProgress
+  deletionProgress,
+  studioSurface
 }: DeleteConfirmModalProps) {
   const count = sessionTitles.length
   const isBulk = count > 1
@@ -45,7 +47,7 @@ export function DeleteConfirmModal({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-md">
+      <AlertDialogContent data-studio-session-dialog={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? studioSurface : undefined} className="max-w-md">
         <AlertDialogHeader>
           <div className="flex items-start gap-3">
             <div className="rounded-full bg-red-100 dark:bg-red-900/20 p-2">

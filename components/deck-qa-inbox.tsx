@@ -36,6 +36,10 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 
+import './studio-qa-inbox.css'
+
+const STUDIO_QA_INBOX = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 interface DeckQuestion {
   id: string
   question: string
@@ -150,15 +154,15 @@ function QuestionRow({
   }, [call, draft, item.aiAnswer, item.ownerAnswer, toast])
 
   return (
-    <div className="rounded-md border border-gray-200 px-3 py-2 dark:border-slate-700">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{item.question}</p>
-        <span className="flex-shrink-0 whitespace-nowrap text-[11px] text-slate-400">
+    <div className="studio-qa-question rounded-md border border-gray-200 px-3 py-2 dark:border-slate-700" data-question-status={STUDIO_QA_INBOX ? answered ? 'answered' : isBlocked ? 'blocked' : isDeferred ? 'deferred' : 'automatic' : undefined} aria-busy={STUDIO_QA_INBOX ? busy !== null : undefined}>
+      <div className="studio-qa-question-top flex items-start justify-between gap-2">
+        <p id={STUDIO_QA_INBOX ? `studio-qa-question-${item.id}` : undefined} className="studio-qa-question-title text-sm font-medium text-slate-800 dark:text-slate-100">{item.question}</p>
+        <span className="studio-qa-question-time flex-shrink-0 whitespace-nowrap text-[11px] text-slate-400">
           {relativeTime(item.createdAt)}
         </span>
       </div>
 
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+      <div className="studio-qa-question-meta mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
         {answered ? (
           <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
             <Check className="h-3 w-3" /> You answered
@@ -185,27 +189,29 @@ function QuestionRow({
       {/* The machine's text is labelled as a DRAFT wherever the owner has not
           answered, so nothing reads as the publisher speaking until they say so. */}
       {item.aiAnswer && !answered && (
-        <p className="mt-1.5 border-l-2 border-slate-200 pl-2 text-xs italic text-slate-500 dark:border-slate-600 dark:text-slate-400">
+        <p className="studio-qa-question-draft mt-1.5 border-l-2 border-slate-200 pl-2 text-xs italic text-slate-500 dark:border-slate-600 dark:text-slate-400">
           {item.aiAnswer}
         </p>
       )}
       {answered && (
-        <p className="mt-1.5 border-l-2 border-emerald-300 pl-2 text-xs text-slate-600 dark:border-emerald-700 dark:text-slate-300">
+        <p className="studio-qa-question-answer mt-1.5 border-l-2 border-emerald-300 pl-2 text-xs text-slate-600 dark:border-emerald-700 dark:text-slate-300">
           {item.ownerAnswer}
         </p>
       )}
 
       {open && (
-        <div className="mt-2 space-y-1.5">
+        <div className="studio-qa-question-editor mt-2 space-y-1.5">
           <Textarea
+            aria-label={STUDIO_QA_INBOX ? 'Your answer' : undefined}
+            aria-describedby={STUDIO_QA_INBOX ? `studio-qa-question-${item.id}` : undefined}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Your answer — this is what the asker sees, in your name…"
             className="min-h-[70px] resize-none text-sm"
             autoFocus
           />
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={sendAnswer} disabled={busy !== null || !draft.trim()}>
+          <div className="studio-qa-question-actions flex items-center gap-2">
+            <Button size="sm" className="studio-qa-answer-send" onClick={sendAnswer} disabled={busy !== null || !draft.trim()}>
               {busy === 'answer' ? (
                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
               ) : (
@@ -231,8 +237,8 @@ function QuestionRow({
       )}
 
       {!open && !isBlocked && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <Button size="sm" variant="outline" onClick={() => setOpen(true)} disabled={busy !== null}>
+        <div className="studio-qa-question-actions mt-2 flex flex-wrap items-center gap-1.5">
+          <Button size="sm" variant="outline" className="studio-qa-answer-open" onClick={() => setOpen(true)} disabled={busy !== null}>
             {answered ? 'Edit answer' : 'Answer'}
           </Button>
           <Button size="sm" variant="ghost" onClick={promote} disabled={busy !== null}>
@@ -244,7 +250,7 @@ function QuestionRow({
           <Button
             size="sm"
             variant="ghost"
-            className="text-slate-400 hover:text-red-600"
+            className="studio-qa-block text-slate-400 hover:text-red-600"
             onClick={() => void call('block', '/block', {}, 'Blocked')}
             disabled={busy !== null}
           >
@@ -321,15 +327,31 @@ export function DeckQaInbox({
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-slate-400">
+      <div className="studio-qa-inbox-notice flex h-full items-center justify-center text-xs text-slate-400" data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX} role={STUDIO_QA_INBOX ? 'status' : undefined}>
         <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading questions…
+      </div>
+    )
+  }
+
+  if (STUDIO_QA_INBOX && !slug && error) {
+    return (
+      <div className="studio-qa-inbox-read-error flex h-full flex-col items-center justify-center text-center"
+        data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX} data-studio-qa-inbox-error="true">
+        <div role="alert">
+          <strong>Questions could not be loaded</strong>
+          <p>{error}</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" data-studio-qa-inbox-retry="true"
+          onClick={() => { setLoading(true); void load() }}>
+          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Retry questions
+        </Button>
       </div>
     )
   }
 
   if (!slug) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-xs text-slate-400">
+      <div className="studio-qa-inbox-notice flex h-full flex-col items-center justify-center gap-1 text-center text-xs text-slate-400" data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX}>
         <MessageSquare className="h-4 w-4" />
         <p>Publish this deck to start collecting questions from viewers.</p>
       </div>
@@ -338,16 +360,16 @@ export function DeckQaInbox({
 
   if (state && !state.qaEnabled) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-xs text-slate-400">
+      <div className="studio-qa-inbox-notice flex h-full flex-col items-center justify-center gap-1 text-center text-xs text-slate-400" data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX}>
         <MessageSquare className="h-4 w-4" />
-        <p>Q&amp;A is off for this deck. Turn it on under Publish → Q&amp;A.</p>
+        <p>{STUDIO_QA_INBOX ? 'Questions are off for this deck. Turn them on under Publish → Sharing.' : 'Q&A is off for this deck. Turn it on under Publish → Q&A.'}</p>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-shrink-0 items-center justify-between pb-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+    <div className="flex h-full flex-col" data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX}>
+      <div className="studio-qa-inbox-heading flex flex-shrink-0 items-center justify-between pb-1.5 text-[11px] text-slate-500 dark:text-slate-400">
         <span>
           {waiting > 0
             ? `${waiting} waiting on you`
@@ -364,11 +386,11 @@ export function DeckQaInbox({
         </button>
       </div>
 
-      {error && <p className="pb-1.5 text-xs text-amber-600 dark:text-amber-400">{error}</p>}
+      {error && <p role={STUDIO_QA_INBOX ? 'alert' : undefined} className="studio-qa-inbox-error pb-1.5 text-xs text-amber-600 dark:text-amber-400">{error}</p>}
 
-      <div className="flex-1 space-y-1.5 overflow-y-auto pr-1">
+      <div className="studio-qa-inbox-list flex-1 space-y-1.5 overflow-y-auto pr-1">
         {questions.length === 0 && !error && (
-          <p className="pt-6 text-center text-xs text-slate-400">
+          <p className="studio-qa-inbox-empty pt-6 text-center text-xs text-slate-400">
             Questions your viewers ask will appear here.
           </p>
         )}

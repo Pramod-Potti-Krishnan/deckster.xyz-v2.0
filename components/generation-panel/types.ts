@@ -74,6 +74,14 @@ export interface GenerationPanelProps {
 }
 
 export interface GenerationPanelDraft {
+  textBoxControls?: import('./forms/text-box-form').TextBoxControlsDraft
+  metricsControls?: import('./forms/metrics-form').MetricsControlsDraft
+  chartSections?: { options: boolean; position: boolean }
+  imageGeometry?: import('./forms/image-form').ImageGeometryDraft
+  shapeControls?: import('./forms/shape-form').ShapeControlsDraft
+  iconLabelControls?: import('./forms/icon-label-form').IconLabelControlsDraft
+  infographicControls?: import('./forms/infographic-form').InfographicControlsDraft
+  diagramControls?: import('./forms/diagram-form').DiagramControlsDraft
   prompt?: string
   showAdvanced?: boolean
   formData?: TextLabsFormData | null

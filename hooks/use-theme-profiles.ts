@@ -28,6 +28,7 @@ export function useThemeProfiles() {
       const res = await fetch('/api/themes', { cache: 'no-store' })
       if (!res.ok) throw new Error(`list failed: HTTP ${res.status}`)
       const data = await res.json()
+      if (data.error) throw new Error(String(data.error))
       return { themes: data.themes ?? [], count: data.count ?? 0 }
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)))
@@ -42,10 +43,12 @@ export function useThemeProfiles() {
     setError(null)
     try {
       const res = await fetch('/api/themes/standard', { cache: 'no-store' })
-      if (!res.ok) return null
+      if (!res.ok) throw new Error(`standard failed: HTTP ${res.status}`)
       const data = await res.json()
+      if (data.error) throw new Error(String(data.error))
       return data.theme as SavedThemeProfile | null
-    } catch {
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)))
       return null
     } finally {
       setLoading(false)

@@ -1,0 +1,50 @@
+/* Native build state and event copy remain owned by the narration components. */
+[data-studio-v4-shell="true"] :is([data-studio-build-ribbon="true"],[data-studio-build-footer="true"],[data-studio-build-context="true"],[data-studio-build-dots="true"]) {
+  --studio-build-error: #a04742;
+  --studio-build-warning: #8b612d;
+  color: var(--ss-text);
+}
+.dark [data-studio-v4-shell="true"] :is([data-studio-build-ribbon="true"],[data-studio-build-footer="true"],[data-studio-build-context="true"],[data-studio-build-dots="true"]) {
+  --studio-build-error: #efa5a0;
+  --studio-build-warning: #deba83;
+}
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] { flex-wrap: wrap; gap: 8px 12px; padding: 9px 16px; background: var(--ss-panel); border-bottom: 1px solid var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] [data-studio-build-part="summary"] { flex: 1 1 320px; flex-wrap: wrap; gap: 6px 10px; }
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] [data-studio-build-part="headline"] { flex: 1 1 140px; }
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] [data-studio-build-part="headline"] p { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.45; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] [data-studio-build-part="headline"] > p { margin-top: 3px; }
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] [data-studio-build-part="icon"] { color: var(--ss-accent); background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"][data-studio-build-phase="error"] :is([data-studio-build-part="icon"],[data-studio-build-part="headline"] p) { color: var(--studio-build-error); }
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] :is([data-studio-build-part="elapsed"],[data-studio-build-part="count"]) { flex-shrink: 0; color: var(--ss-muted); font-size: 11px; }
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] [data-testid="bn-controls"] { flex-shrink: 0; flex-wrap: wrap; }
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] button { min-height: 28px; color: var(--ss-text); background: var(--ss-surface); border: 1px solid var(--ss-line); border-radius: 6px; }
+[data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] button:hover:not(:disabled) { color: var(--ss-accent); background: var(--ss-active); }
+[data-studio-v4-shell="true"] :is([data-studio-build-ribbon="true"] button,[data-studio-build-footer="true"]):focus-visible { outline: 2px solid var(--ss-accent); outline-offset: -2px; }
+[data-studio-v4-shell="true"] [data-studio-build-footer="true"] { max-height: min(160px, 26dvh); padding: 7px 16px 8px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; background: var(--ss-panel); border-top: 1px solid var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-build-footer="true"] [data-studio-build-part="slide-update"] { flex-wrap: wrap; gap: 5px 10px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-build-footer="true"] :is(li,.truncate) { color: var(--ss-muted); line-height: 1.45; }
+[data-studio-v4-shell="true"] [data-studio-build-footer="true"] .truncate { min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-build-footer="true"] li { flex-wrap: wrap; row-gap: 0; }
+[data-studio-v4-shell="true"] [data-studio-build-footer="true"] li > span:nth-child(2) { flex: 1 1 140px; }
+[data-studio-v4-shell="true"] [data-studio-build-footer="true"] li > span:nth-child(3) { flex: 1 1 140px; font-size: 11px; }
+[data-studio-v4-shell="true"] [data-studio-build-footer="true"] li:last-child > span:nth-child(2) { color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-build-footer="true"] li > span:first-child { color: var(--ss-accent); }
+[data-studio-v4-shell="true"] [data-studio-build-footer="true"] li.text-destructive > span { color: var(--studio-build-error); }
+[data-studio-v4-shell="true"] [data-studio-build-dots="true"] { flex-wrap: wrap; gap: 5px 10px; }
+[data-studio-v4-shell="true"] [data-studio-build-dot-state] > span:first-child > span { background: var(--ss-accent); }
+[data-studio-v4-shell="true"] [data-studio-build-dot-state="idle"] > span:first-child > span { background: var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-build-dot-state="done"] > span:first-child > span { background: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-build-dot-state="error"] > span:first-child > span { background: var(--studio-build-error); }
+[data-studio-v4-shell="true"] [data-studio-build-dot-state] > span:last-child { color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-build-dot-state="idle"] > span:last-child { color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-build-context="true"] { flex-wrap: wrap; gap: 5px 8px; margin-top: 3px; background: var(--ss-surface); border-color: var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-build-context="true"] > span:first-child { color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-build-part="research-role"] { max-width: 100%; overflow-wrap: anywhere; color: var(--ss-accent); background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-build-part="research-message"] { flex: 1 1 160px; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-build-evidence] { max-width: 100%; flex-wrap: wrap; overflow-wrap: anywhere; border-color: var(--ss-line); background: var(--ss-panel); color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-build-evidence="ready"] { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-build-evidence="issues"] { color: var(--studio-build-warning); }
+@container studio-canvas (max-width: 560px) {
+  [data-studio-v4-shell="true"] [data-studio-build-ribbon="true"] { padding-inline: 10px; }
+  [data-studio-v4-shell="true"] [data-studio-build-footer="true"] { padding-inline: 10px; }
+}

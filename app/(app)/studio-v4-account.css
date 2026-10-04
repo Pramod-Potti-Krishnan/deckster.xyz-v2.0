@@ -1,0 +1,117 @@
+/* S1.4: opt-in account frame and AccessState colors only. No geometry or motion. */
+[data-studio-v4-account="true"] {
+  --sa-panel: #ffffff;
+  --sa-canvas: #f5f7f6;
+  --sa-soft: #edf2f0;
+  --sa-line: #dde5e2;
+  --sa-text: #243438;
+  --sa-muted: #566965;
+  --sa-accent: #6a4fc0;
+  --sa-accent-soft: #f1edfb;
+  --sa-on-accent: #ffffff;
+  --sa-teal: #1f6f72;
+  --sa-teal-soft: #e8f2f0;
+  --sa-teal-line: #c9e0dc;
+  --sa-danger: #b03f35;
+  --sa-danger-soft: #fbefed;
+  background-color: var(--sa-canvas);
+}
+.dark [data-studio-v4-account="true"] {
+  --sa-panel: #1b2426;
+  --sa-canvas: #222d30;
+  --sa-soft: #243034;
+  --sa-line: #334245;
+  --sa-text: #e2ebe8;
+  --sa-muted: #a0b1ad;
+  --sa-accent: #b4a0f2;
+  --sa-accent-soft: #2a2540;
+  --sa-on-accent: #141c1e;
+  --sa-teal: #83c4bd;
+  --sa-teal-soft: #1d3634;
+  --sa-teal-line: #2e5450;
+  --sa-danger: #ef9a8f;
+  --sa-danger-soft: #3b2927;
+  background-color: var(--sa-canvas);
+}
+[data-studio-v4-account="true"] [data-studio-v4-account-header] {
+  background-color: var(--sa-panel);
+  border-color: var(--sa-line);
+}
+[data-studio-v4-account="true"] [data-studio-v4-account-nav] {
+  color: var(--sa-muted);
+  background-color: transparent;
+}
+[data-studio-v4-account="true"] [data-studio-v4-account-nav]:hover {
+  color: var(--sa-text);
+  background-color: var(--sa-soft);
+}
+[data-studio-v4-account="true"] [data-studio-v4-account-nav][aria-current="page"] {
+  color: var(--sa-teal);
+  background-color: var(--sa-teal-soft);
+}
+[data-studio-v4-account="true"] [data-studio-v4-account-return] {
+  color: var(--sa-accent);
+  background-color: var(--sa-accent-soft);
+}
+[data-studio-v4-account="true"] [data-studio-v4-account-return]:hover {
+  background-color: var(--sa-soft);
+}
+[data-studio-v4-account="true"] [data-studio-v4-access-role="card"] {
+  background-color: var(--sa-panel);
+  border-color: var(--sa-line);
+  box-shadow: 0 12px 32px rgb(36 52 56 / 8%);
+}
+[data-studio-v4-account="true"] [data-studio-v4-access-role="wash"] {
+  background-image: radial-gradient(circle at 20% 0%, rgb(106 79 192 / 5%), transparent 38%),
+    radial-gradient(circle at 90% 85%, rgb(31 111 114 / 7%), transparent 35%);
+}
+.dark [data-studio-v4-account="true"] [data-studio-v4-access-role="card"] {
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+}
+.dark [data-studio-v4-account="true"] [data-studio-v4-access-role="wash"] {
+  background-image: radial-gradient(circle at 20% 0%, rgb(180 160 242 / 9%), transparent 38%),
+    radial-gradient(circle at 90% 85%, rgb(131 196 189 / 12%), transparent 35%);
+}
+[data-studio-v4-account="true"] [data-studio-v4-access-role="heading"] {
+  color: var(--sa-text);
+}
+[data-studio-v4-account="true"] [data-studio-v4-access-role="body"] {
+  color: var(--sa-muted);
+}
+[data-studio-v4-account="true"] :is([data-studio-v4-access-role="caption"], [data-studio-v4-access-role="icon"]) {
+  color: var(--sa-teal);
+}
+[data-studio-v4-account="true"] [data-studio-v4-access-role="icon"] {
+  background-color: var(--sa-teal-soft);
+  border-color: var(--sa-teal-line);
+}
+[data-studio-v4-account="true"] [data-studio-v4-access="loading"] [data-studio-v4-access-role="icon"] {
+  color: var(--sa-accent);
+  background-color: var(--sa-accent-soft);
+  border-color: var(--sa-line);
+}
+[data-studio-v4-account="true"] [data-studio-v4-access="unavailable"] [data-studio-v4-access-role="icon"] {
+  color: var(--sa-danger);
+  background-color: var(--sa-danger-soft);
+  border-color: var(--sa-line);
+}
+[data-studio-v4-account="true"] [data-studio-v4-access-role="primary"] {
+  color: var(--sa-on-accent);
+  background-color: var(--sa-accent);
+}
+[data-studio-v4-account="true"] [data-studio-v4-access-role="primary"]:hover {
+  background-color: color-mix(in srgb, var(--sa-accent) 90%, var(--sa-panel));
+}
+[data-studio-v4-account="true"] [data-studio-v4-access-role="secondary"] {
+  color: var(--sa-teal);
+  background-color: var(--sa-teal-soft);
+  border-color: var(--sa-teal-line);
+}
+[data-studio-v4-account="true"] [data-studio-v4-access-role="secondary"]:hover {
+  background-color: var(--sa-soft);
+}
+[data-studio-v4-account="true"] :is([data-studio-v4-account-home], [data-studio-v4-account-nav], [data-studio-v4-account-return], [data-studio-v4-access-role="primary"], [data-studio-v4-access-role="secondary"]):focus-visible {
+  outline: 2px solid var(--sa-accent);
+  outline-offset: 2px;
+  box-shadow: none;
+}

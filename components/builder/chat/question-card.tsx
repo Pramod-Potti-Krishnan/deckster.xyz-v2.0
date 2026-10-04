@@ -18,7 +18,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { HelpCircle } from "lucide-react"
+import { Check, CheckCircle2, HelpCircle, ListChecks, PenLine } from "lucide-react"
 import type { QuestionSet } from "@/types/mdc"
 
 interface ActionShape {
@@ -35,6 +35,8 @@ export interface QuestionCardProps {
   onActionClick: (action: ActionShape, messageId: string) => void
   questionSet?: QuestionSet | null
   structuredEnabled?: boolean
+  /** Presentation only; the Director's actions and MDC question gate stay authoritative. */
+  studio?: boolean
   /** Sends a composed free-form reply through the normal chat send path.
    *  displayText is the compact human echo (UAT 2026-08-30): the transcript
    *  shows "Answers: A · B · C" while the Director consumes the full prose. */
@@ -48,11 +50,14 @@ export function QuestionCard({
   onActionClick,
   questionSet,
   structuredEnabled = false,
+  studio = false,
   onSubmitAnswers,
 }: QuestionCardProps) {
   const structured = Boolean(
     structuredEnabled && onSubmitAnswers && questionSet && questionSet.questions?.length,
   )
+  const isOutlineApproval = actions.some((action) => action.value === "accept_strawman")
+  const HeadingIcon = studio ? (structured ? ListChecks : isOutlineApproval ? CheckCircle2 : HelpCircle) : HelpCircle
   const [selected, setSelected] = useState<Record<string, string>>({})
   const [freeText, setFreeText] = useState<Record<string, string>>({})
   // UAT 2026-08-30: reveal questions one by one — a tall all-at-once card
@@ -97,29 +102,42 @@ export function QuestionCard({
   }
 
   return (
-    <div ref={cardRef} className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50/60 dark:bg-slate-900/40 p-3">
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <HelpCircle className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+    <div
+      ref={cardRef}
+      data-studio-director-ask={studio ? (structured ? "questions" : isOutlineApproval ? "approval" : "choice") : undefined}
+      role={studio ? "group" : undefined}
+      aria-label={studio ? "Director asks" : undefined}
+      className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50/60 dark:bg-slate-900/40 p-3"
+    >
+      <div data-studio-director-part="heading" className="flex items-center gap-1.5 mb-1.5">
+        <HeadingIcon className="h-3 w-3 text-purple-600 dark:text-purple-400" aria-hidden="true" />
         <span className="text-[10px] font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-400">
-          {structured ? "Quick questions" : "Your input"}
+          {structured ? "Quick questions" : studio && isOutlineApproval ? "Review your outline" : "Your input"}
         </span>
+        {studio && structured && questionSet && <span data-studio-director-part="count">{answeredCount} of {questionSet.questions.length} answered</span>}
       </div>
-      <p className="text-xs text-gray-700 dark:text-slate-200 mb-2 whitespace-pre-wrap">
+      <p data-studio-director-part="prompt" className="text-xs text-gray-700 dark:text-slate-200 mb-2 whitespace-pre-wrap">
         {structured ? (questionSet?.intro || "A few quick questions:") : promptText}
       </p>
 
       {structured && questionSet && (
-        <div className="space-y-3 mb-3">
-          {questionSet.questions.slice(0, visibleCount).map((q) => (
-            <div key={q.id}>
-              <p className="text-xs font-medium text-gray-800 dark:text-slate-100 mb-1.5">{q.text}</p>
-              <div className="flex flex-wrap gap-1.5">
+        <div data-studio-director-part="questions" className="space-y-3 mb-3">
+          {questionSet.questions.slice(0, visibleCount).map((q, questionIndex) => (
+            <div key={q.id} data-studio-director-part="question" role={studio ? "group" : undefined} aria-label={studio ? q.text : undefined}>
+              <p data-studio-director-part="question-title" className="text-xs font-medium text-gray-800 dark:text-slate-100 mb-1.5">
+                {studio && <span data-studio-director-part="question-number" aria-hidden="true">{questionIndex + 1}</span>}
+                {q.text}
+              </p>
+              <div data-studio-director-part="options" className="flex flex-wrap gap-1.5">
                 {q.suggestions.map((sug) => {
                   const isSelected = selected[q.id] === sug.label
                   return (
                     <button
                       key={sug.label}
                       type="button"
+                      data-studio-director-option="suggestion"
+                      data-recommended={sug.recommended ? "true" : undefined}
+                      aria-pressed={studio ? isSelected && !(freeText[q.id] || "").trim() : undefined}
                       onClick={() =>
                         setSelected((prev) => ({
                           ...prev,
@@ -136,8 +154,9 @@ export function QuestionCard({
                       ].join(" ")}
                     >
                       {sug.label}
+                      {studio && isSelected && !(freeText[q.id] || "").trim() && <Check className="h-3 w-3" aria-hidden="true" />}
                       {sug.recommended && !isSelected && (
-                        <span className="ml-1 text-[9px] text-purple-500 dark:text-purple-400">★</span>
+                        <span className="ml-1 text-[9px] text-purple-500 dark:text-purple-400" aria-label={studio ? "Recommended" : undefined}>★</span>
                       )}
                     </button>
                   )
@@ -146,6 +165,8 @@ export function QuestionCard({
               {q.allow_free_text && (
                 <input
                   type="text"
+                  data-studio-director-part="free-text"
+                  aria-label={studio ? `Your own answer: ${q.text}` : undefined}
                   value={freeText[q.id] || ""}
                   onChange={(e) =>
                     setFreeText((prev) => ({ ...prev, [q.id]: e.target.value }))
@@ -158,23 +179,29 @@ export function QuestionCard({
           ))}
           <Button
             size="sm"
+            data-studio-director-part="send"
             onClick={submit}
             disabled={answeredCount === 0}
             className="text-xs h-7 max-w-full bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700"
           >
-            {visibleCount < questionSet.questions.length
+            {studio ? `Send answers${answeredCount > 0 ? ` (${answeredCount}/${questionSet.questions.length})` : ""}` : visibleCount < questionSet.questions.length
               ? `Send answers (${answeredCount}/${questionSet.questions.length} — more coming as you answer)`
               : `Send answers${answeredCount > 0 ? ` (${answeredCount}/${questionSet.questions.length})` : ""}`}
           </Button>
+          {studio && visibleCount < questionSet.questions.length && <p data-studio-director-part="hint">More questions appear as you answer. You can send the answers you have.</p>}
         </div>
       )}
 
       {actions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div data-studio-director-part="actions" className="flex flex-wrap gap-1.5">
+          {studio && structured && <p data-studio-director-part="alternatives">Or choose an action</p>}
           {actions.map((action, i) => (
             <Button
               key={i}
               size="sm"
+              data-studio-director-option="action"
+              data-primary={action.primary ? "true" : undefined}
+              data-requires-input={action.requires_input ? "true" : undefined}
               variant={action.primary ? "default" : "outline"}
               onClick={() => onActionClick(action, messageId)}
               className={
@@ -183,6 +210,7 @@ export function QuestionCard({
                   : "text-xs h-auto min-h-7 py-1 max-w-full whitespace-normal text-left border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
               }
             >
+              {studio && action.requires_input && <PenLine className="h-3 w-3" aria-hidden="true" />}
               {action.label}
             </Button>
           ))}

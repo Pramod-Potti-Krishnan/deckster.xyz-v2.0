@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
+import { isStudioDevDeployment } from '@/lib/dev-deployment';
 
 // Only enable in development mode
 const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_MODE === 'true';
 
 export async function POST(request: NextRequest) {
+  if (isStudioDevDeployment()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!isDevelopment) {
     return NextResponse.json(
       { error: 'Mock tokens are only available in development mode' },
@@ -57,6 +61,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  if (isStudioDevDeployment()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   if (!isDevelopment) {
     return NextResponse.json(
       { error: 'Mock tokens are only available in development mode' },

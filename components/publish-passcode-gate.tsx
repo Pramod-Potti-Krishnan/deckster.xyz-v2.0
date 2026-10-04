@@ -6,6 +6,10 @@ import { Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
+import './studio-published-viewer.css'
+
+const STUDIO_PUBLISHED = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 interface PublishPasscodeGateProps {
   slug: string
   title: string
@@ -46,18 +50,18 @@ export function PublishPasscodeGate({ slug, title }: PublishPasscodeGateProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+    <div className="min-h-screen bg-gray-100 dark:bg-slate-900 flex items-center justify-center p-4" data-studio-v4-shell={STUDIO_PUBLISHED} data-studio-published-passcode={STUDIO_PUBLISHED}>
+      <div className="studio-published-lock-card w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <div className="flex flex-col items-center text-center mb-5">
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-300">
+          <div className="studio-published-lock-icon mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-300">
             <Lock className="h-5 w-5" />
           </div>
           <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <p className="studio-published-lock-description mt-1 text-sm text-slate-500 dark:text-slate-400">
             This presentation is protected. Enter the passcode to view it.
           </p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3" aria-busy={STUDIO_PUBLISHED ? isSubmitting : undefined}>
           <Input
             type="password"
             value={passcode}
@@ -66,7 +70,7 @@ export function PublishPasscodeGate({ slug, title }: PublishPasscodeGateProps) {
             autoFocus
             aria-label="Passcode"
           />
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p role={STUDIO_PUBLISHED ? 'alert' : undefined} className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <Button type="submit" className="w-full" disabled={!passcode || isSubmitting}>
             {isSubmitting ? 'Checking…' : 'View presentation'}
           </Button>

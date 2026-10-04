@@ -3,6 +3,7 @@
 import React from 'react'
 import { BookOpenCheck, CircleAlert, CircleHelp } from 'lucide-react'
 import type { SlideContextItem } from '@/hooks/use-deckster-websocket-v2'
+import './studio-build-status.css'
 
 /**
  * Canvas v2 R3 — "what research went into this": a compact strip for the slide
@@ -35,21 +36,23 @@ export function SlideContextCard({
         className || '',
       ].join(' ')}
       data-testid="bn-slide-context"
+      data-studio-build-context={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'true' : undefined}
     >
       <span className="flex-none text-[11px] font-medium text-foreground/80">
         Slide {slideIndex + 1}
       </span>
       {role && (
-        <span className="flex-none rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+        <span data-studio-build-part={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'research-role' : undefined} className="flex-none rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
           {role}
         </span>
       )}
       {context.key_message && (
-        <span className="truncate text-xs text-muted-foreground" title={context.key_message}>
+        <span data-studio-build-part={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'research-message' : undefined} className="truncate text-xs text-muted-foreground" title={context.key_message}>
           {context.key_message}
         </span>
       )}
       <span
+        data-studio-build-evidence={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? ready ? 'ready' : issues.length ? 'issues' : 'pending' : undefined}
         className={[
           'ml-auto flex flex-none items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]',
           ready

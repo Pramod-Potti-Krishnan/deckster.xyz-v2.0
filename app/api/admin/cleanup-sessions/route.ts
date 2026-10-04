@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { isStudioDevDeployment } from '@/lib/dev-deployment'
 
 /**
  * Cleanup abandoned draft sessions
@@ -26,6 +27,9 @@ const ABANDONMENT_THRESHOLD_HOURS = parseInt(
  * Useful for monitoring and testing
  */
 export async function GET(req: NextRequest) {
+  if (isStudioDevDeployment()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   try {
     const cutoffTime = new Date(
       Date.now() - ABANDONMENT_THRESHOLD_HOURS * 60 * 60 * 1000
@@ -100,6 +104,9 @@ export async function GET(req: NextRequest) {
  * Protected by CRON_SECRET for security
  */
 export async function POST(req: NextRequest) {
+  if (isStudioDevDeployment()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   try {
     // 1. Verify cron secret (security)
     const authHeader = req.headers.get('authorization')

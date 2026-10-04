@@ -1,0 +1,26 @@
+/* Native graph entity list only. The SVG canvas keeps its own graph palette and geometry. */
+[data-studio-graph-controls="mobile"] {
+  --sgl-surface: #f5f8f7; --sgl-text: #283d40; --sgl-muted: #657a7d;
+  --sgl-line: #dce5e3; --sgl-accent: #7b68ad; --sgl-selected: #f0ebf7;
+  color: var(--sgl-text); background: var(--sgl-surface);
+}
+.dark [data-studio-graph-controls="mobile"] {
+  --sgl-surface: #222d30; --sgl-text: #e2ebe8; --sgl-muted: #a0b1ad;
+  --sgl-line: #465a5d; --sgl-accent: #ab97d7; --sgl-selected: #332f44;
+}
+[data-studio-graph-controls="mobile"] [data-studio-graph-control="heading"] { border-color: var(--sgl-line); }
+[data-studio-graph-controls="mobile"] [data-studio-graph-control="heading"] > p:first-child { color: var(--sgl-text); font-size: 13px; line-height: 19px; }
+[data-studio-graph-controls="mobile"] [data-studio-graph-control="heading"] > p:last-child { color: var(--sgl-muted); font-size: 11px; line-height: 17px; }
+[data-studio-graph-controls="mobile"] [data-studio-graph-control="list"] { overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sgl-line) transparent; }
+[data-studio-graph-controls="mobile"] button[data-studio-graph-control="entity"] {
+  align-items: flex-start; color: var(--sgl-text); background: transparent;
+  border: 1px solid transparent; border-radius: 8px; padding: 10px; gap: 10px;
+}
+[data-studio-graph-controls="mobile"] button[data-studio-graph-control="entity"] > span:first-child { margin-top: 3px; }
+[data-studio-graph-controls="mobile"] button[data-studio-graph-control="entity"]:hover { background: var(--sgl-selected); }
+[data-studio-graph-controls="mobile"] button[data-studio-graph-control="entity"][aria-pressed="true"] { background: var(--sgl-selected); border-color: var(--sgl-accent); }
+[data-studio-graph-controls="mobile"] [data-studio-graph-control="name"],
+[data-studio-graph-controls="mobile"] [data-studio-graph-control="context"] { white-space: normal; text-overflow: clip; overflow: visible; overflow-wrap: anywhere; }
+[data-studio-graph-controls="mobile"] [data-studio-graph-control="name"] { color: var(--sgl-text); font-size: 12px; line-height: 18px; }
+[data-studio-graph-controls="mobile"] [data-studio-graph-control="context"] { color: var(--sgl-muted); font-size: 11px; line-height: 17px; }
+[data-studio-graph-controls="mobile"] button[data-studio-graph-control="entity"]:focus-visible { outline: 2px solid var(--sgl-accent); outline-offset: 2px; }

@@ -1,0 +1,102 @@
+{
+  "version": "2026-08-20.1",
+  "source": "Accepted Studio v4 prototype catalog; static design snapshot, not live availability or benchmarks",
+  "tasks": {
+    "planning_strategy": {
+      "label": "Planning & Strategy",
+      "defaultModel": "google/gemini-3-flash-preview",
+      "models": [
+        "google/gemini-3-flash-preview",
+        "google/gemini-3.1-pro-preview",
+        "google/gemini-2.5-pro",
+        "google/gemini-2.5-flash-lite"
+      ]
+    },
+    "content_writing": {
+      "label": "Content Writing",
+      "defaultModel": "google/gemini-3-flash-preview",
+      "models": [
+        "google/gemini-3-flash-preview",
+        "google/gemini-3.5-flash",
+        "google/gemini-2.5-flash",
+        "google/gemini-2.5-flash-lite"
+      ]
+    },
+    "research_analysis": {
+      "label": "Research & Analysis",
+      "defaultModel": "google/gemini-3-flash-preview",
+      "models": [
+        "google/gemini-3-flash-preview",
+        "google/gemini-3.1-pro-preview",
+        "google/gemini-2.5-flash",
+        "google/gemini-2.5-flash-lite"
+      ]
+    },
+    "imagery": {
+      "label": "Imagery",
+      "defaultModel": "google/gemini-2.5-flash-image",
+      "models": [
+        "google/gemini-2.5-flash-image",
+        "google/gemini-3.1-flash-image-preview"
+      ]
+    }
+  },
+  "models": {
+    "google/gemini-3-flash-preview": {
+      "name": "Gemini 3 Flash Preview",
+      "provider": "Google",
+      "contextWindow": 1048576,
+      "imageOutput": false,
+      "tools": true
+    },
+    "google/gemini-3.1-pro-preview": {
+      "name": "Gemini 3.1 Pro Preview",
+      "provider": "Google",
+      "contextWindow": 1048576,
+      "imageOutput": false,
+      "tools": true
+    },
+    "google/gemini-2.5-pro": {
+      "name": "Gemini 2.5 Pro",
+      "provider": "Google",
+      "contextWindow": 1048576,
+      "imageOutput": false,
+      "tools": true
+    },
+    "google/gemini-2.5-flash-lite": {
+      "name": "Gemini 2.5 Flash Lite",
+      "provider": "Google",
+      "contextWindow": 1048576,
+      "imageOutput": false,
+      "tools": true
+    },
+    "google/gemini-3.5-flash": {
+      "name": "Gemini 3.5 Flash",
+      "provider": "Google",
+      "contextWindow": 1048576,
+      "imageOutput": false,
+      "tools": true
+    },
+    "google/gemini-2.5-flash": {
+      "name": "Gemini 2.5 Flash",
+      "provider": "Google",
+      "contextWindow": 1048576,
+      "imageOutput": false,
+      "tools": true
+    },
+    "google/gemini-2.5-flash-image": {
+      "name": "Gemini 2.5 Flash Image",
+      "provider": "Google",
+      "contextWindow": 32768,
+      "imageOutput": true,
+      "tools": false
+    },
+    "google/gemini-3.1-flash-image-preview": {
+      "name": "Gemini 3.1 Flash Image Preview",
+      "provider": "Google",
+      "contextWindow": 65536,
+      "imageOutput": true,
+      "tools": false
+    }
+  }
+}

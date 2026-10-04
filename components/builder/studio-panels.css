@@ -1,0 +1,286 @@
+/* Existing Builder forms only. The literal shell gate keeps classic Builder
+   presentation intact; no rules cross into a service-owned iframe or portal. */
+[data-studio-v4-shell="true"] [data-studio-v4-panel] {
+  --sp-panel: var(--ss-panel, #fff);
+  --sp-ink: var(--ss-text, #283d40);
+  --sp-muted: var(--ss-muted, #657a7d);
+  --sp-line: var(--ss-line, #dce5e3);
+  --sp-field: var(--ss-field, #f5f7f6);
+  --sp-active: var(--ss-active, #e1ebe8);
+  --sp-violet: var(--ss-accent, #6a4fc0);
+  --sp-violet-soft: var(--ss-accent-soft, #f1edfb);
+  background: var(--sp-panel);
+  color: var(--sp-ink);
+  box-shadow: none;
+  min-width: 0;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-header] {
+  min-height: 64px;
+  flex-shrink: 0;
+  padding: 12px 16px;
+  background: var(--sp-panel);
+  border-color: var(--sp-line);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] [data-studio-v4-panel-header] {
+  border-top: 3px solid var(--sp-violet);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-header] > div:first-child,
+[data-studio-v4-shell="true"] [data-studio-v4-panel-header] > div:first-child > div:last-child {
+  min-width: 0;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-header] :is(h2, h3) {
+  color: var(--sp-ink);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-header] p {
+  color: var(--sp-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-header] [class~="bg-primary/10"] {
+  background: var(--sp-violet-soft);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-header] :is(.text-primary, .text-indigo-400) {
+  color: var(--sp-violet);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-header] button {
+  flex-shrink: 0;
+  border-radius: 7px;
+  color: var(--sp-muted);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-header] button:hover {
+  background: var(--sp-field);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-context] {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  background: var(--sp-field);
+  border-color: var(--sp-line);
+  color: var(--sp-muted);
+  font-size: 11px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-context] p {
+  color: var(--ss-teal, #1f6f72);
+  font-size: 11px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-fields] {
+  min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sp-line) transparent;
+}
+/* Local form labels retain every production choice and conditional section. */
+[data-studio-v4-shell="true"] [data-studio-v4-panel] :is([class~="text-[10px]"], [class~="text-[9px]"]):not(.sr-only) {
+  font-size: 11px;
+  line-height: 16px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] :is(.text-gray-400, .text-gray-500, .text-gray-600) {
+  color: var(--sp-muted);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] :is(.text-gray-700, .text-gray-900) {
+  color: var(--sp-ink);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] :is(input:not([type="color"]):not([type="range"]):not([type="checkbox"]), select, textarea, button[role="combobox"]) {
+  min-width: 0;
+  color: var(--sp-ink);
+  border-color: var(--sp-line);
+  background-color: var(--sp-field);
+  font-size: 12px;
+  line-height: 18px;
+  border-radius: 7px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] :is(input, textarea)::placeholder {
+  color: #8a989a;
+  opacity: 1;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] :is(button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--sp-violet);
+  outline-offset: 2px;
+}
+/* GenerationInput is shared production UI: target its exact local prompt
+   container, preserving its mandatory chips, retry UI and advanced control. */
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 {
+  padding: 14px 16px 10px;
+  flex-shrink: 0;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 > .relative {
+  background: var(--sp-violet-soft);
+  border-color: color-mix(in srgb, var(--sp-violet) 24%, var(--sp-line));
+  border-radius: 10px;
+  box-shadow: none;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 > .relative:focus-within {
+  border-color: var(--sp-violet);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sp-violet) 16%, transparent);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 > .relative textarea {
+  min-height: 118px;
+  background: transparent;
+  line-height: 19px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 > .relative > .absolute {
+  background: var(--sp-violet-soft);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 .bg-purple-600 {
+  background: var(--sp-violet);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 .bg-purple-600:hover {
+  background: color-mix(in srgb, var(--sp-violet) 88%, #000);
+  color: #fff;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] [data-studio-v4-panel-fields] {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] [data-studio-v4-panel-fields] > div > .border,
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] [data-studio-v4-panel-fields] > .border {
+  border-color: var(--sp-line);
+  border-radius: 8px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] button[aria-expanded] {
+  background: var(--sp-field);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] button[aria-expanded] > span {
+  color: var(--sp-ink);
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 12px;
+}
+/* Native local format/arrange controls were authored against dark surfaces.
+   Recolor those named surfaces only; preserve swatches and selected states. */
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="format"] :is([class~="bg-gray-800"], [class~="bg-gray-800/60"], [class~="bg-gray-900/50"]) {
+  background-color: var(--sp-field);
+  border-color: var(--sp-line);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="format"] :is(.border-gray-700, .border-gray-800) {
+  border-color: var(--sp-line);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="format"] :is(.text-gray-200, .text-gray-300) {
+  color: var(--sp-ink);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="format"] [class~="h-px"] {
+  background: var(--sp-line);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="format"] :is(.bg-gray-700, [class~="bg-gray-700/50"]) {
+  background: var(--sp-active);
+  color: var(--sp-ink);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-tabs] > div {
+  height: 36px;
+  border: 1px solid var(--sp-line);
+  background: var(--sp-field);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel-tabs] button {
+  font-size: 12px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel$="format"] button:disabled {
+  opacity: .5;
+}
+
+/* Match the shell palette in dark mode, including local research and the real
+   selected/unselected form controls. No iframe or portalled UI is selected. */
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] {
+  color-scheme: dark;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel-header] .text-gray-500 {
+  color: var(--sp-muted);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel-header] button {
+  background: var(--sp-field);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel-context] p {
+  color: var(--ss-teal, #82b7af);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] section[aria-labelledby="element-research-heading"] {
+  margin-inline: 16px;
+  background: var(--sp-field);
+  border-color: var(--sp-line);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] section[aria-labelledby="element-research-heading"] #element-research-heading {
+  color: var(--sp-ink);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] button[aria-pressed="false"] {
+  background: var(--sp-field);
+  border-color: var(--sp-line);
+  color: var(--sp-muted);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] button[aria-pressed="true"] {
+  background: var(--sp-violet);
+  border-color: var(--sp-violet);
+  color: #fff;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] button[aria-pressed="true"] {
+  color: #211d30;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] :is(.text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600, .text-slate-700) {
+  color: var(--sp-muted);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] :is(.text-slate-900, .text-gray-800) {
+  color: var(--sp-ink);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] :is([class~="bg-slate-50"], [class~="bg-slate-100"], [class~="bg-gray-50"], [class~="bg-gray-100"], [class~="bg-white"], [class~="dark:bg-slate-800"], [class~="dark:bg-slate-700"]) {
+  background-color: var(--sp-field);
+  border-color: var(--sp-line);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 > .relative {
+  background: var(--sp-violet-soft);
+  border-color: color-mix(in srgb, var(--sp-violet) 24%, var(--sp-line));
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 > .relative textarea {
+  background: transparent;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 > .relative > .absolute {
+  background: var(--sp-violet-soft);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 .bg-purple-600 {
+  color: #211d30;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel$="generation"] > .space-y-2 .bg-purple-600:hover {
+  color: #211d30;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel$="format"] :is(.bg-gray-700, [class~="bg-gray-700/50"]) {
+  background: var(--sp-active);
+  color: var(--sp-ink);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] button[role="switch"][data-state="unchecked"] {
+  background: #415351;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] button[role="switch"][data-state="checked"] {
+  background: var(--sp-violet);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] button[role="switch"] > span {
+  background: #e2ebe8;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] .bg-red-50 {
+  background: #3f252c;
+  border-color: #74424f;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] :is(.text-red-500, .text-red-600) {
+  color: #f1a7aa;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] .bg-amber-50 {
+  background: #393127;
+  border-color: #6e593b;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] :is(.text-amber-600, .text-amber-800) {
+  color: #e9c992;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] .bg-emerald-50 {
+  background: #213a30;
+  border-color: #3a6151;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] .text-emerald-700 {
+  color: #a0d8bb;
+}
+
+/* Keyboard focus retains clearance inside the native Inspector scroll body. */
+[data-studio-v4-shell="true"] [data-studio-v4-panel-fields] { scroll-padding-block: 10px; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel-fields] :is(input,select,textarea,button) { scroll-margin-block: 10px; }

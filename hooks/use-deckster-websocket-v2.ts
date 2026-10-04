@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { composerThemeFromSync, composerThemeSyncBlocked, readComposerAdoption, type ComposerAdoption } from '@/lib/composer-theme-policy';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
@@ -936,6 +936,33 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   const wsRef = useRef<WebSocket | null>(null);
   const socketSessionRef = useRef<string | null>(null);
+  // A user turn belongs to one account/session lifecycle, including while
+  // reconnecting. Track render-current intent without rebinding sessionIdRef
+  // before the existing session-adoption effect owns the socket transition.
+  const turnSubmissionLifecycleRef = useRef({
+    active: true,
+    generation: 0,
+    sessionId: options.existingSessionId || sessionIdRef.current,
+    userId: user?.id ?? user?.email ?? null,
+  });
+  const requestedTurnSessionId = options.existingSessionId || sessionIdRef.current;
+  const requestedTurnUserId = user?.id ?? user?.email ?? null;
+  if (
+    turnSubmissionLifecycleRef.current.sessionId !== requestedTurnSessionId ||
+    turnSubmissionLifecycleRef.current.userId !== requestedTurnUserId
+  ) {
+    turnSubmissionLifecycleRef.current.generation += 1;
+    turnSubmissionLifecycleRef.current.sessionId = requestedTurnSessionId;
+    turnSubmissionLifecycleRef.current.userId = requestedTurnUserId;
+  }
+
+  useLayoutEffect(() => {
+    turnSubmissionLifecycleRef.current.active = true;
+    return () => {
+      turnSubmissionLifecycleRef.current.active = false;
+      turnSubmissionLifecycleRef.current.generation += 1;
+    };
+  }, []);
   // Ephemeral per-connection capability. It is intentionally never copied to
   // React state or sessionStorage, and is cleared before every reconnect.
   const buildControlTokenRef = useRef<string | null>(null);
@@ -2673,6 +2700,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
+    turnSubmissionLifecycleRef.current.generation += 1;
     debugLog('🔌 Disconnecting WebSocket');
 
     manualDisconnectRef.current = true;
@@ -2807,8 +2835,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
    * outcome and looked like the Director ignoring typed input.
    *
    * So: ask the transport to reconnect, wait for OPEN, then send. Resolves
-   * false only when the socket genuinely could not be restored in time, and
-   * the caller must surface that rather than commit the message to the UI.
+   * false when the socket cannot be restored or the originating session/account
+   * lifecycle changes. Callers must never commit a false result to the UI.
    */
   const sendMessageWhenConnected = useCallback(async (
     text: string,
@@ -2816,8 +2844,23 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     fileCount?: number,
     options?: SendUserMessageOptions,
     timeoutMs: number = SEND_RECONNECT_TIMEOUT_MS,
+    isCurrentRequest?: () => boolean,
   ): Promise<boolean> => {
+    const origin = { ...turnSubmissionLifecycleRef.current };
+    const isCurrentTurn = () => (
+      turnSubmissionLifecycleRef.current.active &&
+      turnSubmissionLifecycleRef.current.generation === origin.generation &&
+      turnSubmissionLifecycleRef.current.sessionId === origin.sessionId &&
+      turnSubmissionLifecycleRef.current.userId === origin.userId &&
+      sessionIdRef.current === origin.sessionId &&
+      userIdRef.current === origin.userId &&
+      // Callers may observe navigation intent before native session adoption.
+      // This local predicate is never forwarded into the Director wire options.
+      (isCurrentRequest?.() ?? true)
+    );
+    if (!origin.active || !origin.userId || !isCurrentTurn()) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      if (socketSessionRef.current !== origin.sessionId) return false;
       return sendMessage(text, storeName, fileCount, options);
     }
 
@@ -2827,10 +2870,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 150));
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        // Give the Director's post-accept sync a beat to land so this message
-        // is not processed against a half-initialised session.
+      if (!isCurrentTurn()) return false;
+      const readySocket = wsRef.current;
+      if (readySocket?.readyState === WebSocket.OPEN && socketSessionRef.current === origin.sessionId) {
+        // Give this session's post-accept sync a beat to land. A replacement
+        // socket or lifecycle cannot inherit the original turn after the wait.
         await new Promise(resolve => setTimeout(resolve, 250));
+        if (!isCurrentTurn() || wsRef.current !== readySocket ||
+          readySocket.readyState !== WebSocket.OPEN || socketSessionRef.current !== origin.sessionId) return false;
         return sendMessage(text, storeName, fileCount, options);
       }
     }
@@ -3188,6 +3235,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Restore messages from database (for session loading)
   const restoreMessages = useCallback((historicalMessages: DirectorMessage[], restoredSessionState?: {
+    /** Explicit owner of loaded metadata; independent of socket adoption. */
+    deckOwnerSessionId?: string | null;
     presentationUrl?: string | null;
     presentationId?: string | null;
     strawmanPreviewUrl?: string | null;
@@ -3298,7 +3347,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       sessionState.blankPresentationUrl ||
       sessionState.strawmanPreviewUrl ||
       sessionState.finalPresentationUrl
-    ) ? sessionIdRef.current : null;
+    ) ? (sessionState.deckOwnerSessionId === undefined
+      ? sessionIdRef.current
+      : sessionState.deckOwnerSessionId) : null;
 
     setStateWithCache(prev => ({
       ...prev,

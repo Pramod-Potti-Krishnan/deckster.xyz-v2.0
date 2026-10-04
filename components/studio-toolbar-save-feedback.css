@@ -1,0 +1,21 @@
+/* Independently scoped native transient save states; saved still renders no control. */
+[data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state] {
+  --ts-panel:#f4f7f5; --ts-ink:#526a5f; --ts-line:#d8e3dc; --ts-focus:#7155ac;
+  display:inline-flex; height:32px; min-width:0; max-width:130px; flex-shrink:0;
+  flex-direction:row; align-items:center; justify-content:center; gap:6px;
+  padding:0 10px; border:1px solid var(--ts-line); border-radius:7px;
+  background:var(--ts-panel); color:var(--ts-ink); line-height:16px; white-space:nowrap;
+}
+[data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state] > span { font-size:11px; }
+[data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state] > svg { width:15px; height:15px; flex-shrink:0; }
+[data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state="unsaved"] { --ts-panel:#faf5e7; --ts-ink:#80632c; --ts-line:#e6d8ae; }
+[data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state="error"] { --ts-panel:#fbefec; --ts-ink:#a44339; --ts-line:#e9c2ba; }
+[data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state]:hover:not(:disabled) { filter:brightness(.97); }
+[data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state]:focus-visible { outline:2px solid var(--ts-focus); outline-offset:-2px; box-shadow:none; }
+[data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state]:disabled { opacity:.55; cursor:not-allowed; }
+.dark [data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state] { --ts-panel:#243431; --ts-ink:#b6c9be; --ts-line:#3b5147; --ts-focus:#c3abea; }
+.dark [data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state="unsaved"] { --ts-panel:#393423; --ts-ink:#e5ce94; --ts-line:#60543a; }
+.dark [data-studio-v4-shell="true"][data-studio-toolbar-save="true"][data-save-state="error"] { --ts-panel:#3a2d2c; --ts-ink:#f0b2a7; --ts-line:#674640; }
+@media(prefers-reduced-motion:reduce) {
+  [data-studio-v4-shell="true"][data-studio-toolbar-save="true"] .animate-spin { animation:none; }
+}

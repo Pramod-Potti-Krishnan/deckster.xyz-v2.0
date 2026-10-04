@@ -11,9 +11,10 @@ async function resolveUserId(): Promise<string | null> {
   return uid ?? null;
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const userId = await resolveUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
 
   let payload: unknown;
   try {
@@ -24,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(params.id)}/blueprint`,
+      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}/blueprint`,
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

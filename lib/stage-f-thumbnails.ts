@@ -42,6 +42,20 @@ function normalizedPresentationId(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
+/** Optional restored image metadata must declare the presentation it depicts.
+ * Session slideStructure is shared by Final/Strawman/Custom and cannot by
+ * itself establish image ownership. Live StageF images remain authoritative.
+ */
+export function ownedRestoredThumbnailUrl(
+  slide: Record<string, unknown>,
+  presentationId: unknown,
+): string | undefined {
+  const presentation = normalizedPresentationId(presentationId)
+  const owner = normalizedPresentationId(slide.thumbnail_presentation_id)
+  if (!presentation || owner !== presentation) return undefined
+  return normalizedUrl(slide.thumbnail_url ?? slide.thumbnailUrl) ?? undefined
+}
+
 export function mergeStageFPresentationThumbnailUrl(
   current: SlideThumbnailUrlsByPresentation,
   presentationId: unknown,

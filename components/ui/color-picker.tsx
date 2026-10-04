@@ -1,9 +1,12 @@
 "use client"
 
+import './studio-format-colors.css'
 import { useRef, useState } from 'react'
 import { cn, normalizeColorToHex } from '@/lib/utils'
 import { X } from 'lucide-react'
 import type { DeckThemeToken } from '@/hooks/use-deck-theme-palette'
+
+const STUDIO_FORMAT_COLORS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 export interface CompactColorPickerProps {
   label?: string
@@ -78,13 +81,15 @@ export function CompactColorPicker({
   const isTransparent = value === 'transparent' || value === ''
 
   return (
-    <div className="flex items-center justify-between py-1 relative">
+    <div data-studio-format-color={STUDIO_FORMAT_COLORS ? 'true' : undefined} className="flex items-center justify-between py-1 relative">
       {label && (
         <span className="text-sm text-gray-300">{label}</span>
       )}
       <div className="flex items-center gap-1.5">
         {/* Current color swatch - click to open palette */}
         <button
+          aria-label={STUDIO_FORMAT_COLORS ? `${label ? `${label}: ` : ''}Choose color from palette` : undefined}
+          aria-expanded={STUDIO_FORMAT_COLORS ? showPalette : undefined}
           onClick={() => !disabled && setShowPalette(!showPalette)}
           disabled={disabled}
           className={cn(
@@ -97,6 +102,7 @@ export function CompactColorPicker({
         />
         {/* Rainbow button - triggers hidden color input */}
         <button
+          aria-label={STUDIO_FORMAT_COLORS ? `${label ? `${label}: ` : ''}Choose custom color` : undefined}
           onClick={() => colorInputRef.current?.click()}
           disabled={disabled}
           className={cn(
@@ -112,6 +118,7 @@ export function CompactColorPicker({
         <input
           ref={colorInputRef}
           type="color"
+          aria-label={STUDIO_FORMAT_COLORS ? `${label || 'Color'} custom value` : undefined}
           value={isTransparent ? '#000000' : normalizeColorToHex(value)}
           onChange={handleColorChange}
           disabled={disabled}
@@ -121,6 +128,9 @@ export function CompactColorPicker({
         {/* Color Palette Dropdown */}
         {showPalette && (
           <div
+            data-studio-format-color-part={STUDIO_FORMAT_COLORS ? 'palette' : undefined}
+            role={STUDIO_FORMAT_COLORS ? 'group' : undefined}
+            aria-label={STUDIO_FORMAT_COLORS ? `${label || 'Color'} palette` : undefined}
             className="absolute right-0 top-full mt-1 z-50 bg-gray-800 rounded-lg shadow-xl border border-gray-600 p-2"
             style={{ width: '220px' }}
           >
@@ -131,6 +141,7 @@ export function CompactColorPicker({
                   {onResetTheme && (
                     <button
                       type="button"
+                      data-studio-format-color-part={STUDIO_FORMAT_COLORS ? 'reset' : undefined}
                       onClick={() => { onResetTheme(); setShowPalette(false) }}
                       className="text-[10px] text-indigo-300 hover:text-indigo-200"
                     >
@@ -138,11 +149,14 @@ export function CompactColorPicker({
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-1">
+                <div data-studio-format-color-part={STUDIO_FORMAT_COLORS ? 'theme-grid' : undefined} className="grid grid-cols-3 gap-1">
                   {themeColors.map(token => (
                     <button
                       type="button"
                       key={token.id}
+                      data-studio-format-color-part={STUDIO_FORMAT_COLORS ? 'token' : undefined}
+                      aria-label={STUDIO_FORMAT_COLORS ? `${token.label}: ${token.color}` : undefined}
+                      aria-pressed={STUDIO_FORMAT_COLORS ? themeBinding === token.id : undefined}
                       onClick={() => { onThemeSelect?.(token); setShowPalette(false) }}
                       className={cn(
                         "flex min-w-0 items-center gap-1 rounded border px-1 py-1 text-left text-[9px] text-gray-200 hover:bg-gray-700",
@@ -160,6 +174,8 @@ export function CompactColorPicker({
             {/* No Fill option */}
             {allowNoFill && (
               <button
+                data-studio-format-color-part={STUDIO_FORMAT_COLORS ? 'no-fill' : undefined}
+                aria-pressed={STUDIO_FORMAT_COLORS ? isTransparent : undefined}
                 onClick={handleNoFill}
                 className={cn(
                   "w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-700 transition-colors mb-2",
@@ -174,10 +190,13 @@ export function CompactColorPicker({
             )}
 
             {/* Color grid */}
-            <div className="grid grid-cols-10 gap-0.5">
+            <div data-studio-format-color-part={STUDIO_FORMAT_COLORS ? 'preset-grid' : undefined} className="grid grid-cols-10 gap-0.5">
               {presetColors.map((color, index) => (
                 <button
                   key={`${color}-${index}`}
+                  data-studio-format-color-part={STUDIO_FORMAT_COLORS ? 'preset' : undefined}
+                  aria-label={STUDIO_FORMAT_COLORS ? color : undefined}
+                  aria-pressed={STUDIO_FORMAT_COLORS ? value === color : undefined}
                   onClick={() => handlePaletteSelect(color)}
                   className={cn(
                     "w-5 h-5 rounded-sm border hover:scale-110 transition-transform",

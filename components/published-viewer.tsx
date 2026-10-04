@@ -28,6 +28,10 @@ import {
   type FaqItemView,
 } from '@/components/published-qa-panel'
 
+import './studio-published-viewer.css'
+
+const STUDIO_PUBLISHED = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 interface PublishedViewerProps {
   title: string
   /** Published-deck slug — download links route through the server gate */
@@ -133,25 +137,26 @@ export function PublishedViewer({
   }, [])
 
   return (
-    <div className="h-dvh flex flex-col bg-gray-100 dark:bg-slate-900">
+    <div className="h-dvh flex flex-col bg-gray-100 dark:bg-slate-900" data-studio-v4-shell={STUDIO_PUBLISHED} data-studio-published-viewer={STUDIO_PUBLISHED}>
       {/* Top bar — title + actions */}
-      <header className="flex-shrink-0 h-12 px-4 flex items-center justify-between gap-3 border-b border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800">
-        <h1 className="min-w-0 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+      <header className="studio-published-header flex-shrink-0 h-12 px-4 flex items-center justify-between gap-3 border-b border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+        <h1 title={STUDIO_PUBLISHED ? title : undefined} className="studio-published-title min-w-0 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
           {title}
         </h1>
-        <div className="flex flex-shrink-0 items-center gap-1">
+        <div className="studio-published-actions flex flex-shrink-0 items-center gap-1">
           {qaAvailable && (
             <button
               onClick={() => setQaOpen((value) => !value)}
               className="relative flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
               title={qaEnabled ? 'Ask a question about this deck' : 'Read answered questions'}
+              aria-label={STUDIO_PUBLISHED ? qaEnabled ? 'Ask a question about this deck' : 'Read answered questions' : undefined}
               aria-expanded={qaOpen}
             >
               <MessageCircleQuestion className="h-4 w-4" />
               <span className="hidden sm:inline">Ask</span>
               {unreadCount > 0 && (
                 <span
-                  className="absolute right-1 top-1 h-2 w-2 rounded-full bg-indigo-500"
+                  className="studio-published-unread absolute right-1 top-1 h-2 w-2 rounded-full bg-indigo-500"
                   aria-label={`${unreadCount} answered`}
                 />
               )}
@@ -163,12 +168,13 @@ export function PublishedViewer({
                 <button
                   className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
                   title="Download this presentation"
+                  aria-label={STUDIO_PUBLISHED ? 'Download this presentation' : undefined}
                 >
                   <Download className="h-4 w-4" />
                   <span>Download</span>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-48" data-studio-v4-shell={STUDIO_PUBLISHED} data-studio-published-menu={STUDIO_PUBLISHED}>
                 {allowPdf && (
                   <DropdownMenuItem asChild className="cursor-pointer">
                     {/* Plain anchor: hits the server gate, which streams the file
@@ -203,8 +209,9 @@ export function PublishedViewer({
                   stageRef.current?.requestFullscreen().catch(() => {})
                 }
               }}
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-slate-700"
+              className="studio-published-present flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-slate-700"
               title="Present this deck"
+              aria-label={STUDIO_PUBLISHED ? 'Present this deck' : undefined}
             >
               <PlayCircle className="h-4 w-4" />
               <span className="hidden sm:inline">Present</span>
@@ -214,6 +221,7 @@ export function PublishedViewer({
               onClick={handleToggleFullscreen}
               className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
               title={isFullscreen ? 'Exit fullscreen' : 'Present fullscreen'}
+              aria-label={STUDIO_PUBLISHED ? isFullscreen ? 'Exit fullscreen' : 'Present fullscreen' : undefined}
             >
               {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Present'}</span>
@@ -227,10 +235,10 @@ export function PublishedViewer({
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
       <div
         ref={stageRef}
-        className={`flex-1 min-h-0 flex items-center justify-center bg-gray-100 dark:bg-slate-900 ${isFullscreen ? 'bg-black p-0' : 'p-4'}`}
+        className={`studio-published-stage flex-1 min-h-0 flex items-center justify-center bg-gray-100 dark:bg-slate-900 ${isFullscreen ? 'bg-black p-0' : 'p-4'}`}
       >
         <div
-          className={`overflow-hidden ${isFullscreen ? '' : 'rounded-sm shadow-2xl'}`}
+          className={`studio-published-slide overflow-hidden ${isFullscreen ? '' : 'rounded-sm shadow-2xl'}`}
           style={{
             aspectRatio: '16 / 9',
             // Fit-contain without layout math: cap width by both the column
@@ -276,7 +284,7 @@ export function PublishedViewer({
       </div>
 
       {/* Footer — the viral loop */}
-      <footer className="flex-shrink-0 flex items-center justify-center gap-1 py-2 text-xs text-slate-500 dark:text-slate-400">
+      <footer className="studio-published-footer flex-shrink-0 flex items-center justify-center gap-1 py-2 text-xs text-slate-500 dark:text-slate-400">
         <span>Made with</span>
         <Link
           href="/"

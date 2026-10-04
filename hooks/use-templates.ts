@@ -162,6 +162,9 @@ export interface TemplateEnrichmentResult {
 export type TemplateGenerationStatus = ReturnType<typeof templateGenerationStatus>;
 
 export interface TemplateStatusWatchOptions {
+  /** Retired owners stop permanently; transient readiness pauses new reads. */
+  isCurrent?: () => boolean;
+  canStart?: () => boolean;
   intervalMs?: number;
   maxAttempts?: number;
   onUpdate?: (snapshot: TemplateSnapshot, status: TemplateGenerationStatus) => void;
@@ -192,9 +195,9 @@ export function templateGenerationStatus(
   const method = template.blueprint_generation_method ?? snapshot.template_blueprint?.generation_method ?? null;
   const status = template.blueprint_enrichment_status ?? null;
   const purity = template.template_purity_status ?? null;
+  if (status === 'queued' || status === 'running') return 'optimizing';
   if (purity === 'failed') return 'needs_cleanup';
   if (status === 'failed') return 'failed';
-  if (status === 'queued' || status === 'running') return 'optimizing';
   if (method === 'llm' && status === 'complete' && purity !== 'clean') return 'needs_cleanup';
   return 'needs_optimization';
 }
@@ -254,8 +257,10 @@ export function useTemplates() {
 
   const fetchTemplate = useCallback(async (
     id: string,
-    options: { trackLoading?: boolean } = {},
+    options: { trackLoading?: boolean; isCurrent?: () => boolean } = {},
   ): Promise<TemplateSnapshot | null> => {
+    const current = () => !options.isCurrent || options.isCurrent();
+    if (!current()) return null;
     const trackLoading = options.trackLoading !== false;
     if (trackLoading) setLoading(true);
     setError(null);
@@ -267,10 +272,10 @@ export function useTemplates() {
       }
       return data as TemplateSnapshot;
     } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
+      if (current()) setError(e instanceof Error ? e : new Error(String(e)));
       return null;
     } finally {
-      if (trackLoading) setLoading(false);
+      if (trackLoading && current()) setLoading(false);
     }
   }, []);
 
@@ -290,20 +295,36 @@ export function useTemplates() {
 
     const stop = () => {
       cancelled = true;
-      if (timer) {
+      if (timer !== null) {
         clearTimeout(timer);
         timer = null;
       }
     };
 
+    const current = () => {
+      if (cancelled) return false;
+      if (options.isCurrent && !options.isCurrent()) { stop(); return false; }
+      return true;
+    };
+
+    const schedule = (attempt: number) => {
+      if (!current()) return;
+      timer = setTimeout(() => void poll(attempt), intervalMs);
+    };
+
     const poll = async (attempt: number) => {
-      const snapshot = await fetchTemplate(id, { trackLoading: false });
-      if (cancelled) return;
+      timer = null;
+      if (!current()) return;
+      // Paused ticks consume no read attempts, retaining the normal interval.
+      if (options.canStart && !options.canStart()) { schedule(attempt); return; }
+      const snapshot = await fetchTemplate(id, { trackLoading: false, isCurrent: current });
+      if (!current()) return;
 
       if (snapshot) {
         lastSnapshot = snapshot;
         const status = templateGenerationStatus(snapshot);
         options.onUpdate?.(snapshot, status);
+        if (!current()) return;
 
         if (isTemplateGenerationReady(snapshot)) {
           options.onReady?.(snapshot);
@@ -324,10 +345,10 @@ export function useTemplates() {
         return;
       }
 
-      timer = setTimeout(() => void poll(attempt + 1), intervalMs);
+      schedule(attempt + 1);
     };
 
-    timer = setTimeout(() => void poll(1), intervalMs);
+    schedule(1);
     return stop;
   }, [fetchTemplate]);
 

@@ -13,12 +13,13 @@ async function resolveUserId(): Promise<string | null> {
 }
 
 // GET /api/templates/{id} → full snapshot (for a preview, if needed)
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const userId = await resolveUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(params.id)}`,
+      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
       { cache: 'no-store' },
     );
     const body = await r.json();
@@ -29,12 +30,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 // DELETE /api/templates/{id}
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const userId = await resolveUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(params.id)}`,
+      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
       { method: 'DELETE' },
     );
     const body = await r.json();

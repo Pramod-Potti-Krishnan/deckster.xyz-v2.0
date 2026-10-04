@@ -1,6 +1,8 @@
 "use client"
 
 import React from "react"
+import type { StudioWorkflowRequest } from "@/lib/studio-workflow"
+import { StudioWelcomeStage } from "@/components/builder/studio-welcome-stage"
 import { PresentationViewer, TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi } from "@/components/presentation-viewer"
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
 import { PublishControls } from "@/components/publish-dialog"
@@ -28,6 +30,7 @@ import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/h
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 import type { ThemeSyncState } from '@/lib/theme-sync'
+import type { SlideThumbnailUrlsByPresentation } from '@/lib/stage-f-thumbnails'
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -50,6 +53,7 @@ export function handleBlankElementClick(
 }
 
 export interface PresentationAreaProps {
+  studioWorkflowRequest?: StudioWorkflowRequest | null
   presentationUrl: string | null
   presentationId: string | null
   slideCount: number | null
@@ -106,6 +110,9 @@ export interface PresentationAreaProps {
   publishSessionId?: string | null
   deckTitle?: string | null
   hasFinalDeck?: boolean
+  publishFinalPresentationId?: string | null
+  publishThumbnailUrlsByPresentation?: SlideThumbnailUrlsByPresentation
+  publishThumbnailOwnerSessionId?: string | null
   // Template Builder: WS session id (source for "Save as Template") + gate
   sessionId?: string | null
   deckOwnerSessionId?: string | null
@@ -188,6 +195,9 @@ export function PresentationArea({
   publishSessionId,
   deckTitle,
   hasFinalDeck = false,
+  publishFinalPresentationId,
+  publishThumbnailUrlsByPresentation,
+  publishThumbnailOwnerSessionId,
   sessionId,
   deckOwnerSessionId,
   templateSavePresentationId,
@@ -216,6 +226,7 @@ export function PresentationArea({
   onDismissBlankPlaceholder,
   slideContextByIndex = null,
   narrationNavigate = null,
+  studioWorkflowRequest = null,
 }: PresentationAreaProps) {
   const narrationActive = !!(buildNarration && buildNarration.active)
   const narrationPhase = buildNarration?.phase ?? 'idle'
@@ -291,6 +302,7 @@ export function PresentationArea({
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {presentationUrl ? (
           <PresentationViewer
+            studioWorkflowRequest={studioWorkflowRequest}
             presentationUrl={presentationUrl}
             presentationId={presentationId}
             slideCount={slideCount}
@@ -315,6 +327,15 @@ export function PresentationArea({
                     deckTitle={deckTitle ?? null}
                     slideCount={slideCount}
                     hasFinalDeck={hasFinalDeck}
+                    deckPreview={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? {
+                      sessionId: publishSessionId ?? null,
+                      ownerSessionId: deckOwnerSessionId ?? null,
+                      finalPresentationId: publishFinalPresentationId ?? null,
+                      thumbnailUrlsByPresentation: publishThumbnailUrlsByPresentation,
+                      thumbnailOwnerSessionId: publishThumbnailOwnerSessionId ?? null,
+                      firstSlide: Array.isArray(slideStructure?.slides) ? slideStructure.slides[0] ?? null : null,
+                      loading: isGeneratingFinal,
+                    } : undefined}
                   />
                 </>
               )
@@ -393,7 +414,7 @@ export function PresentationArea({
           />
         ) : (
           <div className="flex-1 flex items-center justify-center min-h-0 p-4">
-            {buildNarrationEnabled ? (
+            {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && !(currentStatus || isGeneratingFinal || isGeneratingStrawman) ? <StudioWelcomeStage /> : buildNarrationEnabled ? (
               /* Canvas v2 R1: designed 16:9 placeholder for the no-URL case
                  (no dismiss — there is no blank deck to reveal). */
               <StagePlaceholder mode="standalone" />

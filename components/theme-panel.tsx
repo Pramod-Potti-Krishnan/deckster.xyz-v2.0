@@ -1,5 +1,8 @@
 "use client"
 
+import "./studio-editor-dialogs.css"
+import "./studio-theme-panel.css"
+
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
@@ -123,29 +126,31 @@ function resolvedPresetId(selection: BuildThemeSelection): CanonicalThemePresetI
   return isCanonicalThemePresetId(normalized) ? normalized : 'corporate_light'
 }
 
+const STUDIO_THEME_PANEL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 function SyncBadge({ status }: { status: ThemeSyncStatus }) {
   if (status === 'syncing') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
+      <span data-studio-theme-sync={STUDIO_THEME_PANEL ? 'syncing' : undefined} role={STUDIO_THEME_PANEL ? 'status' : undefined} className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
         <Loader2 className="h-3 w-3 animate-spin" /> Syncing
       </span>
     )
   }
   if (status === 'applied') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700">
+      <span data-studio-theme-sync={STUDIO_THEME_PANEL ? 'applied' : undefined} role={STUDIO_THEME_PANEL ? 'status' : undefined} className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700">
         <CheckCircle2 className="h-3 w-3" /> Applied
       </span>
     )
   }
   if (status === 'failed') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-[10px] font-medium text-rose-700">
+      <span data-studio-theme-sync={STUDIO_THEME_PANEL ? 'failed' : undefined} role={STUDIO_THEME_PANEL ? 'status' : undefined} className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-[10px] font-medium text-rose-700">
         <AlertCircle className="h-3 w-3" /> Failed
       </span>
     )
   }
-  return <span className="text-[10px] text-gray-400">Not synced</span>
+  return <span data-studio-theme-sync={STUDIO_THEME_PANEL ? status : undefined} className="text-[10px] text-gray-400">Not synced</span>
 }
 
 function HexField({
@@ -169,7 +174,7 @@ function HexField({
   const isExplicit = value !== undefined
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2">
+    <div data-studio-theme-color={STUDIO_THEME_PANEL ? label : undefined} className="rounded-lg border border-gray-200 bg-white px-2.5 py-2">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="text-[11px] font-medium text-gray-700">{label}</span>
         {isExplicit ? (
@@ -205,6 +210,7 @@ function HexField({
           )}
           placeholder={isExplicit ? '#000000' : `Theme (${fallback})`}
           aria-label={`${label} hex value`}
+          aria-invalid={STUDIO_THEME_PANEL ? Boolean(value && !isValidThemeHex(value)) : undefined}
         />
       </div>
     </div>
@@ -337,8 +343,8 @@ export function ThemePanel({
   }
 
   return (
-    <div className="fixed inset-y-0 left-0 z-50 flex w-96 flex-col border-r border-gray-200 bg-white shadow-2xl">
-      <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-2">
+    <div data-studio-theme={STUDIO_THEME_PANEL ? 'true' : undefined} data-studio-v4-dialog={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'theme' : undefined} role="dialog" aria-modal="false" aria-label="Deck theme" className="fixed inset-y-0 left-0 z-50 flex w-96 flex-col border-r border-gray-200 bg-white shadow-2xl">
+      <div data-studio-theme-part={STUDIO_THEME_PANEL ? 'header' : undefined} className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-2">
         <div className="flex items-center gap-2">
           <h2 className="text-xs font-semibold text-gray-900">Deck theme</h2>
           <SyncBadge status={visibleSyncStatus} />
@@ -348,19 +354,21 @@ export function ThemePanel({
           onClick={onClose}
           className="rounded-md p-1.5 transition-colors hover:bg-gray-200"
           title="Close panel"
+          aria-label={STUDIO_THEME_PANEL ? 'Close deck theme panel' : undefined}
+          data-studio-theme-close={STUDIO_THEME_PANEL ? 'true' : undefined}
         >
           <X className="h-4 w-4 text-gray-600" />
         </button>
       </div>
 
       {visibleSyncStatus === 'failed' && themeSync.error && (
-        <div className="border-b border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
+        <div data-studio-theme-notice={STUDIO_THEME_PANEL ? 'failed' : undefined} role={STUDIO_THEME_PANEL ? 'alert' : undefined} tabIndex={STUDIO_THEME_PANEL ? 0 : undefined} className="border-b border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
           {themeSync.error}
         </div>
       )}
 
       {selectionLocked && (
-        <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800">
+        <div data-studio-theme-notice={STUDIO_THEME_PANEL ? 'locked' : undefined} tabIndex={STUDIO_THEME_PANEL ? 0 : undefined} className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800">
           Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.
         </div>
       )}
@@ -370,6 +378,8 @@ export function ThemePanel({
           <button
             type="button"
             disabled={selectionLocked}
+            data-studio-theme-mode={STUDIO_THEME_PANEL ? 'preset' : undefined}
+            aria-pressed={STUDIO_THEME_PANEL ? mode === 'preset' : undefined}
             onClick={() => {
               if (draft.mode === 'custom') selectPreset(selectedPresetId)
             }}
@@ -384,6 +394,8 @@ export function ThemePanel({
             type="button"
             disabled={selectionLocked}
             onClick={selectCustomMode}
+            data-studio-theme-mode={STUDIO_THEME_PANEL ? 'custom' : undefined}
+            aria-pressed={STUDIO_THEME_PANEL ? mode === 'custom' : undefined}
             className={cn(
               'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50',
               mode === 'custom' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900',
@@ -394,9 +406,9 @@ export function ThemePanel({
         </div>
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto p-3">
+      <div data-studio-theme-part={STUDIO_THEME_PANEL ? 'body' : undefined} className="flex-1 space-y-4 overflow-y-auto p-3">
         {draft.mode === 'auto' ? (
-          <div className="rounded-lg border border-sky-100 bg-sky-50 p-2.5 text-[10px] leading-4 text-sky-700">
+          <div data-studio-theme-notice={STUDIO_THEME_PANEL ? 'auto' : undefined} className="rounded-lg border border-sky-100 bg-sky-50 p-2.5 text-[10px] leading-4 text-sky-700">
             Auto is resolved by Director from the session default. Apply it to see the authoritative Theme Builder result on the deck.
           </div>
         ) : (
@@ -422,6 +434,8 @@ export function ThemePanel({
                 type="button"
                 disabled={selectionLocked}
                 onClick={selectAuto}
+                data-studio-theme-preset={STUDIO_THEME_PANEL ? 'auto' : undefined}
+                aria-pressed={STUDIO_THEME_PANEL ? draft.mode === 'auto' : undefined}
                 className={cn(
                   'col-span-2 rounded-lg border-2 px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                   draft.mode === 'auto' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300',
@@ -441,6 +455,8 @@ export function ThemePanel({
                     disabled={selectionLocked}
                     key={theme.id}
                     onClick={() => selectPreset(theme.id)}
+                    data-studio-theme-preset={STUDIO_THEME_PANEL ? theme.id : undefined}
+                    aria-pressed={STUDIO_THEME_PANEL ? selected : undefined}
                     className={cn(
                       'relative rounded-lg border-2 p-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                       selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300',
@@ -531,9 +547,9 @@ export function ThemePanel({
         </div>
       </div>
 
-      <div className="border-t border-gray-200 bg-gray-50 px-3 py-2">
+      <div data-studio-theme-part={STUDIO_THEME_PANEL ? 'footer' : undefined} className="border-t border-gray-200 bg-gray-50 px-3 py-2">
         {(invalidCustomColor || invalidOverride) && (
-          <p className="mb-2 text-[10px] text-rose-600">Custom themes require a primary six-digit hex color, such as #1e40af.</p>
+          <p role={STUDIO_THEME_PANEL ? 'alert' : undefined} className="mb-2 text-[10px] text-rose-600">Custom themes require a primary six-digit hex color, such as #1e40af.</p>
         )}
         <div className="flex gap-2">
           <Button variant="outline" onClick={onClose} className="h-7 flex-1 text-[11px]">

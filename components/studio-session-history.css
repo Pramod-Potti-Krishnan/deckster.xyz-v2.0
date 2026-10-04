@@ -1,0 +1,61 @@
+/* Native Sessions drawer; shell-off markup keeps its existing presentation. */
+[data-studio-v4-shell="true"] [data-studio-session-history="true"] { width: 288px; max-width: calc(100vw - 72px); background: var(--ss-surface); border-color: var(--ss-line); box-shadow: 14px 0 34px rgb(20 38 34 / 10%); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-session-part="header"] { padding: 14px 13px 10px; border-color: var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-session-part="header"] h2 { color: var(--ss-text); font-size: 13px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-session-part="header"] button { height: 27px; font-size: 10.5px; color: var(--ss-muted); border-radius: 6px; background: transparent; }
+[data-studio-v4-shell="true"] [data-studio-session-part="header"] button[aria-pressed="true"] { background: var(--ss-active); color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-session-part="new"] { padding: 6px 13px 12px; border-bottom: 0; }
+[data-studio-v4-shell="true"] [data-studio-session-part="new"] button { height: 33px; background: var(--ss-accent); color: var(--ss-panel); border-radius: 7px; font-size: 11.5px; }
+[data-studio-v4-shell="true"] [data-studio-session-part="search"] { padding: 0 13px 12px; border-color: var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-session-part="search"] input { height: 33px; padding-right: 28px; border-color: var(--ss-line); background: var(--ss-panel); color: var(--ss-text); font-size: 11px; border-radius: 7px; }
+[data-studio-v4-shell="true"] [data-studio-session-part="search"] input::placeholder { color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-session-part="search"] svg { color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-session-part="clear-search"] { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 3px; border-radius: 4px; }
+[data-studio-v4-shell="true"] [data-studio-session-part="eyebrow"] { padding: 14px 15px 8px; color: var(--ss-muted); font-size: 9px; letter-spacing: .09em; text-transform: uppercase; }
+[data-studio-v4-shell="true"] [data-studio-session-part="list"] { padding: 0 8px 8px; scrollbar-width: thin; }
+[data-studio-v4-shell="true"] [data-studio-session-part="list"] > div { margin-block: 0; }
+[data-studio-v4-shell="true"] [data-studio-session-part="state"] { height: auto; min-height: 155px; padding: 20px 15px; gap: 5px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-session-part="state"] > svg { color: var(--ss-accent); margin-bottom: 8px; }
+[data-studio-v4-shell="true"] [data-studio-session-part="state"] p:first-of-type { color: var(--ss-text); font-size: 12px; }
+[data-studio-v4-shell="true"] [data-studio-session-part="state"] p + p { font-size: 11px; line-height: 1.6; }
+[data-studio-v4-shell="true"] [data-studio-session-part="state"] button { margin-top: 7px; padding: 5px 10px; border: 1px solid var(--ss-line); border-radius: 6px; background: var(--ss-panel); color: var(--ss-teal); font-size: 11px; }
+[data-studio-v4-shell="true"] [data-studio-session-part="refresh"] { display: flex; align-items: center; gap: 6px; padding: 7px; color: var(--ss-muted); font-size: 10.5px; }
+[data-studio-v4-shell="true"] [data-studio-session-part="bulk-actions"] { padding: 10px 13px; border-top: 1px solid var(--ss-line); background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-session-part="bulk-actions"] p { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-session-part="footer"] { padding: 11px 13px; border-color: var(--ss-line); background: var(--ss-surface); }
+[data-studio-v4-shell="true"] [data-studio-session-part="footer"] p { color: var(--ss-muted); font-size: 10px; line-height: 1.5; }
+[data-studio-v4-shell="true"] [data-studio-session-row="true"] { margin-bottom: 5px; padding: 10px 8px; border: 1px solid transparent; border-radius: 8px; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-session-row="true"]:hover { background: var(--ss-panel); }
+[data-studio-v4-shell="true"] [data-studio-session-row="true"][data-active="true"] { background: var(--ss-panel); border-color: var(--ss-line); box-shadow: 0 2px 5px rgb(20 38 34 / 3%); }
+[data-studio-v4-shell="true"] [data-studio-session-row="true"][data-selected="true"] { background: var(--ss-active); border-color: var(--ss-teal); box-shadow: none; }
+[data-studio-v4-shell="true"] [data-studio-session-row="true"] > div { gap: 8px; }
+[data-studio-v4-shell="true"] [data-studio-session-part="row-open"] { min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-session-part="row-open"] h3 { color: var(--ss-text); font-size: 11.5px; line-height: 1.5; }
+[data-studio-v4-shell="true"] [data-studio-session-part="row-open"] > p { color: var(--ss-muted); font-size: 10.5px; line-height: 1.5; margin-top: 4px; }
+[data-studio-v4-shell="true"] [data-studio-session-part="row-icon"] { width: 24px; height: 24px; margin-top: 1px; padding: 5px; border-radius: 6px; background: var(--ss-active); color: var(--ss-teal); flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-session-part="current"] { color: var(--ss-teal); font-size: 9px; line-height: 1.5; white-space: nowrap; }
+[data-studio-v4-shell="true"] [data-studio-session-part="row-meta"] { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 7px; color: var(--ss-muted); font-size: 9px; line-height: 1.5; }
+[data-studio-v4-shell="true"] [data-studio-session-part="row-delete"] { position: static; align-self: center; flex-shrink: 0; padding: 5px; border-color: transparent; background: transparent; box-shadow: none; color: var(--ss-muted); opacity: 1; }
+[data-studio-v4-shell="true"] [data-studio-session-part="row-delete"]:hover { color: #b45345; background: color-mix(in srgb, #c56454 9%, var(--ss-panel)); }
+[data-studio-v4-shell="true"] [data-studio-session-history="true"] :is(button,input):focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+
+/* These markers live on the owned native portals, rather than an ancestor heuristic. */
+[data-studio-session-dialog="session-history"] { --sh-panel: #fff; --sh-surface: #f5f7f6; --sh-text: #243438; --sh-muted: #566965; --sh-line: #d6e1dc; --sh-accent: #6a4fc0; padding: 22px; border: 1px solid var(--sh-line); border-radius: 13px; background: var(--sh-panel); color: var(--sh-text); box-shadow: 0 20px 70px rgb(20 38 34 / 20%); }
+.dark [data-studio-session-dialog="session-history"] { --sh-panel: #1b2426; --sh-surface: #222d30; --sh-text: #e2ebe8; --sh-muted: #a0b1ad; --sh-line: #334245; --sh-accent: #b4a0f2; }
+[data-studio-session-dialog="session-history"] h2 { color: var(--sh-text); font-size: 16px; line-height: 1.5; }
+[data-studio-session-dialog="session-history"] :is(p,li) { color: var(--sh-muted); font-size: 12px; line-height: 1.6; }
+[data-studio-session-dialog="session-history"] .text-foreground { color: var(--sh-text); }
+[data-studio-session-dialog="session-history"] p.text-red-600 { color: #b45345; }
+.dark [data-studio-session-dialog="session-history"] p.text-red-600 { color: #e4a299; }
+[data-studio-session-dialog="session-history"] button { min-height: 33px; font-size: 11.5px; border-radius: 7px; }
+[data-studio-session-dialog="session-history"] button:not(.bg-red-600) { border-color: var(--sh-line); background: var(--sh-surface); color: var(--sh-text); }
+[data-studio-session-dialog="session-history"] button:focus-visible { outline: 2px solid var(--sh-accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  [data-studio-v4-shell="true"] [data-studio-session-history="true"] { transition: none; }
+}
+
+/* Actual bulk outcome, with unresolved selections preserved by the native owner. */
+[data-studio-v4-shell="true"] [data-studio-session-part="bulk-result"] { margin: 0 2px 10px; padding: 10px; border: 1px solid var(--ss-line); border-left: 2px solid #ba7950; border-radius: 8px; background: var(--ss-panel); color: var(--ss-text); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-session-part="bulk-result"] strong { display: block; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-session-part="bulk-result"] p { margin-top: 4px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-session-part="bulk-result"] button { margin-top: 7px; padding: 3px 7px; border: 1px solid var(--ss-line); border-radius: 5px; background: var(--ss-surface); color: var(--ss-teal); }

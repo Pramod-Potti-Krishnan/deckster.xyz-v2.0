@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download, Wallet, Plus, Loader2 } from "lucide-react"
 import { useWallet } from "@/hooks/use-wallet"
 import { features } from "@/lib/config"
+import "@/components/billing/studio-billing.css"
 
 interface Invoice {
   id: string
@@ -37,13 +38,14 @@ function formatBytes(bytes: number): string {
 
 export default function BillingPage() {
   return (
-    <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>}>
+    <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground" data-studio-billing-loading={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true" ? "true" : undefined}>Loading…</div>}>
       <BillingPageContent />
     </Suspense>
   )
 }
 
 function BillingPageContent() {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -85,7 +87,7 @@ function BillingPageContent() {
 
   if (isLoading || isLoadingSubscription) {
     return (
-      <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
+      <div className="py-12 text-center text-sm text-muted-foreground" data-studio-billing-loading={studioShell ? "true" : undefined}>Loading…</div>
     )
   }
 
@@ -118,23 +120,24 @@ function BillingPageContent() {
   }
 
   return (
-    <main className="container mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-8">
+    <main className="container mx-auto max-w-4xl px-4 py-8" data-studio-billing={studioShell ? "true" : undefined}>
+      <div className="mb-8" data-studio-billing-heading={studioShell ? "true" : undefined}>
         <h1 className="text-3xl font-bold mb-2">Billing & Subscription</h1>
         <p className="text-muted-foreground">Manage your subscription and billing information</p>
       </div>
 
-      <div className="grid gap-6">
+      <div className="grid gap-6" data-studio-billing-grid={studioShell ? "true" : undefined}>
         {/* Current Plan Card */}
-        <Card>
-          <CardHeader>
+        <Card data-studio-billing-card={studioShell ? "plan" : undefined}>
+          <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
             <CardTitle>Current Plan</CardTitle>
             <CardDescription>Your subscription details</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 p-4 dark:bg-slate-900">
+          <CardContent className="space-y-4" data-studio-billing-body={studioShell ? "true" : undefined}>
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 p-4 dark:bg-slate-900" data-studio-billing-plan-summary={studioShell ? "true" : undefined}>
               <div className="flex items-center space-x-4">
                 <div
+                  data-studio-billing-plan-icon={studioShell ? "true" : undefined}
                   className={`rounded-lg p-3 ${
                     user.tier === "premium"
                       ? "bg-purple-100 dark:bg-purple-900/30"
@@ -178,6 +181,7 @@ function BillingPageContent() {
                 {isPro && subscription ? (
                   <>
                     <Badge
+                      data-studio-billing-plan-status={studioShell ? subscription.status : undefined}
                       variant="outline"
                       className={
                         subscription.status === "active"
@@ -206,7 +210,7 @@ function BillingPageContent() {
             {/* Plan Features */}
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Included in your plan:</h4>
-              <div className="grid gap-2">
+              <div className="grid gap-2" data-studio-billing-features={studioShell ? "true" : undefined}>
                 {user.tier === "premium" ? (
                   <>
                     <Feature included text="Unlimited presentations" />
@@ -236,7 +240,7 @@ function BillingPageContent() {
             </div>
 
             {isPro && subscription && (
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2" data-studio-billing-plan-actions={studioShell ? "true" : undefined}>
                 <ManageSubscriptionButton />
                 {user.tier === "pro" && (
                   <Button variant="outline" onClick={handleUpgrade}>
@@ -250,15 +254,15 @@ function BillingPageContent() {
 
         {/* Credit Balance Card */}
         {features.couponAuthEnabled && (
-          <Card>
-            <CardHeader>
+          <Card data-studio-billing-card={studioShell ? "wallet" : undefined}>
+            <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
               <CardTitle className="flex items-center gap-2">
                 <Wallet className="h-5 w-5" />
                 Credit Balance
               </CardTitle>
               <CardDescription>Your available credits for AI generation</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4" data-studio-billing-body={studioShell ? "true" : undefined}>
               {searchParams?.get("topup") === "success" && (
                 <Alert className="border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/30">
                   <Check className="h-4 w-4 text-green-600" />
@@ -268,7 +272,7 @@ function BillingPageContent() {
                 </Alert>
               )}
 
-              <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 p-4">
+              <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 p-4" data-studio-billing-balance={studioShell ? "true" : undefined}>
                 <div>
                   <p className="text-sm text-muted-foreground">Available Balance</p>
                   <p className="text-3xl font-bold">
@@ -279,7 +283,7 @@ function BillingPageContent() {
 
               <div>
                 <h4 className="text-sm font-medium mb-2">Add Credits</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-studio-billing-packs={studioShell ? "true" : undefined}>
                   {[
                     { id: "pack_10", label: "$10" },
                     { id: "pack_25", label: "$25" },
@@ -309,7 +313,7 @@ function BillingPageContent() {
               {!wallet.isLoading && wallet.transactions.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2">Recent Transactions</h4>
-                  <div className="space-y-2">
+                  <div className="space-y-2" data-studio-billing-transactions={studioShell ? "true" : undefined}>
                     {wallet.transactions.slice(0, 5).map((txn) => (
                       <div
                         key={txn.id}
@@ -343,13 +347,13 @@ function BillingPageContent() {
 
         {/* Payment Method Card */}
         {user.tier !== "free" && (
-          <Card>
-            <CardHeader>
+          <Card data-studio-billing-card={studioShell ? "payment" : undefined}>
+            <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
               <CardTitle>Payment Method</CardTitle>
               <CardDescription>Manage your payment information</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between rounded-lg border p-4">
+            <CardContent data-studio-billing-body={studioShell ? "true" : undefined}>
+              <div className="flex items-center justify-between rounded-lg border p-4" data-studio-billing-payment-row={studioShell ? "true" : undefined}>
                 <div className="flex items-center gap-3">
                   <CreditCard className="h-5 w-5 text-muted-foreground" />
                   <div>
@@ -367,14 +371,14 @@ function BillingPageContent() {
 
         {/* Invoice History */}
         {user.tier !== "free" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Invoice History</CardTitle>
+          <Card data-studio-billing-card={studioShell ? "invoices" : undefined}>
+            <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
+              <CardTitle id={studioShell ? "billing-invoice-heading" : undefined}>Invoice History</CardTitle>
               <CardDescription>Download your past invoices</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent data-studio-billing-body={studioShell ? "true" : undefined}>
               {invoices.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <div className="flex flex-col items-center gap-2 py-8 text-center" data-studio-billing-invoice-empty={studioShell ? "true" : undefined}>
                   <Calendar className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
                     No invoices yet. Your invoices will appear here after your first
@@ -385,11 +389,13 @@ function BillingPageContent() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2" data-studio-billing-invoices={studioShell ? "true" : undefined} role={studioShell ? "list" : undefined} aria-labelledby={studioShell ? "billing-invoice-heading" : undefined}>
                   {invoices.map((invoice) => (
                     <div
                       key={invoice.id}
                       className="flex items-center justify-between rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-900"
+                      data-studio-billing-invoice={studioShell ? "true" : undefined}
+                      role={studioShell ? "listitem" : undefined}
                     >
                       <div className="flex items-center gap-3">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -407,7 +413,7 @@ function BillingPageContent() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs text-green-700">
+                        <Badge variant="outline" className="text-xs text-green-700" data-studio-billing-invoice-status={studioShell ? "true" : undefined}>
                           {invoice.status}
                         </Badge>
                         {invoice.downloadUrl && (
@@ -432,13 +438,13 @@ function BillingPageContent() {
         )}
 
         {/* Usage Statistics */}
-        <Card>
-          <CardHeader>
+        <Card data-studio-billing-card={studioShell ? "usage" : undefined}>
+          <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
             <CardTitle>Usage</CardTitle>
             <CardDescription>Your usage this billing period</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent data-studio-billing-body={studioShell ? "true" : undefined}>
+            <div className="space-y-4" data-studio-billing-usage={studioShell ? "true" : undefined}>
               <div>
                 <div className="mb-1 flex justify-between text-sm">
                   <span>Presentations</span>
@@ -477,7 +483,7 @@ function BillingPageContent() {
 
         {/* Upgrade CTA for Free Users */}
         {user.tier === "free" && (
-          <Alert className="border-purple-200 bg-purple-50 dark:border-purple-900/50 dark:bg-purple-950/30">
+          <Alert className="border-purple-200 bg-purple-50 dark:border-purple-900/50 dark:bg-purple-950/30" data-studio-billing-upgrade={studioShell ? "true" : undefined}>
             <AlertCircle className="h-4 w-4 text-purple-600" />
             <AlertDescription className="flex items-center justify-between">
               <div>

@@ -77,8 +77,6 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   // Use Prisma adapter for database storage
   adapter: PrismaAdapter(prisma) as Adapter,
-  // Trust host in production (required for Vercel)
-  trustHost: true,
   // Use secure cookies in production
   useSecureCookies: process.env.NODE_ENV === 'production',
   providers: [

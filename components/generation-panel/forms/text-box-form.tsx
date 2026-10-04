@@ -16,7 +16,7 @@ import {
   type TextSlotKind,
   TEXT_LABS_ELEMENT_DEFAULTS,
 } from '@/types/textlabs'
-import { type ElementContext, type MandatoryConfig } from '../types'
+import { type ElementContext, type GenerationPanelDraft, type MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PositionPresets } from '../shared/position-presets'
 import { ZIndexInput } from '../shared/z-index-input'
@@ -39,6 +39,10 @@ import {
   slotMetadataForRequest,
   slotSelectionValue,
 } from '@/lib/text-slot-catalog'
+
+import './studio-content-fields.css'
+
+const STUDIO_CONTENT_FIELDS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TEXT_BOX
 
@@ -100,6 +104,27 @@ interface ExistingTextTarget {
   generationConfig?: Record<string, unknown> | null
 }
 
+export interface TextBoxControlsDraft {
+  targetValue: string
+  roleContext: string | null
+  structure: 'auto' | TextBoxStructure
+  count: number
+  layoutChoice: TextBoxLayoutChoice
+  gridCols: number
+  multiBoxColorMode: NonNullable<TextBoxFormData['multiBoxColorMode']>
+  textboxOverrides: Partial<TextBoxConfig>
+  geometryMode: 'AUTO' | 'MANUAL'
+  manualGeometryOverrides: TextManualGeometryOverrides
+  zIndex: number
+  positionModified: boolean
+  paddingModified: boolean
+  paddingConfig: TextLabsPaddingConfig
+  positionConfig: TextLabsPositionConfig
+  geometryEdited: boolean
+  geometryContext: ElementContext | null
+  sections: Record<'instances' | 'boxDesign' | 'heading' | 'content' | 'positioning' | 'padding', boolean>
+}
+
 interface TextBoxFormProps {
   onSubmit: (formData: TextLabsFormData) => void
   registerSubmit: (fn: () => void) => void
@@ -114,6 +139,9 @@ interface TextBoxFormProps {
   slotCatalogLoading: boolean
   slotCatalogError?: string | null
   existingTextTarget?: ExistingTextTarget | null
+  initialDraft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
+  targetElementId?: string | null
 }
 
 function roleLabel(role?: TextSemanticRole | null): string {
@@ -211,48 +239,67 @@ export function TextBoxForm({
   slotCatalogLoading,
   slotCatalogError,
   existingTextTarget,
+  initialDraft,
+  onDraftChange,
+  targetElementId,
 }: TextBoxFormProps) {
-  const [targetValue, setTargetValue] = useState(BODY_TEXT_AUTO_SLOT)
-  const [structure, setStructure] = useState<'auto' | TextBoxStructure>('auto')
-  const [count, setCount] = useState(1)
-  const [layoutChoice, setLayoutChoice] = useState<TextBoxLayoutChoice>('auto')
-  const [gridCols, setGridCols] = useState(2)
-  const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<TextBoxFormData['multiBoxColorMode']>>('SAME')
-  const [textboxOverrides, setTextboxOverrides] = useState<Partial<TextBoxConfig>>({})
-  const [geometryMode, setGeometryMode] = useState<'AUTO' | 'MANUAL'>('AUTO')
-  const [manualGeometryOverrides, setManualGeometryOverrides] = useState<TextManualGeometryOverrides>({})
-  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-  const [positionModified, setPositionModified] = useState(false)
-  const [paddingModified, setPaddingModified] = useState(false)
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
+  const activeTargetId = targetElementId ?? existingTextTarget?.elementId ?? null
+  const [initialControls] = useState(() => STUDIO_CONTENT_FIELDS ? initialDraft?.textBoxControls : undefined)
+  const [initialSaved] = useState(() => STUDIO_CONTENT_FIELDS ? readSavedTextBoxGenerationConfig(existingTextTarget?.generationConfig) : null)
+
+  const [targetValue, setTargetValue] = useState(initialControls?.targetValue ?? BODY_TEXT_AUTO_SLOT)
+  const [structure, setStructure] = useState<'auto' | TextBoxStructure>(initialControls?.structure ?? initialSaved?.structure ?? 'auto')
+  const [count, setCount] = useState(initialControls?.count ?? initialSaved?.count ?? 1)
+  const [layoutChoice, setLayoutChoice] = useState<TextBoxLayoutChoice>(initialControls?.layoutChoice ?? initialSaved?.layoutChoice ?? 'auto')
+  const [gridCols, setGridCols] = useState(initialControls?.gridCols ?? initialSaved?.gridCols ?? 2)
+  const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<TextBoxFormData['multiBoxColorMode']>>(initialControls?.multiBoxColorMode ?? initialSaved?.multiBoxColorMode ?? 'SAME')
+  const [textboxOverrides, setTextboxOverrides] = useState<Partial<TextBoxConfig>>(initialControls?.textboxOverrides ?? initialSaved?.textboxOverrides ?? {})
+  const [geometryMode, setGeometryMode] = useState<'AUTO' | 'MANUAL'>(initialControls?.geometryMode ?? initialSaved?.geometryMode ?? 'AUTO')
+  const [manualGeometryOverrides, setManualGeometryOverrides] = useState<TextManualGeometryOverrides>(initialControls?.manualGeometryOverrides ?? initialSaved?.manualGeometryOverrides ?? {})
+  const [zIndex, setZIndex] = useState(initialControls?.zIndex ?? initialSaved?.zIndex ?? DEFAULTS.zIndex)
+  const [positionModified, setPositionModified] = useState(initialControls?.positionModified ?? initialSaved?.positionModified ?? false)
+  const [paddingModified, setPaddingModified] = useState(initialControls?.paddingModified ?? initialSaved?.paddingModified ?? false)
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(initialControls?.paddingConfig ?? initialSaved?.paddingConfig ?? {
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
   })
-  const [showInstances, setShowInstances] = useState(false)
-  const [showBoxDesign, setShowBoxDesign] = useState(false)
-  const [showHeading, setShowHeading] = useState(false)
-  const [showContent, setShowContent] = useState(false)
-  const [showPositioning, setShowPositioning] = useState(false)
-  const [showPadding, setShowPadding] = useState(false)
-  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
+  const [showInstances, setShowInstances] = useState(initialControls?.sections.instances ?? false)
+  const [showBoxDesign, setShowBoxDesign] = useState(initialControls?.sections.boxDesign ?? false)
+  const [showHeading, setShowHeading] = useState(initialControls?.sections.heading ?? false)
+  const [showContent, setShowContent] = useState(initialControls?.sections.content ?? false)
+  const [showPositioning, setShowPositioning] = useState(initialControls?.sections.positioning ?? false)
+  const [showPadding, setShowPadding] = useState(initialControls?.sections.padding ?? false)
+  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>(initialControls?.positionConfig ?? (STUDIO_CONTENT_FIELDS && elementContext
+    && (!activeTargetId || !elementContext.elementId || activeTargetId === elementContext.elementId) ? {
+    start_col: elementContext.startCol, start_row: elementContext.startRow,
+    position_width: elementContext.width, position_height: elementContext.height, auto_position: false,
+  } : {
     start_col: 2,
     start_row: 4,
     position_width: DEFAULTS.width,
     position_height: DEFAULTS.height,
     auto_position: false,
-  })
+  }))
+  const [geometryEdited, setGeometryEdited] = useState(initialControls?.geometryEdited ?? false)
+  const geometryContextRef = useRef<ElementContext | null>(initialControls?.geometryContext ?? null)
+  const roleContextRef = useRef<string | null>(initialControls?.roleContext ?? null)
   const previousTargetIdentity = useRef<string | null>(null)
   const { tokens: themeTokens, loading: themeLoading, error: themeError } = useDeckThemePalette(presentationId)
 
-  const targetIdentity = elementContext?.elementId
-    ?? existingTextTarget?.elementId
-    ?? (existingTextTarget?.slotName ? `slot:${existingTextTarget.slotName}` : null)
+  const targetIdentity = STUDIO_CONTENT_FIELDS
+    ? activeTargetId ?? elementContext?.elementId ?? (existingTextTarget?.slotName ? `slot:${existingTextTarget.slotName}` : null)
+    : elementContext?.elementId ?? existingTextTarget?.elementId ?? (existingTextTarget?.slotName ? `slot:${existingTextTarget.slotName}` : null)
   const targetResetKey = `${targetIdentity ?? 'new'}:${existingTextTarget?.generationConfig ? 'saved' : 'auto'}`
 
   useEffect(() => {
     if (previousTargetIdentity.current !== targetResetKey) {
+      if (STUDIO_CONTENT_FIELDS && initialControls && previousTargetIdentity.current === null) {
+        previousTargetIdentity.current = targetResetKey
+        return
+      }
+      if (STUDIO_CONTENT_FIELDS) setGeometryEdited(false)
       const saved = readSavedTextBoxGenerationConfig(existingTextTarget?.generationConfig)
       setStructure(saved?.structure ?? 'auto')
       setCount(saved?.count ?? 1)
@@ -274,10 +321,20 @@ export function TextBoxForm({
       setShowPadding(false)
     }
     previousTargetIdentity.current = targetResetKey
-  }, [existingTextTarget?.generationConfig, targetResetKey])
+  }, [initialControls, existingTextTarget?.generationConfig, targetResetKey])
 
   useEffect(() => {
     if (!elementContext) return
+    if (STUDIO_CONTENT_FIELDS) {
+      if (activeTargetId && elementContext.elementId && activeTargetId !== elementContext.elementId) return
+      const previous = geometryContextRef.current
+      const sameOwner = !previous?.elementId || !elementContext.elementId || previous.elementId === elementContext.elementId
+      const sameBounds = previous?.startCol === elementContext.startCol && previous?.startRow === elementContext.startRow
+        && previous?.width === elementContext.width && previous?.height === elementContext.height
+      geometryContextRef.current = { ...elementContext }
+      if (geometryEdited && sameOwner && sameBounds) return
+      setGeometryEdited(false)
+    }
     setPositionConfig(previous => ({
       ...previous,
       start_col: elementContext.startCol,
@@ -285,7 +342,24 @@ export function TextBoxForm({
       position_width: elementContext.width,
       position_height: elementContext.height,
     }))
-  }, [elementContext])
+  }, [elementContext, STUDIO_CONTENT_FIELDS ? activeTargetId : null])
+
+  const updatePositionConfig = useCallback((next: TextLabsPositionConfig) => {
+    if (STUDIO_CONTENT_FIELDS) {
+      setGeometryEdited(!next.auto_position)
+      if (next.auto_position && elementContext
+        && (!activeTargetId || !elementContext.elementId || activeTargetId === elementContext.elementId)) {
+        geometryContextRef.current = { ...elementContext }
+        setPositionConfig({
+          ...next,
+          start_col: elementContext.startCol, start_row: elementContext.startRow,
+          position_width: elementContext.width, position_height: elementContext.height,
+        })
+        return
+      }
+    }
+    setPositionConfig(next)
+  }, [activeTargetId, elementContext])
 
   const area = useMemo(() => ({
     start_col: positionConfig.start_col,
@@ -344,9 +418,23 @@ export function TextBoxForm({
     }
   }, [existingTextTarget?.accessoryType, existingTextTarget?.semanticRole, existingTextTarget?.slotKind, existingTextTarget?.slotName, slotCatalog])
 
+  const roleContext = JSON.stringify([activeTargetId, existingTextTarget?.semanticRole ?? null,
+    existingTextTarget?.slotName ?? null, existingTextTarget?.slotKind ?? null, existingTextTarget?.accessoryType ?? null])
   useEffect(() => {
-    setTargetValue(selectionForExistingTarget(effectiveCatalog, existingTextTarget))
+    if (STUDIO_CONTENT_FIELDS) {
+      if (slotCatalogLoading || (activeTargetId && existingTextTarget?.elementId && activeTargetId !== existingTextTarget.elementId)) return
+      const sameTarget = roleContextRef.current === roleContext
+      roleContextRef.current = roleContext
+      setTargetValue(previous => sameTarget && (previous === BODY_TEXT_AUTO_SLOT
+        || effectiveCatalog.slots.some(slot => slotSelectionValue(slot) === previous))
+        ? previous
+        : selectionForExistingTarget(effectiveCatalog, existingTextTarget, true))
+      return
+    }
+    setTargetValue(selectionForExistingTarget(effectiveCatalog, existingTextTarget, STUDIO_CONTENT_FIELDS))
   }, [
+    STUDIO_CONTENT_FIELDS ? roleContext : null,
+    STUDIO_CONTENT_FIELDS ? slotCatalogLoading : null,
     effectiveCatalog,
     existingTextTarget?.accessoryType,
     existingTextTarget?.semanticRole,
@@ -487,6 +575,24 @@ export function TextBoxForm({
     zIndex,
   ])
 
+  useEffect(() => {
+    if (!STUDIO_CONTENT_FIELDS) return
+    onDraftChange?.({
+      prompt, showAdvanced,
+      textBoxControls: {
+        targetValue, roleContext: roleContextRef.current, structure, count, layoutChoice, gridCols,
+        multiBoxColorMode, textboxOverrides, geometryMode, manualGeometryOverrides, zIndex,
+        positionModified, paddingModified, paddingConfig, positionConfig, geometryEdited,
+        geometryContext: geometryContextRef.current,
+        sections: { instances: showInstances, boxDesign: showBoxDesign, heading: showHeading,
+          content: showContent, positioning: showPositioning, padding: showPadding },
+      },
+    })
+  }, [onDraftChange, prompt, showAdvanced, targetValue, roleContext, elementContext, structure, count,
+    layoutChoice, gridCols, multiBoxColorMode, textboxOverrides, geometryMode, manualGeometryOverrides,
+    zIndex, positionModified, paddingModified, paddingConfig, positionConfig, geometryEdited,
+    showInstances, showBoxDesign, showHeading, showContent, showPositioning, showPadding])
+
   const handleSubmit = useCallback(() => {
     const bodyCount = isBodyText ? count : 1
     const slotMetadata = slotMetadataForRequest(selectedSlot)
@@ -573,8 +679,8 @@ export function TextBoxForm({
   const cornersValue = textboxOverrides.corners ?? 'auto'
 
   return (
-    <div className="space-y-3">
-      <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
+    <div data-studio-content-form={STUDIO_CONTENT_FIELDS ? 'text-box' : undefined} className="space-y-3">
+      <section data-studio-content-part={STUDIO_CONTENT_FIELDS ? 'slot-context' : undefined} className="space-y-2 rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center justify-between gap-2">
           <label htmlFor="textbox-role" className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
             Semantic role
@@ -594,8 +700,8 @@ export function TextBoxForm({
         >
           {roleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        {slotCatalogLoading && <p className="text-[10px] text-slate-500">Loading roles from the active template…</p>}
-        {slotCatalogError && <p className="text-[10px] text-amber-600 dark:text-amber-400">{slotCatalogError}</p>}
+        {slotCatalogLoading && <p data-studio-content-notice={STUDIO_CONTENT_FIELDS ? 'loading' : undefined} role={STUDIO_CONTENT_FIELDS ? 'status' : undefined} className="text-[10px] text-slate-500">Loading roles from the active template…</p>}
+        {slotCatalogError && <p data-studio-content-notice={STUDIO_CONTENT_FIELDS ? 'error' : undefined} role={STUDIO_CONTENT_FIELDS ? 'alert' : undefined} className="text-[10px] text-amber-600 dark:text-amber-400">{slotCatalogError}</p>}
         {selectedSlot && (
           <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
             Uses template slot <span className="font-mono">{selectedSlot.slot_name}</span>.
@@ -609,6 +715,7 @@ export function TextBoxForm({
         <section className="space-y-2 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
           <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Body structure</label>
           <select
+            aria-label={STUDIO_CONTENT_FIELDS ? 'Body structure' : undefined}
             value={structure}
             onChange={event => setStructure(event.target.value as 'auto' | TextBoxStructure)}
             className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
@@ -955,6 +1062,7 @@ export function TextBoxForm({
                         type="button"
                         key={`box-${token.id}`}
                         title={`${token.label}: ${token.color}`}
+                        data-studio-content-color={STUDIO_CONTENT_FIELDS ? 'preset' : undefined}
                         aria-label={`Use ${token.label} for box color`}
                         aria-pressed={textboxOverrides.color_variant === token.color}
                         onClick={() => {
@@ -972,6 +1080,7 @@ export function TextBoxForm({
                         type="button"
                         key={`box-${option.value}`}
                         title={option.label}
+                        data-studio-content-color={STUDIO_CONTENT_FIELDS ? 'preset' : undefined}
                         aria-label={`Use ${option.label} for box color`}
                         aria-pressed={textboxOverrides.color_variant === option.value}
                         onClick={() => {
@@ -987,6 +1096,7 @@ export function TextBoxForm({
                     <button
                       type="button"
                       title="Transparent"
+                      data-studio-content-color={STUDIO_CONTENT_FIELDS ? 'transparent' : undefined}
                       aria-label="Use transparent box color"
                       aria-pressed={backgroundValue === 'transparent'}
                       onClick={() => {
@@ -997,7 +1107,7 @@ export function TextBoxForm({
                         backgroundValue === 'transparent' ? 'border-primary ring-2 ring-primary/20' : 'border-white ring-1 ring-slate-300'
                       }`}
                     />
-                    <label className="relative h-7 w-7 cursor-pointer rounded-full border border-slate-300 bg-[conic-gradient(red,yellow,lime,aqua,blue,magenta,red)]" title="Custom color">
+                    <label data-studio-content-part={STUDIO_CONTENT_FIELDS ? 'custom-color' : undefined} className="relative h-7 w-7 cursor-pointer rounded-full border border-slate-300 bg-[conic-gradient(red,yellow,lime,aqua,blue,magenta,red)]" title="Custom color">
                       <span className="sr-only">Custom box color</span>
                       <input
                         type="color"
@@ -1287,7 +1397,7 @@ export function TextBoxForm({
           {isBodyText && (
             <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(value => !value)}>
               <div className="space-y-2">
-                <PositionPresets positionConfig={positionConfig} onChange={setPositionConfig} elementType="TEXT_BOX" onAdvancedModified={() => setPositionModified(true)} />
+                <PositionPresets positionConfig={positionConfig} onChange={updatePositionConfig} elementType="TEXT_BOX" onAdvancedModified={() => setPositionModified(true)} />
                 <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setPositionModified(true)} />
               </div>
             </CollapsibleSection>

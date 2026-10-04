@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import { TextLabsPaddingConfig } from '@/types/textlabs'
+import './studio-generation-geometry.css'
+
+const STUDIO_GEOMETRY = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 type PaddingMode = 'uniform' | 'axis' | 'individual'
 
@@ -34,10 +37,10 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
+    <div data-studio-v4-shell={STUDIO_GEOMETRY ? 'true' : undefined} data-studio-generation-geometry={STUDIO_GEOMETRY ? 'padding' : undefined} className="space-y-2">
+      <div data-studio-geometry-heading={STUDIO_GEOMETRY ? 'true' : undefined} className="flex items-center justify-between">
         <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Padding</label>
-        <div className="flex gap-1">
+        <div data-studio-geometry-group={STUDIO_GEOMETRY ? 'padding-mode' : undefined} role={STUDIO_GEOMETRY ? 'group' : undefined} aria-label={STUDIO_GEOMETRY ? 'Padding mode' : undefined} className="flex gap-1">
           {[
             { value: 'uniform' as const, label: 'Uniform' },
             { value: 'axis' as const, label: 'H / V' },
@@ -65,6 +68,7 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
           <label className="text-[10px] text-gray-400 dark:text-slate-500">All Sides</label>
           <div className="flex items-center gap-2">
             <input
+              aria-label={STUDIO_GEOMETRY ? 'All Sides (px)' : undefined}
               type="number"
               min={0}
               max={60}
@@ -78,11 +82,12 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
       )}
 
       {mode === 'axis' && (
-        <div className="grid grid-cols-2 gap-2">
+        <div data-studio-geometry-pair={STUDIO_GEOMETRY ? 'true' : undefined} className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <label className="text-[10px] text-gray-400 dark:text-slate-500">Horizontal (L+R)</label>
             <div className="flex items-center gap-2">
               <input
+                aria-label={STUDIO_GEOMETRY ? 'Horizontal (L+R) (px)' : undefined}
                 type="number"
                 min={0}
                 max={60}
@@ -97,6 +102,7 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
             <label className="text-[10px] text-gray-400 dark:text-slate-500">Vertical (T+B)</label>
             <div className="flex items-center gap-2">
               <input
+                aria-label={STUDIO_GEOMETRY ? 'Vertical (T+B) (px)' : undefined}
                 type="number"
                 min={0}
                 max={60}
@@ -111,12 +117,13 @@ export function PaddingControl({ paddingConfig, onChange, onAdvancedModified }: 
       )}
 
       {mode === 'individual' && (
-        <div className="grid grid-cols-2 gap-2">
+        <div data-studio-geometry-pair={STUDIO_GEOMETRY ? 'true' : undefined} className="grid grid-cols-2 gap-2">
           {(['top', 'right', 'bottom', 'left'] as const).map(side => (
             <div key={side} className="space-y-1">
               <label className="text-[10px] text-gray-400 dark:text-slate-500 capitalize">{side}</label>
               <div className="flex items-center gap-2">
                 <input
+                  aria-label={STUDIO_GEOMETRY ? `${side} padding (px)` : undefined}
                   type="number"
                   min={0}
                   max={60}

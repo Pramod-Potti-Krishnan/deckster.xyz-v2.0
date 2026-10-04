@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Search, CheckSquare, Trash2, Check } from 'lucide-react';
+import { X, Plus, Search, CheckSquare, Trash2, Check, Loader2, MessageSquare } from 'lucide-react';
 import { useChatSessions, SessionListItem as SessionType } from '@/hooks/use-chat-sessions';
 import { SessionListItem } from './session-list-item';
 import { Button } from './ui/button';
@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
+import './studio-session-history.css';
 
 export interface ChatHistorySidebarProps {
   isOpen: boolean;
@@ -36,12 +37,15 @@ export function ChatHistorySidebar({
   onSessionSelect,
   onNewChat
 }: ChatHistorySidebarProps) {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true';
   const { loadSessions, deleteSession, loading } = useChatSessions();
   const { user } = useAuth();
   const { toast } = useToast();
   const [sessions, setSessions] = useState<SessionType[]>([]);
   const [totalSessionCount, setTotalSessionCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsLoadFailed, setSessionsLoadFailed] = useState(false);
 
   // Selection mode state
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -53,6 +57,7 @@ export function ChatHistorySidebar({
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [deletionSummary, setDeletionSummary] = useState({ count: 0 });
+  const [studioBulkDeleteResult, setStudioBulkDeleteResult] = useState<{ confirmed: number; unresolved: number; total: number } | null>(null);
 
   const clearSessionCache = (sessionId: string) => {
     const cacheOwner = user?.id ?? user?.email ?? '';
@@ -69,11 +74,15 @@ export function ChatHistorySidebar({
   }, [isOpen]);
 
   const loadSessionsData = async () => {
+    setSessionsLoading(true);
+    setSessionsLoadFailed(false);
     const result = await loadSessions({ limit: 50, status: 'active' });
     if (result) {
       setSessions(result.sessions);
       setTotalSessionCount(result.pagination?.total || result.sessions.length);
     }
+    setSessionsLoadFailed(!result);
+    setSessionsLoading(false);
   };
 
   // Handle session deletion
@@ -142,8 +151,60 @@ export function ChatHistorySidebar({
     }
   };
 
+  // Studio reconciles only confirmed outcomes; unresolved IDs stay available for review.
+  const handleStudioBulkDelete = async () => {
+    const idsToDelete = Array.from(selectedIds);
+    const confirmedIds = new Set<string>();
+    const unresolvedIds = new Set(idsToDelete);
+    if (idsToDelete.length === 0) return;
+
+    setIsDeletingBulk(true);
+    setStudioBulkDeleteResult(null);
+    setDeletionProgress({ current: 0, total: idsToDelete.length });
+    try {
+      for (let i = 0; i < idsToDelete.length; i++) {
+        const sessionId = idsToDelete[i];
+        setDeletionProgress({ current: i + 1, total: idsToDelete.length });
+        const success = await deleteSession(sessionId);
+        if (success) {
+          confirmedIds.add(sessionId);
+          unresolvedIds.delete(sessionId);
+          try {
+            clearSessionCache(sessionId);
+          } catch (error) {
+            console.error('Failed to clear sessionStorage:', error);
+          }
+        }
+      }
+    } catch (error) {
+      // The hook normally returns false. Preserve unconfirmed and unattempted IDs
+      // if an unexpected exception interrupts the sequential native callbacks.
+      console.error('Bulk delete error:', error);
+    } finally {
+      setSessions(previous => previous.filter(session => !confirmedIds.has(session.id)));
+      setSelectedIds(unresolvedIds);
+      setIsSelectionMode(unresolvedIds.size > 0);
+      setShowBulkDeleteModal(false);
+      if (unresolvedIds.size > 0) {
+        setStudioBulkDeleteResult({ confirmed: confirmedIds.size, unresolved: unresolvedIds.size, total: idsToDelete.length });
+      } else {
+        setDeletionSummary({ count: confirmedIds.size });
+        setShowSuccessModal(true);
+      }
+      setIsDeletingBulk(false);
+    }
+
+    if (currentSessionId && confirmedIds.has(currentSessionId)) {
+      onNewChat();
+    }
+  };
+
   // Handle bulk delete
   const handleBulkDelete = async () => {
+    if (studio) {
+      await handleStudioBulkDelete();
+      return;
+    }
     setIsDeletingBulk(true);
     const idsToDelete = Array.from(selectedIds);
     let successCount = 0;
@@ -220,6 +281,13 @@ export function ChatHistorySidebar({
           No backdrop: same pattern as ChatGPT / Notion / VS Code where the
           sidebar coexists with the main content rather than dimming it. */}
       <div
+        data-studio-session-history={studio ? "true" : undefined}
+        data-studio-v4-session-list="true"
+        data-studio-v4-session-open={isOpen ? "true" : "false"}
+        role={studio ? "complementary" : undefined}
+        aria-label={studio ? "Sessions" : undefined}
+        aria-hidden={studio && !isOpen ? true : undefined}
+        inert={studio && !isOpen ? true : undefined}
         className={`
           fixed top-14 left-0 bottom-0 w-80 bg-slate-50 dark:bg-slate-950
           shadow-xl border-r border-slate-200 dark:border-slate-800 z-40
@@ -228,9 +296,9 @@ export function ChatHistorySidebar({
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        {/* Header — no X close; the toolbar's PanelLeft button toggles open/close */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xs font-semibold text-gray-900 dark:text-slate-100">Your decks</h2>
+        {/* Classic uses the toolbar toggle; Studio also provides a local close control. */}
+        <div data-studio-session-part={studio ? "header" : undefined} className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xs font-semibold text-gray-900 dark:text-slate-100">{studio ? 'Sessions' : 'Your decks'}</h2>
           <div className="flex items-center gap-2">
             {/* Select Mode Toggle */}
             <Button
@@ -238,15 +306,17 @@ export function ChatHistorySidebar({
               variant={isSelectionMode ? "default" : "ghost"}
               size="sm"
               className="h-6 text-[10px] px-2"
+              aria-pressed={studio ? isSelectionMode : undefined}
             >
               <CheckSquare className="w-3 h-3 mr-1" />
               {isSelectionMode ? 'Cancel' : 'Select'}
             </Button>
+            {studio && <button type="button" onClick={onClose} aria-label="Close sessions"><X size={15} aria-hidden="true" /></button>}
           </div>
         </div>
 
         {/* New Chat Button */}
-        <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+        <div data-studio-session-part={studio ? "new" : undefined} className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
           <Button
             onClick={() => {
               onNewChat();
@@ -256,12 +326,12 @@ export function ChatHistorySidebar({
             size="sm"
           >
             <Plus className="w-3 h-3 mr-1.5" />
-            New Chat
+            {studio ? 'Presentation' : 'New Chat'}
           </Button>
         </div>
 
         {/* Search */}
-        <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+        <div data-studio-session-part={studio ? "search" : undefined} className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
           {isSelectionMode ? (
             /* Select All Checkbox - visible in selection mode */
             <div className="flex items-center gap-2 px-1">
@@ -283,23 +353,44 @@ export function ChatHistorySidebar({
               <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
               <Input
                 type="text"
-                placeholder="Search sessions..."
+                placeholder={studio ? "Find a conversation…" : "Search sessions..."}
+                aria-label={studio ? "Search sessions" : undefined}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-8 h-7 text-[11px]"
               />
+              {studio && searchQuery && <button type="button" data-studio-session-part={studio ? "clear-search" : undefined} onClick={() => setSearchQuery('')} aria-label="Clear session search"><X size={12} aria-hidden="true" /></button>}
             </div>
           )}
         </div>
+        {studio && <div data-studio-session-part={studio ? "eyebrow" : undefined}>Your conversations</div>}
 
         {/* Session List */}
-        <div className="flex-1 overflow-y-auto p-1.5">
-          {loading && sessions.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-gray-500 text-[11px]">
+        <div data-studio-session-part={studio ? "list" : undefined} className="flex-1 overflow-y-auto p-1.5">
+          {studio && studioBulkDeleteResult && (
+            <div data-studio-session-part="bulk-result" role="status">
+              <strong>{studioBulkDeleteResult.confirmed > 0
+                ? `Deleted ${studioBulkDeleteResult.confirmed} of ${studioBulkDeleteResult.total} selected sessions.`
+                : 'No session deletions confirmed.'}</strong>
+              <p>Deletion could not be confirmed for {studioBulkDeleteResult.unresolved} session{studioBulkDeleteResult.unresolved !== 1 ? 's' : ''}. The unresolved sessions were kept selected. Review the selection before retrying.</p>
+              <button type="button" onClick={() => setStudioBulkDeleteResult(null)} aria-label="Dismiss bulk deletion result">Dismiss</button>
+            </div>
+          )}
+          {studio && sessionsLoadFailed && (
+            <div data-studio-session-part={studio ? "state" : undefined} role="status" className="flex flex-col items-center justify-center text-center">
+              <p>Couldn’t load your sessions</p><p>{sessions.length > 0 ? 'The sessions already shown are still available.' : 'Try loading your session list again.'}</p>
+              <button type="button" onClick={() => void loadSessionsData()} disabled={sessionsLoading}>Try again</button>
+            </div>
+          )}
+          {studio && sessionsLoading && sessions.length > 0 && <div data-studio-session-part={studio ? "refresh" : undefined} role="status"><Loader2 size={12} className="animate-spin" aria-hidden="true" />Refreshing sessions…</div>}
+          {(studio ? sessionsLoading : loading) && sessions.length === 0 ? (
+            <div data-studio-session-part={studio ? "state" : undefined} role={studio ? "status" : undefined} className="flex items-center justify-center h-32 text-gray-500 text-[11px]">
+              {studio && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
               Loading sessions...
             </div>
-          ) : filteredSessions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 text-gray-500 text-center px-4">
+          ) : studio && sessionsLoadFailed && sessions.length === 0 ? null : filteredSessions.length === 0 ? (
+            <div data-studio-session-part={studio ? "state" : undefined} className="flex flex-col items-center justify-center h-32 text-gray-500 text-center px-4">
+              {studio && <MessageSquare size={21} aria-hidden="true" />}
               {searchQuery ? (
                 <>
                   <p className="text-[11px]">No sessions found</p>
@@ -335,7 +426,7 @@ export function ChatHistorySidebar({
 
         {/* Bulk Action Bar - appears when items selected */}
         {isSelectionMode && selectedIds.size > 0 && (
-          <div className="px-3 py-2 border-t-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20">
+          <div data-studio-session-part={studio ? "bulk-actions" : undefined} className="px-3 py-2 border-t-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium text-blue-700 dark:text-blue-300">
                 {selectedIds.size} selected
@@ -354,7 +445,7 @@ export function ChatHistorySidebar({
         )}
 
         {/* Footer */}
-        <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700">
+        <div data-studio-session-part={studio ? "footer" : undefined} className="px-3 py-2 border-t border-gray-200 dark:border-gray-700">
           <p className="text-[10px] text-gray-500 text-center">
             {sessions.length < totalSessionCount ? (
               <>Showing {sessions.length} of {totalSessionCount} sessions</>
@@ -367,6 +458,7 @@ export function ChatHistorySidebar({
 
       {/* Bulk Delete Confirmation Modal */}
       <DeleteConfirmModal
+        studioSurface={studio ? 'session-history' : undefined}
         open={showBulkDeleteModal}
         onOpenChange={setShowBulkDeleteModal}
         onConfirm={handleBulkDelete}
@@ -380,7 +472,7 @@ export function ChatHistorySidebar({
 
       {/* Success Modal */}
       <AlertDialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-        <AlertDialogContent className="max-w-sm">
+        <AlertDialogContent data-studio-session-dialog={studio ? 'session-history' : undefined} className="max-w-sm">
           <AlertDialogHeader>
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-green-100 dark:bg-green-900/20 p-2">

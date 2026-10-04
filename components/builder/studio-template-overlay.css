@@ -1,0 +1,27 @@
+/* UI readability only: all native overlay coordinates, heights and z-indices remain inline. */
+[data-studio-template-overlay="true"] { --sto-panel: #fff; --sto-surface: #f5f7f6; --sto-text: #243438; --sto-muted: #566965; --sto-line: #bfcfc8; --sto-accent: #6a4fc0; --sto-active: #edf4f0; }
+.dark [data-studio-template-overlay="true"] { --sto-panel: #1b2426; --sto-surface: #222d30; --sto-text: #e2ebe8; --sto-muted: #a0b1ad; --sto-line: #566b70; --sto-accent: #b4a0f2; --sto-active: #283c35; }
+[data-studio-template-overlay="true"] [data-studio-template-intent] { border-color: var(--sto-line); background: var(--sto-panel); color: var(--sto-text); }
+[data-studio-template-overlay="true"] [data-studio-template-intent="collapsed"] { padding: 0 3px; border-width: 1px; border-radius: 4px; font-size: 9px; line-height: 1; box-shadow: 0 1px 4px #0002; }
+[data-studio-template-overlay="true"] [data-studio-template-intent="collapsed"]:hover { background: var(--sto-active); border-color: var(--sto-accent); }
+[data-studio-template-overlay="true"] [data-studio-template-part="intent-row"] { height: 100%; align-items: center; gap: 3px; color: var(--sto-text); }
+[data-studio-template-overlay="true"] [data-studio-template-part="intent-row"] > span:first-child { width: 4px; height: 4px; margin-top: 0; background: var(--sto-accent); }
+[data-studio-template-overlay="true"] [data-studio-template-part="intent-row"] > svg { width: 9px; height: 9px; color: var(--sto-muted); }
+[data-studio-template-overlay="true"] [data-studio-template-part="intent-expand"] { width: 12px; height: 100%; min-height: 0; padding: 0; border-radius: 3px; background: transparent; color: var(--sto-accent); }
+[data-studio-template-overlay="true"] [data-studio-template-part="intent-expand"] > svg { width: 9px; height: 9px; }
+[data-studio-template-overlay="true"] [data-studio-template-selected="true"] { border-color: var(--sto-accent); }
+[data-studio-template-overlay="true"] [data-studio-template-intent="expanded"] { scrollbar-width: thin; }
+[data-studio-template-overlay="true"] [data-studio-template-intent="expanded"] p { color: var(--sto-text); font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+[data-studio-template-overlay="true"] :is([data-studio-template-part="details"],[data-studio-template-part="details-toggle"]) { border-color: var(--sto-line); background: var(--sto-panel); color: var(--sto-text); }
+[data-studio-template-overlay="true"] [data-studio-template-part="details-toggle"] { padding: 5px 8px; gap: 5px; font-size: 10px; }
+[data-studio-template-overlay="true"] [data-studio-template-part="details-toggle"] svg { width: 12px; height: 12px; color: var(--sto-accent); }
+[data-studio-template-overlay="true"] [data-studio-template-part="locked"] { padding: 4px 8px; border-color: var(--sto-line); background: var(--sto-panel); color: var(--sto-muted); font-size: 10px; line-height: 1.3; box-shadow: 0 2px 7px #0002; }
+[data-studio-template-overlay="true"] [data-studio-template-part="locked"] > span { gap: 5px; }
+[data-studio-template-overlay="true"] [data-studio-template-part="locked"] svg { width: 11px; height: 11px; }
+[data-studio-template-overlay="true"] [data-studio-template-atom] { background: var(--sto-panel); color: var(--sto-text); }
+[data-studio-template-overlay="true"] [data-studio-template-part="legacy-element"] { color: var(--sto-text); background: var(--sto-panel); }
+[data-studio-template-overlay="true"] :is([data-studio-template-atom],[data-studio-template-part="details"],[data-studio-template-intent="expanded"]) :is(.text-slate-500,.text-slate-600,.text-slate-700) { color: var(--sto-muted); }
+[data-studio-template-overlay="true"] :is([data-studio-template-atom],[data-studio-template-part="details"]) :is(dd,p) { color: var(--sto-text); overflow-wrap: anywhere; }
+[data-studio-template-overlay="true"] [data-studio-template-atom] section { border-color: var(--sto-line); background: var(--sto-surface); }
+[data-studio-template-overlay="true"] [data-studio-template-atom] select { border-color: var(--sto-line); background: var(--sto-surface); color: var(--sto-text); }
+[data-studio-template-overlay="true"] :is(button,[role="button"],summary,select):focus-visible { outline: 2px solid var(--sto-accent); outline-offset: -2px; }

@@ -30,8 +30,10 @@ import { PositionPresets } from '../shared/position-presets'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
+import './studio-chart-diagram.css'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.CHART
+const STUDIO_SPECIALIST_FORMS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 export const CHART_TYPE_GROUPS: { group: string; types: { value: TextLabsChartType; label: string }[] }[] = [
   { group: 'Recommended', types: [{ value: 'auto', label: 'Auto' }] },
@@ -135,8 +137,8 @@ export function ChartForm({
   const [seriesNamesInput, setSeriesNamesInput] = useState(initialState.seriesNamesInput)
   const [advancedModified, setAdvancedModified] = useState(initialState.advancedModified)
   const [zIndex, setZIndex] = useState(initialState.zIndex ?? DEFAULTS.zIndex)
-  const [showOptions, setShowOptions] = useState(false)
-  const [showPosition, setShowPosition] = useState(false)
+  const [showOptions, setShowOptions] = useState(STUDIO_SPECIALIST_FORMS ? initialDraft?.chartSections?.options ?? false : false)
+  const [showPosition, setShowPosition] = useState(STUDIO_SPECIALIST_FORMS ? initialDraft?.chartSections?.position ?? false : false)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(
     presentationId,
     initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null,
@@ -252,10 +254,11 @@ export function ChartForm({
       promptPlaceholder: 'e.g., Show quarterly revenue growth for 2024',
       onChange: value => selectChartType(value as TextLabsChartType),
       customRender: (
-        <label className="relative block min-w-0 max-w-[150px]">
+        <label data-studio-v4-shell={STUDIO_SPECIALIST_FORMS ? 'true' : undefined} data-studio-specialist-picker={STUDIO_SPECIALIST_FORMS ? 'chart' : undefined} className="relative block min-w-0 max-w-[150px]">
           <span className="sr-only">Chart Type</span>
           <select
             aria-label="Chart Type"
+            title={STUDIO_SPECIALIST_FORMS ? chartTypeLabel : undefined}
             value={chartType}
             disabled={isGenerating}
             onChange={event => selectChartType(event.target.value as TextLabsChartType)}
@@ -413,6 +416,11 @@ export function ChartForm({
     onDraftChange?.({ formData: draftFormData })
   }, [draftFormData, onDraftChange])
 
+  useEffect(() => {
+    if (!STUDIO_SPECIALIST_FORMS) return
+    onDraftChange?.({ chartSections: { options: showOptions, position: showPosition } })
+  }, [onDraftChange, showOptions, showPosition])
+
   const handleSubmit = useCallback(() => {
     let data: ChartConfig['data'] = null
     if (dataSource === 'custom') {
@@ -502,7 +510,7 @@ export function ChartForm({
   }, [axisLabelMode, chartType, dataSource, parsedCustomData])
 
   return (
-    <div className="space-y-3">
+    <div data-studio-v4-shell={STUDIO_SPECIALIST_FORMS ? 'true' : undefined} data-studio-specialist-form={STUDIO_SPECIALIST_FORMS ? 'chart' : undefined} className="space-y-3">
       {panelMode === 'refine' && operationMode === 'refine' ? (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-3">
@@ -570,6 +578,8 @@ export function ChartForm({
           </div>
           <textarea
             id="chart-custom-data"
+            aria-invalid={STUDIO_SPECIALIST_FORMS ? Boolean(dataError) : undefined}
+            aria-describedby={STUDIO_SPECIALIST_FORMS ? 'chart-custom-data-description' : undefined}
             value={customDataInput}
             onChange={event => validateInput(event.target.value)}
             rows={7}
@@ -578,7 +588,7 @@ export function ChartForm({
             }`}
             placeholder='[{ "label": "Jan", "value": 100 }]'
           />
-          <p className={`text-[10px] leading-4 ${dataError ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>
+          <p id={STUDIO_SPECIALIST_FORMS ? 'chart-custom-data-description' : undefined} role={STUDIO_SPECIALIST_FORMS && dataError ? 'alert' : undefined} className={`text-[10px] leading-4 ${dataError ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>
             {dataError || 'Accepts label/value, scatter/bubble x/y(/r), or labels/datasets data.'}
           </p>
         </div>
@@ -624,12 +634,13 @@ export function ChartForm({
                     }}
                     placeholder="e.g., Customer Acquisition Cost"
                     aria-invalid={Boolean(titleError)}
+                    aria-describedby={STUDIO_SPECIALIST_FORMS && titleError ? 'chart-title-error' : undefined}
                     className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
                       titleError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
                     }`}
                   />
                   {titleError && (
-                    <p role="alert" className="text-[10px] leading-4 text-red-500">{titleError}</p>
+                    <p id={STUDIO_SPECIALIST_FORMS ? 'chart-title-error' : undefined} role="alert" className="text-[10px] leading-4 text-red-500">{titleError}</p>
                   )}
                 </div>
               ) : (
@@ -676,7 +687,7 @@ export function ChartForm({
                         ? 'Name what each numeric axis represents. Both labels are required for scatter and bubble data.'
                         : 'Name the category/time axis and measured value. Either label may be left blank.'}
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div data-studio-specialist-pair={STUDIO_SPECIALIST_FORMS ? 'true' : undefined} className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <label htmlFor="chart-x-axis" className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
                           X-axis label
@@ -687,6 +698,7 @@ export function ChartForm({
                           onChange={event => updateAxisLabels(event.target.value, yAxisLabel)}
                           placeholder="e.g., Investment"
                           aria-invalid={Boolean(axisError)}
+                          aria-describedby={STUDIO_SPECIALIST_FORMS && axisError ? 'chart-axis-error' : undefined}
                           className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
                             axisError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
                           }`}
@@ -702,6 +714,7 @@ export function ChartForm({
                           onChange={event => updateAxisLabels(xAxisLabel, event.target.value)}
                           placeholder="e.g., Revenue"
                           aria-invalid={Boolean(axisError)}
+                          aria-describedby={STUDIO_SPECIALIST_FORMS && axisError ? 'chart-axis-error' : undefined}
                           className={`w-full rounded-md border bg-white px-2 py-1.5 text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100 ${
                             axisError ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
                           }`}
@@ -709,7 +722,7 @@ export function ChartForm({
                       </div>
                     </div>
                     {axisError && (
-                      <p role="alert" className="text-[10px] leading-4 text-red-500">{axisError}</p>
+                      <p id={STUDIO_SPECIALIST_FORMS ? 'chart-axis-error' : undefined} role="alert" className="text-[10px] leading-4 text-red-500">{axisError}</p>
                     )}
                   </div>
                 ) : (

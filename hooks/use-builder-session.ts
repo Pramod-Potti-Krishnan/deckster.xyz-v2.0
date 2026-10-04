@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { features } from '@/lib/config'
+import { getInitializedBuilderHref } from '@/lib/studio-workflow'
 import { debugLog } from '@/lib/debug-log'
 import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import { recoverRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy'
@@ -354,6 +355,11 @@ export function useBuilderSession({
             }
 
             const restoredSessionState = {
+              // The loaded record owns this metadata even before React commits
+              // the selected session and the socket adopts its new identity.
+              ...(process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+                ? { deckOwnerSessionId: session.id }
+                : {}),
               presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl || session.blankPresentationUrl,
               presentationId: session.finalPresentationId || session.strawmanPresentationId || session.blankPresentationId,
               blankPresentationUrl: session.blankPresentationUrl,
@@ -571,11 +577,11 @@ export function useBuilderSession({
                 }
               } catch {}
               setIsResumedSession(false)
-              router.replace(`/builder?session_id=${newSessionId}`, { scroll: false })
+              router.replace(getInitializedBuilderHref(searchParams, newSessionId, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'), { scroll: false })
             } else {
               debugLog('✅ [BUILDER-V2] Session ID already exists:', currentSessionId)
               if (typeof window !== 'undefined' && !window.location.search.includes('session_id=')) {
-                router.replace(`/builder?session_id=${currentSessionId}`, { scroll: false })
+                router.replace(getInitializedBuilderHref(searchParams, currentSessionId, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'), { scroll: false })
               }
             }
           } else {

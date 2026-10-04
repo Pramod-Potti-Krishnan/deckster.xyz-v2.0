@@ -21,12 +21,13 @@ async function resolveUserId(): Promise<string | null> {
 }
 
 // GET /api/ingest-jobs/{jobId} → Director ingest-job status/result
-export async function GET(_req: NextRequest, { params }: { params: { jobId: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
   const userId = await resolveUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { jobId } = await params;
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/ingest-jobs/${encodeURIComponent(params.jobId)}`,
+      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/ingest-jobs/${encodeURIComponent(jobId)}`,
       { cache: 'no-store' },
     );
     const body = await r.json();

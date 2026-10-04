@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Portal as TooltipPortal } from '@radix-ui/react-tooltip'
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -27,6 +30,50 @@ import { getSlideMenuActions, slideMenuHasAnyAction } from '@/lib/slide-thumbnai
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import './studio-thumbnails.css'
+
+const STUDIO_THUMBNAILS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
+
+function ThumbnailActionHint({ label, children }: { label: string; children: React.ReactElement }) {
+  if (!STUDIO_THUMBNAILS) return children
+  return (
+    <TooltipProvider delayDuration={80} skipDelayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent side="left" sideOffset={6} data-studio-v4-shell="true" data-studio-thumbnail-hint="true">
+            {label}
+          </TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+/** Inspect only the existing native diagnostic; actions stay on their original controls. */
+function ThumbnailFailureDetails({ slideNumber, kind, reason }: { slideNumber: number; kind: 'compose' | 'refine'; reason: string }) {
+  if (!STUDIO_THUMBNAILS) return null
+  const label = kind === 'refine' ? 'Refine failed' : 'Failure details'
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button type="button" className="studio-thumbnail-refine-error" data-studio-thumbnail-failure-trigger="true"
+          aria-label={`Inspect failed ${kind === 'refine' ? 'refinement' : 'build'} for slide ${slideNumber}`}
+          title={reason} onClick={event => event.stopPropagation()}>
+          <AlertTriangle size={10} aria-hidden /><span>{label}</span>
+        </button>
+      </DialogTrigger>
+      <DialogContent data-studio-v4-shell="true" data-studio-thumbnail-failure="true" onKeyDown={event => event.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle>Slide {slideNumber} {kind === 'refine' ? 'refinement' : 'build'} failed</DialogTitle>
+          <DialogDescription>The reported details are below.</DialogDescription>
+        </DialogHeader>
+        <div data-studio-thumbnail-failure-text="true" role="region" tabIndex={0} aria-label={`Slide ${slideNumber} failure details`}>{reason}</div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export interface SlideThumbnail {
   slideNumber: number
@@ -223,11 +270,15 @@ export function SlideThumbnailStrip({
     return (
       <div
         key={`compose-${job.jobId}`}
+        data-studio-compose-job={STUDIO_THUMBNAILS}
+        data-compose-status={job.status}
         className="relative group"
         title={isError ? (errorText || 'Slide Composer failed') : 'Slide Composer is building this slide'}
       >
         <button
           type="button"
+          data-studio-compose-card={STUDIO_THUMBNAILS}
+          aria-label={STUDIO_THUMBNAILS ? isError ? job.onRetry ? `Retry building slide ${visualNumber}` : `Building slide ${visualNumber} failed` : `Slide ${visualNumber}: ${title}` : undefined}
           onClick={() => {
             if (isError) job.onRetry?.(job.jobId)
             else job.onSelect?.(job.jobId)
@@ -241,11 +292,11 @@ export function SlideThumbnailStrip({
           )}
           disabled={isError ? !job.onRetry : !job.onSelect}
         >
-          <div className={cn(
+          <div data-studio-compose-preview={STUDIO_THUMBNAILS} className={cn(
             "relative w-full aspect-[16/9] flex flex-col items-center justify-center gap-1.5 p-2",
             isError ? "bg-red-50" : "bg-purple-50"
           )}>
-            <div className={cn(
+            <div data-studio-compose-number={STUDIO_THUMBNAILS} className={cn(
               "absolute top-1.5 left-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded px-1 text-[9px] font-semibold leading-none",
               isError ? "bg-red-100 text-red-700" : "bg-purple-100 text-purple-700"
             )}>
@@ -260,13 +311,14 @@ export function SlideThumbnailStrip({
               <Loader2 className="h-5 w-5 animate-spin" />
             )}
           </div>
-          <div className={cn(
+          <div data-studio-compose-caption={STUDIO_THUMBNAILS} className={cn(
             "px-2 py-1.5 text-[10px] leading-tight text-left line-clamp-2 w-full",
             isError ? "bg-white text-red-700" : "bg-white text-purple-800"
           )}>
-            {isError ? 'Retry compose' : title}
+            {isError ? STUDIO_THUMBNAILS && !job.onRetry ? 'Compose failed' : 'Retry compose' : title}
           </div>
         </button>
+        {STUDIO_THUMBNAILS && isError && <ThumbnailFailureDetails slideNumber={visualNumber} kind="compose" reason={errorText || 'Slide Composer failed'} />}
       </div>
     )
   }
@@ -409,7 +461,7 @@ export function SlideThumbnailStrip({
               <Layout className="mr-2 h-4 w-4" />
               Change Layout
             </C.SubTrigger>
-            <C.SubContent className="w-48">
+            <C.SubContent className="w-48" data-studio-v4-shell={STUDIO_THUMBNAILS} data-studio-thumbnail-menu={STUDIO_THUMBNAILS}>
               {SLIDE_LAYOUTS.map((layout) => (
                 <C.Item
                   key={layout.id}
@@ -446,6 +498,7 @@ export function SlideThumbnailStrip({
                   : onDeleteSlide!(realSlideNumber - 1)
               }
               disabled={menuModel.delete.disabled}
+              data-thumbnail-action="delete"
               className="text-red-600 focus:text-red-600 focus:bg-red-50"
             >
               <Trash2 className="mr-2 h-4 w-4" />
@@ -457,8 +510,47 @@ export function SlideThumbnailStrip({
     )
     const showDotsMenu = slideMenuHasAnyAction(menuModel)
 
+    const refineControl = canRefine ? (
+      <ThumbnailActionHint label={isItemProcessing ? 'A slide action is in progress' : isRefineDisabled ? 'Refinement already queued for this slide' : `Refine slide ${visualNumber}`}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (isRefineDisabled) return
+            onRefineSlide?.({
+              slide_id: slide.slideId ?? null,
+              slide_index: slideIndex,
+              title: displayTitle,
+            })
+          }}
+          disabled={isRefineDisabled}
+          data-studio-thumbnail-refine={STUDIO_THUMBNAILS}
+          className={cn(
+            "absolute bottom-8 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md border shadow-sm",
+            "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100",
+            isActive && "opacity-100",
+            isSelected && "opacity-100",
+            isRefineDisabled
+              ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+              : "border-indigo-200 bg-white text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50",
+          )}
+          title={STUDIO_THUMBNAILS ? undefined : isRefineDisabled ? 'Refinement already queued for this slide' : 'Refine slide'}
+          aria-label={STUDIO_THUMBNAILS ? `Refine slide ${visualNumber}` : 'Refine slide'}
+        >
+          <Wand2 className="h-3.5 w-3.5" />
+        </button>
+      </ThumbnailActionHint>
+    ) : null
+
     const thumbnailContent = (
       <div
+        data-studio-thumbnail-card={STUDIO_THUMBNAILS}
+        data-active={isActive}
+        data-selected={isSelected}
+        data-dragging={isDragging}
+        data-drop-target={isDropTarget}
+        data-processing={isItemProcessing}
+        data-refine-status={refineJob?.status}
         className={cn(
           "relative group flex-shrink-0 w-28 rounded-md border-2 transition-all duration-200 overflow-hidden",
           "hover:border-blue-400 hover:shadow-md",
@@ -475,42 +567,19 @@ export function SlideThumbnailStrip({
       >
         {/* Selection checkmark indicator */}
         {isSelected && (
-          <div className="absolute -top-1 -left-1 z-10 w-5 h-5 rounded-full bg-blue-600 text-white
+          <div data-studio-thumbnail-check={STUDIO_THUMBNAILS} className="absolute -top-1 -left-1 z-10 w-5 h-5 rounded-full bg-blue-600 text-white
                          flex items-center justify-center shadow-sm">
             <Check className="h-3 w-3" />
           </div>
         )}
 
-        {canRefine && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              if (isRefineDisabled) return
-              onRefineSlide?.({
-                slide_id: slide.slideId ?? null,
-                slide_index: slideIndex,
-                title: displayTitle,
-              })
-            }}
-            disabled={isRefineDisabled}
-            className={cn(
-              "absolute bottom-8 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md border shadow-sm",
-              "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100",
-              isActive && "opacity-100",
-              isSelected && "opacity-100",
-              isRefineDisabled
-                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
-                : "border-indigo-200 bg-white text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50",
-            )}
-            title={isRefineDisabled ? 'Refinement already queued for this slide' : 'Refine slide'}
-            aria-label="Refine slide"
-          >
-            <Wand2 className="h-3.5 w-3.5" />
-          </button>
-        )}
+        {!STUDIO_THUMBNAILS && refineControl}
 
         <button
+          data-studio-thumbnail-navigation={STUDIO_THUMBNAILS}
+          aria-label={STUDIO_THUMBNAILS ? `Go to slide ${visualNumber}: ${displayTitle}` : undefined}
+          aria-current={STUDIO_THUMBNAILS && isActive ? 'true' : undefined}
+          aria-pressed={STUDIO_THUMBNAILS ? isSelected : undefined}
           onClick={(e) => handleSlideSelect(slideIndex, visualNumber, e)}
           draggable={enableDragDrop && onReorderSlides && !isItemProcessing}
           onDragStart={(e) => handleDragStart(e, realSlideNumber)}
@@ -526,7 +595,7 @@ export function SlideThumbnailStrip({
           )}
           disabled={isItemProcessing}
         >
-          <div className={cn(
+          <div data-studio-thumbnail-preview={STUDIO_THUMBNAILS} data-has-preview={Boolean(thumbnailUrl)} className={cn(
             "relative w-full aspect-[16/9] overflow-hidden",
             thumbnailUrl
               ? "bg-slate-950"
@@ -546,6 +615,7 @@ export function SlideThumbnailStrip({
               />
             ) : (
               <>
+                {STUDIO_THUMBNAILS && <span className="studio-thumbnail-placeholder-label">No preview</span>}
                 <div className={cn(
                   "h-1 w-3/4 rounded-sm",
                   isActive ? "bg-blue-400 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
@@ -562,7 +632,7 @@ export function SlideThumbnailStrip({
             )}
 
             {isRefining && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-indigo-950/10 text-indigo-700 backdrop-blur-[1px]">
+              <div data-studio-thumbnail-refining={STUDIO_THUMBNAILS} className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-indigo-950/10 text-indigo-700 backdrop-blur-[1px]">
                 <Loader2 className="h-4 w-4 animate-spin" />
               </div>
             )}
@@ -572,7 +642,7 @@ export function SlideThumbnailStrip({
         </button>
 
         {/* Title row below the preview: [number] [title…] [⋯] */}
-        <div className={cn(
+        <div data-studio-thumbnail-caption={STUDIO_THUMBNAILS} className={cn(
           "flex w-full items-start gap-1 px-1.5 py-1.5",
           isActive
             ? "bg-blue-50 dark:bg-slate-900"
@@ -605,24 +675,28 @@ export function SlideThumbnailStrip({
               {titleText}
             </span>
           </button>
+          {STUDIO_THUMBNAILS && refineControl}
           {showDotsMenu && (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  onClick={(e) => e.stopPropagation()}
-                  className={cn(
-                    "flex h-4 w-4 flex-none items-center justify-center rounded text-slate-500 transition-opacity duration-150",
-                    "hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200",
-                    "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
-                    (isActive || isSelected) && "opacity-100"
-                  )}
-                  title="Slide options"
-                  aria-label={`Options for slide ${visualNumber}`}
-                >
-                  <MoreHorizontal className="h-3 w-3" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <ThumbnailActionHint label={`Options for slide ${visualNumber}`}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className={cn(
+                      "flex h-4 w-4 flex-none items-center justify-center rounded text-slate-500 transition-opacity duration-150",
+                      "hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200",
+                      "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+                      (isActive || isSelected) && "opacity-100"
+                    )}
+                    data-studio-thumbnail-options={STUDIO_THUMBNAILS}
+                    title={STUDIO_THUMBNAILS ? undefined : 'Slide options'}
+                    aria-label={`Options for slide ${visualNumber}`}
+                  >
+                    <MoreHorizontal className="h-3 w-3" />
+                  </button>
+                </DropdownMenuTrigger>
+              </ThumbnailActionHint>
+              <DropdownMenuContent align="end" className="w-48" data-studio-v4-shell={STUDIO_THUMBNAILS} data-studio-thumbnail-menu={STUDIO_THUMBNAILS}>
                 {renderMenuItems({
                   Item: DropdownMenuItem,
                   Separator: DropdownMenuSeparator,
@@ -634,6 +708,9 @@ export function SlideThumbnailStrip({
             </DropdownMenu>
           )}
         </div>
+        {STUDIO_THUMBNAILS && refineJob?.status === 'error' && (
+          <ThumbnailFailureDetails slideNumber={visualNumber} kind="refine" reason={refineJob.errors?.filter(Boolean).join('; ') || 'Refinement failed'} />
+        )}
       </div>
     )
 
@@ -644,7 +721,7 @@ export function SlideThumbnailStrip({
           <ContextMenuTrigger asChild>
             {thumbnailContent}
           </ContextMenuTrigger>
-          <ContextMenuContent className="w-48">
+          <ContextMenuContent className="w-48" data-studio-v4-shell={STUDIO_THUMBNAILS} data-studio-thumbnail-menu={STUDIO_THUMBNAILS}>
             {/* Canvas v2 P4: identical action model as the ⋯ dropdown. */}
             {renderMenuItems({
               Item: ContextMenuItem,
@@ -664,6 +741,11 @@ export function SlideThumbnailStrip({
   return (
     <div
       ref={containerRef}
+      data-studio-v4-shell={STUDIO_THUMBNAILS}
+      data-studio-thumbnail-strip={STUDIO_THUMBNAILS}
+      data-orientation={orientation}
+      role={STUDIO_THUMBNAILS ? 'region' : undefined}
+      aria-label={STUDIO_THUMBNAILS ? 'Slide thumbnails' : undefined}
       tabIndex={0}
       className={cn(
         isVertical
@@ -673,7 +755,8 @@ export function SlideThumbnailStrip({
         className
       )}
     >
-      <div className={cn(
+      {STUDIO_THUMBNAILS && <div className="studio-thumbnail-heading"><strong>Slides</strong><span title={`${slidesTotal} slides${selectedSlides.length ? ` · ${selectedSlides.length} selected` : ''}`}>{selectedSlides.length > 1 ? `${selectedSlides.length} selected` : slidesTotal}</span></div>}
+      <div data-studio-thumbnail-list={STUDIO_THUMBNAILS} className={cn(
         isVertical
           ? "flex flex-col items-center gap-2 overflow-y-auto h-full pt-2 pb-12 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
           : "flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"

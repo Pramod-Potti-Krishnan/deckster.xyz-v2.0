@@ -1,0 +1,70 @@
+/* Existing deck-theme controls, with a self-contained literal-Studio palette. */
+[data-studio-v4-dialog="theme"][data-studio-theme="true"] {
+  --stp-panel: #ffffff;
+  --stp-surface: #f5f7f6;
+  --stp-line: #d6e1dc;
+  --stp-text: #243438;
+  --stp-muted: #566965;
+  --stp-accent: #6a4fc0;
+  --stp-active: #f1edfb;
+  --stp-info: #1f6f72;
+  --stp-info-bg: #edf5f2;
+  --stp-warning: #79501e;
+  --stp-warning-bg: #faf3e8;
+  --stp-danger: #a53f36;
+  --stp-danger-bg: #fbefed;
+  --se-panel: var(--stp-panel);
+  --se-surface: var(--stp-surface);
+  --se-line: var(--stp-line);
+  --se-ink: var(--stp-text);
+  --se-muted: var(--stp-muted);
+  --se-violet: var(--stp-accent);
+  --se-violet-soft: var(--stp-active);
+  color: var(--stp-text);
+  background: var(--stp-panel);
+  border-color: var(--stp-line);
+}
+.dark [data-studio-v4-dialog="theme"][data-studio-theme="true"] {
+  --stp-panel: #1b2426;
+  --stp-surface: #222d30;
+  --stp-line: #334245;
+  --stp-text: #e2ebe8;
+  --stp-muted: #a0b1ad;
+  --stp-accent: #b4a0f2;
+  --stp-active: #2a2540;
+  --stp-info: #83c4bd;
+  --stp-info-bg: #203533;
+  --stp-warning: #dfc48c;
+  --stp-warning-bg: #362f24;
+  --stp-danger: #ef9a8f;
+  --stp-danger-bg: #3b2927;
+}
+[data-studio-theme="true"] [data-studio-theme-part="header"],
+[data-studio-theme="true"] [data-studio-theme-part="footer"] { flex-shrink: 0; }
+[data-studio-theme="true"] [data-studio-theme-part="body"] { min-width: 0; }
+[data-studio-theme="true"] [data-studio-theme-notice] {
+  flex-shrink: 0; max-height: 82px; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; overflow-wrap: anywhere; color: var(--stp-info);
+  background: var(--stp-info-bg); border-color: var(--stp-line); line-height: 1.6;
+}
+[data-studio-theme="true"] [data-studio-theme-notice="locked"] { color: var(--stp-warning); background: var(--stp-warning-bg); }
+[data-studio-theme="true"] [data-studio-theme-notice="failed"] { color: var(--stp-danger); background: var(--stp-danger-bg); }
+[data-studio-theme="true"] [data-studio-theme-sync] { color: var(--stp-muted); }
+[data-studio-theme="true"] [data-studio-theme-sync="syncing"],
+[data-studio-theme="true"] [data-studio-theme-sync="applied"] { color: var(--stp-info); background: var(--stp-info-bg); }
+[data-studio-theme="true"] [data-studio-theme-sync="failed"] { color: var(--stp-danger); background: var(--stp-danger-bg); }
+[data-studio-theme="true"] [data-studio-theme-color] { min-width: 0; background: var(--stp-surface); border-color: var(--stp-line); }
+[data-studio-theme="true"] [data-studio-theme-color] > div:first-child { flex-wrap: wrap; }
+[data-studio-theme="true"] [data-studio-theme-color] :is(.text-emerald-600,.text-blue-600) { color: var(--stp-info); }
+[data-studio-theme="true"] [data-studio-theme-color] input { background: var(--stp-panel); color: var(--stp-text); border-color: var(--stp-line); }
+[data-studio-theme="true"] [data-studio-theme-color] input[aria-invalid="true"] { border-color: var(--stp-danger); color: var(--stp-danger); }
+[data-studio-theme="true"] :is([data-studio-theme-notice],[data-studio-theme-sync],[data-studio-theme-color],[data-studio-theme-preset]) :is(p,span,div) { overflow-wrap: anywhere; }
+[data-studio-theme="true"] [data-studio-theme-preset][aria-pressed="true"] { background: var(--stp-active); border-color: var(--stp-accent); }
+[data-studio-theme="true"] [data-studio-theme-preset] .text-blue-500 { color: var(--stp-accent); }
+[data-studio-theme="true"] [data-studio-theme-mode][aria-pressed="true"] { background: var(--stp-panel); color: var(--stp-info); }
+[data-studio-theme="true"] :is(button,input):disabled { opacity: .8; }
+[data-studio-theme="true"] [data-studio-theme-part="footer"] :is(.text-rose-600,.text-rose-700) { color: var(--stp-danger); }
+[data-studio-theme="true"] [data-studio-theme-close] { color: var(--stp-muted); background: transparent; }
+[data-studio-theme="true"] [data-studio-theme-close]:hover { color: var(--stp-text); background: var(--stp-active); }
+[data-studio-theme="true"] [data-studio-theme-close] svg { color: inherit; }
+[data-studio-theme="true"] :is(button,input,[data-studio-theme-notice]):focus-visible { outline: 2px solid var(--stp-accent); outline-offset: 2px; box-shadow: none; }

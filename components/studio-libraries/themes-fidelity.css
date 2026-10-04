@@ -1,0 +1,58 @@
+/* Standalone Themes fidelity: exact review-v4/evidence/candidate/14-brand.png.
+   DECISIONS-v4 D1/D6 + ROUND-2 V40/V41 retain sage chrome, sans page title,
+   serif conversation/Create hero and bottom-right replay; ROUND-3 V50 adds
+   prompt hover/focus labels. No later approval supersedes that page hierarchy.
+   The actual named/palette form replaces mock AI chat; unsupported chat/fonts/
+   extraction stay inactive. Standard/receipt/support rows remain truthful.
+   The leaf marker requires literal Studio AND the standalone account boundary:
+   no flag-off, null-context consumer, Templates, hook or shared shell change.
+   Slide specimens retain their independent theme colors and serif treatment. */
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) { position: relative; padding: 18px 24px 52px;
+  --sl-bg: #f5f7f6; --sl-panel: #ffffff; --sl-soft: #edf2f0; --sl-line: #dde5e2;
+  --sl-text: #243438; --sl-muted: #566965; --sl-teal: #1f6f72; --sl-accent: #6a4fc0;
+  --sl-danger: #b03f35; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading { gap: 20px; margin-bottom: 14px; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading > div:first-child { min-width: 0; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading > div:first-child > .sl-eyebrow { display: none; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading h1 { font-family: inherit; font-size: 25px; line-height: 1.2; font-weight: 500; letter-spacing: -.65px; margin: 0 0 4px; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading p:not(.sl-eyebrow) { font-size: 11px; line-height: 1.5; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-mode { padding: 3px; gap: 3px; border-radius: 8px; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-mode button { padding: 7px 13px; min-height: 32px; border-radius: 5px; font-size: 11px; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-mode button[aria-pressed="true"] { color: var(--sl-teal); box-shadow: 0 1px 4px #293d4610; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-mode button:nth-of-type(2) > svg { display: none; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-mode button:nth-of-type(2)::before { content: ""; width: 13px; height: 13px; flex-shrink: 0; background: currentColor; mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2213.5%22%20cy%3D%226.5%22%20r%3D%22.5%22%20fill%3D%22black%22%2F%3E%3Ccircle%20cx%3D%2217.5%22%20cy%3D%2210.5%22%20r%3D%22.5%22%20fill%3D%22black%22%2F%3E%3Ccircle%20cx%3D%228.5%22%20cy%3D%227.5%22%20r%3D%22.5%22%20fill%3D%22black%22%2F%3E%3Ccircle%20cx%3D%226.5%22%20cy%3D%2212.5%22%20r%3D%22.5%22%20fill%3D%22black%22%2F%3E%3Cpath%20d%3D%22M12%202C6.5%202%202%206.5%202%2012s4.5%2010%2010%2010c.926%200%201.648-.746%201.648-1.688%200-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64%201.64%200%200%201%201.668-1.668h1.996c3.051%200%205.555-2.503%205.555-5.554C21.965%206.012%2017.461%202%2012%202z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat; pointer-events: none; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-context { margin-bottom: 12px; padding-bottom: 10px; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-side-heading > h2 { font-size: 27px; line-height: 1.12; letter-spacing: -.5px; margin: 12px 0 11px; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-side-heading .sl-section-line h2 { font-family: inherit; font-size: 18px; font-weight: 500; line-height: 1.3; margin: 0 0 14px; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-side-heading > .sl-eyebrow { color: var(--sl-muted); font-size: 9px; letter-spacing: 1.6px; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-empty h3, :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-preview-empty h3 { font-family: inherit; font-size: 15px; font-weight: 600; line-height: 1.4; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-primary { background: var(--sl-teal); border-color: var(--sl-teal); }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-primary:not(:disabled):hover { background: var(--sl-teal); filter: brightness(.94); }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading-actions [data-studio-intro-replay="true"] { position: absolute; right: 12px; bottom: 12px; z-index: 30; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--sl-line); border-radius: 6px; background: var(--sl-panel); color: var(--sl-muted); box-shadow: 0 2px 8px #10201c14; opacity: .85; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading-actions [data-studio-intro-replay="true"] > span { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading-actions [data-studio-intro-replay="true"] > svg { display: none; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading-actions [data-studio-intro-replay="true"]::before { content: ""; width: 15px; height: 15px; background: currentColor; mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M20.2%206%203%2011l-.9-2.4c-.3-1.1.3-2.2%201.3-2.5l13.5-4c1.1-.3%202.2.3%202.5%201.3Z%22%2F%3E%3Cpath%20d%3D%22m6.2%205.3%203.1%203.9m3.1-5.8%203.1%204M3%2011h18v8a2%202%200%200%201-2%202H5a2%202%200%200%201-2-2Z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat; pointer-events: none; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading-actions [data-studio-intro-replay="true"]::after { content: attr(aria-label); position: absolute; right: 0; bottom: calc(100% + 7px); max-width: calc(100vw - 48px); width: max-content; padding: 5px 8px; border-radius: 6px; background: var(--sl-text); color: var(--sl-panel); font-size: 11px; line-height: 1.3; opacity: 0; pointer-events: none; transition: opacity .1s ease .08s; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading-actions [data-studio-intro-replay="true"]:not([aria-expanded="true"]):is(:hover, :focus-visible)::after { opacity: 1; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading-actions [data-studio-intro-replay="true"]:is(:hover, :focus-visible) { opacity: 1; color: var(--sl-text); }
+/* Decorative masks use Lucide 0.454.0 Palette/Clapperboard paths (ISC).
+   Native text, labels, button/dialog callbacks and keyboard outline stay intact.
+   Replay anchors to the workspace corner with a reserved 52px gutter; on a long
+   narrow form it scrolls with that corner instead of covering color controls. */
+.dark :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) { --sl-bg: #141c1e; --sl-panel: #1b2426; --sl-soft: #243034; --sl-line: #334245; --sl-text: #e2ebe8; --sl-muted: #a0b1ad; --sl-teal: #83c4bd; --sl-accent: #b4a0f2; --sl-danger: #ef9a8f; }
+.dark :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-primary { color: #141c1e; }
+@media (min-width: 821px) {
+  :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-split { grid-template-columns: minmax(280px, .8fr) minmax(0, 1.2fr); gap: 18px; }
+}
+@media (max-width: 600px) {
+  :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) { padding: 14px 13px 52px; }
+  :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading { gap: 12px; }
+  :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading h1 { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-heading-actions [data-studio-intro-replay="true"]::after { transition: none; }
+}
+
+/* Native capture confirmed the unregistered --font-inter fallback used Arial.
+   Inherit the actual loaded Inter and keep this corner ring in the leaf role. */
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) [data-studio-intro-replay="true"]:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 3px; }

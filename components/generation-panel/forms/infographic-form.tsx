@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, RotateCcw, Trash2, Upload } from 'lucide-react'
 import type {
   InfographicConfig,
@@ -32,6 +32,10 @@ import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 
+import './studio-content-fields.css'
+
+const STUDIO_CONTENT_FIELDS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.INFOGRAPHIC
 const INFOGRAPHIC_OVERRIDE_KEYS = [
   'aspect_ratio',
@@ -57,22 +61,57 @@ type InfographicOverrides = Partial<Pick<
   | 'show_icons'
 >>
 
+// Keep raw local edits and File identity outside the normalized submit envelope.
+export interface InfographicControlsDraft {
+  referenceImage: File | null
+  operation: 'generate' | 'edit' | 'variation'
+  mode: InfographicMode
+  segmentCount?: InfographicSegmentCount
+  contentMode: 'automatic' | 'manual'
+  segmentRows: InfographicV2Segment[]
+  manualContentError: string | null
+  overrides: InfographicOverrides
+  segmentColorsInput: string
+  positionModified: boolean
+  geometryEdited?: boolean
+  geometryContext?: ElementContext | null
+  zIndex: number
+  themeSource: ReturnType<typeof useThemeSourceState>['themeSource']
+  positionPreset: string
+  startCol: number
+  startRow: number
+  width: number
+  height: number
+  showPosition: boolean
+}
+
 interface InfographicFormProps {
   onSubmit: (formData: InfographicFormData) => void
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   presentationId?: string | null
   elementContext?: ElementContext | null
+  targetElementId?: string | null
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
   initialDraft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
   panelMode: GenerationPanelProps['mode']
   existingTarget?: GenerationPanelProps['existingInfographicTarget']
 }
 
 function calculateGCD(a: number, b: number): number {
   return b === 0 ? a : calculateGCD(b, a % b)
+}
+
+function studioSegmentField(label: string, control: ReactNode): ReactNode {
+  return STUDIO_CONTENT_FIELDS ? (
+    <label data-studio-content-field="segment">
+      <span>{label}</span>
+      {control}
+    </label>
+  ) : control
 }
 
 function emptySegment(): InfographicV2Segment {
@@ -85,54 +124,87 @@ export function InfographicForm({
   isGenerating,
   presentationId,
   elementContext,
+  targetElementId,
   prompt,
   showAdvanced,
   registerMandatoryConfig,
   initialDraft,
+  onDraftChange,
   panelMode,
   existingTarget,
 }: InfographicFormProps) {
-  const [referenceImage, setReferenceImage] = useState<File | null>(null)
+  const controlsDraftRef = useRef(STUDIO_CONTENT_FIELDS ? initialDraft?.infographicControls : undefined)
+  const controlsDraft = controlsDraftRef.current
+  const [referenceImage, setReferenceImage] = useState<File | null>(controlsDraft?.referenceImage ?? null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const hydratedTargetRef = useRef(false)
   const draftFormData = initialDraft?.formData?.componentType === 'INFOGRAPHIC'
     ? initialDraft.formData
     : null
   const draftInfographicConfig = draftFormData?.infographicConfig
-  const [operation, setOperation] = useState<'generate' | 'edit' | 'variation'>(() => (
+  const [operation, setOperation] = useState<'generate' | 'edit' | 'variation'>(() => controlsDraft?.operation ?? (
     panelMode === 'refine'
       ? draftInfographicConfig?.operation === 'variation' ? 'variation' : 'edit'
       : 'generate'
   ))
-  const [mode, setMode] = useState<InfographicMode>('v1')
-  const [segmentCount, setSegmentCount] = useState<InfographicSegmentCount | undefined>()
-  const [contentMode, setContentMode] = useState<'automatic' | 'manual'>('automatic')
-  const [segmentRows, setSegmentRows] = useState<InfographicV2Segment[]>([])
-  const [manualContentError, setManualContentError] = useState<string | null>(null)
-  const [overrides, setOverrides] = useState<InfographicOverrides>({})
-  const [segmentColorsInput, setSegmentColorsInput] = useState('')
-  const [positionModified, setPositionModified] = useState(false)
-  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
+  const [mode, setMode] = useState<InfographicMode>(controlsDraft?.mode ?? 'v1')
+  const [segmentCount, setSegmentCount] = useState<InfographicSegmentCount | undefined>(controlsDraft?.segmentCount)
+  const [contentMode, setContentMode] = useState<'automatic' | 'manual'>(controlsDraft?.contentMode ?? 'automatic')
+  const [segmentRows, setSegmentRows] = useState<InfographicV2Segment[]>(controlsDraft?.segmentRows ?? [])
+  const [manualContentError, setManualContentError] = useState<string | null>(controlsDraft?.manualContentError ?? null)
+  const [overrides, setOverrides] = useState<InfographicOverrides>(controlsDraft?.overrides ?? {})
+  const [segmentColorsInput, setSegmentColorsInput] = useState(controlsDraft?.segmentColorsInput ?? '')
+  const [positionModified, setPositionModified] = useState(controlsDraft?.positionModified ?? false)
+  const [geometryEdited, setGeometryEdited] = useState(
+    controlsDraft?.geometryEdited ?? controlsDraft?.positionModified ?? false,
+  )
+  const geometryContextRef = useRef<ElementContext | null>(controlsDraft?.geometryContext ?? null)
+  const geometryContextInitializedRef = useRef(false)
+  const [zIndex, setZIndex] = useState(controlsDraft?.zIndex ?? DEFAULTS.zIndex)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId, controlsDraft?.themeSource)
 
-  const [positionPreset, setPositionPreset] = useState('custom')
-  const [startCol, setStartCol] = useState(2)
-  const [startRow, setStartRow] = useState(4)
-  const [width, setWidth] = useState(DEFAULTS.width)
-  const [height, setHeight] = useState(DEFAULTS.height)
-  const [showPosition, setShowPosition] = useState(false)
+  const [positionPreset, setPositionPreset] = useState(controlsDraft?.positionPreset ?? 'custom')
+  const [startCol, setStartCol] = useState(controlsDraft?.startCol ?? 2)
+  const [startRow, setStartRow] = useState(controlsDraft?.startRow ?? 4)
+  const [width, setWidth] = useState(controlsDraft?.width ?? DEFAULTS.width)
+  const [height, setHeight] = useState(controlsDraft?.height ?? DEFAULTS.height)
+  const [showPosition, setShowPosition] = useState(controlsDraft?.showPosition ?? false)
   const existingMode = inferExistingInfographicMode(existingTarget)
   const designPathLocked = isInfographicDesignPathLocked({ panelMode, operation })
   const canUseReferenceImage = !designPathLocked || existingMode === 'v1'
 
   useEffect(() => {
     if (!elementContext) return
+    if (STUDIO_CONTENT_FIELDS) {
+      // Blank tracking updates after panel activation. Ignore another target's
+      // transient context until the active draft's native identity arrives.
+      if (targetElementId && elementContext.elementId && targetElementId !== elementContext.elementId) return
+      const previous = geometryContextRef.current
+      const firstContext = !geometryContextInitializedRef.current
+      const sameOwner = !previous?.elementId || !elementContext.elementId
+        || previous.elementId === elementContext.elementId
+      const sameBounds = previous?.startCol === elementContext.startCol
+        && previous?.startRow === elementContext.startRow
+        && previous?.width === elementContext.width
+        && previous?.height === elementContext.height
+      geometryContextInitializedRef.current = true
+      geometryContextRef.current = {
+        elementId: elementContext.elementId,
+        startCol: elementContext.startCol, startRow: elementContext.startRow,
+        width: elementContext.width, height: elementContext.height,
+      }
+      // A target-local unsent override wins over an unchanged native context.
+      // A real move/replacement owns new bounds. Older in-memory drafts have no
+      // context witness, so retain their explicit geometry on the first handoff.
+      if (geometryEdited && sameOwner && (sameBounds || (firstContext && !previous))) return
+      setGeometryEdited(false)
+    }
     setStartCol(elementContext.startCol)
     setStartRow(elementContext.startRow)
     setWidth(elementContext.width)
     setHeight(elementContext.height)
     setPositionPreset('custom')
-  }, [elementContext])
+  }, [elementContext, STUDIO_CONTENT_FIELDS ? targetElementId : null])
 
   // A refine target can be a raster V1 image or V2 HTML persisted through the
   // diagram renderer. Preserve that path instead of silently reverting V2 to V1.
@@ -141,6 +213,7 @@ export function InfographicForm({
   useEffect(() => {
     if (hydratedTargetRef.current) return
     hydratedTargetRef.current = true
+    if (controlsDraft) return
 
     const draftConfig = draftInfographicConfig
     if (draftFormData && draftConfig) {
@@ -295,7 +368,7 @@ export function InfographicForm({
       onChange: () => {},
       promptPlaceholder: 'e.g., A five-stage process from hypothesis to publication',
       customRender: (
-        <div className="flex items-center gap-1.5">
+        <div data-studio-content-reference={STUDIO_CONTENT_FIELDS ? 'true' : undefined} className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -311,6 +384,7 @@ export function InfographicForm({
           {referenceImage && (
             <button
               type="button"
+              aria-label={STUDIO_CONTENT_FIELDS ? 'Remove infographic reference image' : undefined}
               onClick={clearReferenceImage}
               className="text-[10px] text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300"
             >
@@ -397,7 +471,25 @@ export function InfographicForm({
     setWidth(preset.width)
     setHeight(preset.height)
     setPositionModified(true)
+    if (STUDIO_CONTENT_FIELDS) setGeometryEdited(true)
   }, [])
+
+  useEffect(() => {
+    if (!STUDIO_CONTENT_FIELDS || !onDraftChange) return
+    onDraftChange({
+      prompt, showAdvanced,
+      infographicControls: {
+        referenceImage, operation, mode, segmentCount, contentMode, segmentRows,
+        manualContentError, overrides, segmentColorsInput, positionModified, zIndex,
+        geometryEdited, geometryContext: geometryContextRef.current,
+        themeSource, positionPreset, startCol, startRow, width, height, showPosition,
+      },
+    })
+  }, [
+    onDraftChange, prompt, showAdvanced, referenceImage, operation, mode, segmentCount, contentMode, segmentRows,
+    manualContentError, overrides, segmentColorsInput, positionModified, zIndex,
+    geometryEdited, elementContext, themeSource, positionPreset, startCol, startRow, width, height, showPosition,
+  ])
 
   const handleSubmit = useCallback(() => {
     const submitMode = resolveInfographicDesignMode({
@@ -485,7 +577,7 @@ export function InfographicForm({
   const displayAspect = `${Math.round(pixelW * 10) / gcd}:${Math.round(pixelH * 10) / gcd}`
 
   return (
-    <div className="space-y-3">
+    <div data-studio-content-form={STUDIO_CONTENT_FIELDS ? 'infographic' : undefined} className="space-y-3">
       <input
         ref={fileInputRef}
         type="file"
@@ -519,6 +611,7 @@ export function InfographicForm({
         {designPathLocked ? (
           <div
             role="status"
+            data-studio-content-design={STUDIO_CONTENT_FIELDS ? 'locked' : undefined}
             aria-label="Locked infographic design"
             className="rounded-md border border-primary bg-primary px-2 py-2 text-left text-white"
           >
@@ -541,6 +634,7 @@ export function InfographicForm({
                 key={value}
                 type="button"
                 disabled={isGenerating}
+                data-studio-content-design={STUDIO_CONTENT_FIELDS ? 'choice' : undefined}
                 aria-pressed={mode === value}
                 onClick={() => selectDesign(value)}
                 className={`rounded-md border px-2 py-2 text-left transition-colors disabled:opacity-50 ${
@@ -722,7 +816,7 @@ export function InfographicForm({
                 {contentMode === 'manual' && (
                   <div className="space-y-2">
                     {segmentRows.map((segment, index) => (
-                      <div key={index} className="space-y-1.5 rounded border border-slate-200 p-2 dark:border-slate-700">
+                      <div data-studio-content-part={STUDIO_CONTENT_FIELDS ? 'manual-row' : undefined} key={index} className="space-y-1.5 rounded border border-slate-200 p-2 dark:border-slate-700">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
                             Row {index + 1}
@@ -737,33 +831,45 @@ export function InfographicForm({
                             <Trash2 className="h-3 w-3" />
                           </button>
                         </div>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <input
-                            value={segment.label}
-                            onChange={event => updateSegment(index, 'label', event.target.value)}
-                            placeholder="Heading"
-                            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
-                          />
-                          <input
-                            value={segment.sublabel ?? ''}
-                            onChange={event => updateSegment(index, 'sublabel', event.target.value)}
-                            placeholder="Short explanatory line"
-                            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
-                          />
+                        <div data-studio-content-part={STUDIO_CONTENT_FIELDS ? 'row-pair' : undefined} className="grid grid-cols-2 gap-1.5">
+                          {studioSegmentField('Heading', (
+                            <input
+                              aria-label={STUDIO_CONTENT_FIELDS ? `Row ${index + 1} heading` : undefined}
+                              value={segment.label}
+                              onChange={event => updateSegment(index, 'label', event.target.value)}
+                              placeholder="Heading"
+                              className="rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                            />
+                          ))}
+                          {studioSegmentField('Short explanatory line', (
+                            <input
+                              aria-label={STUDIO_CONTENT_FIELDS ? `Row ${index + 1} short explanatory line` : undefined}
+                              value={segment.sublabel ?? ''}
+                              onChange={event => updateSegment(index, 'sublabel', event.target.value)}
+                              placeholder="Short explanatory line"
+                              className="rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                            />
+                          ))}
                         </div>
-                        <input
-                          value={segment.icon_hint ?? ''}
-                          onChange={event => updateSegment(index, 'icon_hint', event.target.value)}
-                          placeholder="Relevant icon hint"
-                          className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
-                        />
-                        <textarea
-                          value={segment.description ?? ''}
-                          onChange={event => updateSegment(index, 'description', event.target.value)}
-                          rows={2}
+                        {studioSegmentField('Relevant icon hint', (
+                          <input
+                            aria-label={STUDIO_CONTENT_FIELDS ? `Row ${index + 1} relevant icon hint` : undefined}
+                            value={segment.icon_hint ?? ''}
+                            onChange={event => updateSegment(index, 'icon_hint', event.target.value)}
+                            placeholder="Relevant icon hint"
+                            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                          />
+                        ))}
+                        {studioSegmentField('Supporting description', (
+                          <textarea
+                            aria-label={STUDIO_CONTENT_FIELDS ? `Row ${index + 1} supporting description` : undefined}
+                            value={segment.description ?? ''}
+                            onChange={event => updateSegment(index, 'description', event.target.value)}
+                            rows={2}
                             placeholder="Supporting description"
-                          className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
-                        />
+                            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+                          />
+                        ))}
                       </div>
                     ))}
                     <button
@@ -776,7 +882,7 @@ export function InfographicForm({
                       Add row
                     </button>
                     {manualContentError && (
-                      <p className="text-[10px] leading-4 text-red-500">{manualContentError}</p>
+                      <p data-studio-content-notice={STUDIO_CONTENT_FIELDS ? 'error' : undefined} role={STUDIO_CONTENT_FIELDS ? 'alert' : undefined} className="text-[10px] leading-4 text-red-500">{manualContentError}</p>
                     )}
                   </div>
                 )}
@@ -901,6 +1007,7 @@ export function InfographicForm({
                         setter(Number(event.target.value))
                         setPositionPreset('custom')
                         setPositionModified(true)
+                        if (STUDIO_CONTENT_FIELDS) setGeometryEdited(true)
                       }}
                       className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
                     />

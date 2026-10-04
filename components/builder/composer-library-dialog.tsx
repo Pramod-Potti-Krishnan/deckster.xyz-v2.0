@@ -14,6 +14,7 @@ import {
   COMPOSER_READY_KEY_PREFIX, composerReadyResult, composerRequest, requireComposerServiceUrl,
   validateComposerFile, waitForComposerJob, type ComposerJob, type ComposerTemplate,
 } from '@/lib/composer-library'
+import './studio-composer-library.css'
 
 interface PendingJob { job_id: string; session_id: string; kind: 'upload' | 'use' }
 
@@ -21,6 +22,7 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const { user } = useAuth()
   const { createSession } = useChatSessions()
   const userId = user?.id || user?.email
@@ -144,14 +146,8 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
     })
   }
 
-  return (
-    <Dialog open={open} onOpenChange={next => { if (!busy) onOpenChange(next) }}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Template library</DialogTitle>
-          <DialogDescription>Upload a PowerPoint presentation, then use its template to open an editable deck.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
+  const body = <>
+        <div data-studio-composer-upload={studioShell ? 'true' : undefined} className="space-y-3">
           <label className="block text-sm font-medium" htmlFor="composer-template-file">Add a presentation</label>
           <input id="composer-template-file" ref={fileInputRef} type="file" accept=".pptx" disabled={busy || !userId}
             className="block w-full text-sm" onChange={event => {
@@ -159,40 +155,50 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
               setFile(next)
               setError(next ? validateComposerFile(next) : null)
             }} />
-          <Button onClick={upload} disabled={!file || !!validateComposerFile(file) || busy || !userId}>
+          <Button data-studio-composer-action={studioShell ? 'upload' : undefined} onClick={upload} disabled={!file || !!validateComposerFile(file) || busy || !userId}>
             <FileUp className="mr-2 h-4 w-4" /> Upload template
           </Button>
           <p className="text-xs text-muted-foreground">PowerPoint (.pptx), up to 100 MB.</p>
         </div>
-        {progress && <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm">
+        {progress && <p data-studio-composer-progress={studioShell ? 'true' : undefined} tabIndex={studioShell ? 0 : undefined} aria-label={studioShell ? 'Template operation status' : undefined} role="status" aria-live="polite" className="flex items-center gap-2 text-sm">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} {progress}
         </p>}
-        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-        <div className="max-h-72 space-y-2 overflow-y-auto border-t pt-4">
+        {error && <p data-studio-composer-error={studioShell ? 'true' : undefined} tabIndex={studioShell ? 0 : undefined} aria-label={studioShell ? 'Template library error' : undefined} role="alert" className="text-sm text-red-600">{error}</p>}
+        <div data-studio-composer-list={studioShell ? 'true' : undefined} role={studioShell ? 'group' : undefined} aria-label={studioShell ? 'Saved Composer templates' : undefined} className="max-h-72 space-y-2 overflow-y-auto border-t pt-4">
           {loading && !templates.length ? <p className="text-sm text-muted-foreground">Loading templates…</p>
             : !templates.length ? <p className="text-sm text-muted-foreground">Your uploaded templates will appear here.</p>
-              : templates.map(template => <div key={template.id} className="space-y-3 rounded-md border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium" title={template.name}>{template.name}</p>
-                    <p className="text-xs text-muted-foreground">{template.stage_template_summary?.slide_count ?? template.slide_count ?? 0} slides</p>
+              : templates.map(template => <div data-studio-composer-record={studioShell ? template.id : undefined} key={template.id} className="space-y-3 rounded-md border p-3">
+                <div data-studio-composer-record-row={studioShell ? 'true' : undefined} className="flex items-center justify-between gap-3">
+                  <div data-studio-composer-record-info={studioShell ? 'true' : undefined} className="min-w-0">
+                    <p data-studio-composer-name={studioShell ? 'true' : undefined} className="truncate text-sm font-medium" title={template.name}>{template.name}</p>
+                    <p data-studio-composer-count={studioShell ? 'true' : undefined} className="text-xs text-muted-foreground">{template.stage_template_summary?.slide_count ?? template.slide_count ?? 0} slides</p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    <Button size="sm" variant="outline" disabled={busy || !userId} onClick={() => useTemplate(template)}>Use original</Button>
-                    {newTopicEnabled && <Button size="sm" variant="outline" disabled={busy || !userId}
+                  <div data-studio-composer-actions={studioShell ? 'true' : undefined} className="flex shrink-0 gap-2">
+                    <Button data-studio-composer-action={studioShell ? 'use' : undefined} size="sm" variant="outline" disabled={busy || !userId} onClick={() => useTemplate(template)}>Use original</Button>
+                    {newTopicEnabled && <Button data-studio-composer-action={studioShell ? 'new-topic' : undefined} size="sm" variant="outline" disabled={busy || !userId}
                       onClick={() => { setNewTopicTemplateId(template.id); setNewBrief(''); setError(null) }}>New topic</Button>}
                   </div>
                 </div>
-                {newTopicEnabled && newTopicTemplateId === template.id && <div className="space-y-2">
+                {newTopicEnabled && newTopicTemplateId === template.id && <div data-studio-composer-topic={studioShell ? 'true' : undefined} className="space-y-2">
                   <label htmlFor="composer-new-brief" className="text-sm font-medium">Describe the new presentation</label>
                   <Textarea id="composer-new-brief" value={newBrief} disabled={busy} maxLength={4000}
                     placeholder="What is the topic, audience, and key message? Include any numbers you want shown."
                     onChange={event => setNewBrief(event.target.value)} />
-                  <Button size="sm" disabled={busy || newBrief.trim().length < 20}
+                  <Button data-studio-composer-action={studioShell ? 'create' : undefined} size="sm" disabled={busy || newBrief.trim().length < 20}
                     onClick={() => useTemplate(template, newBrief)}>Create deck</Button>
                 </div>}
               </div>)}
         </div>
+  </>
+
+  return (
+    <Dialog open={open} onOpenChange={next => { if (!busy) onOpenChange(next) }}>
+      <DialogContent data-studio-composer-library={studioShell ? 'true' : undefined} className="sm:max-w-xl">
+        <DialogHeader data-studio-composer-header={studioShell ? 'true' : undefined}>
+          <DialogTitle>Template library</DialogTitle>
+          <DialogDescription>Upload a PowerPoint presentation, then use its template to open an editable deck.</DialogDescription>
+        </DialogHeader>
+        {studioShell ? <div data-studio-composer-body="true" tabIndex={0} role="region" aria-label="Template upload and library">{body}</div> : body}
       </DialogContent>
     </Dialog>
   )

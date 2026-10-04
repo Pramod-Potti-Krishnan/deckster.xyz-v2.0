@@ -1,0 +1,53 @@
+/* Native usage strip and body-portaled top-up; existing quota/checkout behavior. */
+[data-studio-token-usage="true"], [data-studio-topup="true"] {
+  --sut-panel: var(--ss-panel, #fff); --sut-surface: var(--ss-surface, #f5f7f6);
+  --sut-line: var(--ss-line, #d6e1dc); --sut-text: var(--ss-text, #243438);
+  --sut-muted: var(--ss-muted, #566965); --sut-teal: var(--ss-teal, #1f6f72);
+  --sut-accent: var(--ss-accent, #6a4fc0); --sut-warn: #7f5c19; --sut-warn-bg: #faf5e9;
+  --sut-danger: #a52c28; --sut-danger-bg: #fff5f3;
+}
+.dark [data-studio-token-usage="true"], .dark [data-studio-topup="true"] {
+  --sut-panel: var(--ss-panel, #1b2426); --sut-surface: var(--ss-surface, #222d30);
+  --sut-line: var(--ss-line, #334245); --sut-text: var(--ss-text, #e2ebe8);
+  --sut-muted: var(--ss-muted, #a0b1ad); --sut-teal: var(--ss-teal, #83c4bd);
+  --sut-accent: var(--ss-accent, #b4a0f2); --sut-warn: #efc177; --sut-warn-bg: #3a3123;
+  --sut-danger: #ffb3a9; --sut-danger-bg: #322728;
+}
+[data-studio-token-usage="true"] { background: var(--sut-panel); border-color: var(--sut-line); flex-shrink: 0; min-width: 0; }
+[data-studio-token-counter] { gap: 7px 10px; padding: 7px 12px; flex-wrap: wrap; }
+[data-studio-token-counter] > div:first-child { gap: 6px; flex-wrap: wrap; min-width: 0; }
+[data-studio-token-counter] > div:first-child > :is(svg,span) { color: var(--sut-muted); }
+[data-studio-token-counter] > div:first-child > span:first-of-type { color: var(--sut-text); font-size: 11px; }
+[data-studio-token-counter] [data-studio-token-coverage] { border-color: var(--sut-line); border-radius: 5px; padding: 3px 5px; font-size: 9px; background: var(--sut-warn-bg); color: var(--sut-warn); }
+[data-studio-token-counter] [data-studio-token-coverage="full"] { color: var(--sut-teal); background: var(--sut-surface); }
+[data-studio-token-delta] { background: var(--sut-surface); color: var(--sut-accent); border-color: var(--sut-line); border-radius: 5px; padding: 3px 6px; box-shadow: none; flex-shrink: 0; margin-left: auto; }
+[data-studio-token-warning] { background: var(--sut-warn-bg); color: var(--sut-warn); border-top: 1px solid var(--sut-line); padding: 8px 12px; align-items: flex-start; gap: 10px; }
+[data-studio-token-warning="hard"] { background: var(--sut-danger-bg); color: var(--sut-danger); }
+[data-studio-token-warning] > div { align-items: flex-start; gap: 6px; }
+[data-studio-token-warning] > div > svg { margin-top: 2px; }
+[data-studio-token-warning] .truncate { white-space: normal; overflow: visible; text-overflow: clip; font-size: 10px; line-height: 17px; }
+[data-studio-token-warning] button { background: var(--sut-panel); border: 1px solid var(--sut-line); border-radius: 5px; color: var(--sut-text); padding: 4px 6px; font-size: 10px; line-height: 16px; }
+[data-studio-token-warning] button:hover { background: var(--sut-surface); color: var(--sut-teal); border-color: var(--sut-teal); }
+[data-studio-token-warning] button:focus-visible { outline: 2px solid var(--sut-accent); outline-offset: 2px; }
+/* The Dialog remains in its native Radix portal; it carries its own palette. */
+[data-studio-topup="true"] { width: min(430px,calc(100vw - 24px)); max-width: none; max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 20px; gap: 16px; border: 1px solid var(--sut-line); border-radius: 12px; color: var(--sut-text); background: var(--sut-panel); box-shadow: 0 14px 44px rgb(10 26 24 / 20%); }
+[data-studio-topup-header] { text-align: left; padding-right: 20px; gap: 7px; }
+[data-studio-topup-header] h2 { color: var(--sut-text); font-size: 17px; line-height: 24px; font-weight: 600; }
+[data-studio-topup-header] h2 > svg { color: var(--sut-teal); flex-shrink: 0; }
+[data-studio-topup-header] p { color: var(--sut-muted); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+[data-studio-topup-packs] { gap: 10px; padding-top: 0; }
+[data-studio-topup-pack] { background: var(--sut-surface); color: var(--sut-text); border-color: var(--sut-line); border-radius: 8px; min-height: 54px; font-size: 15px; font-weight: 500; }
+[data-studio-topup-pack]:hover:not(:disabled) { background: var(--sut-panel); color: var(--sut-teal); border-color: var(--sut-teal); }
+[data-studio-topup-error] { color: var(--sut-danger); border: 1px solid var(--sut-line); border-left: 3px solid var(--sut-danger); border-radius: 6px; padding: 8px 10px; background: var(--sut-danger-bg); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
+[data-studio-topup] > button:last-child { color: var(--sut-muted); border-radius: 5px; padding: 3px; right: 13px; top: 13px; opacity: 1; }
+[data-studio-topup] > button:last-child:hover { background: var(--sut-surface); color: var(--sut-text); }
+[data-studio-topup] button:focus-visible { outline: 2px solid var(--sut-accent); outline-offset: 3px; box-shadow: none; }
+@media (max-width: 420px) {
+  [data-studio-token-counter] { padding-inline: 10px; }
+  [data-studio-token-warning] { padding-inline: 10px; }
+  [data-studio-topup="true"] { padding: 16px; }
+}
+@media (max-height: 600px) {
+  [data-studio-topup="true"] { padding: 16px 18px; gap: 12px; }
+  [data-studio-topup-pack] { min-height: 48px; }
+}

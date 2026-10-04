@@ -1,0 +1,66 @@
+/* Owned native Text/Infographic controls; the literal shell flag supplies every marker. */
+[data-studio-content-form], [data-studio-content-reference] {
+  --scf-surface: #f5f8f7; --scf-text: #283d40; --scf-muted: #657a7d;
+  --scf-line: #dce5e3; --scf-accent: #7b68ad; --scf-selected: #f0ebf7;
+  min-width: 0;
+}
+.dark [data-studio-content-form], .dark [data-studio-content-reference] {
+  --scf-surface: #222d30; --scf-text: #e2ebe8; --scf-muted: #a0b1ad;
+  --scf-line: #465a5d; --scf-accent: #ab97d7; --scf-selected: #332f44;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-design] {
+  min-width: 0; color: var(--scf-text); background: var(--scf-surface); border-color: var(--scf-line);
+  border-radius: 8px; padding: 9px; white-space: normal; overflow-wrap: anywhere;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-design][aria-pressed="true"],
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-design="locked"] {
+  color: var(--scf-text); background: var(--scf-selected); border-color: var(--scf-accent);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-design][aria-pressed="true"] {
+  color: var(--scf-text); background: var(--scf-selected); border-color: var(--scf-accent);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-design] > span:first-child {
+  font-size: 12px; line-height: 18px; color: var(--scf-text);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-design] > span:last-child {
+  margin-top: 3px; font-size: 11px; line-height: 17px; color: var(--scf-muted);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-part="manual-row"] {
+  padding: 10px; border-color: var(--scf-line); background: var(--scf-surface); border-radius: 8px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-part="row-pair"] {
+  grid-template-columns: minmax(0,1fr); gap: 8px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-field] { display: block; min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-field] > span {
+  display: block; margin-bottom: 4px; color: var(--scf-muted); font-size: 11px; line-height: 16px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-field] > :is(input,textarea) {
+  width: 100%; min-width: 0; min-height: 31px; padding: 6px 8px;
+  color: var(--scf-text); border-color: var(--scf-line); font-size: 12px; line-height: 18px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-field] > textarea { resize: vertical; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-notice] {
+  white-space: normal; overflow-wrap: anywhere; line-height: 17px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-notice="error"] {
+  padding: 8px; border-left: 2px solid #c05d4c; border-radius: 4px; color: #a54436; background: #fff3ee;
+}
+.dark [data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-notice="error"] { color: #f0b3a5; background: #3b2c2a; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-part="slot-context"] :is(span,p) { overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-form] button[data-studio-content-color][aria-pressed] {
+  flex-shrink: 0; background-image: none; transform: none; border-color: var(--scf-line);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-form] button[data-studio-content-color="transparent"][aria-pressed] {
+  background-color: transparent;
+  background-image: linear-gradient(45deg,#cbd5e1 25%,transparent 25%),linear-gradient(-45deg,#cbd5e1 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#cbd5e1 75%),linear-gradient(-45deg,transparent 75%,#cbd5e1 75%);
+  background-size: 8px 8px; background-position: 0 0,0 4px,4px -4px,-4px 0;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-form] button[data-studio-content-color][aria-pressed="true"] {
+  border-color: var(--scf-accent); box-shadow: 0 0 0 2px var(--scf-surface),0 0 0 3px var(--scf-accent);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-form] :is(button,input,textarea,select):focus-visible,
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-content-part="custom-color"]:focus-within {
+  outline: 2px solid var(--scf-accent); outline-offset: 2px;
+}
+[data-studio-content-reference] button:focus-visible { outline: 2px solid var(--scf-accent); outline-offset: 2px; }

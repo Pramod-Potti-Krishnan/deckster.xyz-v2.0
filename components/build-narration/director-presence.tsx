@@ -5,11 +5,13 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { NarrationState } from '@/lib/build-narration-heuristics'
 import { PRESENCE_SHUFFLE_S } from './motion'
+import './studio-director-presence.css'
 
 export interface DirectorPresenceProps {
   narration: NarrationState
   currentStatus: { status: string; text: string } | null
   className?: string
+  loadingSession?: boolean
 }
 
 /**
@@ -19,7 +21,8 @@ export interface DirectorPresenceProps {
  * Visible whenever a build narration is active OR the Director is
  * thinking/generating on an ordinary turn.
  */
-export function DirectorPresence({ narration, currentStatus, className }: DirectorPresenceProps) {
+export function DirectorPresence({ narration, currentStatus, className, loadingSession = false }: DirectorPresenceProps) {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const reduced = useReducedMotion()
   const [logOpen, setLogOpen] = useState(false)
 
@@ -41,15 +44,19 @@ export function DirectorPresence({ narration, currentStatus, className }: Direct
         className || '',
       ].join(' ')}
       data-testid="bn-presence"
+      hidden={studioShell && loadingSession ? true : undefined}
+      data-studio-director-presence={studioShell ? "true" : undefined}
     >
       <div className="flex items-center gap-2.5">
         <DeckShuffle reduced={!!reduced} paused={narration.phase === 'paused' || narration.phase === 'stopped'} />
-        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" aria-live="polite">
+        <span data-studio-director-status={studioShell ? "true" : undefined} tabIndex={studioShell ? 0 : undefined} role={studioShell ? "region" : undefined} aria-label={studioShell ? "Current Director status" : undefined} className="min-w-0 flex-1 truncate text-xs text-muted-foreground" aria-live="polite">
           {line}
         </span>
         {narration.deckEvents.length > 0 && (
           <button
             type="button"
+            data-studio-director-log-toggle={studioShell ? "true" : undefined}
+            aria-expanded={studioShell ? logOpen : undefined}
             onClick={() => setLogOpen((v) => !v)}
             className="flex shrink-0 items-center gap-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -59,7 +66,7 @@ export function DirectorPresence({ narration, currentStatus, className }: Direct
         )}
       </div>
       {logOpen && (
-        <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto pl-1">
+        <ul data-studio-director-log={studioShell ? "true" : undefined} tabIndex={studioShell ? 0 : undefined} aria-label={studioShell ? "Director build log" : undefined} className="mt-2 max-h-36 space-y-1 overflow-y-auto pl-1">
           {logLines.map((ev) => (
             <li key={ev.id} className="text-[11px] leading-4 text-muted-foreground">
               {ev.text}

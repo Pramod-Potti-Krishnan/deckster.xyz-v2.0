@@ -1,0 +1,9 @@
+/* Compact identity for the real Director connection; no provider/readiness claims. */
+[data-studio-v4-shell="true"] [data-studio-director-header="true"] { box-sizing: border-box; height: 36px; max-height: 36px; flex: 0 0 36px; min-width: 0; display: flex; align-items: center; gap: 9px; padding: 5px 12px; border-bottom: 1px solid var(--ss-line); background: var(--ss-panel); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-director-header="true"] > [aria-hidden="true"] { width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; border: 1px solid var(--ss-line); border-radius: 7px; background: var(--ss-surface); color: var(--ss-accent); }
+[data-studio-v4-shell="true"] [data-studio-director-header="true"] > strong { font-size: 12px; line-height: 18px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-director-header="true"] > [role="status"] { margin-left: auto; min-width: 0; color: var(--ss-muted); font-size: 10px; line-height: 16px; white-space: nowrap; }
+[data-studio-v4-shell="true"] [data-studio-director-header="true"] > [data-connection-state="connected"] { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-director-header="true"] > [data-connection-state="error"] { color: var(--ss-text); }
+@media (max-height: 640px) { [data-studio-v4-shell="true"] [data-studio-director-header="true"] { height: 32px; max-height: 32px; flex-basis: 32px; padding-block: 3px; } }
+@media (max-width: 480px) { [data-studio-v4-shell="true"] [data-studio-director-header="true"] { padding-inline: 8px; gap: 7px; } [data-studio-v4-shell="true"] [data-studio-director-header="true"] > [aria-hidden="true"] { display: none; } }

@@ -11,7 +11,7 @@ import { prisma } from '@/lib/prisma'
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // 1. Authenticate user
@@ -24,7 +24,7 @@ export async function POST(
       )
     }
 
-    const sessionId = params.id
+    const sessionId = (await params).id
 
     // 2. Verify session exists and belongs to user
     const chatSession = await prisma.chatSession.findUnique({

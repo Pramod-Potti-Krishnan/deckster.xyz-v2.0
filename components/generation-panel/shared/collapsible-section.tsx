@@ -1,6 +1,9 @@
 'use client'
 
+import './studio-generation-choices.css'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+
+const STUDIO_GENERATION_CHOICES = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 interface CollapsibleSectionProps {
   title: string
@@ -11,7 +14,7 @@ interface CollapsibleSectionProps {
 
 export function CollapsibleSection({ title, isOpen, onToggle, children }: CollapsibleSectionProps) {
   return (
-    <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
+    <div data-studio-generation-section={STUDIO_GENERATION_CHOICES ? 'true' : undefined} className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
       <button
         type="button"
         onClick={onToggle}

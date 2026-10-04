@@ -23,14 +23,9 @@ import { prisma } from '@/lib/prisma'
 import { requireDeckOwner } from '@/lib/publish/qa-owner'
 import { listQaCorpusSources } from '@/lib/publish/qa'
 import { stripLabelMarkup } from '@/lib/publish/qa-citations'
+import { defaultAllowForKind } from '@/lib/publish/qa-source-policy'
 
 export const dynamic = 'force-dynamic'
-
-/** Unknown kinds deny, so a source type added later cannot become readable by
- *  the audience merely because nobody updated this function. */
-export function defaultAllowForKind(kind: string): boolean {
-  return kind === 'deck' || kind === 'web'
-}
 
 export async function GET(
   _request: NextRequest,

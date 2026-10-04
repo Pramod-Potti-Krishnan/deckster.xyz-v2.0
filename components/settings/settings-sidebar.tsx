@@ -26,6 +26,7 @@ const ITEMS: NavItem[] = [
 ]
 
 export function SettingsSidebar() {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
   const pathname = usePathname()
   const { data: session } = useSession()
   const { subscription } = useSubscription()
@@ -36,6 +37,7 @@ export function SettingsSidebar() {
 
   return (
     <nav
+      data-studio-settings-nav={studio ? "true" : undefined}
       aria-label="Settings"
       className="flex flex-row gap-1 overflow-x-auto pb-2 md:flex-col md:overflow-visible md:pb-0"
     >

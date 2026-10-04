@@ -24,12 +24,15 @@ import {
 } from "lucide-react"
 import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
+import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
 import type { KgViewEdge, KgViewNode } from "@/components/knowledge/kg-graph-view"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import "@/components/knowledge/studio-knowledge.css"
 
 export const dynamic = "force-dynamic"
+const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
 
 interface KgStats {
   node_count: number
@@ -109,7 +112,7 @@ function MetricCard({
   accent: string
 }) {
   return (
-    <div className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/80">
+    <div data-studio-knowledge-role="metric" className="group rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/80">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
@@ -130,7 +133,7 @@ function MetricCard({
 
 function MetricSkeleton() {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <div data-studio-knowledge-role="metric" className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
       <div className="h-3 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
       <div className="mt-3 h-8 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
       <div className="mt-2 h-3 w-28 animate-pulse rounded bg-slate-100 dark:bg-slate-800/70" />
@@ -138,10 +141,16 @@ function MetricSkeleton() {
   )
 }
 
+function MetricUnavailable({ label }: { label: string }) {
+  return <div data-studio-knowledge-role="metric" className="rounded-2xl border border-slate-200 bg-white p-4"><div><div><p>{label}</p><p>Not loaded</p><p>Counts require a loaded graph.</p></div></div></div>
+}
+
 function AccessState({
   kind,
+  onRetry,
 }: {
   kind: "loading" | "locked" | "paused" | "unavailable"
+  onRetry?: () => void
 }) {
   const content = {
     loading: {
@@ -165,51 +174,51 @@ function AccessState({
       icon: AlertCircle,
       title: "Knowledge is temporarily unavailable",
       description:
-        "The knowledge service could not be reached. Your existing graph has not been changed.",
+        "Your Knowledge access and settings could not be verified. Try again to check availability. Your existing graph has not been changed.",
     },
   }[kind]
   const Icon = content.icon
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
-      <section className="relative w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(124,58,237,0.18),transparent_38%),radial-gradient(circle_at_90%_85%,rgba(37,99,235,0.15),transparent_35%)]" />
+    <main data-studio-v4-access={kind} className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
+      <section data-studio-v4-access-role="card" className="relative w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950">
+        <div data-studio-v4-access-role="wash" className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(124,58,237,0.18),transparent_38%),radial-gradient(circle_at_90%_85%,rgba(37,99,235,0.15),transparent_35%)]" />
         <div className="relative grid min-h-[500px] items-center gap-10 p-7 md:grid-cols-[0.9fr_1.1fr] md:p-12">
           <div className="max-w-xl">
-            <div className="mb-5 inline-flex rounded-2xl border border-violet-200 bg-violet-50 p-3 text-violet-700 dark:border-violet-900/60 dark:bg-violet-950/50 dark:text-violet-300">
+            <div data-studio-v4-access-role="icon" className="mb-5 inline-flex rounded-2xl border border-violet-200 bg-violet-50 p-3 text-violet-700 dark:border-violet-900/60 dark:bg-violet-950/50 dark:text-violet-300">
               <Icon className={cn("h-6 w-6", kind === "loading" && "animate-spin")} />
             </div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+            <p data-studio-v4-access-role="caption" className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
               Deckster Knowledge
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-4xl">
+            <h1 data-studio-v4-access-role="heading" className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-4xl">
               {content.title}
             </h1>
-            <p className="mt-4 max-w-lg text-sm leading-6 text-slate-600 dark:text-slate-300">
+            <p data-studio-v4-access-role="body" className="mt-4 max-w-lg text-sm leading-6 text-slate-600 dark:text-slate-300">
               {content.description}
             </p>
             {kind === "locked" && (
               <div className="mt-7 flex flex-wrap gap-3">
-                <Button asChild><Link href="/pricing">View Pro plans</Link></Button>
-                <Button asChild variant="outline"><Link href="/builder">Back to Builder</Link></Button>
+                <Button data-studio-v4-access-role="primary" asChild><Link href="/pricing">View Pro plans</Link></Button>
+                <Button data-studio-v4-access-role="secondary" asChild variant="outline"><Link href="/builder">{process.env.NEXT_PUBLIC_STUDIO_V4_LABELS === "true" ? "Back to Studio" : "Back to Builder"}</Link></Button>
               </div>
             )}
             {kind === "paused" && (
               <div className="mt-7 flex flex-wrap gap-3">
-                <Button asChild>
+                <Button data-studio-v4-access-role="primary" asChild>
                   <Link href="/settings/knowledge-graph">
                     <ShieldCheck className="mr-2 h-4 w-4" /> Review and enable
                   </Link>
                 </Button>
-                <Button asChild variant="outline"><Link href="/builder">Back to Builder</Link></Button>
+                <Button data-studio-v4-access-role="secondary" asChild variant="outline"><Link href="/builder">{process.env.NEXT_PUBLIC_STUDIO_V4_LABELS === "true" ? "Back to Studio" : "Back to Builder"}</Link></Button>
               </div>
             )}
             {kind === "unavailable" && (
               <div className="mt-7 flex flex-wrap gap-3">
-                <Button onClick={() => window.location.reload()}>
+                <Button data-studio-v4-access-role="primary" onClick={onRetry || (() => window.location.reload())}>
                   <RefreshCw className="mr-2 h-4 w-4" /> Try again
                 </Button>
-                <Button asChild variant="outline"><Link href="/settings/knowledge-graph">Open settings</Link></Button>
+                <Button data-studio-v4-access-role="secondary" asChild variant="outline"><Link href="/settings/knowledge-graph">Open settings</Link></Button>
               </div>
             )}
           </div>
@@ -247,15 +256,22 @@ function Inspector({
   error,
   topEntities,
   onSelect,
+  selectedId,
+  onRetry,
+  onClear,
 }: {
   selected: KgNodeDetail | null
   loading: boolean
   error: string | null
   topEntities: KgStats["top_entities"]
   onSelect: (nodeId: string) => void
+  selectedId: string | null
+  onRetry: () => void
+  onClear: () => void
 }) {
+  if (STUDIO_SHELL) return <StudioKnowledgeInspector key={selectedId || "unselected"} selected={selected?.node.node_id === selectedId ? selected : null} selectedId={selectedId} loading={loading} error={error} topEntities={topEntities} onSelect={onSelect} onRetry={onRetry} onClear={onClear} />
   return (
-    <aside className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
+    <aside data-studio-knowledge-role="inspector" className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
       <div className="border-b border-slate-200 px-4 py-4 dark:border-slate-800">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
           Entity detail
@@ -424,6 +440,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const [selected, setSelected] = useState<KgNodeDetail | null>(null)
   const [selectedLoading, setSelectedLoading] = useState(false)
   const [selectedError, setSelectedError] = useState<string | null>(null)
+  const [detailAttempt, setDetailAttempt] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchHits, setSearchHits] = useState<KgViewNode[] | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -437,6 +454,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const nodeAbortRef = useRef<AbortController | null>(null)
   const searchGenerationRef = useRef(0)
   const searchAbortRef = useRef<AbortController | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const importGenerationRef = useRef(0)
   const importAbortRef = useRef<AbortController | null>(null)
 
@@ -530,7 +548,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     return () => {
       controller.abort()
     }
-  }, [selectedId])
+  }, [selectedId, detailAttempt])
 
   useEffect(() => () => {
     dataAbortRef.current?.abort()
@@ -702,66 +720,18 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
 
   if (kg.isLoading) return <AccessState kind="loading" />
   if (!kg.isEntitled) return <AccessState kind="locked" />
-  if (!kg.serviceAvailable) return <AccessState kind="unavailable" />
+  if (!kg.serviceAvailable || (kg.error && !kg.settings)) return <AccessState kind="unavailable" onRetry={() => void kg.refetch()} />
   if (!kg.isSubscribed) return <AccessState kind="paused" />
 
   const lastUpdated = formatDate(stats?.last_updated_at)
   const visibleNodes = filteredGraph?.nodes.length ?? 0
 
-  return (
-    <main className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-      <header className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
-            <Sparkles className="h-3.5 w-3.5" /> Your second brain
-          </div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-3xl">
-            Knowledge
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-            Explore the entities, relationships, and source evidence accumulated from the decks you chose to connect.
-          </p>
-          {lastUpdated && (
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
-              <Clock3 className="h-3.5 w-3.5" /> Last updated {lastUpdated}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={runImport} disabled={importing}>
-            {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Import className="mr-2 h-4 w-4" />}
-            {importing ? "Importing…" : "Import past sessions"}
-          </Button>
-          <Button asChild variant="ghost" size="icon">
-            <Link href="/settings/knowledge-graph" aria-label="Knowledge Graph settings" title="Knowledge settings">
-              <Settings className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-      </header>
-
-      {importNotice && (
-        <div
-          role="status"
-          className={cn(
-            "mb-4 flex items-start justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm",
-            importNotice.tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200",
-            importNotice.tone === "error" && "border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200",
-            importNotice.tone === "neutral" && "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
-          )}
-        >
-          <span>{importNotice.text}</span>
-          {!importing && (
-            <button type="button" onClick={() => setImportNotice(null)} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      )}
-
-      <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Knowledge graph summary">
+  const summaryCards = (
+<section data-studio-knowledge-role="summary" className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Knowledge graph summary">
         {dataLoading && !stats ? (
           <><MetricSkeleton /><MetricSkeleton /><MetricSkeleton /><MetricSkeleton /></>
+        ) : STUDIO_SHELL && !stats ? (
+          <>{["Entities", "Relations", "Evidence", "Sessions"].map(label => <MetricUnavailable key={label} label={label} />)}</>
         ) : (
           <>
             <MetricCard icon={Database} label="Entities" value={stats?.node_count ?? 0} detail="Facts, people, products and ideas" accent="bg-blue-50 text-blue-600 ring-blue-100 dark:bg-blue-950/50 dark:text-blue-300 dark:ring-blue-900" />
@@ -771,94 +741,10 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
           </>
         )}
       </section>
-
-      {loadError && (
-        <section className="mb-4 flex flex-col items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center dark:border-amber-900/60 dark:bg-amber-950/30">
-          <div className="flex gap-3">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-            <div>
-              <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Knowledge could not be loaded</p>
-              <p className="mt-0.5 text-sm text-amber-700 dark:text-amber-300">{loadError}</p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => void loadData()}>
-            <RefreshCw className="mr-2 h-4 w-4" /> Retry
-          </Button>
-        </section>
-      )}
-
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_370px]">
-        <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
-          <div className="border-b border-slate-200 p-4 dark:border-slate-800">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950 dark:text-white">
-                  <Network className="h-4 w-4 text-violet-500" /> Knowledge map
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                  {graph
-                    ? `Showing ${formatNumber(visibleNodes)} of ${formatNumber(graph.total_nodes)} entities`
-                    : "Loading the most reinforced entities…"}
-                </p>
-              </div>
-
-              <div className="relative w-full lg:max-w-sm">
-                <form
-                  onSubmit={(event) => { event.preventDefault(); void runSearch() }}
-                  className="flex gap-2"
-                  role="search"
-                >
-                  <div className="relative min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                      value={searchQuery}
-                      onChange={(event) => {
-                        setSearchQuery(event.target.value)
-                        clearSearchResults()
-                      }}
-                      className="pl-9 pr-8"
-                      placeholder="Search your knowledge…"
-                      aria-label="Search your knowledge graph"
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => { setSearchQuery(""); clearSearchResults() }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:hover:text-slate-200"
-                        aria-label="Clear search"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <Button type="submit" variant="outline" size="icon" disabled={searchLoading} aria-label="Run search">
-                    {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  </Button>
-                </form>
-
-                {searchHits !== null && (
-                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-                    {searchError && <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{searchError}</p>}
-                    {!searchError && searchHits.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">No matching entities found.</p>}
-                    {!searchError && searchHits.map((node) => (
-                      <button
-                        key={node.node_id}
-                        type="button"
-                        onClick={() => { setSelectedId(node.node_id); clearSearchResults() }}
-                        className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-left last:border-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 dark:border-slate-800 dark:hover:bg-slate-800"
-                      >
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: typeColor(node.entity_type) }} />
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">{node.name}</span>
-                        <span className="text-[10px] uppercase text-slate-400">{node.entity_type}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {stats && stats.nodes_by_type.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-1.5" aria-label="Filter entities by type">
+  )
+  const typeFilters = (
+stats && stats.nodes_by_type.length > 0 && (
+              <div data-studio-knowledge-role="filters" className="mt-4 flex flex-wrap gap-1.5" aria-label="Filter entities by type">
                 {stats.nodes_by_type.map((item) => {
                   const active = !hiddenTypes.has(item.entity_type)
                   return (
@@ -892,10 +778,159 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
                   </button>
                 )}
               </div>
-            )}
+            )
+  )
+  const headerContext = <>
+<p data-studio-knowledge-role="description" className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+            Explore the entities, relationships, and source evidence accumulated from the decks you chose to connect.
+          </p>
+          {lastUpdated && (
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
+              <Clock3 className="h-3.5 w-3.5" /> Last updated {lastUpdated}
+            </p>
+          )}
+  </>
+
+  return (
+    <main data-studio-knowledge="true" className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+      <header data-studio-knowledge-role="header" className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div data-studio-knowledge-role="caption" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+            <Sparkles className="h-3.5 w-3.5" /> Your second brain
+          </div>
+          <h1 data-studio-knowledge-role="title" className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-3xl">
+            Knowledge
+          </h1>
+          {STUDIO_SHELL ? <details data-studio-knowledge-role="context"><summary>About this knowledge{lastUpdated ? ` · Updated ${lastUpdated}` : ""}</summary>{headerContext}</details> : headerContext}
+        </div>
+        <div data-studio-knowledge-role="actions" className="flex flex-wrap gap-2">
+          {STUDIO_SHELL && <Button variant="outline" disabled={dataLoading || importing} onClick={() => void loadData()}><RefreshCw className={cn("mr-2 h-4 w-4", dataLoading && "animate-spin")} />{dataLoading ? "Refreshing…" : "Refresh"}</Button>}
+          <Button variant="outline" onClick={runImport} disabled={importing}>
+            {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Import className="mr-2 h-4 w-4" />}
+            {importing ? "Importing…" : "Import past sessions"}
+          </Button>
+          <Button asChild variant="ghost" size="icon">
+            <Link href="/settings/knowledge-graph" aria-label="Knowledge Graph settings" title="Knowledge settings">
+              <Settings className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </header>
+
+      {importNotice && (
+        <div
+          role="status"
+          className={cn(
+            "mb-4 flex items-start justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm",
+            importNotice.tone === "success" && "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200",
+            importNotice.tone === "error" && "border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200",
+            importNotice.tone === "neutral" && "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
+          )}
+        >
+          <span>{importNotice.text}</span>
+          {!importing && (
+            <button type="button" onClick={() => setImportNotice(null)} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {STUDIO_SHELL ? <details data-studio-knowledge-role="summary-disclosure"><summary><span>Knowledge summary</span><span>{stats ? `${formatNumber(stats.node_count)} entities · ${formatNumber(stats.edge_count)} relations · ${formatNumber(stats.evidence_count)} evidence · ${formatNumber(stats.sessions_consolidated)} sessions` : dataLoading ? "Loading counts…" : "Counts not loaded"}</span></summary>{summaryCards}</details> : summaryCards}
+
+      {loadError && (
+        <section data-studio-knowledge-role={STUDIO_SHELL ? "load-error" : undefined} role={STUDIO_SHELL ? "alert" : undefined} className="mb-4 flex flex-col items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center dark:border-amber-900/60 dark:bg-amber-950/30">
+          <div className="flex gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Knowledge could not be loaded</p>
+              <p className="mt-0.5 text-sm text-amber-700 dark:text-amber-300">{loadError}</p>
+              {STUDIO_SHELL && graph && <p className="sk-stale-note">Showing the last loaded snapshot. Counts and source status may have changed.</p>}
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => void loadData()}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Retry
+          </Button>
+        </section>
+      )}
+
+      <div data-studio-knowledge-role="layout" className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_370px]">
+        <section data-studio-knowledge-role="map-panel" className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+          <div data-studio-knowledge-role="map-header" className="border-b border-slate-200 p-4 dark:border-slate-800">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950 dark:text-white">
+                  <Network className="h-4 w-4 text-violet-500" /> Knowledge map
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  {graph
+                    ? `Showing ${formatNumber(visibleNodes)} of ${formatNumber(graph.total_nodes)} entities`
+                    : STUDIO_SHELL && !dataLoading ? "Graph not loaded" : "Loading the most reinforced entities…"}
+                </p>
+              </div>
+
+              <div data-studio-knowledge-role="search" className="relative w-full lg:max-w-sm">
+                <form
+                  onSubmit={(event) => { event.preventDefault(); void runSearch() }}
+                  className="flex gap-2"
+                  role="search"
+                >
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      ref={STUDIO_SHELL ? searchInputRef : undefined}
+                      value={searchQuery}
+                      onChange={(event) => {
+                        setSearchQuery(event.target.value)
+                        clearSearchResults()
+                      }}
+                      className="pl-9 pr-8"
+                      placeholder="Search your knowledge…"
+                      aria-label="Search your knowledge graph"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => { setSearchQuery(""); clearSearchResults(); if (STUDIO_SHELL) searchInputRef.current?.focus() }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:hover:text-slate-200"
+                        aria-label="Clear search"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <Button type="submit" variant="outline" size="icon" disabled={searchLoading} aria-label="Run search">
+                    {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                  </Button>
+                </form>
+
+                {searchHits !== null && (
+                  <div data-studio-knowledge-role={STUDIO_SHELL ? "search-results" : undefined} className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                    {STUDIO_SHELL && <div className="sk-search-summary"><span>{searchError ? "Search unavailable" : `${searchHits.length} returned results`}</span><button type="button" aria-label="Close knowledge search results" onClick={() => { clearSearchResults(); searchInputRef.current?.focus() }}><X size={13} /></button></div>}
+                    {searchError && <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{searchError}</p>}
+                    {!searchError && searchHits.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">No matching entities found.</p>}
+                    {!searchError && searchHits.map((node) => (
+                      <button
+                        key={node.node_id}
+                        type="button"
+                        onClick={() => { setSelectedId(node.node_id); clearSearchResults() }}
+                        className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-left last:border-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 dark:border-slate-800 dark:hover:bg-slate-800"
+                      >
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: typeColor(node.entity_type) }} />
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">{node.name}</span>
+                        <span className="text-[10px] uppercase text-slate-400">{node.entity_type}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {STUDIO_SHELL ? <details data-studio-knowledge-role="map-support"><summary>Map scope &amp; type filters{hiddenTypes.size > 0 ? ` · ${hiddenTypes.size} hidden` : ""}</summary>{graph && <p className="sk-refresh-note" role="status">{dataLoading ? "Refreshing the loaded snapshot…" : hiddenTypes.size ? `${graph.nodes.length} entities loaded · type filters apply to this snapshot` : `${graph.nodes.length} entities loaded · search can find entities beyond this map`}</p>}{typeFilters}</details> : typeFilters}
           </div>
 
-          <div className="p-2 sm:p-3">
+          <div data-studio-knowledge-role="map-content" className="p-2 sm:p-3">
+            {STUDIO_SHELL && !dataLoading && loadError && (!graph || graph.nodes.length === 0) && <div data-studio-knowledge-role="map-recovery"><AlertCircle size={28} /><h3>{graph ? 'Last loaded map was empty' : 'Your knowledge map is unavailable'}</h3><p>{graph ? 'Refresh to check the current graph. Existing records have not been changed.' : 'Load your graph to review recorded entities and source evidence. Unavailable data is not an empty library.'}</p><div className="sk-recovery-actions"><Button variant="outline" disabled={dataLoading || importing} onClick={() => void loadData()}><RefreshCw size={14} />Retry graph</Button><Button variant="ghost" asChild><Link href="/settings/knowledge-graph">Review settings</Link></Button></div></div>}
             {dataLoading && !graph && (
               <div className="flex min-h-[520px] items-center justify-center rounded-2xl bg-[#070b18]">
                 <div className="text-center">
@@ -946,6 +981,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
           error={selectedError}
           topEntities={stats?.top_entities ?? []}
           onSelect={setSelectedId}
+          selectedId={selectedId}
+          onRetry={() => setDetailAttempt(attempt => attempt + 1)}
+          onClear={() => setSelectedId(null)}
         />
       </div>
     </main>

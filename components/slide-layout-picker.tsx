@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
+import './studio-slide-layout-picker.css'
 import {
   Popover,
   PopoverContent,
@@ -24,6 +25,8 @@ import {
   PanelRight,
   SidebarOpen,
   SidebarClose,
+  Search,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -32,6 +35,8 @@ import {
   SLIDE_LAYOUTS as SLIDE_LAYOUT_DEFINITIONS,
   SLIDE_LAYOUT_CATEGORIES,
 } from '@/types/elements'
+
+const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 // Re-export the type for backward compatibility
 export type { SlideLayoutType }
@@ -106,6 +111,10 @@ export function SlideLayoutPicker({
 }: SlideLayoutPickerProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [open, setOpen] = useState(false)
+  const [portalContainer, setPortalContainer] = useState<Element | null>(null)
+  const [query, setQuery] = useState('')
+  const [category, setCategory] = useState<SlideLayoutCategory | 'all'>('all')
+  const searchInput = useRef<HTMLInputElement>(null)
 
   const handleSelectLayout = async (layoutId: SlideLayoutType) => {
     setIsAdding(true)
@@ -125,6 +134,28 @@ export function SlideLayoutPicker({
     image: getLayoutsByCategory('image'),
     other: getLayoutsByCategory('other'),
   }), [])
+
+  if (STUDIO_SHELL) {
+    const matches = SLIDE_LAYOUT_DEFINITIONS.filter(layout => (category === 'all' || layout.category === category) && `${layout.label} ${layout.description}`.toLowerCase().includes(query.trim().toLowerCase()))
+    const unavailable = disabled || isAdding
+    return <Popover open={open} onOpenChange={nextOpen => {
+      setPortalContainer(nextOpen ? document.fullscreenElement : null)
+      setOpen(nextOpen)
+    }}>
+      <PopoverTrigger asChild><button disabled={disabled || isAdding} className={cn("flex h-12 min-w-[88px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 dark:text-slate-200", "hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors", className)}><Plus className="h-5 w-5" /><span className="text-[10px] font-medium whitespace-nowrap">{isAdding ? 'Adding' : 'Add Slide'}</span></button></PopoverTrigger>
+      <PopoverContent portalContainer={portalContainer} data-studio-slide-layout-picker="true" align="start" sideOffset={8} aria-label="Choose a slide layout">
+        <header className="slp-heading"><div><h2>Add a slide</h2><p>Choose a structure to insert after your current slide.</p></div><button type="button" className="slp-close" aria-label="Close slide layouts" onClick={() => setOpen(false)}><X size={14} /></button></header>
+        <div className="slp-search"><Search size={15} aria-hidden="true" /><input ref={searchInput} aria-label="Find a slide layout" placeholder="e.g. comparison, image, text…" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" aria-label="Clear slide layout search" onClick={() => { setQuery(''); searchInput.current?.focus() }}><X size={13} /></button>}</div>
+        <div className="slp-categories" role="group" aria-label="Slide layout category"><button type="button" aria-pressed={category === 'all'} onClick={() => setCategory('all')}>All layouts</button>{SLIDE_LAYOUT_CATEGORIES.map(item => <button type="button" key={item.category} aria-pressed={category === item.category} onClick={() => setCategory(item.category)}>{item.label}</button>)}</div>
+        <p className="slp-count" role="status">{unavailable ? isAdding ? 'Adding your slide…' : 'Adding slides is currently unavailable.' : `${matches.length} of ${SLIDE_LAYOUT_DEFINITIONS.length} layouts${query.trim() || category !== 'all' ? ' match' : ' available'}`}</p>
+        <div className="slp-catalog">{matches.length ? SLIDE_LAYOUT_CATEGORIES.map(item => {
+          const layouts = matches.filter(layout => layout.category === item.category)
+          return layouts.length ? <section className="slp-group" key={item.category} aria-label={item.label}><h3>{item.label}<span>{layouts.length}</span></h3><div className="slp-grid">{layouts.map(layout => <button type="button" className="slp-card" key={layout.layout} disabled={unavailable} aria-label={`Insert ${layout.label} slide`} title={layout.description} onClick={() => handleSelectLayout(layout.layout)}><span className="slp-symbol" aria-hidden="true">{getLayoutIcon(layout.icon, 'sm')}</span><span className="slp-copy"><strong>{layout.label}</strong><small>{layout.description}</small></span></button>)}</div></section> : null
+        }) : <div className="slp-empty"><strong>No matching layouts</strong><p>Try another structure or description, or browse all layouts.</p><button type="button" onClick={() => { setQuery(''); setCategory('all'); searchInput.current?.focus() }}>Show all layouts</button></div>}</div>
+        <p className="slp-footer">Choose a card to add its layout. Your current slide stays intact.</p>
+      </PopoverContent>
+    </Popover>
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

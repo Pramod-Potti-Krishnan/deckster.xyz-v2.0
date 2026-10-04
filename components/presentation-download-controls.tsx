@@ -5,11 +5,32 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Download, FileText, Presentation } from 'lucide-react';
+import { AlertCircle, Check, Download, FileText, Loader2, Presentation, RefreshCw } from 'lucide-react';
 import { downloadPDF, downloadPPTX, DownloadQuality } from '@/lib/api/download-service';
 import { useToast } from '@/hooks/use-toast';
+import './studio-delivery.css';
+
+const STUDIO_DELIVERY = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true';
+
+function DownloadMenuPortal({ container, children }: { container: Element | null; children: React.ReactNode }) {
+  // Fullscreen hides body portals outside its element. Classic keeps its native portal.
+  return STUDIO_DELIVERY
+    ? <DropdownMenuPortal container={container ?? undefined}>{children}</DropdownMenuPortal>
+    : <>{children}</>;
+}
+
+type DownloadFeedback = {
+  sourceUrl: string;
+  sourceId: string | null;
+  format: 'PDF' | 'PowerPoint';
+  status: 'converting' | 'started' | 'failed';
+  message: string;
+};
 
 export interface PresentationDownloadControlsProps {
   presentationUrl: string | null;
@@ -43,6 +64,10 @@ export function PresentationDownloadControls({
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [isDownloadingPPTX, setIsDownloadingPPTX] = useState(false);
   const [quality] = useState<DownloadQuality>('high');
+  const [feedback, setFeedback] = useState<DownloadFeedback | null>(null);
+  const [menuPortalContainer, setMenuPortalContainer] = useState<Element | null>(null);
+  // A result belongs to the deck that requested it, even if the active deck changed.
+  const currentFeedback = feedback?.sourceUrl === presentationUrl && feedback?.sourceId === presentationId ? feedback : null;
 
   // Check if downloads should be enabled
   // Enable from Stage 4 onwards when presentationUrl is available
@@ -66,16 +91,19 @@ export function PresentationDownloadControls({
     }
 
     setIsDownloadingPDF(true);
+    if (STUDIO_DELIVERY) setFeedback({ sourceUrl: presentationUrl, sourceId: presentationId, format: 'PDF', status: 'converting', message: 'Preparing your PDF…' });
 
     try {
       const result = await downloadPDF(presentationUrl, quality);
 
       if (result.success) {
+        if (STUDIO_DELIVERY) setFeedback({ sourceUrl: presentationUrl, sourceId: presentationId, format: 'PDF', status: 'started', message: 'Your browser download has started.' });
         toast({
           title: 'PDF Download Started',
           description: `Your PDF is being downloaded (${quality} quality)`,
         });
       } else {
+        if (STUDIO_DELIVERY) setFeedback({ sourceUrl: presentationUrl, sourceId: presentationId, format: 'PDF', status: 'failed', message: result.error || 'Failed to download PDF' });
         toast({
           title: 'Download Failed',
           description: result.error || 'Failed to download PDF',
@@ -83,6 +111,7 @@ export function PresentationDownloadControls({
         });
       }
     } catch (error) {
+      if (STUDIO_DELIVERY) setFeedback({ sourceUrl: presentationUrl, sourceId: presentationId, format: 'PDF', status: 'failed', message: error instanceof Error ? error.message : 'Unknown error' });
       toast({
         title: 'Download Error',
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -104,6 +133,7 @@ export function PresentationDownloadControls({
     }
 
     setIsDownloadingPPTX(true);
+    if (STUDIO_DELIVERY) setFeedback({ sourceUrl: presentationUrl, sourceId: presentationId, format: 'PowerPoint', status: 'converting', message: 'Preparing your PowerPoint file…' });
 
     try {
       // Use slideCount if available, otherwise default to 1 (backend will auto-detect)
@@ -111,11 +141,13 @@ export function PresentationDownloadControls({
       const result = await downloadPPTX(presentationUrl, effectiveSlideCount, quality);
 
       if (result.success) {
+        if (STUDIO_DELIVERY) setFeedback({ sourceUrl: presentationUrl, sourceId: presentationId, format: 'PowerPoint', status: 'started', message: 'Your browser download has started.' });
         toast({
           title: 'PPTX Download Started',
           description: `Your PowerPoint is being downloaded (${quality} quality)`,
         });
       } else {
+        if (STUDIO_DELIVERY) setFeedback({ sourceUrl: presentationUrl, sourceId: presentationId, format: 'PowerPoint', status: 'failed', message: result.error || 'Failed to download PPTX' });
         toast({
           title: 'Download Failed',
           description: result.error || 'Failed to download PPTX',
@@ -123,6 +155,7 @@ export function PresentationDownloadControls({
         });
       }
     } catch (error) {
+      if (STUDIO_DELIVERY) setFeedback({ sourceUrl: presentationUrl, sourceId: presentationId, format: 'PowerPoint', status: 'failed', message: error instanceof Error ? error.message : 'Unknown error' });
       toast({
         title: 'Download Error',
         description: error instanceof Error ? error.message : 'Unknown error',
@@ -145,37 +178,78 @@ export function PresentationDownloadControls({
   const isDownloading = isDownloadingPDF || isDownloadingPPTX;
 
   return (
-    <div className={`flex items-center ${className}`}>
-      <DropdownMenu>
+    <div className={`flex items-center ${className}`} data-studio-v4-shell={STUDIO_DELIVERY} data-studio-download-control={STUDIO_DELIVERY}>
+      <DropdownMenu onOpenChange={STUDIO_DELIVERY ? (open) => {
+        setMenuPortalContainer(open ? document.fullscreenElement : null);
+      } : undefined}>
         <DropdownMenuTrigger asChild>
           <button
             disabled={!isDownloadEnabled || isDownloading}
+            aria-label={STUDIO_DELIVERY ? isDownloading ? 'Converting presentation for download' : isDownloadEnabled ? 'Download presentation' : 'Download unavailable until presentation is ready' : undefined}
+            aria-busy={STUDIO_DELIVERY ? isDownloading : undefined}
             className="flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-700 dark:disabled:hover:text-slate-200"
             title={!isDownloadEnabled ? 'Waiting for presentation...' : 'Download as PDF or PPTX'}
           >
-            <Download className={`h-5 w-5 ${isDownloading ? 'animate-pulse' : ''}`} />
+            {STUDIO_DELIVERY && isDownloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className={`h-5 w-5 ${isDownloading ? 'animate-pulse' : ''}`} />}
             <span className="text-[10px] font-medium">{isDownloading ? 'Converting' : 'Download'}</span>
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DownloadMenuPortal container={menuPortalContainer}>
+        <DropdownMenuContent align="end" className="w-48" data-studio-v4-shell={STUDIO_DELIVERY} data-studio-download-menu={STUDIO_DELIVERY}>
+          {STUDIO_DELIVERY && (
+            <>
+              <DropdownMenuLabel className="studio-download-heading">
+                <span>Delivery</span><strong>Download your presentation</strong>
+                <small>Deck stage: {getStageLabel()} · {quality} quality{slideCount && slideCount > 0 ? ` · ${slideCount} slides` : ''}</small>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem
             onClick={handleDownloadPDF}
+            onSelect={STUDIO_DELIVERY ? (event) => event.preventDefault() : undefined}
             disabled={isDownloading}
-            className="cursor-pointer"
+            title={getTooltip('PDF')}
+            className="cursor-pointer studio-download-format"
           >
             <FileText className="mr-2 h-4 w-4" />
-            <span>Download as PDF</span>
+            {STUDIO_DELIVERY ? <span><strong>PDF document</strong><small>Read and share your slides as a .pdf file.</small></span> : <span>Download as PDF</span>}
+            {STUDIO_DELIVERY && <em>.pdf</em>}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={handleDownloadPPTX}
+            onSelect={STUDIO_DELIVERY ? (event) => event.preventDefault() : undefined}
             disabled={isDownloading}
-            className="cursor-pointer"
+            title={getTooltip('PPTX')}
+            className="cursor-pointer studio-download-format"
           >
             <Presentation className="mr-2 h-4 w-4" />
-            <span>Download as PPTX</span>
+            {STUDIO_DELIVERY ? <span><strong>PowerPoint presentation</strong><small>Open your presentation in PowerPoint.</small></span> : <span>Download as PPTX</span>}
+            {STUDIO_DELIVERY && <em>.pptx</em>}
           </DropdownMenuItem>
+          {STUDIO_DELIVERY && (
+            <>
+              <DropdownMenuSeparator />
+              {currentFeedback ? (
+                <div className="studio-download-feedback" data-download-status={currentFeedback.status}
+                  role={currentFeedback.status === 'failed' ? 'alert' : 'status'} aria-live="polite" aria-busy={isDownloading}>
+                  {currentFeedback.status === 'converting' ? <Loader2 size={16} className="animate-spin" /> : currentFeedback.status === 'failed' ? <AlertCircle size={16} /> : <Check size={16} />}
+                  <span><strong>{currentFeedback.status === 'failed' ? `${currentFeedback.format} download failed` : currentFeedback.status === 'converting' ? 'Converting presentation' : `${currentFeedback.format} download started`}</strong><small>{currentFeedback.message}</small></span>
+                </div>
+              ) : <p className="studio-download-note">Exports use the presentation currently open. Choose a format to start its conversion.</p>}
+              {currentFeedback?.status === 'failed' && (
+                <DropdownMenuItem className="studio-download-retry" disabled={isDownloading}
+                  onSelect={(event) => event.preventDefault()}
+                  onClick={currentFeedback.format === 'PDF' ? handleDownloadPDF : handleDownloadPPTX}>
+                  <RefreshCw size={14} />Try {currentFeedback.format} again
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
         </DropdownMenuContent>
+        </DownloadMenuPortal>
       </DropdownMenu>
+      {STUDIO_DELIVERY && <span className="sr-only" role="status" aria-live="polite">{currentFeedback ? `${currentFeedback.format}: ${currentFeedback.message}` : !isDownloadEnabled ? 'Download unlocks when a presentation is available at stage four.' : ''}</span>}
     </div>
   );
 }

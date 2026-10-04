@@ -1,0 +1,13 @@
+# Local documentation, design proofs, and archived experiments.
+docs/
+_codex/
+screenshots/
+prototypes/
+archive/
+
+# Local witness inputs; application code and normal test scripts stay available.
+scripts/fixtures/
+scripts/studio-v4/*-fixture.tsx
+
+# Local environment files are supplied through project settings instead.
+.env*

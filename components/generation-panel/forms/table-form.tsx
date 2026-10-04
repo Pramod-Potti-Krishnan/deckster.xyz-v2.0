@@ -21,6 +21,10 @@ import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 
+import './studio-specialist-forms.css'
+
+const STUDIO_SPECIALIST_FORMS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TABLE
 const COLUMN_KINDS: TableColumnKind[] = [
   'label', 'tag', 'numeric', 'currency', 'percent', 'status', 'single_line', 'multi_line', 'bullets',
@@ -382,12 +386,12 @@ export function TableForm({
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 
   return (
-    <div className="space-y-2.5">
+    <div data-studio-specialist-form={STUDIO_SPECIALIST_FORMS ? 'table' : undefined} className="space-y-2.5">
       <section aria-labelledby="table-structure-heading" className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900">
-        <div className="flex items-center justify-between gap-2">
+        <div data-studio-specialist-part={STUDIO_SPECIALIST_FORMS ? 'structure-header' : undefined} className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <div id="table-structure-heading" className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Table structure</div>
-            <div data-testid="table-structure-status" className="truncate text-[10px] text-slate-500 dark:text-slate-400">{status}</div>
+            <div data-studio-specialist-part={STUDIO_SPECIALIST_FORMS ? 'structure-status' : undefined} data-testid="table-structure-status" className="truncate text-[10px] text-slate-500 dark:text-slate-400">{status}</div>
           </div>
           <div className="inline-flex rounded-md border border-slate-300 p-0.5 dark:border-slate-600" role="group" aria-label="Table structure mode">
             {(['AUTO', 'MANUAL'] as const).map(mode => (
@@ -446,7 +450,7 @@ export function TableForm({
               <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">Optional grounded column instructions. Widths remain Auto unless Manual structure is selected.</p>
               {!columnBrief.length && <button type="button" onClick={ensureBrief} className="rounded-md border border-slate-300 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">Define column semantics</button>}
               {columnBrief.map(column => (
-                <div key={column.index} className="grid grid-cols-12 gap-1.5 rounded-md border border-slate-200 p-2 dark:border-slate-700">
+                <div data-studio-specialist-part={STUDIO_SPECIALIST_FORMS ? 'column-brief' : undefined} key={column.index} className="grid grid-cols-12 gap-1.5 rounded-md border border-slate-200 p-2 dark:border-slate-700">
                   <input aria-label={`Column ${column.index} name`} value={column.name} onChange={event => updateBrief(column.index, { name: event.target.value })} className="col-span-5 rounded border border-slate-300 px-1.5 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800" />
                   <select aria-label={`Column ${column.index} kind`} value={column.kind} onChange={event => updateBrief(column.index, { kind: event.target.value as TableColumnKind })} className="col-span-4 rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">
                     {COLUMN_KINDS.map(kind => <option key={kind} value={kind}>{kind.replace('_', ' ')}</option>)}
@@ -467,7 +471,7 @@ export function TableForm({
                 {patch.column_config?.length ? (
                   <div className="space-y-1.5">
                     {patch.column_config.map(config => (
-                      <div key={config.col} className="grid grid-cols-12 gap-1">
+                      <div data-studio-specialist-part={STUDIO_SPECIALIST_FORMS ? 'column-rendering' : undefined} key={config.col} className="grid grid-cols-12 gap-1">
                         <div className="col-span-1 self-center text-[10px] font-semibold text-slate-500">C{config.col}</div>
                         <select aria-label={`Column ${config.col} alignment`} value={config.alignment ?? ''} onChange={event => updateColumnConfig(config.col, { alignment: event.target.value ? event.target.value as TableColumnConfig['alignment'] : undefined })} className="col-span-2 rounded border border-slate-300 px-1 py-1 text-[9px] dark:border-slate-600 dark:bg-slate-800"><option value="">Align</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
                         <select aria-label={`Column ${config.col} emphasis`} value={config.emphasis ?? ''} onChange={event => updateColumnConfig(config.col, { emphasis: event.target.value ? event.target.value as TableColumnConfig['emphasis'] : undefined })} className="col-span-2 rounded border border-slate-300 px-1 py-1 text-[9px] dark:border-slate-600 dark:bg-slate-800"><option value="">Weight</option><option value="normal">Normal</option><option value="bold">Bold</option></select>
@@ -500,7 +504,7 @@ export function TableForm({
                 <OptionalBooleanSelect label="Last col bold" value={patch.last_column_bold} onChange={value => updatePatch('last_column_bold', value)} />
                 <OptionalBooleanSelect label="Mark legend" value={patch.show_mark_legend} onChange={value => updatePatch('show_mark_legend', value)} onLabel="Show" offLabel="Hide" />
               </div>
-              <div className="grid grid-cols-5 gap-1.5 rounded-md border border-slate-200 p-2 dark:border-slate-700">
+              <div data-studio-specialist-part={STUDIO_SPECIALIST_FORMS ? 'cell-mark' : undefined} className="grid grid-cols-5 gap-1.5 rounded-md border border-slate-200 p-2 dark:border-slate-700">
                 <select aria-label="Cell mark row" disabled={structureMode !== 'MANUAL'} value={markDraft.row} onChange={event => setMarkDraft(previous => ({ ...previous, row: Number(event.target.value) }))} className="rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">{Array.from({ length: rows }, (_, i) => <option key={i + 1}>{i + 1}</option>)}</select>
                 <select aria-label="Cell mark column" disabled={structureMode !== 'MANUAL'} value={markDraft.col} onChange={event => setMarkDraft(previous => ({ ...previous, col: Number(event.target.value) }))} className="rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800">{Array.from({ length: columns }, (_, i) => <option key={i + 1}>{i + 1}</option>)}</select>
                 <select aria-label="Cell mark" disabled={structureMode !== 'MANUAL'} value={markDraft.mark} onChange={event => setMarkDraft(previous => ({ ...previous, mark: event.target.value as TableCellMark['mark'] }))} className="rounded border border-slate-300 px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800"><option value="highlight">Highlight</option><option value="good">Good</option><option value="bad">Bad</option><option value="warn">Warn</option><option value="trend_up">Up</option><option value="trend_down">Down</option><option value="flat">Flat</option></select>

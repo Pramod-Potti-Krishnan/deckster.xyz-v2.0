@@ -1,0 +1,89 @@
+/* Billing presentation only: existing prices, gates and financial actions remain. */
+[data-studio-v4-shell="true"] [data-studio-billing] { --sb-negative: #a52c28; max-width: 1280px; padding: 24px clamp(16px,2.8vw,32px) 28px; color: var(--ss-text); }
+.dark [data-studio-v4-shell="true"] [data-studio-billing], [data-studio-v4-shell="true"].dark [data-studio-billing] { --sb-negative: #ffb3a9; }
+[data-studio-v4-shell="true"] [data-studio-billing-heading] { margin-bottom: 20px; }
+[data-studio-v4-shell="true"] [data-studio-billing-heading] h1 { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -.025em; margin-bottom: 5px; }
+[data-studio-v4-shell="true"] [data-studio-billing-heading] p { font-size: 12px; line-height: 20px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-billing-grid] { grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; gap: 18px; }
+[data-studio-v4-shell="true"] [data-studio-billing-card] { min-width: 0; background: var(--ss-panel); border-color: var(--ss-line); border-radius: 12px; box-shadow: none; overflow: hidden; }
+[data-studio-v4-shell="true"] [data-studio-billing-header] { padding: 18px 20px 14px; gap: 5px; border-bottom: 1px solid var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-billing-header] h3 { font-size: 16px; line-height: 23px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-billing-header] p { font-size: 11px; line-height: 19px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-billing-body] { padding: 16px 20px 18px; }
+[data-studio-v4-shell="true"] [data-studio-billing-body] h4 { font-size: 12px; line-height: 20px; font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-billing] button, [data-studio-v4-shell="true"] [data-studio-billing] a[aria-label="Download invoice"] { min-height: 32px; height: auto; padding: 6px 10px; border-radius: 6px; font-size: 11px; }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-summary] { background: var(--ss-surface); border: 1px solid var(--ss-line); border-radius: 8px; gap: 12px; padding: 12px; flex-wrap: wrap; }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-summary] > div:first-child { min-width: 0; gap: 10px; }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-summary] > div:first-child > :not([hidden]) ~ :not([hidden]) { margin-left: 0; }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-summary] h3 { font-size: 15px; line-height: 22px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-summary] p { color: var(--ss-muted); font-size: 11px; line-height: 18px; }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-summary] > div:last-child { margin-left: auto; }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-icon] { padding: 9px; border: 1px solid var(--ss-line); background: var(--ss-panel); border-radius: 7px; flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-icon] svg { color: var(--ss-accent); width: 20px; height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-summary] button { color: var(--ss-panel); background: var(--ss-accent); }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-status] { color: var(--ss-text); border-color: var(--ss-line); font-size: 10px; }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-status="active"] { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-billing-features] { gap: 7px; }
+[data-studio-v4-shell="true"] [data-studio-billing-features] > div { font-size: 11px; line-height: 18px; gap: 7px; }
+[data-studio-v4-shell="true"] [data-studio-billing-features] svg { flex-shrink: 0; width: 13px; height: 13px; }
+[data-studio-v4-shell="true"] [data-studio-billing-features] .text-green-600 { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-billing-plan-actions] { flex-wrap: wrap; gap: 8px; }
+[data-studio-v4-shell="true"] :is([data-studio-billing-plan-actions],[data-studio-billing-payment-row],[data-studio-billing-packs]) button { background: var(--ss-panel); border-color: var(--ss-line); color: var(--ss-text); }
+[data-studio-v4-shell="true"] :is([data-studio-billing-plan-actions],[data-studio-billing-payment-row],[data-studio-billing-packs]) button:hover { background: var(--ss-surface); }
+[data-studio-v4-shell="true"] [data-studio-billing-balance] { background: var(--ss-surface); background-image: none; border: 1px solid var(--ss-line); padding: 12px 14px; border-radius: 8px; }
+[data-studio-v4-shell="true"] [data-studio-billing-balance] p:first-child { color: var(--ss-muted); font-size: 11px; line-height: 18px; }
+[data-studio-v4-shell="true"] [data-studio-billing-balance] p:last-child { color: var(--ss-text); font-size: 27px; line-height: 36px; font-weight: 600; letter-spacing: -.025em; }
+[data-studio-v4-shell="true"] [data-studio-billing-packs] { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+[data-studio-v4-shell="true"] [data-studio-billing-packs] button { padding: 10px 5px; min-height: 60px; gap: 5px; }
+[data-studio-v4-shell="true"] [data-studio-billing-transactions] > div { gap: 12px; align-items: start; border-color: var(--ss-line); padding: 7px 0; font-size: 11px; line-height: 18px; }
+[data-studio-v4-shell="true"] [data-studio-billing-transactions] > div > div { min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-billing-transactions] > div > div > span { display: block; margin-left: 0; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-billing-transactions] > div > span { flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-billing-transactions] .text-green-600 { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-billing-transactions] .text-red-600 { color: var(--sb-negative); }
+[data-studio-v4-shell="true"] [data-studio-billing-payment-row] { padding: 12px; border-color: var(--ss-line); gap: 12px; flex-wrap: wrap; }
+[data-studio-v4-shell="true"] [data-studio-billing-payment-row] > div { min-width: 0; gap: 10px; }
+[data-studio-v4-shell="true"] [data-studio-billing-payment-row] p { font-size: 11px; line-height: 18px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-billing-payment-row] p:first-child { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-billing-payment-row] svg { flex-shrink: 0; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-billing-payment-row] button { margin-left: auto; }
+[data-studio-v4-shell="true"] [data-studio-billing-invoices] { margin: 0; }
+[data-studio-v4-shell="true"] [data-studio-billing-invoice] { border: 1px solid var(--ss-line); border-radius: 7px; padding: 10px 12px; gap: 12px; flex-wrap: wrap; }
+[data-studio-v4-shell="true"] [data-studio-billing-invoice]:hover { background: var(--ss-surface); }
+[data-studio-v4-shell="true"] [data-studio-billing-invoice] > div { min-width: 0; gap: 9px; }
+[data-studio-v4-shell="true"] [data-studio-billing-invoice] > div:last-child { margin-left: auto; }
+[data-studio-v4-shell="true"] [data-studio-billing-invoice] p { font-size: 11px; line-height: 18px; }
+[data-studio-v4-shell="true"] [data-studio-billing-invoice-status] { max-width: 100%; color: var(--ss-text); border-color: var(--ss-line); font-size: 10px; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-billing-invoice] a { color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-billing-invoice] a:hover { color: var(--ss-teal); background: var(--ss-surface); }
+[data-studio-v4-shell="true"] [data-studio-billing-invoice-empty] { padding: 18px 0; }
+[data-studio-v4-shell="true"] [data-studio-billing-invoice-empty] p { font-size: 11px; line-height: 18px; max-width: 45ch; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-billing-usage] { gap: 12px; }
+[data-studio-v4-shell="true"] [data-studio-billing-usage] > :not([hidden]) ~ :not([hidden]) { margin-top: 14px; }
+[data-studio-v4-shell="true"] [data-studio-billing-usage] .flex { gap: 12px; font-size: 11px; line-height: 18px; }
+[data-studio-v4-shell="true"] [data-studio-billing-usage] p { color: var(--ss-muted); font-size: 10px; line-height: 18px; }
+[data-studio-v4-shell="true"] [data-studio-billing-usage] a { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-billing-usage] .font-medium { text-align: right; }
+[data-studio-v4-shell="true"] [data-studio-billing-usage] .text-muted-foreground { color: var(--ss-muted); border-color: var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-billing-upgrade] { border-color: var(--ss-line); background: var(--ss-surface); color: var(--ss-text); border-radius: 9px; }
+[data-studio-v4-shell="true"] [data-studio-billing-upgrade] > svg { color: var(--ss-accent); }
+[data-studio-v4-shell="true"] [data-studio-billing-upgrade] > div { gap: 12px; flex-wrap: wrap; }
+[data-studio-v4-shell="true"] [data-studio-billing-upgrade] p { color: var(--ss-text); font-size: 12px; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-billing-upgrade] p + p { color: var(--ss-muted); font-size: 11px; line-height: 18px; }
+[data-studio-v4-shell="true"] [data-studio-billing-upgrade] button { background: var(--ss-accent); color: var(--ss-panel); margin-left: 0; }
+[data-studio-v4-shell="true"] [data-studio-billing] :is(button,a):focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 3px; box-shadow: none; }
+[data-studio-v4-shell="true"] [data-studio-billing-loading] { color: var(--ss-muted); font-size: 12px; }
+@media (max-width: 900px) {
+  [data-studio-v4-shell="true"] [data-studio-billing-grid] { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 640px) {
+  [data-studio-v4-shell="true"] [data-studio-billing] { padding: 18px 16px 24px; }
+  [data-studio-v4-shell="true"] :is([data-studio-billing-header],[data-studio-billing-body]) { padding: 14px 16px; }
+  [data-studio-v4-shell="true"] [data-studio-billing-packs] { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (min-width: 901px) and (max-height: 760px) {
+  [data-studio-v4-shell="true"] [data-studio-billing] { padding-top: 18px; }
+  [data-studio-v4-shell="true"] [data-studio-billing-grid] { gap: 14px; }
+  [data-studio-v4-shell="true"] [data-studio-billing-header] { padding: 12px 16px 10px; }
+  [data-studio-v4-shell="true"] [data-studio-billing-body] { padding: 12px 16px; }
+}

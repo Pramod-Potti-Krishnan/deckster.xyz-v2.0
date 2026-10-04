@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { ImageFormData, ImageConfig, TextLabsImageStyle, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE, IMAGE_POSITION_PRESETS } from '@/types/textlabs'
 import { ElementContext, GenerationPanelDraft, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
@@ -10,6 +10,9 @@ import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
+import './studio-image-form.css'
+
+const STUDIO_IMAGE_FORM = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.IMAGE
 type ImageOverrideField = 'style' | 'quality' | 'corners' | 'border' | 'position' | 'aspectRatio'
@@ -79,6 +82,20 @@ function scaleToFitAndCenter(ratioW: number, ratioH: number): { width: number; h
   return { width, height, startCol, startRow }
 }
 
+export interface ImageGeometryDraft {
+  startCol: number
+  startRow: number
+  width: number
+  height: number
+  selectedAspectRatio: string
+  selectedPositionPreset: string | null
+  geometryEdited: boolean
+  geometryContext: ElementContext | null
+  showStyle: boolean
+  showPosition: boolean
+  showPadding: boolean
+}
+
 interface ImageFormProps {
   onSubmit: (formData: ImageFormData) => void
   registerSubmit: (fn: () => void) => void
@@ -89,10 +106,13 @@ interface ImageFormProps {
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
   initialDraft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
+  targetElementId?: string | null
   panelMode: 'generate' | 'edit' | 'refine'
 }
 
-export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft, panelMode }: ImageFormProps) {
+export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft, onDraftChange, panelMode, targetElementId }: ImageFormProps) {
+  const geometryDraft = STUDIO_IMAGE_FORM ? initialDraft?.imageGeometry : null
   const initialFormData = initialDraft?.formData?.componentType === 'IMAGE'
     ? initialDraft.formData
     : null
@@ -110,12 +130,12 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [quality, setQuality] = useState<ImageConfig['quality']>(initialConfig.quality || 'standard')
   const [corners, setCorners] = useState<'square' | 'rounded'>(initialConfig.corners || 'square')
   const [border, setBorder] = useState(initialConfig.border || false)
-  const [startCol, setStartCol] = useState(initialConfig.start_col || 2)
-  const [startRow, setStartRow] = useState(initialConfig.start_row || 4)
-  const [width, setWidth] = useState(initialConfig.width || DEFAULTS.width)
-  const [height, setHeight] = useState(initialConfig.height || DEFAULTS.height)
-  const [selectedAspectRatio, setSelectedAspectRatio] = useState(initialConfig.aspect_ratio || '16:9')
-  const [selectedPositionPreset, setSelectedPositionPreset] = useState<string | null>(null)
+  const [startCol, setStartCol] = useState(geometryDraft?.startCol ?? (initialConfig.start_col || 2))
+  const [startRow, setStartRow] = useState(geometryDraft?.startRow ?? (initialConfig.start_row || 4))
+  const [width, setWidth] = useState(geometryDraft?.width ?? (initialConfig.width || DEFAULTS.width))
+  const [height, setHeight] = useState(geometryDraft?.height ?? (initialConfig.height || DEFAULTS.height))
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState(geometryDraft?.selectedAspectRatio ?? (initialConfig.aspect_ratio || '16:9'))
+  const [selectedPositionPreset, setSelectedPositionPreset] = useState<string | null>(geometryDraft?.selectedPositionPreset ?? null)
   const [operation, setOperation] = useState<'generate' | 'edit' | 'variation'>(() => (
     panelMode === 'refine'
       ? initialConfig.operation === 'variation' ? 'variation' : 'edit'
@@ -130,16 +150,20 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   )
 
   // Section visibility
-  const [showStyle, setShowStyle] = useState(false)
-  const [showPosition, setShowPosition] = useState(false)
-  const [showPadding, setShowPadding] = useState(false)
+  const [showStyle, setShowStyle] = useState(geometryDraft?.showStyle ?? false)
+  const [showPosition, setShowPosition] = useState(geometryDraft?.showPosition ?? false)
+  const [showPadding, setShowPadding] = useState(geometryDraft?.showPadding ?? false)
 
   // Padding
   const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(
     initialFormData?.paddingConfig || { top: 0, right: 0, bottom: 0, left: 0 },
   )
 
+  const [geometryEdited, setGeometryEdited] = useState(geometryDraft?.geometryEdited ?? false)
+  const geometryContextRef = useRef<ElementContext | null>(geometryDraft?.geometryContext ?? null)
+
   const markExplicit = useCallback((...fields: ImageOverrideField[]) => {
+    if (STUDIO_IMAGE_FORM && fields.includes('position')) setGeometryEdited(true)
     setExplicitFields(previous => {
       const next = new Set(previous)
       fields.forEach(field => next.add(field))
@@ -157,6 +181,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   }, [])
 
   const resetToAuto = useCallback(() => {
+    if (STUDIO_IMAGE_FORM) setGeometryEdited(false)
     setStyle('realistic')
     setQuality('standard')
     setCorners('square')
@@ -177,6 +202,16 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   // Initialize position from canvas context
   useEffect(() => {
     if (elementContext) {
+      if (STUDIO_IMAGE_FORM) {
+        if (targetElementId && elementContext.elementId && targetElementId !== elementContext.elementId) return
+        const previous = geometryContextRef.current
+        const sameOwner = !previous?.elementId || !elementContext.elementId || previous.elementId === elementContext.elementId
+        const sameBounds = previous?.startCol === elementContext.startCol && previous?.startRow === elementContext.startRow
+          && previous?.width === elementContext.width && previous?.height === elementContext.height
+        geometryContextRef.current = { ...elementContext }
+        if (geometryEdited && sameOwner && sameBounds) return
+        setGeometryEdited(false)
+      }
       setStartCol(elementContext.startCol)
       setStartRow(elementContext.startRow)
       setWidth(elementContext.width)
@@ -184,7 +219,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
       setSelectedAspectRatio('custom')
       setSelectedPositionPreset(null)
     }
-  }, [elementContext])
+  }, [elementContext, STUDIO_IMAGE_FORM ? targetElementId : null])
 
   // A generated placeholder becomes an existing image without remounting this
   // form. Move it onto image-aware editing at that transition, while retaining
@@ -267,7 +302,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
     ])
   }, [clearExplicit, explicitFields, markExplicit, operation, panelMode, registerMandatoryConfig, style])
 
-  const handleSubmit = useCallback(() => {
+  const buildFormData = useCallback(() => {
     const aspectRatio = selectedAspectRatio === 'custom'
       ? reducedRatio(width, height)
       : selectedAspectRatio
@@ -304,8 +339,22 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
       imageConfig,
       paddingConfig,
     }
-    onSubmit(formData)
-  }, [prompt, operation, style, quality, corners, border, startCol, startRow, width, height, selectedAspectRatio, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit])
+    return formData
+  }, [prompt, operation, style, quality, corners, border, startCol, startRow, width, height, selectedAspectRatio, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig])
+
+  const handleSubmit = useCallback(() => onSubmit(buildFormData()), [onSubmit, buildFormData])
+
+  useEffect(() => {
+    if (!STUDIO_IMAGE_FORM || !onDraftChange) return
+    onDraftChange({
+      prompt, showAdvanced, formData: buildFormData(),
+      imageGeometry: {
+        startCol, startRow, width, height, selectedAspectRatio, selectedPositionPreset,
+        geometryEdited, geometryContext: geometryContextRef.current, showStyle, showPosition, showPadding,
+      },
+    })
+  }, [onDraftChange, buildFormData, prompt, showAdvanced, startCol, startRow, width, height,
+    selectedAspectRatio, selectedPositionPreset, geometryEdited, elementContext, showStyle, showPosition, showPadding])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
@@ -317,9 +366,9 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
   const displayAspect = reducedRatio(pixelWidth, pixelHeight)
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2.5" data-studio-image-form={STUDIO_IMAGE_FORM ? 'true' : undefined}>
       {showAdvanced && (<>
-      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+      <div data-studio-image-summary={STUDIO_IMAGE_FORM ? 'true' : undefined} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
         <div>
           <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Automatic</div>
           <div className="text-[10px] text-slate-500 dark:text-slate-400">Uses the live canvas geometry and service defaults.</div>
@@ -348,6 +397,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Image Style</label>
             <select
+              aria-label={STUDIO_IMAGE_FORM ? 'Image style' : undefined}
               value={explicitFields.has('style') ? style : ''}
               onChange={(event) => {
                 if (!event.target.value) {
@@ -370,6 +420,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Quality</label>
             <select
+              aria-label={STUDIO_IMAGE_FORM ? 'Image quality' : undefined}
               value={explicitFields.has('quality') ? quality : ''}
               onChange={(e) => {
                 if (!e.target.value) {
@@ -431,10 +482,14 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
           {/* Aspect Ratio Presets */}
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Aspect Ratio</label>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1" data-studio-image-group={STUDIO_IMAGE_FORM ? 'aspect' : undefined}
+              role={STUDIO_IMAGE_FORM ? 'group' : undefined} aria-label={STUDIO_IMAGE_FORM ? 'Image aspect ratio' : undefined}>
               {ASPECT_RATIO_PRESETS.map(preset => (
                 <button
                   key={preset.label}
+                  type={STUDIO_IMAGE_FORM ? 'button' : undefined}
+                  aria-label={STUDIO_IMAGE_FORM ? `Image aspect ratio ${preset.label}` : undefined}
+                  aria-pressed={STUDIO_IMAGE_FORM ? selectedAspectRatio === preset.label : undefined}
                   onClick={() => applyAspectRatio(preset)}
                   className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
                     selectedAspectRatio === preset.label
@@ -446,6 +501,9 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
                 </button>
               ))}
               <button
+                type={STUDIO_IMAGE_FORM ? 'button' : undefined}
+                aria-label={STUDIO_IMAGE_FORM ? 'Image aspect ratio Custom' : undefined}
+                aria-pressed={STUDIO_IMAGE_FORM ? selectedAspectRatio === 'custom' : undefined}
                 onClick={() => {
                   setSelectedAspectRatio('custom')
                   markExplicit('aspectRatio')
@@ -462,7 +520,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
           </div>
 
           {/* Size info with aspect ratio */}
-          <div className="text-[10px] text-gray-400 dark:text-slate-500">
+          <div className="text-[10px] text-gray-400 dark:text-slate-500" data-studio-image-size={STUDIO_IMAGE_FORM ? 'true' : undefined}>
             Size: {width} x {height} grid ({pixelWidth} x {pixelHeight}px) &mdash; Aspect: {displayAspect}
           </div>
 
@@ -477,6 +535,7 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
             ]}
             onChange={(_, v) => {
               if (v === 'auto') {
+                if (STUDIO_IMAGE_FORM) setGeometryEdited(false)
                 setStartCol(elementContext?.startCol ?? 2)
                 setStartRow(elementContext?.startRow ?? 4)
                 setWidth(elementContext?.width ?? DEFAULTS.width)
@@ -500,10 +559,14 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
               {/* Position Presets */}
               <div className="space-y-1">
                 <label className="text-[10px] text-gray-400 dark:text-slate-500">Position Presets</label>
-                <div className="grid grid-cols-3 gap-1">
+                <div className="grid grid-cols-3 gap-1" data-studio-image-group={STUDIO_IMAGE_FORM ? 'position-presets' : undefined}
+                  role={STUDIO_IMAGE_FORM ? 'group' : undefined} aria-label={STUDIO_IMAGE_FORM ? 'Image position presets' : undefined}>
                   {Object.entries(IMAGE_POSITION_PRESETS).map(([key, preset]) => (
                     <button
                       key={key}
+                      type={STUDIO_IMAGE_FORM ? 'button' : undefined}
+                      aria-label={STUDIO_IMAGE_FORM ? `Image position ${preset.label}` : undefined}
+                      aria-pressed={STUDIO_IMAGE_FORM ? selectedPositionPreset === key : undefined}
                       onClick={() => applyPositionPreset(key)}
                       className={`px-1.5 py-1 rounded text-[10px] transition-colors ${
                         selectedPositionPreset === key
@@ -518,16 +581,16 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
               </div>
 
               {/* Col/Row Inputs */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2" data-studio-image-pair={STUDIO_IMAGE_FORM ? 'true' : undefined}>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-gray-400 dark:text-slate-500">Col</label>
-                  <input type="number" value={startCol} min={1} max={32} step={0.2}
+                  <label className="text-[10px] text-gray-400 dark:text-slate-500" data-studio-image-unit={STUDIO_IMAGE_FORM ? 'grid' : undefined}>Col</label>
+                  <input type="number" value={startCol} min={1} max={32} step={0.2} aria-label={STUDIO_IMAGE_FORM ? 'Image column (grid)' : undefined}
                     onChange={(e) => { setStartCol(Number(e.target.value)); setSelectedPositionPreset(null); markExplicit('position') }}
                     className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-gray-400 dark:text-slate-500">Row</label>
-                  <input type="number" value={startRow} min={1} max={18} step={0.2}
+                  <label className="text-[10px] text-gray-400 dark:text-slate-500" data-studio-image-unit={STUDIO_IMAGE_FORM ? 'grid' : undefined}>Row</label>
+                  <input type="number" value={startRow} min={1} max={18} step={0.2} aria-label={STUDIO_IMAGE_FORM ? 'Image row (grid)' : undefined}
                     onChange={(e) => { setStartRow(Number(e.target.value)); setSelectedPositionPreset(null); markExplicit('position') }}
                     className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
                 </div>
@@ -536,16 +599,16 @@ export function ImageForm({ onSubmit, registerSubmit, isGenerating, presentation
           )}
 
           {/* Width/Height always visible */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2" data-studio-image-pair={STUDIO_IMAGE_FORM ? 'true' : undefined}>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400 dark:text-slate-500">Width</label>
-              <input type="number" value={width} min={0.2} max={32} step={0.2}
+              <label className="text-[10px] text-gray-400 dark:text-slate-500" data-studio-image-unit={STUDIO_IMAGE_FORM ? 'grid' : undefined}>Width</label>
+              <input type="number" value={width} min={0.2} max={32} step={0.2} aria-label={STUDIO_IMAGE_FORM ? 'Image width (grid)' : undefined}
                 onChange={(e) => { setWidth(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); markExplicit('position', 'aspectRatio') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-gray-400 dark:text-slate-500">Height</label>
-              <input type="number" value={height} min={0.2} max={18} step={0.2}
+              <label className="text-[10px] text-gray-400 dark:text-slate-500" data-studio-image-unit={STUDIO_IMAGE_FORM ? 'grid' : undefined}>Height</label>
+              <input type="number" value={height} min={0.2} max={18} step={0.2} aria-label={STUDIO_IMAGE_FORM ? 'Image height (grid)' : undefined}
                 onChange={(e) => { setHeight(Number(e.target.value)); setSelectedAspectRatio('custom'); setSelectedPositionPreset(null); markExplicit('position', 'aspectRatio') }}
                 className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100" />
             </div>

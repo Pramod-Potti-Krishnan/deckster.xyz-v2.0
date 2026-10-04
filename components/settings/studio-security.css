@@ -1,0 +1,55 @@
+/* Native styling only; account deletion retains its original guarded flow. */
+[data-studio-v4-shell="true"] [data-studio-security] { --ssc-danger: #a52c28; --ssc-danger-line: #d6a39e; --ssc-danger-surface: #fff5f3; --ssc-destructive: #a52c28; --ssc-destructive-hover: #87231f; display: grid; gap: 16px; color: var(--ss-text); }
+.dark [data-studio-v4-shell="true"] [data-studio-security], [data-studio-v4-shell="true"].dark [data-studio-security] { --ssc-danger: #ffb3a9; --ssc-danger-line: #895149; --ssc-danger-surface: #322728; --ssc-destructive: #b9352e; --ssc-destructive-hover: #a62e27; }
+[data-studio-v4-shell="true"] [data-studio-security-card] { background: var(--ss-panel); border-color: var(--ss-line); border-radius: 12px; box-shadow: none; overflow: hidden; }
+[data-studio-v4-shell="true"] [data-studio-security-header] { padding: 18px 22px 14px; border-bottom: 1px solid var(--ss-line); gap: 5px; }
+/* CardTitle and CardDescription render divs in the shared native Card. */
+[data-studio-v4-shell="true"] [data-studio-security-header] > .text-2xl { color: var(--ss-text); font-size: 17px; line-height: 24px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-security-header] > .text-muted-foreground { color: var(--ss-muted); font-size: 12px; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-security-body] { padding: 16px 22px 18px; }
+[data-studio-v4-shell="true"] [data-studio-security-body] > :not([hidden]) ~ :not([hidden]) { margin-top: 12px; }
+[data-studio-v4-shell="true"] [data-studio-security-row] { gap: 14px; padding: 12px 14px; border-color: var(--ss-line); border-radius: 8px; }
+[data-studio-v4-shell="true"] [data-studio-security-row] > div { min-width: 0; gap: 10px; }
+[data-studio-v4-shell="true"] [data-studio-security-row] > div > svg { flex-shrink: 0; width: 17px; height: 17px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-security-row] p { font-size: 11px; line-height: 18px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-security-row] p:first-child { color: var(--ss-text); font-size: 13px; line-height: 20px; font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-security-connected] { color: var(--ss-teal); font-size: 11px; flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-security-planned] { color: var(--ss-muted); background: var(--ss-surface); border-color: var(--ss-line); font-size: 10px; flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-security-card="danger"] { border-color: var(--ssc-danger-line); }
+[data-studio-v4-shell="true"] [data-studio-security-card="danger"] [data-studio-security-header] { border-bottom-color: var(--ssc-danger-line); }
+[data-studio-v4-shell="true"] [data-studio-security-card="danger"] [data-studio-security-header] > .text-2xl { color: var(--ssc-danger); }
+[data-studio-v4-shell="true"] [data-studio-security-card="danger"] [data-studio-security-row] { border-color: var(--ssc-danger-line); background: var(--ssc-danger-surface); }
+[data-studio-v4-shell="true"] [data-studio-security-card="danger"] [data-studio-security-row] :is(svg,p:first-child) { color: var(--ssc-danger); }
+[data-studio-v4-shell="true"] [data-studio-security] button { min-height: 32px; height: auto; padding: 6px 11px; border-radius: 6px; font-size: 11px; }
+[data-studio-v4-shell="true"] [data-studio-security-open] { background: var(--ss-panel); border-color: var(--ssc-danger-line); color: var(--ssc-danger); flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-security-open]:hover { background: var(--ssc-danger-surface); color: var(--ssc-danger); border-color: var(--ssc-danger); }
+[data-studio-v4-shell="true"] [data-studio-security-confirmation] { border-color: var(--ssc-danger-line); background: var(--ssc-danger-surface); color: var(--ss-text); padding: 14px; border-radius: 8px; }
+[data-studio-v4-shell="true"] [data-studio-security-confirmation] > svg { top: 15px; left: 14px; color: var(--ssc-danger); }
+[data-studio-v4-shell="true"] [data-studio-security-confirmation] > div { padding-left: 25px; transform: none; font-size: 12px; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-security-confirmation] > div > :not([hidden]) ~ :not([hidden]) { margin-top: 12px; }
+[data-studio-v4-shell="true"] [data-studio-security-confirmation] label { display: block; margin-top: 7px; font-size: 11px; line-height: 18px; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-security-confirmation] input { height: 34px; background: var(--ss-panel); border-color: var(--ssc-danger-line); color: var(--ss-text); font-size: 12px; }
+[data-studio-v4-shell="true"] [data-studio-security-confirmation] input::placeholder { color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-security-error] { color: var(--ssc-danger); font-size: 11px; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-security-actions] { flex-wrap: wrap; }
+[data-studio-v4-shell="true"] [data-studio-security-delete] { background: var(--ssc-destructive); color: #fff; border: 1px solid var(--ssc-destructive); }
+[data-studio-v4-shell="true"] [data-studio-security-delete]:hover:not(:disabled) { background: var(--ssc-destructive-hover); border-color: var(--ssc-destructive-hover); color: #fff; }
+[data-studio-v4-shell="true"] [data-studio-security-cancel] { background: var(--ss-panel); border-color: var(--ss-line); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-security-cancel]:hover { background: var(--ss-surface); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-security] :is(button,input):focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 3px; box-shadow: none; }
+[data-studio-v4-shell="true"] [data-studio-security] :is([data-studio-security-open],[data-studio-security-delete]):focus-visible { outline-color: var(--ssc-danger); }
+/* Keep both refusal footer action rings visible at the native scroll edge. */
+[data-studio-v4-shell="true"] [data-studio-security] :is([data-studio-security-cancel],[data-studio-security-delete]):focus-visible { outline-offset: -3px; }
+@media (max-width: 640px) {
+  [data-studio-v4-shell="true"] :is([data-studio-security-header],[data-studio-security-body]) { padding: 14px 16px; }
+  [data-studio-v4-shell="true"] [data-studio-security-row] { flex-wrap: wrap; gap: 10px; }
+  [data-studio-v4-shell="true"] [data-studio-security-row] > div { flex-basis: 100%; }
+  [data-studio-v4-shell="true"] [data-studio-security-confirmation] { padding: 12px; }
+  [data-studio-v4-shell="true"] [data-studio-security-confirmation] > svg { left: 12px; top: 14px; }
+}
+@media (min-width: 641px) and (max-height: 760px) {
+  [data-studio-v4-shell="true"] [data-studio-security] { gap: 12px; }
+  [data-studio-v4-shell="true"] [data-studio-security-header] { padding: 12px 18px 10px; }
+  [data-studio-v4-shell="true"] [data-studio-security-body] { padding: 12px 18px; }
+  [data-studio-v4-shell="true"] [data-studio-security-row] { padding: 10px 12px; }
+}

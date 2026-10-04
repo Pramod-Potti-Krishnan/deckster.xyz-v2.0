@@ -1,0 +1,21 @@
+/* Ownership is on the actual native portal; the classic dialog stays unchanged. */
+[data-studio-manual-deck-conflict="true"] { --smc-panel: #fff; --smc-surface: #f5f7f6; --smc-text: #243438; --smc-muted: #566965; --smc-line: #d6e1dc; --smc-accent: #6a4fc0; --smc-error: #a4493b; width: min(540px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); min-width: 0; overflow-y: auto; padding: 22px; gap: 16px; border: 1px solid var(--smc-line); border-radius: 13px; background: var(--smc-panel); color: var(--smc-text); box-shadow: 0 22px 70px #0004; scrollbar-width: thin; }
+.dark [data-studio-manual-deck-conflict="true"] { --smc-panel: #1b2426; --smc-surface: #222d30; --smc-text: #e2ebe8; --smc-muted: #a0b1ad; --smc-line: #334245; --smc-accent: #b4a0f2; --smc-error: #e49687; }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-part="header"] { min-width: 0; text-align: left; }
+[data-studio-manual-deck-conflict="true"] h2 { color: var(--smc-text); font-size: 17px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-part="description"] { color: var(--smc-muted); font-size: 12px; line-height: 1.75; }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-part="choices"] { min-width: 0; gap: 10px; }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-choice] { width: 100%; min-width: 0; height: auto; padding: 13px; align-items: flex-start; gap: 12px; border: 1px solid var(--smc-line); border-radius: 9px; background: var(--smc-surface); color: var(--smc-text); white-space: normal; overflow-wrap: anywhere; }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-choice="prepend"] { border-color: var(--smc-accent); background: color-mix(in srgb, var(--smc-accent) 8%, var(--smc-panel)); }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-choice] > svg { margin-top: 2px; width: 18px; height: 18px; color: var(--smc-accent); }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-choice] > span { min-width: 0; flex: 1; }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-choice] > span > span:first-child { font-size: 12px; line-height: 1.6; }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-choice] > span > span:last-child { margin-top: 5px; color: var(--smc-muted); font-size: 11px; line-height: 1.7; opacity: 1; }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-choice]:not(:disabled):hover { border-color: var(--smc-accent); background: color-mix(in srgb, var(--smc-accent) 12%, var(--smc-panel)); }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-part="error"] { max-height: min(180px, 28dvh); overflow-y: auto; margin: 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--smc-error) 40%, var(--smc-line)); background: color-mix(in srgb, var(--smc-error) 8%, var(--smc-panel)); color: var(--smc-error); font-size: 11px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-part="footer"] { position: sticky; bottom: -22px; margin-bottom: -22px; padding: 10px 0 22px; background: var(--smc-panel); }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-part="cancel"] { margin: 0; min-height: 36px; padding: 8px 13px; border-color: var(--smc-line); border-radius: 7px; background: var(--smc-surface); color: var(--smc-text); font-size: 12px; }
+[data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-part="cancel"]:not(:disabled):hover { border-color: var(--smc-accent); }
+[data-studio-manual-deck-conflict="true"] button:disabled { cursor: not-allowed; opacity: .55; }
+[data-studio-manual-deck-conflict="true"] button:focus-visible, [data-studio-manual-deck-conflict="true"] [tabindex="0"]:focus-visible { outline: 2px solid var(--smc-accent); outline-offset: 3px; }
+@media (max-width: 420px), (max-height: 520px) { [data-studio-manual-deck-conflict="true"] { padding: 16px; gap: 12px; } [data-studio-manual-deck-conflict="true"] [data-studio-manual-conflict-part="footer"] { bottom: -16px; margin-bottom: -16px; padding-bottom: 16px; } }

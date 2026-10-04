@@ -11,6 +11,10 @@ import {
 } from "react"
 import { Focus, Minus, Plus, RotateCcw } from "lucide-react"
 
+import './studio-graph-controls.css'
+
+const STUDIO_GRAPH_CONTROLS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 export interface KgViewNode {
   node_id: string
   name: string
@@ -298,19 +302,20 @@ export function KgGraphView({
 
   return (
     <div className="relative h-full overflow-hidden rounded-2xl bg-[#070b18] lg:min-h-[520px]">
-      <div className="lg:hidden">
-        <div className="border-b border-white/10 px-4 py-3">
+      <div data-studio-graph-controls={STUDIO_GRAPH_CONTROLS ? 'mobile' : undefined} className="lg:hidden">
+        <div data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'heading' : undefined} className="border-b border-white/10 px-4 py-3">
           <p className="text-sm font-medium text-white">Entities by relevance</p>
           <p className="mt-0.5 text-xs text-slate-400">
             Select an entity to inspect its relationships and source evidence.
           </p>
         </div>
-        <ul className="max-h-[430px] overflow-y-auto p-2" aria-label="Knowledge graph entities">
+        <ul data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'list' : undefined} className="max-h-[430px] overflow-y-auto p-2" aria-label="Knowledge graph entities">
           {mobileNodes.map((node) => (
             <li key={node.node_id}>
               <button
                 type="button"
                 onClick={() => onSelect?.(node.node_id)}
+                data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'entity' : undefined}
                 aria-pressed={selectedId === node.node_id}
                 className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
                   selectedId === node.node_id ? "bg-white/10" : "hover:bg-white/[0.06]"
@@ -322,8 +327,8 @@ export function KgGraphView({
                   aria-hidden
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-slate-100">{node.name}</span>
-                  <span className="mt-0.5 block truncate text-xs text-slate-400">
+                  <span data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'name' : undefined} className="block truncate text-sm font-medium text-slate-100">{node.name}</span>
+                  <span data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'context' : undefined} className="mt-0.5 block truncate text-xs text-slate-400">
                     {node.entity_type.toLowerCase()} · seen {node.mention_count}×
                   </span>
                 </span>
@@ -479,6 +484,7 @@ export function KgGraphView({
                 className="cursor-pointer outline-none"
                 opacity={dimmed ? 0.18 : 1}
                 role="button"
+                aria-pressed={STUDIO_GRAPH_CONTROLS ? isSelected : undefined}
                 tabIndex={0}
                 aria-label={`${point.name}, ${point.entity_type.toLowerCase()}, seen ${point.mention_count} times`}
                 onClick={(event) => {

@@ -1,0 +1,170 @@
+/* S1.1 only: opt-in colors/focus on existing chrome. No geometry, type or motion.
+   Portal menus own their tokens. No selectors reach a Layout iframe or toolbar. */
+[data-studio-v4-chrome="true"] {
+  --sv4-panel: #ffffff;
+  --sv4-composer: #f5f7f6;
+  --sv4-soft: #edf2f0;
+  --sv4-line: #dde5e2;
+  --sv4-text: #243438;
+  --sv4-muted: #566965;
+  --sv4-accent: #6a4fc0;
+  --sv4-accent-soft: #f1edfb;
+  --sv4-accent-line: #dcd2f6;
+  --sv4-on-accent: #ffffff;
+  --sv4-teal: #1f6f72;
+  --sv4-teal-soft: #e8f2f0;
+  --sv4-teal-line: #c9e0dc;
+  --sv4-danger: #b03f35;
+}
+.dark [data-studio-v4-chrome="true"] {
+  --sv4-panel: #1b2426;
+  --sv4-composer: #222d30;
+  --sv4-soft: #243034;
+  --sv4-line: #334245;
+  --sv4-text: #e2ebe8;
+  --sv4-muted: #a0b1ad;
+  --sv4-accent: #b4a0f2;
+  --sv4-accent-soft: #2a2540;
+  --sv4-accent-line: #463d6b;
+  --sv4-on-accent: #141c1e;
+  --sv4-teal: #83c4bd;
+  --sv4-teal-soft: #1d3634;
+  --sv4-teal-line: #2e5450;
+  --sv4-danger: #ef9a8f;
+}
+header[data-studio-v4-chrome="true"],
+[data-studio-v4-chrome="true"][data-studio-v4-composer],
+[data-studio-v4-chrome="true"][data-studio-v4-menu] {
+  background-color: var(--sv4-panel);
+  border-color: var(--sv4-line);
+}
+header[data-studio-v4-chrome="true"] [data-studio-v4-nav] {
+  color: var(--sv4-text);
+}
+header[data-studio-v4-chrome="true"] [data-studio-v4-nav]:hover,
+header[data-studio-v4-chrome="true"] [data-studio-v4-nav][aria-label="Close deck list"] {
+  background-color: var(--sv4-soft);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-prompt],
+[data-studio-v4-chrome="true"] [data-studio-v4-composer-toolbar] {
+  background-color: var(--sv4-composer);
+  border-color: var(--sv4-line);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-prompt]:focus-within {
+  border-color: var(--sv4-accent);
+  box-shadow: 0 0 0 2px var(--sv4-accent);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > textarea {
+  color: var(--sv4-text);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > textarea::placeholder {
+  color: var(--sv4-muted);
+}
+/* Stop owns its destructive colors; :where keeps other toolbar specificity unchanged. */
+[data-studio-v4-chrome="true"] [data-studio-v4-composer-toolbar] button[type="button"]:not(:where([aria-label="Stop template reuse"])) {
+  color: var(--sv4-muted);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-composer-toolbar] button[type="button"]:not(:where([aria-label="Stop template reuse"])):hover {
+  background-color: var(--sv4-soft);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-composer-toolbar] button:has(.lucide-sliders-horizontal) svg {
+  color: var(--sv4-muted);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-theme-chip],
+[data-studio-v4-chrome="true"] [data-studio-v4-theme-chip] > div,
+[data-studio-v4-chrome="true"] [data-studio-v4-theme-chip] > button,
+[data-studio-v4-chrome="true"] button[aria-label="Build theme"][class*="bg-sky"] {
+  background-color: var(--sv4-teal-soft);
+  border-color: var(--sv4-teal-line);
+  color: var(--sv4-teal);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-send] {
+  background-color: var(--sv4-accent);
+  color: var(--sv4-on-accent);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-send]:disabled {
+  background-color: var(--sv4-accent-soft);
+  color: var(--sv4-accent);
+}
+[data-studio-v4-chrome="true"] button[aria-label="Stop template reuse"] {
+  background-color: var(--sv4-danger);
+  color: var(--sv4-panel);
+}
+/* The inline @slide picker stays in the existing prompt, retaining mouse focus
+   and the composer's Enter/Tab precedence. It is not a new portal or handler. */
+[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full {
+  background-color: var(--sv4-panel);
+  border-color: var(--sv4-line);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full p,
+[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full .truncate {
+  color: var(--sv4-muted);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full button {
+  color: var(--sv4-text);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full button:hover {
+  background-color: var(--sv4-soft);
+}
+[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full svg {
+  color: var(--sv4-accent);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] {
+  color: var(--sv4-text);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] :is(.text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700) {
+  color: var(--sv4-muted);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] :is(select, input:not([type="checkbox"]), button.border, .border-t) {
+  border-color: var(--sv4-line);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] :is(select, input:not([type="checkbox"])) {
+  background-color: var(--sv4-panel);
+  color: var(--sv4-text);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] input::placeholder {
+  color: var(--sv4-muted);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] button[aria-label="Save current theme"],
+[data-studio-v4-chrome="true"][data-studio-v4-menu] button[role="switch"][data-state="checked"] {
+  background-color: var(--sv4-teal);
+  color: var(--sv4-panel);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] button[aria-label="Save current theme"]:disabled,
+[data-studio-v4-chrome="true"][data-studio-v4-menu] button[role="switch"][data-state="unchecked"],
+[data-studio-v4-chrome="true"][data-studio-v4-menu] .bg-gray-100 {
+  background-color: var(--sv4-soft);
+  color: var(--sv4-muted);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] :is(.text-sky-600, .text-violet-700) {
+  color: var(--sv4-teal);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] .bg-violet-50 {
+  background-color: var(--sv4-teal-soft);
+  border-color: var(--sv4-teal-line);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] button.border:hover {
+  background-color: var(--sv4-soft);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] button[aria-label="Delete saved theme"]:hover {
+  color: var(--sv4-danger);
+}
+[data-studio-v4-chrome="true"] :is([data-studio-v4-nav], [data-studio-v4-composer-toolbar] button, [data-studio-v4-theme-chip] button, [data-studio-v4-prompt] > .bottom-full button):focus-visible,
+[data-studio-v4-chrome="true"][data-studio-v4-menu] :is(button, input, select):focus-visible {
+  outline: 2px solid var(--sv4-accent);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] input[type="checkbox"] {
+  accent-color: var(--sv4-teal);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] button[role="switch"] > span {
+  background-color: var(--sv4-muted);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-menu] button[role="switch"][data-state="checked"] > span {
+  background-color: var(--sv4-panel);
+}
+[data-studio-v4-chrome="true"][data-studio-v4-composer][data-studio-v4-dragging="true"] {
+  background-color: var(--sv4-accent-soft);
+  border-color: var(--sv4-accent-line);
+}

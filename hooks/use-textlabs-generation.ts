@@ -123,6 +123,8 @@ interface UseTextLabsGenerationParams {
       refineContext: RefineContext,
     ) => void
     changeElementType: (type: TextLabsComponentType) => void
+    getIntentRevision?: () => number
+    claimInsertionIntent?: () => number
     getSnapshot: () => {
       isOpen: boolean
       blankElementId: string | null
@@ -269,6 +271,10 @@ export function useTextLabsGeneration({
   ensureThemeReady,
   toast,
 }: UseTextLabsGenerationParams) {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const pendingPlaceholderAddsRef = useRef<Set<string>>(new Set())
+  const placeholderSequenceRef = useRef(0)
+  const placeholderMountRevisionRef = useRef(0)
   const activeGenerationKeysRef = useRef<Set<string>>(new Set())
   const retryCandidateRef = useRef<DiagramRetryCandidate | null>(null)
   const freshDiagramAttemptHandoffsRef = useRef<
@@ -279,9 +285,10 @@ export function useTextLabsGeneration({
     generationHookMountedRef.current = true
     return () => {
       generationHookMountedRef.current = false
+      if (studio) placeholderMountRevisionRef.current += 1
       freshDiagramAttemptHandoffsRef.current.clear()
     }
-  }, [])
+  }, [studio])
   const activePresentationTargetRef = useRef({
     presentationId: presentationId ?? null,
     epoch: 0,
@@ -1802,21 +1809,41 @@ export function useTextLabsGeneration({
   ])
 
   const handleOpenPanel = useCallback(async (type: string) => {
+    const expectedPresentationTarget = renderPresentationTarget
+    const expectedMountRevision = placeholderMountRevisionRef.current
+    const studioTargetSlideIndex = studio ? getCurrentSlideIndex?.() ?? currentSlideIndex : currentSlideIndex
+    const ownerIsCurrent = () => generationHookMountedRef.current
+      && placeholderMountRevisionRef.current === expectedMountRevision
+      && activePresentationTargetRef.current.presentationId === expectedPresentationTarget.presentationId
+      && activePresentationTargetRef.current.epoch === expectedPresentationTarget.epoch
+    if (studio && !ownerIsCurrent()) return
     const componentType = type as TextLabsComponentType
     const defaults = getDefaultSize(componentType)
     const startCol = 2
     const startRow = 4
 
+    const pendingKey = JSON.stringify([expectedMountRevision, expectedPresentationTarget.epoch, expectedPresentationTarget.presentationId, studioTargetSlideIndex, componentType])
+    if (studio && pendingPlaceholderAddsRef.current.has(pendingKey)) return
+    const panelIntentRevision = studio ? generationPanel.claimInsertionIntent?.() ?? 0 : 0
+    const mayActivatePanel = () => !studio || (ownerIsCurrent()
+      && (getCurrentSlideIndex?.() ?? currentSlideIndex) === studioTargetSlideIndex
+      && (generationPanel.getIntentRevision?.() ?? 0) === panelIntentRevision)
+
     if (!layoutServiceApis?.sendElementCommand) {
       const message = 'The presentation viewer is not ready, so an element placeholder could not be added.'
-      generationPanel.setError(message)
-      toast({ title: 'Element not added', description: message })
+      if (mayActivatePanel()) {
+        generationPanel.setError(message)
+        toast({ title: 'Element not added', description: message })
+      }
       return
     }
 
+    if (studio) pendingPlaceholderAddsRef.current.add(pendingKey)
     try {
       const targetSlideIndex = getCurrentSlideIndex?.() ?? currentSlideIndex
-      const tempId = `blank_${Date.now()}`
+      const tempId = studio
+        ? `blank_${Date.now()}_${++placeholderSequenceRef.current}`
+        : `blank_${Date.now()}`
       const placeholderHtml = buildPlaceholderHtml(tempId, componentType)
 
       const gridRow = `${startRow}/${startRow + defaults.height}`
@@ -1841,6 +1868,7 @@ export function useTextLabsGeneration({
         throw new Error(response.error || 'Layout rejected the blank placeholder')
       }
 
+      if (studio && !ownerIsCurrent()) return
       const layoutElementId = response?.elementId || tempId
       const metadata = parseElementGenerationMetadata(response)
 
@@ -1856,14 +1884,18 @@ export function useTextLabsGeneration({
         themeVariantId: metadata.themeVariantId,
         themeBindings: metadata.themeBindings,
       })
-      generationPanel.openPanelForElement(componentType, layoutElementId)
+      if (mayActivatePanel()) generationPanel.openPanelForElement(componentType, layoutElementId)
     } catch (err) {
       console.warn('[TextLabs] Failed to insert blank placeholder:', err)
       const message = 'The element placeholder could not be added. Please wait for the slide to finish loading and try again.'
-      generationPanel.setError(message)
-      toast({ title: 'Element not added', description: message })
+      if (mayActivatePanel()) {
+        generationPanel.setError(message)
+        toast({ title: 'Element not added', description: message })
+      }
+    } finally {
+      if (studio) pendingPlaceholderAddsRef.current.delete(pendingKey)
     }
-  }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, getCurrentSlideIndex, toast])
+  }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, getCurrentSlideIndex, toast, renderPresentationTarget, studio])
 
   return { handleGenerate, handleOpenPanel }
 }

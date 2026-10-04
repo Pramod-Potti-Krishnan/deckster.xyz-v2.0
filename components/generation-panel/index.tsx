@@ -1,7 +1,9 @@
 'use client'
 
+import { keepStudioInspectorFocusVisible } from '@/lib/studio-inspector-focus'
 import { type ReactNode, useRef, useCallback, useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
+import '@/components/builder/studio-panels.css'
 import { defaultElementResearchSelection, isNonResearchVisualElement } from '@/lib/element-research-policy'
 import { TemplateSlotCatalog, TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import { GenerationPanelHeader } from './header'
@@ -127,6 +129,7 @@ export function GenerationPanel({
   const panelTargetKey = `${activationId}:${draftKey ?? 'new'}:${elementType}:${existingTextTarget?.elementId ?? 'none'}`
 
   // Form registers its submit function here
+  const panelRootRef = useRef<HTMLDivElement>(null)
   const submitFnRef = useRef<{ key: string; submit: () => void } | null>(null)
   const submitIntentRef = useRef<{
     key: string
@@ -326,7 +329,13 @@ export function GenerationPanel({
     if (!isOpen) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Hidden Studio drawers remain mounted to retain production form drafts.
+      // Their window shortcuts must not act on the active compact workspace.
+      if (panelRootRef.current?.closest('[data-studio-v4-shell="true"] [data-studio-workspace-visible="false"]')) return
       if (e.key === 'Escape' && !isGenerating) {
+        // Radix consumes a picker Escape before it reaches this window listener.
+        // Let that layer dismiss and restore focus without closing its inspector.
+        if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && e.defaultPrevented) return
         e.preventDefault()
         onClose()
       }
@@ -344,6 +353,10 @@ export function GenerationPanel({
     <div className="absolute inset-0 z-20 flex pointer-events-none">
       {/* Panel content */}
       <div
+        ref={panelRootRef}
+        onFocusCapture={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? event => keepStudioInspectorFocusVisible(event.target) : undefined}
+        data-studio-v4-panel="element-generation"
+        data-studio-v4-panel-mode={mode}
         className={cn(
           "flex-1 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden transition-all duration-200 ease-out",
           isOpen ? "pointer-events-auto opacity-100" : "opacity-0 max-w-0"
@@ -359,7 +372,7 @@ export function GenerationPanel({
 
         {/* Canvas position indicator */}
         {elementContext && elementType !== 'CHART' && (
-          <div className="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
+          <div data-studio-v4-panel-context className="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
             Position from canvas ({elementContext.width}&times;{elementContext.height} cells)
           </div>
@@ -383,7 +396,7 @@ export function GenerationPanel({
 
         {elementType !== 'TEXT_BOX' && elementType !== 'METRICS' && elementType !== 'TABLE' && elementType !== 'DIAGRAM' && researchControls}
 
-        <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div data-studio-v4-panel-fields className="flex-1 overflow-y-auto px-3 py-3">
           <FormRouter
             // activationId changes for a genuinely new target. draftKey may
             // change when Layout reissues the same placeholder under a new ID,
@@ -412,6 +425,7 @@ export function GenerationPanel({
             slotCatalogError={slotCatalogError}
             existingTextTarget={existingTextTarget}
             initialDraft={effectiveDraft}
+            targetElementId={draftKey?.match(/^(?:blank|element):(.+)$/)?.[1] ?? null}
             onDraftChange={onDraftChange}
             existingInfographicTarget={existingInfographicTarget}
             panelMode={mode}
@@ -433,6 +447,7 @@ function FormRouter({
   slideIndex,
   presentationId,
   elementContext,
+  targetElementId,
   prompt,
   showAdvanced,
   registerMandatoryConfig,
@@ -454,6 +469,7 @@ function FormRouter({
   slideIndex: number
   presentationId?: string | null
   elementContext?: ElementContext | null
+  targetElementId?: string | null
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[] | null) => void
@@ -481,26 +497,28 @@ function FormRouter({
 
   switch (elementType) {
     case 'TEXT_BOX':
-      return <TextBoxForm {...commonProps} researchControls={researchControls} slotCatalog={slotCatalog} slotCatalogLoading={slotCatalogLoading} slotCatalogError={slotCatalogError} existingTextTarget={existingTextTarget} />
+      return <TextBoxForm {...commonProps} researchControls={researchControls} slotCatalog={slotCatalog} slotCatalogLoading={slotCatalogLoading} slotCatalogError={slotCatalogError} existingTextTarget={existingTextTarget} initialDraft={initialDraft} onDraftChange={onDraftChange} targetElementId={targetElementId} />
     case 'METRICS':
-      return <MetricsForm {...commonProps} researchControls={researchControls} existingTextTarget={existingTextTarget} initialDraft={initialDraft} />
+      return <MetricsForm {...commonProps} researchControls={researchControls} existingTextTarget={existingTextTarget} initialDraft={initialDraft} onDraftChange={onDraftChange} targetElementId={targetElementId} />
     case 'TABLE':
       return <TableForm {...commonProps} researchControls={researchControls} initialDraft={initialDraft} onDraftChange={onDraftChange} />
     case 'CHART':
       return <ChartForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} panelMode={panelMode} />
     case 'IMAGE':
-      return <ImageForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} />
+      return <ImageForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} panelMode={panelMode} targetElementId={targetElementId} />
     case 'ICON_LABEL':
-      return <IconLabelForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} />
+      return <IconLabelForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} onDraftChange={onDraftChange} targetElementId={targetElementId} />
     case 'SHAPE':
-      return <ShapeForm {...commonProps} initialDraft={initialDraft} />
+      return <ShapeForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} targetElementId={targetElementId} />
     case 'INFOGRAPHIC':
       return (
         <InfographicForm
           {...commonProps}
           initialDraft={initialDraft}
+          onDraftChange={onDraftChange}
           panelMode={panelMode}
           existingTarget={existingInfographicTarget}
+          targetElementId={targetElementId}
         />
       )
     case 'DIAGRAM':
@@ -510,6 +528,7 @@ function FormRouter({
           researchControls={researchControls}
           existingDiagramTarget={existingDiagramTarget}
           initialDraft={initialDraft}
+          onDraftChange={onDraftChange}
         />
       )
     default:

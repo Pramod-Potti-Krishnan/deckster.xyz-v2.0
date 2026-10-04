@@ -14,6 +14,7 @@ interface PanelSelectProps<T extends string> {
   onChange: (value: T) => void
   disabled?: boolean
   placeholder?: string
+  ariaLabel?: string
   className?: string
 }
 
@@ -23,11 +24,13 @@ export function PanelSelect<T extends string>({
   onChange,
   disabled = false,
   placeholder = "Select...",
+  ariaLabel,
   className,
 }: PanelSelectProps<T>) {
   return (
     <div className={cn("relative", className)}>
       <select
+        aria-label={ariaLabel}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
         disabled={disabled}

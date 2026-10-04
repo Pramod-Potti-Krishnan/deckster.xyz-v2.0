@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
+import { isStudioDevDeployment } from '@/lib/dev-deployment'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  if (isStudioDevDeployment()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   // Simple check to see what env vars are available
   const envCheck = {
     timestamp: new Date().toISOString(),

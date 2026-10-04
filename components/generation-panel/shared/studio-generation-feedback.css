@@ -1,0 +1,30 @@
+/* Existing GenerationInput feedback only; the native field allocation stays intact. */
+[data-studio-v4-shell="true"] [data-studio-generation-feedback="true"] {
+  min-width: 0;
+  padding: 10px;
+}
+[data-studio-v4-shell="true"] [data-studio-generation-feedback-text="true"] {
+  max-height: min(100px, 16dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 17px;
+  padding: 2px;
+  border-radius: 3px;
+}
+[data-studio-v4-shell="true"] [data-studio-generation-feedback-text="true"]:focus-visible {
+  outline: 2px solid var(--ss-accent, #6a4fc0);
+  outline-offset: -2px;
+}
+[data-studio-v4-shell="true"] [data-studio-generation-feedback-guidance="true"] {
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+}
+[data-studio-v4-shell="true"] button[data-studio-generation-feedback-guidance="true"]:focus-visible {
+  outline: 2px solid var(--ss-accent, #6a4fc0);
+  outline-offset: 3px;
+  border-radius: 3px;
+}

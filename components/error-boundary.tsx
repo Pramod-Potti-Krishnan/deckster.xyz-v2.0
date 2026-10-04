@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { errorHandler, ErrorDetails, ErrorCategory } from '@/lib/error-handler'
 import { useEffect } from 'react'
+import { WebSocketErrorFallback } from './websocket-error-fallback'
 
 interface ErrorBoundaryState {
   hasError: boolean
@@ -212,19 +213,7 @@ export function WebSocketErrorBoundary({ children }: { children: React.ReactNode
     <ErrorBoundary
       onError={handleError}
       fallback={({ error, errorDetails, retry }) => (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
-          <div className="flex items-center gap-2 text-red-800 mb-2">
-            <WifiOff className="h-5 w-5" />
-            <span className="font-medium">Connection Error</span>
-          </div>
-          <p className="text-sm text-red-700 mb-3">
-            {errorDetails?.userMessage || 'Failed to establish connection with AI agents. Please check your internet connection and try again.'}
-          </p>
-          <Button onClick={retry} size="sm" variant="outline">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Reconnect
-          </Button>
-        </div>
+        <WebSocketErrorFallback errorDetails={errorDetails} retry={retry} />
       )}
     >
       {children}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { IconLabelFormData, IconLabelConfig, TextLabsPaddingConfig, TextLabsPositionConfig, TEXT_LABS_ELEMENT_DEFAULTS } from '@/types/textlabs'
 import { ElementContext, GenerationPanelDraft, MandatoryConfig } from '../types'
 import { ToggleRow } from '../shared/toggle-row'
@@ -10,7 +10,9 @@ import { useThemeSourceState } from '../shared/use-theme-source-state'
 import { PaddingControl } from '../shared/padding-control'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
+import './studio-shape-icon.css'
 
+const STUDIO_VISUAL_FORMS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.ICON_LABEL
 type IconOverrideField = 'size' | 'style' | 'font' | 'color' | 'stroke' | 'background' | 'exclusions' | 'position' | 'padding'
 
@@ -37,6 +39,29 @@ function getDefaultColor(mode: 'icon' | 'label', style: IconLabelConfig['style']
   return '#1F2937'
 }
 
+export interface IconLabelControlsDraft {
+  count: number
+  mode: 'icon' | 'label'
+  size: IconLabelConfig['size']
+  style: IconLabelConfig['style']
+  font: IconLabelConfig['font']
+  color: string | null
+  strokeWidth: number
+  operation: 'generate' | 'restyle' | 'replace'
+  targetBackground: string
+  excludeIconsInput: string
+  advancedModified: boolean
+  explicitFields: IconOverrideField[]
+  zIndex: number
+  showPosition: boolean
+  showPadding: boolean
+  positionConfig: TextLabsPositionConfig
+  paddingConfig: TextLabsPaddingConfig
+  themeSource: ReturnType<typeof useThemeSourceState>['themeSource']
+  geometryEdited: boolean
+  geometryContext: ElementContext | null
+}
+
 interface IconLabelFormProps {
   onSubmit: (formData: IconLabelFormData) => void
   registerSubmit: (fn: () => void) => void
@@ -47,10 +72,13 @@ interface IconLabelFormProps {
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
   initialDraft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
+  targetElementId?: string | null
   panelMode: 'generate' | 'edit' | 'refine'
 }
 
-export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft, panelMode }: IconLabelFormProps) {
+export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft, panelMode, onDraftChange, targetElementId }: IconLabelFormProps) {
+  const controlsDraft = STUDIO_VISUAL_FORMS ? initialDraft?.iconLabelControls : null
   const initialFormData = initialDraft?.formData?.componentType === 'ICON_LABEL'
     ? initialDraft.formData
     : null
@@ -64,42 +92,55 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
     ...('target_background' in initialConfig ? ['background' as const] : []),
     ...('exclude_icons' in initialConfig ? ['exclusions' as const] : []),
   ])
-  const [count, setCount] = useState(initialFormData?.count ?? 1)
-  const [mode, setMode] = useState<'icon' | 'label'>(initialConfig.mode || 'icon')
-  const [size, setSize] = useState<IconLabelConfig['size']>(initialConfig.size || 'medium')
-  const [style, setStyle] = useState<IconLabelConfig['style']>(initialConfig.style || 'circle')
-  const [font, setFont] = useState<IconLabelConfig['font']>(initialConfig.font || 'poppins')
-  const [color, setColor] = useState<string | null>(initialConfig.color ?? null)
-  const [strokeWidth, setStrokeWidth] = useState(initialConfig.stroke_width ?? 2)
+  const [count, setCount] = useState(controlsDraft?.count ?? initialFormData?.count ?? 1)
+  const [mode, setMode] = useState<'icon' | 'label'>(controlsDraft?.mode ?? (initialConfig.mode || 'icon'))
+  const [size, setSize] = useState<IconLabelConfig['size']>(controlsDraft?.size ?? (initialConfig.size || 'medium'))
+  const [style, setStyle] = useState<IconLabelConfig['style']>(controlsDraft?.style ?? (initialConfig.style || 'circle'))
+  const [font, setFont] = useState<IconLabelConfig['font']>(controlsDraft?.font ?? (initialConfig.font || 'poppins'))
+  const [color, setColor] = useState<string | null>(controlsDraft ? controlsDraft.color : initialConfig.color ?? null)
+  const [strokeWidth, setStrokeWidth] = useState(controlsDraft?.strokeWidth ?? initialConfig.stroke_width ?? 2)
   const [operation, setOperation] = useState<'generate' | 'restyle' | 'replace'>(() => (
-    panelMode === 'refine'
+    controlsDraft?.operation ?? (panelMode === 'refine'
       ? initialConfig.operation === 'replace' ? 'replace' : 'restyle'
-      : 'generate'
+      : 'generate')
   ))
-  const [targetBackground, setTargetBackground] = useState(initialConfig.target_background || 'light')
-  const [excludeIconsInput, setExcludeIconsInput] = useState((initialConfig.exclude_icons || []).join(', '))
-  const [advancedModified, setAdvancedModified] = useState(Boolean(initialFormData?.advancedModified))
-  const [explicitFields, setExplicitFields] = useState<Set<IconOverrideField>>(() => initialExplicitFields)
-  const [zIndex, setZIndex] = useState(initialFormData?.z_index ?? DEFAULTS.zIndex)
-  const [showPosition, setShowPosition] = useState(false)
-  const [showPadding, setShowPadding] = useState(false)
-  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>(initialFormData?.positionConfig || {
+  const [targetBackground, setTargetBackground] = useState(controlsDraft?.targetBackground ?? (initialConfig.target_background || 'light'))
+  const [excludeIconsInput, setExcludeIconsInput] = useState(controlsDraft?.excludeIconsInput ?? (initialConfig.exclude_icons || []).join(', '))
+  const [advancedModified, setAdvancedModified] = useState(controlsDraft?.advancedModified ?? Boolean(initialFormData?.advancedModified))
+  const [explicitFields, setExplicitFields] = useState<Set<IconOverrideField>>(() => controlsDraft ? new Set(controlsDraft.explicitFields) : initialExplicitFields)
+  const [zIndex, setZIndex] = useState(controlsDraft?.zIndex ?? initialFormData?.z_index ?? DEFAULTS.zIndex)
+  const [showPosition, setShowPosition] = useState(controlsDraft?.showPosition ?? false)
+  const [showPadding, setShowPadding] = useState(controlsDraft?.showPadding ?? false)
+  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>(controlsDraft?.positionConfig ?? initialFormData?.positionConfig ?? {
     start_col: 2,
     start_row: 4,
     position_width: DEFAULTS.width,
     position_height: DEFAULTS.height,
     auto_position: false,
   })
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(initialFormData?.paddingConfig || {
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(controlsDraft?.paddingConfig ?? initialFormData?.paddingConfig ?? {
     top: 0, right: 0, bottom: 0, left: 0,
   })
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(
     presentationId,
-    initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null,
+    controlsDraft?.themeSource ?? (initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null),
   )
+
+  const [geometryEdited, setGeometryEdited] = useState(controlsDraft?.geometryEdited ?? false)
+  const geometryContextRef = useRef<ElementContext | null>(controlsDraft?.geometryContext ?? null)
 
   useEffect(() => {
     if (!elementContext) return
+    if (STUDIO_VISUAL_FORMS) {
+      if (targetElementId && elementContext.elementId && targetElementId !== elementContext.elementId) return
+      const previous = geometryContextRef.current
+      const sameOwner = !previous?.elementId || !elementContext.elementId || previous.elementId === elementContext.elementId
+      const sameBounds = previous?.startCol === elementContext.startCol && previous?.startRow === elementContext.startRow
+        && previous?.width === elementContext.width && previous?.height === elementContext.height
+      geometryContextRef.current = { ...elementContext }
+      if (geometryEdited && sameOwner && sameBounds) return
+      setGeometryEdited(false)
+    }
     setPositionConfig({
       start_col: elementContext.startCol,
       start_row: elementContext.startRow,
@@ -107,9 +148,10 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
       position_height: elementContext.height,
       auto_position: false,
     })
-  }, [elementContext])
+  }, [elementContext, STUDIO_VISUAL_FORMS ? targetElementId : null])
 
   const markExplicit = useCallback((field: IconOverrideField) => {
+    if (STUDIO_VISUAL_FORMS && field === 'position') setGeometryEdited(true)
     setExplicitFields(previous => new Set(previous).add(field))
     setAdvancedModified(true)
   }, [])
@@ -123,6 +165,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
   }, [])
 
   const resetToAuto = useCallback(() => {
+    if (STUDIO_VISUAL_FORMS) setGeometryEdited(false)
     setCount(1)
     setSize('medium')
     setStyle('circle')
@@ -207,6 +250,21 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
     registerMandatoryConfig(configs)
   }, [clearExplicit, explicitFields, markExplicit, mode, operation, panelMode, registerMandatoryConfig, style])
 
+  useEffect(() => {
+    if (!STUDIO_VISUAL_FORMS || !onDraftChange) return
+    onDraftChange({
+      prompt, showAdvanced,
+      iconLabelControls: {
+        count, mode, size, style, font, color, strokeWidth, operation, targetBackground,
+        excludeIconsInput, advancedModified, explicitFields: [...explicitFields], zIndex,
+        showPosition, showPadding, positionConfig, paddingConfig, themeSource,
+        geometryEdited, geometryContext: geometryContextRef.current,
+      },
+    })
+  }, [onDraftChange, prompt, showAdvanced, count, mode, size, style, font, color, strokeWidth,
+    operation, targetBackground, excludeIconsInput, advancedModified, explicitFields, zIndex,
+    showPosition, showPadding, positionConfig, paddingConfig, themeSource, geometryEdited, elementContext])
+
   const handleSubmit = useCallback(() => {
     const defaultPrompt = mode === 'icon' ? 'shopping cart icon' : 'Label I'
 
@@ -244,9 +302,9 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
   }, [registerSubmit, handleSubmit])
 
   return (
-    <div className="space-y-2.5">
+    <div data-studio-v4-shell={STUDIO_VISUAL_FORMS ? 'true' : undefined} data-studio-visual-form={STUDIO_VISUAL_FORMS ? 'icon-label' : undefined} className="space-y-2.5">
       {showAdvanced && (<>
-      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+      <div data-studio-visual-summary={STUDIO_VISUAL_FORMS ? 'true' : undefined} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
         <div>
           <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Automatic details</div>
           <div className="text-[10px] text-slate-500 dark:text-slate-400">Only changed fields override Illustrator defaults.</div>
@@ -269,6 +327,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
       <div className="space-y-1">
         <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
         <select
+          aria-label={STUDIO_VISUAL_FORMS ? 'Count' : undefined}
           value={count}
           onChange={(e) => { setCount(Number(e.target.value)); setAdvancedModified(true) }}
           className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -283,6 +342,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         <div className="space-y-1">
           <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Stroke Width</label>
           <select
+            aria-label={STUDIO_VISUAL_FORMS ? 'Stroke Width' : undefined}
             value={explicitFields.has('stroke') ? strokeWidth : ''}
             onChange={(event) => {
               if (!event.target.value) {
@@ -325,6 +385,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         <div className="space-y-1">
           <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Style</label>
           <select
+            aria-label={STUDIO_VISUAL_FORMS ? 'Style' : undefined}
             value={explicitFields.has('style') ? style : ''}
             onChange={(e) => {
               if (!e.target.value) {
@@ -349,6 +410,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         <div className="space-y-1">
           <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Font</label>
           <select
+            aria-label={STUDIO_VISUAL_FORMS ? 'Font' : undefined}
             value={font}
             onChange={(e) => {
               setFont(e.target.value as IconLabelConfig['font'])
@@ -369,6 +431,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         <div className="flex gap-2 items-center">
           <input
             type="color"
+            aria-label={STUDIO_VISUAL_FORMS ? 'Color' : undefined}
             value={color || getDefaultColor(mode, style)}
             onChange={(e) => {
               setColor(e.target.value)
@@ -413,6 +476,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
         <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Exclude Icons</label>
         <input
           type="text"
+          aria-label={STUDIO_VISUAL_FORMS ? 'Exclude Icons' : undefined}
           value={excludeIconsInput}
           onChange={(e) => {
             setExcludeIconsInput(e.target.value)
@@ -431,7 +495,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
       />
 
       <CollapsibleSection title="Position & Size" isOpen={showPosition} onToggle={() => setShowPosition(!showPosition)}>
-        <div className="grid grid-cols-2 gap-2">
+        <div data-studio-visual-pair={STUDIO_VISUAL_FORMS ? 'true' : undefined} className="grid grid-cols-2 gap-2">
           {([
             ['Col', 'start_col', 1, 32],
             ['Row', 'start_row', 1, 18],

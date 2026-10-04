@@ -1,0 +1,38 @@
+/* Theme read diagnostics only; choices and slide-theme swatches retain native values. */
+[data-studio-generation-context="theme"] [data-studio-theme-source-status] {
+  border: 1px solid var(--sgc-line, #dce5e3);
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: var(--sgc-surface, #f5f8f7);
+  color: var(--sgc-muted, #657a7d);
+  font-size: 11px;
+  line-height: 16px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+[data-studio-generation-context="theme"] details[data-studio-theme-source-status] {
+  border-color: #be9860;
+  color: #826035;
+}
+[data-studio-generation-context="theme"] [data-studio-theme-source-status] summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+[data-studio-generation-context="theme"] [data-studio-theme-source-error] {
+  margin-top: 5px;
+  max-height: 96px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  white-space: pre-wrap;
+}
+[data-studio-generation-context="theme"] [data-studio-theme-source-error] p { margin: 0; }
+[data-studio-generation-context="theme"] [data-studio-theme-source-status] :is(summary, [data-studio-theme-source-error]):focus-visible {
+  outline: 2px solid var(--sgc-accent, #7b68ad);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.dark [data-studio-generation-context="theme"] details[data-studio-theme-source-status] {
+  border-color: #816942;
+  color: #e2bf87;
+}

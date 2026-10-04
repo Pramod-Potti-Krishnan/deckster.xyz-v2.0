@@ -7,11 +7,12 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
 
 const inter = Inter({ subsets: ['latin'] })
+const connectedLocal = process.env.STUDIO_V4_CONNECTED_LOCAL === 'true'
 
 export const metadata: Metadata = {
   title: {
-    default: 'Deckster | AI-Powered Presentation Generator',
-    template: '%s | Deckster'
+    default: `${connectedLocal ? 'LOCAL UAT — ' : ''}Deckster | AI-Powered Presentation Generator`,
+    template: `${connectedLocal ? 'LOCAL UAT — ' : ''}%s | Deckster`
   },
   description: 'Create stunning presentations in minutes with Deckster. Our multi-agent AI system writes, designs, and visualizes your slides automatically.',
   keywords: ['presentation builder', 'AI presentations', 'slide deck creator', 'Deckster', 'presentation software'],

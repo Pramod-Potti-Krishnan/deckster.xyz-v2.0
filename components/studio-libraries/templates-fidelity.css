@@ -1,0 +1,138 @@
+/* candidate/13 + 22: compact sans-serif workspace heading and square tabs.
+   ROUND-2 §4 / DECISIONS D6: replay remains a native control at the corner.
+   The marker is literal Studio + standalone only. Structured fields, the
+   serif Create-card title and honest local-draft Plus remain unchanged. */
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) > .sl-heading {
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) > .sl-heading > div:first-child {
+  display: block;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) > .sl-heading > div:first-child > .sl-eyebrow {
+  display: none;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-heading h1 {
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -.6px;
+  margin: 0 0 5px;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-heading p:not(.sl-eyebrow) {
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-heading-actions {
+  gap: 8px;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-heading-actions > .sl-button {
+  padding: 8px;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-mode {
+  order: -1;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 8px;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-mode button {
+  padding: 8px 11px;
+  gap: 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-mode button[aria-pressed="true"] {
+  color: var(--sl-teal);
+  box-shadow: 0 1px 3px #2233220d;
+}
+/* Decorative grid replaces the library folder without changing its button. */
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-mode button:last-child > svg {
+  display: none;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-mode button:last-child::before {
+  content: "";
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='none' stroke='black' stroke-width='1.3'%3E%3Crect x='2' y='2' width='4.5' height='4.5' rx='.6'/%3E%3Crect x='9.5' y='2' width='4.5' height='4.5' rx='.6'/%3E%3Crect x='2' y='9.5' width='4.5' height='4.5' rx='.6'/%3E%3Crect x='9.5' y='9.5' width='4.5' height='4.5' rx='.6'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) > .sl-context {
+  gap: 6px;
+  padding-bottom: 0;
+  margin-bottom: 12px;
+  border-bottom: 0;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) > .sl-context > span:last-child {
+  margin-left: auto;
+  width: auto;
+}
+/* The inset corner glyph retains Replay's label, handler and focus return.
+   Root verifies its ring and neighboring controls in the native layout. */
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) [data-studio-intro-replay="true"] {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  border: 1px solid var(--sl-line);
+  border-radius: 7px;
+  background: var(--sl-panel);
+  color: var(--sl-muted);
+  opacity: 1;
+  box-shadow: 0 2px 6px #22332212;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) [data-studio-intro-replay="true"] > :is(svg, span) {
+  display: none;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) [data-studio-intro-replay="true"]::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='none' stroke='black' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 6h12v8H2zM2 6l-.5-3 11.8-2 .5 3zM5 2.5l2 2.6M9 1.8l2 2.6M2 9h12'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+}
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) [data-studio-intro-replay="true"]:focus-visible {
+  outline: 2px solid var(--sl-accent);
+  outline-offset: 3px;
+}
+@media (max-width: 820px) {
+  .studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-heading-actions {
+    justify-content: flex-start;
+    width: 100%;
+    gap: 6px;
+  }
+  .studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) [data-studio-intro-replay="true"] {
+    right: 12px;
+  }
+}
+
+/* ROUND-2 D1 sage roles match the approved reference, within this leaf only. */
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) { --sl-bg: #f5f7f6; --sl-panel: #fff; --sl-soft: #edf2f0; --sl-line: #dde5e2; --sl-text: #243438; --sl-muted: #566965; --sl-teal: #1f6f72; --sl-accent: #6a4fc0; --sl-danger: #b03f35; }
+.dark .studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) { --sl-bg: #141c1e; --sl-panel: #1b2426; --sl-soft: #243034; --sl-line: #334245; --sl-text: #e2ebe8; --sl-muted: #a0b1ad; --sl-teal: #83c4bd; --sl-accent: #b4a0f2; --sl-danger: #ef9a8f; }
+/* ROUND-3 V50: existing replay button gets its immediate visual label. */
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) [data-studio-intro-replay="true"]::after { content: attr(aria-label); position: absolute; right: 0; bottom: calc(100% + 7px); width: max-content; max-width: calc(100vw - 48px); padding: 5px 8px; border-radius: 6px; background: var(--sl-text); color: var(--sl-panel); font-size: 11px; line-height: 1.3; opacity: 0; pointer-events: none; }
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) [data-studio-intro-replay="true"]:not([aria-expanded="true"]):is(:hover,:focus-visible)::after { opacity: 1; }
+
+/* Native narrow proof found fixed replay over an input. Reserve a true workspace
+   corner instead: long structured forms retain every unobscured field. */
+.studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) { position: relative; padding-bottom: 52px; }
+
+/* Match13's desktop padding/split; retain real import and draft-state rows. */
+@media (min-width: 821px) {
+  .studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) { padding: 18px 24px 52px; }
+  .studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-split { grid-template-columns: minmax(280px, .8fr) minmax(0, 1.2fr); gap: 18px; }
+}

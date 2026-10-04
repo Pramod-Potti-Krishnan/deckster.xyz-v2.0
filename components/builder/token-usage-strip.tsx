@@ -5,11 +5,13 @@ import { Coins, AlertTriangle, Plus } from "lucide-react"
 import type { TokenUsagePayload } from "@/hooks/use-deckster-websocket-v2"
 import type { QuotaState } from "@/hooks/use-quota"
 import { cn } from "@/lib/utils"
+import "@/components/builder/studio-usage-topup.css"
 
 interface TokenUsageStripProps {
   tokenUsage: TokenUsagePayload | null
   quota?: QuotaState
   onTopUp?: () => void
+  displayMode?: "all" | "counter" | "warning"
 }
 
 const numberFormatter = new Intl.NumberFormat("en-US")
@@ -30,7 +32,8 @@ function formatResetIn(iso: string | undefined): string {
   return `${minutes}m`
 }
 
-export function TokenUsageStrip({ tokenUsage, quota, onTopUp }: TokenUsageStripProps) {
+export function TokenUsageStrip({ tokenUsage, quota, onTopUp, displayMode = "all" }: TokenUsageStripProps) {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
   const sessionTotal = tokenUsage?.session?.total_tokens ?? 0
   const turnTotal = tokenUsage?.turn?.total_tokens ?? 0
   const hasUsage = Boolean(tokenUsage)
@@ -116,10 +119,13 @@ export function TokenUsageStrip({ tokenUsage, quota, onTopUp }: TokenUsageStripP
     }
   }, [tokenUsage?.action_type, sessionTotal, turnTotal])
 
+  // Preserve hook order even when the native warning-only leaf has nothing to show.
+  if (studioShell && displayMode === "warning" && !showWarning) return null
+
   return (
-    <div className="border-b border-gray-100 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <div className="border-b border-gray-100 bg-white dark:border-slate-800 dark:bg-slate-900" data-studio-token-usage={studioShell ? "true" : undefined} data-studio-token-mode={studioShell ? displayMode : undefined}>
       {/* Minimal session counter — always visible */}
-      <div className="flex items-center justify-between px-3 py-1.5">
+      {(!studioShell || displayMode !== "warning") && <div className="flex items-center justify-between px-3 py-1.5" data-studio-token-counter={studioShell ? "true" : undefined}>
         <div className="flex items-center gap-1.5 min-w-0">
           <Coins className="h-3 w-3 shrink-0 text-gray-400 dark:text-slate-500" />
           <span className="text-[11px] tabular-nums font-medium text-gray-500 dark:text-slate-400">
@@ -137,6 +143,8 @@ export function TokenUsageStrip({ tokenUsage, quota, onTopUp }: TokenUsageStripP
             )}
             title={coverageTitle}
             aria-label={`Token usage coverage: ${coverageLabel}`}
+            aria-description={studioShell ? coverageTitle : undefined}
+            data-studio-token-coverage={studioShell ? coverage : undefined}
           >
             {coverageLabel}
           </span>
@@ -150,15 +158,19 @@ export function TokenUsageStrip({ tokenUsage, quota, onTopUp }: TokenUsageStripP
               showDelta ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
             )}
             aria-hidden={!showDelta}
+            data-studio-token-delta={studioShell ? "true" : undefined}
           >
             +{formatNumber(turnTotal)}
           </div>
         )}
-      </div>
+      </div>}
+      {studioShell && displayMode === "counter" && <p data-studio-token-explanation="true">{coverageTitle}</p>}
 
       {/* Warning banner — only when near or at a limit */}
-      {showWarning && (
+      {showWarning && (!studioShell || displayMode !== "counter") && (
         <div
+          data-studio-token-warning={studioShell ? isHardLimit ? "hard" : "near-or-reserve" : undefined}
+          role={studioShell ? "status" : undefined}
           className={cn(
             "flex items-center justify-between gap-2 px-3 py-1.5 text-[11px] font-medium",
             isHardLimit

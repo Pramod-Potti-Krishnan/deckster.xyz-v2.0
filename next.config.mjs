@@ -25,14 +25,6 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_DECKSTER_BUILD_SHA: buildFingerprint,
   },
-  eslint: {
-    // Temporarily ignore ESLint during builds to deploy first
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    // Temporarily ignore TypeScript errors during builds to deploy first
-    ignoreBuildErrors: true,
-  },
   images: {
     unoptimized: true,
     domains: ['deckster.xyz'],

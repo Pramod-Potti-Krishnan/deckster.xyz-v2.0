@@ -22,6 +22,8 @@ import { AlertTriangle, Check, FileText, Loader2, Pause, Play, Volume2, Zap } fr
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 
+const STUDIO_NARRATION = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 interface VoiceOption {
   id: string
   name: string
@@ -182,7 +184,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
         if (data.persistenceReady === false) {
           toast({
             title: `${voice.name} selected, but not saved yet`,
-            description: 'Narration storage is still being set up. Re-pick after it lands.',
+            description: STUDIO_NARRATION ? 'Your voice choice is not saved yet. Choose it again when saving is available.' : 'Narration storage is still being set up. Re-pick after it lands.',
           })
         }
       } catch (error) {
@@ -282,7 +284,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
 
   if (loading) {
     return (
-      <p className="flex h-full items-center justify-center text-xs text-slate-400">
+      <p className="flex h-full items-center justify-center text-xs text-slate-400" role={STUDIO_NARRATION ? 'status' : undefined} aria-busy={STUDIO_NARRATION ? true : undefined}>
         <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading voices…
       </p>
     )
@@ -291,7 +293,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
   const slides = typeof slideCount === 'number' && slideCount > 0 ? slideCount : null
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" data-studio-v4-shell={STUDIO_NARRATION} data-studio-narration={STUDIO_NARRATION}>
       <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 pb-1.5 text-[11px] text-slate-500 dark:text-slate-400">
         <span>
           {selected
@@ -302,42 +304,41 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
       </div>
 
       {!samplesReady && (
-        <p className="mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
+        <p data-narration-warning="samples" className="studio-narration-warning mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
           <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
           <span>
-            Samples can&apos;t play on this deployment — <code>OPENROUTER_API_KEY</code> isn&apos;t
-            set. Costs and speeds below are still accurate.
+            {STUDIO_NARRATION ? 'Voice samples are unavailable right now. You can compare descriptions and the estimated prices and start-up times below.' : <>Samples can&apos;t play on this deployment — <code>OPENROUTER_API_KEY</code> isn&apos;t set. Costs and speeds below are still accurate.</>}
           </span>
         </p>
       )}
 
       {!storage.ok && (
-        <p className="mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
+        <p data-narration-warning="storage" className="studio-narration-warning mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
           <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
           <span>
-            Recording is unavailable — {storage.reason ?? 'the media store is unreachable'}.
-            Audio can&apos;t be stored, so nothing will be generated or charged.
+            {STUDIO_NARRATION ? "Recording is unavailable right now. Audio can't be saved, so nothing will be generated or charged. Try recording again when it is available." : <>Recording is unavailable — {storage.reason ?? 'the media store is unreachable'}. Audio can&apos;t be stored, so nothing will be generated or charged.</>}
           </span>
         </p>
       )}
 
       {!persistenceReady && (
-        <p className="mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
+        <p data-narration-warning="persistence" className="studio-narration-warning mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
           <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
           <span>
-            You can listen and pick, but the choice won&apos;t stick until narration storage is set
-            up.
+            {STUDIO_NARRATION ? "Your voice choice isn't saved yet. You can compare the voices; choose it again when saving is available." : <>You can listen and pick, but the choice won&apos;t stick until narration storage is set up.</>}
           </span>
         </p>
       )}
 
-      <div className="flex-1 space-y-1.5 overflow-y-auto pr-1">
+      <div className={`flex-1 space-y-1.5 overflow-y-auto pr-1${STUDIO_NARRATION ? ' studio-narration-voices' : ''}`}>
         {voices.map((voice) => {
           const isSelected = selected === voice.id
           const cost = slides ? estimateDeckCost(voice, slides) : null
           return (
             <div
               key={voice.id}
+              data-studio-voice-card={STUDIO_NARRATION}
+              data-selected={STUDIO_NARRATION ? String(isSelected) : undefined}
               className={`flex items-center gap-2.5 rounded-md border px-2.5 py-2 transition-colors ${
                 isSelected
                   ? 'border-indigo-400 bg-indigo-50/60 dark:border-indigo-500 dark:bg-indigo-950/30'
@@ -346,9 +347,11 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
             >
               <button
                 type="button"
+                data-studio-voice-preview={STUDIO_NARRATION ? 'true' : undefined}
                 onClick={() => preview(voice)}
                 disabled={!samplesReady}
-                aria-label={`Play the ${voice.name} sample`}
+                aria-label={STUDIO_NARRATION && playing === voice.id ? `Pause the ${voice.name} sample` : `Play the ${voice.name} sample`}
+                title={STUDIO_NARRATION && !samplesReady ? 'Voice samples are unavailable right now' : undefined}
                 className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-gray-200 text-slate-500 transition-colors hover:text-slate-900 dark:border-slate-600 dark:hover:text-slate-100"
               >
                 {loadingAudio === voice.id ? (
@@ -360,47 +363,51 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
                 )}
               </button>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-medium text-slate-800 dark:text-slate-100">
+              <div className={`min-w-0 flex-1${STUDIO_NARRATION ? ' studio-narration-info' : ''}`}>
+                <div className={`flex items-center gap-1.5${STUDIO_NARRATION ? ' studio-narration-name-line' : ''}`}>
+                  <span className={`text-sm font-medium text-slate-800 dark:text-slate-100${STUDIO_NARRATION ? ' studio-narration-name' : ''}`}>
                     {voice.name}
                   </span>
                   {voice.liveAnswers ? (
                     <span
+                      data-studio-voice-capability={STUDIO_NARRATION ? 'true' : undefined}
                       className="inline-flex items-center gap-0.5 rounded-sm bg-emerald-100 px-1 py-px text-[10px] text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-                      title={`Starts speaking in ${voice.firstAudioSeconds.toFixed(1)}s — fast enough to answer questions out loud`}
+                      title={STUDIO_NARRATION ? `Recorded start-up time: ${voice.firstAudioSeconds.toFixed(1)}s. This voice supports spoken answers.` : `Starts speaking in ${voice.firstAudioSeconds.toFixed(1)}s — fast enough to answer questions out loud`}
                     >
                       <Zap className="h-2.5 w-2.5" /> live answers
                     </span>
                   ) : (
                     <span
+                      data-studio-voice-capability={STUDIO_NARRATION ? 'true' : undefined}
                       className="rounded-sm bg-slate-100 px-1 py-px text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                      title={`Takes ${voice.firstAudioSeconds.toFixed(1)}s to start speaking — too slow to answer questions out loud, so answers stay written`}
+                      title={STUDIO_NARRATION ? `Recorded start-up time: ${voice.firstAudioSeconds.toFixed(1)}s. Viewer questions are answered in writing with this voice.` : `Takes ${voice.firstAudioSeconds.toFixed(1)}s to start speaking — too slow to answer questions out loud, so answers stay written`}
                     >
                       narration only
                     </span>
                   )}
                 </div>
-                <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                <p className={`${STUDIO_NARRATION ? 'studio-narration-description' : 'truncate'} text-[11px] text-slate-500 dark:text-slate-400`} title={voice.description}>
                   {voice.description}
                 </p>
               </div>
 
               {/* The two numbers that must be visible BEFORE the choice. */}
-              <div className="flex flex-shrink-0 flex-col items-end tabular-nums">
+              <div className={`flex flex-shrink-0 flex-col items-end tabular-nums${STUDIO_NARRATION ? ' studio-narration-cost' : ''}`}>
                 <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
                   {cost !== null ? formatCost(cost) : `$${voice.costPerMinuteUsd.toFixed(4)}`}
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  {cost !== null ? 'this deck' : 'per min'} · {voice.firstAudioSeconds.toFixed(1)}s
-                  wait
+                  {cost !== null ? STUDIO_NARRATION ? 'est. deck' : 'this deck' : 'per min'} · {voice.firstAudioSeconds.toFixed(1)}s
+                  {STUDIO_NARRATION ? ' est. wait' : ' wait'}
                 </span>
               </div>
 
               <button
                 type="button"
+                data-studio-voice-choice={STUDIO_NARRATION ? 'true' : undefined}
                 onClick={() => choose(voice)}
                 disabled={saving !== null || isSelected}
+                aria-label={STUDIO_NARRATION ? isSelected ? `${voice.name} selected` : `Use ${voice.name}` : undefined}
                 className={`flex-shrink-0 rounded-md px-2 py-1 text-xs transition-colors ${
                   isSelected
                     ? 'text-indigo-600 dark:text-indigo-400'
@@ -582,9 +589,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
       </div>
 
       <p className="flex-shrink-0 pt-1.5 text-[10px] text-slate-400">
-        Cost and wait are measured from real renders. &ldquo;Narration only&rdquo; voices sound
-        great but start too slowly to answer a viewer&apos;s question out loud — those answers stay
-        written.
+        {STUDIO_NARRATION ? 'Prices and start-up times are estimates based on recorded measurements. Your recording estimate appears before you confirm recording. Voices marked “narration only” answer viewer questions in writing.' : <>Cost and wait are measured from real renders. &ldquo;Narration only&rdquo; voices sound great but start too slowly to answer a viewer&apos;s question out loud — those answers stay written.</>}
       </p>
     </div>
   )

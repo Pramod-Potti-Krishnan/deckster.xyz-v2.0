@@ -27,6 +27,10 @@ import {
   type MetricsCardColorChoice,
 } from '@/lib/metrics-card-design'
 
+import './studio-specialist-forms.css'
+
+const STUDIO_SPECIALIST_FORMS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.METRICS
 const PRIMARY_SURFACES: Array<{ value: '' | MetricsConfig['color_scheme']; label: string }> = [
   { value: '', label: 'Auto' },
@@ -73,6 +77,23 @@ const MULTI_BOX_COLOR_VALUES: Array<NonNullable<MetricsFormData['multiBoxColorMo
   'THEME_SEQUENCE',
 ]
 
+export interface MetricsControlsDraft {
+  count: number
+  layoutChoice: MetricsLayoutChoice
+  multiBoxColorMode: NonNullable<MetricsFormData['multiBoxColorMode']>
+  visualOverrides: Partial<MetricsConfig>
+  fitMode: MetricsFitMode
+  manualOverrides: MetricsManualOverrides
+  positionModified: boolean
+  geometryEdited: boolean
+  geometryContext: ElementContext | null
+  paddingModified: boolean
+  zIndex: number
+  positionConfig: TextLabsPositionConfig
+  paddingConfig: TextLabsPaddingConfig
+  sections: Record<'instances' | 'cardDesign' | 'value' | 'label' | 'description' | 'spacing' | 'positioning' | 'padding', boolean>
+}
+
 interface MetricsFormProps {
   onSubmit: (formData: MetricsFormData) => void
   registerSubmit: (fn: () => void) => void
@@ -88,6 +109,8 @@ interface MetricsFormProps {
     generationConfig?: Record<string, unknown> | null
   } | null
   initialDraft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
+  targetElementId?: string | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -210,6 +233,7 @@ function TriStateStyleButton({
     <button
       type="button"
       disabled={disabled}
+      data-studio-specialist-control={STUDIO_SPECIALIST_FORMS ? 'tri-state' : undefined}
       aria-label={`${fieldLabel}: ${stateLabel}. Activate to change.`}
       onClick={() => onChange(value === undefined || value === null ? true : value ? false : undefined)}
       className={`h-6 min-w-7 rounded border px-1 text-[9px] font-semibold disabled:cursor-not-allowed ${
@@ -238,44 +262,59 @@ export function MetricsForm({
   researchControls,
   existingTextTarget,
   initialDraft,
+  onDraftChange,
+  targetElementId,
 }: MetricsFormProps) {
-  const [count, setCount] = useState(1)
-  const [layoutChoice, setLayoutChoice] = useState<MetricsLayoutChoice>('auto')
-  const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<MetricsFormData['multiBoxColorMode']>>('SAME')
-  const [visualOverrides, setVisualOverrides] = useState<Partial<MetricsConfig>>({})
-  const [fitMode, setFitMode] = useState<MetricsFitMode>('AUTO')
-  const [manualOverrides, setManualOverrides] = useState<MetricsManualOverrides>({})
-  const [positionModified, setPositionModified] = useState(false)
-  const [paddingModified, setPaddingModified] = useState(false)
-  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-  const [showInstances, setShowInstances] = useState(false)
-  const [showCardDesign, setShowCardDesign] = useState(false)
-  const [showValue, setShowValue] = useState(false)
-  const [showLabel, setShowLabel] = useState(false)
-  const [showDescription, setShowDescription] = useState(false)
-  const [showSpacing, setShowSpacing] = useState(false)
-  const [showPositioning, setShowPositioning] = useState(false)
-  const [showPadding, setShowPadding] = useState(false)
-  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
+  const activeTargetId = targetElementId ?? existingTextTarget?.elementId ?? null
+  const [initialControls] = useState(() => STUDIO_SPECIALIST_FORMS ? initialDraft?.metricsControls : undefined)
+  const [initialSaved] = useState(() => STUDIO_SPECIALIST_FORMS ? readSavedMetricsGenerationConfig(
+    asRecord(initialDraft?.formData?.generationConfig) ?? asRecord(initialDraft?.formData) ?? existingTextTarget?.generationConfig,
+  ) : null)
+  const [count, setCount] = useState(initialControls?.count ?? initialSaved?.count ?? 1)
+  const [layoutChoice, setLayoutChoice] = useState<MetricsLayoutChoice>(initialControls?.layoutChoice ?? initialSaved?.layoutChoice ?? 'auto')
+  const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<MetricsFormData['multiBoxColorMode']>>(initialControls?.multiBoxColorMode ?? initialSaved?.multiBoxColorMode ?? 'SAME')
+  const [visualOverrides, setVisualOverrides] = useState<Partial<MetricsConfig>>(initialControls?.visualOverrides ?? initialSaved?.visualOverrides ?? {})
+  const [fitMode, setFitMode] = useState<MetricsFitMode>(initialControls?.fitMode ?? initialSaved?.fitMode ?? 'AUTO')
+  const [manualOverrides, setManualOverrides] = useState<MetricsManualOverrides>(initialControls?.manualOverrides ?? initialSaved?.manualOverrides ?? {})
+  const [geometryEdited, setGeometryEdited] = useState(initialControls?.geometryEdited ?? false)
+  const [positionModified, setPositionModified] = useState(initialControls?.positionModified ?? initialSaved?.positionModified ?? false)
+  const [paddingModified, setPaddingModified] = useState(initialControls?.paddingModified ?? initialSaved?.paddingModified ?? false)
+  const [zIndex, setZIndex] = useState(initialControls?.zIndex ?? initialSaved?.zIndex ?? DEFAULTS.zIndex)
+  const [showInstances, setShowInstances] = useState(initialControls?.sections.instances ?? false)
+  const [showCardDesign, setShowCardDesign] = useState(initialControls?.sections.cardDesign ?? false)
+  const [showValue, setShowValue] = useState(initialControls?.sections.value ?? false)
+  const [showLabel, setShowLabel] = useState(initialControls?.sections.label ?? false)
+  const [showDescription, setShowDescription] = useState(initialControls?.sections.description ?? false)
+  const [showSpacing, setShowSpacing] = useState(initialControls?.sections.spacing ?? false)
+  const [showPositioning, setShowPositioning] = useState(initialControls?.sections.positioning ?? false)
+  const [showPadding, setShowPadding] = useState(initialControls?.sections.padding ?? false)
+  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>(initialControls?.positionConfig ?? (STUDIO_SPECIALIST_FORMS && elementContext
+    && (!activeTargetId || !elementContext.elementId || activeTargetId === elementContext.elementId) ? {
+    start_col: elementContext.startCol, start_row: elementContext.startRow,
+    position_width: elementContext.width, position_height: elementContext.height, auto_position: false,
+  } : {
     start_col: 2,
     start_row: 4,
     position_width: DEFAULTS.width,
     position_height: DEFAULTS.height,
     auto_position: false,
-  })
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
+  }))
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(initialControls?.paddingConfig ?? initialSaved?.paddingConfig ?? {
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
   })
+  const geometryContextRef = useRef<ElementContext | null>(initialControls?.geometryContext ?? null)
   const previousTargetIdentity = useRef<string | null>(null)
 
   const draftGenerationConfig = asRecord(initialDraft?.formData?.generationConfig)
     ?? asRecord(initialDraft?.formData)
     ?? null
   const savedGenerationConfig = draftGenerationConfig ?? existingTextTarget?.generationConfig ?? null
-  const targetIdentity = elementContext?.elementId ?? existingTextTarget?.elementId ?? null
+  const targetIdentity = STUDIO_SPECIALIST_FORMS
+    ? activeTargetId ?? elementContext?.elementId ?? null
+    : elementContext?.elementId ?? existingTextTarget?.elementId ?? null
   const targetResetKey = `${targetIdentity ?? 'new'}:${savedGenerationConfig ? 'saved' : 'auto'}`
 
   useEffect(() => {
@@ -284,6 +323,11 @@ export function MetricsForm({
 
   useEffect(() => {
     if (previousTargetIdentity.current !== targetResetKey) {
+      if (STUDIO_SPECIALIST_FORMS && initialControls && previousTargetIdentity.current === null) {
+        previousTargetIdentity.current = targetResetKey
+        return
+      }
+      if (STUDIO_SPECIALIST_FORMS) setGeometryEdited(false)
       const saved = readSavedMetricsGenerationConfig(savedGenerationConfig)
       setCount(saved?.count ?? 1)
       setLayoutChoice(saved?.layoutChoice ?? 'auto')
@@ -305,10 +349,20 @@ export function MetricsForm({
       setShowPadding(false)
     }
     previousTargetIdentity.current = targetResetKey
-  }, [savedGenerationConfig, targetResetKey])
+  }, [initialControls, savedGenerationConfig, targetResetKey])
 
   useEffect(() => {
     if (!elementContext) return
+    if (STUDIO_SPECIALIST_FORMS) {
+      if (activeTargetId && elementContext.elementId && activeTargetId !== elementContext.elementId) return
+      const previous = geometryContextRef.current
+      const sameOwner = !previous?.elementId || !elementContext.elementId || previous.elementId === elementContext.elementId
+      const sameBounds = previous?.startCol === elementContext.startCol && previous?.startRow === elementContext.startRow
+        && previous?.width === elementContext.width && previous?.height === elementContext.height
+      geometryContextRef.current = { ...elementContext }
+      if (geometryEdited && sameOwner && sameBounds) return
+      setGeometryEdited(false)
+    }
     setPositionConfig(previous => ({
       ...previous,
       start_col: elementContext.startCol,
@@ -316,7 +370,24 @@ export function MetricsForm({
       position_width: elementContext.width,
       position_height: elementContext.height,
     }))
-  }, [elementContext])
+  }, [elementContext, STUDIO_SPECIALIST_FORMS ? activeTargetId : null])
+
+  const updatePositionConfig = useCallback((next: TextLabsPositionConfig) => {
+    if (STUDIO_SPECIALIST_FORMS) {
+      setGeometryEdited(!next.auto_position)
+      if (next.auto_position && elementContext
+        && (!activeTargetId || !elementContext.elementId || activeTargetId === elementContext.elementId)) {
+        geometryContextRef.current = { ...elementContext }
+        setPositionConfig({
+          ...next,
+          start_col: elementContext.startCol, start_row: elementContext.startRow,
+          position_width: elementContext.width, position_height: elementContext.height,
+        })
+        return
+      }
+    }
+    setPositionConfig(next)
+  }, [activeTargetId, elementContext])
 
   const area = useMemo(() => ({
     start_col: positionConfig.start_col,
@@ -432,6 +503,24 @@ export function MetricsForm({
     zIndex,
   ])
 
+  useEffect(() => {
+    if (!STUDIO_SPECIALIST_FORMS) return
+    onDraftChange?.({
+      prompt, showAdvanced,
+      metricsControls: {
+        count, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
+        positionModified, geometryEdited, geometryContext: geometryContextRef.current, paddingModified, zIndex, positionConfig, paddingConfig,
+        sections: {
+          instances: showInstances, cardDesign: showCardDesign, value: showValue,
+          label: showLabel, description: showDescription, spacing: showSpacing,
+          positioning: showPositioning, padding: showPadding,
+        },
+      },
+    })
+  }, [onDraftChange, prompt, showAdvanced, elementContext, count, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
+    positionModified, geometryEdited, paddingModified, zIndex, positionConfig, paddingConfig, showInstances,
+    showCardDesign, showValue, showLabel, showDescription, showSpacing, showPositioning, showPadding])
+
   const handleSubmit = useCallback(() => {
     const metricsConfig: Partial<MetricsConfig> = { ...sparseMetricsConfig }
 
@@ -487,7 +576,7 @@ export function MetricsForm({
         </label>
         <div className="min-w-0 space-y-1">
           <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Layout</span>
-          <div className="grid grid-cols-4 gap-1" role="group" aria-label={advanced ? 'Advanced metric layout' : 'Metric layout'}>
+          <div data-studio-specialist-part={STUDIO_SPECIALIST_FORMS ? 'metric-layout' : undefined} className="grid grid-cols-4 gap-1" role="group" aria-label={advanced ? 'Advanced metric layout' : 'Metric layout'}>
             {([
               ['auto', 'Auto'],
               ['horizontal', 'H'],
@@ -503,6 +592,7 @@ export function MetricsForm({
                   type="button"
                   title={unavailable ? 'Resize the placeholder to make this layout viable.' : label}
                   disabled={isGenerating || unavailable}
+                  aria-label={STUDIO_SPECIALIST_FORMS ? `${advanced ? 'Advanced metric' : 'Metric'} layout: ${value === 'auto' ? 'Auto' : value === 'horizontal' ? 'Horizontal' : value === 'vertical' ? 'Vertical' : 'Grid'}` : undefined}
                   aria-pressed={layoutChoice === value}
                   onClick={() => setLayoutChoice(value)}
                   className={`rounded-md border px-1 py-1.5 text-[10px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
@@ -580,11 +670,12 @@ export function MetricsForm({
           />
         </div>
         <div className="space-y-1.5 rounded-md border border-slate-200 p-1.5 dark:border-slate-700">
-          <div className="grid grid-cols-3 gap-1.5">
+          <div data-studio-specialist-part={STUDIO_SPECIALIST_FORMS ? 'metric-font' : undefined} className="grid grid-cols-3 gap-1.5">
             <label className="space-y-1">
               <span className="text-[9px] text-slate-500">Size</span>
               <select
                 disabled={!fitIsManual}
+                aria-label={STUDIO_SPECIALIST_FORMS ? `${title} font size` : undefined}
                 value={(manualOverrides[sizeField] as string | undefined) ?? ''}
                 onChange={event => updateManualOverride(sizeField, event.target.value || undefined)}
                 className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800"
@@ -596,6 +687,7 @@ export function MetricsForm({
               <span className="text-[9px] text-slate-500">Family</span>
               <select
                 disabled={!fitIsManual}
+                aria-label={STUDIO_SPECIALIST_FORMS ? `${title} font family` : undefined}
                 value={(visualOverrides[familyField] as string | null | undefined) ?? ''}
                 onChange={event => updateVisualOverride(familyField, event.target.value || undefined)}
                 className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800"
@@ -609,6 +701,7 @@ export function MetricsForm({
                 disabled={!fitIsManual}
                 type="text"
                 placeholder="Auto"
+                aria-label={STUDIO_SPECIALIST_FORMS ? `${title} font color` : undefined}
                 value={(visualOverrides[colorField] as string | null | undefined) ?? ''}
                 onChange={event => updateVisualOverride(colorField, event.target.value || undefined)}
                 className="w-full rounded border border-slate-300 bg-white px-1 py-1 text-[10px] dark:border-slate-600 dark:bg-slate-800"
@@ -622,6 +715,7 @@ export function MetricsForm({
                 key={preset.label}
                 type="button"
                 disabled={!fitIsManual}
+                data-studio-specialist-color={STUDIO_SPECIALIST_FORMS ? (preset.hex ? 'preset' : 'auto') : undefined}
                 aria-label={`${title} font color: ${preset.label}`}
                 aria-pressed={(visualOverrides[colorField] ?? undefined) === preset.value}
                 title={preset.label}
@@ -647,7 +741,7 @@ export function MetricsForm({
   }
 
   return (
-    <div className="space-y-3">
+    <div data-studio-specialist-form={STUDIO_SPECIALIST_FORMS ? 'metrics' : undefined} className="space-y-3">
       <section className="rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
         {renderCountLayoutControls()}
       </section>
@@ -656,7 +750,7 @@ export function MetricsForm({
 
       <section className="rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
         <div className="mb-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200">Appearance</div>
-        <div className="grid grid-cols-3 gap-2">
+        <div data-studio-specialist-part={STUDIO_SPECIALIST_FORMS ? 'appearance' : undefined} className="grid grid-cols-3 gap-2">
           <label className="space-y-1">
             <span className="text-[10px] text-slate-500">Surface</span>
             <select
@@ -768,6 +862,7 @@ export function MetricsForm({
                 <div className="flex flex-wrap gap-1.5" role="group" aria-label="Metric card color">
                   <button
                     type="button"
+                    data-studio-specialist-color={STUDIO_SPECIALIST_FORMS ? 'auto' : undefined}
                     aria-label="Card color: Auto"
                     aria-pressed={cardColorIsAuto}
                     onClick={() => selectCardColor('auto')}
@@ -778,6 +873,7 @@ export function MetricsForm({
                   />
                   <button
                     type="button"
+                    data-studio-specialist-color={STUDIO_SPECIALIST_FORMS ? 'transparent' : undefined}
                     aria-label="Card color: Transparent"
                     aria-pressed={surfaceValue === 'transparent'}
                     onClick={() => selectCardColor('transparent')}
@@ -796,6 +892,7 @@ export function MetricsForm({
                     <button
                       key={preset.name}
                       type="button"
+                      data-studio-specialist-color={STUDIO_SPECIALIST_FORMS ? 'preset' : undefined}
                       aria-label={`Card color: ${preset.label}`}
                       aria-pressed={visualOverrides.color_variant === preset.name}
                       onClick={() => selectCardColor(preset.name)}
@@ -829,7 +926,7 @@ export function MetricsForm({
           <CollapsibleSection title="Spacing & padding" isOpen={showSpacing} onToggle={() => setShowSpacing(value => !value)}>
             <div className="space-y-1.5">
               <p className="text-[9px] leading-4 text-slate-400">Per-card spacing is owned by Auto fit until Manual fit is selected.</p>
-              <fieldset disabled={!fitIsManual} className="grid grid-cols-3 gap-2 disabled:opacity-45">
+              <fieldset data-studio-specialist-part={STUDIO_SPECIALIST_FORMS ? 'metric-spacing' : undefined} disabled={!fitIsManual} className="grid grid-cols-3 gap-2 disabled:opacity-45">
                 <OptionalNumberInput label="Card padding (px)" value={manualOverrides.padding_px} disabled={!fitIsManual} onChange={value => updateManualOverride('padding_px', value)} />
                 <OptionalNumberInput label="Value gap (px)" value={manualOverrides.value_margin_bottom_px} disabled={!fitIsManual} onChange={value => updateManualOverride('value_margin_bottom_px', value)} />
                 <OptionalNumberInput label="Label gap (px)" value={manualOverrides.label_margin_bottom_px} disabled={!fitIsManual} onChange={value => updateManualOverride('label_margin_bottom_px', value)} />
@@ -839,7 +936,7 @@ export function MetricsForm({
 
           <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(value => !value)}>
             <div className="space-y-2">
-              <PositionPresets positionConfig={positionConfig} onChange={setPositionConfig} elementType="METRICS" onAdvancedModified={() => setPositionModified(true)} />
+              <PositionPresets positionConfig={positionConfig} onChange={updatePositionConfig} elementType="METRICS" onAdvancedModified={() => setPositionModified(true)} />
               <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setPositionModified(true)} />
             </div>
           </CollapsibleSection>

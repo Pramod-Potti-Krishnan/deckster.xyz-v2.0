@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { SessionListItem as SessionListItemType } from '@/hooks/use-chat-sessions';
 import { formatDistanceToNow } from 'date-fns';
-import { Trash2 } from 'lucide-react';
+import { Trash2, MessageSquare } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DeleteConfirmModal } from '@/components/delete-confirm-modal';
 
@@ -26,6 +26,7 @@ export function SessionListItem({
   isSelected = false,
   onSelectionChange
 }: SessionListItemProps) {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true';
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -35,6 +36,8 @@ export function SessionListItem({
     (lastMessage?.messageType === 'chat_message' ?
       (lastMessage.payload as any)?.text?.substring(0, 60) :
       null);
+  const studioMessagePreview = lastMessage?.userText ||
+    (lastMessage?.messageType === 'chat_message' ? (lastMessage.payload as any)?.text : null);
 
   // Format timestamp
   const timeAgo = session.lastMessageAt
@@ -79,6 +82,9 @@ export function SessionListItem({
   return (
     <>
       <div
+        data-studio-session-row={studio ? "true" : undefined}
+        data-active={studio ? String(isActive) : undefined}
+        data-selected={studio ? String(isSelected) : undefined}
         className={`
           relative w-full px-3 py-2 rounded-md transition-all group
           ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500' :
@@ -87,6 +93,7 @@ export function SessionListItem({
         `}
       >
         <div className="flex items-start gap-3">
+          {studio && !isSelectionMode && <MessageSquare data-studio-session-part={studio ? "row-icon" : undefined} aria-hidden="true" />}
           {/* Checkbox (visible in selection mode) */}
           {isSelectionMode && (
             <div className="pt-1">
@@ -94,12 +101,18 @@ export function SessionListItem({
                 checked={isSelected}
                 onCheckedChange={handleCheckboxChange}
                 onClick={(e) => e.stopPropagation()}
+                aria-label={studio ? `Select ${session.title || 'Untitled Session'}` : undefined}
               />
             </div>
           )}
 
           {/* Clickable session area */}
           <button
+            type={studio ? "button" : undefined}
+            data-studio-session-part={studio ? "row-open" : undefined}
+            aria-current={studio && isActive ? "page" : undefined}
+            aria-label={studio ? `${session.title || 'Untitled Session'} — ${stageLabel}, ${timeAgo}${isActive ? ', current session' : ''}` : undefined}
+            title={studio ? session.title || 'Untitled Session' : undefined}
             onClick={handleItemClick}
             className="flex-1 text-left"
           >
@@ -109,6 +122,7 @@ export function SessionListItem({
             {session.title || 'Untitled Session'}
           </h3>
           <div className="flex items-center gap-1">
+            {studio && isActive && <span data-studio-session-part={studio ? "current" : undefined}>Current</span>}
             {session.isFavorite && (
               <span className="text-yellow-500 text-xs">⭐</span>
             )}
@@ -116,18 +130,19 @@ export function SessionListItem({
         </div>
 
         {/* Last message preview */}
-        {lastMessagePreview && (
-          <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-2 mb-1">
-            {lastMessagePreview}...
+        {(studio ? studioMessagePreview : lastMessagePreview) && (
+          <p title={studio ? studioMessagePreview : undefined} className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-2 mb-1">
+            {studio ? studioMessagePreview : `${lastMessagePreview}...`}
           </p>
         )}
 
         {/* Footer: Stage + Timestamp */}
-        <div className="flex items-center justify-between text-[10px] text-gray-400 dark:text-gray-500">
+        <div data-studio-session-part={studio ? "row-meta" : undefined} className="flex items-center justify-between text-[10px] text-gray-400 dark:text-gray-500">
           <span className="inline-flex items-center gap-1">
             <span className={`w-1.5 h-1.5 rounded-full ${getStageColor(session.currentStage)}`} />
             {stageLabel}
           </span>
+          {studio && session.slideCount != null && <span>{session.slideCount} slides</span>}
           <span>{timeAgo}</span>
         </div>
           </button>
@@ -135,6 +150,9 @@ export function SessionListItem({
           {/* Delete button (appears on hover, hidden in selection mode) */}
           {onDelete && !isSelectionMode && (
             <button
+              type={studio ? "button" : undefined}
+              data-studio-session-part={studio ? "row-delete" : undefined}
+              aria-label={studio ? `Delete ${session.title || 'Untitled Session'}` : undefined}
               onClick={handleDelete}
               className="absolute top-2 right-2 p-1.5 rounded-md
                 bg-white dark:bg-gray-800 shadow-sm
@@ -151,6 +169,7 @@ export function SessionListItem({
 
       {/* Delete confirmation modal */}
       <DeleteConfirmModal
+        studioSurface={studio ? 'session-history' : undefined}
         open={showDeleteModal}
         onOpenChange={setShowDeleteModal}
         onConfirm={handleConfirmDelete}

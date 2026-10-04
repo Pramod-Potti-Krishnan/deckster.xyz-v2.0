@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { ShapeFormData, ShapeConfig, TextLabsShapeType, TextLabsPaddingConfig, TEXT_LABS_ELEMENT_DEFAULTS, GRID_CELL_SIZE } from '@/types/textlabs'
 import { ElementContext, GenerationPanelDraft, MandatoryConfig, MandatoryFieldOption } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
@@ -10,7 +10,9 @@ import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 import { useDeckThemePalette } from '@/hooks/use-deck-theme-palette'
 import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
+import './studio-shape-icon.css'
 
+const STUDIO_VISUAL_FORMS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.SHAPE
 type ShapeOverrideField =
   | 'sides'
@@ -90,6 +92,33 @@ function promptRequestsNoBorder(prompt: string): boolean {
   return /\b(?:no|without)\s+(?:a\s+)?(?:border|outline|stroke)\b/i.test(prompt)
 }
 
+export interface ShapeControlsDraft {
+  count: number
+  shapeType: TextLabsShapeType
+  sides: number
+  fillColor: string
+  strokeColor: string
+  strokeWidth: number
+  opacity: number
+  rotation: number
+  size: 'small' | 'medium' | 'large'
+  targetBackground: string
+  advancedModified: boolean
+  explicitFields: ShapeOverrideField[]
+  zIndex: number
+  themeSource: ReturnType<typeof useThemeSourceState>['themeSource']
+  x: number
+  y: number
+  widthPx: number
+  heightPx: number
+  paddingConfig: TextLabsPaddingConfig
+  showStyling: boolean
+  showPosition: boolean
+  showPadding: boolean
+  geometryEdited: boolean
+  geometryContext: ElementContext | null
+}
+
 interface ShapeFormProps {
   onSubmit: (formData: ShapeFormData) => void
   registerSubmit: (fn: () => void) => void
@@ -100,9 +129,12 @@ interface ShapeFormProps {
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[]) => void
   initialDraft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
+  targetElementId?: string | null
 }
 
-export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft }: ShapeFormProps) {
+export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft, onDraftChange, targetElementId }: ShapeFormProps) {
+  const controlsDraft = STUDIO_VISUAL_FORMS ? initialDraft?.shapeControls : null
   const initialFormData = initialDraft?.formData?.componentType === 'SHAPE'
     ? initialDraft.formData
     : null
@@ -117,50 +149,64 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
     ...('size' in initialConfig ? ['size' as const] : []),
     ...('target_background' in initialConfig ? ['background' as const] : []),
   ])
-  const [count, setCount] = useState(initialFormData?.count ?? 1)
-  const [shapeType, setShapeType] = useState<TextLabsShapeType>(initialConfig.shape_type || 'custom')
-  const [sides, setSides] = useState(initialConfig.sides || 6)
-  const [fillColor, setFillColor] = useState(initialConfig.fill_color || '#3B82F6')
-  const [strokeColor, setStrokeColor] = useState(initialConfig.stroke_color || '#1E40AF')
-  const [strokeWidth, setStrokeWidth] = useState(initialConfig.stroke_width ?? 2)
-  const [opacity, setOpacity] = useState(initialConfig.opacity ?? 1.0)
-  const [rotation, setRotation] = useState(initialConfig.rotation ?? 0)
-  const [size, setSize] = useState<'small' | 'medium' | 'large'>(initialConfig.size || 'medium')
-  const [targetBackground, setTargetBackground] = useState(initialConfig.target_background || 'light')
-  const [advancedModified, setAdvancedModified] = useState(Boolean(initialFormData?.advancedModified))
-  const [explicitFields, setExplicitFields] = useState<Set<ShapeOverrideField>>(() => initialExplicitFields)
-  const [zIndex, setZIndex] = useState(initialFormData?.z_index ?? DEFAULTS.zIndex)
+  const [count, setCount] = useState(controlsDraft?.count ?? initialFormData?.count ?? 1)
+  const [shapeType, setShapeType] = useState<TextLabsShapeType>(controlsDraft?.shapeType ?? (initialConfig.shape_type || 'custom'))
+  const [sides, setSides] = useState(controlsDraft?.sides ?? (initialConfig.sides || 6))
+  const [fillColor, setFillColor] = useState(controlsDraft?.fillColor ?? (initialConfig.fill_color || '#3B82F6'))
+  const [strokeColor, setStrokeColor] = useState(controlsDraft?.strokeColor ?? (initialConfig.stroke_color || '#1E40AF'))
+  const [strokeWidth, setStrokeWidth] = useState(controlsDraft?.strokeWidth ?? initialConfig.stroke_width ?? 2)
+  const [opacity, setOpacity] = useState(controlsDraft?.opacity ?? initialConfig.opacity ?? 1.0)
+  const [rotation, setRotation] = useState(controlsDraft?.rotation ?? initialConfig.rotation ?? 0)
+  const [size, setSize] = useState<'small' | 'medium' | 'large'>(controlsDraft?.size ?? (initialConfig.size || 'medium'))
+  const [targetBackground, setTargetBackground] = useState(controlsDraft?.targetBackground ?? (initialConfig.target_background || 'light'))
+  const [advancedModified, setAdvancedModified] = useState(controlsDraft?.advancedModified ?? Boolean(initialFormData?.advancedModified))
+  const [explicitFields, setExplicitFields] = useState<Set<ShapeOverrideField>>(() => controlsDraft ? new Set(controlsDraft.explicitFields) : initialExplicitFields)
+  const [zIndex, setZIndex] = useState(controlsDraft?.zIndex ?? initialFormData?.z_index ?? DEFAULTS.zIndex)
   const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(
     presentationId,
-    initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null,
+    controlsDraft?.themeSource ?? (initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null),
   )
   const { tokens: themeTokens } = useDeckThemePalette(presentationId)
 
   // Pixel-based position (primary)
-  const [x, setX] = useState(initialConfig.x ?? 60)       // px, 0-1919
-  const [y, setY] = useState(initialConfig.y ?? 180)      // px, 0-1079
-  const [widthPx, setWidthPx] = useState(initialConfig.width_px ?? gridToPx(DEFAULTS.width))  // px, 1-1920
-  const [heightPx, setHeightPx] = useState(initialConfig.height_px ?? gridToPx(DEFAULTS.height)) // px, 1-1080
+  const [x, setX] = useState(controlsDraft?.x ?? initialConfig.x ?? 60)       // px, 0-1919
+  const [y, setY] = useState(controlsDraft?.y ?? initialConfig.y ?? 180)      // px, 0-1079
+  const [widthPx, setWidthPx] = useState(controlsDraft?.widthPx ?? initialConfig.width_px ?? gridToPx(DEFAULTS.width))  // px, 1-1920
+  const [heightPx, setHeightPx] = useState(controlsDraft?.heightPx ?? initialConfig.height_px ?? gridToPx(DEFAULTS.height)) // px, 1-1080
+
+  const [geometryEdited, setGeometryEdited] = useState(controlsDraft?.geometryEdited ?? false)
+  const geometryContextRef = useRef<ElementContext | null>(controlsDraft?.geometryContext ?? null)
 
   // Initialize from canvas context (grid→pixel)
   useEffect(() => {
     if (elementContext) {
+      if (STUDIO_VISUAL_FORMS) {
+        if (targetElementId && elementContext.elementId && targetElementId !== elementContext.elementId) return
+        const previous = geometryContextRef.current
+        const sameOwner = !previous?.elementId || !elementContext.elementId || previous.elementId === elementContext.elementId
+        const sameBounds = previous?.startCol === elementContext.startCol && previous?.startRow === elementContext.startRow
+          && previous?.width === elementContext.width && previous?.height === elementContext.height
+        geometryContextRef.current = { ...elementContext }
+        if (geometryEdited && sameOwner && sameBounds) return
+        setGeometryEdited(false)
+      }
       setX((elementContext.startCol - 1) * GRID_CELL_SIZE)
       setY((elementContext.startRow - 1) * GRID_CELL_SIZE)
       setWidthPx(elementContext.width * GRID_CELL_SIZE)
       setHeightPx(elementContext.height * GRID_CELL_SIZE)
     }
-  }, [elementContext])
+  }, [elementContext, STUDIO_VISUAL_FORMS ? targetElementId : null])
 
   // Padding
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(initialFormData?.paddingConfig || {
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(controlsDraft?.paddingConfig ?? initialFormData?.paddingConfig ?? {
     top: 0, right: 0, bottom: 0, left: 0,
   })
-  const [showStyling, setShowStyling] = useState(false)
-  const [showPosition, setShowPosition] = useState(false)
-  const [showPadding, setShowPadding] = useState(false)
+  const [showStyling, setShowStyling] = useState(controlsDraft?.showStyling ?? false)
+  const [showPosition, setShowPosition] = useState(controlsDraft?.showPosition ?? false)
+  const [showPadding, setShowPadding] = useState(controlsDraft?.showPadding ?? false)
 
   const markExplicit = useCallback((...fields: ShapeOverrideField[]) => {
+    if (STUDIO_VISUAL_FORMS && fields.includes('position')) setGeometryEdited(true)
     setExplicitFields(previous => {
       const next = new Set(previous)
       fields.forEach(field => next.add(field))
@@ -178,6 +224,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
   }, [])
 
   const resetToAuto = useCallback(() => {
+    if (STUDIO_VISUAL_FORMS) setGeometryEdited(false)
     setCount(1)
     setSides(6)
     setFillColor('#3B82F6')
@@ -319,6 +366,22 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
     noBorderFromPrompt,
   ])
 
+  useEffect(() => {
+    if (!STUDIO_VISUAL_FORMS || !onDraftChange) return
+    onDraftChange({
+      prompt, showAdvanced,
+      shapeControls: {
+        count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation,
+        size, targetBackground, advancedModified, explicitFields: [...explicitFields], zIndex,
+        themeSource, x, y, widthPx, heightPx, paddingConfig, showStyling, showPosition, showPadding,
+        geometryEdited, geometryContext: geometryContextRef.current,
+      },
+    })
+  }, [onDraftChange, prompt, showAdvanced, count, shapeType, sides, fillColor, strokeColor,
+    strokeWidth, opacity, rotation, size, targetBackground, advancedModified, explicitFields,
+    zIndex, themeSource, x, y, widthPx, heightPx, paddingConfig, showStyling, showPosition,
+    showPadding, geometryEdited, elementContext])
+
   const handleSubmit = useCallback(() => {
     const isCustom = shapeType === 'custom'
     const defaultPrompt = isCustom ? 'custom shape' : `blue ${shapeType}`
@@ -382,9 +445,9 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
   }, [registerSubmit, handleSubmit])
 
   return (
-    <div className="space-y-2.5">
+    <div data-studio-v4-shell={STUDIO_VISUAL_FORMS ? 'true' : undefined} data-studio-visual-form={STUDIO_VISUAL_FORMS ? 'shape' : undefined} className="space-y-2.5">
       {showAdvanced && (<>
-      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+      <div data-studio-visual-summary={STUDIO_VISUAL_FORMS ? 'true' : undefined} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-800/60">
         <div>
           <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Automatic details</div>
           <div className="text-[10px] text-slate-500 dark:text-slate-400">Only changed fields override Illustrator defaults.</div>
@@ -406,11 +469,12 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
             }}
           />
 
-          <div className="grid grid-cols-2 gap-2">
+          <div data-studio-visual-pair={STUDIO_VISUAL_FORMS ? 'true' : undefined} className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Fill</label>
               <input
                 type="color"
+                aria-label={STUDIO_VISUAL_FORMS ? 'Fill' : undefined}
                 value={fillColor === 'none' ? '#000000' : fillColor}
                 onChange={(e) => { setFillColor(e.target.value); markExplicit('fill') }}
                 className="h-7 w-full rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
@@ -420,6 +484,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Border Color</label>
               <input
                 type="color"
+                aria-label={STUDIO_VISUAL_FORMS ? 'Border Color' : undefined}
                 value={strokeColor === 'none' ? '#000000' : strokeColor}
                 onChange={(e) => { setStrokeColor(e.target.value); markExplicit('stroke') }}
                 className="h-7 w-full rounded border border-gray-300 dark:border-slate-600 cursor-pointer"
@@ -434,6 +499,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 type="range"
                 min={0}
                 max={10}
+                aria-label={STUDIO_VISUAL_FORMS ? 'Stroke Width' : undefined}
+                aria-valuetext={STUDIO_VISUAL_FORMS ? `${strokeWidth} pixels` : undefined}
                 value={strokeWidth}
                 onChange={(e) => { setStrokeWidth(Number(e.target.value)); markExplicit('strokeWidth') }}
                 className="flex-1"
@@ -446,6 +513,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Target Background</label>
             <select
+              aria-label={STUDIO_VISUAL_FORMS ? 'Target Background' : undefined}
               value={targetBackground}
               onChange={(e) => { setTargetBackground(e.target.value); markExplicit('background') }}
               className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -462,6 +530,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 type="range"
                 min={0}
                 max={100}
+                aria-label={STUDIO_VISUAL_FORMS ? 'Opacity' : undefined}
+                aria-valuetext={STUDIO_VISUAL_FORMS ? `${Math.round(opacity * 100)} percent` : undefined}
                 value={Math.round(opacity * 100)}
                 onChange={(e) => { setOpacity(Number(e.target.value) / 100); markExplicit('opacity') }}
                 className="flex-1"
@@ -478,6 +548,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
                 type="range"
                 min={0}
                 max={359}
+                aria-label={STUDIO_VISUAL_FORMS ? 'Rotation' : undefined}
+                aria-valuetext={STUDIO_VISUAL_FORMS ? `${rotation} degrees` : undefined}
                 value={rotation}
                 onChange={(e) => { setRotation(Number(e.target.value)); markExplicit('rotation') }}
                 className="flex-1"
@@ -489,10 +561,11 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
 
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Size</label>
-            <div className="flex gap-1">
+            <div data-studio-visual-size={STUDIO_VISUAL_FORMS ? 'true' : undefined} role={STUDIO_VISUAL_FORMS ? 'group' : undefined} aria-label={STUDIO_VISUAL_FORMS ? 'Size' : undefined} className="flex gap-1">
               {(['small', 'medium', 'large'] as const).map(s => (
                 <button
                   key={s}
+                  aria-pressed={STUDIO_VISUAL_FORMS ? size === s : undefined}
                   onClick={() => {
                     setSize(s)
                     // Size preset drives the shape's width/height (square-ish grid boxes).
@@ -517,6 +590,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Count</label>
             <select
+              aria-label={STUDIO_VISUAL_FORMS ? 'Count' : undefined}
               value={count}
               onChange={(e) => { setCount(Number(e.target.value)); setAdvancedModified(true) }}
               className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -532,6 +606,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
             <div className="space-y-1">
               <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">Number of Sides</label>
               <select
+                aria-label={STUDIO_VISUAL_FORMS ? 'Number of Sides' : undefined}
                 value={sides}
                 onChange={(e) => { setSides(Number(e.target.value)); markExplicit('sides') }}
                 className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -548,11 +623,12 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
       {/* Section 2: Position */}
       <CollapsibleSection title="Position" isOpen={showPosition} onToggle={() => setShowPosition(!showPosition)}>
         <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
+          <div data-studio-visual-pair={STUDIO_VISUAL_FORMS ? 'true' : undefined} className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label className="text-[10px] text-gray-400 dark:text-slate-500">X (px)</label>
               <input
                 type="number"
+                aria-label={STUDIO_VISUAL_FORMS ? 'X (px)' : undefined}
                 value={x}
                 min={0}
                 max={1919}
@@ -564,6 +640,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Y (px)</label>
               <input
                 type="number"
+                aria-label={STUDIO_VISUAL_FORMS ? 'Y (px)' : undefined}
                 value={y}
                 min={0}
                 max={1079}
@@ -575,6 +652,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Width (px)</label>
               <input
                 type="number"
+                aria-label={STUDIO_VISUAL_FORMS ? 'Width (px)' : undefined}
                 value={widthPx}
                 min={1}
                 max={1920}
@@ -586,6 +664,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Height (px)</label>
               <input
                 type="number"
+                aria-label={STUDIO_VISUAL_FORMS ? 'Height (px)' : undefined}
                 value={heightPx}
                 min={1}
                 max={1080}
@@ -596,11 +675,12 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
           </div>
 
           {/* Grid inputs (bidirectional sync with pixel) */}
-          <div className="grid grid-cols-2 gap-2">
+          <div data-studio-visual-pair={STUDIO_VISUAL_FORMS ? 'true' : undefined} className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Col (grid)</label>
               <input
                 type="number"
+                aria-label={STUDIO_VISUAL_FORMS ? 'Col (grid)' : undefined}
                 value={startCol}
                 min={1}
                 max={32}
@@ -613,6 +693,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Row (grid)</label>
               <input
                 type="number"
+                aria-label={STUDIO_VISUAL_FORMS ? 'Row (grid)' : undefined}
                 value={startRow}
                 min={1}
                 max={18}
@@ -625,6 +706,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Width (grid)</label>
               <input
                 type="number"
+                aria-label={STUDIO_VISUAL_FORMS ? 'Width (grid)' : undefined}
                 value={gridW}
                 min={0.2}
                 max={32}
@@ -637,6 +719,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
               <label className="text-[10px] text-gray-400 dark:text-slate-500">Height (grid)</label>
               <input
                 type="number"
+                aria-label={STUDIO_VISUAL_FORMS ? 'Height (grid)' : undefined}
                 value={gridH}
                 min={0.2}
                 max={18}

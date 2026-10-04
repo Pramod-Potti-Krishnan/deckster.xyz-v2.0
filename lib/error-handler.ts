@@ -1,3 +1,5 @@
+import { useState, useEffect, useCallback } from 'react';
+
 export type ErrorCategory = 
   | 'AUTH_FAILED'
   | 'CONNECTION_LOST'
@@ -217,7 +219,7 @@ export class ErrorHandler {
   }
 
   // Set global error handler
-  setGlobalHandler(handler: (error: ErrorDetails) => void): void {
+  setGlobalHandler(handler: ((error: ErrorDetails) => void) | null): void {
     this.globalErrorHandler = handler;
   }
 

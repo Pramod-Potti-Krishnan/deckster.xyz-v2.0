@@ -43,5 +43,10 @@
         }
       ]
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "studio-v4-dev": false
+    }
+  }
 }

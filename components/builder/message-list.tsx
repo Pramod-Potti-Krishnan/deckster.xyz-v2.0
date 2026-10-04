@@ -34,6 +34,9 @@ import { QuestionCard } from "@/components/builder/chat/question-card"
 import { CHAT_CLARITY, CHAT_QUESTIONS } from "@/lib/mdc-flags"
 import type { QuestionSet } from "@/types/mdc"
 import { shouldRerouteEphemeral } from "@/lib/build-narration-heuristics"
+import { StudioWelcome, type StudioDirectorConnectionState, type StudioPresentationContext } from "@/components/builder/chat/studio-welcome"
+import { StudioOutlineCard } from "@/components/builder/chat/studio-outline-card"
+import "./studio-director.css"
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -47,6 +50,12 @@ export interface MessageListProps {
   // MDC (P2/P3): sends a composed answer through the normal chat send path.
   // Optional — when absent, structured question rendering falls back to plain.
   onSubmitAnswers?: (text: string) => void
+  /** Local starter selection only. The owner preserves an existing composer draft. */
+  onDraftPrompt?: (text: string) => void
+  /** Actual connection state; the welcome guide never infers readiness from status. */
+  connectionState?: StudioDirectorConnectionState
+  /** Supplied open-artifact context for local empty-chat guidance only. */
+  presentationContext?: StudioPresentationContext
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   // Rich strawman: per-slide context keyed by slide_index. Drives narrative_role chip + key_message subtitle.
   slideContextByIndex?: Record<number, SlideContextItem> | null
@@ -62,6 +71,12 @@ export interface MessageListProps {
   // thinking-stream is rerouted to the canvas + DirectorPresence and never
   // renders in chat. False/undefined = today's behavior, byte-for-byte.
   suppressEphemeral?: boolean
+}
+
+// Keep the native pre component identity stable across transcript/status rerenders.
+// ReactMarkdown treats a changed renderer function as a new component and remounts it.
+function StudioDirectorCodeBlock({ node, ...props }: React.ComponentProps<'pre'> & { node?: unknown }) {
+  return <pre {...props} data-studio-director-code="true" tabIndex={0} role="region" aria-label="Director code block" />
 }
 
 function EvidenceBadge({ context }: { context?: SlideContextItem }) {
@@ -85,6 +100,7 @@ function EvidenceBadge({ context }: { context?: SlideContextItem }) {
 
   return (
     <Badge
+      data-studio-director-evidence={ready ? "ready" : "missing"}
       variant="secondary"
       title={title || undefined}
       className={
@@ -108,6 +124,9 @@ export function MessageList({
   answeredActionsRef,
   onActionClick,
   onSubmitAnswers,
+  onDraftPrompt,
+  connectionState,
+  presentationContext,
   messagesEndRef,
   slideContextByIndex,
   ephemeralFadeToken,
@@ -117,12 +136,21 @@ export function MessageList({
   isGeneratingFinal = false,
   suppressEphemeral,
 }: MessageListProps) {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const isEmptyStudioConversation = studio && userMessages.length === 0 && messages.length === 0
   // Thinking-stream fade-out: when slide_update lands, fade tracked ephemeral
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
   const [fadingIds, setFadingIds] = useState<Set<string>>(new Set())
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
   const [expandedThinkingGroups, setExpandedThinkingGroups] = useState<Set<string>>(new Set())
   const lastFadeTokenRef = useRef(0)
+
+  useEffect(() => {
+    if (!isEmptyStudioConversation) return
+    // A fresh guide starts at its heading; populated transcripts retain their owner’s following behavior.
+    const viewport = messagesEndRef.current?.closest<HTMLElement>('[data-radix-scroll-area-viewport]')
+    if (viewport) viewport.scrollTop = 0
+  }, [isEmptyStudioConversation, messagesEndRef])
 
   useEffect(() => {
     setFadingIds(new Set())
@@ -159,11 +187,11 @@ export function MessageList({
         for (const id of idsToFade) next.add(id)
         return next
       })
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+      if (!isEmptyStudioConversation) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
       onEphemeralFadeComplete?.()
     }, 350) // 300ms transition + 50ms buffer
     return () => clearTimeout(t)
-  }, [ephemeralFadeToken, ephemeralMessageIds, messages, messagesEndRef, onEphemeralFadeComplete])
+  }, [ephemeralFadeToken, ephemeralMessageIds, messages, messagesEndRef, onEphemeralFadeComplete, isEmptyStudioConversation])
   // Combine, classify, deduplicate, sort, filter, and group messages
   const processedMessages = useMemo(() => {
     const trackedEphemeralIds = new Set(ephemeralMessageIds || [])
@@ -432,10 +460,18 @@ export function MessageList({
 
   return (
     <>
+      {isEmptyStudioConversation && (
+        <StudioWelcome
+          onDraftPrompt={onDraftPrompt}
+          connectionState={connectionState}
+          presentationContext={presentationContext}
+          busy={isGeneratingFinal || currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'}
+        />
+      )}
       {processedMessages.map((item, index) => {
         if (item.messageType === 'user') {
           return (
-            <div key={item.id} className="flex gap-3 justify-end animate-in fade-in duration-200">
+            <div key={item.id} data-studio-director-message={studio ? "user" : undefined} className="flex gap-3 justify-end animate-in fade-in duration-200">
               <div className="flex-1 max-w-[85%] text-right">
                 <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">You</p>
                 <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap break-words">{item.text}</p>
@@ -479,15 +515,16 @@ export function MessageList({
                   : null
 
                 return (
-                  <div className="flex gap-3 animate-in fade-in duration-200">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                    <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
 
                       {/* Slide Structure Card */}
-                      <div className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
+                      {studio && slideUpdate ? <StudioOutlineCard payload={slideUpdate.payload} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} /> : (
+                      <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
                           <p className="text-xs font-medium text-gray-900 dark:text-slate-100">
@@ -497,11 +534,11 @@ export function MessageList({
                         <p className="text-[11px] text-gray-500 dark:text-slate-400 mb-2">
                           {slideUpdate?.payload.slides.length} slides · {slideUpdate?.payload.metadata.presentation_duration} min · {slideUpdate?.payload.metadata.overall_theme}
                         </p>
-                        <div className="space-y-1 max-h-36 overflow-y-auto">
+                        <div data-studio-director-part="outline-slides" className="space-y-1 max-h-36 overflow-y-auto">
                           {slideUpdate?.payload.slides.map((slide: any, i: number) => {
                             const ctx = slideContextByIndex?.[i]
                             return (
-                              <div key={i} className="text-[11px] py-1 px-2 bg-white dark:bg-slate-900 rounded border border-gray-100 dark:border-slate-800">
+                              <div key={i} data-studio-director-part="outline-slide" className="text-[11px] py-1 px-2 bg-white dark:bg-slate-900 rounded border border-gray-100 dark:border-slate-800">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-gray-400 dark:text-slate-500">{slide.slide_number}.</span>
                                   <span className="text-gray-700 dark:text-slate-200">{slide.title}</span>
@@ -521,10 +558,11 @@ export function MessageList({
                           })}
                         </div>
                       </div>
+                      )}
 
                       {/* Presentation Ready */}
                       {presentationUrl && (
-                        <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
+                        <div data-studio-director-part="preview-ready" className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                           <span className="text-sm">✅</span>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-gray-700 dark:text-slate-200">{presentationUrl.payload.message}</p>
@@ -548,9 +586,10 @@ export function MessageList({
                       )}
 
                       {/* Action Buttons — MDC (P2): card treatment behind CHAT_CLARITY */}
-                      {CHAT_CLARITY && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                      {(CHAT_CLARITY || studio) && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
                         <div className="mt-3">
                           <QuestionCard
+                            studio={studio}
                             promptText={actionRequest.payload.prompt_text}
                             actions={actionRequest.payload.actions}
                             messageId={actionRequest.message_id}
@@ -561,7 +600,7 @@ export function MessageList({
                           />
                         </div>
                       )}
-                      {!CHAT_CLARITY && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                      {!CHAT_CLARITY && !studio && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
                         <div className="mt-3">
                           <p className="text-xs text-gray-700 dark:text-slate-200 mb-2">{actionRequest.payload.prompt_text}</p>
                           <div className="flex flex-wrap gap-1.5">
@@ -596,13 +635,13 @@ export function MessageList({
                 const canExpand = visibleMessages.length > 1
 
                 return (
-                  <div className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
+                    <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      <div className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2">
+                      <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <div data-studio-director-part="thinking" className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2">
                         <button
                           type="button"
                           className="w-full flex items-center gap-2 text-left disabled:cursor-default"
@@ -620,6 +659,7 @@ export function MessageList({
                             })
                           }}
                           aria-expanded={isExpanded}
+                          aria-label={studio ? `${latestMessage.payload.text}. Director progress: ${visibleMessages.length} update${visibleMessages.length === 1 ? '' : 's'}${canExpand ? (isExpanded ? ', collapse details' : ', expand details') : ''}` : undefined}
                         >
                           <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center gap-0.5">
                             <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse" />
@@ -635,7 +675,7 @@ export function MessageList({
                         </button>
 
                         {isExpanded && (
-                          <div className="mt-2 max-h-24 overflow-y-auto border-t border-purple-100 pt-2 space-y-1">
+                          <div data-studio-director-part="progress-history" tabIndex={studio ? 0 : undefined} role={studio ? "region" : undefined} aria-label={studio ? "Director progress updates" : undefined} className="mt-2 max-h-24 overflow-y-auto border-t border-purple-100 pt-2 space-y-1">
                             {visibleMessages.map((thought) => (
                               <p key={thought.message_id} className="text-[11px] leading-relaxed text-gray-500 dark:text-slate-400">
                                 {thought.payload.text}
@@ -652,15 +692,18 @@ export function MessageList({
                 if (removedIds.has(chatMsg.message_id)) return null
                 const isFading = fadingIds.has(chatMsg.message_id)
                 return (
-                  <div className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
+                    <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      <div className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed">
+                      <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <div data-studio-director-part="body" className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed">
                         <ReactMarkdown
                           components={{
+                            ...(studio ? {
+                              pre: StudioDirectorCodeBlock,
+                            } : {}),
                             a: ({ node, ...props }) => (
                               <a
                                 {...props}
@@ -679,10 +722,10 @@ export function MessageList({
                         </ReactMarkdown>
                       </div>
                       {chatMsg.payload.sub_title && (
-                        <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{chatMsg.payload.sub_title}</p>
+                        <p data-studio-director-part="subtitle" className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{chatMsg.payload.sub_title}</p>
                       )}
                       {chatMsg.payload.list_items && chatMsg.payload.list_items.length > 0 && (
-                        <ul className="text-[11px] mt-1.5 space-y-0.5">
+                        <ul data-studio-director-part="message-list-items" className="text-[11px] mt-1.5 space-y-0.5">
                           {chatMsg.payload.list_items.map((listItem, i) => (
                             <li key={i} className="ml-4 list-disc text-gray-600 dark:text-slate-300">{listItem}</li>
                           ))}
@@ -696,15 +739,16 @@ export function MessageList({
                 if (answeredActionsRef.current.has(actionMsg.message_id)) {
                   return null
                 }
-                if (CHAT_CLARITY) {
+                if (CHAT_CLARITY || studio) {
                   return (
-                    <div className="flex gap-3 animate-in fade-in duration-200">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                    <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                      <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                         <Sparkles className="h-3 w-3 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                        <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
                         <QuestionCard
+                          studio={studio}
                           promptText={actionMsg.payload.prompt_text}
                           actions={actionMsg.payload.actions}
                           messageId={actionMsg.message_id}
@@ -718,12 +762,12 @@ export function MessageList({
                   )
                 }
                 return (
-                  <div className="flex gap-3 animate-in fade-in duration-200">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                    <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
                       <p className="text-xs text-gray-700 dark:text-slate-200 mb-2">{actionMsg.payload.prompt_text}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {actionMsg.payload.actions.map((action, i) => (
@@ -747,13 +791,14 @@ export function MessageList({
               } else if (msg.type === 'slide_update') {
                 const slideMsg = msg as SlideUpdate
                 return (
-                  <div className="flex gap-3 animate-in fade-in duration-200">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                    <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      <div className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
+                      <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      {studio ? <StudioOutlineCard payload={slideMsg.payload} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} /> : (
+                      <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
                           <p className="text-xs font-medium text-gray-900 dark:text-slate-100">
@@ -763,11 +808,11 @@ export function MessageList({
                         <p className="text-[11px] text-gray-500 dark:text-slate-400 mb-2">
                           {slideMsg.payload.slides.length} slides · {slideMsg.payload.metadata.presentation_duration} min · {slideMsg.payload.metadata.overall_theme}
                         </p>
-                        <div className="space-y-1 max-h-36 overflow-y-auto">
+                        <div data-studio-director-part="outline-slides" className="space-y-1 max-h-36 overflow-y-auto">
                           {slideMsg.payload.slides.map((slide, i) => {
                             const ctx = slideContextByIndex?.[i]
                             return (
-                              <div key={i} className="text-[11px] py-1 px-2 bg-white dark:bg-slate-900 rounded border border-gray-100 dark:border-slate-800">
+                              <div key={i} data-studio-director-part="outline-slide" className="text-[11px] py-1 px-2 bg-white dark:bg-slate-900 rounded border border-gray-100 dark:border-slate-800">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-gray-400 dark:text-slate-500">{slide.slide_number}.</span>
                                   <span className="text-gray-700 dark:text-slate-200">{slide.title}</span>
@@ -787,6 +832,7 @@ export function MessageList({
                           })}
                         </div>
                       </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -809,13 +855,13 @@ export function MessageList({
         )
       })}
       {showWorkingPulse && (
-        <div className="flex gap-3 animate-in fade-in duration-200">
-          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+        <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+          <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
             <Sparkles className="h-3 w-3 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-            <div className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-900">
+            <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+            <div data-studio-director-part="thinking" role={studio ? "status" : undefined} className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center gap-2">
                 <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center gap-0.5">
                   <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse" />

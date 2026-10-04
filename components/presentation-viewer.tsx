@@ -1,5 +1,12 @@
 "use client"
 
+import './studio-presentation.css'
+import { EditModeGuide } from './edit-mode-guide'
+import { StudioToolbarSaveFeedback } from './studio-toolbar-save-feedback'
+import { StudioIntroReplay } from '@/components/studio-intro-replay'
+import './studio-authoring-menus.css'
+import type { StudioWorkflowRequest } from "@/lib/studio-workflow"
+import { shouldHandleStudioCanvasShortcut } from "@/lib/studio-canvas-shortcuts"
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -49,7 +56,7 @@ import {
   resolveSlideComposeViewerState,
   resolveSlideViewerNavigationInfo,
 } from '@/lib/slide-compose-async'
-import { applyStageFThumbnailUrls } from '@/lib/stage-f-thumbnails'
+import { applyStageFThumbnailUrls, ownedRestoredThumbnailUrl } from '@/lib/stage-f-thumbnails'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -227,6 +234,7 @@ export function resolveRefineElementGenerationConfig(
 }
 
 interface PresentationViewerProps {
+  studioWorkflowRequest?: StudioWorkflowRequest | null
   presentationUrl: string
   presentationId: string | null
   slideCount: number | null
@@ -561,6 +569,7 @@ export function PresentationViewer({
   blueprintEditorV2Enabled = false,
   onTemplateElementSelect,
   onTemplateBlueprintChange,
+  studioWorkflowRequest = null,
 }: PresentationViewerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -582,7 +591,58 @@ export function PresentationViewer({
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
   const [visualTotalSlides, setVisualTotalSlides] = useState(slideCount || 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const authoringStripRef = useRef<HTMLDivElement>(null)
+  const [studioAuthoringPortalTarget, setStudioAuthoringPortalTarget] = useState<HTMLDivElement | null>(null)
+  const [studioPresentPortalTarget, setStudioPresentPortalTarget] = useState<HTMLDivElement | null>(null)
+  const [thumbnailWidth, setThumbnailWidth] = useState(120)
+  const thumbnailResizeRef = useRef<{ startX: number; width: number } | null>(null)
+  const thumbnailPreferenceKey = 'deckster_studio_v4_thumbnail_width'
+  const clampThumbnailWidth = (width: number) => Math.max(96, Math.min(180, Math.round(width)))
+  const rememberThumbnailWidth = (width: number) => {
+    const bounded = clampThumbnailWidth(width)
+    setThumbnailWidth(bounded)
+    try { localStorage.setItem(thumbnailPreferenceKey, String(bounded)) } catch { /* Optional preference. */ }
+  }
+  useEffect(() => {
+    if (!studioShell) return
+    try {
+      const saved = localStorage.getItem(thumbnailPreferenceKey)
+      if (saved !== null && Number.isFinite(Number(saved))) setThumbnailWidth(clampThumbnailWidth(Number(saved)))
+    } catch { /* Storage restrictions do not block the canvas. */ }
+  }, [studioShell])
+  useEffect(() => {
+    if (!studioShell || isFullscreen || !showControls) return
+    const container = authoringStripRef.current
+    if (!container) return
+    const revealAuthoringFocus = (event: FocusEvent) => {
+      const control = event.target
+      if (!(control instanceof HTMLElement) || !container.contains(control)) return
+      const bounds = container.getBoundingClientRect()
+      const focused = control.getBoundingClientRect()
+      const style = getComputedStyle(control)
+      const outline = style.outlineStyle === 'none' ? 0 : Math.max(
+        0, (parseFloat(style.outlineWidth) || 0) + (parseFloat(style.outlineOffset) || 0),
+      )
+      const left = bounds.left + container.clientLeft
+      const right = left + container.clientWidth
+      const delta = focused.left - outline < left
+        ? focused.left - outline - left
+        : Math.max(0, focused.right + outline - right)
+      if (delta) container.scrollLeft += delta
+    }
+    // Reveal just this strip; leave keyboard focus and the page position intact.
+    container.addEventListener('focusin', revealAuthoringFocus)
+    return () => container.removeEventListener('focusin', revealAuthoringFocus)
+  }, [studioShell, isFullscreen, showControls, studioAuthoringPortalTarget])
   const [showThumbnails, setShowThumbnails] = useState(true) // Show by default
+  const thumbnailVisibilityInitializedRef = useRef(false)
+  useEffect(() => {
+    if (thumbnailVisibilityInitializedRef.current) return
+    thumbnailVisibilityInitializedRef.current = true
+    // Initialize once after hydration; native toggles and later resizing own the choice.
+    if (studioShell && window.innerWidth <= 666) setShowThumbnails(false)
+  }, [studioShell])
   const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
   const [iframeReady, setIframeReady] = useState(false)
   const [loadedApprovedNavigationUrl, setLoadedApprovedNavigationUrl] = useState<string | null>(null)
@@ -602,6 +662,13 @@ export function PresentationViewer({
   const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
   const [isSlideMutationPending, setIsSlideMutationPending] = useState(false)
   const slideMutationPendingRef = useRef(false)
+  const viewerInteractionIntentRef = useRef(0)
+  const slideMutationMountRef = useRef({ active: true, generation: 0 })
+  const slideMutationRequestRef = useRef<{
+    owner: object
+    mountGeneration: number
+    iframe: HTMLIFrameElement
+  } | null>(null)
   const toolbarDropdownPortalContainer = isFullscreen ? containerRef.current ?? undefined : undefined
   // Text box selection state
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
@@ -609,6 +676,9 @@ export function PresentationViewer({
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPresentationSettings, setShowPresentationSettings] = useState(false)
   const [showThemePanel, setShowThemePanel] = useState(false)
+  const handledWorkflowRef = useRef<string | null>(null)
+
+
   const viewerUrlDecision = useMemo(
     () => evaluateLayoutViewerUrl(presentationUrl, LAYOUT_VIEWER_URL_POLICY),
     [presentationUrl],
@@ -637,11 +707,80 @@ export function PresentationViewer({
     if (!approvedPresentationUrl) return null
     return new URL(approvedPresentationUrl).toString()
   }, [approvedPresentationUrl])
+  const slideMutationOwnerRef = useRef({
+    presentationId: presentationId ?? null,
+    source: approvedIframeNavigationUrl,
+    sessionId: sessionId ?? null,
+    deckOwnerSessionId: deckOwnerSessionId ?? null,
+    activeVersion,
+    generation: 0,
+  })
+  if (studioShell && (
+    slideMutationOwnerRef.current.presentationId !== (presentationId ?? null)
+    || slideMutationOwnerRef.current.source !== approvedIframeNavigationUrl
+    || slideMutationOwnerRef.current.sessionId !== (sessionId ?? null)
+    || slideMutationOwnerRef.current.deckOwnerSessionId !== (deckOwnerSessionId ?? null)
+    || slideMutationOwnerRef.current.activeVersion !== activeVersion
+  )) {
+    slideMutationOwnerRef.current = {
+      presentationId: presentationId ?? null,
+      source: approvedIframeNavigationUrl,
+      sessionId: sessionId ?? null,
+      deckOwnerSessionId: deckOwnerSessionId ?? null,
+      activeVersion,
+      generation: slideMutationOwnerRef.current.generation + 1,
+    }
+    // A different viewer may admit its own slide mutation while the original
+    // receipt continues settling. Its eventual finally cannot release this gate.
+    slideMutationRequestRef.current = null
+    slideMutationPendingRef.current = false
+  }
+  const renderSlideMutationOwner = slideMutationOwnerRef.current
+  const beginStudioViewerInteraction = useCallback(() => {
+    const owner = renderSlideMutationOwner
+    const mountGeneration = slideMutationMountRef.current.generation
+    const iframe = iframeRef.current
+    const intent = ++viewerInteractionIntentRef.current
+    const isCurrent = () => Boolean(
+      iframe
+      && slideMutationMountRef.current.active
+      && slideMutationMountRef.current.generation === mountGeneration
+      && slideMutationOwnerRef.current === owner
+      && iframeRef.current === iframe
+      && viewerInteractionIntentRef.current === intent
+    )
+    return { iframe, isCurrent }
+  }, [renderSlideMutationOwner])
+  useEffect(() => {
+    slideMutationMountRef.current.active = true
+    return () => {
+      slideMutationMountRef.current.active = false
+      slideMutationMountRef.current.generation += 1
+      if (studioShell) {
+        slideMutationRequestRef.current = null
+        slideMutationPendingRef.current = false
+      }
+    }
+  }, [studioShell])
+  useEffect(() => {
+    if (studioShell) setIsSlideMutationPending(slideMutationPendingRef.current)
+  }, [studioShell, renderSlideMutationOwner])
   const viewerIsReady = Boolean(
     iframeReady &&
     approvedIframeNavigationUrl &&
     loadedApprovedNavigationUrl === approvedIframeNavigationUrl
   )
+  useEffect(() => {
+    if (!studioShell || !viewerIsReady || !studioWorkflowRequest || handledWorkflowRef.current === studioWorkflowRequest.key) return
+    handledWorkflowRef.current = studioWorkflowRequest.key
+    if (studioWorkflowRequest.action === 'master') setShowPresentationSettings(true)
+    if (studioWorkflowRequest.action === 'theme' && !templateModeOn) setShowThemePanel(true)
+    if (studioWorkflowRequest.action === 'templates' && templateBuilderEnabled) {
+      setToolbarTemplateMenuOpen(true)
+      setToolbarTemplatePickerOpen(!templateSelectionLocked)
+    }
+  }, [studioShell, viewerIsReady, studioWorkflowRequest, templateBuilderEnabled, templateSelectionLocked, templateModeOn])
+
   // Theme — read from next-themes (canonical theme source, shared with
   // the profile-menu's "Dark Mode" toggle). Used inside the Mode dropdown.
   const { resolvedTheme, setTheme } = useTheme()
@@ -743,10 +882,13 @@ export function PresentationViewer({
         actualSlideIndex: Number.isInteger(actualSlideIndex) && actualSlideIndex >= 0 ? actualSlideIndex : undefined,
         title: slide.title || slide.slide_type || `Slide ${index + 1}`,
         content: slide.narrative || slide.key_points?.join(', '),
+        // Retain a supplied image on restored Studio metadata; live StageF
+        // images below still take precedence. This does not generate an image.
+        thumbnailUrl: studioShell ? ownedRestoredThumbnailUrl(slide, presentationId) : undefined,
       }
     })
     return applyStageFThumbnailUrls(structureSlides, thumbnailUrlsBySlide)
-  }, [slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide])
+  }, [slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide, studioShell, presentationId])
 
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
@@ -824,9 +966,26 @@ export function PresentationViewer({
   }, [isBordersActive])
 
   // Toggle edit mode via postMessage (button version)
-  const handleToggleEditModeButton = useCallback(async () => {
+  const handleToggleEditModeButton = useCallback(async (requestedMode?: boolean) => {
     if (!iframeRef.current) return
     try {
+      if (studioShell) {
+        const interaction = beginStudioViewerInteraction()
+        if (!interaction.isCurrent()) return
+        const targetIframe = interaction.iframe
+        const current = await sendCommand(targetIframe, 'isEditModeActive')
+        if (!interaction.isCurrent()) return
+        const desired = requestedMode ?? !current.isEditing
+        if (desired !== current.isEditing) {
+          await sendCommand(targetIframe, desired ? 'enterEditMode' : 'exitEditMode')
+          if (!interaction.isCurrent()) return
+        }
+        const observed = await sendCommand(targetIframe, 'isEditModeActive')
+        if (!interaction.isCurrent()) return
+        setIsEditMode(Boolean(observed.isEditing))
+        onEditModeChange?.(Boolean(observed.isEditing))
+        return
+      }
       if (isEditMode) {
         await sendCommand(iframeRef.current, 'exitEditMode')
       } else {
@@ -838,7 +997,7 @@ export function PresentationViewer({
     } catch (error) {
       console.error('Error toggling edit mode:', error)
     }
-  }, [isEditMode, onEditModeChange])
+  }, [studioShell, isEditMode, onEditModeChange, beginStudioViewerInteraction])
 
   // MDC P8 fix: onSlideChange arrives as an inline arrow from the page, so a
   // useCallback keyed on it churns every parent render — and this handler sits
@@ -952,6 +1111,7 @@ export function PresentationViewer({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!iframeRef.current) return
       if (isGenerating) return
+      if (studioShell && !shouldHandleStudioCanvasShortcut(e)) return
 
       // Only handle if not in an input/textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -1002,12 +1162,18 @@ export function PresentationViewer({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNextSlide, handlePrevSlide, handleToggleOverview, isEditMode, handleForceSave, handleToggleGrid, handleToggleBorders, handleToggleEditModeButton, isGenerating])
+  }, [handleNextSlide, handlePrevSlide, handleToggleOverview, isEditMode, handleForceSave, handleToggleGrid, handleToggleBorders, handleToggleEditModeButton, isGenerating, studioShell])
 
   // Lazy edit mode: automatically enter edit mode when needed
-  const ensureEditMode = useCallback(async (): Promise<boolean> => {
-    // Already in edit mode? Return immediately
-    if (isEditMode) return true
+  const ensureEditMode = useCallback(async (
+    expectedIframe?: HTMLIFrameElement,
+    isCurrent?: () => boolean,
+  ): Promise<boolean> => {
+    const interaction = studioShell && !isCurrent ? beginStudioViewerInteraction() : null
+    const isAccepted = () => (!interaction || interaction.isCurrent()) && (!isCurrent || isCurrent())
+    if (!isAccepted()) return false
+    // Studio must also observe native E/Escape exits made inside the iframe.
+    if (!studioShell && isEditMode) return true
 
     if (!iframeRef.current) {
       debugLog('❌ Iframe not ready for edit mode')
@@ -1015,7 +1181,17 @@ export function PresentationViewer({
     }
 
     try {
-      const result = await sendCommand(iframeRef.current, 'toggleEditMode')
+      const targetIframe = expectedIframe ?? interaction?.iframe ?? iframeRef.current
+      // Native E can enter editing before the parent has received a selection.
+      // Adopt that state instead of toggling the already-active renderer off.
+      const nativeState = studioShell
+        ? await sendCommand(targetIframe, 'isEditModeActive')
+        : null
+      if (!isAccepted()) return false
+      const result = nativeState?.isEditing
+        ? nativeState
+        : await sendCommand(targetIframe, studioShell ? 'enterEditMode' : 'toggleEditMode')
+      if (!isAccepted()) return false
       if (result.isEditing) {
         setIsEditMode(true)
         onEditModeChange?.(true)
@@ -1027,7 +1203,7 @@ export function PresentationViewer({
       console.error('Error entering edit mode:', error)
       return false
     }
-  }, [isEditMode, onEditModeChange])
+  }, [studioShell, isEditMode, onEditModeChange, beginStudioViewerInteraction])
 
   const handleSaveChanges = useCallback(async () => {
     if (!iframeRef.current) return
@@ -1068,6 +1244,21 @@ export function PresentationViewer({
 
   // Add slide handler
   const handleAddSlide = useCallback(async (layoutId: SlideLayoutType) => {
+    const expectedOwner = renderSlideMutationOwner
+    const expectedMountGeneration = slideMutationMountRef.current.generation
+    if (studioShell && (
+      !slideMutationMountRef.current.active
+      || slideMutationOwnerRef.current !== expectedOwner
+    )) return
+    const pendingRequest = slideMutationRequestRef.current
+    if (studioShell && pendingRequest && (
+      pendingRequest.owner !== expectedOwner
+      || pendingRequest.mountGeneration !== expectedMountGeneration
+      || pendingRequest.iframe !== iframeRef.current
+    )) {
+      slideMutationRequestRef.current = null
+      slideMutationPendingRef.current = false
+    }
     // State updates are asynchronous; the ref closes the same-tick duplicate
     // click window before SlideLayoutPicker can repaint its disabled state.
     if (slideMutationPendingRef.current) return
@@ -1081,6 +1272,14 @@ export function PresentationViewer({
       return
     }
 
+    const request = { owner: expectedOwner, mountGeneration: expectedMountGeneration, iframe }
+    const isCurrentSlideMutation = () => !studioShell || (
+      slideMutationMountRef.current.active
+      && slideMutationMountRef.current.generation === expectedMountGeneration
+      && slideMutationOwnerRef.current === expectedOwner
+      && iframeRef.current === iframe
+    )
+    if (studioShell) slideMutationRequestRef.current = request
     slideMutationPendingRef.current = true
     setIsSlideMutationPending(true)
     let committedSlideNumber: number | null = null
@@ -1105,6 +1304,7 @@ export function PresentationViewer({
         mutationId,
         { attempts: 12, delayMs: 250 },
       )
+      if (!isCurrentSlideMutation()) return
 
       if (result.success) {
         // Backend sends slide_index and slide_count directly (not nested in data)
@@ -1133,16 +1333,21 @@ export function PresentationViewer({
         // commands so an immediate Add Blank → Chart cannot target the prior
         // slide while the 3-second viewer poll is still stale.
         onSlideChangeRef.current?.(newSlideNumber)
+        if (!isCurrentSlideMutation()) return
         setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
 
         // Navigate iframe to the new slide (PowerPoint/Keynote behavior)
         await sendCommand(iframe, 'goToSlide', { index: newSlideIndex })
+        if (!isCurrentSlideMutation()) return
 
         // Activate element borders for editing (like pressing 'B')
         await sendCommand(iframe, 'toggleBorderHighlight')
+        if (!isCurrentSlideMutation()) return
 
         // Auto-enter edit mode after adding a slide
-        await ensureEditMode()
+        if (studioShell) await ensureEditMode(iframe, isCurrentSlideMutation)
+        else await ensureEditMode()
+        if (!isCurrentSlideMutation()) return
 
         toast({
           title: 'Slide Added',
@@ -1152,6 +1357,7 @@ export function PresentationViewer({
         debugLog(`➕ Added ${layoutId} slide at position ${newSlideIndex + 1}`)
       }
     } catch (error) {
+      if (!isCurrentSlideMutation()) return
       console.error('Error adding slide:', error)
       toast({
         title: committedSlideNumber
@@ -1167,10 +1373,13 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     } finally {
-      slideMutationPendingRef.current = false
-      setIsSlideMutationPending(false)
+      if (!studioShell || slideMutationRequestRef.current === request) {
+        if (studioShell) slideMutationRequestRef.current = null
+        slideMutationPendingRef.current = false
+        if (isCurrentSlideMutation()) setIsSlideMutationPending(false)
+      }
     }
-  }, [currentSlide, totalSlides, toast, ensureEditMode])
+  }, [currentSlide, totalSlides, toast, ensureEditMode, studioShell, renderSlideMutationOwner])
 
   // Duplicate slide handler
   const handleDuplicateSlide = useCallback(async (slideIndex: number) => {
@@ -2170,12 +2379,33 @@ export function PresentationViewer({
   ])
 
   const handleFullscreen = useCallback(async () => {
-    if (!containerRef.current) return
+    const targetContainer = containerRef.current
+    if (!targetContainer) return
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
+    const isCurrent = () => !interaction || (
+      interaction.isCurrent() && containerRef.current === targetContainer
+    )
+    if (!isCurrent()) return
 
     try {
       if (!document.fullscreenElement) {
+        if (studioShell && iframeRef.current) {
+          const targetIframe = interaction!.iframe
+          const current = await sendCommand(targetIframe, 'isEditModeActive')
+          if (!isCurrent()) return
+          let observed = current
+          if (current.isEditing) {
+            await sendCommand(targetIframe, 'exitEditMode')
+            if (!isCurrent()) return
+            observed = await sendCommand(targetIframe, 'isEditModeActive')
+            if (!isCurrent()) return
+          }
+          setIsEditMode(Boolean(observed.isEditing))
+          onEditModeChange?.(Boolean(observed.isEditing))
+          if (observed.isEditing || !isCurrent()) return
+        }
         // Exit edit mode before entering fullscreen (presentation mode should not be editable)
-        if (isEditMode && iframeRef.current) {
+        if (!studioShell && isEditMode && iframeRef.current) {
           await sendCommand(iframeRef.current, 'exitEditMode')
           setIsEditMode(false)
           onEditModeChange?.(false)
@@ -2184,32 +2414,37 @@ export function PresentationViewer({
 
         // Hide grid overlay before entering fullscreen
         if (isGridActive && iframeRef.current) {
-          await sendCommand(iframeRef.current, 'hideGridOverlay')
+          await sendCommand(interaction?.iframe ?? iframeRef.current, 'hideGridOverlay')
+          if (!isCurrent()) return
           setIsGridActive(false)
           debugLog('📐 Hid grid overlay for fullscreen presentation')
         }
 
         // Hide border highlight before entering fullscreen
         if (isBordersActive && iframeRef.current) {
-          await sendCommand(iframeRef.current, 'hideBorderHighlight')
+          await sendCommand(interaction?.iframe ?? iframeRef.current, 'hideBorderHighlight')
+          if (!isCurrent()) return
           setIsBordersActive(false)
           debugLog('🔲 Hid borders for fullscreen presentation')
         }
 
         // Enter fullscreen on container - we control the UI with black backgrounds
-        await containerRef.current.requestFullscreen()
+        if (!isCurrent()) return
+        await (studioShell ? targetContainer : containerRef.current!).requestFullscreen()
+        if (!isCurrent()) return
         setIsFullscreen(true)
         debugLog('🖥️ Entered fullscreen mode')
       } else {
         // Exit fullscreen
         await document.exitFullscreen()
+        if (!isCurrent()) return
         setIsFullscreen(false)
         debugLog('🖥️ Exited fullscreen mode')
       }
     } catch (error) {
       console.error('❌ Fullscreen error:', error)
     }
-  }, [isEditMode, onEditModeChange, isGridActive, isBordersActive])
+  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction])
 
   // Debug: Log button states
   useEffect(() => {
@@ -2426,11 +2661,15 @@ export function PresentationViewer({
           : undefined
 
         // Auto-enter edit mode when user clicks on a text box
-        await ensureEditMode()
+        const interaction = studioShell ? beginStudioViewerInteraction() : null
+        if (interaction && !interaction.isCurrent()) return
+        const entered = await ensureEditMode(interaction?.iframe ?? undefined, interaction?.isCurrent)
+        if (interaction && (!entered || !interaction.isCurrent())) return
 
         setSelectedTextBoxId(elementId)
         onTextBoxSelected?.(elementId, formatting, componentType)
-        void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
+        if (interaction && !interaction.isCurrent()) return
+        void sendCommand(interaction?.iframe ?? iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
           console.warn('[PresentationViewer] Failed to bring selected text box to front:', error)
         })
         debugLog(`📦 Text box selected: ${elementId} (${componentType || 'TEXT_BOX'})`)
@@ -2438,6 +2677,7 @@ export function PresentationViewer({
 
       // Handle text box deselection
       if (event.data.type === 'textBoxDeselected') {
+        if (studioShell) viewerInteractionIntentRef.current += 1
         setSelectedTextBoxId(null)
         onTextBoxDeselected?.()
         debugLog('📦 Text box deselected')
@@ -2446,7 +2686,7 @@ export function PresentationViewer({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [onTextBoxSelected, onTextBoxDeselected, ensureEditMode])
+  }, [onTextBoxSelected, onTextBoxDeselected, ensureEditMode, studioShell, beginStudioViewerInteraction])
 
   // Listen for element selection events from iframe (Image, Chart, Table, Infographic, Diagram)
   useEffect(() => {
@@ -2460,11 +2700,15 @@ export function PresentationViewer({
         const properties = event.data.properties as ElementProperties
 
         // Auto-enter edit mode when user clicks on an element
-        await ensureEditMode()
+        const interaction = studioShell ? beginStudioViewerInteraction() : null
+        if (interaction && !interaction.isCurrent()) return
+        const entered = await ensureEditMode(interaction?.iframe ?? undefined, interaction?.isCurrent)
+        if (interaction && (!entered || !interaction.isCurrent())) return
 
         // Notify parent to show the appropriate format panel
         onElementSelected?.(elementId, elementType, properties)
-        void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
+        if (interaction && !interaction.isCurrent()) return
+        void sendCommand(interaction?.iframe ?? iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
           console.warn('[PresentationViewer] Failed to bring selected element to front:', error)
         })
         debugLog(`🎯 Element selected: ${elementType} (${elementId})`)
@@ -2472,11 +2716,13 @@ export function PresentationViewer({
 
       // Handle element deselection
       if (event.data.type === 'elementDeselected') {
+        if (studioShell) viewerInteractionIntentRef.current += 1
         onElementDeselected?.()
         debugLog('🎯 Element deselected')
       }
 
       if (event.data.type === 'elementDeleted') {
+        if (studioShell) viewerInteractionIntentRef.current += 1
         const elementId = event.data.elementId as string
         if (elementId) onElementDeleted?.(elementId)
         debugLog(`🎯 Element deleted: ${elementId}`)
@@ -2485,7 +2731,7 @@ export function PresentationViewer({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [onElementSelected, onElementDeselected, onElementDeleted, ensureEditMode])
+  }, [onElementSelected, onElementDeselected, onElementDeleted, ensureEditMode, studioShell, beginStudioViewerInteraction])
 
   // Listen for element moved/resized events from iframe
   useEffect(() => {
@@ -2511,7 +2757,7 @@ export function PresentationViewer({
   }, [onElementMoved])
 
   return (
-    <div ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
+    <div data-studio-v4-viewer={studioShell ? "true" : undefined} data-studio-v4-fullscreen={isFullscreen ? "true" : undefined} ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
       {/* Fullscreen toolbar trigger zone - at top, below Chrome's fullscreen bar */}
       {isFullscreen && (
         <div
@@ -2589,19 +2835,52 @@ export function PresentationViewer({
           },
         ]
 
-        const toolbarContent = (
-          <div className={cn(
-            "flex items-center justify-between w-full min-w-0 gap-3",
-            isFullscreen ? "px-4 py-2" : "px-3 h-full",
-            isGenerating && "pointer-events-none opacity-50"
-          )}>
-            {/* LEFT — build cluster (Add Slide, Add Element, Template, Theme) + quiet view helpers (Mode, Show) */}
-            <div
+        const versionMenuItems = (
+          <>
+                      <DropdownMenuItem
+                        aria-current={studioShell && activeVersion === 'blank' ? 'true' : undefined}
+                        onClick={() => onVersionSwitch?.('blank')}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span>Custom</span>
+                          {activeVersion === 'blank' && <Check className="h-4 w-4 text-blue-500" />}
+                        </div>
+                      </DropdownMenuItem>
+                      {strawmanPreviewUrl && (
+                        <DropdownMenuItem
+                          aria-current={studioShell && activeVersion === 'strawman' ? 'true' : undefined}
+                          onClick={() => onVersionSwitch?.('strawman')}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span>Strawman</span>
+                            {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
+                          </div>
+                        </DropdownMenuItem>
+                      )}
+                      {finalPresentationUrl && (
+                        <DropdownMenuItem
+                          aria-current={studioShell && activeVersion === 'final' ? 'true' : undefined}
+                          onClick={() => onVersionSwitch?.('final')}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span>Final</span>
+                            {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
+                          </div>
+                        </DropdownMenuItem>
+                      )}
+          </>
+        )
+
+        const authoringControls = (
+          <div
               className={cn(
                 "flex items-center gap-1 min-w-0",
                 !isFullscreen && "transition-[margin] duration-300 ease-out"
               )}
-              style={!isFullscreen ? { marginLeft: toolbarOffset } : undefined}
+              style={!isFullscreen && !studioShell ? { marginLeft: toolbarOffset } : undefined}
             >
               {/* Add Slide */}
               <SlideLayoutPicker
@@ -2623,7 +2902,7 @@ export function PresentationViewer({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                  <DropdownMenuContent align="start" sideOffset={8} className="w-52 p-1">
+                  <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "add-element" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="start" sideOffset={8} className="w-52 p-1">
                     {addElementItems.map(({ label, icon: Icon, disabled, action }) => (
                       <DropdownMenuItem
                         key={label}
@@ -2654,13 +2933,15 @@ export function PresentationViewer({
                       disabled={!viewerIsReady}
                       className={cn(toolbarButtonClass, toolbarBtnBase)}
                       title="Template options"
+                      aria-label={studioShell ? "Template" : undefined}
                     >
                       <LayoutTemplate className="h-5 w-5" />
                       <span className={toolbarLabelClass}>Template</span>
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                    <DropdownMenuContent align="center" sideOffset={8} className="w-56 p-1">
+                    <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "template" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="center" sideOffset={8} className="w-56 p-1">
+                      {studioShell && studioWorkflowRequest?.action === 'templates' && studioWorkflowRequest.itemId && templateSelectionLocked && <p className="px-2 py-2 text-xs leading-relaxed text-muted-foreground" role="status">The library selection has not been applied. Template selection is locked for this deck.</p>}
                       <DropdownMenuItem
                         disabled={!canSaveTemplate}
                         title={!canSaveTemplate && templateSaveGate.disabledReason ? templateSaveGate.disabledReason.replace(/_/g, ' ') : undefined}
@@ -2701,8 +2982,9 @@ export function PresentationViewer({
                           <LayoutTemplate className="h-4 w-4 text-gray-600" />
                           <span>{templateSelectionLocked ? 'Template locked' : 'Available Templates'}</span>
                         </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent alignOffset={-4} className="w-64">
+                        <DropdownMenuSubContent data-studio-authoring-menu={studioShell && !isFullscreen ? "template-library" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} alignOffset={-4} className="w-64">
                           <TemplatePickerContent
+                            preferredTemplateId={studioWorkflowRequest?.action === 'templates' ? studioWorkflowRequest.itemId : undefined}
                             label="Available templates"
                             isOpen={toolbarTemplatePickerOpen}
                             mode="review"
@@ -2750,6 +3032,8 @@ export function PresentationViewer({
                 disabled={!viewerIsReady || templateModeOn}
                 className={cn(toolbarButtonClass, toolbarBtnBase)}
                 title="Presentation theme"
+                aria-label={studioShell ? "Theme" : undefined}
+                data-studio-v4-secondary={studioShell ? "true" : undefined}
               >
                 <Palette className="h-5 w-5" />
                 <span className={toolbarLabelClass}>Theme</span>
@@ -2765,13 +3049,15 @@ export function PresentationViewer({
                     disabled={!viewerIsReady}
                     className={cn(toolbarButtonClass, toolbarBtnQuiet)}
                     title="Editing mode + theme"
+                    aria-label={studioShell ? "Mode" : undefined}
+                    data-studio-v4-secondary={studioShell ? "true" : undefined}
                   >
                     <Settings2 className="h-5 w-5" />
                     <span className={toolbarLabelClass}>Mode</span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                  <DropdownMenuContent align="center" sideOffset={8} className="w-44">
+                  <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "mode" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="center" sideOffset={8} className="w-44">
                     <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
                       Editing mode
                     </DropdownMenuLabel>
@@ -2779,7 +3065,8 @@ export function PresentationViewer({
                       value={isEditMode ? 'edit' : 'view'}
                       onValueChange={(v) => {
                         const wantsEdit = v === 'edit'
-                        if (wantsEdit !== isEditMode) void handleToggleEditModeButton()
+                        if (studioShell) void handleToggleEditModeButton(wantsEdit)
+                        else if (wantsEdit !== isEditMode) void handleToggleEditModeButton()
                       }}
                     >
                       <DropdownMenuRadioItem value="view" className="cursor-pointer whitespace-nowrap">
@@ -2815,13 +3102,15 @@ export function PresentationViewer({
                     disabled={!viewerIsReady}
                     className={cn(toolbarButtonClass, toolbarBtnQuiet)}
                     title="Display options"
+                    aria-label={studioShell ? "Show" : undefined}
+                    data-studio-v4-secondary={studioShell ? "true" : undefined}
                   >
                     <SlidersHorizontal className="h-5 w-5" />
                     <span className={toolbarLabelClass}>Show</span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                  <DropdownMenuContent align="center" sideOffset={8} className="w-44">
+                  <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "show" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="center" sideOffset={8} className="w-44">
                     <DropdownMenuCheckboxItem
                       checked={isGridActive}
                       onCheckedChange={() => handleToggleGrid()}
@@ -2843,38 +3132,48 @@ export function PresentationViewer({
                     >
                       <Settings className="h-4 w-4 mr-2" /> Master…
                     </DropdownMenuItem>
+                    {studioShell && viewerIsReady && (strawmanPreviewUrl || finalPresentationUrl) && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Version</DropdownMenuLabel>
+                        {versionMenuItems}
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenuPortal>
               </DropdownMenu>
             </div>
+        )
+        const presentControl = (
+              <button
+                onClick={handleFullscreen}
+                disabled={!viewerIsReady}
+                className={cn(toolbarButtonClass, toolbarBtnBase)}
+                title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-5 w-5" />
+                ) : (
+                  <Play className="h-5 w-5" />
+                )}
+                <span className={toolbarLabelClass}>{studioShell ? (isFullscreen ? 'Exit' : 'Present') : 'Play'}</span>
+              </button>
+        )
 
-            {/* RIGHT — present: the two highest-value present actions (Play, Download) */}
-            <div className="flex flex-shrink-0 items-center gap-1">
+        const deliveryControls = (
+          <div className="flex flex-shrink-0 items-center gap-1">
               {/* Save — transient status only; autosave is automatic, so nothing shows at rest */}
-              {saveStatus === 'saving' || isSaving ? (
-                <div
-                  className={cn(toolbarButtonClass, "text-slate-600 dark:text-slate-300 cursor-default")}
-                  title="Saving…"
-                >
-                  <div className="h-5 w-5 flex items-center justify-center">
-                    <div className="h-3.5 w-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                  <span className={toolbarLabelClass}>Saving</span>
-                </div>
-              ) : saveStatus === 'unsaved' || saveStatus === 'error' ? (
-                <button
-                  onClick={handleSaveChanges}
-                  disabled={isSaving || !viewerIsReady}
-                  className={cn(toolbarButtonClass, "bg-amber-500/20 text-amber-700 hover:bg-amber-500/30 dark:text-amber-200")}
-                  title="Save changes now"
-                >
-                  <Save className="h-5 w-5" />
-                  <span className={toolbarLabelClass}>Save</span>
-                </button>
-              ) : null}
+              <StudioToolbarSaveFeedback
+                saveStatus={saveStatus}
+                isSaving={isSaving}
+                viewerIsReady={viewerIsReady}
+                onSave={handleSaveChanges}
+                toolbarButtonClass={toolbarButtonClass}
+                toolbarLabelClass={toolbarLabelClass}
+              />
 
               {/* Version switcher — only surfaces once a tagged strawman/final version exists */}
-              {viewerIsReady && (strawmanPreviewUrl || finalPresentationUrl) && (
+              {!studioShell && viewerIsReady && (strawmanPreviewUrl || finalPresentationUrl) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -2888,61 +3187,28 @@ export function PresentationViewer({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                    <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem
-                        onClick={() => onVersionSwitch?.('blank')}
-                        className="cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <span>Custom</span>
-                          {activeVersion === 'blank' && <Check className="h-4 w-4 text-blue-500" />}
-                        </div>
-                      </DropdownMenuItem>
-                      {strawmanPreviewUrl && (
-                        <DropdownMenuItem
-                          onClick={() => onVersionSwitch?.('strawman')}
-                          className="cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <span>Strawman</span>
-                            {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
-                          </div>
-                        </DropdownMenuItem>
-                      )}
-                      {finalPresentationUrl && (
-                        <DropdownMenuItem
-                          onClick={() => onVersionSwitch?.('final')}
-                          className="cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <span>Final</span>
-                            {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
-                          </div>
-                        </DropdownMenuItem>
-                      )}
+                    <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "version" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="end" className="w-40">
+                      {versionMenuItems}
                     </DropdownMenuContent>
                   </DropdownMenuPortal>
                 </DropdownMenu>
               )}
 
               {/* Play */}
-              <button
-                onClick={handleFullscreen}
-                disabled={!viewerIsReady}
-                className={cn(toolbarButtonClass, toolbarBtnBase)}
-                title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="h-5 w-5" />
-                ) : (
-                  <Play className="h-5 w-5" />
-                )}
-                <span className={toolbarLabelClass}>Play</span>
-              </button>
+              {(!studioShell || isFullscreen) && presentControl}
 
               {/* Download Controls */}
               {viewerIsReady ? downloadControls : null}
             </div>
+        )
+        const toolbarContent = (
+          <div className={cn(
+            "flex items-center justify-between w-full min-w-0 gap-3",
+            isFullscreen ? "px-4 py-2" : "px-3 h-full",
+            isGenerating && "pointer-events-none opacity-50"
+          )}>
+            {authoringControls}
+            {deliveryControls}
           </div>
         )
 
@@ -2950,23 +3216,36 @@ export function PresentationViewer({
           <>
             {/* Fullscreen: inline floating overlay with auto-hide */}
             {isFullscreen && (
-              <div className={`absolute top-12 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl border border-gray-200 bg-gray-50 transition-all duration-300 ${
+              <div data-studio-v4-shell={studioShell ? "true" : undefined} data-studio-presentation-toolbar={studioShell ? "true" : undefined} className={`absolute top-12 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl border border-gray-200 bg-gray-50 transition-all duration-300 ${
                 !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
               }`}>
                 {toolbarContent}
               </div>
             )}
 
+            {studioShell && !isFullscreen && studioAuthoringPortalTarget && createPortal(
+              <div data-studio-v4-authoring="true" className={cn(isGenerating && "pointer-events-none opacity-50")}>
+                <div ref={authoringStripRef} data-studio-v4-authoring-controls="true" role="group" aria-label="Slide authoring controls">{authoringControls}</div>
+              </div>,
+              studioAuthoringPortalTarget
+            )}
+            {studioShell && !isFullscreen && studioPresentPortalTarget && createPortal(
+              <div data-studio-slide-controls="true" role="group" aria-label="Presentation controls" className={cn(isGenerating && "pointer-events-none opacity-50")}>
+                <span>Slide {currentSlide} / {visualTotalSlides || totalSlides || slideCount || 1}</span>
+                {presentControl}
+              </div>,
+              studioPresentPortalTarget
+            )}
             {/* Normal: portal to header slot */}
             {!isFullscreen && toolbarPortalTarget && createPortal(
-              toolbarContent,
+              studioShell ? <div data-studio-v4-delivery="true" className={cn(isGenerating && "pointer-events-none opacity-50")}>{deliveryControls}</div> : toolbarContent,
               toolbarPortalTarget
             )}
 
             {/* Fallback: inline if no portal target */}
             {!isFullscreen && !toolbarPortalTarget && (
               <div className="flex items-center justify-between px-6 py-2 bg-gray-50 border-b">
-                {toolbarContent}
+                {studioShell ? <div data-studio-v4-delivery="true" className={cn(isGenerating && "pointer-events-none opacity-50")}>{deliveryControls}</div> : toolbarContent}
               </div>
             )}
           </>
@@ -2977,6 +3256,9 @@ export function PresentationViewer({
       <div className={`flex-1 flex min-h-0 min-w-0 ${isFullscreen ? 'bg-black' : ''}`}>
         {/* Left: Presentation Area */}
         <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${isFullscreen ? 'bg-black' : 'overflow-hidden bg-gray-100 dark:bg-slate-800'}`}>
+          {studioShell && !isFullscreen && showControls && (
+            <div ref={setStudioAuthoringPortalTarget} data-studio-authoring-slot="true" />
+          )}
           {/* Build Narration v2: ribbon slot — above the slide, height absorbed
               by the slide container's ResizeObserver fit-contain. */}
           {!isFullscreen && stageChrome?.ribbon ? (
@@ -2985,6 +3267,8 @@ export function PresentationViewer({
           {/* Presentation Iframe */}
           <div
             ref={slideContainerRef}
+            data-studio-slide-space={studioShell ? "true" : undefined}
+            data-studio-template-active={studioShell ? String(templateModeOn) : undefined}
             className={cn(
               "flex-1 min-h-0 relative flex items-center justify-center overflow-hidden",
               isFullscreen ? 'bg-black' : 'bg-gray-100 dark:bg-slate-800 p-4',
@@ -3013,7 +3297,7 @@ export function PresentationViewer({
             {approvedPresentationUrl ? (
               <div
                 className={cn(
-                  isFullscreen ? '' : 'max-w-7xl',
+                  isFullscreen || studioShell ? '' : 'max-w-7xl',
                   "relative",
                   templateModeOn
                     ? "overflow-visible rounded-md bg-violet-950/5 shadow-[0_0_0_9999px_rgba(15,23,42,0.08)]"
@@ -3098,21 +3382,21 @@ export function PresentationViewer({
 
             {/* Generation Overlay - covers slide area during generation */}
             {isGenerating && (
-              <div className="absolute inset-0 z-20 bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
+              <div data-studio-generation-cover={studioShell && !isFullscreen ? "true" : undefined} className="absolute inset-0 z-20 bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
                 <SlideBuildingLoader className="w-full h-full" mode={generatingMode} />
               </div>
             )}
 
             {/* Edit Mode Instructions - positioned absolutely to not shift slide */}
-            {isEditMode && !isFullscreen && (
-              <div className="absolute bottom-0 left-0 right-0 px-3 py-1 text-[10px] text-stone-400">
-                <span className="font-semibold text-stone-300">Edit Mode:</span> Click on any text to edit. Select text for formatting toolbar.
-                <span className="ml-1.5 text-[9px] text-stone-500">
-                  Ctrl+B (Bold), Ctrl+I (Italic), Ctrl+U (Underline), Ctrl+S (Save)
-                </span>
-              </div>
+            {isEditMode && !isFullscreen && !studioShell && (
+              <EditModeGuide />
             )}
           </div>
+
+          {/* Studio edit guidance has its own row outside the fitted slide. */}
+          {studioShell && isEditMode && !isFullscreen && (
+            <EditModeGuide />
+          )}
 
           {/* Build Narration v2: footer slot — below the slide (CoT lines,
               stage dots, research card). Same height-absorption rule as the
@@ -3134,9 +3418,12 @@ export function PresentationViewer({
 
           {/* powered by deckster — inside slide column so it tracks the slide's right edge */}
           {!isFullscreen && (
-            <div className="flex-shrink-0 flex justify-end pr-4 py-0.5">
+            <div data-studio-canvas-brand={studioShell ? "true" : undefined} className="flex-shrink-0 flex justify-end pr-4 py-0.5">
+              {studioShell && <StudioIntroReplay className="studio-canvas-intro-replay" />}
+              {studioShell && showControls && <div ref={setStudioPresentPortalTarget} data-studio-present-slot="true" />}
               <Link
                 href="/"
+                aria-label={studioShell ? 'Deckster home' : undefined}
                 className="group flex items-center opacity-60 hover:opacity-90 transition-opacity"
               >
                 <span className="text-xs text-slate-600 dark:text-slate-300 mr-1">powered by</span>
@@ -3148,10 +3435,55 @@ export function PresentationViewer({
 
         </div>
 
+        {studioShell && !isFullscreen && showThumbnails && (
+          <div
+            data-studio-v4-thumbnail-resize="true"
+            role="separator"
+            tabIndex={0}
+            aria-label="Resize slide thumbnails"
+            aria-orientation="vertical"
+            aria-valuemin={96}
+            aria-valuemax={180}
+            aria-valuenow={thumbnailWidth}
+            aria-valuetext={`${thumbnailWidth} pixels`}
+            title="Drag to resize thumbnails. Use Left and Right arrows, Home or End."
+            onPointerDown={(event) => {
+              if (event.button !== 0) return
+              event.preventDefault()
+              thumbnailResizeRef.current = { startX: event.clientX, width: thumbnailWidth }
+              event.currentTarget.setPointerCapture(event.pointerId)
+              event.currentTarget.focus({ preventScroll: true })
+            }}
+            onPointerMove={(event) => {
+              const drag = thumbnailResizeRef.current
+              if (drag) setThumbnailWidth(clampThumbnailWidth(drag.width + drag.startX - event.clientX))
+            }}
+            onPointerUp={(event) => {
+              const drag = thumbnailResizeRef.current
+              if (drag) rememberThumbnailWidth(drag.width + drag.startX - event.clientX)
+              thumbnailResizeRef.current = null
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+            }}
+            onPointerCancel={() => { thumbnailResizeRef.current = null }}
+            onLostPointerCapture={() => { thumbnailResizeRef.current = null }}
+            onKeyDown={(event) => {
+              const width = event.key === 'ArrowLeft' ? thumbnailWidth + (event.shiftKey ? 20 : 8)
+                : event.key === 'ArrowRight' ? thumbnailWidth - (event.shiftKey ? 20 : 8)
+                : event.key === 'Home' ? 96
+                : event.key === 'End' ? 180 : null
+              if (width === null) return
+              event.preventDefault()
+              event.stopPropagation() // Resize arrows must not navigate the deck.
+              rememberThumbnailWidth(width)
+            }}
+          />
+        )}
+
         {/* Right: Slide Thumbnail Handle — zero-width context, no grey line */}
         {!isFullscreen && (
           <div className="relative w-0 flex-shrink-0 z-10">
             <button
+              data-studio-v4-thumbnail-toggle={studioShell ? "true" : undefined}
               onClick={handleToggleOverview}
               className={cn(
                 "absolute top-[50%] -translate-y-1/2 right-0",
@@ -3162,6 +3494,8 @@ export function PresentationViewer({
                   : "bg-indigo-100 hover:bg-indigo-200 border-indigo-300 text-indigo-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-indigo-300"
               )}
               title={showThumbnails ? "Hide thumbnails" : "Show thumbnails"}
+              aria-label={showThumbnails ? "Hide thumbnails" : "Show thumbnails"}
+              aria-expanded={showThumbnails}
             >
               {showThumbnails ? (
                 <ChevronRight className="h-2.5 w-2.5" />
@@ -3177,9 +3511,9 @@ export function PresentationViewer({
 
         {/* Thumbnail Strip — separate flex participant */}
         {!isFullscreen && (
-          <div className={cn(
+          <div data-studio-v4-thumbnails={studioShell ? "true" : undefined} style={studioShell ? { width: showThumbnails ? thumbnailWidth : 0 } : undefined} className={cn(
             "flex flex-col border-l border-gray-200 bg-gray-50 overflow-hidden flex-shrink-0",
-            "transition-[width] duration-300 ease-out",
+            !studioShell && "transition-[width] duration-300 ease-out",
             showThumbnails ? "w-36" : "w-0"
           )}>
             {showThumbnails && (slideThumbnails.length > 0 || composeJobs.length > 0) && (

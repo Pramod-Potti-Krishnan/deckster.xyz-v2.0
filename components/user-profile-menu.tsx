@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useRef, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import {
@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { StudioAboutDialog } from "@/components/studio-about-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +20,7 @@ import {
   Moon,
   Sun,
   HelpCircle,
+  Info,
   LogOut,
   LayoutDashboard,
   Brain,
@@ -29,6 +31,8 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
+import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
+import "./user-profile-studio-v4.css"
 
 // ---------------------------------------------------------------------------
 // Inline quota bar — shows daily + weekly remaining % as thin progress bars
@@ -71,6 +75,7 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
   return (
     <div>
       <button
+        data-studio-v4-profile-role="usage"
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle() }}
         className="flex w-full items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm cursor-pointer"
       >
@@ -96,6 +101,7 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
             <span className="text-muted-foreground tabular-nums w-16 text-right">{data.resetAt ? formatResetTime(data.resetAt.weekly) : ""}</span>
           </div>
           <a
+            data-studio-v4-profile-role="upgrade"
             href="/billing"
             className="flex items-center justify-between py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -112,13 +118,16 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
 // Main component
 // ---------------------------------------------------------------------------
 
-export function UserProfileMenu() {
+export function UserProfileMenu({ studioLabels = false, studioPalette = false, sessionUsage }: { studioLabels?: boolean; studioPalette?: boolean; sessionUsage?: ReactNode } = {}) {
   const { user, logout, isLoading } = useAuth()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [isOpen, setIsOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
+  const accountTrigger = useRef<HTMLButtonElement>(null)
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null)
   const [isUsageExpanded, setIsUsageExpanded] = useState(false)
+  const studioProfile = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && studioPalette
 
   // Fetch quota when dropdown opens (lightweight GET, cached by React state)
   const fetchQuota = useCallback(async () => {
@@ -146,7 +155,7 @@ export function UserProfileMenu() {
 
   if (isLoading || !user) {
     return (
-      <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" />
+      <div data-studio-profile-loading={studioProfile ? "true" : undefined} className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" />
     )
   }
 
@@ -172,30 +181,36 @@ export function UserProfileMenu() {
   }
 
   return (
+    <>
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="relative h-10 w-10 p-0 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
-        >
-          <Avatar className="h-10 w-10 border-2 border-gray-200 dark:border-gray-700">
-            <AvatarImage
-              src={user.image || undefined}
-              alt={user.name || "User avatar"}
-            />
-            <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-500 text-white font-medium">
-              {userInitials}
-            </AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel className="font-normal">
+      <StudioNavigationHint enabled={studioLabels} label="Account menu">
+        <DropdownMenuTrigger asChild>
+          <Button
+            ref={accountTrigger} data-studio-profile-trigger={studioProfile ? "true" : undefined}
+            aria-label={studioLabels ? "Open account menu" : undefined}
+            variant="ghost"
+            className="relative h-10 w-10 p-0 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
+          >
+            <Avatar data-studio-profile-avatar={studioProfile ? "true" : undefined} className="h-10 w-10 border-2 border-gray-200 dark:border-gray-700">
+              <AvatarImage
+                src={user.image || undefined}
+                alt={user.name || "User avatar"}
+              />
+              <AvatarFallback data-studio-profile-fallback={studioProfile ? "true" : undefined} className="bg-gradient-to-br from-purple-500 to-blue-500 text-white font-medium">
+                {userInitials}
+              </AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+      </StudioNavigationHint>
+      <DropdownMenuContent data-studio-v4-profile={studioPalette ? "true" : undefined} data-studio-profile-fidelity={studioProfile ? "true" : undefined} side={studioProfile ? "right" : undefined} sideOffset={studioProfile ? 8 : undefined} align="end" className="w-64">
+        <DropdownMenuLabel data-studio-profile-identity={studioProfile ? "true" : undefined} className="font-normal">
           <div className="flex flex-col space-y-1">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium leading-none">{user.name}</p>
+              <p data-studio-profile-name={studioProfile ? "true" : undefined} className="text-sm font-medium leading-none">{user.name}</p>
               {quota && (
                 <Badge
+                  data-studio-v4-profile-role="tier"
                   variant="outline"
                   className="h-4 border-purple-200 bg-purple-50 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide text-purple-700 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300"
                 >
@@ -203,30 +218,31 @@ export function UserProfileMenu() {
                 </Badge>
               )}
             </div>
-            <p className="text-xs leading-none text-muted-foreground">
+            <p data-studio-profile-email={studioProfile ? "true" : undefined} className="text-xs leading-none text-muted-foreground">
               {user.email}
             </p>
           </div>
         </DropdownMenuLabel>
+        {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && sessionUsage && <div data-studio-session-usage="true" role="group" aria-label="Current session token usage">{sessionUsage}</div>}
 
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator data-studio-v4-profile-role="separator" />
 
-        <DropdownMenuItem onClick={() => handleNavigation("/dashboard")}>
+        <DropdownMenuItem data-studio-v4-profile-role="item" onClick={() => handleNavigation("/dashboard")}>
           <LayoutDashboard className="mr-2 h-4 w-4" />
           <span>Dashboard</span>
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={() => handleNavigation("/knowledge")}>
+        <DropdownMenuItem data-studio-v4-profile-role="item" onClick={() => handleNavigation("/knowledge")}>
           <Brain className="mr-2 h-4 w-4" />
           <span>Knowledge</span>
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={() => handleNavigation("/settings")}>
+        <DropdownMenuItem data-studio-v4-profile-role="item" onClick={() => handleNavigation("/settings")}>
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={toggleTheme}>
+        <DropdownMenuItem data-studio-v4-profile-role="item" onClick={toggleTheme}>
           {theme === "dark" ? (
             <>
               <Sun className="mr-2 h-4 w-4" />
@@ -240,25 +256,29 @@ export function UserProfileMenu() {
           )}
         </DropdownMenuItem>
 
-        <DropdownMenuItem onClick={() => handleNavigation("/help")}>
+        <DropdownMenuItem data-studio-v4-profile-role="item" onClick={() => handleNavigation("/help")}>
           <HelpCircle className="mr-2 h-4 w-4" />
           <span>Help</span>
         </DropdownMenuItem>
 
+        {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && <DropdownMenuItem data-studio-v4-profile-role="item" onSelect={event => { event.preventDefault(); setIsOpen(false); setAboutOpen(true) }}><Info className="mr-2 h-4 w-4" /><span>About Studio</span></DropdownMenuItem>}
+
         {quota && (
           <>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator data-studio-v4-profile-role="separator" />
             <UsageRemaining data={quota} isExpanded={isUsageExpanded} onToggle={() => setIsUsageExpanded(v => !v)} />
           </>
         )}
 
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator data-studio-v4-profile-role="separator" />
 
-        <DropdownMenuItem onClick={handleLogout} className="text-red-600 dark:text-red-400">
+        <DropdownMenuItem data-studio-v4-profile-role="danger" onClick={handleLogout} className="text-red-600 dark:text-red-400">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sign Out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && <StudioAboutDialog open={aboutOpen} onOpenChange={setAboutOpen} onCloseAutoFocus={event => { event.preventDefault(); accountTrigger.current?.focus() }} />}
+    </>
   )
 }

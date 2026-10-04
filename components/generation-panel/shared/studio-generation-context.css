@@ -1,0 +1,18 @@
+/* Real generation inputs only; the marker is absent when the literal shell flag is off. */
+[data-studio-generation-context] { --sgc-surface: #f5f8f7; --sgc-text: #283d40; --sgc-muted: #657a7d; --sgc-line: #dce5e3; --sgc-accent: #7b68ad; --sgc-selected: #f0ebf7; }
+.dark [data-studio-generation-context] { --sgc-surface: #222d30; --sgc-text: #e2ebe8; --sgc-muted: #a0b1ad; --sgc-line: #465a5d; --sgc-accent: #ab97d7; --sgc-selected: #332f44; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] { min-width: 0; padding: 10px; border: 1px solid var(--sgc-line); border-radius: 9px; background: var(--sgc-surface); }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] label { color: var(--sgc-muted); font-size: 11px; line-height: 16px; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] > label { display: block; color: var(--sgc-text); font-size: 12px; line-height: 18px; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] select { min-width: 0; min-height: 30px; padding: 5px 7px; color: var(--sgc-text); background: var(--sgc-surface); border-color: var(--sgc-line); font-size: 12px; line-height: 18px; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] button[data-studio-generation-control="font-toggle"] { min-width: 30px; height: 28px; color: var(--sgc-muted); background: var(--sgc-surface); border-color: var(--sgc-line); }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] button[data-studio-generation-control="font-toggle"][aria-pressed="true"] { color: var(--sgc-text); background: var(--sgc-selected); border-color: var(--sgc-accent); }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] button[data-studio-generation-control="color"][aria-pressed],
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] button[data-studio-generation-control="auto-color"][aria-pressed] { width: 25px; height: 25px; background-image: none; border-color: var(--sgc-line); transform: none; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] button[data-studio-generation-control="auto-color"][aria-pressed] { background-image: linear-gradient(135deg,#c084fc,#60a5fa,#4ade80); }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] button:is([data-studio-generation-control="color"],[data-studio-generation-control="auto-color"])[aria-pressed="true"] { border-color: var(--sgc-accent); box-shadow: 0 0 0 2px var(--sgc-surface),0 0 0 3px var(--sgc-accent); }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] button[data-studio-generation-control="theme-mode"] { min-height: 30px; padding: 5px 7px; color: var(--sgc-muted); background: var(--sgc-surface); border-color: var(--sgc-line); font-size: 12px; line-height: 18px; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] button[data-studio-generation-control="theme-mode"][aria-pressed="true"] { color: var(--sgc-text); background: var(--sgc-selected); border-color: var(--sgc-accent); }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] button:disabled { opacity: .5; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-generation-context] :is(button,select):focus-visible { outline: 2px solid var(--sgc-accent); outline-offset: 2px; }

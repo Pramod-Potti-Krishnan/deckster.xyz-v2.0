@@ -1,0 +1,127 @@
+/* S1.5: self-owned portal palette; other profile callers retain the original menu. */
+[data-studio-v4-profile="true"] {
+  --sp-panel: #ffffff;
+  --sp-soft: #edf2f0;
+  --sp-line: #dde5e2;
+  --sp-text: #243438;
+  --sp-muted: #566965;
+  --sp-accent: #6a4fc0;
+  --sp-accent-soft: #f1edfb;
+  --sp-accent-line: #dcd2f6;
+  --sp-danger: #b03f35;
+  --sp-danger-soft: #fbefed;
+}
+.dark [data-studio-v4-profile="true"] {
+  --sp-panel: #1b2426;
+  --sp-soft: #243034;
+  --sp-line: #334245;
+  --sp-text: #e2ebe8;
+  --sp-muted: #a0b1ad;
+  --sp-accent: #b4a0f2;
+  --sp-accent-soft: #2a2540;
+  --sp-accent-line: #463d6b;
+  --sp-danger: #ef9a8f;
+  --sp-danger-soft: #3b2927;
+}
+[role="menu"][data-studio-v4-profile="true"] {
+  background-color: var(--sp-panel);
+  border-color: var(--sp-line);
+  color: var(--sp-text);
+}
+[data-studio-v4-profile="true"] .text-muted-foreground {
+  color: var(--sp-muted);
+}
+[data-studio-v4-profile="true"] [data-studio-v4-profile-role="separator"] {
+  background-color: var(--sp-line);
+}
+[data-studio-v4-profile="true"] [data-studio-v4-profile-role="tier"] {
+  color: var(--sp-accent);
+  background-color: var(--sp-accent-soft);
+  border-color: var(--sp-accent-line);
+}
+[data-studio-v4-profile="true"] :is([data-studio-v4-profile-role="item"], [data-studio-v4-profile-role="usage"]) {
+  color: var(--sp-text);
+}
+[data-studio-v4-profile="true"] :is([data-studio-v4-profile-role="item"], [data-studio-v4-profile-role="usage"]):is(:hover, :focus, [data-highlighted]) {
+  color: var(--sp-text);
+  background-color: var(--sp-soft);
+}
+[data-studio-v4-profile="true"] [data-studio-v4-profile-role="upgrade"] {
+  color: var(--sp-muted);
+}
+[data-studio-v4-profile="true"] [data-studio-v4-profile-role="upgrade"]:is(:hover, :focus) {
+  color: var(--sp-text);
+}
+/* Danger is excluded from the ordinary item foreground in every state. */
+[data-studio-v4-profile="true"] [data-studio-v4-profile-role="danger"] {
+  color: var(--sp-danger);
+}
+[data-studio-v4-profile="true"] [data-studio-v4-profile-role="danger"]:is(:hover, :focus, [data-highlighted]) {
+  color: var(--sp-danger);
+  background-color: var(--sp-danger-soft);
+}
+[data-studio-v4-profile="true"] :is([data-studio-v4-profile-role="item"], [data-studio-v4-profile-role="usage"], [data-studio-v4-profile-role="upgrade"], [data-studio-v4-profile-role="danger"]):focus-visible {
+  outline: 2px solid var(--sp-accent);
+  outline-offset: -2px;
+}
+[data-studio-v4-profile="true"] [data-studio-v4-profile-role="danger"]:focus-visible {
+  outline-color: var(--sp-danger);
+}
+
+/* Supplied current-session usage; quota reads and native menu items stay unchanged. */
+[data-studio-session-usage="true"] { min-width: 0; margin: 2px 4px 6px; border-radius: 7px; }
+[data-studio-session-usage="true"] [data-studio-token-mode="counter"] { border-bottom: 0; border-radius: 7px; }
+[data-studio-session-usage="true"] [data-studio-token-counter] { padding: 7px 8px 5px; gap: 5px; align-items: flex-start; }
+[data-studio-session-usage="true"] [data-studio-token-counter] > div:first-child { min-width: 0; flex: 1; gap: 5px; }
+[data-studio-session-usage="true"] [data-studio-token-counter] > div:first-child > span:first-of-type { overflow-wrap: anywhere; }
+[data-studio-session-usage="true"] [data-studio-token-counter] [data-studio-token-coverage] { flex-shrink: 0; }
+[data-studio-session-usage="true"] [data-studio-token-delta] { max-width: 100%; overflow-wrap: anywhere; }
+[data-studio-session-usage="true"] [data-studio-token-explanation] { margin: 0; padding: 0 8px 8px; color: var(--sut-muted); font-size: 10px; line-height: 16px; white-space: normal; overflow-wrap: anywhere; }
+
+/* Accepted v4 account presentation; literal shell and existing palette opt-in. */
+button[data-studio-profile-trigger="true"] {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  padding: 5px;
+  border-radius: 50%;
+  background: transparent;
+}
+[data-studio-profile-trigger="true"] [data-studio-profile-avatar="true"] {
+  width: 30px;
+  height: 30px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #dde5e2;
+}
+[data-studio-profile-trigger="true"] [data-studio-profile-fallback="true"] {
+  background-image: none;
+  background-color: #eaf0f3;
+  color: #566b77;
+  font-size: 10px;
+  font-weight: 600;
+}
+button[data-studio-profile-trigger="true"]:is(:hover, [data-state="open"]) { background: #edf2f0; }
+button[data-studio-profile-trigger="true"]:focus-visible { outline: 2px solid #6a4fc0; outline-offset: 0; }
+.dark [data-studio-profile-trigger="true"] [data-studio-profile-avatar="true"] { border-color: #1b2426; box-shadow: 0 0 0 1px #334245; }
+.dark [data-studio-profile-trigger="true"] [data-studio-profile-fallback="true"] { background-color: #27383f; color: #b9cbd3; }
+.dark button[data-studio-profile-trigger="true"]:is(:hover, [data-state="open"]) { background: #243034; }
+.dark button[data-studio-profile-trigger="true"]:focus-visible { outline-color: #b4a0f2; }
+div[data-studio-profile-loading="true"] { width: 30px; height: 30px; margin: 5px; border: 2px solid #fff; background: #eaf0f3; box-shadow: 0 0 0 1px #dde5e2; }
+.dark div[data-studio-profile-loading="true"] { border-color: #1b2426; background: #27383f; box-shadow: 0 0 0 1px #334245; }
+[data-studio-profile-fidelity="true"] {
+  width: 295px;
+  max-width: calc(100vw - 20px);
+  max-height: min(calc(100dvh - 20px), var(--radix-dropdown-menu-content-available-height, calc(100dvh - 20px)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 18px;
+  border-radius: 13px;
+}
+[data-studio-profile-fidelity="true"] [data-studio-profile-identity="true"] { min-width: 0; padding: 0 0 4px; }
+[data-studio-profile-identity="true"] > div > div { flex-wrap: wrap; gap: 6px; }
+[data-studio-profile-name="true"] { min-width: 0; font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+[data-studio-profile-email="true"] { font-size: 10px; line-height: 15px; overflow-wrap: anywhere; }
+[data-studio-profile-fidelity="true"] :is([data-studio-v4-profile-role="item"], [data-studio-v4-profile-role="usage"], [data-studio-v4-profile-role="danger"]) { min-height: 36px; padding: 9px 4px; border-radius: 5px; font-size: 11px; }
+[data-studio-profile-fidelity="true"] [data-studio-v4-profile-role="item"] > svg { color: var(--sp-muted); }
+[data-studio-profile-fidelity="true"] [data-studio-session-usage="true"] { margin: 12px 0; border: 1px solid var(--sp-line); border-radius: 8px; background: var(--sp-soft); }

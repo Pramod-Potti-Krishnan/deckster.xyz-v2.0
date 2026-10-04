@@ -30,7 +30,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string
-    tier: "free" | "starter" | "pro" | "premium"
+    tier: string
     subscription: {
       status: string
       tier: string

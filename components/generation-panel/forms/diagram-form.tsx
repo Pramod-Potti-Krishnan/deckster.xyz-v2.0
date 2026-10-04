@@ -36,8 +36,10 @@ import {
   CUSTOM_DIAGRAM_PROMPT_MAX_LENGTH,
   elementPromptLengthState,
 } from '@/lib/element-prompt-limit'
+import './studio-chart-diagram.css'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.DIAGRAM
+const STUDIO_SPECIALIST_FORMS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 const PROMPT_PLACEHOLDERS: Record<TextLabsDiagramSubtype, string> = {
   CODE_DISPLAY: 'e.g., Python function to calculate a Fibonacci sequence',
@@ -89,6 +91,7 @@ interface DiagramFormProps {
   researchControls?: ReactNode
   existingDiagramTarget?: ExistingDiagramTarget | null
   initialDraft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
 }
 
 type ProviderSelection = 'auto' | NonNullable<CloudArchitectureConfig['provider']>
@@ -241,6 +244,12 @@ interface DiagramFormHydration {
   positionPreset: string
 }
 
+// Local unsent controls are independent of the strict service submission envelope.
+// Keep inactive leaf choices and unconfirmed/over-limit edits without dispatching.
+export type DiagramControlsDraft = Omit<DiagramFormHydration, 'hasSource' | 'generationConfig'> & {
+  themeSource: ReturnType<typeof useThemeSourceState>['themeSource']
+}
+
 function draftDiagramFormData(draft: GenerationPanelDraft | null | undefined): DiagramFormData | null {
   const formData = draft?.formData
   return formData && (
@@ -257,6 +266,7 @@ export function resolveDiagramFormHydration(
   initialDraft: GenerationPanelDraft | null | undefined,
 ): DiagramFormHydration {
   const draftFormData = draftDiagramFormData(initialDraft)
+  const controlsDraft = STUDIO_SPECIALIST_FORMS ? initialDraft?.diagramControls : null
   const generationConfig = existingDiagramTarget?.generationConfig
     ?? draftFormData?.generationConfig
     ?? null
@@ -319,7 +329,8 @@ export function resolveDiagramFormHydration(
     hasSource: Boolean(
       generationConfig
       || existingDiagramTarget?.subtype
-      || draftFormData,
+      || draftFormData
+      || controlsDraft,
     ),
     generationConfig,
     subtype: hydratedSubtype,
@@ -418,6 +429,7 @@ export function resolveDiagramFormHydration(
       settings.position_preset,
       'auto',
     ),
+    ...(controlsDraft ?? {}),
   }
 }
 
@@ -432,6 +444,7 @@ export function DiagramForm({
   researchControls,
   existingDiagramTarget,
   initialDraft,
+  onDraftChange,
 }: DiagramFormProps) {
   // A draft is an activation snapshot. Keep it stable while the parent updates
   // the prompt draft on every keystroke, otherwise catalog hydration could
@@ -455,7 +468,10 @@ export function DiagramForm({
   )
   const [advancedModified, setAdvancedModified] = useState(initialHydration.advancedModified)
   const [zIndex, setZIndex] = useState(initialHydration.zIndex)
-  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(presentationId)
+  const { themeSource, updateThemeSource, useDeckTheme, themeOverrides } = useThemeSourceState(
+    presentationId,
+    STUDIO_SPECIALIST_FORMS ? initialDraftRef.current?.diagramControls?.themeSource : undefined,
+  )
 
   const [language, setLanguage] = useState(initialHydration.language)
   const [languageSelectionMode, setLanguageSelectionMode] = useState<'auto' | 'manual'>(
@@ -494,7 +510,9 @@ export function DiagramForm({
   )
   const [leafTheme, setLeafTheme] = useState<LeafTheme>(initialHydration.leafTheme)
   const [positionPreset, setPositionPreset] = useState(initialHydration.positionPreset)
-  const controlsTouchedRef = useRef(false)
+  const controlsTouchedRef = useRef(Boolean(
+    STUDIO_SPECIALIST_FORMS && initialDraftRef.current?.diagramControls,
+  ))
   const markControlsModified = useCallback(() => {
     controlsTouchedRef.current = true
     setAdvancedModified(true)
@@ -556,7 +574,7 @@ export function DiagramForm({
     setAdvancedModified(hydration.advancedModified)
 
     const generationConfig = hydration.generationConfig
-    updateThemeSource({
+    updateThemeSource((STUDIO_SPECIALIST_FORMS && initialDraftRef.current?.diagramControls?.themeSource) || {
       mode: generationConfig?.theme_source ?? 'deck',
       overrides: generationConfig?.theme_source === 'another' && generationConfig.theme_palette
         ? {
@@ -626,6 +644,9 @@ export function DiagramForm({
       customRender: (
         <select
           aria-label="Diagram type"
+          data-studio-v4-shell={STUDIO_SPECIALIST_FORMS ? 'true' : undefined}
+          data-studio-specialist-picker={STUDIO_SPECIALIST_FORMS ? 'diagram' : undefined}
+          title={STUDIO_SPECIALIST_FORMS ? subtypeLabel : undefined}
           value={selectionMode === 'auto' ? 'DIAGRAM_AUTO' : subtype}
           onChange={event => {
             selectSubtype(event.target.value as TextLabsDiagramRequestType)
@@ -718,6 +739,30 @@ export function DiagramForm({
     provider,
     detectedProvider,
   )
+
+  useEffect(() => {
+    if (!STUDIO_SPECIALIST_FORMS || !onDraftChange) return
+    onDraftChange({
+      prompt, showAdvanced,
+      diagramControls: {
+        subtype, selectionMode, resolvedType: autoResolvedType, advancedModified, zIndex,
+        language, languageSelectionMode, resolvedLanguage, colorTheme, textSize,
+        showLineNumbers, showCopyButton, cornerStyle, columnCount, ganttTimeUnit,
+        taskColumnWidthPx, numStages, chevronTimeUnit, rowLabelWidthPx, axisPreset,
+        provider, providerConflictConfirmed,
+        providerConflictConfirmationKey: confirmedProviderConflictKey,
+        showLayers, showDataTypes, showNullable, layoutHint, leafTheme, positionPreset,
+        themeSource,
+      },
+    })
+  }, [
+    onDraftChange, prompt, showAdvanced, subtype, selectionMode, autoResolvedType, advancedModified, zIndex,
+    language, languageSelectionMode, resolvedLanguage, colorTheme, textSize,
+    showLineNumbers, showCopyButton, cornerStyle, columnCount, ganttTimeUnit,
+    taskColumnWidthPx, numStages, chevronTimeUnit, rowLabelWidthPx, axisPreset,
+    provider, providerConflictConfirmed, confirmedProviderConflictKey,
+    showLayers, showDataTypes, showNullable, layoutHint, leafTheme, positionPreset, themeSource,
+  ])
 
   const handleSubmit = useCallback(() => {
     if (providerConflict && !providerConflictConfirmed) return
@@ -831,10 +876,10 @@ export function DiagramForm({
   const markPrimaryModified = markControlsModified
 
   return (
-    <fieldset className="space-y-2.5 border-0 p-0" disabled={isGenerating} aria-busy={isGenerating}>
+    <fieldset data-studio-v4-shell={STUDIO_SPECIALIST_FORMS ? 'true' : undefined} data-studio-specialist-form={STUDIO_SPECIALIST_FORMS ? 'diagram' : undefined} className="space-y-2.5 border-0 p-0" disabled={isGenerating} aria-busy={isGenerating}>
       {selectionMode === 'auto' && !autoResolvedType && (
         <div className="space-y-2">
-          <div className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1.5 text-[11px] leading-4 text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-200">
+          <div data-studio-specialist-notice={STUDIO_SPECIALIST_FORMS ? 'auto' : undefined} className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1.5 text-[11px] leading-4 text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-200">
             Auto chooses the most suitable specialized renderer. You can override it at any time.
           </div>
           {researchControls}
@@ -842,7 +887,7 @@ export function DiagramForm({
       )}
 
       {controlsSubtype === 'CODE_DISPLAY' ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div data-studio-specialist-pair={STUDIO_SPECIALIST_FORMS ? 'true' : undefined} className="grid grid-cols-2 gap-2">
           <SelectField
             label="Code theme"
             value={colorTheme}
@@ -892,7 +937,7 @@ export function DiagramForm({
             />
           )}
           {controlsSubtype === 'CHEVRON_MATURITY' && (
-            <div className="grid grid-cols-2 gap-2">
+            <div data-studio-specialist-pair={STUDIO_SPECIALIST_FORMS ? 'true' : undefined} className="grid grid-cols-2 gap-2">
               <SelectField
                 label="Stages"
                 value={numStages === null ? 'auto' : String(numStages)}
@@ -932,13 +977,16 @@ export function DiagramForm({
                 }}
               />
               {providerConflict && (
-                <label className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] leading-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+                <label data-studio-specialist-notice={STUDIO_SPECIALIST_FORMS ? 'provider' : undefined} className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] leading-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
                   <input
                     type="checkbox"
                     checked={providerConflictConfirmed}
-                    onChange={event => setConfirmedProviderConflictKey(
-                      event.target.checked ? currentProviderConflictKey : null,
-                    )}
+                    onChange={event => {
+                      if (STUDIO_SPECIALIST_FORMS) markControlsModified()
+                      setConfirmedProviderConflictKey(
+                        event.target.checked ? currentProviderConflictKey : null,
+                      )
+                    }}
                     className="mt-0.5"
                   />
                   <span>
@@ -951,7 +999,7 @@ export function DiagramForm({
           )}
           {controlsSubtype === 'CUSTOM' && (
             <div className="space-y-2">
-              <div className="rounded-md border border-violet-200 bg-violet-50 px-2 py-1.5 text-[11px] text-violet-800 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200">
+              <div data-studio-specialist-notice={STUDIO_SPECIALIST_FORMS ? 'custom' : undefined} className="rounded-md border border-violet-200 bg-violet-50 px-2 py-1.5 text-[11px] text-violet-800 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200">
                 Experimental: uses a validated diagram model and a deterministic safe renderer.
               </div>
               <SelectField
@@ -987,7 +1035,7 @@ export function DiagramForm({
                 options={['small', 'medium', 'large'].map(value => ({ value, label: humanize(value) }))}
                 onChange={(_, value) => { setTextSize(value as CodeDisplayConfig['text_size']); markControlsModified() }}
               />
-              <div className="grid grid-cols-2 gap-2">
+              <div data-studio-specialist-pair={STUDIO_SPECIALIST_FORMS ? 'true' : undefined} className="grid grid-cols-2 gap-2">
                 <ToggleRow
                   label="Line Numbers"
                   field="show_line_numbers"
@@ -1033,7 +1081,7 @@ export function DiagramForm({
             />
           )}
           {controlsSubtype === 'DATA_ARCHITECTURE' && (
-            <div className="grid grid-cols-2 gap-2">
+            <div data-studio-specialist-pair={STUDIO_SPECIALIST_FORMS ? 'true' : undefined} className="grid grid-cols-2 gap-2">
               <ToggleRow
                 label="Data Types"
                 field="show_data_types"
@@ -1090,6 +1138,8 @@ function SelectField({
     <div className="space-y-1">
       <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">{label}</label>
       <select
+        aria-label={STUDIO_SPECIALIST_FORMS ? label : undefined}
+        title={STUDIO_SPECIALIST_FORMS ? value === 'auto' && autoLabel ? autoLabel : humanize(value) : undefined}
         value={value}
         onChange={event => onChange(event.target.value)}
         className="w-full rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"

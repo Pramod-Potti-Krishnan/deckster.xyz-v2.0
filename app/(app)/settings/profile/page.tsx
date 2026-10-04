@@ -15,6 +15,7 @@ import Link from "next/link"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
+const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
 
 export default function ProfileSettingsPage() {
   const { user, isLoading } = useAuth()
@@ -32,7 +33,7 @@ export default function ProfileSettingsPage() {
   const [avatarError, setAvatarError] = useState<string | null>(null)
 
   if (isLoading) {
-    return <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
+    return <div role={STUDIO_SHELL ? "status" : undefined} aria-busy={STUDIO_SHELL ? true : undefined} className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
   }
   if (!user) return null
 
@@ -121,30 +122,30 @@ export default function ProfileSettingsPage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card data-studio-settings-profile={STUDIO_SHELL ? "true" : undefined} aria-busy={STUDIO_SHELL ? isSaving || isUploading : undefined}>
+      <CardHeader data-studio-settings-profile-header={STUDIO_SHELL ? "true" : undefined}>
         <div className="flex items-center justify-between">
           <CardTitle>Profile Information</CardTitle>
           {isEditing ? (
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={cancelEditing} disabled={isSaving}>
+              <Button data-studio-settings-profile-cancel={STUDIO_SHELL ? "true" : undefined} variant="ghost" size="sm" onClick={cancelEditing} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleSave} disabled={isSaving}>
+              <Button data-studio-settings-profile-save={STUDIO_SHELL ? "true" : undefined} size="sm" onClick={handleSave} disabled={isSaving}>
                 {isSaving ? "Saving…" : "Save"}
               </Button>
             </div>
           ) : (
-            <Button variant="outline" size="sm" onClick={startEditing}>
+            <Button data-studio-settings-profile-outline={STUDIO_SHELL ? "true" : undefined} variant="outline" size="sm" onClick={startEditing}>
               Edit Profile
             </Button>
           )}
         </div>
         <CardDescription>Your personal details and account information</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent data-studio-settings-profile-body={STUDIO_SHELL ? "true" : undefined} className="space-y-6">
         {/* Avatar */}
-        <div className="flex items-center space-x-4">
+        <div data-studio-settings-profile-identity={STUDIO_SHELL ? "true" : undefined} className="flex items-center space-x-4">
           <div className="relative group">
             <Avatar className="h-20 w-20">
               <AvatarImage src={user.image || undefined} alt={user.name || "User avatar"} />
@@ -153,6 +154,8 @@ export default function ProfileSettingsPage() {
               </AvatarFallback>
             </Avatar>
             <button
+              data-studio-settings-profile-upload={STUDIO_SHELL ? "true" : undefined}
+              aria-busy={STUDIO_SHELL ? isUploading : undefined}
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
@@ -185,7 +188,7 @@ export default function ProfileSettingsPage() {
                         ? "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
                         : "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400"
                   }
-                  variant="outline"
+                  data-studio-settings-profile-outline={STUDIO_SHELL ? "true" : undefined} variant="outline"
                 >
                   {user.tier === "premium" && <Sparkles className="h-3 w-3 mr-1" />}
                   {user.tier === "pro" && <Crown className="h-3 w-3 mr-1" />}
@@ -195,8 +198,9 @@ export default function ProfileSettingsPage() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">{user.email}</p>
+            {STUDIO_SHELL && isUploading && <p data-studio-settings-profile-status="true" role="status">Uploading your account photo…</p>}
             {avatarError && (
-              <p className="text-xs text-red-600">{avatarError}</p>
+              <p data-studio-settings-profile-error={STUDIO_SHELL ? "true" : undefined} role={STUDIO_SHELL ? "alert" : undefined} className="text-xs text-red-600">{avatarError}</p>
             )}
           </div>
         </div>
@@ -204,26 +208,31 @@ export default function ProfileSettingsPage() {
         <Separator />
 
         {/* Fields */}
-        <div className="grid gap-4">
+        <div data-studio-settings-profile-fields={STUDIO_SHELL ? "true" : undefined} className="grid gap-4">
           <div className="grid gap-2">
-            <Label className="flex items-center gap-2">
+            <Label htmlFor={STUDIO_SHELL && isEditing ? "settings-profile-display-name" : undefined} className="flex items-center gap-2">
               <User className="h-4 w-4" />
               Display Name
             </Label>
             {isEditing ? (
               <>
                 <Input
+                  id={STUDIO_SHELL ? "settings-profile-display-name" : undefined}
+                  autoComplete={STUDIO_SHELL ? "name" : undefined}
+                  aria-invalid={STUDIO_SHELL ? Boolean(error) : undefined}
+                  aria-describedby={STUDIO_SHELL ? `settings-profile-name-help${error ? " settings-profile-name-error" : ""}` : undefined}
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Enter your display name"
                   maxLength={80}
                   disabled={isSaving}
                 />
-                {error && <p className="text-sm text-red-600">{error}</p>}
+                {error && <p id={STUDIO_SHELL ? "settings-profile-name-error" : undefined} data-studio-settings-profile-error={STUDIO_SHELL ? "true" : undefined} role={STUDIO_SHELL ? "alert" : undefined} className="text-sm text-red-600">{error}</p>}
               </>
             ) : (
               <p className="text-sm">{user.name || "Not set"}</p>
             )}
+            {STUDIO_SHELL && <p id="settings-profile-name-help" data-studio-settings-profile-help="true">Your account display name · up to 80 characters</p>}
           </div>
 
           <div className="grid gap-2">
@@ -241,14 +250,14 @@ export default function ProfileSettingsPage() {
         <Separator />
 
         {/* Subscription is owned by /billing — link out instead of duplicating */}
-        <div className="flex items-center justify-between">
+        <div data-studio-settings-profile-plan={STUDIO_SHELL ? "true" : undefined} className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">Subscription</p>
             <p className="text-sm text-muted-foreground">
               Manage your plan, payment method, and invoices
             </p>
           </div>
-          <Button variant="outline" asChild>
+          <Button data-studio-settings-profile-outline={STUDIO_SHELL ? "true" : undefined} variant="outline" asChild>
             <Link href="/billing">Manage</Link>
           </Button>
         </div>

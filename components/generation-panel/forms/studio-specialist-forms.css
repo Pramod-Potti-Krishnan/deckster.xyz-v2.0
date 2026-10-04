@@ -1,0 +1,71 @@
+/* Native Table and Metrics fields; absent markers leave the classic forms intact. */
+[data-studio-specialist-form] {
+  --ssf-surface: #f5f8f7;
+  --ssf-text: #283d40;
+  --ssf-muted: #657a7d;
+  --ssf-line: #dce5e3;
+  --ssf-accent: #7b68ad;
+  --ssf-selected: #f0ebf7;
+  min-width: 0;
+}
+.dark [data-studio-specialist-form] {
+  --ssf-surface: #222d30;
+  --ssf-text: #e2ebe8;
+  --ssf-muted: #a0b1ad;
+  --ssf-line: #465a5d;
+  --ssf-accent: #ab97d7;
+  --ssf-selected: #332f44;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-form] :is(label,fieldset,section) { min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-form] :is(select,input) {
+  min-width: 0; min-height: 30px; padding: 5px 7px;
+  color: var(--ssf-text); border-color: var(--ssf-line); background-color: var(--ssf-surface);
+  font-size: 12px; line-height: 18px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="structure-header"] {
+  align-items: flex-start; flex-wrap: wrap; row-gap: 8px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="structure-header"] > :first-child { flex: 1 1 140px; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="structure-status"] {
+  white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 17px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="column-brief"],
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="column-rendering"],
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="cell-mark"] {
+  grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="column-brief"] > *,
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="column-rendering"] > * { grid-column: auto; min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="column-brief"] > :is(:first-child,:nth-child(4)),
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="column-rendering"] > :first-child,
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="cell-mark"] > button { grid-column: 1 / -1; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="column-rendering"] {
+  padding: 8px; border: 1px solid var(--ssf-line); border-radius: 7px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="cell-mark"] > button {
+  min-height: 30px; color: var(--ssf-text); background: var(--ssf-selected); border: 1px solid var(--ssf-accent); border-radius: 6px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="appearance"],
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="metric-font"],
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="metric-spacing"] {
+  grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="appearance"] > :first-child,
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="metric-font"] > :last-child { grid-column: 1 / -1; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-part="metric-layout"] button { min-height: 31px; }
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-form] button[data-studio-specialist-color][aria-pressed] {
+  width: 25px; height: 25px; flex-shrink: 0; background-image: none; transform: none; border-color: var(--ssf-line);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-form] button[data-studio-specialist-color="auto"][aria-pressed] {
+  background-image: linear-gradient(135deg,#c084fc,#60a5fa,#4ade80);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-form] button[data-studio-specialist-color][aria-pressed="true"] {
+  border-color: var(--ssf-accent); box-shadow: 0 0 0 2px var(--ssf-surface),0 0 0 3px var(--ssf-accent);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-control="tri-state"] {
+  min-width: 31px; min-height: 28px; height: auto; font-size: 11px; line-height: 16px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-form] :is(button,select,input):focus-visible {
+  outline: 2px solid var(--ssf-accent); outline-offset: 2px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-panel] [data-studio-specialist-form] :is(button,select,input):disabled { cursor: not-allowed; opacity: .5; }

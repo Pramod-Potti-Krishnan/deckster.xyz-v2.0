@@ -1,0 +1,36 @@
+/* Own literal-shell markers also cover native type pickers in the composer. */
+[data-studio-v4-shell="true"]:is([data-studio-specialist-form],[data-studio-specialist-picker]) {
+  --scd-panel: var(--ss-panel, #fff); --scd-field: var(--ss-surface, #f5f7f6);
+  --scd-text: var(--ss-text, #243438); --scd-muted: var(--ss-muted, #566965);
+  --scd-line: var(--ss-line, #d6e1dc); --scd-accent: var(--ss-accent, #6a4fc0);
+  --scd-active: var(--ss-active, #edf4f0); --scd-error: #a04742; --scd-warning: #8b612d;
+  min-width: 0; color: var(--scd-text);
+}
+.dark [data-studio-v4-shell="true"]:is([data-studio-specialist-form],[data-studio-specialist-picker]) {
+  --scd-panel: var(--ss-panel, #1b2426); --scd-field: var(--ss-surface, #222d30);
+  --scd-text: var(--ss-text, #e2ebe8); --scd-muted: var(--ss-muted, #a0b1ad);
+  --scd-line: var(--ss-line, #334245); --scd-accent: var(--ss-accent, #b4a0f2);
+  --scd-active: var(--ss-active, #283c35); --scd-error: #efa5a0; --scd-warning: #deba83;
+  color-scheme: dark;
+}
+[data-studio-v4-shell="true"][data-studio-specialist-form] :is(p,label) { overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"][data-studio-specialist-form] p { font-size: 11px; line-height: 1.5; color: var(--scd-muted); }
+[data-studio-v4-shell="true"][data-studio-specialist-form] label { color: var(--scd-text); }
+[data-studio-v4-shell="true"][data-studio-specialist-form] [data-studio-specialist-pair="true"] { grid-template-columns: repeat(auto-fit, minmax(min(145px, 100%), 1fr)); }
+[data-studio-v4-shell="true"][data-studio-specialist-form] [data-studio-specialist-pair="true"] > div { min-width: 0; }
+[data-studio-v4-shell="true"][data-studio-specialist-form] :is(input:not([type="checkbox"]),select,textarea) { max-width: 100%; min-width: 0; color: var(--scd-text); background: var(--scd-field); border-color: var(--scd-line); border-radius: 7px; }
+[data-studio-v4-shell="true"][data-studio-specialist-form] select { min-height: 32px; padding-block: 5px; }
+[data-studio-v4-shell="true"][data-studio-specialist-form] textarea { scrollbar-width: thin; }
+[data-studio-v4-shell="true"][data-studio-specialist-form] :is(input,select,textarea,button):focus-visible { outline: 2px solid var(--scd-accent); outline-offset: 2px; }
+[data-studio-v4-shell="true"][data-studio-specialist-form] [aria-invalid="true"] { border-color: var(--scd-error) !important; box-shadow: inset 3px 0 0 var(--scd-error); }
+[data-studio-v4-shell="true"][data-studio-specialist-form] p[role="alert"] { color: var(--scd-error); }
+[data-studio-v4-shell="true"][data-studio-specialist-form] [data-studio-specialist-notice] { padding: 9px 10px; color: var(--scd-text); background: var(--scd-active); border-color: var(--scd-line); font-size: 11px; line-height: 1.5; border-radius: 7px; }
+[data-studio-v4-shell="true"][data-studio-specialist-form] [data-studio-specialist-notice="provider"] { color: var(--scd-warning); background: var(--scd-field); border-left: 3px solid var(--scd-warning); }
+[data-studio-v4-shell="true"][data-studio-specialist-form] [data-studio-specialist-notice="provider"] input { flex-shrink: 0; accent-color: var(--scd-accent); }
+[data-studio-v4-shell="true"][data-studio-specialist-picker="diagram"],
+[data-studio-v4-shell="true"][data-studio-specialist-picker="chart"] select { min-width: 0; min-height: 28px; border: 1px solid var(--scd-line); border-radius: 7px; background-color: var(--scd-field); color: var(--scd-text); font-size: 11px; line-height: 18px; }
+[data-studio-v4-shell="true"][data-studio-specialist-picker] span[aria-hidden] { color: var(--scd-muted); }
+[data-studio-v4-shell="true"][data-studio-specialist-picker]:hover { border-color: var(--scd-accent); }
+[data-studio-v4-shell="true"][data-studio-specialist-picker]:focus-visible,
+[data-studio-v4-shell="true"][data-studio-specialist-picker] select:focus-visible { outline: 2px solid var(--scd-accent); outline-offset: 2px; }
+[data-studio-v4-shell="true"]:is([data-studio-specialist-form],[data-studio-specialist-picker]) :is(option,optgroup) { color: var(--scd-text); background-color: var(--scd-panel); }

@@ -7,6 +7,10 @@ import { MandatoryConfig } from '../types'
 import { elementPromptLengthState } from '@/lib/element-prompt-limit'
 import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
 import type { TextLabsRetryStrategy } from '@/lib/textlabs-client'
+import './studio-generation-options.css'
+import './studio-generation-feedback.css'
+
+const STUDIO_GENERATION_FEEDBACK = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 interface GenerationInputProps {
   prompt: string
@@ -77,22 +81,29 @@ export function GenerationInput({
     <div className="px-3 pt-3 pb-2 space-y-2">
       {/* Error display */}
       {error && (
-        <div className="flex items-start gap-2 p-2.5 rounded-md bg-red-50 border border-red-200">
+        <div className="flex items-start gap-2 p-2.5 rounded-md bg-red-50 border border-red-200"
+          role={STUDIO_GENERATION_FEEDBACK ? 'alert' : undefined}
+          data-studio-generation-feedback={STUDIO_GENERATION_FEEDBACK ? 'true' : undefined}>
           <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-red-600 break-words">{error}</p>
+            <p className="text-xs text-red-600 break-words"
+              data-studio-generation-feedback-text={STUDIO_GENERATION_FEEDBACK ? 'true' : undefined}
+              role={STUDIO_GENERATION_FEEDBACK ? 'region' : undefined}
+              tabIndex={STUDIO_GENERATION_FEEDBACK ? 0 : undefined}
+              aria-label={STUDIO_GENERATION_FEEDBACK ? 'Generation error details' : undefined}>{error}</p>
             {retryStrategy !== 'do_not_retry' ? (
               <button
                 type="button"
                 onClick={handleRetry}
                 disabled={submitDisabled}
+                data-studio-generation-feedback-guidance={STUDIO_GENERATION_FEEDBACK ? 'true' : undefined}
                 className="mt-1.5 flex items-center gap-1 text-[10px] text-red-500 hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RotateCcw className="h-3 w-3" />
                 {retryLabel}
               </button>
             ) : (
-              <p className="mt-1.5 text-[10px] text-red-500">
+              <p className="mt-1.5 text-[10px] text-red-500" data-studio-generation-feedback-guidance={STUDIO_GENERATION_FEEDBACK ? 'true' : undefined}>
                 Update the prompt or settings before generating again.
               </p>
             )}
@@ -110,6 +121,7 @@ export function GenerationInput({
             onChange={(e) => onPromptChange(e.target.value)}
             placeholder={placeholder}
             disabled={isGenerating}
+            aria-label={STUDIO_GENERATION_FEEDBACK ? 'Generation prompt' : undefined}
             aria-invalid={promptOverLimit}
             aria-describedby={promptMaxLength ? 'generation-prompt-limit' : undefined}
             className="w-full resize-y border-0 bg-transparent focus:ring-0 focus:outline-none px-3 pt-3 pb-12 min-h-[60px] max-h-[160px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto text-gray-900 dark:text-slate-100 disabled:opacity-50"
@@ -147,6 +159,8 @@ export function GenerationInput({
                   : 'text-gray-400 dark:text-slate-500 hover:bg-gray-200 dark:hover:bg-slate-700 dark:bg-slate-700'
               }`}
               title={showAdvanced ? 'Hide advanced options' : 'Show advanced options'}
+              aria-label={STUDIO_GENERATION_FEEDBACK ? showAdvanced ? 'Hide advanced options' : 'Show advanced options' : undefined}
+              aria-expanded={STUDIO_GENERATION_FEEDBACK ? showAdvanced : undefined}
             >
               <SlidersHorizontal className="h-4 w-4" />
             </button>
@@ -177,6 +191,13 @@ export function GenerationInput({
                     ? 'Check generation result (⌘↵)'
                     : 'Generate (⌘↵)'
               }
+              aria-label={STUDIO_GENERATION_FEEDBACK
+                ? promptOverLimit
+                  ? 'Shorten the prompt before generating'
+                  : retryStrategy === 'resume_same_attempt'
+                    ? 'Check generation result (⌘↵)'
+                    : 'Generate (⌘↵)'
+                : undefined}
             >
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -212,6 +233,7 @@ export function GenerationInput({
 }
 
 function MandatoryChip({ config }: { config: MandatoryConfig }) {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const hasGroups = config.optionGroups && config.optionGroups.length > 0
   const hasOptions = config.options && config.options.length > 0
   const allOptions = hasGroups
@@ -276,7 +298,8 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
           <span className="truncate max-w-[120px]">{config.displayLabel}</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-52 p-1" sideOffset={4}>
+      <PopoverContent data-studio-generation-options={studio ? 'true' : undefined} aria-label={studio ? `${config.fieldLabel} options` : undefined} align="start" className="w-52 p-1" sideOffset={4}>
+        {studio && <p data-studio-generation-options-part="heading">{config.fieldLabel}</p>}
         {hasGroups ? (
           // Grouped options (chart types, image styles)
           <div className="space-y-1">
@@ -288,6 +311,8 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
                 {group.options.map((option) => (
                   <button
                     key={option.value}
+                    data-studio-generation-selected={studio ? String(isSelected(option.value, option.label)) : undefined}
+                    aria-pressed={studio ? isSelected(option.value, option.label) : undefined}
                     onClick={() => config.onChange(option.value)}
                     className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
                       isSelected(option.value, option.label)
@@ -316,6 +341,8 @@ function MandatoryChip({ config }: { config: MandatoryConfig }) {
             {config.options!.map((option) => (
               <button
                 key={option.value}
+                data-studio-generation-selected={studio ? String(isSelected(option.value, option.label)) : undefined}
+                aria-pressed={studio ? isSelected(option.value, option.label) : undefined}
                 onClick={() => config.onChange(option.value)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
                   isSelected(option.value, option.label)

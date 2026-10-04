@@ -1,6 +1,7 @@
 "use client"
 
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import { useState, type MouseEvent as ReactMouseEvent } from 'react'
+import './studio-template-params.css'
 import { ChevronLeft, ChevronRight, GripVertical, Image as ImageIcon, LineChart, Palette, Save, Shapes, TextCursorInput } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,6 +33,9 @@ import {
   type TemplateModeOverride,
   type TemplateOverrides,
 } from '@/lib/template-mode'
+import { isTemplateGenerationReady, templateGenerationStatusLabel, templateGenerationUnavailableReason } from '@/hooks/use-templates'
+
+const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 interface TemplateParamsPanelProps {
   isOpen: boolean
@@ -168,6 +172,7 @@ function TextField({
         {label}
       </span>
       <textarea
+        aria-label={STUDIO_SHELL ? label : undefined}
         value={value}
         rows={rows}
         disabled={disabled}
@@ -234,7 +239,7 @@ function SelectField({
         <SelectTrigger className="h-8 text-xs">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent data-studio-template-param-select={STUDIO_SHELL ? 'true' : undefined}>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
@@ -661,6 +666,7 @@ export function TemplateParamsPanel({
   onBlueprintChange,
   onSaveBlueprint,
 }: TemplateParamsPanelProps) {
+  const [detailScope, setDetailScope] = useState<'deck' | 'slide'>('slide')
   const blueprint = getTemplateBlueprint(snapshot)
   const slide = getBlueprintSlide(snapshot, currentSlideIndex)
   const elements = getTemplateModeElements(snapshot, currentSlideIndex)
@@ -698,6 +704,7 @@ export function TemplateParamsPanel({
 
   return (
     <div
+      data-studio-template-params={STUDIO_SHELL ? 'true' : undefined}
       className={cn(
         "absolute inset-y-0 left-0 z-[70] ease-out",
         "transition-[transform,width] duration-300",
@@ -720,21 +727,23 @@ export function TemplateParamsPanel({
         </button>
       ) : (
       <div className="absolute inset-y-0 left-0 flex max-h-screen flex-col overflow-hidden border-r border-violet-200 bg-white text-slate-900 shadow-xl dark:border-violet-900 dark:bg-slate-950 dark:text-slate-100">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-violet-50 px-4 py-3 dark:border-slate-800 dark:bg-violet-950/40">
+        <div data-stbp-header={STUDIO_SHELL ? 'true' : undefined} className="flex items-center justify-between gap-3 border-b border-slate-200 bg-violet-50 px-4 py-3 dark:border-slate-800 dark:bg-violet-950/40">
           <div className="flex min-w-0 items-center gap-2">
             <Palette className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-300" />
             <div className="min-w-0">
               <h3 className="truncate text-sm font-semibold">
-                {focusedPanelTitle}
+                {STUDIO_SHELL && blueprintEditorV2Enabled && !selectedElement && !selectedSlideIntent && detailScope === 'deck' ? 'Deck details' : focusedPanelTitle}
               </h3>
               <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                {focusedPanelSubtitle}
+                {STUDIO_SHELL && blueprintEditorV2Enabled && !selectedElement && !selectedSlideIntent && detailScope === 'deck' ? 'Reusable scope and purpose' : focusedPanelSubtitle}
               </p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {blueprintEditorV2Enabled && (
               <Button
+                data-stbp-save={STUDIO_SHELL ? 'true' : undefined}
+                data-dirty={STUDIO_SHELL ? String(Boolean(blueprintDirty)) : undefined}
                 variant={blueprintDirty ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => void onSaveBlueprint?.()}
@@ -757,7 +766,9 @@ export function TemplateParamsPanel({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 max-h-[calc(100vh-5rem)] space-y-3 overflow-y-auto p-4">
+        <div data-stbp-body={STUDIO_SHELL ? 'true' : undefined} className="min-h-0 flex-1 max-h-[calc(100vh-5rem)] space-y-3 overflow-y-auto p-4">
+          {STUDIO_SHELL && snapshot && !loading && <div className="stbp-context"><strong>{snapshot.name}</strong><div className="stbp-state"><span>{blueprintSaving ? 'Saving blueprint…' : blueprintDirty ? 'Unsaved blueprint edits' : 'Loaded template'}</span><span>{templateGenerationStatusLabel(snapshot)}</span></div><p>{blueprintDirty ? 'Generation status reflects the last recorded result until these edits are saved.' : 'Recorded generation status. Review and generation have different readiness requirements.'}</p>{!isTemplateGenerationReady(snapshot) && <details><summary>Generation requirements</summary><p>{templateGenerationUnavailableReason(snapshot)}</p></details>}</div>}
+          {STUDIO_SHELL && blueprintEditorV2Enabled && blueprint && slide && !selectedElement && !selectedSlideIntent && <div className="stbp-scope-nav" role="group" aria-label="Blueprint details scope"><button type="button" aria-pressed={detailScope === 'deck'} onClick={() => setDetailScope('deck')}>Deck</button><button type="button" aria-pressed={detailScope === 'slide'} onClick={() => setDetailScope('slide')}>Current slide · {currentSlideIndex + 1}</button></div>}
           {loading ? (
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
               Loading template snapshot...
@@ -768,12 +779,12 @@ export function TemplateParamsPanel({
             </div>
           ) : blueprintEditorV2Enabled && (!blueprint || !slide) ? (
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-              This template is loading its semantic blueprint.
+              {STUDIO_SHELL ? 'This snapshot does not include an editable semantic blueprint for the current slide.' : 'This template is loading its semantic blueprint.'}
             </div>
           ) : blueprintEditorV2Enabled && blueprint && slide ? (
             <>
               {!selectedElement && !selectedSlideIntent && (
-                <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                <section data-stbp-scope={STUDIO_SHELL ? 'deck' : undefined} hidden={STUDIO_SHELL && detailScope !== 'deck'} className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
                   <div className="mb-3">
                     <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Deck details</h4>
                     <p className="text-xs text-slate-500">{blueprint.generation_method}</p>
@@ -834,7 +845,7 @@ export function TemplateParamsPanel({
                   />
                 </section>
               ) : !selectedElement ? (
-                <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+                <section data-stbp-scope={STUDIO_SHELL ? 'slide' : undefined} hidden={STUDIO_SHELL && detailScope !== 'slide'} className="rounded-md border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
                   <div className="mb-3">
                     <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Slide details</h4>
                     <p className="text-xs text-slate-500">
