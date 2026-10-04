@@ -35,6 +35,7 @@ export function BringFlow({ copy, statuses }: { copy: BringFlowCopy; statuses: {
 
     let frame = 0
     let disposed = false
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     const draw = () => {
       frame = 0
       const rect = flow.getBoundingClientRect()
@@ -52,13 +53,18 @@ export function BringFlow({ copy, statuses }: { copy: BringFlowCopy; statuses: {
       const core = center(coreElement)
       const inputs = Array.from(flow.querySelectorAll(".file")).map(center)
       const outputs = Array.from(flow.querySelectorAll(".asset")).map(center)
-      const path = (a: { x: number; y: number }, b: { x: number; y: number }, cls: string) => {
-        const mid = (a.x + b.x) / 2
-        return `<path class="${cls}" d="M${a.x},${a.y} C${mid},${a.y} ${mid},${b.y} ${b.x},${b.y}"/>`
-      }
       svg.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`)
-      svg.innerHTML = inputs.map((item) => path({ x: item.r, y: item.y }, { x: core.x - 78, y: core.y }, "in")).join("")
-        + outputs.map((item) => path({ x: core.x + 78, y: core.y }, { x: item.l, y: item.y }, "out")).join("")
+      const curve = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+        const mid = (a.x + b.x) / 2
+        return `M${a.x},${a.y} C${mid},${a.y} ${mid},${b.y} ${b.x},${b.y}`
+      }
+      // Files travel into Deckster; templates, sources and themes travel out.
+      const particle = (d: string, cls: string, i: number) => reducedMotion ? "" :
+        `<circle class="pt ${cls}" r="3.2"><animateMotion dur="2.4s" begin="${(i * .55).toFixed(2)}s" repeatCount="indefinite" path="${d}"/></circle>`
+      const ins = inputs.map((item) => curve({ x: item.r, y: item.y }, { x: core.x - 78, y: core.y }))
+      const outs = outputs.map((item) => curve({ x: core.x + 78, y: core.y }, { x: item.l, y: item.y }))
+      svg.innerHTML = ins.map((d) => `<path class="in" d="${d}"/>`).join("") + outs.map((d) => `<path class="out" d="${d}"/>`).join("")
+        + ins.map((d, i) => particle(d, "in", i)).join("") + outs.map((d, i) => particle(d, "out", i + 3)).join("")
     }
     const schedule = () => {
       if (disposed) return

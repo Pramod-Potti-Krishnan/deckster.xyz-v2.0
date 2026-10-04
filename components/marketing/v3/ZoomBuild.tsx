@@ -17,7 +17,7 @@ const ease = (t: number) => t < .5 ? 2 * t * t : -1 + (4 - 2 * t) * t
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const seg = (p: number, a: number, b: number) => Math.min(1, Math.max(0, (p - a) / (b - a)))
 
-function TargetSlide({ copy }: { copy: ZoomCopy["slide"] }) {
+export function TargetSlide({ copy }: { copy: ZoomCopy["slide"] }) {
   const points = copy.bars.slice(0, 5).map((bar, index) => `${(index + .5) * (600 / 6)},${100 - bar.height}`).join(" ")
   return (
     <div className="sl">

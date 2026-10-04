@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react"
 import Link from "next/link"
-import { V3_CONTENT, showcaseAlt } from "@/lib/marketing/v3-content"
+import { V3_CONTENT, V3_STATUS_WORDS, showcaseAlt } from "@/lib/marketing/v3-content"
+import { HeroFilm } from "../HeroFilm"
+import { TargetSlide } from "../ZoomBuild"
 import { BuildCta } from "../BuildCta"
 import { SlideChip } from "../SlideChip"
 
@@ -30,18 +32,13 @@ export function Start({ n, total }: { n: number; total: number }) {
               {copy.facts.map((item) => <span key={item}>{item}</span>)}
             </div>
           </div>
-          <div className="stack" data-reveal style={{ "--d": 2 } as CSSProperties}>
-            {[9, 1, 4].map((slide, index) => (
-              <div className="stack__card" key={slide}>
-                <img src={`/marketing/v3/slides/deck-${String(slide).padStart(2, "0")}.jpg`} alt={showcaseAlt(slide, V3_CONTENT.zoom.tiles.find((tile) => tile.slide === slide)?.title ?? "")} width={1280} height={724} fetchPriority={index === 2 ? "high" : undefined} />
-              </div>
-            ))}
-            <div className="stack__you">
-              <svg className="cur" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3l7 17 2.5-6.5L20 11z" fill="currentColor" /></svg>
-              <div><span className="k">{copy.cursor}</span><span className="you">{copy.request}</span></div>
-            </div>
-            <div className="stack__agent">{copy.agent}<b>{copy.agentBold}</b>{copy.agentSource}</div>
-          </div>
+          <HeroFilm
+            copy={copy.film}
+            tiles={copy.film.tiles.map((slot) => ({ src: `/marketing/v3/slides/deck-${String(slot).padStart(2, "0")}.jpg`, alt: showcaseAlt(slot) }))}
+            target={<TargetSlide copy={V3_CONTENT.zoom.slide} />}
+            youLabel={copy.cursor}
+            statusWord={V3_STATUS_WORDS.live}
+          />
         </div>
       </div>
       <a className="cue" href="#zoom" data-next>{copy.cue}<i /></a>

@@ -21,7 +21,9 @@ export function useV3Deck() {
         slides.forEach((section, index) => {
           if (section.offsetTop <= y) active = index
         })
-        header?.classList.toggle("is-light", slides[active]?.classList.contains("slide--paper") ?? false)
+        const onPaper = slides[active]?.classList.contains("slide--paper") ?? false
+        header?.classList.toggle("is-light", onPaper)
+        html.classList.toggle("mv3-on-paper", onPaper)
         raf = null
       })
     }
@@ -32,7 +34,7 @@ export function useV3Deck() {
       window.removeEventListener("scroll", update)
       window.removeEventListener("resize", update)
       if (raf !== null) cancelAnimationFrame(raf)
-      html.classList.remove("mv3-page")
+      html.classList.remove("mv3-page", "mv3-on-paper")
     }
   }, [pathname])
 }

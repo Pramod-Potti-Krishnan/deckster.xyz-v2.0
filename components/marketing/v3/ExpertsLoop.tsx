@@ -14,7 +14,7 @@ export interface ExpertsLoopContent {
   note: string
   noteStrong: string
   prefill: number
-  script: readonly string[]
+  script: readonly { who: string; text: string }[]
 }
 
 interface LogLine {
@@ -30,9 +30,10 @@ type State = "running" | "paused" | "stopped"
  * only ticks while on screen, and stays still for reduced-motion visitors.
  */
 export function ExpertsLoop({ copy, status }: { copy: ExpertsLoopContent; status: { status: string; word: string } }) {
-  const initial = copy.script.slice(0, copy.prefill).map((text, id) => ({ id, kind: "a" as const, text }))
+  const initial = copy.script.slice(0, copy.prefill).map((line, id) => ({ id, kind: "a" as const, text: line.text }))
   const [lines, setLines] = useState<LogLine[]>(initial)
   const [state, setState] = useState<State>("running")
+  const [step, setStep] = useState(copy.prefill)
   const rootRef = useRef<HTMLDivElement>(null)
   const indexRef = useRef(copy.prefill)
   const idRef = useRef(copy.prefill)
@@ -50,10 +51,17 @@ export function ExpertsLoop({ copy, status }: { copy: ExpertsLoopContent; status
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
     const io = new IntersectionObserver(([entry]) => { visibleRef.current = entry.isIntersecting })
     io.observe(root)
+    // The specialist doing the work lights up in the org chart beside the log.
+    const agents = root.closest("section")?.querySelectorAll<HTMLElement>("[data-agent]") ?? []
+    const light = (who: string) => agents.forEach((el) => el.classList.toggle("is-active", el.dataset.agent === who))
+    light(copy.script[(copy.prefill - 1) % copy.script.length]?.who ?? "director")
     const timer = setInterval(() => {
       if (!visibleRef.current || stateRef.current !== "running") return
-      append("a", copy.script[indexRef.current % copy.script.length])
+      const line = copy.script[indexRef.current % copy.script.length]
+      append("a", line.text)
+      light(line.who)
       indexRef.current += 1
+      setStep(indexRef.current)
     }, 2100)
     return () => {
       clearInterval(timer)
@@ -74,6 +82,7 @@ export function ExpertsLoop({ copy, status }: { copy: ExpertsLoopContent; status
       <div className="loop__bar">
         {copy.bar}
         <span className={`st st--${status.status}`}>{status.word}</span>
+        <i className="loop__progress" aria-hidden="true" style={{ transform: `scaleX(${((step % copy.script.length) + 1) / copy.script.length})` }} />
       </div>
       <div className="loop__log" style={{ padding: "14px 16px" }} aria-hidden="true">
         {lines.map((line, index) => (

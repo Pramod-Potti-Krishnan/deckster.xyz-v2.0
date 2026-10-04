@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react"
-import { showcaseAlt, type V3Feature } from "@/lib/marketing/v3-content"
+import { SHOWCASE_SLOTS, showcaseAlt, type V3Feature } from "@/lib/marketing/v3-content"
+import { PlayerSlides } from "../PlayerSlides"
 import { AudienceQA, type AudienceQACopy } from "../AudienceQA"
 import { SlideChip } from "../SlideChip"
 import { StatusPill, statusOf } from "../StatusPill"
@@ -10,7 +11,7 @@ export interface PresentCopy {
   eyebrow: string
   title: string
   lede: string
-  player: { urlPrefix: string; urlSlug: string; access: string; caption: string; time: string; voice: string }
+  player: { urlPrefix: string; urlSlug: string; access: string; caption: string; time: string; voice: string; slides: readonly number[] }
   qa: AudienceQACopy & { feature: V3Feature }
   ladder: readonly { feature: V3Feature; text: string }[]
 }
@@ -33,10 +34,11 @@ export function Present({ copy, n, total }: { copy: PresentCopy; n: number; tota
               <span className="dots-3" aria-hidden="true"><i /><i /><i /></span>
               {copy.player.urlPrefix}<b>{copy.player.urlSlug}</b><span className="lock">{copy.player.access}</span>
             </div>
-            <div className="player__slide">
-              <img src="/marketing/v3/slides/deck-04.jpg" alt={showcaseAlt(4)} width={1280} height={720} loading="lazy" decoding="async" />
-              <span className="player__cap">{copy.player.caption}</span>
-            </div>
+            <PlayerSlides
+              captionLead="Slide"
+              total={16}
+              slides={copy.player.slides.map((slot) => ({ src: `/marketing/v3/slides/deck-${String(slot).padStart(2, "0")}.jpg`, alt: showcaseAlt(slot), number: SHOWCASE_SLOTS[slot as keyof typeof SHOWCASE_SLOTS].slide }))}
+            />
             <div className="player__bar">
               <span className="play" aria-hidden="true"><svg width="12" height="14" viewBox="0 0 12 14"><path d="M0 0l12 7-12 7z" fill="currentColor" /></svg></span>
               <Waveform count={40} />

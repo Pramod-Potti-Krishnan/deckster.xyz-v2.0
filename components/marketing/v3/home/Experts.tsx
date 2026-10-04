@@ -31,10 +31,10 @@ export function Experts({ copy, n, total }: { copy: ExpertsContent; n: number; t
                 <div><b>{copy.you.name}</b><br /><span>{copy.you.role}</span></div>
               </div>
               <div className="org__line" />
-              <div className="org__dir"><i className="dot" /><div><b>{copy.director.name}</b> <span>{copy.director.role}</span></div></div>
+              <div className="org__dir" data-agent="director"><i className="dot" /><div><b>{copy.director.name}</b> <span>{copy.director.role}</span></div></div>
               <div className="org__row">
                 {copy.agents.map((agent) => (
-                  <div key={agent.id}>
+                  <div key={agent.id} data-agent={agent.id}>
                     <i className="dot" style={{ background: agent.color }} />
                     <b>{agent.name}</b><span>{agent.role}</span>
                   </div>

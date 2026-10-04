@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { trackCta } from "@/lib/analytics"
 
 export interface ThemeVariant {
@@ -19,9 +19,28 @@ export interface ThemeSwitchCopy {
 export function ThemeSwitch({ copy }: { copy: ThemeSwitchCopy }) {
   const [active, setActive] = useState(copy.variants[0]?.id ?? "")
   const current = copy.variants.find((variant) => variant.id === active) ?? copy.variants[0]
+  const rootRef = useRef<HTMLDivElement>(null)
+  const touchedRef = useRef(false)
+
+  // The looks cycle on their own until the visitor picks one.
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    let visible = false
+    const io = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting })
+    io.observe(root)
+    const timer = setInterval(() => {
+      if (!visible || touchedRef.current) return
+      setActive((id) => {
+        const index = copy.variants.findIndex((variant) => variant.id === id)
+        return copy.variants[(index + 1) % copy.variants.length].id
+      })
+    }, 3200)
+    return () => { clearInterval(timer); io.disconnect() }
+  }, [copy.variants])
 
   return (
-    <div className="themes" style={{ marginTop: 30 }} data-reveal>
+    <div className="themes" style={{ marginTop: 30 }} data-reveal ref={rootRef}>
       <div className="themes__stage themes__stage--2">
         {[0, 1].map((slot) => (
           <div className={`shot${slot === 0 ? " shot--wide" : ""}`} key={slot}>
@@ -51,6 +70,7 @@ export function ThemeSwitch({ copy }: { copy: ThemeSwitchCopy }) {
               className={variant.id === active ? "is-on" : undefined}
               aria-pressed={variant.id === active}
               onClick={() => {
+                touchedRef.current = true
                 setActive(variant.id)
                 trackCta("v3_theme_switch", { theme: variant.id })
               }}
