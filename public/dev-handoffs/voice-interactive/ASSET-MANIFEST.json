@@ -1,0 +1,164 @@
+{
+  "package": "Studio v4 Director voice and interactive avatar handoff",
+  "application_baseline": "a1dac11f0ffe22c3ce32e89e5b4807accc3b854c",
+  "classification": "Public shareable design and implementation brief; no connected capability proof",
+  "assets": [
+    {
+      "file": "images/30-chat-call-buttons.png",
+      "source": "frontend/prototypes/builder-studio-v4/review-v4/evidence/candidate/30-chat-call-buttons.png",
+      "sha256": "e50a90535f951847a6cbc19ffc466c9782187d7d1a3d1aaa1589acb7585f0202",
+      "classification": "Accepted v4 visual mockup; local simulation, not connected capability",
+      "visually_reviewed": true
+    },
+    {
+      "file": "images/31-voice-call.png",
+      "source": "frontend/prototypes/builder-studio-v4/review-v4/evidence/candidate/31-voice-call.png",
+      "sha256": "950db2c19792966e20a7f7657b8545e648df4dc867dbc4ed5fb8897965279333",
+      "classification": "Accepted v4 visual mockup; local simulation, not connected capability",
+      "visually_reviewed": true
+    },
+    {
+      "file": "images/32-video-call-decision.png",
+      "source": "frontend/prototypes/builder-studio-v4/review-v4/evidence/candidate/32-video-call-decision.png",
+      "sha256": "764ef78d83d9daae1998721a280c99a98b6ab8e537f19dd772575f17c73281ae",
+      "classification": "Accepted v4 visual mockup; local simulation, not connected capability",
+      "visually_reviewed": true
+    },
+    {
+      "file": "images/33-video-composer-sheet.png",
+      "source": "frontend/prototypes/builder-studio-v4/review-v4/evidence/candidate/33-video-composer-sheet.png",
+      "sha256": "fe0723eb174c9b6e388f954deb0d2ac2ee07e0e75405ee02b4d98bb0118769ab",
+      "classification": "Accepted v4 visual mockup; local simulation, not connected capability",
+      "visually_reviewed": true
+    },
+    {
+      "file": "images/34-call-ended-in-chat.png",
+      "source": "frontend/prototypes/builder-studio-v4/review-v4/evidence/candidate/34-call-ended-in-chat.png",
+      "sha256": "37d5f780ad9678cedbbd91f63716a941ad53c325bbf65011b19b81667bb1a981",
+      "classification": "Accepted v4 visual mockup; local simulation, not connected capability",
+      "visually_reviewed": true
+    },
+    {
+      "file": "images/51-dark-video-call.png",
+      "source": "frontend/prototypes/builder-studio-v4/review-v4/evidence/candidate/51-dark-video-call.png",
+      "sha256": "8761828938e33a996a0c6128acf7d6582de5927aa367a9167102f27267ce0ce8",
+      "classification": "Accepted v4 visual mockup; local simulation, not connected capability",
+      "visually_reviewed": true
+    },
+    {
+      "file": "images/71-ask-approval-voice.png",
+      "source": "frontend/prototypes/builder-studio-v4/review-v4/evidence/candidate/71-ask-approval-voice.png",
+      "sha256": "71c9b2d863d94a36c7db4cffbdbdbbea6064574a84d63654f4526b4da1540ef8",
+      "classification": "Accepted v4 visual mockup; local simulation, not connected capability",
+      "visually_reviewed": true
+    },
+    {
+      "file": "images/72-ask-approval-video.png",
+      "source": "frontend/prototypes/builder-studio-v4/review-v4/evidence/candidate/72-ask-approval-video.png",
+      "sha256": "96e78a984809803c7b0ede2ca5c038c7d78ee39007392c4856199722c9f5f72f",
+      "classification": "Accepted v4 visual mockup; local simulation, not connected capability",
+      "visually_reviewed": true
+    },
+    {
+      "file": "images/73-ask-questions-video.png",
+      "source": "frontend/prototypes/builder-studio-v4/review-v4/evidence/candidate/73-ask-questions-video.png",
+      "sha256": "be44b778155df329e2999c23c7d057cd3ecc9cab60ff10af07c6fd17ddcdca40",
+      "classification": "Accepted v4 visual mockup; local simulation, not connected capability",
+      "visually_reviewed": true
+    },
+    {
+      "file": "reference-source/director-character.tsx.txt",
+      "source": "frontend/prototypes/builder-studio-v4/components/director-character.tsx",
+      "sha256": "18de7947171a51f79c7338eb3ada7a0c868077559b31385765164d0dfc31b5df",
+      "classification": "Prototype reference; only avatar trio is a self-contained reusable source unit"
+    },
+    {
+      "file": "reference-source/director-character.css",
+      "source": "frontend/prototypes/builder-studio-v4/components/director-character.css",
+      "sha256": "46b9313bc44bd28f1bbe3702e065f4e3fd210e36c30af37af01183ffafb24c89",
+      "classification": "Prototype reference; only avatar trio is a self-contained reusable source unit"
+    },
+    {
+      "file": "reference-source/use-director-motion.ts.txt",
+      "source": "frontend/prototypes/builder-studio-v4/components/use-director-motion.ts",
+      "sha256": "ae7ac47115976925ba6b41290af6e773244761fdc111ce25f976bbd489960291",
+      "classification": "Prototype reference; only avatar trio is a self-contained reusable source unit"
+    },
+    {
+      "file": "reference-source/director-room.tsx.txt",
+      "source": "frontend/prototypes/builder-studio-v4/components/director-room.tsx",
+      "sha256": "8aa7ae37544e7383ac0ee2ee5a0657996760cb002fed9762bbe033ada9caa30c",
+      "classification": "Prototype reference; only avatar trio is a self-contained reusable source unit"
+    },
+    {
+      "file": "reference-source/director-room.css",
+      "source": "frontend/prototypes/builder-studio-v4/components/director-room.css",
+      "sha256": "2d7b90525d9bd72220949bbc7af3ab6fcb5ee9f06e6e10d6bc497392218ff3ce",
+      "classification": "Prototype reference; only avatar trio is a self-contained reusable source unit"
+    },
+    {
+      "file": "reference-source/director-mode-frame.css",
+      "source": "frontend/prototypes/builder-studio-v4/components/director-mode-frame.css",
+      "sha256": "80c8fe52dac6e96e202a99366aa2870fec67498232d6980f9a1edb42ed017aa2",
+      "classification": "Prototype reference; only avatar trio is a self-contained reusable source unit"
+    },
+    {
+      "file": "reference-source/director-ask.tsx.txt",
+      "source": "frontend/prototypes/builder-studio-v4/components/director-ask.tsx",
+      "sha256": "910c35e8c0599af61fc9d4c12f8ea9dc6dc1d8866853b6397c912236b3a66482",
+      "classification": "Prototype reference; only avatar trio is a self-contained reusable source unit"
+    },
+    {
+      "file": "reference-source/director-ask.css",
+      "source": "frontend/prototypes/builder-studio-v4/components/director-ask.css",
+      "sha256": "cbfdd46440a703e33183cb6abb77c2cce55cf9a64ffb28ebb998e91d605064f5",
+      "classification": "Prototype reference; only avatar trio is a self-contained reusable source unit"
+    }
+  ],
+  "application_source_references": [
+    {
+      "repository_path": "app/builder/page.tsx",
+      "sha256": "99d52b5b893aba05f0446a34b6d97ab71c657633a4c9c76fd84c12bd3815abfa"
+    },
+    {
+      "repository_path": "components/builder/chat/studio-director-header.tsx",
+      "sha256": "5b02d78411b8699b83c7719b09e52cea5d0260997f07fa7eeb7066428b3ccf8b"
+    },
+    {
+      "repository_path": "components/builder/chat-input.tsx",
+      "sha256": "d8ba060a581ba31756a6bfeb474f259b39f608d19588d12287cd6971ae73d960"
+    },
+    {
+      "repository_path": "components/builder/message-list.tsx",
+      "sha256": "97b7cafabec3276a0c8158c9c7a150dc8bfc086995a210d74df3d58156dda6f1"
+    },
+    {
+      "repository_path": "components/builder/chat/question-card.tsx",
+      "sha256": "562a74db9fb1d8741adcc18ba9da6736cfeba8c7810c44ef9c99701798a750b4"
+    },
+    {
+      "repository_path": "hooks/use-deckster-websocket-v2.ts",
+      "sha256": "dd9db8d66e645ea074da65850cf567e7bd3d57717c4fb8c76c6ec7ed8525df6e"
+    },
+    {
+      "repository_path": "components/published-presenter.tsx",
+      "sha256": "0ee2e9952cd3f8f18a57a1668eff3bcb6030a512357dc2b842b133b35ffc932c"
+    },
+    {
+      "repository_path": "components/presenter-question.tsx",
+      "sha256": "820d50370724c954fbbb3d309319a575ddd5a4c76ee56f14e2656039f4fbab2f"
+    },
+    {
+      "repository_path": "components/published-qa-panel.tsx",
+      "sha256": "6cf4f4941c80c71ecd59f44efe7364f421d064e922cedf00da8bc5dba73f4a60"
+    },
+    {
+      "repository_path": "lib/narration/voices.ts",
+      "sha256": "380e16fc0600e707f2c022b3d31a22305f0c4768d13d2e3c8276415b198ae6ec"
+    },
+    {
+      "repository_path": "components/narration-voice-picker.tsx",
+      "sha256": "c26b6efa66e2146630eb1b7be3a7a329e60b7406da0bed2b19bc39d4320243a9"
+    }
+  ]
+}

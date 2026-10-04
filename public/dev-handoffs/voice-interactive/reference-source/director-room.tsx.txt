@@ -1,0 +1,380 @@
+'use client';
+
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { ArrowUp, ChevronDown, History, Keyboard, LockKeyhole, Mic, MicOff, Pause, SlidersHorizontal, Volume2, VolumeX, X } from 'lucide-react';
+import DirectorCharacter from './director-character';
+import AskCard, { askOf } from './director-ask';
+import { useFeatureAccess } from './feature-access';
+import type { AskOption, Message } from './model';
+import './director-room.css';
+
+type Props = {
+  messages: Message[];
+  busy: boolean;
+  onSend: (text: string) => void;
+  onStop: () => void;
+  contextKey: string;
+  contextLabel: string;
+  suspended?: boolean;
+  draftStage?: boolean;
+  /** v4: 'video' is the face-to-face call view; 'voice' is a compact strip above the open chat. */
+  variant?: 'video' | 'voice';
+  /** Simulated microphone mute from the call bar. Talk is unavailable while muted. */
+  muted?: boolean;
+  /** Opens the composer (type, attach, template, theme, options) as a sheet over the call. */
+  onOpenOptions?: () => void;
+  /** A choice that needs the user's own words (production requires_input). */
+  onNeedsInput?: (option: AskOption) => void;
+  selfInitials?: string;
+};
+type Activity = 'idle' | 'listening' | 'thinking' | 'noting' | 'speaking';
+type PartialTurn = { role: 'user' | 'assistant'; text: string; fullText: string; id?: string };
+const examples = [
+  { label: 'Sharpen opening', text: 'Make the opening more concise.' },
+  { label: 'Add a slide', text: 'Add a new slide about our next strategic move.' },
+  { label: 'Speaker notes', text: 'Draft speaker notes for this slide.' },
+];
+const firstDraftExample = [{ label: 'Start a story', text: 'A strategic briefing on the future of AI' }];
+const latestAssistant = (messages: Message[]) => [...messages].reverse().find(message => message.role === 'assistant');
+const plainText = (text: string) => text.replace(/\*\*|__|`/g, '').trim();
+// A word is a short gesture; punctuation leaves room for a breath. This is visual
+// pacing, not phoneme-level lip sync, and never delays the normal onSend path.
+const wordTiming = (word: string) => {
+  const speaking = Math.min(330, 135 + word.replace(/[^\p{L}\p{N}]/gu, '').length * 18);
+  const pause = /[.!?…]["'”’)]*$/.test(word) ? 370 : /[,;:]["'”’)]*$/.test(word) ? 180 : 40;
+  return { speaking, total: speaking + pause };
+};
+
+/**
+ * Local conversation choreography only: no recording, speech recognition, or provider calls.
+ * A completed sample utterance enters the same onSend path as typed Studio chat.
+ */
+export default function DirectorRoom({ messages, busy, onSend, onStop, contextKey, contextLabel, suspended = false, draftStage = false, variant = 'video', muted = false, onOpenOptions, onNeedsInput, selfInitials = 'You' }: Props) {
+  const [dismissedChoice, setDismissedChoice] = useState<string | null>(null);
+  const { can, explain } = useFeatureAccess();
+  const allowed = can('director.voice');
+  const [activity, setActivity] = useState<Activity>('idle');
+  const [partial, setPartial] = useState<PartialTurn | null>(null);
+  const [awaitingReply, setAwaitingReply] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [selectedExample, setSelectedExample] = useState(0);
+  const [audioOn, setAudioOn] = useState(false);
+  const [localVoiceReady, setLocalVoiceReady] = useState(false);
+  const [speechActive, setSpeechActive] = useState(false);
+  const [mouthActive, setMouthActive] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [announcement, setAnnouncement] = useState('');
+  const [busyNoting, setBusyNoting] = useState(false);
+  const transcript = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const utterance = useRef<SpeechSynthesisUtterance | null>(null);
+  const continueWithoutAudio = useRef<(() => void) | null>(null);
+  const run = useRef(0);
+  const inFlight = useRef(false);
+  const lastAssistant = useRef(latestAssistant(messages)?.id);
+  const latest = useRef({ allowed, suspended, busy, onSend, messages });
+  latest.current = { allowed, suspended, busy, onSend, messages };
+  const historyButton = useRef<HTMLButtonElement>(null);
+  const transcriptId = useId();
+  const inputId = useId();
+  const draftChips = latestAssistant(messages)?.chips;
+  const options = draftStage ? (draftChips?.length ? draftChips.slice(0, 3).map(text => ({ label: text, text })) : firstDraftExample) : examples;
+
+  const later = useCallback((fn: () => void, delay: number) => {
+    const timer = setTimeout(() => { timers.current.delete(timer); fn(); }, delay);
+    timers.current.add(timer);
+    return timer;
+  }, []);
+
+  const cancelMedia = useCallback(() => {
+    run.current += 1;
+    inFlight.current = false;
+    continueWithoutAudio.current = null;
+    timers.current.forEach(clearTimeout);
+    timers.current.clear();
+    if (utterance.current) {
+      utterance.current.onstart = null;
+      utterance.current.onend = null;
+      utterance.current.onerror = null;
+      utterance.current.onboundary = null;
+      utterance.current.onpause = null;
+      utterance.current.onresume = null;
+      utterance.current = null;
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+  }, []);
+
+  const resetActivity = useCallback(() => {
+    cancelMedia();
+    setActivity('idle'); setPartial(null); setAwaitingReply(false); setSpeechActive(false); setMouthActive(false);
+  }, [cancelMedia]);
+
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const check = () => setLocalVoiceReady(window.speechSynthesis.getVoices().some(voice => voice.localService));
+    check();
+    window.speechSynthesis.addEventListener('voiceschanged', check);
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', check);
+  }, []);
+
+  useEffect(() => {
+    resetActivity();
+    lastAssistant.current = latestAssistant(latest.current.messages)?.id;
+    setNotice(''); setAnnouncement(''); setTyped(''); setSelectedExample(0); setHistoryOpen(false);
+    if (!allowed) setAudioOn(false);
+    return cancelMedia;
+  }, [contextKey, suspended, allowed, resetActivity, cancelMedia]);
+
+  useEffect(() => {
+    const hidden = () => { if (document.hidden) { resetActivity(); setNotice('Paused while you were away. Your conversation is saved below.'); } };
+    document.addEventListener('visibilitychange', hidden);
+    return () => { document.removeEventListener('visibilitychange', hidden); cancelMedia(); };
+  }, [resetActivity, cancelMedia]);
+
+  useEffect(() => {
+    setBusyNoting(false);
+    if (!busy || suspended || !allowed) return;
+    const timer = later(() => setBusyNoting(true), 700);
+    return () => { clearTimeout(timer); timers.current.delete(timer); };
+  }, [busy, suspended, allowed, later]);
+
+  useEffect(() => { if (keyboardOpen) input.current?.focus(); }, [keyboardOpen]);
+
+  // A new answer owns one cancellable timeline. Device word boundaries lead the
+  // captions when available; browsers without them use a natural reading cadence.
+  // A mode/context change invalidates every pending callback through the run token.
+  useEffect(() => {
+    const answer = latestAssistant(messages);
+    if (!answer || answer.id === lastAssistant.current) return;
+    lastAssistant.current = answer.id;
+    if (!allowed || suspended || document.hidden) return;
+    cancelMedia();
+    const token = run.current;
+    const text = plainText(answer.text);
+    const tokens = [...text.matchAll(/\S+/g)];
+    const words = tokens.map(match => match[0]);
+    let count = 0;
+    let soundPlaying = false;
+    let finished = false;
+    let ticker: ReturnType<typeof setTimeout> | undefined;
+    let mouthTimer: ReturnType<typeof setTimeout> | undefined;
+    let guard: ReturnType<typeof setTimeout> | undefined;
+    const valid = () => run.current === token && !finished;
+    const clear = (timer: ReturnType<typeof setTimeout> | undefined) => {
+      if (timer !== undefined) { clearTimeout(timer); timers.current.delete(timer); }
+    };
+    const releaseSpeech = () => {
+      const speech = utterance.current;
+      if (!speech) return;
+      speech.onstart = null; speech.onend = null; speech.onerror = null;
+      speech.onboundary = null; speech.onpause = null; speech.onresume = null;
+      utterance.current = null;
+    };
+    const finish = () => {
+      if (!valid()) return;
+      finished = true;
+      clear(ticker); clear(mouthTimer); clear(guard);
+      releaseSpeech(); continueWithoutAudio.current = null;
+      setPartial(null); setActivity('idle'); setSpeechActive(false); setMouthActive(false);
+      setAnnouncement(`Director: ${text}`);
+    };
+    const showWord = (nextCount: number) => {
+      if (!valid()) return;
+      count = Math.max(count, Math.min(nextCount, words.length));
+      setPartial({ role: 'assistant', id: answer.id, text: words.slice(0, count).join(' '), fullText: answer.text });
+      clear(mouthTimer);
+      setMouthActive(true);
+      mouthTimer = later(() => { if (valid()) setMouthActive(false); }, wordTiming(words[Math.max(0, count - 1)] || '').speaking);
+    };
+    const tick = () => {
+      if (!valid()) return;
+      if (count >= words.length) { if (!soundPlaying) finish(); return; }
+      showWord(count + 1);
+      ticker = later(tick, wordTiming(words[count - 1]).total);
+    };
+    const silentlyContinue = () => {
+      if (!valid()) return;
+      soundPlaying = false;
+      setSpeechActive(false); setMouthActive(false);
+      clear(ticker); clear(mouthTimer); clear(guard); releaseSpeech();
+      continueWithoutAudio.current = null;
+      ticker = later(tick, 100);
+    };
+    setAwaitingReply(false); setSpeechActive(false); setMouthActive(false);
+    setActivity('speaking'); setNotice('');
+    setPartial({ role: 'assistant', id: answer.id, text: '', fullText: answer.text });
+    if (!words.length) { finish(); return; }
+    if (!audioOn || !('speechSynthesis' in window)) { ticker = later(tick, 130); return; }
+    const voices = window.speechSynthesis.getVoices().filter(voice => voice.localService);
+    const voice = voices.find(item => item.lang.startsWith(navigator.language.split('-')[0])) || voices[0];
+    if (!voice) {
+      setNotice('No on-device voice is available. You can follow the transcript below.');
+      setLocalVoiceReady(false); ticker = later(tick, 130); return;
+    }
+    const speech = new SpeechSynthesisUtterance(text);
+    speech.voice = voice; speech.lang = voice.lang; speech.rate = 1;
+    continueWithoutAudio.current = silentlyContinue;
+    speech.onstart = () => {
+      if (!valid()) return;
+      soundPlaying = true; setSpeechActive(true); clear(ticker);
+      // Most device voices send word events immediately. If they do not, keep
+      // captions progressing rather than hiding the answer until audio ends.
+      ticker = later(tick, 700);
+    };
+    speech.onboundary = event => {
+      if (!valid() || (event.name && event.name !== 'word')) return;
+      const index = tokens.findIndex(match => (match.index || 0) + match[0].length > event.charIndex);
+      if (index < 0) return;
+      clear(ticker); showWord(index + 1);
+      ticker = later(tick, Math.max(950, wordTiming(words[index]).total + 450));
+    };
+    speech.onpause = () => {
+      if (!valid()) return;
+      clear(ticker); clear(mouthTimer); setMouthActive(false);
+    };
+    speech.onresume = () => { if (valid()) ticker = later(tick, 700); };
+    speech.onend = finish;
+    speech.onerror = () => {
+      if (!valid()) return;
+      setNotice('Voice playback is unavailable. The written conversation is still here.');
+      silentlyContinue();
+    };
+    utterance.current = speech;
+    // A device that never starts or completes speech must not trap the controls.
+    ticker = later(() => {
+      if (!valid() || soundPlaying) return;
+      releaseSpeech(); window.speechSynthesis.cancel(); silentlyContinue();
+    }, 1200);
+    guard = later(() => {
+      if (!valid()) return;
+      releaseSpeech(); window.speechSynthesis.cancel(); silentlyContinue();
+    }, Math.max(8000, words.length * 850 + 3000));
+    try { window.speechSynthesis.speak(speech); }
+    catch { setNotice('Voice playback is unavailable in this browser.'); silentlyContinue(); }
+  }, [messages, allowed, suspended, audioOn, cancelMedia, later]);
+
+  useEffect(() => {
+    const region = transcript.current;
+    if (region) {
+      region.scrollTop = region.scrollHeight;
+      if (!historyOpen) region.querySelectorAll<HTMLElement>('.dr-line-streaming p').forEach(caption => { caption.scrollLeft = caption.scrollWidth; });
+    }
+  }, [messages, partial, busy, historyOpen]);
+
+  const startTurn = (text: string, simulate: boolean) => {
+    const clean = text.trim();
+    if (!clean || !latest.current.allowed || latest.current.suspended || latest.current.busy || inFlight.current || document.hidden) return;
+    resetActivity();
+    const token = run.current;
+    inFlight.current = true;
+    setNotice(''); setAnnouncement(''); setKeyboardOpen(false); setHistoryOpen(false); setTyped('');
+    setActivity(simulate ? 'listening' : 'noting');
+    const words = clean.split(/\s+/);
+    let count = simulate ? 0 : words.length;
+    setPartial({ role: 'user', text: simulate ? '' : clean, fullText: clean });
+    const commit = () => {
+      if (run.current !== token || !latest.current.allowed || latest.current.suspended || latest.current.busy || document.hidden) return;
+      // The mock dispatch is deliberately once-only and always uses the normal Director path.
+      inFlight.current = false;
+      setActivity('thinking'); setAwaitingReply(true); setPartial(null);
+      setAnnouncement(`You: ${clean}`);
+      latest.current.onSend(clean);
+      later(() => { if (run.current === token && !latest.current.busy) { setAwaitingReply(false); setActivity('idle'); } }, 500);
+    };
+    const next = () => {
+      if (run.current !== token) return;
+      count += 1;
+      setPartial({ role: 'user', text: words.slice(0, count).join(' '), fullText: clean });
+      if (count < words.length) later(next, 160);
+      else later(commit, 600);
+    };
+    if (simulate) later(next, 280);
+    else later(commit, 100);
+  };
+
+  const pause = () => {
+    const wasBusy = busy;
+    resetActivity();
+    if (wasBusy) onStop();
+    setNotice(wasBusy ? 'Director paused. Your conversation stays here.' : 'Conversation paused. Ready whenever you are.');
+  };
+  const toggleAudio = () => {
+    if (audioOn) {
+      setAudioOn(false);
+      if (utterance.current) {
+        utterance.current.onend = null; utterance.current.onerror = null; utterance.current.onstart = null;
+        utterance.current.onboundary = null; utterance.current.onpause = null; utterance.current.onresume = null;
+        utterance.current = null;
+        window.speechSynthesis.cancel();
+      }
+      continueWithoutAudio.current?.();
+      setSpeechActive(false);
+      setNotice('Voice off. You can still follow every word below.');
+    } else {
+      setAudioOn(true);
+      setNotice('Voice on. New replies will use your device’s voice.');
+    }
+  };
+  const active = busy || awaitingReply || activity !== 'idle' || speechActive;
+  const actorState: Activity = suspended || !allowed ? 'idle' : partial?.role === 'user' ? activity : partial?.role === 'assistant' || speechActive ? 'speaking' : busy ? (busyNoting ? 'noting' : 'thinking') : activity;
+  const status = actorState === 'listening' ? 'I’m listening.' : actorState === 'thinking' ? 'Let me think that through…' : actorState === 'noting' ? 'Putting your ideas to work.' : actorState === 'speaking' ? 'Here’s what I’m thinking.' : 'Ready when you are.';
+  const matchingUser = partial?.role === 'user' && messages.at(-1)?.role === 'user' && messages.at(-1)?.text === partial.fullText;
+
+  const visibleMessages = historyOpen ? messages : partial?.role === 'user' ? messages.slice(-1).filter(message => message.role === 'assistant') : messages.slice(-2);
+  const streamCaption = (text: string) => historyOpen || text.length < 125 ? text : `…${text.slice(-125).replace(/^\S*\s/, '')}`;
+
+  const ask = latestAssistant(messages);
+  const pendingAsk = ask && messages.at(-1)?.id === ask.id ? askOf(ask) : undefined;
+  const showDecision = variant === 'video' && !!pendingAsk && !!ask && allowed && !suspended && !busy && !active && !partial && !historyOpen && dismissedChoice !== ask.id;
+  const talkButton = <button type="button" className={`dr-talk ${active ? 'dr-talk-active' : ''}`} title={muted && !active ? 'Unmute to talk' : undefined} disabled={!allowed || suspended || (muted && !active)} onClick={active ? pause : () => startTurn(options[selectedExample]?.text || options[0].text, true)} aria-label={active ? 'Pause Director conversation' : 'Talk to Director — play selected sample'}>{active ? <Pause size={16} /> : <Mic size={16} />}<span>{active ? 'Pause' : 'Talk'}</span></button>;
+  const samplePicker = <div className="dr-sample-picker" title={`Sample: ${options[selectedExample]?.label || options[0].label}`}><ChevronDown size={14} aria-hidden="true" /><select aria-label="Choose a sample conversation" value={Math.min(selectedExample, options.length - 1)} disabled={active || !allowed || suspended} onChange={event => setSelectedExample(Number(event.target.value))}>{options.map((example, index) => <option key={example.label} value={index}>{example.label}</option>)}</select></div>;
+  const speakerButton = <button type="button" className={`dr-round-control ${audioOn ? 'dr-control-selected' : ''}`} aria-label={audioOn ? 'Turn off Director voice' : 'Turn on Director voice'} aria-pressed={audioOn} data-tip={localVoiceReady ? (audioOn ? 'Mute Director’s voice' : 'Hear Director’s voice') : 'No device voice available'} disabled={!allowed || suspended || !localVoiceReady} onClick={toggleAudio}>{audioOn ? <Volume2 size={17} /> : <VolumeX size={17} />}</button>;
+
+  if (variant === 'voice') return <section className={`director-room dr-voice dr-${actorState}`} aria-label="Voice call with Director">
+    <div className="drv-avatar" aria-hidden="true"><DirectorCharacter state={actorState} mouthActive={mouthActive} paused={suspended || !allowed} portrait withBackground={false} /></div>
+    <div className="drv-status"><strong>{partial?.role === 'user' ? 'You’re speaking' : muted && !active ? 'You’re muted' : status}</strong><p>{partial?.role === 'user' ? streamCaption(partial.text) || '…' : muted && !active ? 'Unmute to talk, or type below.' : 'Added to the chat below'}</p><div className={`dr-wave ${active ? 'dr-wave-active' : ''}`} aria-hidden="true">{Array.from({ length: 11 }, (_, index) => <i key={index} style={{ '--wave-index': index } as React.CSSProperties} />)}</div></div>
+    <div className="drv-controls">{speakerButton}{talkButton}{samplePicker}</div>
+    {notice && <p className="dr-notice drv-notice" role="status">{notice}</p>}
+    <div className="dr-sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
+  </section>;
+
+  return <section className={`director-room dr-${actorState} ${historyOpen ? 'dr-history-open' : ''}`} aria-label="Director conversation" onKeyDown={event => { if (event.key === 'Escape' && historyOpen) { event.stopPropagation(); setHistoryOpen(false); historyButton.current?.focus(); } }}>
+    <div className="dr-scene">
+      <div className="dr-scene-context" title={contextLabel}><span />{contextLabel}</div>
+      <div className="dr-character-stage"><DirectorCharacter state={actorState} mouthActive={mouthActive} paused={suspended || !allowed || historyOpen} withBackground={false} /></div>
+      <div className="dr-person"><span className="dr-person-name">Director</span><p>{status}</p></div>
+      <div className="dr-self" role="img" aria-label={`Your camera is off${muted ? ', microphone muted' : ''}`}><span>{selfInitials}</span><small>{muted ? <><MicOff size={9} />Muted</> : 'Camera off'}</small></div>
+      {showDecision && ask && pendingAsk && <div className="dr-decision" role="region" aria-label="Director needs your input">
+        <AskCard ask={pendingAsk} variant="sheet" prompt={plainText(ask.text)} disabled={busy || active} onAnswer={text => startTurn(text, false)} onNeedsInput={option => onNeedsInput ? onNeedsInput(option) : startTurn(option.label, false)} onDismiss={() => setDismissedChoice(ask.id)} />
+        {onOpenOptions && <button type="button" className="dr-decision-more" onClick={onOpenOptions}><SlidersHorizontal size={12} />Type or change options</button>}
+      </div>}
+      <div className={`dr-wave ${active ? 'dr-wave-active' : ''}`} aria-hidden="true">{Array.from({ length: 17 }, (_, index) => <i key={index} style={{ '--wave-index': index } as React.CSSProperties} />)}</div>
+    </div>
+    <div className="dr-transcript-head"><span>{historyOpen ? 'Conversation history' : 'Live captions'}</span><button ref={historyButton} type="button" aria-label={historyOpen ? 'Close conversation history' : 'Show full conversation history'} aria-expanded={historyOpen} aria-controls={transcriptId} onClick={() => setHistoryOpen(value => !value)}>{historyOpen ? <X size={12} /> : <History size={12} />}</button></div>
+    <div ref={transcript} className="dr-transcript" id={transcriptId} role="region" aria-label="Conversation transcript" tabIndex={0}>
+      {messages.length === 0 && !partial && <div className="dr-empty"><span>Director</span><p>Tell me what you have in mind. We’ll shape it together.</p></div>}
+      {visibleMessages.map(message => {
+        const streaming = partial?.role === 'assistant' && partial.id === message.id;
+        return <div key={message.id} className={`dr-line dr-line-${message.role} ${streaming ? 'dr-line-streaming' : ''}`}><span>{message.role === 'user' ? 'You' : 'Director'}</span><p>{streaming ? streamCaption(partial.text) || '…' : plainText(message.text)}{streaming && <b className="dr-caret" aria-hidden="true" />}</p></div>;
+      })}
+      {partial?.role === 'user' && !matchingUser && <div className="dr-line dr-line-user dr-line-streaming"><span>You</span><p>{streamCaption(partial.text) || '…'}<b className="dr-caret" aria-hidden="true" /></p></div>}
+      {historyOpen && busy && !partial && <div className="dr-thinking-caption"><i /><span>{busyNoting ? 'Working on your presentation…' : 'Thinking through your request…'}</span></div>}
+    </div>
+    <div className="dr-controls">
+      {!allowed && <div className="dr-access-note" role="status"><LockKeyhole size={12} />{explain('director.voice')}</div>}
+      {keyboardOpen && <form className="dr-type-row" onSubmit={event => { event.preventDefault(); startTurn(typed, false); }}><label className="dr-sr-only" htmlFor={inputId}>What would you like to say to Director?</label><input id={inputId} ref={input} value={typed} maxLength={2000} onChange={event => setTyped(event.target.value)} placeholder="Tell Director what’s on your mind…" disabled={active || !allowed || suspended} /><button type="submit" aria-label="Send to Director" disabled={!typed.trim() || active || !allowed || suspended}><ArrowUp size={15} /></button><button type="button" aria-label="Close typing input" onClick={() => setKeyboardOpen(false)}><ChevronDown size={15} /></button></form>}
+      <div className="dr-main-controls">
+        <button type="button" className={`dr-round-control ${audioOn ? 'dr-control-selected' : ''}`} aria-label={audioOn ? 'Turn off Director voice' : 'Turn on Director voice'} aria-pressed={audioOn} data-tip={localVoiceReady ? (audioOn ? 'Mute Director’s voice' : 'Hear Director’s voice') : 'No device voice available'} disabled={!allowed || suspended || !localVoiceReady} onClick={toggleAudio}>{audioOn ? <Volume2 size={17} /> : <VolumeX size={17} />}</button>
+        <button type="button" className={`dr-talk ${active ? 'dr-talk-active' : ''}`} title={muted && !active ? 'Unmute to talk' : undefined} disabled={!allowed || suspended || (muted && !active)} onClick={active ? pause : () => startTurn(options[selectedExample]?.text || options[0].text, true)} aria-label={active ? 'Pause Director conversation' : 'Talk to Director — play selected sample'}>{active ? <Pause size={16} /> : <Mic size={16} />}<span>{active ? 'Pause' : 'Talk'}</span></button>
+        <div className="dr-sample-picker" title={`Sample: ${options[selectedExample]?.label || options[0].label}`}><ChevronDown size={14} aria-hidden="true" /><select aria-label="Choose a sample conversation" value={Math.min(selectedExample, options.length - 1)} disabled={active || !allowed || suspended} onChange={event => setSelectedExample(Number(event.target.value))}>{options.map((example, index) => <option key={example.label} value={index}>{example.label}</option>)}</select></div>
+        <button type="button" className={`dr-round-control ${keyboardOpen ? 'dr-control-selected' : ''}`} aria-label={keyboardOpen ? 'Close typing alternative' : 'Type to Director instead'} data-tip={keyboardOpen ? 'Close typing' : 'Type instead'} aria-expanded={keyboardOpen} disabled={active || !allowed || suspended} onClick={() => setKeyboardOpen(value => !value)}><Keyboard size={17} /></button>
+      </div>
+      <p className="dr-preview-note"><MicOff size={10} />Simulated conversation · microphone off</p>
+      {notice && <p className="dr-notice" role="status">{notice}</p>}
+    </div>
+    <div className="dr-sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
+  </section>;
+}

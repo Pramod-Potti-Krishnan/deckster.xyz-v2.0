@@ -1,0 +1,25 @@
+/* Layered pose variables are eased by useDirectorMotion; SVG artwork stays crisp at both sizes. */
+.director-character{position:relative;width:100%;height:100%;min-height:0;max-height:100%;isolation:isolate;overflow:visible;--dch-breath:0px;--dch-lean:0deg;--dch-head-x:0px;--dch-head-y:0px;--dch-tilt:0deg;--dch-gaze-x:0px;--dch-gaze-y:0px;--dch-blink:1;--dch-brow-l:0px;--dch-brow-r:0px;--dch-mouth:.08;--dch-mouth-width:1;--dch-speech:0;--dch-gesture:0deg;--dch-hand-open:0;--dch-pen-x:0px;--dch-pen-y:0px;--dch-pen-angle:0deg}
+.director-character>svg{display:block;width:100%;height:100%;max-height:100%;overflow:visible;object-fit:contain}
+.dch-person{transform-origin:240px 306px;transform:translateY(var(--dch-breath)) rotate(var(--dch-lean))}
+.dch-head{transform-origin:238px 204px;transform:translate(var(--dch-head-x),var(--dch-head-y)) rotate(var(--dch-tilt))}
+.dch-eyes{transform-origin:238px 133px;transform:scaleY(var(--dch-blink))}
+.dch-gaze{transform:translate(var(--dch-gaze-x),var(--dch-gaze-y))}
+.dch-brow-left{transform:translateY(var(--dch-brow-l))}.dch-brow-right{transform:translateY(var(--dch-brow-r))}
+.dch-speaking-mouth{opacity:var(--dch-speech);transform-origin:239px 169px;transform:scale(var(--dch-mouth-width),var(--dch-mouth))}
+.dch-smile{opacity:calc(1 - var(--dch-speech))}
+.dch-resting-arm{transform-origin:177px 238px;transform:rotate(var(--dch-gesture))}
+.dch-resting-fingers{opacity:calc(1 - var(--dch-hand-open))}.dch-open-hand{opacity:var(--dch-hand-open)}
+.dch-writing-hand{transform-origin:291px 290px;transform:translate(var(--dch-pen-x),var(--dch-pen-y)) rotate(var(--dch-pen-angle))}
+.dch-note-line{stroke-dasharray:30;stroke-dashoffset:0}.dch-noting .dch-note-line{animation:dch-ink .7s ease-out .12s both}.dch-noting .dch-note-line-two{animation-delay:.97s}.dch-noting .dch-note-line-three{animation-delay:1.82s}
+.dch-steam{transform-origin:131px 281px;animation:dch-steam-rise 5.3s ease-in-out infinite}
+.dch-listen-rings,.dch-thoughts,.dch-speech-waves{opacity:0;transition:opacity .4s ease}
+.dch-listening .dch-listen-rings{opacity:.5}.dch-thinking .dch-thoughts{opacity:.7}.dch-thinking .dch-thoughts circle{transform-box:fill-box;transform-origin:center;animation:dch-thought 3.3s ease-in-out infinite}.dch-thinking .dch-thoughts circle:nth-child(2){animation-delay:.22s}.dch-thinking .dch-thoughts circle:nth-child(3){animation-delay:.44s}
+.dch-speaking .dch-speech-waves{opacity:calc(var(--dch-speech) * .4)}.dch-speaking .dch-speech-waves path{transform-origin:323px 162px;transform:scaleY(calc(.4 + var(--dch-mouth) * .8))}
+/* The expression carries the Studio conversation; decorative status glyphs stay out of the person-only view. */
+.dch-person-only :is(.dch-listen-rings,.dch-thoughts,.dch-speech-waves){display:none}
+.director-character[data-motion=paused] *{animation-play-state:paused!important;transition:none!important}
+@keyframes dch-steam-rise{0%,100%{opacity:.15;transform:translateY(2px)}55%{opacity:.65;transform:translateY(-4px)}}
+@keyframes dch-thought{0%,100%{opacity:.5;transform:scale(.92)}50%{opacity:1;transform:scale(1)}}
+@keyframes dch-ink{from{stroke-dashoffset:30;opacity:.3}to{stroke-dashoffset:0;opacity:1}}
+@media(prefers-reduced-motion:reduce){.director-character *{animation:none!important;transition:none!important}.dch-thinking .dch-head{transform:rotate(-2deg)}.dch-noting .dch-head{transform:translateY(2px) rotate(2deg)}.dch-listening .dch-head{transform:rotate(1deg)}.dch-speaking .dch-speaking-mouth{opacity:0}.dch-speaking .dch-smile{opacity:1}}

@@ -1,0 +1,88 @@
+'use client';
+
+/*
+ * v4: one renderer for everything Director asks, used by chat (inline card), voice calls (pinned above the
+ * composer) and video calls (sheet over the lower part of the video). The same answer path is used in every mode,
+ * so a tapped, typed or spoken answer carries identical content. Local simulation only.
+ */
+import React, { useEffect, useState } from 'react';
+import { AlertTriangle, ArrowUp, Check, CheckCircle2, HelpCircle, ListChecks, PenLine, Star, X } from 'lucide-react';
+import type { Ask, AskOption, Message } from './model';
+import './director-ask.css';
+
+export type AskVariant = 'chat' | 'pinned' | 'sheet';
+
+/** Older messages carry plain chips; treat them as a simple choice. */
+export function askOf(message?: Message): Ask | undefined {
+  if (!message || message.role !== 'assistant') return undefined;
+  if (message.ask) return message.ask;
+  return message.chips?.length ? { kind: 'choice', options: message.chips.map(label => ({ label })), allowText: true } : undefined;
+}
+
+const HEAD: Record<Ask['kind'], { icon: typeof HelpCircle; label: string }> = {
+  choice: { icon: HelpCircle, label: 'Your input' },
+  questions: { icon: ListChecks, label: 'Quick questions' },
+  approval: { icon: CheckCircle2, label: 'Approval needed' },
+  confirm: { icon: AlertTriangle, label: 'Please confirm' },
+};
+
+type Props = {
+  ask: Ask; variant: AskVariant; prompt?: string; disabled?: boolean;
+  onAnswer: (text: string) => void; onNeedsInput: (option: AskOption) => void; onDismiss?: () => void;
+};
+
+function OptionButton({ option, onPick, disabled, selected }: { option: AskOption; onPick: () => void; disabled?: boolean; selected?: boolean }) {
+  return <button type="button" className={`da-option ${option.primary ? 'is-primary' : ''} ${option.danger ? 'is-danger' : ''} ${selected ? 'is-selected' : ''}`} aria-pressed={selected} disabled={disabled} onClick={onPick}>
+    {option.needsInput && <PenLine size={11} aria-hidden="true" />}{option.label}{option.recommended && !selected && <Star size={9} className="da-rec" aria-label="Recommended" />}{selected && <Check size={11} aria-hidden="true" />}
+  </button>;
+}
+
+export default function AskCard({ ask, variant, prompt, disabled, onAnswer, onNeedsInput, onDismiss }: Props) {
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [free, setFree] = useState<Record<string, string>>({});
+  const [other, setOther] = useState('');
+  const [current, setCurrent] = useState(0);
+  useEffect(() => { setAnswers({}); setFree({}); setOther(''); setCurrent(0); }, [ask]);
+  const head = HEAD[ask.kind];
+  const compact = variant !== 'chat';
+  const pick = (option: AskOption) => option.needsInput ? onNeedsInput(option) : onAnswer(option.label);
+
+  let body: React.ReactNode = null;
+  if (ask.kind === 'choice' || ask.kind === 'approval' || ask.kind === 'confirm') {
+    const options = ask.options.slice(0, compact ? 4 : 6);
+    body = <>
+      {ask.kind === 'approval' && <div className="da-approval"><strong>{ask.title}</strong>{ask.summary && <p>{ask.summary}</p>}{ask.reviewHint && <small>{ask.reviewHint}</small>}</div>}
+      {ask.kind === 'confirm' && <div className="da-approval da-confirm"><strong>{ask.title}</strong><p>{ask.detail}</p></div>}
+      <div className="da-options">{options.map(option => <OptionButton key={option.label} option={option} disabled={disabled} onPick={() => pick(option)} />)}</div>
+      {ask.kind === 'choice' && ask.allowText && compact && <form className="da-other" onSubmit={event => { event.preventDefault(); if (other.trim()) { onAnswer(other.trim()); setOther(''); } }}><input aria-label="Or type your own answer" placeholder="Or type your own…" value={other} disabled={disabled} onChange={event => setOther(event.target.value)} /><button type="submit" aria-label="Send your answer" disabled={disabled || !other.trim()}><ArrowUp size={13} /></button></form>}
+    </>;
+  } else {
+    const questions = ask.questions;
+    const valueOf = (id: string) => (free[id] || '').trim() || answers[id] || '';
+    const answered = questions.filter(q => valueOf(q.id)).length;
+    const firstOpen = questions.findIndex(q => !valueOf(q.id));
+    // Chat reveals questions one by one (as production does); calls show one question at a time with a step back.
+    const shown = compact ? [questions[Math.min(current, questions.length - 1)]] : questions.slice(0, firstOpen === -1 ? questions.length : firstOpen + 1);
+    const choose = (qid: string, label: string, index: number) => {
+      setAnswers(prior => ({ ...prior, [qid]: prior[qid] === label ? '' : label })); setFree(prior => ({ ...prior, [qid]: '' }));
+      if (compact && index < questions.length - 1) setTimeout(() => setCurrent(index + 1), 160);
+    };
+    const submit = () => onAnswer(questions.map(q => valueOf(q.id)).filter(Boolean).join(' · '));
+    body = <>
+      <p className="da-intro">{ask.intro}</p>
+      {compact && <div className="da-steps" aria-label={`Question ${current + 1} of ${questions.length}`}>{questions.map((q, index) => <button type="button" key={q.id} className={`${index === current ? 'is-current' : ''} ${valueOf(q.id) ? 'is-done' : ''}`} aria-label={`Question ${index + 1}${valueOf(q.id) ? `, answered ${valueOf(q.id)}` : ''}`} onClick={() => setCurrent(index)}>{valueOf(q.id) ? <Check size={9} /> : index + 1}</button>)}<span>{current + 1} of {questions.length}</span></div>}
+      {shown.map(q => { const index = questions.indexOf(q); return <div className="da-question" key={q.id}>
+        <strong>{q.text}</strong>
+        <div className="da-options">{q.options.map(option => <OptionButton key={option.label} option={option} disabled={disabled} selected={answers[q.id] === option.label && !(free[q.id] || '').trim()} onPick={() => choose(q.id, option.label, index)} />)}</div>
+        {q.allowText && <input className="da-free" aria-label={`Your own answer: ${q.text}`} placeholder="Or type your own…" value={free[q.id] || ''} disabled={disabled} onChange={event => setFree(prior => ({ ...prior, [q.id]: event.target.value }))} />}
+      </div>; })}
+      <div className="da-submit"><button type="button" className="da-send" disabled={disabled || !answered} onClick={submit}>Send answers{answered ? ` (${answered}/${questions.length})` : ''}</button>{!compact && answered < questions.length && answered > 0 && <small>More appear as you answer. Unanswered questions use Director’s recommendation.</small>}</div>
+    </>;
+  }
+  return <div className={`da-card da-${variant} da-kind-${ask.kind}`} role="group" aria-label={`Director asks: ${head.label}`}>
+    <div className="da-head"><head.icon size={12} /><span>{variant === 'sheet' ? 'Director asks' : head.label}</span>{onDismiss && <button type="button" aria-label="Hide for now" onClick={onDismiss}><X size={12} /></button>}</div>
+    {prompt && compact && ask.kind === 'choice' && <p className="da-prompt">{prompt}</p>}
+    {body}
+    {compact && <p className="da-hint">{ask.kind === 'approval' || ask.kind === 'confirm' ? 'Tap to decide. A spoken “yes” is read back for you to confirm before anything is built or removed.' : 'Tap, type, or just say it.'}</p>}
+  </div>;
+}
