@@ -4,7 +4,7 @@ import { Header, Footer } from '@/components/layout';
 import { PageHeader } from '@/components/marketing/PageHeader';
 import { Section } from '@/components/marketing/Section';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Lock, FileCheck, Server, Eye, Key } from 'lucide-react';
+import { Shield, Lock, FileCheck, Server, Key } from 'lucide-react';
 import { Metadata } from 'next';
 import { motion } from 'framer-motion';
 
@@ -15,7 +15,7 @@ export default function SecurityPage() {
 
             <PageHeader
                 title="Security & Compliance"
-                subtitle="We maintain the highest standards of security to protect your data and privacy."
+                subtitle="How Deckster looks after your data today, and what is still planned."
                 badge={{
                     text: "Trust Center",
                     icon: <Shield className="h-3 w-3" />
@@ -23,14 +23,12 @@ export default function SecurityPage() {
             />
 
             <Section>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
                     {[
-                        { icon: Shield, title: "SOC 2 Type II", desc: "We are SOC 2 Type II compliant, verifying that our security controls are effective and strictly followed.", color: "text-purple-600" },
-                        { icon: Lock, title: "End-to-End Encryption", desc: "All data is encrypted in transit using TLS 1.2+ and at rest using AES-256 encryption standards.", color: "text-blue-600" },
-                        { icon: FileCheck, title: "GDPR Compliant", desc: "We are fully compliant with GDPR regulations and provide tools to help you manage your data privacy.", color: "text-green-600" },
-                        { icon: Server, title: "Secure Infrastructure", desc: "Hosted on AWS with multiple availability zones, automated backups, and 24/7 monitoring.", color: "text-orange-600" },
-                        { icon: Eye, title: "Regular Audits", desc: "We conduct regular third-party penetration testing and security audits to identify vulnerabilities.", color: "text-pink-600" },
-                        { icon: Key, title: "Access Controls", desc: "Strict role-based access controls (RBAC) and multi-factor authentication (MFA) for all internal access.", color: "text-indigo-600" }
+                        { icon: Lock, title: "Encryption", desc: "Every connection, from your browser to Deckster and from Deckster to its services, uses HTTPS (TLS).", color: "text-blue-600" },
+                        { icon: FileCheck, title: "Data Privacy", desc: "Your presentations are yours. Our Privacy Policy explains what we collect, how it is used, and how to contact us about your data.", color: "text-green-600" },
+                        { icon: Server, title: "Where it runs", desc: "The web app runs on Vercel and the backend services on Railway.", color: "text-orange-600" },
+                        { icon: Key, title: "Sign-in", desc: "You sign in with your Google account, so Deckster never sees or stores your password. Planned: multi-factor login for all internal team access.", color: "text-indigo-600" }
                     ].map((item, i) => (
                         <motion.div
                             key={i}
@@ -61,17 +59,17 @@ export default function SecurityPage() {
                 >
                     <h2>Data Protection</h2>
                     <p>
-                        Your data belongs to you. We do not use your private presentation content to train our general AI models without your explicit permission. Enterprise customers have the option for private, isolated model instances.
+                        Your data belongs to you. Files you upload are stored in your account and read by the AI models that build your deck (Google and OpenRouter-hosted models). They are never shown to your audience by name. You can delete your knowledge graph with one button; deleting a file removes it from your list.
                     </p>
 
                     <h2>Vulnerability Disclosure</h2>
                     <p>
-                        We value the security community's help in keeping our platform safe. If you believe you've found a security vulnerability, please report it to security@deckster.xyz. We respond to all reports within 24 hours.
+                        We value the security community's help in keeping our platform safe. If you believe you've found a security vulnerability, please report it to support@deckster.xyz and we will get back to you.
                     </p>
 
-                    <h2>Compliance Certifications</h2>
+                    <h2>Security Questions</h2>
                     <p>
-                        We maintain compliance with major industry standards to ensure your data is handled with the utmost care. You can request our latest compliance reports by contacting our sales team.
+                        Need to know how we handle your data, or have a question for a vendor review? Email support@deckster.xyz and we will get back to you.
                     </p>
                 </motion.div>
             </Section>

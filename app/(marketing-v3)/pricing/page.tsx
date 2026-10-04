@@ -3,15 +3,14 @@ import { V3_CONTENT } from "@/lib/marketing/v3-content"
 import type { Metadata } from "next"
 import { FooterV3 } from "@/components/marketing/v3/FooterV3"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
+import { StatusPill } from "@/components/marketing/v3/StatusPill"
+import { v3Metadata } from "@/lib/marketing/v3-metadata"
 import { TrackedLink } from "@/components/marketing/v3/BuildCta"
 import { PRICING_TIERS } from "@/lib/marketing/homepage-v2-pricing"
 
 const copy = V3_CONTENT.pages.pricing
 
-export const metadata: Metadata = {
-  title: { absolute: copy.metadata.title },
-  alternates: { canonical: "/pricing" },
-}
+export const metadata: Metadata = v3Metadata({ path: "/pricing", title: copy.metadata.title, description: copy.metadata.description })
 
 const tierEvent = {
   starter: "v3_pricing_starter",
@@ -22,7 +21,7 @@ const tierEvent = {
 export default function PricingV3Page() {
   return (
     <main>
-      <section className="slide slide--paper" id="start" data-snap="slide" data-slide-label={copy.start.label} data-label={copy.start.label}>
+      <section className="slide slide--paper is-in" id="start" data-snap="slide" data-slide-label={copy.start.label} data-label={copy.start.label}>
         <div className="grain" />
         <div className="slide__inner">
           <div className="center">
@@ -39,7 +38,7 @@ export default function PricingV3Page() {
                   <div className="tier__name">{tier.name}</div>
                   <div className="tier__price"><b>{tier.price}</b><span>{tier.suffix}</span></div>
                   <p className="tier__blurb">{tier.blurb}</p>
-                  <ul>{tier.features.map((feature, index) => <li key={feature} className={index === 0 && tier.id !== "starter" ? "plus" : undefined}>{feature}</li>)}</ul>
+                  <ul>{tier.features.map((feature, index) => <li key={feature} className={index === 0 && tier.id !== "starter" ? "plus" : undefined}>{feature}{"betaFeature" in tier && feature === tier.betaFeature && <> <StatusPill feature="knowledgeGraph" small /></>}</li>)}</ul>
                   <p className="tier__note">{tier.note}</p>
                   <TrackedLink className={`btn btn--${tier.id === "pro" ? "primary" : "ghost"}`} href={existing.ctaHref} location={tierEvent[tier.id]}>{tier.action}</TrackedLink>
                 </div>
@@ -62,8 +61,14 @@ export default function PricingV3Page() {
             <thead><tr>{copy.matrix.headings.map((heading, index) => <th key={heading} style={index === 0 ? { width: "44%" } : undefined}>{heading}</th>)}</tr></thead>
             <tbody>
               {copy.matrix.rows.map((row) => <tr key={row.name}>
-                <td><b>{row.name}</b>{row.detail}{"tag" in row && <span className="pill pill--build" style={{ marginLeft: 6 }}>{row.tag}</span>}</td>
-                {row.values.map((value, index) => <td key={index} className={value === true ? "c" : "m"}>{value === true ? "✓" : value === false ? "—" : "·"}</td>)}
+                <td><b>{row.name}</b>{row.detail}{"feature" in row && <> <StatusPill feature={row.feature} small /></>}</td>
+                {"values" in row
+                  ? row.values.map((value, index) => <td key={index} className={value === false ? "m" : "c"}>
+                    {value === true ? <><span aria-hidden="true">✓</span><span className="sr">{copy.matrix.included}</span></>
+                      : value === false ? <><span aria-hidden="true">—</span><span className="sr">{copy.matrix.notIncluded}</span></>
+                        : value}
+                  </td>)
+                  : <td colSpan={3} className="m" style={{ fontSize: 12 }}>{row.note}</td>}
               </tr>)}
             </tbody>
           </table>

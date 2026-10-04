@@ -2,12 +2,14 @@ import type { Metadata } from "next"
 import type { CSSProperties } from "react"
 import { BuildCta } from "@/components/marketing/v3/BuildCta"
 import { FooterV3 } from "@/components/marketing/v3/FooterV3"
-import { KnowledgeGraphCanvas } from "@/components/marketing/v3/KnowledgeGraphCanvas"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
+import { StatusPill } from "@/components/marketing/v3/StatusPill"
+import { v3Metadata } from "@/lib/marketing/v3-metadata"
+import Link from "next/link"
 import { V3_CONTENT, showcaseAlt } from "@/lib/marketing/v3-content"
 
 const copy = V3_CONTENT.pages.bring
-export const metadata: Metadata = { title: { absolute: copy.title }, alternates: { canonical: "/bring" } }
+export const metadata: Metadata = v3Metadata({ path: "/bring", title: copy.title, description: copy.description })
 
 const reveal = (delay: number) => ({ "--d": delay } as CSSProperties)
 const slideImage = (name: string) => `/marketing/v3/slides/${name}.jpg`
@@ -52,7 +54,7 @@ const libraryRoles: Record<number, CSSProperties[]> = {
 
 function BringHero() {
   const c = copy.hero
-  return <section className="slide slide--night" id="start" data-snap="slide" data-label={c.label} data-slide-label={c.label}>
+  return <section className="slide slide--night is-in" id="start" data-snap="slide" data-label={c.label} data-slide-label={c.label}>
     <div className="glow glow--coral" style={{ width: "56vw", height: "56vw", left: "-20vw", top: "-24vw", opacity: .32 }} />
     <div className="glow glow--violet" style={{ width: "50vw", height: "50vw", right: "-18vw", bottom: "-20vw", opacity: .4 }} />
     <div className="dots" /><div className="grain" />
@@ -62,7 +64,7 @@ function BringHero() {
         <h1 className="h1" data-reveal style={reveal(1)}>{c.title[0]}<span className="you">{c.title[1]}</span>{c.title[2]}</h1>
         <p className="lede" data-reveal style={reveal(2)}>{c.lede}</p>
         <div className="ctas" data-reveal style={reveal(3)}>
-          <BuildCta className="btn btn--primary" location="v3_hero_drop">{c.drop} <svg className="arrow" aria-hidden="true"><use href="#arrow" /></svg></BuildCta>
+          <BuildCta className="btn btn--primary" location="v3_hero_build">{c.build} <svg className="arrow" aria-hidden="true"><use href="#arrow" /></svg></BuildCta>
           <a className="btn btn--ghost" href="#how" data-next>{c.see}</a>
         </div>
         <div className="trust" data-reveal style={reveal(4)}>{c.trust.map((item) => <span key={item}>{item}</span>)}</div>
@@ -73,7 +75,9 @@ function BringHero() {
           {c.roles.map((role, i) => <Role key={i} label={role} style={heroRoles[i]} />)}
           <span className="cap">{c.caption}</span>
         </div>
-        <div className="k-row">{c.process.map((step, i) => <span key={step} className={`pill pill--${i === 2 ? "you" : i === 3 ? "next" : "live"}`}>{step}</span>)}</div>
+        <div className="k-row">{c.process.map((step, i) => i === c.process.length - 1
+          ? <span key={step} className="pill">{step} <StatusPill feature="templateNewTopic" small /></span>
+          : <span key={step} className="pill">{step}</span>)}</div>
       </div>
     </div></div>
     <a className="cue" href="#how" data-next>{c.cue}<i /></a>
@@ -85,14 +89,14 @@ function Template() {
   const c = copy.template
   return <section className="slide slide--paper" id="how" data-snap="slide" data-label={c.label} data-slide-label={c.label}>
     <div className="grain" /><div className="slide__inner">
-      <div className="center"><span className="eyebrow" data-reveal>{c.eyebrow}</span><h2 className="h2 balance" data-reveal style={reveal(1)}>{c.title}</h2><p className="lede balance" data-reveal style={reveal(2)}>{c.lede}</p></div>
-      <div className="steps">{c.steps.map((step, i) => <div className="step" data-reveal style={reveal(i + 3)} key={step.number}><span className="n">{step.number}</span><b>{step.title}</b><p>{step.body}</p>{"quote" in step && <span className="you">{step.quote}</span>}</div>)}</div>
+      <div className="center"><span className="eyebrow" data-reveal>{c.eyebrow} <StatusPill feature={c.feature} /></span><h2 className="h2 balance" data-reveal style={reveal(1)}>{c.title}</h2><p className="lede balance" data-reveal style={reveal(2)}>{c.lede}</p></div>
+      <div className="steps">{c.steps.map((step, i) => <div className="step" data-reveal style={reveal(i + 3)} key={step.number}><span className="n">{step.number}</span><b>{step.title}{"feature" in step && <> <StatusPill feature={step.feature} small /></>}</b><p>{step.body}</p>{"quote" in step && <span className="you">{step.quote}</span>}</div>)}</div>
       <div className="arrows" data-reveal style={reveal(7)}>
         <div className="abs"><img src={slideImage("deck-04")} alt={showcaseAlt(4)} width={1280} height={720} /><span className="cap">{c.captions[0]}</span></div>
         <div className="ar">{c.arrows}</div>
         <div className="abs abs--dim"><img src={slideImage("deck-04")} alt={showcaseAlt(4)} width={1280} height={720} />{c.roles.map((role, i) => <Role key={i} label={role} style={templateRoles[i]} />)}<span className="cap">{c.captions[1]}</span></div>
         <div className="ar">{c.arrows}</div>
-        <div className="abs"><img src={slideImage("deck-06")} alt={showcaseAlt(6)} width={1280} height={720} /><span className="cap">{c.captions[2]}</span></div>
+        <div className="abs"><img src={slideImage("deck-04")} alt={showcaseAlt(4)} width={1280} height={720} loading="lazy" decoding="async" /><span className="cap">{c.captions[2]}</span></div>
       </div>
     </div><SlideChip number={2} total={6} label={c.label} />
   </section>
@@ -102,8 +106,8 @@ function Library() {
   const c = copy.library
   return <section className="slide slide--paper" id="library" data-snap="slide" data-label={c.label} data-slide-label={c.label}>
     <div className="grain" /><div className="slide__inner">
-      <div className="center"><span className="eyebrow" data-reveal>{c.eyebrow}</span><h2 className="h2 balance" data-reveal style={reveal(1)}>{c.title}</h2><p className="lede balance" data-reveal style={reveal(2)}>{c.lede}</p><div className="filters" data-reveal style={reveal(3)}>{c.filters.map((filter, i) => <span key={filter} className={i === 0 ? "on" : undefined}>{filter}</span>)}</div></div>
-      <div className="tgrid" data-reveal style={reveal(4)}>{c.cards.map((card, i) => <div className="tcard" key={card.title}><div className="th"><img src={slideImage(card.slide)} alt={slotAlt(card.slide)} width={1280} height={720} />{"role" in card && <Role label={card.role} style={libraryRoles[i][0]} />}{"role2" in card && <Role label={card.role2} style={libraryRoles[i][1]} />}</div><div className="meta"><b>{card.title}</b><span>{card.detail}</span></div></div>)}</div>
+      <div className="center"><span className="eyebrow" data-reveal>{c.eyebrow} <StatusPill feature={c.feature} /></span><h2 className="h2 balance" data-reveal style={reveal(1)}>{c.title}</h2><p className="lede balance" data-reveal style={reveal(2)}>{c.lede}</p></div>
+      <div className="tgrid" data-reveal style={reveal(4)}>{c.cards.map((card, i) => <div className="tcard" key={card.title}><div className="th"><img src={slideImage(card.slide)} alt={slotAlt(card.slide)} width={1280} height={720} loading="lazy" decoding="async" />{"role" in card && <Role label={card.role} style={libraryRoles[i][0]} />}{"role2" in card && <Role label={card.role2} style={libraryRoles[i][1]} />}</div><div className="meta"><b>{card.title}</b><span>{card.detail}</span></div></div>)}</div>
     </div><SlideChip number={3} total={6} label={c.label} />
   </section>
 }
@@ -114,11 +118,10 @@ function Knowledge() {
     <div className="glow glow--violet" style={{ width: "50vw", height: "50vw", right: "-10vw", top: 0, opacity: .35 }} /><div className="grain" />
     <div className="slide__inner"><div className="cols">
       <div><span className="eyebrow" data-reveal>{c.eyebrow}</span><h2 className="h2 balance" data-reveal style={reveal(1)}>{c.title}</h2><p className="lede" data-reveal style={reveal(2)}>{c.lede}</p>
-        <div className="srcs" style={{ marginTop: 22 }} data-reveal>{c.sources.map((src) => <div className="src" key={src.name}><div className="file__ic" style={{ background: fileColors[src.kind] }}>{src.kind}</div><div><b>{src.name}</b><span>{src.detail}</span></div><span className="n">{src.count}</span></div>)}</div>
+        <div className="checks" data-reveal style={reveal(3)}>{c.checks.map((item) => <span key={item}>{item}</span>)}</div>
       </div>
       <div data-reveal style={reveal(2)}>
-        <KnowledgeGraphCanvas copy={c} style={{ aspectRatio: "16/10" }} />
-        <div className="toggles">{c.toggles.map((item, i) => <div className="tg" key={item.label}><i className={i === 2 ? "off" : undefined} />{item.label}<span>{item.value}</span></div>)}<div className="tg" style={{ borderStyle: "dashed" }}><span style={{ margin: 0, font: "600 10.5px var(--font-mono)", color: "var(--muted-2)" }}>{c.purge}</span><span style={{ margin: "0 0 0 14px", font: "600 10.5px var(--font-mono)", color: "var(--muted-2)" }}>{c.export}</span><span>{c.ownership}</span></div></div>
+        <div className="steps" style={{ gridTemplateColumns: "1fr", marginTop: 0 }}>{c.rows.map((row) => <div className="step" key={row.kicker}><span className="n">{row.kicker}</span><b>{row.title}</b><p>{row.body}</p><StatusPill feature={row.feature} /></div>)}</div>
       </div>
     </div></div><SlideChip number={4} total={6} label={c.label} />
   </section>
@@ -139,7 +142,8 @@ function Close() {
   return <section className="slide slide--night" id="close" data-snap="slide" data-label={c.label} data-slide-label={c.label}>
     <div className="glow glow--violet" style={{ width: "60vw", height: "60vw", left: "20vw", top: "-20vh", opacity: .4 }} /><div className="dots" /><div className="grain" />
     <div className="slide__inner center"><span className="eyebrow eyebrow--you" data-reveal>{c.eyebrow}</span><h2 className="h1 balance" data-reveal style={reveal(1)}>{c.title[0]}<span className="you">{c.title[1]}</span>{c.title[2]}</h2><p className="lede balance" data-reveal style={reveal(2)}>{c.lede}</p>
-      <BuildCta className="drop" location="v3_close_drop"><div className="drop__ic">{c.fileKinds[0]}<br />{c.fileKinds[1]}</div><div><b>{c.drop}</b><span>{c.hint}</span></div></BuildCta>
+      <div className="ctas" style={{ justifyContent: "center", ...reveal(3) }} data-reveal><BuildCta className="btn btn--primary" location="v3_close_build">{c.build} <svg className="arrow" aria-hidden="true"><use href="#arrow" /></svg></BuildCta></div>
+      <p className="truthline" data-reveal style={reveal(4)}><Link href="/auth/signin">{c.code}</Link></p>
     </div><FooterV3 /><SlideChip number={6} total={6} label={c.label} />
   </section>
 }

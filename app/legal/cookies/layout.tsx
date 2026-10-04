@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'Cookie Policy | Deckster',
+    title: 'Cookie Policy',
     description: 'Learn how Deckster uses cookies to improve your experience.',
 };
 

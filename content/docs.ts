@@ -66,7 +66,7 @@ Once generated:
 
 When ready:
 1. Click "Export" in the top right
-2. Choose your format (PDF, PowerPoint, Google Slides)
+2. Choose your format (PDF or PowerPoint)
 3. Download or share directly
 
 ## Next Steps
@@ -736,37 +736,6 @@ Export your presentations in multiple formats and share them with others.
 1. Click "Export" → "PDF"
 2. Select quality option
 3. Download PDF file
-
-### Google Slides
-**Best for:** Cloud collaboration, Google Workspace
-
-**Features:**
-- Direct to Google Drive
-- Real-time collaboration
-- Access anywhere
-- Auto-save
-
-**How to export:**
-1. Click "Export" → "Google Slides"
-2. Connect Google account (if needed)
-3. Select Drive location
-4. Open in Google Slides
-
-### Images (PNG/JPEG)
-**Best for:** Social media, websites, individual slides
-
-**Features:**
-- Per-slide images
-- Custom dimensions
-- High resolution
-- Transparent backgrounds (PNG)
-
-**How to export:**
-1. Click "Export" → "Images"
-2. Select format (PNG or JPEG)
-3. Choose slides (all or selection)
-4. Set resolution
-5. Download zip file
 
 ### Web Link (Hosted)
 **Best for:** Online sharing, embedding

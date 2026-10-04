@@ -51,11 +51,28 @@ const nextConfig = {
       { source: '/examples', destination: '/bring#library', permanent: false },
       { source: '/integrations', destination: '/bring#inout', permanent: false },
       { source: '/agents', destination: '/experts', permanent: false },
+      // Sign-in / sign-up link to these short paths; the pages live under /legal.
+      { source: '/terms', destination: '/legal/terms', permanent: false },
+      { source: '/privacy', destination: '/legal/privacy', permanent: false },
+      // /docs/api described an API that does not exist; /shortcuts listed mostly unimplemented keys.
+      { source: '/docs/api', destination: '/docs', permanent: false },
+      { source: '/shortcuts', destination: '/learn', permanent: false },
     ];
   },
   // Headers for security
   async headers() {
     return [
+      {
+        // Marketing slide stills keep stable paths while their pixels are still
+        // being replaced, so cache briefly (1 day) and revalidate in the background.
+        source: '/marketing/v3/slides/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800'
+          },
+        ],
+      },
       {
         source: '/:path*',
         headers: [

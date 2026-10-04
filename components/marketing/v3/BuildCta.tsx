@@ -15,11 +15,11 @@ export function BuildCta({
   className: string
 }) {
   const { data: session, status } = useSession()
+  // Signed out: request access (Google sign-in, then access code or the early-access queue).
+  // While the session loads, /builder is safe for everyone: middleware sends signed-out visitors to sign-in.
+  const href = status === "unauthenticated" ? "/auth/signup" : "/builder"
   return (
-    <Link href={status === "loading" ? "#" : session ? "/builder" : "/pricing"} className={className} aria-disabled={status === "loading"} onClick={(event) => {
-      if (status === "loading") { event.preventDefault(); return }
-      trackCta(location)
-    }}>
+    <Link href={href} className={className} onClick={() => trackCta(location)}>
       {children}
     </Link>
   )

@@ -1,8 +1,8 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'Security & Compliance | Deckster',
-    description: 'Learn about our commitment to security. SOC 2 Type II compliant, end-to-end encryption, and GDPR ready.',
+    title: 'Security & Compliance',
+    description: 'How Deckster protects your data: encryption in transit, where it runs, Google sign-in, and how to report a vulnerability.',
 };
 
 export default function SecurityLayout({

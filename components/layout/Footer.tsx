@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Shield, Lock, Award, Heart } from 'lucide-react';
+import { Lock, Heart } from 'lucide-react';
 
 interface FooterProps {
   /**
@@ -18,7 +18,6 @@ export function Footer({ compact = false }: FooterProps = {}) {
       { name: 'Templates', href: '/templates' },
       { name: 'Examples', href: '/examples' },
       { name: 'Pricing', href: '/pricing' },
-      { name: 'Integrations', href: '/integrations' },
     ],
     company: [
       { name: 'About', href: '/about' },
@@ -28,7 +27,6 @@ export function Footer({ compact = false }: FooterProps = {}) {
     resources: [
       { name: 'Help Center', href: '/help' },
       { name: 'Documentation', href: '/docs' },
-      { name: 'API', href: '/docs/api' },
     ],
     legal: [
       { name: 'Privacy', href: '/legal/privacy' },
@@ -166,14 +164,6 @@ export function Footer({ compact = false }: FooterProps = {}) {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Lock className="h-4 w-4 text-green-600" />
               <span>SSL Encrypted</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Award className="h-4 w-4 text-blue-600" />
-              <span>GDPR Compliant</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Shield className="h-4 w-4 text-orange-600" />
-              <span>99.9% Uptime</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Heart className="h-4 w-4 text-purple-600" />
