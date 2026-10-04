@@ -21,6 +21,8 @@ import {
   type StatusUpdate,
 } from "@/hooks/use-deckster-websocket-v2"
 import { debugLog } from "@/lib/debug-log"
+import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/lib/director-transcript"
+import { directorHistoryTimestamp } from "@/lib/director-chat-history"
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -49,7 +51,7 @@ export interface MessageListProps {
   onActionClick: (action: ActionRequest['payload']['actions'][0], messageId: string) => void
   // MDC (P2/P3): sends a composed answer through the normal chat send path.
   // Optional — when absent, structured question rendering falls back to plain.
-  onSubmitAnswers?: (text: string) => void
+  onSubmitAnswers?: (text: string, displayText?: string) => void
   /** Local starter selection only. The owner preserves an existing composer draft. */
   onDraftPrompt?: (text: string) => void
   /** Actual connection state; the welcome guide never infers readiness from status. */
@@ -195,7 +197,7 @@ export function MessageList({
   // Combine, classify, deduplicate, sort, filter, and group messages
   const processedMessages = useMemo(() => {
     const trackedEphemeralIds = new Set(ephemeralMessageIds || [])
-    const combined = [
+    const combined: DirectorTranscriptEntry[] = [
       ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
       ...messages.map(m => {
         const mAny = m as any;
@@ -207,8 +209,7 @@ export function MessageList({
           classificationMethod = 'ROLE_FIELD';
 
           const text = mAny.payload?.text || mAny.content || '';
-          const normalizedTimestamp = m.timestamp?.endsWith('Z') ? m.timestamp : m.timestamp + 'Z';
-          const timestamp = new Date(normalizedTimestamp).getTime();
+          const timestamp = directorHistoryTimestamp(m.timestamp);
 
           debugLog('✅ Director role field detected, transforming to user message format:', {
             message_id: m.message_id,
@@ -228,14 +229,17 @@ export function MessageList({
           };
         }
 
+        // An explicit assistant role remains authoritative even if the
+        // Director quotes a user's exact words or an old content map matches.
+        const hasDirectorRole = typeof mAny.role === 'string' && mAny.role !== 'user';
         // PRIORITY 2: Check if message ID is in our tracking ref
-        let isUserMessage = userMessageIdsRef.current.has(m.message_id);
+        let isUserMessage = !hasDirectorRole && m.type === 'chat_message' && userMessageIdsRef.current.has(m.message_id);
         if (isUserMessage) {
           classificationMethod = 'USER_MESSAGE_IDS_REF';
         }
 
         // PRIORITY 3: Content matching fallback (backward compatibility workaround)
-        if (!isUserMessage && mAny.payload?.text) {
+        if (!hasDirectorRole && m.type === 'chat_message' && !isUserMessage && mAny.payload?.text) {
           const normalizedContent = (typeof mAny.payload.text === 'string' ? mAny.payload.text : '').trim().toLowerCase();
           const matchingUserId = userMessageContentMapRef.current.get(normalizedContent);
           if (matchingUserId) {
@@ -259,62 +263,41 @@ export function MessageList({
           isInUserMessageIds: userMessageIdsRef.current.has(m.message_id),
           classifiedAs: isUserMessage ? 'USER' : 'BOT'
         });
-        return { ...m, messageType: isUserMessage ? 'user' as const : 'bot' as const };
+        if (isUserMessage) {
+          return {
+            id: m.message_id,
+            text: mAny.payload?.text || mAny.content || '',
+            timestamp: directorHistoryTimestamp(m.timestamp),
+            attachments: attachmentsFromPayload(mAny.payload),
+            messageType: 'user' as const,
+          };
+        }
+        return { ...m, messageType: 'bot' as const };
       })
     ];
 
     debugLog('📊 Message rendering - userMessages:', userMessages.length, 'botMessages:', messages.length, 'combined:', combined.length);
 
-    // Deduplicate messages by ID and content
-    const seenIds = new Set<string>();
-    const seenContent = new Map<string, any>();
-
-    const deduplicated = combined.filter(item => {
-      const id = item.messageType === 'user' ? item.id : (item as any).message_id;
-      const content = item.messageType === 'user'
-        ? item.text
-        : (item as any).payload?.text || JSON.stringify((item as any).payload);
-
-      if (seenIds.has(id)) {
-        return false;
-      }
-
-      const contentKey = `${content}`.trim().toLowerCase();
-      const existingMessage = seenContent.get(contentKey);
-
-      if (existingMessage) {
-        if (item.messageType === 'user' && existingMessage.messageType !== 'user') {
-          seenIds.delete(existingMessage.id || existingMessage.message_id);
-          seenContent.set(contentKey, item);
-          seenIds.add(id);
-          return true;
-        } else if (item.messageType !== 'user' && existingMessage.messageType === 'user') {
-          return false;
-        } else {
-          return false;
-        }
-      }
-
-      seenIds.add(id);
-      seenContent.set(contentKey, item);
-      return true;
-    });
+    const deduplicated = deduplicateDirectorTranscript(combined, userMessages);
 
     debugLog('📊 After deduplication:', deduplicated.length);
 
     const parseTimestamp = (ts: string | undefined): number => {
       if (!ts) return 0;
-      const normalized = ts.endsWith('Z') ? ts : ts + 'Z';
-      return new Date(normalized).getTime();
+      return directorHistoryTimestamp(ts);
     };
 
     const sorted = deduplicated.sort((a, b) => {
       const timeA = a.messageType === 'user'
         ? a.timestamp
-        : (a as any).clientTimestamp || parseTimestamp((a as any).timestamp);
+        : typeof (a as any).clientTimestamp === 'number' && Number.isFinite((a as any).clientTimestamp)
+          ? (a as any).clientTimestamp
+          : parseTimestamp((a as any).timestamp);
       const timeB = b.messageType === 'user'
         ? b.timestamp
-        : (b as any).clientTimestamp || parseTimestamp((b as any).timestamp);
+        : typeof (b as any).clientTimestamp === 'number' && Number.isFinite((b as any).clientTimestamp)
+          ? (b as any).clientTimestamp
+          : parseTimestamp((b as any).timestamp);
       return timeA - timeB;
     });
 

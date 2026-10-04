@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { features } from '@/lib/config'
 import { getInitializedBuilderHref } from '@/lib/studio-workflow'
 import { debugLog } from '@/lib/debug-log'
+import { directorHistoryTimestamp, missingDirectorUserTurns } from '@/lib/director-chat-history'
 import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import { recoverRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy'
 import { type DirectorMessage, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
@@ -145,17 +146,7 @@ export function useBuilderSession({
   useEffect(() => {
     if (!currentSessionId || messages.length === 0) return;
 
-    const directorUserMessages = messages.filter((m: any) => m.role === 'user');
-    if (directorUserMessages.length === 0) return;
-
-    const existingUserMessageIds = new Set(userMessages.map(um => um.id));
-    const existingUserMessageTexts = new Set(userMessages.map(um => um.text.trim().toLowerCase()));
-
-    const missingUserMessages = directorUserMessages.filter((m: any) => {
-      const text = m.payload?.text || m.content || '';
-      const normalizedText = text.trim().toLowerCase();
-      return !existingUserMessageIds.has(m.message_id) && !existingUserMessageTexts.has(normalizedText);
-    });
+    const missingUserMessages = missingDirectorUserTurns(currentSessionId, messages, userMessages);
 
     if (missingUserMessages.length > 0) {
       debugLog('🔄 [FIX 9] Recovering missing user messages from Director history:', missingUserMessages.length);
@@ -165,7 +156,7 @@ export function useBuilderSession({
         return {
           id: m.message_id,
           text: text,
-          timestamp: new Date(m.timestamp).getTime(),
+          timestamp: directorHistoryTimestamp(m.timestamp),
           attachments: attachmentsFromPayload(m.payload),
         };
       });

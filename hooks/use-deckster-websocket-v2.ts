@@ -15,6 +15,7 @@ import {
   normalizeSlideComposeSocketFrame,
 } from '@/lib/slide-compose-async';
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
+import { mergeDirectorChatHistory } from '@/lib/director-chat-history';
 import { guardDirectorLayoutUrlMessage } from '@/lib/director-layout-url-ingress';
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client';
 import type { UserChatMessage } from '@/lib/user-message-attachments';
@@ -3351,9 +3352,22 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ? sessionIdRef.current
       : sessionState.deckOwnerSessionId) : null;
 
+    // A DB snapshot can finish after a response was received or before a
+    // debounced save completes. Preserve that same-session transcript in memory,
+    // not only in the cache writer's separate merge. Never reuse another
+    // session's cached messages during an asynchronous session adoption.
+    const historySessionId = sessionState.deckOwnerSessionId
+      || safeHistoricalMessages[0]?.session_id
+      || sessionIdRef.current;
+    const cachedHistory = historySessionId === sessionIdRef.current && sessionCache.isCacheValid()
+      ? sessionCache.getCachedState()
+      : null;
+    const cachedUserIds = new Set(cachedHistory?.userMessages?.map(message => message.id) || []);
+    const cachedBotMessages = (cachedHistory?.messages || []).filter(message => !cachedUserIds.has(message.message_id));
+
     setStateWithCache(prev => ({
       ...prev,
-      messages: scrubBuildControlCapabilityMessages(safeHistoricalMessages),
+      messages: mergeDirectorChatHistory(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages),
       // CRITICAL FIX: Use computed display URL based on activeVersion
       // This ensures the correct presentation version is shown
       presentationUrl: displayUrl,
@@ -3380,7 +3394,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       templateIngestError: null,
       templateIngestJobId: null,
     }));
-  }, [setStateWithCache]);
+  }, [sessionCache, setStateWithCache]);
 
   // Auto-connect on mount (only once)
   useEffect(() => {
