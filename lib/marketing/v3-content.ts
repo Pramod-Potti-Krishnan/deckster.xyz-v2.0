@@ -82,7 +82,7 @@ export const V3_CONTENT = {
     eyebrow: "AI presentation studio · early access",
     title: ["Your knowledge.", "Your decks.", "Your voice."],
     lede:
-      "Give the Director a brief and the documents it should use. It proposes a plan and waits for your yes, then builds every slide in your theme, with sources on the charts. Change any slide or chart yourself.",
+      "Brief the Director and attach your documents. It proposes a plan, waits for your yes, then builds every slide in your theme — with sources on the charts.",
     build: "Request early access",
     see: "See how it builds",
     codeLead: "Have an access code? ",
@@ -90,9 +90,9 @@ export const V3_CONTENT = {
     codeTail: " and start today.",
     facts: [
       "Plan approval before any slide is built",
-      "Every chart says where its numbers came from",
-      "Edit any text, chart or diagram yourself",
-      "PowerPoint & PDF export, no watermark",
+      "Chart sources shown",
+      "Edit any slide yourself",
+      "PowerPoint & PDF, no watermark",
     ],
     cursor: "you",
     request: "make this chart a waterfall",
@@ -588,7 +588,7 @@ export const V3_CONTENT = {
       start: {
         label: "Pricing",
         eyebrow: "Pricing · early access",
-        title: "Priced for how often you ",
+        title: "Priced for how you ",
         titleAccent: "present.",
         lede: "Deckster is in early access: sign in with Google and enter your access code, or ask for one. Plans differ by how much you can build each month.",
         cue: "Compare the plans",

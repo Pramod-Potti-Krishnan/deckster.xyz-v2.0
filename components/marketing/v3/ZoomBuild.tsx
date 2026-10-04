@@ -82,6 +82,7 @@ export function ZoomBuild({ copy, n, total, tileAlts, slideStatus }: {
     const labels = zoom.querySelectorAll<HTMLElement>(".alt__lbl")
     const indicator = zoom.querySelector<HTMLElement>(".alt__ind")
     let raf: number | null = null
+    let settle: ReturnType<typeof setTimeout> | null = null
     let lastP = 0
     const applyMode = (p = lastP) => {
       const chosen = modeRef.current
@@ -124,7 +125,12 @@ export function ZoomBuild({ copy, n, total, tileAlts, slideStatus }: {
       if (indicator) indicator.style.top = `${(p * 100).toFixed(1)}%`
       applyMode(p)
     }
+    // While scrolling, the world is a GPU layer (smooth). Once scrolling stops, drop the hint so the
+    // browser re-draws it at the current zoom: text stays sharp at every stop instead of a stretched bitmap.
     const onScroll = () => {
+      world.style.willChange = "transform"
+      if (settle) clearTimeout(settle)
+      settle = setTimeout(() => { world.style.willChange = "auto" }, 160)
       if (raf !== null) return
       raf = requestAnimationFrame(() => { raf = null; zoomUpdate() })
     }
@@ -135,6 +141,7 @@ export function ZoomBuild({ copy, n, total, tileAlts, slideStatus }: {
       window.removeEventListener("scroll", onScroll)
       window.removeEventListener("resize", onScroll)
       if (raf !== null) cancelAnimationFrame(raf)
+      if (settle) clearTimeout(settle)
     }
   }, [])
 
@@ -203,7 +210,7 @@ export function ZoomBuild({ copy, n, total, tileAlts, slideStatus }: {
 function Tile({ slide, tag, alt }: { slide: number; tag: string; title: string; alt: string }) {
   return (
     <div className="tile">
-      <img src={`/marketing/v3/slides/deck-${String(slide).padStart(2, "0")}.jpg`} alt={alt} width={1280} height={724} loading="lazy" decoding="async" />
+      <img src={`/marketing/v3/slides/deck-${String(slide).padStart(2, "0")}.jpg`} alt={alt} width={1280} height={724} />
       <span className="tile__tag">{tag}</span>
     </div>
   )
