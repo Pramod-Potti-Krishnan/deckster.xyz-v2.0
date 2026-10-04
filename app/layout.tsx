@@ -5,15 +5,19 @@ import './globals.css'
 import { SessionProvider } from '@/components/providers/session-provider'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
+import { V3_CONTENT } from '@/lib/marketing/v3-content'
 
 const inter = Inter({ subsets: ['latin'] })
 
+// Share text for every page without its own: the same title and description as the home page.
+const { title, description } = V3_CONTENT.metadata
+
 export const metadata: Metadata = {
   title: {
-    default: 'Deckster | AI-Powered Presentation Generator',
+    default: title,
     template: '%s | Deckster'
   },
-  description: 'Create stunning presentations in minutes with Deckster. Our multi-agent AI system writes, designs, and visualizes your slides automatically.',
+  description,
   keywords: ['presentation builder', 'AI presentations', 'slide deck creator', 'Deckster', 'presentation software'],
   authors: [{ name: 'Deckster Team' }],
   creator: 'Deckster',
@@ -28,8 +32,8 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: 'Deckster - AI-Powered Presentation Builder',
-    description: 'Create stunning presentations with AI. Build engaging, professional presentations in minutes.',
+    title,
+    description,
     url: 'https://deckster.xyz',
     siteName: 'Deckster',
     // og:image / twitter:image come from app/opengraph-image.tsx and
@@ -39,8 +43,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Deckster - AI-Powered Presentation Builder',
-    description: 'Create stunning presentations with AI. Build engaging, professional presentations in minutes.',
+    title,
+    description,
     creator: '@deckster',
   },
   robots: {

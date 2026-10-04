@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'API Documentation | Deckster',
+    title: 'API Documentation',
     description: 'Integrate Deckster into your applications with our REST API.',
 };
 
