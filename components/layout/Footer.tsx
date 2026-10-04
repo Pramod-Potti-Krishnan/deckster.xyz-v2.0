@@ -64,7 +64,7 @@ export function Footer({ compact = false }: FooterProps = {}) {
               />
             </Link>
             <p className="text-sm text-muted-foreground mb-4">
-              Create stunning presentations with AI. Multi-agent intelligence for professional results.
+              You approve the plan. Specialists build the slides, with sources on the charts.
             </p>
             <div className="flex space-x-4">
               {/* Social links - add your actual social media links */}

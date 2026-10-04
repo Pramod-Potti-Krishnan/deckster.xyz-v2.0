@@ -91,7 +91,7 @@ function SignUpContent() {
             <CardDescription>
               {planLabel
                 ? `Sign up to activate the ${planLabel} plan and start creating with AI`
-                : 'Start creating stunning presentations with AI'}
+                : 'Start with a brief. You approve the plan, then specialists build the slides.'}
             </CardDescription>
           </CardHeader>
 
