@@ -7,6 +7,8 @@ import { StudioToolbarSaveFeedback } from './studio-toolbar-save-feedback'
 import { StudioIntroReplay } from '@/components/studio-intro-replay'
 import './studio-authoring-menus.css'
 import type { StudioWorkflowRequest } from "@/lib/studio-workflow"
+import { parseStudioNativeSlideOrder, matchStudioNativeAddSlideOrder } from '@/lib/studio-native-slide-order'
+import { planStudioSlideThumbnailMutation, remapStudioSlideThumbnailRows, canAdmitStudioSlideThumbnailMetadata, type StudioSlideThumbnailMutationPlan, type StudioSlideThumbnailCapture } from '@/lib/studio-slide-thumbnail-mutations'
 import { shouldHandleStudioCanvasShortcut } from "@/lib/studio-canvas-shortcuts"
 import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -117,6 +119,7 @@ import {
 } from '@/lib/elementor-client'
 import { SlideBuildingLoader } from './slide-building-loader'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
+import { createStudioFormatSelectionHandle, type StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { IDLE_THEME_SYNC, type ThemeSyncState } from '@/lib/theme-sync'
 import {
   isDiagramRendererStateEvent,
@@ -240,7 +243,14 @@ export function resolveRefineElementGenerationConfig(
   return null
 }
 
+export type StudioThumbnailMutationCapture = (presentationId: string, owner: { readonly presentationId: string | null }) =>
+  ((currentOwner: { readonly presentationId: string | null }, plan: StudioSlideThumbnailMutationPlan) => void) & {
+    fence?: (currentOwner: { readonly presentationId: string | null }) => boolean
+  }
+
 interface PresentationViewerProps {
+  onStudioFormatRequested?: (selection: StudioFormatSelectionHandle) => void
+  studioFormatBusy?: boolean
   studioWorkflowRequest?: StudioWorkflowRequest | null
   presentationUrl: string
   presentationId: string | null
@@ -251,6 +261,8 @@ interface PresentationViewerProps {
   downloadControls?: React.ReactNode
   onSlideChange?: (slideNumber: number) => void
   onThumbnailInvalidated?: (presentationId: string) => void
+  onThumbnailMutationCapture?: StudioThumbnailMutationCapture
+  studioOwnerUserId?: string | null
   onEditModeChange?: (isEditing: boolean) => void
   className?: string
   // Version switching support (Builder V2: now includes 'blank' version)
@@ -546,6 +558,10 @@ export function PresentationViewer({
   downloadControls,
   onSlideChange,
   onThumbnailInvalidated,
+  onThumbnailMutationCapture,
+  studioOwnerUserId,
+  onStudioFormatRequested,
+  studioFormatBusy = false,
   onEditModeChange,
   className = '',
   strawmanPreviewUrl,
@@ -704,6 +720,14 @@ export function PresentationViewer({
   const slideMutationPendingRef = useRef(false)
   const viewerInteractionIntentRef = useRef(0)
   const slideMutationMountRef = useRef({ active: true, generation: 0 })
+  const thumbnailNativeRevisionRef = useRef(0)
+  const thumbnailMetadataRef = useRef({ structure: slideStructure, revision: 0 })
+  if (thumbnailMetadataRef.current.structure !== slideStructure) {
+    thumbnailMetadataRef.current = { structure: slideStructure, revision: thumbnailMetadataRef.current.revision + 1 }
+  }
+  const [studioCanonicalThumbnails, setStudioCanonicalThumbnails] = useState<{
+    owner: object; nativeRevision: number; metadataRevision: number; rows: SlideThumbnail[]
+  } | null>(null)
   const slideMutationRequestRef = useRef<{
     owner: object
     mountGeneration: number
@@ -747,6 +771,7 @@ export function PresentationViewer({
     return buildSnapshotNavigationUrl(approvedPresentationUrl, studioShell ? buildSnapshotRevision : 0)
   }, [approvedPresentationUrl, studioShell, buildSnapshotRevision])
   const slideMutationOwnerRef = useRef({
+    userId: studioOwnerUserId ?? null,
     presentationId: presentationId ?? null,
     source: approvedIframeNavigationUrl,
     sessionId: sessionId ?? null,
@@ -755,6 +780,8 @@ export function PresentationViewer({
     generation: 0,
   })
   if (studioShell && (
+    slideMutationOwnerRef.current.userId !== (studioOwnerUserId ?? null)
+    ||
     slideMutationOwnerRef.current.presentationId !== (presentationId ?? null)
     || slideMutationOwnerRef.current.source !== approvedIframeNavigationUrl
     || slideMutationOwnerRef.current.sessionId !== (sessionId ?? null)
@@ -762,6 +789,7 @@ export function PresentationViewer({
     || slideMutationOwnerRef.current.activeVersion !== activeVersion
   )) {
     slideMutationOwnerRef.current = {
+      userId: studioOwnerUserId ?? null,
       presentationId: presentationId ?? null,
       source: approvedIframeNavigationUrl,
       sessionId: sessionId ?? null,
@@ -775,9 +803,24 @@ export function PresentationViewer({
     slideMutationPendingRef.current = false
   }
   const renderSlideMutationOwner = slideMutationOwnerRef.current
+  const [studioFormatSelection, setStudioFormatSelection] = useState<StudioFormatSelectionHandle | null>(null)
+  const studioFormatSelectionRef = useRef<StudioFormatSelectionHandle | null>(null)
+  const studioFormatModeRef = useRef({ enabled: templateModeOn, revision: 0 })
+  if (studioFormatModeRef.current.enabled !== templateModeOn) {
+    studioFormatModeRef.current = { enabled: templateModeOn, revision: studioFormatModeRef.current.revision + 1 }
+    // Retire at render admission, before effects; leaving Template Mode does
+    // not revive a captured ordinary-slide selection.
+    studioFormatSelectionRef.current = null
+  }
+  const studioFormatSlideRef = useRef({ index: currentSlide, revision: 0 })
+  if (studioFormatSlideRef.current.index !== currentSlide) {
+    studioFormatSlideRef.current = { index: currentSlide, revision: studioFormatSlideRef.current.revision + 1 }
+  }
+  const studioFormatBusyRef = useRef(studioFormatBusy)
+  studioFormatBusyRef.current = studioFormatBusy
   const onThumbnailInvalidatedRef = useRef(onThumbnailInvalidated)
   onThumbnailInvalidatedRef.current = onThumbnailInvalidated
-  const captureThumbnailInvalidation = useCallback(() => {
+  const captureThumbnailInvalidation = useCallback((retireMapping = true) => {
     const owner = renderSlideMutationOwner
     const iframe = iframeRef.current
     const mountGeneration = slideMutationMountRef.current.generation
@@ -786,7 +829,13 @@ export function PresentationViewer({
     if (studioShell && owner.presentationId && iframe
       && slideMutationMountRef.current.active
       && slideMutationMountRef.current.generation === mountGeneration
-      && slideMutationOwnerRef.current === owner) nativeSnapshotStructureEditedRef.current = true
+      && slideMutationOwnerRef.current === owner) {
+      nativeSnapshotStructureEditedRef.current = true
+      if (retireMapping) {
+        thumbnailNativeRevisionRef.current += 1
+        setStudioCanonicalThumbnails(null)
+      }
+    }
     return () => {
       if (!studioShell || !owner.presentationId || !iframe ||
         !slideMutationMountRef.current.active ||
@@ -847,6 +896,33 @@ export function PresentationViewer({
         || safety.composing || diagramStateTimersRef.current.size > 0 || pendingDiagramStatesRef.current.size > 0,
       error: safety.saveStatus === 'error' || safety.composeError }
   }, [])
+  const captureStudioFormatSelection = useCallback((elementId: string, eventKind: 'textBoxSelected' | 'elementSelected', elementType?: ElementType) => {
+    const mode = studioFormatModeRef.current
+    if (!studioShell || mode.enabled) return
+    const iframe = iframeRef.current
+    const owner = slideMutationOwnerRef.current
+    const mount = slideMutationMountRef.current.generation
+    const slide = studioFormatSlideRef.current
+    const intent = viewerInteractionIntentRef.current
+    const source = iframe?.src
+    const nativeWindow = iframe?.contentWindow
+    if (!iframe || !nativeWindow || !owner.presentationId || !owner.userId
+      || !owner.sessionId || owner.sessionId === 'new' || owner.deckOwnerSessionId !== owner.sessionId) return
+    const epoch = {}
+    let selection: StudioFormatSelectionHandle | null = null
+    const isCurrent = () => Boolean(selection && studioFormatSelectionRef.current === selection
+      && studioFormatModeRef.current === mode && !studioFormatModeRef.current.enabled
+      && slideMutationMountRef.current.active && slideMutationMountRef.current.generation === mount
+      && slideMutationOwnerRef.current === owner && iframeRef.current === iframe
+      && iframe.src === source && iframe.contentWindow === nativeWindow
+      && studioFormatSlideRef.current === slide && viewerInteractionIntentRef.current === intent
+      && introSafetyRef.current.viewerIsReady && !getStudioIntroductionSafety().busy
+      && !getStudioIntroductionSafety().error && !studioFormatBusyRef.current)
+    selection = createStudioFormatSelectionHandle({ iframe, elementId, presentationId: owner.presentationId,
+      sessionId: owner.sessionId, slideIndex: slide.index - 1, eventKind, elementType, owner: epoch, isCurrent })
+    studioFormatSelectionRef.current = selection
+    setStudioFormatSelection(selection)
+  }, [studioShell, getStudioIntroductionSafety])
   useEffect(() => {
     if (studioShell) onStudioIntroductionSafetyChange?.(getStudioIntroductionSafety())
   }, [studioShell, onStudioIntroductionSafetyChange, getStudioIntroductionSafety, presentationId, presentationUrl,
@@ -993,6 +1069,15 @@ export function PresentationViewer({
       return
     }
     debugLog('✅ Iframe loaded and ready')
+    if (studioShell) {
+      // Even an identical URL is a fresh native frame lifetime.
+      slideMutationOwnerRef.current = { ...slideMutationOwnerRef.current,
+        generation: slideMutationOwnerRef.current.generation + 1 }
+      slideMutationRequestRef.current = null
+      slideMutationPendingRef.current = false
+      setIsSlideMutationPending(false)
+      setNativeSnapshotSafetyRevision(value => value + 1)
+    }
     setLoadedApprovedNavigationUrl(loadedUrl)
     setIframeReady(true)
     setPollingFailureCount(0) // Reset failure count on load
@@ -1002,6 +1087,13 @@ export function PresentationViewer({
   // Extract slide thumbnails from slideStructure
   // Use totalSlides when: CRUD ops occurred, OR slideStructure is stale/missing
   const slideThumbnails = useMemo<SlideThumbnail[]>(() => {
+    if (studioShell && studioCanonicalThumbnails
+      && studioCanonicalThumbnails.owner === renderSlideMutationOwner
+      && studioCanonicalThumbnails.nativeRevision === thumbnailNativeRevisionRef.current
+      && studioCanonicalThumbnails.metadataRevision === thumbnailMetadataRef.current.revision
+      && studioCanonicalThumbnails.rows.length === totalSlides) {
+      return applyStageFThumbnailUrls(studioCanonicalThumbnails.rows, thumbnailUrlsBySlide)
+    }
     // Detect if slideStructure count doesn't match totalSlides (stale data)
     const structureCountMismatch = slideStructure?.slides &&
       totalSlides > 0 &&
@@ -1036,7 +1128,7 @@ export function PresentationViewer({
       }
     })
     return applyStageFThumbnailUrls(structureSlides, thumbnailUrlsBySlide)
-  }, [slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide, studioShell, presentationId])
+  }, [slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide, studioShell, presentationId, studioCanonicalThumbnails, renderSlideMutationOwner])
 
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
@@ -1481,8 +1573,59 @@ export function PresentationViewer({
     slideMutationPendingRef.current = true
     if (studioShell) nativeSnapshotStructureEditedRef.current = true
     setIsSlideMutationPending(true)
+    const capturedNativeRevision = thumbnailNativeRevisionRef.current
+    const capturedMetadataRevision = thumbnailMetadataRef.current.revision
+    const invalidateThumbnails = studioShell ? captureThumbnailInvalidation(false) : () => {}
+    const commitThumbnailMutation = studioShell && expectedOwner.presentationId
+      ? onThumbnailMutationCapture?.(expectedOwner.presentationId, expectedOwner) : undefined
+    const isCurrentThumbnailProof = () => isCurrentSlideMutation()
+      && capturedNativeRevision === thumbnailNativeRevisionRef.current
+      && capturedMetadataRevision === thumbnailMetadataRef.current.revision
+    // These reads are optional evidence for unchanged metadata. A refused read
+    // never blocks Add, retries its mutation, or substitutes an invented ID.
+    const readNativeOrder = async () => {
+      try {
+        return parseStudioNativeSlideOrder(await sendCommand(iframe, 'composeGetState', {}, {
+          timeoutMs: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+        }))
+      } catch { return null }
+    }
+    const proofOwner = {
+      userId: expectedOwner.userId ?? '', sessionId: expectedOwner.sessionId ?? '',
+      presentationId: expectedOwner.presentationId ?? '', source: expectedOwner.source ?? '',
+      activeVersion: expectedOwner.activeVersion, epoch: expectedOwner.generation,
+    }
+    let beforeOrder: ReturnType<typeof parseStudioNativeSlideOrder> = null
+    let provenRows: SlideThumbnail[] | null = null
+    let thumbnailCapture: StudioSlideThumbnailCapture | null = null
     let committedSlideNumber: number | null = null
+    let thumbnailCacheRetired = false
     try {
+      if (studioShell && commitThumbnailMutation && expectedOwner.deckOwnerSessionId === expectedOwner.sessionId) {
+        beforeOrder = await readNativeOrder()
+        if (!isCurrentSlideMutation()) return
+        if (beforeOrder && isCurrentThumbnailProof()) {
+          const rows = studioCanonicalThumbnails?.owner === expectedOwner
+            && studioCanonicalThumbnails.nativeRevision === capturedNativeRevision
+            && studioCanonicalThumbnails.metadataRevision === capturedMetadataRevision
+            ? studioCanonicalThumbnails.rows
+            : !slidesModifiedByCrud && Array.isArray(slideStructure?.slides)
+              ? slideStructure.slides.map((slide: any, index: number) => ({
+                  slideNumber: index + 1, slideIndex: index,
+                  actualSlideIndex: index, slideId: slide.slide_id || slide.id || null,
+                  title: slide.title || slide.slide_type || `Slide ${index + 1}`,
+                  content: slide.narrative || slide.key_points?.join(', '),
+                  thumbnailUrl: ownedRestoredThumbnailUrl(slide, presentationId),
+                })) : []
+          const capture = { owner: proofOwner, nativeCount: beforeOrder.nativeCount,
+            nativeRevision: capturedNativeRevision, metadataRevision: capturedMetadataRevision }
+          if (canAdmitStudioSlideThumbnailMetadata({ captured: capture, current: capture,
+            rows, nativeSlideIds: beforeOrder.slideIds })) {
+            provenRows = rows
+            thumbnailCapture = capture
+          }
+        }
+      }
       const mutationId = createLayoutMutationId('add-slide')
       const result = await sendLayoutMutationWithReconciliation(
         (action, params) => sendCommand(
@@ -1525,6 +1668,12 @@ export function PresentationViewer({
         const newSlideNumber = newSlideIndex + 1
         committedSlideNumber = newSlideNumber
 
+        if (studioShell && capturedNativeRevision === thumbnailNativeRevisionRef.current) {
+          // Do not display old-index images while the post-ACK identity read waits.
+          setStudioCanonicalThumbnails(null)
+          if (commitThumbnailMutation?.fence?.(expectedOwner) !== true) invalidateThumbnails()
+          thumbnailCacheRetired = true
+        }
         setTotalSlides(newTotal)
         setCurrentSlide(newSlideNumber) // Update local state (1-based)
         if (studioShell) setSelectedSlideIndices([newSlideIndex])
@@ -1535,7 +1684,40 @@ export function PresentationViewer({
         onSlideChangeRef.current?.(newSlideNumber)
         if (!isCurrentSlideMutation()) return
         setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
-        if (studioShell) captureThumbnailInvalidation()()
+        if (studioShell) {
+          let preserved = false
+          if (beforeOrder && provenRows && thumbnailCapture && commitThumbnailMutation && isCurrentThumbnailProof()) {
+            const afterOrder = await readNativeOrder()
+            if (!isCurrentSlideMutation()) return
+            if (afterOrder && isCurrentThumbnailProof()) {
+              const plan = planStudioSlideThumbnailMutation({ captured: thumbnailCapture,
+                current: thumbnailCapture, mutation: { kind: 'add' },
+                acknowledgement: result, verifiedNativeCount: afterOrder.nativeCount })
+              const mappedIds = plan.oldIndexByNewIndex.map(oldIndex => oldIndex === null ? null : beforeOrder!.slideIds[oldIndex])
+              const order = plan.mode === 'mapped' ? matchStudioNativeAddSlideOrder(mappedIds, afterOrder) : null
+              if (order && plan.nativeCount === newTotal) {
+                const rows = remapStudioSlideThumbnailRows(provenRows, plan).map((row, index) => ({
+                  ...row, slideId: order.slideIds[index],
+                })) as SlideThumbnail[]
+                thumbnailNativeRevisionRef.current += 1
+                setStudioCanonicalThumbnails({ owner: expectedOwner,
+                  nativeRevision: thumbnailNativeRevisionRef.current,
+                  metadataRevision: capturedMetadataRevision, rows })
+                commitThumbnailMutation(expectedOwner, plan)
+                preserved = true
+              }
+            }
+          }
+          // New Director metadata does not prove the post-Add physical order.
+          // Retire old-index previews even when rich metadata proof changed;
+          // a newer native revision or a different owner still wins.
+          if (!preserved && isCurrentSlideMutation()
+            && capturedNativeRevision === thumbnailNativeRevisionRef.current) {
+            thumbnailNativeRevisionRef.current += 1
+            setStudioCanonicalThumbnails(null)
+            if (!thumbnailCacheRetired) invalidateThumbnails()
+          }
+        }
 
         // Navigate iframe to the new slide (PowerPoint/Keynote behavior)
         await sendCommand(iframe, 'goToSlide', { index: newSlideIndex })
@@ -1580,7 +1762,8 @@ export function PresentationViewer({
         if (isCurrentSlideMutation()) setIsSlideMutationPending(false)
       }
     }
-  }, [currentSlide, totalSlides, toast, ensureEditMode, studioShell, renderSlideMutationOwner, captureThumbnailInvalidation])
+  }, [currentSlide, totalSlides, toast, ensureEditMode, studioShell, renderSlideMutationOwner, captureThumbnailInvalidation,
+    onThumbnailMutationCapture, studioCanonicalThumbnails, slideStructure, slidesModifiedByCrud, presentationId])
 
   // Duplicate slide handler
   const handleDuplicateSlide = useCallback(async (slideIndex: number) => {
@@ -2884,6 +3067,7 @@ export function PresentationViewer({
         if (interaction && (!entered || !interaction.isCurrent())) return
 
         setSelectedTextBoxId(elementId)
+        captureStudioFormatSelection(elementId, 'textBoxSelected')
         onTextBoxSelected?.(elementId, formatting, componentType)
         if (interaction && !interaction.isCurrent()) return
         void sendCommand(interaction?.iframe ?? iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
@@ -2903,7 +3087,7 @@ export function PresentationViewer({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [onTextBoxSelected, onTextBoxDeselected, ensureEditMode, studioShell, beginStudioViewerInteraction])
+  }, [onTextBoxSelected, onTextBoxDeselected, ensureEditMode, studioShell, beginStudioViewerInteraction, captureStudioFormatSelection])
 
   // Listen for element selection events from iframe (Image, Chart, Table, Infographic, Diagram)
   useEffect(() => {
@@ -2923,6 +3107,7 @@ export function PresentationViewer({
         if (interaction && (!entered || !interaction.isCurrent())) return
 
         // Notify parent to show the appropriate format panel
+        captureStudioFormatSelection(elementId, 'elementSelected', elementType)
         onElementSelected?.(elementId, elementType, properties)
         if (interaction && !interaction.isCurrent()) return
         void sendCommand(interaction?.iframe ?? iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
@@ -2948,7 +3133,7 @@ export function PresentationViewer({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [onElementSelected, onElementDeselected, onElementDeleted, ensureEditMode, studioShell, beginStudioViewerInteraction])
+  }, [onElementSelected, onElementDeselected, onElementDeleted, ensureEditMode, studioShell, beginStudioViewerInteraction, captureStudioFormatSelection])
 
   // Listen for element moved/resized events from iframe
   useEffect(() => {
@@ -3135,6 +3320,13 @@ export function PresentationViewer({
                   </DropdownMenuContent>
                 </DropdownMenuPortal>
               </DropdownMenu>
+
+              {studioShell && onStudioFormatRequested && <button type="button"
+                disabled={!viewerIsReady || templateModeOn || isSlideMutationPending || studioFormatBusy || !studioFormatSelection?.isCurrent()}
+                className={cn(toolbarButtonClass, toolbarBtnBase)} title="Format the selected element"
+                onClick={() => { if (studioFormatSelection?.isCurrent()) onStudioFormatRequested(studioFormatSelection) }}>
+                <Palette className="h-5 w-5" /><span className={toolbarLabelClass}>Format</span>
+              </button>}
 
               {/* Template — "Save as Template" (Template Builder). Enabled once a
                   deck exists and we know the WS session to snapshot. */}

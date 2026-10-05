@@ -345,6 +345,27 @@ export function useTextLabsGeneration({
       return failureOutcome()
     }
     const refineContext = !invocation && generationPanel.mode === 'refine' ? generationPanel.refineContext : null
+    // Chart's explicit Manual control is request intent. Preserve that snapshot
+    // while still reading the original native element for identity and metadata.
+    // Other forms use auto_position:false by default and do not prove an edit.
+    const chartManualPosition = studio
+      && formData.componentType === 'CHART' && formData.slotKind !== 'accessory'
+      && formData.positionConfig?.auto_position === false
+      ? { ...formData.positionConfig } : null
+    if (chartManualPosition) {
+      const values = [chartManualPosition.start_col, chartManualPosition.start_row,
+        chartManualPosition.position_width, chartManualPosition.position_height]
+      const valid = values.every(value => Number.isFinite(value)
+        && Math.abs(value * 5 - Math.round(value * 5)) < 0.000001)
+        && chartManualPosition.start_col >= 1 && chartManualPosition.start_row >= 1
+        && chartManualPosition.position_width >= 0.2 && chartManualPosition.position_height >= 0.2
+        && chartManualPosition.start_col + chartManualPosition.position_width <= 33
+        && chartManualPosition.start_row + chartManualPosition.position_height <= 19
+      if (!valid) {
+        setGenerationError('The Manual chart position is outside the slide grid. Use valid bounds in 0.2-cell steps and try again. Your element and settings were kept.')
+        return failureOutcome()
+      }
+    }
     const generationKey = refineContext
       ? `refine:${refineContext.elementId}`
       : `blank:${invocation ? 'direct' : generationPanel.blankElementId ?? 'direct'}`
@@ -731,7 +752,7 @@ export function useTextLabsGeneration({
 
         applyPositionToFormData(
           formData,
-          liveGridPosition,
+          chartManualPosition ?? liveGridPosition,
           formData.slotKind !== 'accessory',
         )
         if (snapshot.zIndex !== null) formData.z_index = snapshot.zIndex
@@ -853,7 +874,7 @@ export function useTextLabsGeneration({
         : null
       applyPositionToFormData(
         formData,
-        {
+        chartManualPosition ?? {
           ...livePosition,
           auto_position: false,
         },

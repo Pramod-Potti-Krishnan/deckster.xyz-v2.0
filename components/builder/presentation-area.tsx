@@ -5,7 +5,7 @@ import { classifyStudioCanvasLifecycle, type StudioCanvasLifecycle } from '@/lib
 import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
 import type { StudioWorkflowRequest } from "@/lib/studio-workflow"
 import { StudioWelcomeStage } from "@/components/builder/studio-welcome-stage"
-import { PresentationViewer, TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi } from "@/components/presentation-viewer"
+import { PresentationViewer, TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioThumbnailMutationCapture } from "@/components/presentation-viewer"
 import { PresentationDownloadControls } from "@/components/presentation-download-controls"
 import { PublishControls } from "@/components/publish-dialog"
 import { SlideBuildingLoader } from "@/components/slide-building-loader"
@@ -55,6 +55,8 @@ export function handleBlankElementClick(
 }
 
 export interface PresentationAreaProps {
+  onStudioFormatRequested?: (selection: import('@/lib/studio-format-native').StudioFormatSelectionHandle) => void
+  studioFormatBusy?: boolean
   onStudioIntroductionSafetyChange?: (safety: import("@/components/presentation-viewer").StudioIntroductionSafety | null) => void
   studioIntroReplay?: React.ReactNode
   showOutlinePreview?: boolean
@@ -139,6 +141,8 @@ export interface PresentationAreaProps {
   onGenerateSlide?: () => void
   thumbnailUrlsBySlide?: Record<number, string>
   onThumbnailInvalidated?: (presentationId: string) => void
+  onThumbnailMutationCapture?: StudioThumbnailMutationCapture
+  studioOwnerUserId?: string | null
   selectedTemplateElementId?: string | null
   blueprintEditorV2Enabled?: boolean
   onTemplateSlideChange?: (slideIndex: number) => void
@@ -188,6 +192,8 @@ export function PresentationArea({
   isGeneratingStrawman,
   onApiReady,
   onComposeApiReady,
+  onStudioFormatRequested,
+  studioFormatBusy,
   onTextBoxSelected,
   onTextBoxDeselected,
   onElementSelected,
@@ -230,6 +236,8 @@ export function PresentationArea({
   onGenerateSlide,
   thumbnailUrlsBySlide = {},
   onThumbnailInvalidated,
+  onThumbnailMutationCapture,
+  studioOwnerUserId,
   selectedTemplateElementId = null,
   blueprintEditorV2Enabled = false,
   onTemplateSlideChange,
@@ -416,6 +424,8 @@ export function PresentationArea({
               console.log(`✏️ Edit mode: ${isEditing ? 'ON' : 'OFF'}`)
               onEditModeChange?.(isEditing)
             }}
+            onStudioFormatRequested={onStudioFormatRequested}
+            studioFormatBusy={studioFormatBusy}
             onTextBoxSelected={(elementId, formatting, componentType) => {
               if (handleBlankElementClick(elementId, blankElements, onOpenBlankGenerationPanel)) return
               onTextBoxSelected(elementId, formatting, componentType)
@@ -467,6 +477,8 @@ export function PresentationArea({
             onGenerateSlide={onGenerateSlide}
             thumbnailUrlsBySlide={thumbnailUrlsBySlide}
             onThumbnailInvalidated={onThumbnailInvalidated}
+            onThumbnailMutationCapture={onThumbnailMutationCapture}
+            studioOwnerUserId={studioOwnerUserId}
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
             templateCurrentSlideIndex={templateCurrentSlideIndex}

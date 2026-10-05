@@ -37,6 +37,8 @@ import { DirectorPresence } from '@/components/build-narration/director-presence
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent } from '@/components/slide-generation-panel'
+import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
+import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
@@ -519,6 +521,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const elementDirectiveRunnerRef = useRef<((payload: import('@/types/mdc').ElementDirectivePayload) => void) | null>(null)
   const templateSelectionLockedRef = useRef(false)
   const [templateModeOn, setTemplateModeOn] = useState(false)
+  const studioFormatTemplateModeRef = useRef(templateModeOn)
+  const studioFormatTemplateModeObservedRef = useRef(templateModeOn)
+  if (studioFormatTemplateModeObservedRef.current !== templateModeOn) {
+    studioFormatTemplateModeObservedRef.current = templateModeOn
+    studioFormatTemplateModeRef.current = templateModeOn
+  }
   const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
   const [templateSnapshotLoading, setTemplateSnapshotLoading] = useState(false)
   const [templateBlueprintDirty, setTemplateBlueprintDirty] = useState(false)
@@ -751,6 +759,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // user-profile menu both call setTheme(), so they stay in sync. No
   // local builder-only theme state.
   // Text box selection state
+  const [studioFormatOpen, setStudioFormatOpen] = useState(false)
+  const [studioFormatTarget, setStudioFormatTarget] = useState<StudioFormatTarget | null>(null)
+  const [studioFormatLoading, setStudioFormatLoading] = useState(false)
+  const [studioFormatError, setStudioFormatError] = useState<string | null>(null)
+  const studioFormatRequestRef = useRef<{ selection: StudioFormatSelectionHandle; scope: object & { busy: boolean; presentationId: string | null; slideIndex: number } } | null>(null)
   const [showTextBoxPanel, setShowTextBoxPanel] = useState(false)
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   const [selectedTextBoxFormatting, setSelectedTextBoxFormatting] = useState<TextBoxFormatting | null>(null)
@@ -1301,7 +1314,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [clampDrawerWidth, studioShell])
 
   // Drawer open conditions
-  const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel
+  const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel || (studioShell && studioFormatOpen)
   const isSlideDrawerOpen = features.slideComposerEnabled && showFormatPanel
   const isDeckDrawerOpen = showChat
   const isTemplateParamsDrawerOpen = templateBuilderEnabled
@@ -1504,7 +1517,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const {
     thumbnailUrls: slideThumbnailUrlsByPresentation,
     setThumbnailUrls: setSlideThumbnailUrlsByPresentation,
+    setReceivedThumbnailUrls: setReceivedSlideThumbnailUrlsByPresentation,
     invalidateThumbnailUrls,
+    captureThumbnailMutation,
   } = useStageFThumbnailCache({
     enabled: studioShell,
     ownerUserId: authScopeUserId,
@@ -1874,9 +1889,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   const handleTemplateModeChange = useCallback(async (enabled: boolean) => {
     if (!enabled) {
+      if (studioShell) {
+        studioFormatRequestRef.current?.selection.retire()
+        studioFormatRequestRef.current = null
+        setStudioFormatOpen(false); setStudioFormatTarget(null); setStudioFormatLoading(false); setStudioFormatError(null)
+      }
       if (templateBlueprintDirty && templateSnapshot?.template_blueprint && activeTemplate) {
         await handleTemplateBlueprintSave()
       }
+      studioFormatTemplateModeRef.current = false
       setTemplateModeOn(false)
       setTemplateParamsCollapsed(false)
       setSelectedTemplateElementId(null)
@@ -1891,6 +1912,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
+    if (studioShell) {
+      // Close and retire synchronously before the mode setter or any await.
+      // An old command callback cannot borrow the next render's selection.
+      studioFormatTemplateModeRef.current = true
+      studioFormatRequestRef.current?.selection.retire()
+      studioFormatRequestRef.current = null
+      setStudioFormatOpen(false); setStudioFormatTarget(null); setStudioFormatLoading(false); setStudioFormatError(null)
+    }
     setTemplateModeOn(true)
     setTemplateParamsCollapsed(false)
     setShowChat(false)
@@ -1906,9 +1935,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setTemplateSourceSlideIndex(currentSlideIndex)
     if (!templateSnapshot || templateSnapshot.id !== activeTemplate.id) {
       const snapshot = await loadTemplateSnapshot(activeTemplate)
-      if (!snapshot) setTemplateModeOn(false)
+      if (!snapshot) {
+        studioFormatTemplateModeRef.current = false
+        setTemplateModeOn(false)
+      }
     }
   }, [
+    studioShell,
     activeTemplate,
     currentSlideIndex,
     handleTemplateBlueprintSave,
@@ -2123,7 +2156,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     onSlideBuilt: (message: SlideBuilt) => {
       const { presentation_id, slide_index, thumbnail_url } = message.payload
       const ownsThumbnail = !studioShell || message.session_id === currentSessionIdRef.current
-      if (ownsThumbnail) setSlideThumbnailUrlsByPresentation(prev =>
+      if (ownsThumbnail) setReceivedSlideThumbnailUrlsByPresentation(presentation_id, prev =>
         mergeStageFPresentationThumbnailUrl(
           prev,
           presentation_id,
@@ -2187,7 +2220,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         })
         return
       }
-      setSlideThumbnailUrlsByPresentation(prev =>
+      setReceivedSlideThumbnailUrlsByPresentation(payload.presentation_id, prev =>
         mergeStageFReadyThumbnailUrl(
           prev,
           payload.presentation_id,
@@ -3942,6 +3975,77 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     toast,
   })
 
+  const studioFormatBusy = templateModeOn || generationPanel.isOpen || generationPanel.isGenerating
+    || isGeneratingFinal || isGeneratingStrawman || templateBlueprintSaving || templateReuseAwaitingInput
+    || (buildNarration.active && !['idle', 'complete'].includes(buildNarration.phase))
+    || Object.values(slideComposeJobs).some(job => job.status === 'building')
+    || !studioViewerSafety?.ready || Boolean(studioViewerSafety?.busy || studioViewerSafety?.error)
+  const studioFormatScopeRef = useRef({ userId: user?.id, sessionId: currentSessionId,
+    presentationId: effectivePresentationId, deckOwnerSessionId, activeVersion, busy: studioFormatBusy,
+    slideIndex: currentSlideIndex, templateModeOn })
+  const oldFormatScope = studioFormatScopeRef.current
+  if (oldFormatScope.userId !== user?.id || oldFormatScope.sessionId !== currentSessionId
+    || oldFormatScope.presentationId !== effectivePresentationId || oldFormatScope.deckOwnerSessionId !== deckOwnerSessionId
+    || oldFormatScope.activeVersion !== activeVersion || oldFormatScope.busy !== studioFormatBusy
+    || oldFormatScope.slideIndex !== currentSlideIndex || oldFormatScope.templateModeOn !== templateModeOn) {
+    studioFormatScopeRef.current = { userId: user?.id, sessionId: currentSessionId,
+      presentationId: effectivePresentationId, deckOwnerSessionId, activeVersion, busy: studioFormatBusy,
+      slideIndex: currentSlideIndex, templateModeOn }
+  }
+  const closeStudioFormat = useCallback(() => {
+    studioFormatRequestRef.current = null
+    setStudioFormatOpen(false); setStudioFormatTarget(null); setStudioFormatLoading(false); setStudioFormatError(null)
+  }, [])
+  const studioFormatMountedRef = useRef(false)
+  useEffect(() => { studioFormatMountedRef.current = true; return () => { studioFormatMountedRef.current = false; studioFormatRequestRef.current = null } }, [])
+  const studioFormatScope = studioFormatScopeRef.current
+  useEffect(() => {
+    const request = studioFormatRequestRef.current
+    if (request && (request.scope !== studioFormatScope || !request.selection.isCurrent())) closeStudioFormat()
+  }, [studioFormatScope, studioViewerSafety, closeStudioFormat])
+  const handleStudioFormatRequested = useCallback(async (selection: StudioFormatSelectionHandle) => {
+    const scope = studioFormatScopeRef.current
+    if (!studioShell || studioFormatTemplateModeRef.current || scope.busy || !scope.userId || !scope.sessionId || scope.sessionId === 'new'
+      || scope.deckOwnerSessionId !== scope.sessionId || selection.presentationId !== scope.presentationId
+      || selection.slideIndex !== scope.slideIndex || !selection.isCurrent()) return
+    const request = { selection, scope }
+    studioFormatRequestRef.current = request
+    const current = () => studioFormatMountedRef.current && studioFormatRequestRef.current === request
+      && studioFormatScopeRef.current === scope && selection.isCurrent()
+    setStudioFormatOpen(true); setStudioFormatLoading(true); setStudioFormatTarget(null); setStudioFormatError(null)
+    activateElementPanel()
+    try {
+      const target = await selection.read()
+      if (current()) setStudioFormatTarget(target)
+    } catch (error) {
+      if (current()) setStudioFormatError(error instanceof Error ? error.message : 'Formatting properties could not be confirmed.')
+    } finally { if (current()) setStudioFormatLoading(false) }
+  }, [studioShell, activateElementPanel])
+  const handleStudioFormatCommand = useCallback(async (action: StudioFormatCommand, params: Record<string, unknown>, target: StudioFormatTarget) => {
+    const request = studioFormatRequestRef.current
+    if (!request || !studioFormatMountedRef.current || studioFormatScopeRef.current !== request.scope
+      || studioFormatTemplateModeRef.current || request.scope.busy || !request.selection.isCurrent() || target.selectionOwner !== request.selection.owner
+      || target.presentationId !== request.scope.presentationId || target.slideIndex !== request.scope.slideIndex) {
+      throw new Error('Select the element again before formatting.')
+    }
+    const result = await request.selection.send(action, params, target)
+    if (!studioFormatMountedRef.current || studioFormatRequestRef.current !== request
+      || studioFormatScopeRef.current !== request.scope || !request.selection.isCurrent()) throw new Error('The selection changed before formatting was confirmed.')
+    // A confirmed primitive is followed by another strict native read. Attempted
+    // field values never become the source of the next formatting snapshot.
+    try {
+      const refreshed = await request.selection.read()
+      if (studioFormatMountedRef.current && studioFormatRequestRef.current === request
+        && studioFormatScopeRef.current === request.scope && request.selection.isCurrent()) setStudioFormatTarget(refreshed)
+    } catch {
+      if (studioFormatMountedRef.current && studioFormatRequestRef.current === request
+        && studioFormatScopeRef.current === request.scope && request.selection.isCurrent()) {
+        setStudioFormatTarget(null)
+        setStudioFormatError('The change was confirmed, but its updated properties could not be read. Select the element again.')
+      }
+    }
+    return result
+  }, [])
   const handleOpenGenerationPanelInFront = useCallback(async (type: string) => {
     activateElementPanel()
     await handleOpenGenerationPanel(type)
@@ -5623,6 +5727,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               {...(studioShell && !studioElementVisible ? { inert: true } : {})}
               style={{ width: studioShell ? studioInspectorWidth : drawerWidth }}
             >
+              {studioShell && studioFormatOpen && <>
+                {studioFormatLoading && <p role="status" className="px-4 py-3 text-sm">Reading selected element properties…</p>}
+                {studioFormatError && <div role="alert" className="px-4 py-3 text-sm">{studioFormatError}</div>}
+                <StudioFormatInspector isOpen={studioFormatOpen} target={studioFormatTarget} readSnapshot={studioFormatTarget ?? undefined}
+                  busy={studioFormatBusy || studioFormatLoading} onClose={closeStudioFormat}
+                  onSendCommand={handleStudioFormatCommand}/>
+              </>}
               {features.useTextLabsGeneration && (
                 <GenerationPanel
                   isOpen={generationPanel.isOpen}
@@ -6225,6 +6336,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             )
           ) : (
           <PresentationArea
+            onStudioFormatRequested={studioShell ? handleStudioFormatRequested : undefined}
+            studioFormatBusy={studioShell ? studioFormatBusy : undefined}
             studioIntroReplay={studioShell ? <StudioIntroductionButton className="studio-canvas-intro-replay" /> : undefined}
             onEditModeChange={studioShell ? setStudioViewerEditing : undefined}
             onStudioIntroductionSafetyChange={studioShell ? handleStudioViewerSafety : undefined}
@@ -6301,6 +6414,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
             onGenerateSlide={studioShell && features.slideComposerEnabled ? handleOpenSlideCompose : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
+              if (studioShell) closeStudioFormat()
               if (features.useTextLabsGeneration) {
                 setSelectedTextBoxId(elementId)
                 setSelectedTextBoxFormatting(formatting)
@@ -6318,6 +6432,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             }}
             onTextBoxDeselected={() => {
+              if (studioShell) closeStudioFormat()
               setSelectedTextBoxId(null)
               setSelectedTextBoxFormatting(null)
               if (!generationPanel.isGenerating && (generationPanel.mode === 'edit' || generationPanel.mode === 'refine')) {
@@ -6325,6 +6440,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             }}
             onElementSelected={(elementId, elementType, properties) => {
+              if (studioShell) closeStudioFormat()
               if (features.useTextLabsGeneration && isTextLabsMappable(elementType)) {
                 setSelectedElementId(elementId)
                 setSelectedElementType(elementType)
@@ -6344,6 +6460,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             }}
             onElementDeselected={() => {
+              if (studioShell) closeStudioFormat()
               setSelectedElementId(null)
               setSelectedElementType(null)
               setSelectedElementProperties(null)
@@ -6402,6 +6519,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 : {}
             }
             onThumbnailInvalidated={studioShell ? invalidateThumbnailUrls : undefined}
+            onThumbnailMutationCapture={studioShell ? captureThumbnailMutation : undefined}
+            studioOwnerUserId={studioShell ? authScopeUserId : undefined}
             templateCurrentSlideIndex={templateSourceSlideIndex}
             selectedTemplateElementId={selectedTemplateElementId}
             blueprintEditorV2Enabled={blueprintEditorV2Enabled}

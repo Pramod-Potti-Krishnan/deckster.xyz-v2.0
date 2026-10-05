@@ -48,7 +48,8 @@ export function DirectorPresence({ narration, currentStatus, className, loadingS
       data-studio-director-presence={studioShell ? "true" : undefined}
     >
       <div className="flex items-center gap-2.5">
-        <DeckShuffle reduced={!!reduced} paused={narration.phase === 'paused' || narration.phase === 'stopped'} />
+        <DeckShuffle reduced={!!reduced} paused={narration.phase === 'paused' || narration.phase === 'stopped'
+          || (studioShell && narration.active && ['awaiting_user', 'error', 'complete'].includes(narration.phase))} />
         <span data-studio-director-status={studioShell ? "true" : undefined} tabIndex={studioShell ? 0 : undefined} role={studioShell ? "region" : undefined} aria-label={studioShell ? "Current Director status" : undefined} className="min-w-0 flex-1 truncate text-xs text-muted-foreground" aria-live="polite">
           {line}
         </span>
