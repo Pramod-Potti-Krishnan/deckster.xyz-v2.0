@@ -662,6 +662,14 @@ export interface UseDecksterWebSocketV2State {
   blankPresentationUrl: string | null; // Blank presentation URL on connect
   blankPresentationId: string | null; // Blank presentation ID
   isBlankPresentation: boolean; // True if currently showing blank presentation
+  /** Ephemeral positive ingress proof; never persisted or recovered from cache. */
+  studioAutomaticBlankSelection?: {
+    token: object;
+    userId: string;
+    sessionId: string;
+    presentationId: string | null;
+    presentationUrl: string;
+  } | null;
   activeVersion: 'blank' | 'strawman' | 'final'; // Which version is currently being viewed
   // Durable Director workflow state. This is authoritative for deciding whether
   // the next build starts from a manually edited blank presentation.
@@ -2130,6 +2138,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       newState.activeVersion = 'blank';
                       newState.presentationUrl = initUrl;
                       newState.presentationId = initId || null;
+                      newState.studioAutomaticBlankSelection = {
+                        token: {}, userId: socketUserId, sessionId: socketSessionId,
+                        presentationId: initId || null, presentationUrl: initUrl,
+                      };
                       newState.strawmanPreviewUrl = null;
                       newState.strawmanPresentationId = null;
                       newState.finalPresentationUrl = null;
@@ -2230,6 +2242,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       newState.activeVersion = 'blank';
                       newState.presentationUrl = blankUrl;
                       newState.presentationId = blankId || null;
+                      newState.studioAutomaticBlankSelection = {
+                        token: {}, userId: socketUserId, sessionId: socketSessionId,
+                        presentationId: blankId || null, presentationUrl: blankUrl,
+                      };
                       newState.strawmanPreviewUrl = null;
                       newState.strawmanPresentationId = null;
                       newState.finalPresentationUrl = null;
@@ -3544,6 +3560,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       composerThemeResolved: false,
       messages: [],
       presentationUrl: null,
+      studioAutomaticBlankSelection: null,
       strawmanPreviewUrl: null,
       finalPresentationUrl: null,
       deckOwnerSessionId: null,
@@ -3747,6 +3764,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             }));
             return accepted;
           }, []),
+        studioAutomaticBlankSelection: null,
         // CRITICAL FIX: Use computed display URL based on activeVersion
         // This ensures the correct presentation version is shown
         presentationUrl: retainFinal ? restoredFinalUrl : displayUrl,

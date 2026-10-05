@@ -4,7 +4,7 @@
 .wis-perspective{position:absolute;inset:0;perspective:1150px;perspective-origin:50% 44%;transform-style:preserve-3d}
 .wis-stage{position:absolute;left:50%;top:50%;width:760px;height:560px;transform:translate(-50%,-50%) scale(var(--wis-scale,.8));transform-style:preserve-3d}
 .wis-world{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(7deg) rotateY(-9deg);animation:wis-world-drift 17s ease-in-out 2.5s infinite alternate}
-.wis-object{position:absolute;left:50%;top:50%;transform-style:preserve-3d;backface-visibility:hidden;transform:translate3d(calc(-50% + var(--wis-x,0px)),calc(-50% + var(--wis-y,0px)),var(--wis-z,0px)) rotateX(var(--wis-rx,0deg)) rotateY(var(--wis-ry,0deg)) rotateZ(var(--wis-rz,0deg));animation:wis-object-assemble 2.15s cubic-bezier(.16,1,.3,1) var(--wis-delay,0ms) both;will-change:transform,opacity}
+.wis-object{position:absolute;left:50%;top:50%;transform-style:preserve-3d;backface-visibility:hidden;transform:translate3d(calc(-50% + var(--wis-x,0px)),calc(-50% + var(--wis-y,0px)),var(--wis-z,0px)) rotateX(var(--wis-rx,0deg)) rotateY(var(--wis-ry,0deg)) rotateZ(var(--wis-rz,0deg)) scale(var(--wis-object-scale,1));opacity:var(--wis-presence,1);transition:transform 1.1s cubic-bezier(.16,1,.3,1),opacity .75s ease;animation:wis-object-assemble 2.15s cubic-bezier(.16,1,.3,1) var(--wis-delay,0ms) backwards;will-change:transform,opacity}
 .wis-ambient{position:absolute;border-radius:50%;filter:blur(35px);opacity:.6;mix-blend-mode:screen;pointer-events:none;animation:wis-light-breathe 7s ease-in-out infinite alternate}
 .wis-ambient-one{width:70%;height:66%;left:13%;top:15%;background:radial-gradient(ellipse,#8fcdb525,transparent 68%)}
 .wis-ambient-two{width:48%;height:42%;left:48%;top:12%;background:radial-gradient(ellipse,#bcdad314,transparent 68%);animation-delay:-3s}
@@ -40,7 +40,7 @@
 .wis-quote-mark{font:400 24cqw/1 Georgia,serif;position:absolute;top:13%;left:6%;opacity:.18;color:var(--accent)}
 .wis-slide-quote h3{margin-top:19%;font-size:8cqw;max-width:95%}
 .wis-quote-rule{height:2px;width:16%;background:var(--accent);opacity:.55;margin-top:6%}
-.wis-builder-back{opacity:.78}.wis-builder-middle{opacity:.9}
+.wis-builder-back{opacity:calc(.78 * var(--wis-presence,1))}.wis-builder-middle{opacity:calc(.9 * var(--wis-presence,1))}
 .wis-mini-slide{width:222px;height:142px;border-radius:7px;box-shadow:0 20px 42px #0005;border:1px solid #d8eae730}
 .wis-brief-object{width:165px;min-height:141px;padding:16px;border:1px solid #cae2d947;border-radius:10px;background:linear-gradient(145deg,#355b58ed,#203d3bed);box-shadow:0 19px 38px #0619176b;color:#dcebdc}
 .wis-object-label{display:block;font:500 8px/1.4 Arial,sans-serif;letter-spacing:1.5px;opacity:.55}
@@ -61,7 +61,7 @@
 .wis-blueprint-object:after{content:'';position:absolute;inset:2px 2px -3px;border:1px solid #aedccf30;border-radius:5px;background:#173c3c55;transform:translateZ(-5px)}
 .wis-blueprint-central{background:#214f4ceb}.wis-blueprint-front{background:#d1e5d5f5;color:#33594e;width:386px;height:212px}
 .wis-blueprint-header{display:flex;justify-content:space-between;font:500 8px/1.5 Arial,sans-serif;letter-spacing:1.2px;opacity:.6;margin-bottom:26px}
-.wis-blueprint-sequence{display:flex;gap:13px}.wis-blueprint-sequence>div{height:140px;flex:1;padding:12px 10px;border:1px dashed #a7cec86b;background:#a0cfc608}.wis-blueprint-sequence span{display:block;font:400 21px/1 Georgia,serif;opacity:.55;margin-bottom:13px}.wis-blueprint-sequence strong{font:400 12px/1.3 Arial,sans-serif;display:block;margin-bottom:17px}.wis-blueprint-sequence i{display:block;height:3px;background:#bddbce33;margin-bottom:6px;width:90%}.wis-blueprint-sequence i:last-child{width:60%}
+.wis-blueprint>.wis-blueprint-sequence{display:flex;gap:13px}.wis-blueprint>.wis-blueprint-sequence>div{height:140px;flex:1;padding:12px 10px;border:1px dashed #a7cec86b;background:#a0cfc608}.wis-blueprint>.wis-blueprint-sequence>div>span{display:block;font:400 21px/1 Georgia,serif;opacity:.55;margin-bottom:13px}.wis-blueprint>.wis-blueprint-sequence>div>strong{font:400 12px/1.3 Arial,sans-serif;display:block;margin-bottom:17px}.wis-blueprint>.wis-blueprint-sequence>div>i{display:block;height:3px;background:#bddbce33;margin-bottom:6px;width:90%}.wis-blueprint>.wis-blueprint-sequence>div>i:last-child{width:60%}
 .wis-blueprint-heading{font:400 24px/1.2 Georgia,serif;letter-spacing:-.3px;margin:0 0 20px}
 .wis-blueprint-slots{display:flex;gap:10px;height:112px}.wis-blueprint-slots>div{flex:1;border:1px dashed #9acdc96b;padding:11px;position:relative}.wis-blueprint-slots span{font-size:9px;opacity:.5}.wis-blueprint-slots i{display:inline-block;width:14%;height:40%;background:#9dd3c350;margin:10px 3px 0 0;vertical-align:bottom}.wis-blueprint-slots i:nth-of-type(2){height:24%}.wis-blueprint-slots i:nth-of-type(3){height:32%}.wis-blueprint-slots>div:nth-child(2) i{width:95%;height:4px;margin:17px 0 0}.wis-blueprint-slots>div:nth-child(2) i:nth-of-type(2){width:67%;margin-top:4px}.wis-blueprint-slots>div:nth-child(3) i{border-radius:50%;width:38px;height:38px;background:transparent;border:5px solid #a7d0b959;display:block}.wis-blueprint-slots small{position:absolute;bottom:8px;left:11px;font-size:6px;letter-spacing:1.1px;opacity:.45}
 .wis-blueprint-front .wis-blueprint{color:#31594e;background-image:linear-gradient(#41695b08 1px,transparent 1px),linear-gradient(90deg,#41695b08 1px,transparent 1px)}
@@ -103,8 +103,8 @@
 .wis-paused *,.wis-paused *:before,.wis-paused *:after{animation-play-state:paused!important}
 .wis-reduced *,.wis-reduced *:before,.wis-reduced *:after{animation:none!important;transition:none!important}
 .wis-reduced .wis-line-reveal,.wis-reduced .wis-identity-seal svg path{stroke-dashoffset:0}
-.wis-reduced .wis-object,.wis-reduced .wis-stage-shadow,.wis-reduced .wis-floor-label{opacity:1}
-@keyframes wis-object-assemble{from{opacity:0;transform:translate3d(calc(-50% + var(--wis-from-x,0px)),calc(-50% + var(--wis-from-y,80px)),var(--wis-from-z,-180px)) rotateX(calc(var(--wis-rx,0deg) + 12deg)) rotateY(calc(var(--wis-ry,0deg) - 18deg)) rotateZ(var(--wis-rz,0deg)) scale(.86)}to{opacity:1;transform:translate3d(calc(-50% + var(--wis-x,0px)),calc(-50% + var(--wis-y,0px)),var(--wis-z,0px)) rotateX(var(--wis-rx,0deg)) rotateY(var(--wis-ry,0deg)) rotateZ(var(--wis-rz,0deg)) scale(1)}}
+.wis-reduced .wis-stage-shadow,.wis-reduced .wis-floor-label{opacity:1}
+@keyframes wis-object-assemble{from{opacity:0;transform:translate3d(calc(-50% + var(--wis-from-x,0px)),calc(-50% + var(--wis-from-y,80px)),var(--wis-from-z,-180px)) rotateX(calc(var(--wis-rx,0deg) + 12deg)) rotateY(calc(var(--wis-ry,0deg) - 18deg)) rotateZ(var(--wis-rz,0deg)) scale(calc(var(--wis-object-scale,1) * .86))}to{opacity:var(--wis-presence,1);transform:translate3d(calc(-50% + var(--wis-x,0px)),calc(-50% + var(--wis-y,0px)),var(--wis-z,0px)) rotateX(var(--wis-rx,0deg)) rotateY(var(--wis-ry,0deg)) rotateZ(var(--wis-rz,0deg)) scale(var(--wis-object-scale,1))}}
 @keyframes wis-world-drift{from{transform:rotateX(7deg) rotateY(-9deg) translateY(0)}to{transform:rotateX(4deg) rotateY(-3deg) translateY(-7px)}}
 @keyframes wis-light-breathe{from{opacity:.45;transform:scale(.93)}to{opacity:.8;transform:scale(1.07)}}
 @keyframes wis-shadow-arrive{from{opacity:0;filter:blur(50px)}to{opacity:1;filter:blur(36px)}}
@@ -119,3 +119,13 @@
    creates a flattened stacking context (for example during the arrival fade). */
 .wis-slide-object>.wis-slide,.wis-gallery-card>.wis-slide,.wis-blueprint-object>.wis-blueprint{z-index:1;transform:translateZ(1px)}
 .wis-slide-object:after,.wis-gallery-card:after,.wis-blueprint-object:after{z-index:0}
+
+/* Chapters rearrange the original artwork; these are illustration states, not build progress. */
+.wis-orbit-line,.wis-template-ground{transition:opacity 1s ease}
+.wis-scene[data-phase="0"] .wis-orbit-line{opacity:.2}
+.wis-scene[data-phase="1"] .wis-orbit-line{opacity:.55}
+.wis-scene-templates[data-phase="0"] .wis-template-ground{opacity:.25}
+.wis-scene-details .wis-signature,.wis-scene-details .wis-identity-bottom{transition:opacity .8s ease,transform 1s ease}
+.wis-scene-details[data-phase="0"] .wis-signature{opacity:0;transform:translateY(12px) rotate(-5deg)}
+.wis-scene-details[data-phase="0"] .wis-identity-bottom{opacity:0;transform:translateY(8px)}
+.wis-scene-details[data-phase="1"] .wis-signature{opacity:1;transform:rotate(-5deg)}

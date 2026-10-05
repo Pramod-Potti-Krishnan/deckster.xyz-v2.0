@@ -267,3 +267,19 @@
   font-weight: 500;
   line-height: 1.3;
 }
+
+/* Keep the approved map/inspector hierarchy with actual entity types and states. */
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] .sk-page-subtitle { color: var(--ss-muted); font-size: 12px; line-height: 1.6; }
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="filters"] { margin-top: 10px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="filters"] button { border-color: var(--ss-line); background: var(--ss-surface); color: var(--ss-muted); font-size: 10px; padding: 4px 9px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="filters"] button[aria-pressed="true"] { border-color: var(--ss-accent); color: var(--ss-text); background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] .sk-map-selection-note { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--ss-line); background: var(--ss-surface); color: var(--ss-muted); font-size: 11px; line-height: 1.6; }
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] .sk-map-selection-note button { flex: none; color: var(--ss-teal); padding: 4px 7px; border: 1px solid var(--ss-line); border-radius: 5px; background: var(--ss-panel); font-size: 10px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] :is([data-studio-knowledge-role="map-empty"], [data-studio-knowledge-role="map-loading"], [data-studio-knowledge-role="map-filtered"]) { background: var(--ss-surface); color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] :is([data-studio-knowledge-role="map-empty"], [data-studio-knowledge-role="map-filtered"]) :is(h3,p) { color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-loading"] p { color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-empty"] button { background: var(--ss-accent); color: white; font-size: 12px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-empty"] a { background: var(--ss-panel); border-color: var(--ss-line); color: var(--ss-text); font-size: 12px; }
+@media (max-width: 639px) {
+  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] .sk-map-selection-note { align-items: flex-start; flex-direction: column; }
+}

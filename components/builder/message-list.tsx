@@ -21,6 +21,13 @@ import {
   type StatusUpdate,
 } from "@/hooks/use-deckster-websocket-v2"
 import { debugLog } from "@/lib/debug-log"
+import type { StudioFrontendTranscriptReceipt } from '@/hooks/use-builder-session'
+import {
+  DIRECTOR_522_INITIAL_GREETING,
+  inferStudioGreetingPrefixCertificate,
+  coalesceCertifiedStudioGreetingPrefix,
+  type InferredGreetingPrefixCertificate,
+} from '@/lib/studio-greeting-lifecycle'
 import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/lib/director-transcript"
 import { directorHistoryTimestamp } from "@/lib/director-chat-history"
 import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, historicalActionStatuses, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
@@ -43,6 +50,13 @@ import "./studio-director.css"
 
 export interface MessageListProps {
   sessionId?: string | null
+  studioFrontendTranscriptReceipt?: StudioFrontendTranscriptReceipt | null
+  studioGreetingSafety?: {
+    pendingRestoration: boolean
+    pendingWork: boolean
+    noticePresent: boolean
+    hasUserIntent: () => boolean
+  }
   userMessages: UserChatMessage[]
   messages: DirectorMessage[]
   userMessageIdsRef: React.RefObject<Set<string>>
@@ -132,6 +146,8 @@ function HistoricalActionCard({ message, status, studio }: { message: ActionRequ
 
 export function MessageList({
   sessionId,
+  studioFrontendTranscriptReceipt,
+  studioGreetingSafety,
   userMessages,
   messages,
   userMessageIdsRef,
@@ -153,6 +169,15 @@ export function MessageList({
   suppressEphemeral,
 }: MessageListProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const greetingProjectionRef = useRef<{
+    receipt: StudioFrontendTranscriptReceipt | null
+    revision: number
+    eligibleIds: Set<string>
+    userIntentSeen: boolean
+    nonIntroSeen: boolean
+    certificate: InferredGreetingPrefixCertificate | null
+  }>({ receipt: null, revision: 0, eligibleIds: new Set(), userIntentSeen: false, nonIntroSeen: false, certificate: null })
+
   const historicalActions = historicalActionStatuses(messages, answeredActionsRef.current)
   const activeActionIds = new Set(messages.filter(message => message.type === 'action_request'
     && (!sessionId || !message.session_id || message.session_id === sessionId)
@@ -332,8 +357,57 @@ export function MessageList({
       return timeA - timeB;
     });
 
-    // Filter out duplicate welcome messages
-    const filtered = presentTerminalOutlineRevisions(coalesceOutlineStateReplays(sorted)).filter((item, index) => {
+    const presented = presentTerminalOutlineRevisions(coalesceOutlineStateReplays(sorted))
+    let studioPresented: readonly typeof presented[number][] = presented
+    if (studio) {
+      const receipt = studioFrontendTranscriptReceipt ?? null
+      let projection = greetingProjectionRef.current
+      if (projection.receipt !== receipt) {
+        projection = { receipt, revision: 0, eligibleIds: new Set(receipt?.restoredAssistantIds ?? []),
+          userIntentSeen: false, nonIntroSeen: false, certificate: null }
+        greetingProjectionRef.current = projection
+      }
+      projection.revision += 1
+      if (receipt && receipt.sessionId === sessionId && studioGreetingSafety) {
+        const knownUser = studioGreetingSafety.hasUserIntent() || userMessages.length > 0
+          || userMessageIdsRef.current.size > 0 || sorted.some(entry => entry.messageType === 'user')
+        // Admit live IDs only before any observed user/nonintro boundary. Loaded
+        // IDs remain independently bounded by their exact private receipt.
+        if (!projection.userIntentSeen && !projection.nonIntroSeen && !knownUser) {
+          for (const entry of sorted) {
+            const bot = entry as DirectorMessage & { role?: string }
+            if (entry.messageType === 'bot' && bot.role === 'assistant'
+              && bot.type === 'chat_message' && (bot as V2ChatMessage).payload.text === DIRECTOR_522_INITIAL_GREETING) {
+              projection.eligibleIds.add(bot.message_id)
+            } else if (!receipt.restoredAssistantIds.includes(bot.message_id)) break
+          }
+        }
+        projection.userIntentSeen ||= knownUser
+        projection.nonIntroSeen ||= sorted.some(entry => entry.messageType === 'bot'
+          && (entry.type !== 'chat_message' || (entry as V2ChatMessage).payload.text !== DIRECTOR_522_INITIAL_GREETING))
+        const owner = { userId: receipt.userId, sessionId: receipt.sessionId,
+          generation: receipt.generation, transcriptRevision: projection.revision }
+        // Re-certification uses only previously eligible IDs. Later genuine
+        // equal-text answers are outside the initial consecutive prefix.
+        const mayCertify = !projection.certificate || (!projection.userIntentSeen && !projection.nonIntroSeen)
+        const certificate = mayCertify ? inferStudioGreetingPrefixCertificate(sorted, owner, {
+          ...owner, origin: 'completed-owned-frontend-load', completedFrontendLoad: true,
+          observedFreshFromCreation: false, noUserInOwnedChannels: !knownUser,
+          hasEverUserIntent: projection.userIntentSeen, hasEverNonIntroConversation: projection.nonIntroSeen,
+          historyUncertain: false, pendingRestoration: studioGreetingSafety.pendingRestoration,
+          pendingWork: studioGreetingSafety.pendingWork, noticePresent: studioGreetingSafety.noticePresent,
+          restoredAssistantIds: receipt.restoredAssistantIds, eligibleIntroIds: [...projection.eligibleIds],
+        }) : null
+        if (certificate) projection.certificate = certificate
+        const projected = coalesceCertifiedStudioGreetingPrefix(sorted, owner, projection.certificate, {
+          historyUncertain: false, pendingRestoration: studioGreetingSafety.pendingRestoration,
+        })
+        studioPresented = presentTerminalOutlineRevisions(coalesceOutlineStateReplays([...projected]))
+      }
+    }
+    // Preserve the legacy welcome policy outside Studio. Studio uses a bounded
+    // display prefix; raw messages still drive history/actions/persistence.
+    const filtered = studio ? [...studioPresented] : presented.filter((item, index) => {
       if (item.messageType === 'bot') {
         const msg = item as DirectorMessage;
         if (msg.type === 'chat_message') {
@@ -457,7 +531,7 @@ export function MessageList({
     }
 
     return processedMessages;
-  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef, suppressEphemeral]);
+  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef, suppressEphemeral, studio, sessionId, studioFrontendTranscriptReceipt, studioGreetingSafety]);
 
   const hasVisibleThinkingStream = processedMessages.some((item) => {
     if (item.messageType !== 'bot') return false

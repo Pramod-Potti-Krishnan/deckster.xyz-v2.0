@@ -4,6 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { features } from '@/lib/config'
 import { getInitializedBuilderHref } from '@/lib/studio-workflow'
+import {
+  createStudioInitialFreshCanonicalEntry,
+  type StudioInitialFreshCanonicalEntry,
+  type StudioInitialFreshCreation,
+} from '@/lib/studio-initial-stage-owner'
 import { debugLog } from '@/lib/debug-log'
 import { directorHistoryTimestamp, missingDirectorUserTurns } from '@/lib/director-chat-history'
 import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
@@ -23,6 +28,15 @@ import {
   attachmentsFromPayload,
   type UserChatMessage,
 } from '@/lib/user-message-attachments'
+
+/** Private, successful frontend-load receipt for display policy only. It is
+ * never persisted or treated as a complete Director history. */
+export interface StudioFrontendTranscriptReceipt {
+  readonly userId: string
+  readonly sessionId: string
+  readonly generation: number
+  readonly restoredAssistantIds: readonly string[]
+}
 
 interface UseBuilderSessionParams {
   user: any
@@ -80,6 +94,46 @@ export function useBuilderSession({
 }: UseBuilderSessionParams) {
   const router = useRouter()
   const builderCacheOwner = user?.id ?? user?.email ?? ''
+  const transcriptScopeKey = JSON.stringify([builderCacheOwner, isAuthLoading, searchParams?.get('session_id') ?? null])
+  const transcriptScopeRef = useRef({ key: transcriptScopeKey, generation: 0, userIntentSeen: false })
+  if (transcriptScopeRef.current.key !== transcriptScopeKey) {
+    transcriptScopeRef.current = { key: transcriptScopeKey, generation: transcriptScopeRef.current.generation + 1, userIntentSeen: false }
+  }
+  const transcriptLoadRequestRef = useRef<object | null>(null)
+  const [studioFrontendTranscriptReceipt, setStudioFrontendTranscriptReceipt] = useState<StudioFrontendTranscriptReceipt | null>(null)
+
+  const freshStageAssignmentRef = useRef<{
+    userId: string; sessionId: string; sourceRoute: string | null;
+    sourceSession: string | null; canonicalSeen: boolean; targetSessionSeen: boolean; retired: boolean;
+  } | null>(null)
+  const [studioInitialFreshCanonicalEntry, setStudioInitialFreshCanonicalEntry] = useState<StudioInitialFreshCanonicalEntry | null>(null)
+  const freshAssignment = freshStageAssignmentRef.current
+  if (freshAssignment) {
+    const route = searchParams?.get('session_id') ?? null
+    if (currentSessionId === freshAssignment.sessionId) freshAssignment.targetSessionSeen = true
+    if (isAuthLoading || builderCacheOwner !== freshAssignment.userId
+      || (freshAssignment.targetSessionSeen && currentSessionId !== freshAssignment.sessionId)
+      || (currentSessionId !== null && currentSessionId !== freshAssignment.sessionId
+        && currentSessionId !== freshAssignment.sourceSession)) freshAssignment.retired = true
+    if (route === freshAssignment.sessionId) freshAssignment.canonicalSeen = true
+    else if (route !== freshAssignment.sourceRoute || freshAssignment.canonicalSeen) freshAssignment.retired = true
+  }
+  const freshAssignmentContextRef = useRef({ userId: builderCacheOwner, isAuthLoading, currentSessionId, route: searchParams?.get('session_id') ?? null })
+  freshAssignmentContextRef.current = { userId: builderCacheOwner, isAuthLoading, currentSessionId, route: searchParams?.get('session_id') ?? null }
+  const recordStudioFreshAssignment = useCallback((sessionId: string, creation: StudioInitialFreshCreation) => {
+    const context = freshAssignmentContextRef.current
+    const assignment = { userId: context.userId, sessionId,
+      sourceRoute: context.route, sourceSession: context.currentSessionId,
+      canonicalSeen: false, targetSessionSeen: false, retired: false }
+    freshStageAssignmentRef.current = assignment
+    const receipt = createStudioInitialFreshCanonicalEntry({
+      authUserId: context.userId, sessionId, sourceRouteSessionId: assignment.sourceRoute,
+      creation, assignmentCurrent: !context.isAuthLoading,
+      isCurrentAssignment: () => freshStageAssignmentRef.current === assignment && !assignment.retired,
+      restoration: 'none',
+    })
+    setStudioInitialFreshCanonicalEntry(receipt)
+  }, [])
 
   const currentSessionIdRef = useRef(currentSessionId)
 
@@ -201,9 +255,13 @@ export function useBuilderSession({
   const createNewSession = useCallback(async () => {
     lastLoadedSessionRef.current = null
     const newSessionId = crypto.randomUUID()
+    const originScope = transcriptScopeRef.current
     const session = await createSession(newSessionId)
 
     if (session) {
+      if (transcriptScopeRef.current === originScope && session.id === newSessionId) {
+        recordStudioFreshAssignment(newSessionId, { kind: 'confirmed_new_session', generatedSessionId: newSessionId, confirmedSessionId: session.id })
+      }
       setUserMessages([])
       clearMessages()
       setIsResumedSession(false)
@@ -317,6 +375,10 @@ export function useBuilderSession({
           lastLoadedSessionRef.current = sessionParam
 
           debugLog('📂 Loading session from URL:', sessionParam)
+          const transcriptScope = transcriptScopeRef.current
+          const transcriptRequest = {}
+          transcriptLoadRequestRef.current = transcriptRequest
+          setStudioFrontendTranscriptReceipt(null)
           const session = await loadSession(sessionParam)
 
           if (session) {
@@ -522,6 +584,21 @@ export function useBuilderSession({
               setIsResumedSession(false)
               debugLog('📝 Existing session but no messages - will auto-connect')
             }
+            // A stale, adopted, failed or ambiguous load cannot issue display
+            // provenance. Preserve the existing restoration/persistence path.
+            if (transcriptScopeRef.current === transcriptScope
+              && transcriptLoadRequestRef.current === transcriptRequest
+              && builderCacheOwner && session.id === sessionParam
+              && Array.isArray(session.messages)) {
+              setStudioFrontendTranscriptReceipt(Object.freeze({
+                userId: builderCacheOwner,
+                sessionId: sessionParam,
+                generation: transcriptScope.generation,
+                restoredAssistantIds: Object.freeze(session.messages
+                  .filter((msg: any) => !msg.userText && typeof msg.id === 'string')
+                  .map((msg: any) => msg.id)),
+              }))
+            }
           } else {
             console.warn('⚠️ Session not found in frontend DB, adopting URL session:', sessionParam)
             const adopted = await createSession(sessionParam)
@@ -560,6 +637,7 @@ export function useBuilderSession({
               const newSessionId = crypto.randomUUID()
               debugLog('🚀 [BUILDER-V2] Generating immediate session ID:', newSessionId)
               clearMessages()
+              recordStudioFreshAssignment(newSessionId, { kind: 'local_uuid', generatedSessionId: newSessionId })
               setCurrentSessionId(newSessionId)
               setIsUnsavedSession(true)
               try {
@@ -679,6 +757,7 @@ export function useBuilderSession({
     const newSessionId = crypto.randomUUID()
 
     debugLog('🆕 Starting new unsaved session')
+    recordStudioFreshAssignment(newSessionId, { kind: 'local_uuid', generatedSessionId: newSessionId })
     disconnect()
     setUserMessages([])
     clearMessages()
@@ -823,6 +902,17 @@ export function useBuilderSession({
     isResumedSession,
     setIsResumedSession,
     isCreatingSession,
+    studioInitialFreshCanonicalEntry: studioInitialFreshCanonicalEntry?.isCurrentAssignment()
+      ? studioInitialFreshCanonicalEntry : null,
+    // Read at display admission time, including user intent before an awaited
+    // send/session creation completes. This latch never affects wire behavior.
+    markStudioUserIntent: () => { transcriptScopeRef.current.userIntentSeen = true },
+    hasStudioUserIntent: () => transcriptScopeRef.current.userIntentSeen,
+    studioFrontendTranscriptReceipt: studioFrontendTranscriptReceipt
+      && studioFrontendTranscriptReceipt.userId === builderCacheOwner
+      && studioFrontendTranscriptReceipt.generation === transcriptScopeRef.current.generation
+      && studioFrontendTranscriptReceipt.sessionId === (currentSessionId || searchParams?.get('session_id'))
+      ? studioFrontendTranscriptReceipt : null,
     userMessages,
     setUserMessages,
 

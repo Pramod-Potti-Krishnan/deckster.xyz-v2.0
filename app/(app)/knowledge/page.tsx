@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { StudioIntroReplay } from "@/components/studio-intro-replay"
 import "@/components/studio-libraries/destination-intros.css"
@@ -56,6 +56,23 @@ interface KgGraphData {
   nodes: KgViewNode[]
   edges: KgViewEdge[]
   total_nodes: number
+}
+
+// Graph fitting depends on node/edge identity. Preserve that identity for an
+// unchanged JSON response, including equivalent object key ordering, so an
+// ordinary refresh does not reset the user's map transform.
+function sameKnowledgeSnapshot(previous: unknown, next: unknown): boolean {
+  if (Object.is(previous, next)) return true
+  if (!previous || !next || typeof previous !== "object" || typeof next !== "object") return false
+  if (Array.isArray(previous) || Array.isArray(next)) {
+    return Array.isArray(previous) && Array.isArray(next) && previous.length === next.length &&
+      previous.every((value, index) => sameKnowledgeSnapshot(value, next[index]))
+  }
+  const before = previous as Record<string, unknown>
+  const after = next as Record<string, unknown>
+  const keys = Object.keys(before)
+  return keys.length === Object.keys(after).length &&
+    keys.every(key => Object.hasOwn(after, key) && sameKnowledgeSnapshot(before[key], after[key]))
 }
 
 interface KgNodeDetail {
@@ -459,14 +476,99 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const importGenerationRef = useRef(0)
   const importAbortRef = useRef<AbortController | null>(null)
+  const importActiveRef = useRef(false)
+  const interruptedImportRef = useRef({ owner: kg.accountKey, interrupted: false })
+  const mountedRef = useRef(true)
+  const admissionWaitersRef = useRef(new Set<() => void>())
+
+  // Match the rendered gate below. Hook loading can temporarily hide resolved
+  // settings while checking access; it is not itself a durable revocation.
+  const accessStatus = kg.isLoading ? "pending" :
+    !kg.isEntitled || !kg.serviceAvailable || (kg.error && !kg.settings) || !kg.isSubscribed ? "blocked" : "ready"
+  const accessRef = useRef({ owner: kg.accountKey, lifetime: 0, revision: 0, status: accessStatus })
+  if (accessRef.current.owner !== kg.accountKey || (accessStatus === "blocked" && accessRef.current.status !== "blocked")) {
+    accessRef.current.lifetime += 1
+    accessRef.current.revision += 1
+  }
+  accessRef.current.owner = kg.accountKey
+  accessRef.current.status = accessStatus
+  const accessRevision = accessRef.current.revision
+  const operationOwner = kg.accountKey
+  const operationLifetime = accessRef.current.lifetime
+  const retiredLifetimeRef = useRef(accessRef.current.lifetime)
+
+  const wakeAdmissionWaiters = useCallback(() => {
+    for (const wake of [...admissionWaitersRef.current]) wake()
+  }, [])
+
+  const waitForAdmission = useCallback((owner: string, lifetime: number, signal: AbortSignal): Promise<boolean> => {
+    const outcome = () => {
+      const current = accessRef.current
+      if (!mountedRef.current || signal.aborted || current.owner !== owner || current.lifetime !== lifetime || current.status === "blocked") return false
+      return current.status === "ready" ? true : null
+    }
+    const immediate = outcome()
+    if (immediate !== null) return Promise.resolve(immediate)
+    return new Promise(resolve => {
+      const wake = () => {
+        const admitted = outcome()
+        if (admitted === null) return
+        admissionWaitersRef.current.delete(wake)
+        signal.removeEventListener("abort", wake)
+        resolve(admitted)
+      }
+      admissionWaitersRef.current.add(wake)
+      signal.addEventListener("abort", wake, { once: true })
+      wake()
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    const currentLifetime = accessRef.current.lifetime
+    if (retiredLifetimeRef.current !== currentLifetime) {
+      retiredLifetimeRef.current = currentLifetime
+      const interruptedImport = importActiveRef.current
+      const retainInterruptedNotice = interruptedImportRef.current.owner === accessRef.current.owner &&
+        (interruptedImport || interruptedImportRef.current.interrupted)
+      interruptedImportRef.current = { owner: accessRef.current.owner, interrupted: retainInterruptedNotice }
+      importActiveRef.current = false
+      dataAbortRef.current?.abort()
+      nodeAbortRef.current?.abort()
+      searchAbortRef.current?.abort()
+      importAbortRef.current?.abort()
+      dataGenerationRef.current += 1
+      nodeGenerationRef.current += 1
+      searchGenerationRef.current += 1
+      importGenerationRef.current += 1
+      setStats(null)
+      setGraph(null)
+      setDataLoading(true)
+      setLoadError(null)
+      setSelectedId(null)
+      setSelected(null)
+      setSelectedLoading(false)
+      setSelectedError(null)
+      setSearchHits(null)
+      setSearchLoading(false)
+      setSearchError(null)
+      setImporting(false)
+      setImportNotice(retainInterruptedNotice ? { tone: "neutral", text: "Import interrupted because Knowledge access changed. No further batches will be sent from this import. Already dispatched requests may have completed; their results have not been verified here. Refresh your graph after access is restored before starting another import." } : null)
+    }
+    wakeAdmissionWaiters()
+  }, [accessRevision, accessStatus, wakeAdmissionWaiters])
 
   const loadData = useCallback(async () => {
+    const owner = operationOwner
+    const lifetime = operationLifetime
+    if (!mountedRef.current || accessRef.current.status !== "ready" || accessRef.current.owner !== owner || accessRef.current.lifetime !== lifetime) return
     const generation = ++dataGenerationRef.current
     dataAbortRef.current?.abort()
     const controller = new AbortController()
     dataAbortRef.current = controller
     const isCurrent = () =>
-      !controller.signal.aborted && dataGenerationRef.current === generation
+      mountedRef.current && !controller.signal.aborted && dataGenerationRef.current === generation &&
+      accessRef.current.owner === owner && accessRef.current.lifetime === lifetime && accessRef.current.status === "ready"
+    const admitted = () => waitForAdmission(owner, lifetime, controller.signal)
 
     setDataLoading(true)
     setLoadError(null)
@@ -475,7 +577,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         fetch("/api/knowledge-graph/stats", { signal: controller.signal }),
         fetch("/api/knowledge-graph/graph?limit=100", { signal: controller.signal }),
       ])
-      if (!isCurrent()) return
+      if (!await admitted() || !isCurrent()) return
       if (!statsResponse.ok || !graphResponse.ok) {
         const unavailable = statsResponse.status === 503 || graphResponse.status === 503
         throw new Error(
@@ -488,27 +590,24 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         statsResponse.json() as Promise<KgStats>,
         graphResponse.json() as Promise<KgGraphData>,
       ])
-      if (isCurrent()) {
-        setStats(nextStats)
-        setGraph(nextGraph)
+      if (await admitted() && isCurrent()) {
+        setStats(current => isCurrent() ? nextStats : current)
+        setGraph(current => isCurrent() && !sameKnowledgeSnapshot(current, nextGraph) ? nextGraph : current)
       }
     } catch (error) {
-      if (isCurrent()) {
+      if (await admitted() && isCurrent()) {
         setLoadError(error instanceof Error ? error.message : "Your knowledge graph could not be loaded.")
       }
     } finally {
-      if (isCurrent()) setDataLoading(false)
+      if (await admitted() && isCurrent()) setDataLoading(false)
     }
-  }, [])
+  }, [operationOwner, operationLifetime, waitForAdmission])
 
   useEffect(() => {
-    if (kg.isEntitled && kg.isSubscribed) {
+    if (accessStatus === "ready") {
       void loadData()
-    } else {
-      dataAbortRef.current?.abort()
-      dataGenerationRef.current += 1
     }
-  }, [kg.isEntitled, kg.isSubscribed, loadData])
+  }, [accessRevision, accessStatus, loadData])
 
   useEffect(() => {
     const generation = ++nodeGenerationRef.current
@@ -520,11 +619,16 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       setSelectedLoading(false)
       return
     }
+    const owner = operationOwner
+    const lifetime = operationLifetime
+    if (!mountedRef.current || accessRef.current.status !== "ready" || accessRef.current.owner !== owner || accessRef.current.lifetime !== lifetime) return
 
     const controller = new AbortController()
     nodeAbortRef.current = controller
     const isCurrent = () =>
-      !controller.signal.aborted && nodeGenerationRef.current === generation
+      mountedRef.current && !controller.signal.aborted && nodeGenerationRef.current === generation &&
+      accessRef.current.owner === owner && accessRef.current.lifetime === lifetime && accessRef.current.status === "ready"
+    const admitted = () => waitForAdmission(owner, lifetime, controller.signal)
 
     setSelectedLoading(true)
     setSelected(null)
@@ -533,35 +637,42 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       signal: controller.signal,
     })
       .then(async (response) => {
+        if (!await admitted() || !isCurrent()) return null
         if (!response.ok) throw new Error("Entity details could not be loaded.")
         return response.json() as Promise<KgNodeDetail>
       })
-      .then((detail) => {
-        if (isCurrent()) setSelected(detail)
+      .then(async (detail) => {
+        if (detail && await admitted() && isCurrent()) setSelected(detail)
       })
-      .catch((error) => {
-        if (isCurrent()) {
+      .catch(async (error) => {
+        if (await admitted() && isCurrent()) {
           setSelectedError(error instanceof Error ? error.message : "Entity details could not be loaded.")
         }
       })
-      .finally(() => {
-        if (isCurrent()) setSelectedLoading(false)
+      .finally(async () => {
+        if (await admitted() && isCurrent()) setSelectedLoading(false)
       })
     return () => {
       controller.abort()
     }
-  }, [selectedId, detailAttempt])
+  }, [selectedId, detailAttempt, accessRevision, accessStatus, operationOwner, operationLifetime, waitForAdmission])
 
-  useEffect(() => () => {
-    dataAbortRef.current?.abort()
-    nodeAbortRef.current?.abort()
-    searchAbortRef.current?.abort()
-    importAbortRef.current?.abort()
-    dataGenerationRef.current += 1
-    nodeGenerationRef.current += 1
-    searchGenerationRef.current += 1
-    importGenerationRef.current += 1
-  }, [])
+  useLayoutEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      dataAbortRef.current?.abort()
+      nodeAbortRef.current?.abort()
+      searchAbortRef.current?.abort()
+      importAbortRef.current?.abort()
+      dataGenerationRef.current += 1
+      nodeGenerationRef.current += 1
+      searchGenerationRef.current += 1
+      importGenerationRef.current += 1
+      importActiveRef.current = false
+      wakeAdmissionWaiters()
+    }
+  }, [wakeAdmissionWaiters])
 
   const clearSearchResults = useCallback(() => {
     searchAbortRef.current?.abort()
@@ -572,6 +683,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   }, [])
 
   const runSearch = useCallback(async () => {
+    const owner = operationOwner
+    const lifetime = operationLifetime
+    if (!mountedRef.current || accessRef.current.status !== "ready" || accessRef.current.owner !== owner || accessRef.current.lifetime !== lifetime) return
     const query = searchQuery.trim()
     if (!query) {
       clearSearchResults()
@@ -583,7 +697,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     const controller = new AbortController()
     searchAbortRef.current = controller
     const isCurrent = () =>
-      !controller.signal.aborted && searchGenerationRef.current === generation
+      mountedRef.current && !controller.signal.aborted && searchGenerationRef.current === generation &&
+      accessRef.current.owner === owner && accessRef.current.lifetime === lifetime && accessRef.current.status === "ready"
+    const admitted = () => waitForAdmission(owner, lifetime, controller.signal)
 
     setSearchLoading(true)
     setSearchError(null)
@@ -594,10 +710,10 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         body: JSON.stringify({ query, max_nodes: 10 }),
         signal: controller.signal,
       })
-      if (!isCurrent()) return
+      if (!await admitted() || !isCurrent()) return
       if (!response.ok) throw new Error("Search is unavailable right now.")
       const body = await response.json()
-      if (!isCurrent()) return
+      if (!await admitted() || !isCurrent()) return
       const nodes = Array.isArray(body.nodes) ? body.nodes : []
       setSearchHits(
         nodes.map((node: Partial<KgViewNode>) => ({
@@ -610,23 +726,30 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         })).filter((node: KgViewNode) => Boolean(node.node_id))
       )
     } catch (error) {
-      if (isCurrent()) {
+      if (await admitted() && isCurrent()) {
         setSearchHits([])
         setSearchError(error instanceof Error ? error.message : "Search is unavailable right now.")
       }
     } finally {
-      if (isCurrent()) setSearchLoading(false)
+      if (await admitted() && isCurrent()) setSearchLoading(false)
     }
-  }, [clearSearchResults, searchQuery])
+  }, [clearSearchResults, searchQuery, operationOwner, operationLifetime, waitForAdmission])
 
   const runImport = useCallback(async () => {
+    const owner = operationOwner
+    const lifetime = operationLifetime
+    if (!mountedRef.current || accessRef.current.status !== "ready" || accessRef.current.owner !== owner || accessRef.current.lifetime !== lifetime) return
     const generation = ++importGenerationRef.current
     importAbortRef.current?.abort()
     const controller = new AbortController()
     importAbortRef.current = controller
     const isCurrent = () =>
-      !controller.signal.aborted && importGenerationRef.current === generation
+      mountedRef.current && !controller.signal.aborted && importGenerationRef.current === generation &&
+      accessRef.current.owner === owner && accessRef.current.lifetime === lifetime && accessRef.current.status === "ready"
+    const admitted = () => waitForAdmission(owner, lifetime, controller.signal)
 
+    importActiveRef.current = true
+    interruptedImportRef.current = { owner, interrupted: false }
     setImporting(true)
     setImportNotice({ tone: "neutral", text: "Importing eligible past sessions. This can take a few minutes…" })
     const totals = {
@@ -642,12 +765,14 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       let batchCount = 0
       let foundAny = false
       while (cursor !== null && batchCount < 20) {
+        if (!await admitted() || !isCurrent()) return
         const response: Response = await fetch(
           `/api/knowledge-graph/backfill?cursor=${cursor}`,
           { method: "POST", signal: controller.signal }
         )
+        if (!await admitted() || !isCurrent()) return
         const body: Record<string, unknown> = await response.json().catch(() => ({}))
-        if (!isCurrent()) return
+        if (!await admitted() || !isCurrent()) return
         if (!response.ok) {
           throw new Error(
             typeof body.error === "string"
@@ -673,7 +798,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         const totalCandidates = Number(body.total_candidates ?? totals.processed)
         setImportNotice({
           tone: "neutral",
-          text: `Imported ${formatNumber(totals.processed)} of ${formatNumber(totalCandidates)} eligible session IDs…`,
+          text: `Processed ${formatNumber(totals.processed)} of ${formatNumber(totalCandidates)} eligible session IDs · ${formatNumber(totals.completed)} completed…`,
         })
         cursor = typeof body.next_cursor === "number" ? body.next_cursor : null
         batchCount += 1
@@ -681,7 +806,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
 
       const incomplete = Math.max(totals.processed - totals.completed, 0)
       const nonRetryable = Math.max(incomplete - totals.retryable, 0)
-      const partial = incomplete > 0
+      const moreBatchesRemain = cursor !== null
+      const partial = incomplete > 0 || moreBatchesRemain
+      if (!await admitted() || !isCurrent()) return
       setImportNotice({
         tone: nonRetryable > 0 ? "error" : partial ? "neutral" : "success",
         text:
@@ -692,11 +819,14 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
           `. ${formatNumber(totals.entitiesCreated)} new entities and ${formatNumber(totals.entitiesMerged)} reinforced.` +
           (totals.alreadyPresent
             ? ` ${formatNumber(totals.alreadyPresent)} were already in your graph.`
+            : "") +
+          (moreBatchesRemain
+            ? " This bounded import stopped before all eligible sessions were processed. More sessions remain according to the returned cursor. You can run Import past sessions again."
             : ""),
       })
-      await loadData()
+      if (await admitted() && isCurrent()) await loadData()
     } catch (error) {
-      if (isCurrent()) {
+      if (await admitted() && isCurrent()) {
         setImportNotice({
           tone: "error",
           text:
@@ -705,9 +835,12 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         })
       }
     } finally {
-      if (isCurrent()) setImporting(false)
+      if (await admitted() && isCurrent()) {
+        importActiveRef.current = false
+        setImporting(false)
+      }
     }
-  }, [loadData])
+  }, [loadData, operationOwner, operationLifetime, waitForAdmission])
 
   const filteredGraph = useMemo(() => {
     if (!graph || hiddenTypes.size === 0) return graph
@@ -727,6 +860,8 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
 
   const lastUpdated = formatDate(stats?.last_updated_at)
   const visibleNodes = filteredGraph?.nodes.length ?? 0
+  const selectedMapNode = selectedId ? graph?.nodes.find(node => node.node_id === selectedId) : undefined
+  const selectionOutsideMap = Boolean(selectedId && graph && !filteredGraph?.nodes.some(node => node.node_id === selectedId))
 
   const summaryCards = (
 <section data-studio-knowledge-role="summary" className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Knowledge graph summary">
@@ -801,8 +936,9 @@ stats && stats.nodes_by_type.length > 0 && (
             <Sparkles className="h-3.5 w-3.5" /> Your second brain
           </div>
           <h1 data-studio-knowledge-role="title" className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-3xl">
-            Knowledge
+            {STUDIO_SHELL ? "Second Brain" : "Knowledge"}
           </h1>
+          {STUDIO_SHELL && <p className="sk-page-subtitle">Your sources and ideas, connected in one view.</p>}
           {STUDIO_SHELL ? <details data-studio-knowledge-role="context"><summary>About this knowledge{lastUpdated ? ` · Updated ${lastUpdated}` : ""}</summary>{headerContext}</details> : headerContext}
         </div>
         <div data-studio-knowledge-role="actions" className="flex flex-wrap gap-2">
@@ -831,7 +967,7 @@ stats && stats.nodes_by_type.length > 0 && (
         >
           <span>{importNotice.text}</span>
           {!importing && (
-            <button type="button" onClick={() => setImportNotice(null)} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
+            <button type="button" onClick={() => { interruptedImportRef.current.interrupted = false; setImportNotice(null) }} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
               <X className="h-4 w-4" />
             </button>
           )}
@@ -928,13 +1064,16 @@ stats && stats.nodes_by_type.length > 0 && (
               </div>
             </div>
 
-            {STUDIO_SHELL ? <details data-studio-knowledge-role="map-support"><summary>Map scope &amp; type filters{hiddenTypes.size > 0 ? ` · ${hiddenTypes.size} hidden` : ""}</summary>{graph && <p className="sk-refresh-note" role="status">{dataLoading ? "Refreshing the loaded snapshot…" : hiddenTypes.size ? `${graph.nodes.length} entities loaded · type filters apply to this snapshot` : `${graph.nodes.length} entities loaded · search can find entities beyond this map`}</p>}{typeFilters}</details> : typeFilters}
+            {typeFilters}
+            {STUDIO_SHELL && <details data-studio-knowledge-role="map-support"><summary>Map scope{hiddenTypes.size > 0 ? ` · ${hiddenTypes.size} types hidden` : ""}</summary>{graph && <p className="sk-refresh-note" role="status">{dataLoading ? "Refreshing the loaded snapshot…" : `${graph.nodes.length} entities loaded · type filters apply to this snapshot. Search can find entities beyond this map.`}</p>}<p className="sk-refresh-note">Scroll to zoom, drag to explore, or use the map controls. Entity list offers the same loaded entities in a readable list.</p></details>}
           </div>
+
+          {STUDIO_SHELL && selectionOutsideMap && <div className="sk-map-selection-note" role="status"><span>{selectedMapNode ? "The selected entity is hidden by your type filters. Use the inspector to review its details." : "The selected entity is outside this loaded map. Use the inspector to review its details."}</span>{selectedMapNode && <button type="button" onClick={() => setHiddenTypes(current => { const next = new Set(current); next.delete(selectedMapNode.entity_type); return next })}>Show {friendlyType(selectedMapNode.entity_type)} entities</button>}</div>}
 
           <div data-studio-knowledge-role="map-content" className="p-2 sm:p-3">
             {STUDIO_SHELL && !dataLoading && loadError && (!graph || graph.nodes.length === 0) && <div data-studio-knowledge-role="map-recovery"><AlertCircle size={28} /><h3>{graph ? 'Last loaded map was empty' : 'Your knowledge map is unavailable'}</h3><p>{graph ? 'Refresh to check the current graph. Existing records have not been changed.' : 'Load your graph to review recorded entities and source evidence. Unavailable data is not an empty library.'}</p><div className="sk-recovery-actions"><Button variant="outline" disabled={dataLoading || importing} onClick={() => void loadData()}><RefreshCw size={14} />Retry graph</Button><Button variant="ghost" asChild><Link href="/settings/knowledge-graph">Review settings</Link></Button></div></div>}
             {dataLoading && !graph && (
-              <div className="flex min-h-[520px] items-center justify-center rounded-2xl bg-[#070b18]">
+              <div data-studio-knowledge-role={STUDIO_SHELL ? "map-loading" : undefined} role="status" className="flex min-h-[520px] items-center justify-center rounded-2xl bg-[#070b18]">
                 <div className="text-center">
                   <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-violet-400/30 border-t-violet-400" />
                   <p className="mt-3 text-sm text-slate-400">Mapping your knowledge…</p>
@@ -943,7 +1082,7 @@ stats && stats.nodes_by_type.length > 0 && (
             )}
 
             {!dataLoading && graph && graph.nodes.length === 0 && !loadError && (
-              <div className="flex min-h-[520px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center">
+              <div data-studio-knowledge-role={STUDIO_SHELL ? "map-empty" : undefined} className="flex min-h-[520px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center">
                 <div className="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-4 text-violet-300">
                   <Brain className="h-8 w-8" />
                 </div>
@@ -968,7 +1107,7 @@ stats && stats.nodes_by_type.length > 0 && (
             )}
 
             {graph && graph.nodes.length > 0 && filteredGraph?.nodes.length === 0 && (
-              <div className="flex min-h-[430px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center sm:min-h-[520px]">
+              <div data-studio-knowledge-role={STUDIO_SHELL ? "map-filtered" : undefined} className="flex min-h-[430px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center sm:min-h-[520px]">
                 <Network className="h-8 w-8 text-slate-500" />
                 <p className="mt-3 text-sm font-medium text-slate-200">All entity types are hidden</p>
                 <button type="button" onClick={() => setHiddenTypes(new Set())} className="mt-2 text-sm text-violet-300 hover:text-violet-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400">Show the full graph</button>

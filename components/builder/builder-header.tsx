@@ -22,7 +22,6 @@ export interface BuilderHeaderProps {
   onOpenChatHistory: () => void
   isChatHistoryOpen?: boolean
   toolbarSlotRef?: (el: HTMLDivElement | null) => void
-  introAction?: React.ReactNode
   onToolbarInteract?: () => void
 }
 
@@ -34,7 +33,6 @@ export function BuilderHeader({
   isChatHistoryOpen = false,
   toolbarSlotRef,
   onToolbarInteract,
-  introAction,
 }: BuilderHeaderProps) {
   // Theme is owned by next-themes; the in-toolbar light/dark toggle lives
   // in the Mode dropdown (inside presentation-viewer.tsx). We still read
@@ -168,8 +166,15 @@ export function BuilderHeader({
             <span title={deckTitle}>{deckTitle}</span>
             {isDeckIdentityEnabled() && <DeckIdentityDialog isDark={isDark} />}
           </div>}
-          {/* Portal target for presentation toolbar; same node across drawer changes. */}
-          <div data-studio-v4-toolbar-target="true" ref={toolbarSlotRef} className="flex-1 min-w-0 h-full overflow-hidden" />
+          {studioShell ? (
+            <div className="studio-shell-header-actions">
+              <Button className="studio-shell-new" onClick={onNewPresentation} aria-label="Add presentation" title="Add presentation"><Plus className="h-4 w-4" /><span>Presentation</span></Button>
+              {/* Delivery controls retain their portal target and original handlers. */}
+              <div data-studio-v4-toolbar-target="true" ref={toolbarSlotRef} className="min-w-0 h-full overflow-hidden" />
+            </div>
+          ) : (
+            <div data-studio-v4-toolbar-target="true" ref={toolbarSlotRef} className="flex-1 min-w-0 h-full overflow-hidden" />
+          )}
 
           {/* One-button-width gap before the profile so it reads as separate from present actions */}
           {!studioShell && (
@@ -178,8 +183,6 @@ export function BuilderHeader({
               {!studioShell && <UserProfileMenu studioLabels={studioLabels} studioPalette={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === "true"} />}
             </div>
           )}
-          {studioShell && introAction}
-          {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && <Button className="studio-shell-new" onClick={onNewPresentation}><Plus className="h-4 w-4" />Presentation</Button>}
         </div>
       </header>
 

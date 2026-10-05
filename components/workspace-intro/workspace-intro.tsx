@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useId, type CSSProperties, type RefObject } from 'react';
 import { ArrowRight, Pause, Play, RotateCcw } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import type { WorkspaceIntroScreen as Screen } from './types';
+import type { WorkspaceIntroScreen as Screen, WorkspaceIntroPhase } from './types';
 import IntroScene from './scene';
 import './workspace-intro.css';
 
@@ -65,7 +65,7 @@ export default function WorkspaceIntro({ screen, enabled = true, replay = 0, aut
   const [paused, setPaused] = useState(false);
   const [reduced, setReduced] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const [phase, setPhase] = useState(0);
+  const [phase, setPhase] = useState<WorkspaceIntroPhase>(0);
   const [run, setRun] = useState(0);
   const [hidden, setHidden] = useState(false);
   const [rect, setRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -208,7 +208,7 @@ export default function WorkspaceIntro({ screen, enabled = true, replay = 0, aut
     <div className="wi-atmosphere" aria-hidden="true"><i/><i/><i/></div>
     <div className="wi-studio-grid" aria-hidden="true"/>
     <div className="wi-masthead"><span><i/>DECKSTER <b>/</b> {copy.name.toUpperCase()}</span><button type="button" ref={skip} className="wi-skip" onClick={() => finish()} aria-label="Skip introduction">Skip intro <ArrowRight size={14}/></button></div>
-    <div className="wi-scene-stage"><IntroScene key={run} screen={screen} paused={paused || leaving || hidden} reduced={reduced}/></div>
+    <div className="wi-scene-stage"><IntroScene key={run} screen={screen} phase={phase} paused={paused || leaving || hidden} reduced={reduced}/></div>
     <div className="wi-story-copy"><span className="wi-kicker">A SPACE FOR YOUR NEXT POSSIBILITY</span><h1>{copy.title}<br/><em>{copy.emphasis}</em></h1><p>{copy.text}</p><button type="button" className="wi-enter" onClick={() => finish()}>Enter {screen === 'builder' ? 'the Studio' : copy.name}<ArrowRight size={15}/></button></div>
     <footer className="wi-footer"><div className="wi-chapters" aria-label={`Introduction stage ${phase + 1} of 3`}>{copy.steps.map((step, index) => <div key={step} className={index <= phase ? 'is-active' : ''}><i/><span><small>0{index + 1}</small>{step}</span></div>)}</div><div className="wi-playback">{!reduced && <button type="button" onClick={() => setPaused(value => !value)} aria-label={paused ? 'Resume introduction' : 'Pause introduction'}>{paused ? <Play size={14}/> : <Pause size={14}/>}<span>{paused ? 'Resume' : 'Pause'}</span></button>}<button type="button" aria-label="Restart introduction" title="Restart introduction" onClick={() => { if (leaveTimer.current) { clearTimeout(leaveTimer.current); leaveTimer.current = null; } if (visit.current) visit.current.elapsed = 0; setPhase(reduced ? 2 : 0); setPaused(false); setLeaving(false); setRun(value => value + 1); surface.current?.style.setProperty('--wi-progress', '0'); }}><RotateCcw size={14}/></button></div></footer>
     <div className="wi-progress" aria-hidden="true"/>

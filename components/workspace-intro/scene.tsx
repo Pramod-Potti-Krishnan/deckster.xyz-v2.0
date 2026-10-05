@@ -1,16 +1,23 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import type { WorkspaceIntroScreen } from './types';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import type { WorkspaceIntroScreen, WorkspaceIntroPhase } from './types';
 import './scene.css';
 
-type Props = { screen: WorkspaceIntroScreen; paused: boolean; reduced: boolean };
+type Props = { screen: WorkspaceIntroScreen; paused: boolean; reduced: boolean; phase?: WorkspaceIntroPhase };
+type ChapterProps = { phase: WorkspaceIntroPhase };
+type Pose = [x: number, y: number, z: number, rotateX?: number, rotateY?: number, rotateZ?: number];
 type Point = { x: number; y: number; z: number };
 type SceneNode = Point & { label?: string; kind: 'hub' | 'source' | 'core' | 'task'; size: number; group: number };
 const placement = (x: number, y: number, z: number, rotateX = 0, rotateY = 0, rotateZ = 0, delay = 0): CSSProperties => ({
   '--wis-x': `${x}px`, '--wis-y': `${y}px`, '--wis-z': `${z}px`, '--wis-rx': `${rotateX}deg`, '--wis-ry': `${rotateY}deg`, '--wis-rz': `${rotateZ}deg`, '--wis-delay': `${delay}ms`,
   '--wis-from-x': `${x * 1.12}px`, '--wis-from-y': `${y + 75}px`, '--wis-from-z': `${z - 190}px`,
 } as CSSProperties);
+
+/** Keep the approved final pose; the first chapters give each object a different role. */
+function chapterPlacement(phase: WorkspaceIntroPhase, poses: [Pose, Pose, Pose], firstVisible: WorkspaceIntroPhase = 0, scale: [number, number, number] = [1, 1, 1], delay = 0): CSSProperties {
+  return { ...placement(...poses[phase], delay), '--wis-presence': phase >= firstVisible ? 1 : 0, '--wis-object-scale': scale[phase] } as CSSProperties;
+}
 
 function SlideObject({ kind = 'cover', tone = 'ivory', title = 'A clearer\ndirection.' }: { kind?: 'cover' | 'chart' | 'flow' | 'quote'; tone?: 'ivory' | 'mint' | 'ink'; title?: string }) {
   return <div className={`wis-slide wis-slide-${kind} wis-tone-${tone}`}>
@@ -20,26 +27,26 @@ function SlideObject({ kind = 'cover', tone = 'ivory', title = 'A clearer\ndirec
   </div>;
 }
 
-function BuilderScene() {
+function BuilderScene({ phase }: ChapterProps) {
   return <>
     <div className="wis-orbit-line wis-orbit-wide" />
-    <div className="wis-object wis-slide-object wis-builder-back" style={placement(-48, -53, -115, 5, -9, -11, 120)}><SlideObject kind="chart" tone="mint" /></div>
-    <div className="wis-object wis-slide-object wis-builder-middle" style={placement(-17, -19, -35, 3, -5, -6, 300)}><SlideObject kind="flow" /></div>
-    <div className="wis-object wis-slide-object wis-builder-main" style={placement(35, 29, 80, 0, -5, -2, 530)}><SlideObject title={'Ideas become\ndirection.'} /></div>
-    <div className="wis-object wis-brief-object" style={placement(-233, 89, 125, 1, 12, -6, 1000)}><span className="wis-object-label">THE BRIEF</span><div className="wis-brief-message"><i /><i /><i /></div><div className="wis-brief-response"><span>✦</span><i /><i /></div><div className="wis-brief-cursor" /></div>
-    <div className="wis-object wis-mini-slide wis-builder-satellite" style={placement(246, -106, -10, 3, -16, 9, 1250)}><SlideObject kind="chart" tone="ink" /></div>
-    <div className="wis-object wis-status-object" style={placement(195, 187, 135, 0, -5, -2, 1650)}><span className="wis-status-dot" /><span>BRIEF <i /> STORY <i /> SLIDES</span></div>
+    <div className="wis-object wis-slide-object wis-builder-back" style={chapterPlacement(phase, [[188, 14, -50, 2, -10, 7], [198, -48, -20, 3, -10, 7], [-48, -53, -115, 5, -9, -11]], 1, [.7, .64, 1], 80)}><SlideObject kind="chart" tone="mint" /></div>
+    <div className="wis-object wis-slide-object wis-builder-middle" style={chapterPlacement(phase, [[35, 20, -50, 3, -5, -6], [18, 8, 100, 1, -5, -2], [-17, -19, -35, 3, -5, -6]], 1, [.82, 1.04, 1], 140)}><SlideObject kind="flow" /></div>
+    <div className="wis-object wis-slide-object wis-builder-main" style={chapterPlacement(phase, [[70, 80, -120, 0, -5, -2], [94, 70, -90, 0, -5, -2], [35, 29, 80, 0, -5, -2]], 2, [.75, .8, 1], 180)}><SlideObject title={'Ideas become\ndirection.'} /></div>
+    <div className="wis-object wis-brief-object" style={chapterPlacement(phase, [[15, 0, 100, 1, -5, -3], [-230, 80, 135, 1, 12, -6], [-233, 89, 125, 1, 12, -6]], 0, [1.8, 1.08, 1], 100)}><span className="wis-object-label">THE BRIEF</span><div className="wis-brief-message"><i /><i /><i /></div><div className="wis-brief-response"><span>✦</span><i /><i /></div><div className="wis-brief-cursor" /></div>
+    <div className="wis-object wis-mini-slide wis-builder-satellite" style={chapterPlacement(phase, [[245, -120, -100, 3, -16, 9], [245, -120, -100, 3, -16, 9], [246, -106, -10, 3, -16, 9]], 2, [.8, .8, 1], 260)}><SlideObject kind="chart" tone="ink" /></div>
+    <div className="wis-object wis-status-object" style={chapterPlacement(phase, [[195, 187, 50, 0, -5, -2], [195, 187, 50, 0, -5, -2], [195, 187, 135, 0, -5, -2]], 2, [1, 1, 1], 300)}><span className="wis-status-dot" /><span>BRIEF <i /> STORY <i /> SLIDES</span></div>
   </>;
 }
 
-function DecksScene() {
+function DecksScene({ phase }: ChapterProps) {
   return <>
     <div className="wis-orbit-line wis-gallery-orbit" /><div className="wis-orbit-line wis-gallery-orbit second" />
-    <div className="wis-object wis-gallery-card wis-gallery-back" style={placement(-231, -117, -135, 7, 16, -9, 150)}><SlideObject kind="flow" tone="mint" /></div>
-    <div className="wis-object wis-gallery-card" style={placement(229, -128, -130, 7, -17, 8, 350)}><SlideObject kind="chart" tone="ink" /></div>
-    <div className="wis-object wis-gallery-card" style={placement(-246, 139, -115, -2, 17, -6, 600)}><SlideObject kind="quote" title={'Small moves.\nLasting impact.'} /></div>
-    <div className="wis-object wis-gallery-card" style={placement(249, 133, -105, -2, -13, 8, 800)}><SlideObject kind="cover" tone="mint" title={'The next\nchapter.'} /></div>
-    <div className="wis-object wis-slide-object wis-gallery-main" style={placement(4, 12, 95, 0, -4, -2, 1150)}><SlideObject title={'Stories worth\nreturning to.'} /><div className="wis-gallery-tab"><span className="wis-status-dot" />YOUR WORKSPACE</div></div>
+    <div className="wis-object wis-gallery-card wis-gallery-back" style={chapterPlacement(phase, [[-42, -70, -90, 7, 8, -12], [-45, -50, -120, 7, 16, -9], [-231, -117, -135, 7, 16, -9]], 0, [1.25, .85, 1], 80)}><SlideObject kind="flow" tone="mint" /></div>
+    <div className="wis-object wis-gallery-card" style={chapterPlacement(phase, [[18, -37, -15, 4, -8, 8], [40, -35, -140, 7, -17, 8], [229, -128, -130, 7, -17, 8]], 0, [1.25, .85, 1], 160)}><SlideObject kind="chart" tone="ink" /></div>
+    <div className="wis-object wis-gallery-card" style={chapterPlacement(phase, [[-13, 3, 65, 0, 4, -5], [-10, 0, -100, -2, 17, -6], [-246, 139, -115, -2, 17, -6]], 0, [1.25, .85, 1], 240)}><SlideObject kind="quote" title={'Small moves.\nLasting impact.'} /></div>
+    <div className="wis-object wis-gallery-card" style={chapterPlacement(phase, [[37, 48, 140, 0, -4, 3], [70, 30, -130, -2, -13, 8], [249, 133, -105, -2, -13, 8]], 0, [1.25, .85, 1], 320)}><SlideObject kind="cover" tone="mint" title={'The next\nchapter.'} /></div>
+    <div className="wis-object wis-slide-object wis-gallery-main" style={chapterPlacement(phase, [[4, 12, -170, 0, -4, -2], [4, 12, 135, 0, -4, -2], [4, 12, 95, 0, -4, -2]], 1, [.85, 1.12, 1], 100)}><SlideObject title={'Stories worth\nreturning to.'} /><div className="wis-gallery-tab"><span className="wis-status-dot" />YOUR WORKSPACE</div></div>
   </>;
 }
 
@@ -52,35 +59,35 @@ function BlueprintPlane({ kind }: { kind: 'sequence' | 'structure' | 'intent' })
   </div>;
 }
 
-function TemplatesScene() {
+function TemplatesScene({ phase }: ChapterProps) {
   return <>
     <div className="wis-template-ground" />
-    <div className="wis-object wis-blueprint-object" style={placement(-49, -98, -155, 13, -12, -4, 160)}><BlueprintPlane kind="sequence" /></div>
-    <div className="wis-object wis-blueprint-object wis-blueprint-central" style={placement(-5, -8, -15, 10, -9, -3, 640)}><BlueprintPlane kind="structure" /></div>
-    <div className="wis-object wis-blueprint-object wis-blueprint-front" style={placement(63, 113, 135, 6, -6, -2, 1150)}><BlueprintPlane kind="intent" /></div>
-    <div className="wis-object wis-axis-label" style={placement(-267, -30, 65, 0, 5, -3, 1400)}><i /><span>DECK</span><i /><span>SLIDE</span><i /><span>ELEMENT</span></div>
-    <div className="wis-object wis-blueprint-pin" style={placement(258, -101, 65, 0, -10, 6, 1600)}><span>↗</span><small>REUSABLE<br />BY DESIGN</small></div>
+    <div className="wis-object wis-blueprint-object" style={chapterPlacement(phase, [[12, 0, 100, 4, -6, -3], [-90, -114, -120, 13, -12, -4], [-49, -98, -155, 13, -12, -4]], 0, [1.1, .9, 1], 120)}><BlueprintPlane kind="sequence" /></div>
+    <div className="wis-object wis-blueprint-object wis-blueprint-central" style={chapterPlacement(phase, [[12, 80, -150, 10, -9, -3], [30, 32, 110, 6, -7, -2], [-5, -8, -15, 10, -9, -3]], 1, [.85, 1.08, 1], 200)}><BlueprintPlane kind="structure" /></div>
+    <div className="wis-object wis-blueprint-object wis-blueprint-front" style={chapterPlacement(phase, [[63, 170, -140, 6, -6, -2], [63, 170, -140, 6, -6, -2], [63, 113, 135, 6, -6, -2]], 2, [.85, .85, 1], 280)}><BlueprintPlane kind="intent" /></div>
+    <div className="wis-object wis-axis-label" style={chapterPlacement(phase, [[-267, -30, 65, 0, 5, -3], [-267, -30, 65, 0, 5, -3], [-267, -30, 65, 0, 5, -3]], 1, [1, 1, 1], 300)}><i /><span>DECK</span><i /><span>SLIDE</span><i /><span>ELEMENT</span></div>
+    <div className="wis-object wis-blueprint-pin" style={chapterPlacement(phase, [[258, -101, -50, 0, -10, 6], [258, -101, -50, 0, -10, 6], [258, -101, 65, 0, -10, 6]], 2, [1, 1, 1], 340)}><span>↗</span><small>REUSABLE<br />BY DESIGN</small></div>
   </>;
 }
 
-function BrandScene() {
+function BrandScene({ phase }: ChapterProps) {
   const colors = ['#e8ecdb', '#a8d8c7', '#3c7972', '#d1b275', '#847b98'];
   return <>
     <div className="wis-orbit-line wis-brand-orbit" />
-    <div className="wis-object wis-type-card wis-type-card-back" style={placement(-83, -38, -85, 4, -14, -8, 120)}><span className="wis-object-label">VISUAL IDENTITY / 01</span><b>Aa</b><div className="wis-type-lines"><i /><i /><i /></div></div>
-    <div className="wis-object wis-type-card" style={placement(-78, -4, 50, 2, -7, -3, 500)}><span className="wis-object-label">A DISTINCTIVE VOICE</span><b>Aa<span>.</span></b><strong>Considered.<br />Confident. Clear.</strong><div className="wis-type-card-foot"><span>EDITORIAL SERIF</span><i /></div></div>
-    {colors.map((color, index) => <div key={color} className="wis-object wis-color-blade" style={{ ...placement(93 + index * 35, 7 + index * 14, 35 + index * 15, 2, -7, 6 + index * 10, 700 + index * 190), '--wis-swatch': color } as CSSProperties}><div /><span>0{index + 1}<b>{color.toUpperCase()}</b></span></div>)}
-    <div className="wis-object wis-brand-seal" style={placement(-221, 152, 100, -4, 9, -8, 1700)}><span>✳</span><div>YOUR<br />SIGNATURE</div></div>
+    <div className="wis-object wis-type-card wis-type-card-back" style={chapterPlacement(phase, [[-130, -40, -130, 4, -14, -8], [-130, -40, -100, 4, -14, -8], [-83, -38, -85, 4, -14, -8]], 1, [.9, .9, 1], 80)}><span className="wis-object-label">VISUAL IDENTITY / 01</span><b>Aa</b><div className="wis-type-lines"><i /><i /><i /></div></div>
+    <div className="wis-object wis-type-card" style={chapterPlacement(phase, [[-130, -4, -130, 2, -7, -3], [-100, -4, 80, 2, -7, -3], [-78, -4, 50, 2, -7, -3]], 1, [.85, 1.04, 1], 160)}><span className="wis-object-label">A DISTINCTIVE VOICE</span><b>Aa<span>.</span></b><strong>Considered.<br />Confident. Clear.</strong><div className="wis-type-card-foot"><span>EDITORIAL SERIF</span><i /></div></div>
+    {colors.map((color, index) => <div key={color} className="wis-object wis-color-blade" style={{ ...chapterPlacement(phase, [[-202 + index * 106, -8 + Math.abs(index - 2) * 15, 80, 2, -7, (index - 2) * 5], [85 + index * 34, 15 + index * 12, 35 + index * 15, 2, -7, 3 + index * 7], [93 + index * 35, 7 + index * 14, 35 + index * 15, 2, -7, 6 + index * 10]], 0, [1.12, 1, 1], 80 + index * 60), '--wis-swatch': color } as CSSProperties}><div /><span>0{index + 1}<b>{color.toUpperCase()}</b></span></div>)}
+    <div className="wis-object wis-brand-seal" style={chapterPlacement(phase, [[-221, 180, -50, -4, 9, -8], [-221, 180, -50, -4, 9, -8], [-221, 152, 100, -4, 9, -8]], 2, [1, 1, 1], 300)}><span>✳</span><div>YOUR<br />SIGNATURE</div></div>
   </>;
 }
 
-function DetailsScene() {
+function DetailsScene({ phase }: ChapterProps) {
   return <>
     <div className="wis-orbit-line wis-identity-orbit" />
-    <div className="wis-object wis-identity-back" style={placement(53, -69, -95, 5, -9, 8, 200)}><span className="wis-object-label">PRESENTER DETAILS</span>{['AUTHOR', 'ORGANIZATION', 'CONTACT', 'SIGNATURE'].map((label, index) => <div key={label}><span>{label}</span><i style={{ width: `${58 - index * 6}%` }} /></div>)}</div>
-    <div className="wis-object wis-identity-card" style={placement(-16, 22, 85, 2, -5, -4, 700)}><div className="wis-identity-top"><span>PERSONAL / PROFILE</span><i>✳</i></div><div className="wis-identity-main"><div className="wis-portrait"><svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="37" r="19" /><path d="M16 97V85c0-39 68-39 68 0v12Z" /></svg><i /></div><div><small>INTRODUCING</small><h3>Your name.</h3><p>Perspective. Experience. A point of view.</p><span className="wis-signature">Your signature</span></div></div><div className="wis-identity-bottom"><span>hello@yourbrand.com</span><span>YOUR ORGANIZATION</span></div></div>
-    <div className="wis-object wis-footer-card" style={placement(61, 173, 140, 0, -5, -4, 1450)}><span>YOUR NEXT PRESENTATION</span><div><i /><span>YOUR NAME · YOUR ORGANIZATION</span><b>01</b></div></div>
-    <div className="wis-object wis-identity-seal" style={placement(-223, -107, 65, 0, 8, -6, 1100)}><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="20" /><path d="m15 24 6 6 13-14" /></svg><span>YOURS,<br />EVERY TIME.</span></div>
+    <div className="wis-object wis-identity-back" style={chapterPlacement(phase, [[53, -69, -155, 5, -9, 8], [123, -87, -100, 5, -9, 8], [53, -69, -95, 5, -9, 8]], 1, [.9, .92, 1], 100)}><span className="wis-object-label">PRESENTER DETAILS</span>{['AUTHOR', 'ORGANIZATION', 'CONTACT', 'SIGNATURE'].map((label, index) => <div key={label}><span>{label}</span><i style={{ width: `${58 - index * 6}%` }} /></div>)}</div>
+    <div className="wis-object wis-identity-card" style={chapterPlacement(phase, [[18, 12, 110, 2, -5, -2], [-40, -14, 100, 2, -5, -4], [-16, 22, 85, 2, -5, -4]], 0, [1.08, 1, 1], 160)}><div className="wis-identity-top"><span>PERSONAL / PROFILE</span><i>✳</i></div><div className="wis-identity-main"><div className="wis-portrait"><svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="37" r="19" /><path d="M16 97V85c0-39 68-39 68 0v12Z" /></svg><i /></div><div><small>INTRODUCING</small><h3>Your name.</h3><p>Perspective. Experience. A point of view.</p><span className="wis-signature">Your signature</span></div></div><div className="wis-identity-bottom"><span>hello@yourbrand.com</span><span>YOUR ORGANIZATION</span></div></div>
+    <div className="wis-object wis-footer-card" style={chapterPlacement(phase, [[61, 220, -50, 0, -5, -4], [55, 178, 145, 0, -5, -4], [61, 173, 140, 0, -5, -4]], 2, [.85, .9, 1], 260)}><span>YOUR NEXT PRESENTATION</span><div><i /><span>YOUR NAME · YOUR ORGANIZATION</span><b>01</b></div></div>
+    <div className="wis-object wis-identity-seal" style={chapterPlacement(phase, [[-223, -107, -45, 0, 8, -6], [-223, -107, -45, 0, 8, -6], [-223, -107, 65, 0, 8, -6]], 2, [.85, .9, 1], 320)}><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="20" /><path d="m15 24 6 6 13-14" /></svg><span>YOURS,<br />EVERY TIME.</span></div>
   </>;
 }
 
@@ -116,19 +123,60 @@ function graphData(variant: 'knowledge' | 'models'): { nodes: SceneNode[]; edges
   return { nodes, edges };
 }
 
-function Constellation({ variant, paused, reduced }: { variant: 'knowledge' | 'models'; paused: boolean; reduced: boolean }) {
+/** Stable node identities let chapter transitions rearrange the same illustrated sources. */
+function graphChapter(variant: 'knowledge' | 'models', phase: WorkspaceIntroPhase) {
+  const { nodes, edges } = graphData(variant);
+  if (phase === 2) return { nodes: nodes.map(node => ({ ...node, alpha: 1 })), edges };
+  if (variant === 'models') {
+    return {
+      nodes: nodes.map((node, index) => {
+        if (!index) return { ...node, alpha: phase === 0 ? 0 : 1 };
+        const column = (index - 1) % 3, row = Math.floor((index - 1) / 3);
+        return phase === 0
+          ? { ...node, x: (column - 1) * .83 + (row ? .4 : 0), y: row ? .42 : -.45, z: 0, alpha: 1 }
+          : { ...node, x: index <= 2 ? -.91 : .91, y: index <= 2 ? (index - 1.5) * .88 : (index - 4) * .69, z: -.06, alpha: 1 };
+      }),
+      edges: phase === 0 ? [] : edges,
+    };
+  }
+  return {
+    nodes: nodes.map((node, index) => {
+      if (!index) return { ...node, alpha: 0 };
+      if (phase === 1) return { ...node, x: node.x * 1.06, y: node.y * 1.06, alpha: 1 };
+      const groupX = (node.group % 3 - 1) * .83, groupY = (Math.floor(node.group / 3) - .5) * .96;
+      const offset = (index - 2) % 6;
+      return { ...node, x: groupX + (offset % 3 - 1) * .17, y: groupY + (Math.floor(offset / 3) - .5) * .22, z: 0, size: node.kind === 'source' ? 11 : node.size, alpha: node.kind === 'source' ? 1 : 0 };
+    }),
+    // Sources acquire local relationships before the central and cross-topic network appears.
+    edges: phase === 0 ? [] : edges.filter(([a, b]) => a !== 0 && nodes[a].group === nodes[b].group),
+  };
+}
+
+function Constellation({ variant, phase, paused, reduced }: { variant: 'knowledge' | 'models'; phase: WorkspaceIntroPhase; paused: boolean; reduced: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const elapsed = useRef(0);
+  const renderedPhase = useRef<number>(phase);
   useEffect(() => {
     const element = canvas.current; if (!element) return;
     const context = element.getContext('2d'); if (!context) return;
-    const { nodes, edges } = graphData(variant);
+    const chapters = [graphChapter(variant, 0), graphChapter(variant, 1), graphChapter(variant, 2)];
+    const { edges } = graphData(variant);
+    const fromPhase = renderedPhase.current, chapterStart = elapsed.current;
     let width = 0, height = 0, animation = 0, lastTime = 0, lastDraw = 0;
     const colors = ['#aedbc8', '#89b8b8', '#d1c9a5', '#8bb4c8', '#aac995', '#b0a5c0'];
     const draw = (seconds: number) => {
       if (!width || !height) return;
       const ctx = context;
       ctx.clearRect(0, 0, width, height);
+      const chapterEase = reduced ? 1 : paused ? 0 : Math.min(1, Math.max(0, (seconds - chapterStart) / .95));
+      renderedPhase.current = fromPhase + (phase - fromPhase) * (1 - Math.pow(1 - chapterEase, 3));
+      const lower = Math.floor(renderedPhase.current), upper = Math.ceil(renderedPhase.current), mix = renderedPhase.current - lower;
+      const blend = (a: number, b: number) => a + (b - a) * mix;
+      const nodes = chapters[lower].nodes.map((node, index) => {
+        const target = chapters[upper].nodes[index];
+        return { ...node, x: blend(node.x, target.x), y: blend(node.y, target.y), z: blend(node.z, target.z), size: blend(node.size, target.size), alpha: blend(node.alpha, target.alpha) };
+      });
+      const edgePresence = (chapter: number, start: number, end: number) => chapters[chapter].edges.some(([a, b]) => a === start && b === end) ? 1 : 0;
       const assembly = reduced ? 1 : Math.min(1, seconds / 2.8);
       const ease = 1 - Math.pow(1 - assembly, 3);
       const angle = reduced ? -.14 : -.4 + seconds * (variant === 'models' ? .055 : .065);
@@ -139,7 +187,7 @@ function Constellation({ variant, paused, reduced }: { variant: 'knowledge' | 'm
       const projected = nodes.map((node, index) => {
         const spread = 1 + (1 - ease) * .48;
         const p = project({ x: node.x * spread, y: node.y * spread + (1 - ease) * .35, z: node.z + (1 - ease) * .6 });
-        return { ...p, node, index, alpha: reduced ? 1 : Math.max(0, Math.min(1, (seconds - (node.kind === 'core' ? 0 : .25 + index * .015)) / 1.1)) };
+        return { ...p, node, index, alpha: node.alpha * (reduced ? 1 : Math.max(0, Math.min(1, (seconds - (node.kind === 'core' ? 0 : .25 + index * .015)) / 1.1))) };
       });
       const ambient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, scale * 1.32);
       ambient.addColorStop(0, variant === 'models' ? '#93c9c51a' : '#8fc9b812'); ambient.addColorStop(1, '#8fc9b800');
@@ -153,11 +201,12 @@ function Constellation({ variant, paused, reduced }: { variant: 'knowledge' | 'm
           const p = project({ x: Math.cos(a) * r, y: Math.sin(a) * r * (ring === 1 ? .65 : .3), z: Math.sin(a) * r * (ring === 1 ? .3 : .85) });
           if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
         }
-        ctx.strokeStyle = variant === 'models' ? '#b2e5d938' : '#a0d6cb14'; ctx.lineWidth = ring ? .8 : 1.2; ctx.globalAlpha = ease; ctx.stroke();
+        ctx.strokeStyle = variant === 'models' ? '#b2e5d938' : '#a0d6cb14'; ctx.lineWidth = ring ? .8 : 1.2; ctx.globalAlpha = ease * Math.min(1, renderedPhase.current / 2); ctx.stroke();
       }
       edges.forEach(([start, end], index) => {
         const a = projected[start], b = projected[end];
-        const alpha = Math.min(a.alpha, b.alpha) * Math.max(.15, .7 - (a.z + b.z) * .14);
+        const alpha = blend(edgePresence(lower, start, end), edgePresence(upper, start, end)) * Math.min(a.alpha, b.alpha) * Math.max(.15, .7 - (a.z + b.z) * .14);
+        if (alpha <= .001) return;
         ctx.globalAlpha = alpha;
         const bend = variant === 'models' ? (index % 2 ? 1 : -1) * 25 : (index % 3 - 1) * 11;
         const mx = (a.x + b.x) / 2 + bend, my = (a.y + b.y) / 2 - Math.abs(bend) * .3;
@@ -170,6 +219,7 @@ function Constellation({ variant, paused, reduced }: { variant: 'knowledge' | 'm
         }
       });
       projected.sort((a, b) => b.z - a.z).forEach(({ x, y, z, p, node, index, alpha }) => {
+        if (alpha <= .001) return;
         ctx.globalAlpha = alpha * Math.max(.38, 1 - Math.max(0, z) * .32);
         const sizeScale = Math.min(width / 640, height / 500);
         const radius = node.size * p * Math.max(.6, sizeScale);
@@ -218,11 +268,11 @@ function Constellation({ variant, paused, reduced }: { variant: 'knowledge' | 'm
     };
     if (!paused && !reduced) animation = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(animation); observer.disconnect(); };
-  }, [variant, paused, reduced]);
+  }, [variant, phase, paused, reduced]);
   return <canvas ref={canvas} className="wis-constellation" aria-hidden="true" />;
 }
 
-export default function IntroScene({ screen, paused, reduced }: Props) {
+export default function IntroScene({ screen, paused, reduced, phase = 2 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(.8);
   useEffect(() => {
@@ -230,12 +280,27 @@ export default function IntroScene({ screen, paused, reduced }: Props) {
     const observer = new ResizeObserver(([entry]) => setScale(Math.min(entry.contentRect.width / 760, entry.contentRect.height / 560)));
     observer.observe(node); return () => observer.disconnect();
   }, []);
+  useLayoutEffect(() => {
+    if (!paused || reduced || !host.current) return;
+    // CSS animations pause natively; hold an in-flight chapter transition at its painted pose too.
+    const objects = [...host.current.querySelectorAll<HTMLElement>('.wis-object, .wis-orbit-line, .wis-template-ground, .wis-signature, .wis-identity-bottom')].map(node => {
+      const painted = getComputedStyle(node);
+      const transform = painted.transform, opacity = painted.opacity;
+      const previous = { transform: node.style.transform, opacity: node.style.opacity, transition: node.style.transition };
+      node.style.transition = 'none'; node.style.transform = transform; node.style.opacity = opacity;
+      return { node, previous };
+    });
+    return () => objects.forEach(({ node, previous }) => {
+      node.style.transition = previous.transition; node.style.transform = previous.transform; node.style.opacity = previous.opacity;
+    });
+  }, [paused, reduced]);
+  const chapter = reduced ? 2 : phase;
   const graph = screen === 'knowledge' || screen === 'models';
-  return <div ref={host} className={`wis-scene wis-scene-${screen} ${paused ? 'wis-paused' : ''} ${reduced ? 'wis-reduced' : ''}`} aria-hidden="true">
+  return <div ref={host} className={`wis-scene wis-scene-${screen} ${paused ? 'wis-paused' : ''} ${reduced ? 'wis-reduced' : ''}`} data-phase={chapter} aria-hidden="true">
     <div className="wis-ambient wis-ambient-one" /><div className="wis-ambient wis-ambient-two" /><div className="wis-scene-grain" />
-    {graph ? <Constellation variant={screen} paused={paused} reduced={reduced} /> : <div className="wis-perspective"><div className="wis-stage" style={{ '--wis-scale': scale } as CSSProperties}><div className="wis-world">
+    {graph ? <Constellation variant={screen} phase={chapter} paused={paused} reduced={reduced} /> : <div className="wis-perspective"><div className="wis-stage" style={{ '--wis-scale': scale } as CSSProperties}><div className="wis-world">
       <div className="wis-stage-shadow" />
-      {screen === 'builder' ? <BuilderScene /> : screen === 'decks' ? <DecksScene /> : screen === 'templates' ? <TemplatesScene /> : screen === 'brand' ? <BrandScene /> : <DetailsScene />}
+      {screen === 'builder' ? <BuilderScene phase={chapter} /> : screen === 'decks' ? <DecksScene phase={chapter} /> : screen === 'templates' ? <TemplatesScene phase={chapter} /> : screen === 'brand' ? <BrandScene phase={chapter} /> : <DetailsScene phase={chapter} />}
     </div></div></div>}
     <div className="wis-light-line" />
   </div>;

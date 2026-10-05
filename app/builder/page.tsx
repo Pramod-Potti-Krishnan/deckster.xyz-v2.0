@@ -117,7 +117,16 @@ import {
   themeSelectionFingerprint,
   type BuildThemeSelection,
 } from '@/lib/theme-builder'
-import { LAYOUT_SERVICE_URL, getPresentationViewerUrl } from '@/lib/layout-service-client'
+import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY, getPresentationViewerUrl } from '@/lib/layout-service-client'
+import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
+import { shouldDeferStudioInitialNative, type StudioInitialStageTarget } from '@/lib/studio-initial-stage-admission'
+import {
+  initialStudioInitialStageOwnerState,
+  reconcileStudioInitialStageOwner,
+  createStudioInitialRouteAdoptionIntent,
+  type StudioInitialRouteAdoptionIntent,
+  type StudioInitialStageOwnerObservation,
+} from '@/lib/studio-initial-stage-owner'
 import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import {
@@ -782,6 +791,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     getStudioIntroductionSafety?: () => StudioIntroductionSafety
   } | null>(null)
   const [studioViewerSafety, setStudioViewerSafety] = useState<StudioIntroductionSafety | null>(null)
+  const studioInitialBlankProofRef = useRef(initialStudioInitialStageOwnerState())
+  const studioInitialOwnerObservationRef = useRef<StudioInitialStageOwnerObservation | null>(null)
+  const studioInitialRouteAdoptionRef = useRef<StudioInitialRouteAdoptionIntent | null>(null)
+  const studioNativeAdmittedOwnerRef = useRef<object | null>(null)
+  const studioExplicitBlankOwnerRef = useRef<object | null>(null)
   const handleStudioViewerSafety = useCallback((next: StudioIntroductionSafety | null) => {
     setStudioViewerSafety(previous => previous && next && Object.keys(next).every(key =>
       previous[key as keyof StudioIntroductionSafety] === next[key as keyof StudioIntroductionSafety]) ? previous : next)
@@ -1975,6 +1989,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     blankPresentationUrl,
     blankPresentationId,
     isBlankPresentation,
+    studioAutomaticBlankSelection,
     activeVersion,
     directorWorkflowState,
     slideContextByIndex,
@@ -2801,6 +2816,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   if (studioShell && effectivePresentationId && effectiveSlideCount !== null) {
     studioSlideComposeCountsRef.current[effectivePresentationId] = effectiveSlideCount
   }
+  // Canonical selection excludes composer refresh tokens; private initial-stage
+  // proof below permits only an explicitly verified fresh route adoption.
+  const studioInitialSelectedTarget: StudioInitialStageTarget = {
+    owner: studioSlideComposeOwnerRef.current,
+    presentationId: effectivePresentationId,
+    presentationUrl: templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
+    activeVersion,
+  }
+
 
   const studioCanvasLifecycle = classifyStudioCanvasLifecycle({
     displayedSessionId: currentSessionId || wsSessionId,
@@ -4770,6 +4794,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     if (!origin.active || origin.sessionId !== (currentSessionId || wsSessionId)) return
     if (!isCurrentActionIntent()) return
     if (!preflightDirectorTurn()) return
+    session.markStudioUserIntent()
 
     // A blank Layout presentation may already contain user-authored slides or
     // elements. Inspect the persisted source immediately before the first build
@@ -4974,6 +4999,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             } catch {}
             if (!currentSessionId) {
+              const stageObservation = studioInitialOwnerObservationRef.current
+              studioInitialRouteAdoptionRef.current = stageObservation
+                ? createStudioInitialRouteAdoptionIntent(studioInitialBlankProofRef.current, stageObservation,
+                    { operationCurrent: isCurrentSubmission(), confirmedSessionId: dbSession.id }) : null
               setCurrentSessionId(dbSession.id)
               router.push(`/builder?session_id=${dbSession.id}`)
             }
@@ -5464,6 +5493,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // One native request owns one choice, including choices that open input.
     if (actionSubmissionPendingRef.current.has(pendingKey) ||
         session.answeredActionsRef.current.has(actionRequestMessageId)) return
+    session.markStudioUserIntent()
     const messageId = crypto.randomUUID()
     const timestamp = Date.now()
 
@@ -5596,6 +5626,57 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [builderOptionsScope, clearAllFiles, session.handleNewChat])
   handleNewChatWrappedRef.current = handleNewChatWrapped
 
+  const studioInitialNativeWork = Boolean(templateModeOn || templateModeSourcePresentationId || slideComposerOverride
+    || studioCanvasLifecycle.hasGeneratedDeck || studioCanvasLifecycle.hasAuthoredDeck
+    || isGeneratingFinal || isGeneratingStrawman || generationPanel.isGenerating
+    || generationPanel.hasActiveGenerations || generationPanel.mode === 'edit' || generationPanel.mode === 'refine'
+    || manualDeckHandoffBusy || pendingManualDeckBuild
+    || (studioViewerSafety?.presentationId === effectivePresentationId && studioViewerSafety.presentationUrl === effectivePresentationUrl))
+  const studioInitialKnownFresh = Boolean(session.studioInitialFreshCanonicalEntry
+    && session.studioInitialFreshCanonicalEntry.authUserId === authScopeUserId
+    && session.studioInitialFreshCanonicalEntry.sessionId === (currentSessionId || wsSessionId)
+    && session.studioInitialFreshCanonicalEntry.sessionId === wsSessionId
+    && session.studioInitialFreshCanonicalEntry.isCurrentAssignment())
+  const studioInitialObservation: StudioInitialStageOwnerObservation = {
+    automatic: studioAutomaticBlankSelection ?? null,
+    selected: studioInitialSelectedTarget,
+    authUserId: authScopeUserId,
+    currentSessionId,
+    wsSessionId,
+    rawRouteSessionId: searchParams.get('session_id'),
+    templateMode: templateModeOn,
+    restoration: studioInitialKnownFresh ? 'none' : session.isLoadingSession ? 'pending' : session.studioFrontendTranscriptReceipt ? 'restored' : 'none',
+    nativeWorkPresent: studioInitialNativeWork,
+    admittedNativeOwner: studioNativeAdmittedOwnerRef.current,
+    explicitBlankOwner: studioExplicitBlankOwnerRef.current,
+    freshCanonicalEntry: session.studioInitialFreshCanonicalEntry,
+  }
+  studioInitialOwnerObservationRef.current = studioInitialObservation
+  // Loading a locally assigned fresh UUID is not restoration of an unknown
+  // deck. The loading branch remains authoritative; defer token observation
+  // until it settles so a pending render cannot consume the first blank proof.
+  if (!(session.isLoadingSession && studioInitialKnownFresh)) {
+    studioInitialBlankProofRef.current = reconcileStudioInitialStageOwner(
+      studioInitialBlankProofRef.current, studioInitialObservation, studioInitialRouteAdoptionRef.current,
+    )
+  }
+  const studioInitialNativeDeferred = shouldDeferStudioInitialNative({
+    enabled: studioShell,
+    selected: studioInitialSelectedTarget,
+    automaticBlankTarget: studioInitialBlankProofRef.current.target,
+    hasOwnedSelection: studioCanvasLifecycle.hasOwnedSelection,
+    viewerUrlAllowed: evaluateLayoutViewerUrl(studioInitialSelectedTarget.presentationUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed',
+    initialStageEligible: !session.isLoadingSession && (studioCanvasLifecycle.showLanding
+      || (!isGeneratingFinal && !isGeneratingStrawman && buildNarration.phase === 'awaiting_user')),
+    nativeWorkPresent: studioInitialNativeWork,
+    errorPresent: Boolean(wsError || transportNotice || currentStatus?.status === 'error'
+      || buildNarration.phase === 'error' || generationPanel.error || manualDeckHandoffError),
+    admittedNativeOwner: studioNativeAdmittedOwnerRef.current,
+    explicitBlankOwner: studioExplicitBlankOwnerRef.current,
+  })
+  const handleStudioNativeMounted = useCallback((owner: object) => {
+    if (studioSlideComposeOwnerRef.current === owner) studioNativeAdmittedOwnerRef.current = owner
+  }, [])
   const retiredIntroActions = historicalActionStatuses(messages, session.answeredActionsRef.current)
   const studioMandatoryDecision = messages.some(message => message.type === 'action_request'
     && message.session_id === (currentSessionId || wsSessionId) && !retiredIntroActions.has(message.message_id)
@@ -5606,7 +5687,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const studioIntroInputs = {
     workspaceReady: studioShell && !!user && !isAuthLoading && !session.isLoadingSession
       && workspaceWidth > 0 && connected && !connecting
-      && (effectivePresentationUrl ? nativeIntroTargetReady : studioCanvasLifecycle.showLanding),
+      && (effectivePresentationUrl && !studioInitialNativeDeferred ? nativeIntroTargetReady : studioCanvasLifecycle.showLanding),
     initialEntry: studioWelcome && !session.isResumedSession && session.userMessages.length === 0,
     activeBuild: isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput
       || (buildNarration.active && !['idle', 'complete'].includes(buildNarration.phase)),
@@ -5628,8 +5709,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   return (
     <StudioIntroductionProvider enabled={studioShell} eligibility={studioIntroInputs}
       getEligibility={() => {
-        const native = effectivePresentationUrl ? layoutServiceApis?.getStudioIntroductionSafety?.() : null
-        const targetReady = !effectivePresentationUrl || Boolean(native?.ready && studioCanvasLifecycle.hasOwnedSelection
+        const native = effectivePresentationUrl && !studioInitialNativeDeferred ? layoutServiceApis?.getStudioIntroductionSafety?.() : null
+        const targetReady = !effectivePresentationUrl || studioInitialNativeDeferred || Boolean(native?.ready && studioCanvasLifecycle.hasOwnedSelection
           && native.presentationId === effectivePresentationId && native.presentationUrl === effectivePresentationUrl)
         return { ...studioIntroInputs, workspaceReady: studioIntroInputs.workspaceReady && targetReady,
           dirtyDraft: studioIntroInputs.dirtyDraft || !!native?.dirty,
@@ -5658,7 +5739,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           onOpenChatHistory={() => setShowChatHistory((prev) => !prev)}
           isChatHistoryOpen={showChatHistory}
           toolbarSlotRef={setToolbarPortalTarget}
-          introAction={<StudioIntroductionButton persistent className="studio-header-intro-replay" />}
           onToolbarInteract={studioOverlayWorkspace ? revealStudioStage : undefined}
         />
 
@@ -6052,6 +6132,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                           if (inputMessage.trim()) setWorkflowBrief(text)
                           else { setInputMessage(text); requestAnimationFrame(() => textareaRef.current?.focus()) }
                         }}
+                        studioFrontendTranscriptReceipt={studioShell ? session.studioFrontendTranscriptReceipt : null}
+                        studioGreetingSafety={studioShell ? {
+                          pendingRestoration: session.isLoadingSession,
+                          pendingWork: isExecutingSendRef.current || questionSubmissionPendingRef.current || session.isCreatingSession,
+                          noticePresent: Boolean(wsError || transportNotice || currentStatus?.status === 'error'),
+                          hasUserIntent: session.hasStudioUserIntent,
+                        } : undefined}
                         userMessages={session.userMessages}
                         messages={messages}
                         userMessageIdsRef={session.userMessageIdsRef}
@@ -6069,6 +6156,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                           )
                           if (!origin.active || origin.sessionId !== (currentSessionId || wsSessionId) ||
                               !text.trim() || !preflightDirectorTurn()) return
+                          session.markStudioUserIntent()
                           questionSubmissionPendingRef.current = true
                           try {
                             // Keep the native question prose and compact echo/options.
@@ -6342,6 +6430,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onEditModeChange={studioShell ? setStudioViewerEditing : undefined}
             onStudioIntroductionSafetyChange={studioShell ? handleStudioViewerSafety : undefined}
             studioCanvasLifecycle={studioShell ? studioCanvasLifecycle : undefined}
+            studioInitialNativeDeferred={studioInitialNativeDeferred}
+            studioNativeOwner={studioShell ? studioSlideComposeOwnerRef.current : undefined}
+            onStudioNativeMounted={studioShell ? handleStudioNativeMounted : undefined}
             showOutlinePreview={showOutlinePreview}
             awaitingDirectorReply={studioShell ? awaitingDirectorReply : undefined}
             studioWorkflowRequest={viewerWorkflowRequest}
@@ -6375,7 +6466,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             isGeneratingStrawman={isGeneratingStrawman}
             buildNarrationEnabled={effectiveBuildNarrationEnabled}
             blankPlaceholderDismissed={blankPlaceholderDismissed}
-            onDismissBlankPlaceholder={() => setBlankPlaceholderDismissed(true)}
+            onDismissBlankPlaceholder={() => {
+              if (studioShell && studioSlideComposeOwnerRef.current !== studioInitialSelectedTarget.owner) return
+              studioExplicitBlankOwnerRef.current = studioInitialSelectedTarget.owner
+              setBlankPlaceholderDismissed(true)
+            }}
             slideContextByIndex={effectiveBuildNarrationEnabled ? slideContextByIndex : null}
             narrationNavigate={effectiveBuildNarrationEnabled ? narrationNavigate : null}
             buildNarration={effectiveBuildNarrationEnabled ? buildNarration : null}

@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react"
-import { Focus, Minus, Plus, RotateCcw } from "lucide-react"
+import { Focus, List, Minus, Network, Plus, RotateCcw, ScanSearch } from "lucide-react"
 
 import './studio-graph-controls.css'
 
@@ -190,6 +190,7 @@ export function KgGraphView({
   const panRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [view, setView] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 })
+  const [showList, setShowList] = useState(false)
 
   const layout = useMemo(
     () => computeLayout(nodes, edges, width, height),
@@ -206,7 +207,11 @@ export function KgGraphView({
     [nodes]
   )
 
-  const activeId = hoverId || selectedId
+  // Search can select a real entity outside this bounded or filtered map.
+  // Its detail remains inspectable without dimming every visible map entity.
+  const activeId = hoverId && byId.has(hoverId) ? hoverId : selectedId && byId.has(selectedId) ? selectedId : null
+  const selectedPoint = selectedId ? byId.get(selectedId) : undefined
+  const entityTypes = useMemo(() => Array.from(new Set(nodes.map(node => node.entity_type))).sort(), [nodes])
   const neighborIds = useMemo(() => {
     if (!activeId) return null
     const ids = new Set<string>([activeId])
@@ -243,6 +248,25 @@ export function KgGraphView({
     fitGraph()
   }, [fitGraph])
 
+  const focusSelected = () => {
+    if (!selectedPoint) return
+    const scale = Math.max(view.scale, 1.8)
+    setView({ scale, x: width / 2 - selectedPoint.x * scale, y: height / 2 - selectedPoint.y * scale })
+  }
+
+  // The SVG is letterboxed when the panel aspect ratio differs from its
+  // viewBox. Use its actual transform so wheel anchors and drag distance
+  // follow the pointer at every panel size.
+  const canvasPoint = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current
+    const matrix = svg?.getScreenCTM()
+    if (!svg || !matrix) return null
+    const point = svg.createSVGPoint()
+    point.x = clientX
+    point.y = clientY
+    return point.matrixTransform(matrix.inverse())
+  }, [])
+
   const zoomAround = useCallback(
     (nextScale: number, anchorX = width / 2, anchorY = height / 2) => {
       setView((current) => {
@@ -262,13 +286,12 @@ export function KgGraphView({
   const handleWheel = useCallback(
     (event: ReactWheelEvent<SVGSVGElement>) => {
       event.preventDefault()
-      const rect = event.currentTarget.getBoundingClientRect()
-      const anchorX = ((event.clientX - rect.left) / rect.width) * width
-      const anchorY = ((event.clientY - rect.top) / rect.height) * height
+      const anchor = canvasPoint(event.clientX, event.clientY)
+      if (!anchor) return
       const factor = event.deltaY > 0 ? 0.9 : 1.1
-      zoomAround(view.scale * factor, anchorX, anchorY)
+      zoomAround(view.scale * factor, anchor.x, anchor.y)
     },
-    [height, view.scale, width, zoomAround]
+    [canvasPoint, view.scale, zoomAround]
   )
 
   const handlePointerDown = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
@@ -282,13 +305,15 @@ export function KgGraphView({
     (event: ReactPointerEvent<SVGSVGElement>) => {
       const pan = panRef.current
       if (!pan || pan.pointerId !== event.pointerId) return
-      const rect = event.currentTarget.getBoundingClientRect()
-      const dx = ((event.clientX - pan.x) / rect.width) * width
-      const dy = ((event.clientY - pan.y) / rect.height) * height
+      const previous = canvasPoint(pan.x, pan.y)
+      const next = canvasPoint(event.clientX, event.clientY)
+      if (!previous || !next) return
+      const dx = next.x - previous.x
+      const dy = next.y - previous.y
       panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
       setView((current) => ({ ...current, x: current.x + dx, y: current.y + dy }))
     },
-    [height, width]
+    [canvasPoint]
   )
 
   const endPan = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
@@ -301,12 +326,12 @@ export function KgGraphView({
   if (nodes.length === 0) return null
 
   return (
-    <div className="relative h-full overflow-hidden rounded-2xl bg-[#070b18] lg:min-h-[520px]">
-      <div data-studio-graph-controls={STUDIO_GRAPH_CONTROLS ? 'mobile' : undefined} className="lg:hidden">
+    <div data-studio-graph-view={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} data-studio-graph-mode={showList ? 'list' : 'map'} className="relative h-full overflow-hidden rounded-2xl bg-[#070b18] lg:min-h-[520px]">
+      <div data-studio-graph-controls={STUDIO_GRAPH_CONTROLS ? 'mobile' : undefined} className={STUDIO_GRAPH_CONTROLS && showList ? "skg-entity-view" : "lg:hidden"}>
         <div data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'heading' : undefined} className="border-b border-white/10 px-4 py-3">
           <p className="text-sm font-medium text-white">Entities by relevance</p>
           <p className="mt-0.5 text-xs text-slate-400">
-            Select an entity to inspect its relationships and source evidence.
+            {nodes.length} loaded entities. Select one to inspect its relationships and source evidence.
           </p>
         </div>
         <ul data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'list' : undefined} className="max-h-[430px] overflow-y-auto p-2" aria-label="Knowledge graph entities">
@@ -338,10 +363,12 @@ export function KgGraphView({
         </ul>
       </div>
 
-      <div className="absolute right-3 top-3 z-10 hidden items-center gap-1 rounded-xl border border-white/10 bg-slate-950/80 p-1 shadow-xl backdrop-blur lg:flex">
+      <div data-studio-graph-toolbar={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} role="group" aria-label="Knowledge map controls" className="absolute right-3 top-3 z-10 hidden items-center gap-1 rounded-xl border border-white/10 bg-slate-950/80 p-1 shadow-xl backdrop-blur lg:flex">
+        {STUDIO_GRAPH_CONTROLS && <button type="button" onClick={() => setShowList(current => !current)} aria-pressed={showList} aria-label={showList ? "Show knowledge map" : "Show entity list"} title={showList ? "Show map" : "Entity list"}>{showList ? <Network className="h-4 w-4" /> : <List className="h-4 w-4" />}<span>{showList ? "Map" : "Entity list"}</span></button>}
         <button
           type="button"
           onClick={() => zoomAround(view.scale * 1.2)}
+          disabled={STUDIO_GRAPH_CONTROLS && showList}
           className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           aria-label="Zoom in"
           title="Zoom in"
@@ -351,24 +378,29 @@ export function KgGraphView({
         <button
           type="button"
           onClick={() => zoomAround(view.scale / 1.2)}
+          disabled={STUDIO_GRAPH_CONTROLS && showList}
           className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           aria-label="Zoom out"
           title="Zoom out"
         >
           <Minus className="h-4 w-4" />
         </button>
+        {STUDIO_GRAPH_CONTROLS && <output className="skg-zoom" aria-label="Map zoom">{Math.round(view.scale * 100)}%</output>}
         <button
           type="button"
           onClick={fitGraph}
+          disabled={STUDIO_GRAPH_CONTROLS && showList}
           className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           aria-label="Fit graph to view"
           title="Fit graph"
         >
           <Focus className="h-4 w-4" />
         </button>
+        {STUDIO_GRAPH_CONTROLS && <button type="button" onClick={focusSelected} disabled={showList || !selectedPoint} aria-label="Focus selected entity" title={selectedPoint ? `Focus ${selectedPoint.name}` : "Select an entity on this map to focus it"}><ScanSearch className="h-4 w-4" /><span>Focus entity</span></button>}
         <button
           type="button"
           onClick={() => setView({ x: 0, y: 0, scale: 1 })}
+          disabled={STUDIO_GRAPH_CONTROLS && showList}
           className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           aria-label="Reset graph view"
           title="Reset view"
@@ -377,15 +409,17 @@ export function KgGraphView({
         </button>
       </div>
 
-      <div className="pointer-events-none absolute bottom-3 left-3 z-10 hidden rounded-lg border border-white/10 bg-slate-950/65 px-2.5 py-1.5 text-[11px] text-slate-400 backdrop-blur lg:block">
+      <div data-studio-graph-hint={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} className="pointer-events-none absolute bottom-3 left-3 z-10 hidden rounded-lg border border-white/10 bg-slate-950/65 px-2.5 py-1.5 text-[11px] text-slate-400 backdrop-blur lg:block">
         Scroll to zoom · drag to explore
       </div>
+
+      {STUDIO_GRAPH_CONTROLS && <div className="skg-legend" aria-label="Entity type legend">{entityTypes.map(type => <span key={type}><i style={{ backgroundColor: typeColor(type) }} />{type.replace(/_/g, " ").toLowerCase()}</span>)}<span className="skg-relation-key"><i />Recorded relation</span></div>}
 
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMidYMid meet"
-        className="hidden h-full w-full cursor-grab select-none touch-none active:cursor-grabbing lg:block lg:min-h-[520px]"
+        className={STUDIO_GRAPH_CONTROLS && showList ? "hidden" : "hidden h-full w-full cursor-grab select-none touch-none active:cursor-grabbing lg:block lg:min-h-[520px]"}
         role="group"
         aria-label={`Knowledge graph with ${nodes.length} entities and ${edges.length} relations`}
         onWheel={handleWheel}
@@ -411,7 +445,7 @@ export function KgGraphView({
             </feMerge>
           </filter>
         </defs>
-        <rect width={width} height={height} fill="#070b18" />
+        <rect width={width} height={height} fill={STUDIO_GRAPH_CONTROLS ? "#10182b" : "#070b18"} />
         <rect width={width} height={height} fill="url(#kg-canvas-glow)" />
         <rect width={width} height={height} fill="url(#kg-dot-grid)" />
 

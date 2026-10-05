@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import { createPortal } from 'react-dom'
 import { classifyStudioCanvasLifecycle, type StudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
 import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
 import type { StudioWorkflowRequest } from "@/lib/studio-workflow"
@@ -61,6 +62,9 @@ export interface PresentationAreaProps {
   studioIntroReplay?: React.ReactNode
   showOutlinePreview?: boolean
   studioCanvasLifecycle?: StudioCanvasLifecycle
+  studioInitialNativeDeferred?: boolean
+  studioNativeOwner?: object
+  onStudioNativeMounted?: (owner: object) => void
   awaitingDirectorReply?: boolean
   studioWorkflowRequest?: StudioWorkflowRequest | null
   presentationUrl: string | null
@@ -171,6 +175,9 @@ export interface PresentationAreaProps {
 
 export function PresentationArea({
   studioCanvasLifecycle,
+  studioInitialNativeDeferred = false,
+  studioNativeOwner,
+  onStudioNativeMounted,
   studioIntroReplay,
   onStudioIntroductionSafetyChange,
   showOutlinePreview = false,
@@ -360,10 +367,15 @@ export function PresentationArea({
             ) : undefined,
         }
       : null
+  const mountNative = Boolean(presentationUrl && !studioInitialNativeDeferred
+    && !(studioShell && lifecycle.mode === 'awaiting_owner' && !templateModeOn))
+  React.useLayoutEffect(() => {
+    if (studioShell && mountNative && studioNativeOwner) onStudioNativeMounted?.(studioNativeOwner)
+  }, [studioShell, mountNative, studioNativeOwner, onStudioNativeMounted])
   return (
     <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
-        {presentationUrl && !(studioShell && lifecycle.mode === 'awaiting_owner' && !templateModeOn) ? (
+        {presentationUrl && mountNative ? (
           <PresentationViewer
             studioWorkflowRequest={studioWorkflowRequest}
             presentationUrl={presentationUrl}
@@ -494,6 +506,21 @@ export function PresentationArea({
             stageChrome={stageChrome}
             className="flex-1"
           />
+        ) : studioShell && studioInitialNativeDeferred ? (
+          <div className="flex-1 flex min-h-0 items-center justify-center p-4" data-studio-initial-native-deferred="true">
+            {toolbarPortalTarget && createPortal(<div data-studio-v4-delivery="true"><div className="flex flex-shrink-0 items-center gap-1">
+              <PresentationDownloadControls presentationUrl={null} presentationId={null} slideCount={null} stage={0} />
+              <PublishControls sessionId={null} deckTitle={deckTitle ?? null} slideCount={null} hasFinalDeck={false} />
+            </div></div>, toolbarPortalTarget)}
+            <div className="flex w-full min-h-0 flex-col items-center gap-3">
+              {narrationActive && buildNarration && <StageRibbon narration={buildNarration} control={buildNarrationApi?.control} />}
+              <StudioWelcomeStage studioIntroReplay={studioIntroReplay} />
+              {waitingForDirector && <StudioWaitingState scope="canvas" narration={waitingNarration} activity={waitingActivity} />}
+              {onDismissBlankPlaceholder && <button type="button" onClick={onDismissBlankPlaceholder}
+                className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                data-studio-stage-placeholder-dismiss="true">Start on this blank canvas</button>}
+            </div>
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center min-h-0 p-4">
             {studioShell ? (
