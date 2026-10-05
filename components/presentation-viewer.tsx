@@ -47,7 +47,7 @@ import {
 import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
-import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
+import { getLayoutServiceUrl, LAYOUT_URL_CONFIG_ERROR, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import {
   getLayoutViewerOrigin,
   isTrustedLayoutViewerMessage,
@@ -112,7 +112,7 @@ import {
   isLayoutViewerEvent,
 } from '@/lib/element-command-router'
 import {
-  ELEMENTOR_BASE_URL,
+  getElementorServiceUrl,
   getElementorEndpoint,
   ElementorContext,
   ElementorPosition
@@ -358,6 +358,22 @@ export interface StudioIntroductionSafety {
   error: boolean
 }
 
+export interface StudioComposeSelectionContext {
+  readonly frameEpoch: object
+  readonly continuationKey: object
+  readonly loadRevision: number
+  readonly interactionRevision: number
+  readonly structureRevision: number
+  readonly presentationUrl: string
+  isCurrent: () => boolean
+  readNativeOrder: () => Promise<unknown>
+  restoreIdentity: (input: {
+    slideId: string
+    expectedNativeCount: number | null
+    isCurrent: () => boolean
+  }) => Promise<{ slideId: string; visualIndex: number; nativeCount: number; verified: true }>
+}
+
 export interface SlideComposeViewerApi {
   composePlaceholderAdd: (jobId: string, visualIndex: number, replaceJobId?: string) => Promise<any>
   composeSlideReconcile: (
@@ -375,7 +391,8 @@ export interface SlideComposeViewerApi {
   composePlaceholderFail: (jobId: string) => Promise<any>
   composeGetState: () => Promise<any>
   composeGoToPlaceholder: (jobId: string) => Promise<any>
-  composeGoToVisualIndex: (visualIndex: number) => Promise<any>
+  composeGoToVisualIndex: (visualIndex: number, options?: { isCurrent?: () => boolean }) => Promise<any>
+  composeCaptureSelectionContext?: () => StudioComposeSelectionContext | null
   refineOverlayMark: (jobId: string, slideId: string) => Promise<any>
   refineSlideReconcile: (
     jobId: string,
@@ -392,7 +409,7 @@ interface SlideInfo {
 }
 
 // Viewer origin for postMessage communication
-const VIEWER_ORIGIN = new URL(LAYOUT_SERVICE_URL).origin
+const VIEWER_ORIGIN = LAYOUT_VIEWER_URL_POLICY.configuredOrigin
 
 /**
  * Send command to iframe via postMessage (cross-origin safe)
@@ -426,6 +443,16 @@ function sendCommand(
     : params
 
   return new Promise((resolve, reject) => {
+    try {
+      getLayoutServiceUrl()
+    } catch (error) {
+      reject(error)
+      return
+    }
+    if (!VIEWER_ORIGIN) {
+      reject(new Error("Layout service has no configured viewer origin"))
+      return
+    }
     if (!iframe) {
       if (requiresStrictResponse) {
         scTrace('viewer.command.error', { action, requestId, params, error: 'Iframe not ready' })
@@ -512,6 +539,7 @@ function postCommand(
   action: string,
   params?: Record<string, any>,
 ) {
+  if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR) return
   iframe?.contentWindow?.postMessage(
     { action, params, requestId: createViewerRequestId() },
     getLayoutViewerOrigin(iframe, VIEWER_ORIGIN),
@@ -719,6 +747,12 @@ export function PresentationViewer({
   const [isSlideMutationPending, setIsSlideMutationPending] = useState(false)
   const slideMutationPendingRef = useRef(false)
   const viewerInteractionIntentRef = useRef(0)
+  const studioComposeLoadRevisionRef = useRef(0)
+  const studioComposeLoadedFrameRef = useRef<{
+    iframe: HTMLIFrameElement; source: string; nativeWindow: Window | null; revision: number
+  } | null>(null)
+  const studioComposeContinuationRef = useRef<{ key: string; deckOwner: object; token: object } | null>(null)
+  const studioSaveRequestRef = useRef<object | null>(null)
   const slideMutationMountRef = useRef({ active: true, generation: 0 })
   const thumbnailNativeRevisionRef = useRef(0)
   const thumbnailMetadataRef = useRef({ structure: slideStructure, revision: 0 })
@@ -747,7 +781,7 @@ export function PresentationViewer({
     () => evaluateLayoutViewerUrl(presentationUrl, LAYOUT_VIEWER_URL_POLICY),
     [presentationUrl],
   )
-  const approvedPresentationUrl = viewerUrlDecision.status === 'allowed'
+  const approvedPresentationUrl = !LAYOUT_URL_CONFIG_ERROR && viewerUrlDecision.status === 'allowed'
     ? viewerUrlDecision.url
     : null
   const templateSaveGate = getTemplateSaveGate({
@@ -801,8 +835,15 @@ export function PresentationViewer({
     // receipt continues settling. Its eventual finally cannot release this gate.
     slideMutationRequestRef.current = null
     slideMutationPendingRef.current = false
+    studioSaveRequestRef.current = null
   }
   const renderSlideMutationOwner = slideMutationOwnerRef.current
+  const studioComposeDeckOwnerKey = JSON.stringify([studioOwnerUserId, presentationId, sessionId,
+    deckOwnerSessionId, activeVersion])
+  const studioComposeDeckOwnerRef = useRef({ key: studioComposeDeckOwnerKey, token: {} })
+  if (studioComposeDeckOwnerRef.current.key !== studioComposeDeckOwnerKey) {
+    studioComposeDeckOwnerRef.current = { key: studioComposeDeckOwnerKey, token: {} }
+  }
   const [studioFormatSelection, setStudioFormatSelection] = useState<StudioFormatSelectionHandle | null>(null)
   const studioFormatSelectionRef = useRef<StudioFormatSelectionHandle | null>(null)
   const studioFormatModeRef = useRef({ enabled: templateModeOn, revision: 0 })
@@ -830,6 +871,7 @@ export function PresentationViewer({
       && slideMutationMountRef.current.active
       && slideMutationMountRef.current.generation === mountGeneration
       && slideMutationOwnerRef.current === owner) {
+      viewerInteractionIntentRef.current += 1
       nativeSnapshotStructureEditedRef.current = true
       if (retireMapping) {
         thumbnailNativeRevisionRef.current += 1
@@ -848,16 +890,19 @@ export function PresentationViewer({
     const owner = renderSlideMutationOwner
     const mountGeneration = slideMutationMountRef.current.generation
     const iframe = iframeRef.current
+    const source = iframe?.src
+    const nativeWindow = iframe?.contentWindow
     const intent = ++viewerInteractionIntentRef.current
-    const isCurrent = () => Boolean(
+    const isSourceCurrent = () => Boolean(
       iframe
       && slideMutationMountRef.current.active
       && slideMutationMountRef.current.generation === mountGeneration
       && slideMutationOwnerRef.current === owner
       && iframeRef.current === iframe
-      && viewerInteractionIntentRef.current === intent
+      && iframe.src === source && iframe.contentWindow === nativeWindow
     )
-    return { iframe, isCurrent }
+    const isCurrent = () => isSourceCurrent() && viewerInteractionIntentRef.current === intent
+    return { iframe, isCurrent, isSourceCurrent }
   }, [renderSlideMutationOwner])
   useEffect(() => {
     slideMutationMountRef.current.active = true
@@ -872,6 +917,7 @@ export function PresentationViewer({
   }, [studioShell])
   useEffect(() => {
     if (studioShell) setIsSlideMutationPending(slideMutationPendingRef.current)
+    if (studioShell && !studioSaveRequestRef.current) setIsSaving(false)
   }, [studioShell, renderSlideMutationOwner])
   const viewerHasLoaded = Boolean(
     iframeReady &&
@@ -1064,6 +1110,7 @@ export function PresentationViewer({
     if (studioShell && event.currentTarget !== iframeRef.current) return
     const loadedUrl = event.currentTarget.src
     if (!approvedIframeNavigationUrl || loadedUrl !== approvedIframeNavigationUrl) {
+      if (studioShell) studioComposeLoadedFrameRef.current = null
       setIframeReady(false)
       setLoadedApprovedNavigationUrl(null)
       return
@@ -1071,10 +1118,15 @@ export function PresentationViewer({
     debugLog('✅ Iframe loaded and ready')
     if (studioShell) {
       // Even an identical URL is a fresh native frame lifetime.
+      studioComposeLoadRevisionRef.current += 1
+      studioComposeLoadedFrameRef.current = { iframe: event.currentTarget, source: loadedUrl,
+        nativeWindow: event.currentTarget.contentWindow, revision: studioComposeLoadRevisionRef.current }
       slideMutationOwnerRef.current = { ...slideMutationOwnerRef.current,
         generation: slideMutationOwnerRef.current.generation + 1 }
       slideMutationRequestRef.current = null
       slideMutationPendingRef.current = false
+      studioSaveRequestRef.current = null
+      setIsSaving(false)
       setIsSlideMutationPending(false)
       setNativeSnapshotSafetyRevision(value => value + 1)
     }
@@ -1133,6 +1185,7 @@ export function PresentationViewer({
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
     debugLog('🔘 Next button clicked!')
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
     if (studioShell && snapshotSelectionRef.current) {
       const next = Math.min(Math.max(1, totalSlides || currentSlide), snapshotCurrentSlideRef.current + 1)
       snapshotSelectionRef.current.index = next - 1
@@ -1145,7 +1198,8 @@ export function PresentationViewer({
       return
     }
     try {
-      await sendCommand(iframeRef.current, 'nextSlide')
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'nextSlide')
+      if (interaction && !interaction.isCurrent()) return
       // Immediately update local state (polling will confirm/sync)
       const navigationTotal = Math.max(visualTotalSlides || 0, totalSlides || 0, currentSlide)
       if (currentSlide < (navigationTotal || 999)) {
@@ -1157,10 +1211,11 @@ export function PresentationViewer({
     } catch (error) {
       console.error('Error navigating to next slide:', error)
     }
-  }, [currentSlide, totalSlides, visualTotalSlides, onSlideChange])
+  }, [currentSlide, totalSlides, visualTotalSlides, onSlideChange, studioShell, beginStudioViewerInteraction])
 
   const handlePrevSlide = useCallback(async () => {
     debugLog('🔘 Prev button clicked!')
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
     if (studioShell && snapshotSelectionRef.current) {
       const previous = Math.max(1, snapshotCurrentSlideRef.current - 1)
       snapshotSelectionRef.current.index = previous - 1
@@ -1176,7 +1231,8 @@ export function PresentationViewer({
     }
     try {
       debugLog('📤 Sending prevSlide command...')
-      await sendCommand(iframeRef.current, 'prevSlide')
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'prevSlide')
+      if (interaction && !interaction.isCurrent()) return
       // Immediately update local state (polling will confirm/sync)
       if (currentSlide > 1) {
         const newSlide = currentSlide - 1
@@ -1187,7 +1243,7 @@ export function PresentationViewer({
     } catch (error) {
       console.error('❌ Error navigating to previous slide:', error)
     }
-  }, [currentSlide, totalSlides, onSlideChange])
+  }, [currentSlide, totalSlides, onSlideChange, studioShell, beginStudioViewerInteraction])
 
   const handleToggleOverview = useCallback(() => {
     debugLog('🔘 Grid button clicked - toggling thumbnail strip!')
@@ -1260,6 +1316,7 @@ export function PresentationViewer({
   // existing effect-synced onSlideChangeRef instead; identity stays stable.
   const handleGoToSlide = useCallback(async (slideIndex: number) => {
     debugLog(`🎯 Navigating to slide ${slideIndex + 1}`)
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
     const nextSlide = slideIndex + 1
     setCurrentSlide(nextSlide)
     onSlideChangeRef.current?.(nextSlide)
@@ -1274,13 +1331,15 @@ export function PresentationViewer({
     }
 
     try {
-      await sendCommand(iframeRef.current, 'goToSlide', { index: slideIndex }, { timeoutMs: 1500 })
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'goToSlide', { index: slideIndex }, { timeoutMs: 1500 })
+      if (interaction && !interaction.isCurrent()) return
       debugLog(`✅ Navigated to slide ${slideIndex + 1}`)
     } catch (error) {
+      if (interaction && !interaction.isCurrent()) return
       console.warn('goToSlide response timed out; keeping optimistic slide state and sending fallback navigation.', error)
-      postCommand(iframeRef.current, 'goToSlide', { index: slideIndex })
+      postCommand(interaction?.iframe ?? iframeRef.current, 'goToSlide', { index: slideIndex })
     }
-  }, [])
+  }, [studioShell, beginStudioViewerInteraction])
 
   // Poll for slide info updates via postMessage (with exponential backoff)
   useEffect(() => {
@@ -1384,17 +1443,24 @@ export function PresentationViewer({
   // IMPORTANT: Must be declared BEFORE the keyboard shortcuts useEffect that references it
   const handleForceSave = useCallback(async () => {
     if (!iframeRef.current) return
-
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
+    const request = {}
+    if (studioShell) studioSaveRequestRef.current = request
+    const isCurrent = () => !studioShell || (studioSaveRequestRef.current === request && !!interaction?.isSourceCurrent())
     setSaveStatus('saving')
     try {
-      await sendCommand(iframeRef.current, 'forceSave')
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'forceSave')
+      if (!isCurrent()) return
       setSaveStatus('saved')
       debugLog('💾 Force save completed')
     } catch (error) {
+      if (!isCurrent()) return
       console.error('Error forcing save:', error)
       setSaveStatus('error')
+    } finally {
+      if (studioSaveRequestRef.current === request) studioSaveRequestRef.current = null
     }
-  }, [])
+  }, [studioShell, beginStudioViewerInteraction])
 
   // Keyboard shortcuts (handlers are now defined above)
   useEffect(() => {
@@ -1497,22 +1563,28 @@ export function PresentationViewer({
 
   const handleSaveChanges = useCallback(async () => {
     if (!iframeRef.current) return
-
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
+    const request = {}
+    if (studioShell) studioSaveRequestRef.current = request
+    const isCurrent = () => !studioShell || (studioSaveRequestRef.current === request && !!interaction?.isSourceCurrent())
     setIsSaving(true)
     try {
-      await sendCommand(iframeRef.current, 'saveAllChanges')
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'saveAllChanges')
+      if (!isCurrent()) return
       debugLog('💾 Changes saved successfully')
 
       // Exit edit mode after saving
       setIsEditMode(false)
       onEditModeChange?.(false)
     } catch (error) {
+      if (!isCurrent()) return
       console.error('Error saving changes:', error)
       alert('Failed to save changes. Please try again.')
     } finally {
-      setIsSaving(false)
+      if (isCurrent()) setIsSaving(false)
+      if (studioSaveRequestRef.current === request) studioSaveRequestRef.current = null
     }
-  }, [onEditModeChange])
+  }, [onEditModeChange, studioShell, beginStudioViewerInteraction])
 
   const handleCancelEdits = useCallback(async () => {
     if (!iframeRef.current) return
@@ -1521,16 +1593,17 @@ export function PresentationViewer({
     if (!confirm('Are you sure you want to discard all changes?')) {
       return
     }
-
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
     try {
-      await sendCommand(iframeRef.current, 'cancelEdits')
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'cancelEdits')
+      if (interaction && !interaction.isCurrent()) return
       setIsEditMode(false)
       onEditModeChange?.(false)
       debugLog('🚫 Edits canceled')
     } catch (error) {
       console.error('Error canceling edits:', error)
     }
-  }, [onEditModeChange])
+  }, [onEditModeChange, studioShell, beginStudioViewerInteraction])
 
   // Add slide handler
   const handleAddSlide = useCallback(async (layoutId: SlideLayoutType) => {
@@ -2404,6 +2477,7 @@ export function PresentationViewer({
       return false
     }
 
+    if (studioShell) viewerInteractionIntentRef.current += 1
     try {
       const result = await sendCommand(iframeRef.current, 'updateSectionContent', {
         slideIndex,
@@ -2425,24 +2499,26 @@ export function PresentationViewer({
       })
       return false
     }
-  }, [toast])
+  }, [toast, studioShell])
 
   // Send text box command to iframe (for TextBoxFormatPanel)
   const handleSendTextBoxCommand = useCallback(async (action: string, params: Record<string, any>) => {
     if (!iframeRef.current) {
       throw new Error('Iframe not ready')
     }
+    if (studioShell) viewerInteractionIntentRef.current += 1
     return sendCommand(iframeRef.current, action, params)
-  }, [])
+  }, [studioShell])
 
   // Trigger iframe refresh after Elementor auto-injection
   const triggerIframeRefresh = useCallback(() => {
     if (!iframeRef.current) return
+    if (studioShell) viewerInteractionIntentRef.current += 1
 
     // Send refreshSlide command to iframe - Layout Service will reload current slide
     postCommand(iframeRef.current, 'refreshSlide')
     debugLog('[Elementor] Triggered iframe refresh after auto-injection')
-  }, [])
+  }, [studioShell])
 
   // Send element command - routes to Layout Service or Elementor as appropriate
   const handleSendElementCommand = useCallback(async (action: string, params: Record<string, any>) => {
@@ -2451,6 +2527,10 @@ export function PresentationViewer({
     }
 
     const commandType = getCommandType(action)
+    if (studioShell && ![
+      'getElementGeometry', 'getSlideGenerationContext', 'getTemplateSlotCatalog',
+      'getElementThemeVariants', 'getSelectionInfo',
+    ].includes(action)) viewerInteractionIntentRef.current += 1
 
     // Direct Layout Service command - send to iframe
     if (commandType === 'layout-service') {
@@ -2500,7 +2580,7 @@ export function PresentationViewer({
           ...(params.hasHeaderRow !== undefined && { has_header: params.hasHeaderRow }),
         }
 
-        const response = await fetch(`${ELEMENTOR_BASE_URL}${endpoint}`, {
+        const response = await fetch(`${getElementorServiceUrl()}${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(elementorRequest)
@@ -2544,10 +2624,13 @@ export function PresentationViewer({
     // Unknown command - try sending to iframe anyway (backwards compatibility)
     console.warn(`[ElementCommand] Unknown command type: ${action}, sending to iframe`)
     return sendCommand(iframeRef.current, action, params)
-  }, [presentationId, currentSlide, triggerIframeRefresh])
+  }, [presentationId, currentSlide, triggerIframeRefresh, studioShell])
 
   const handleComposePlaceholderAdd = useCallback((jobId: string, visualIndex: number, replaceJobId?: string) => {
-    if (studioShell && iframeRef.current) nativeSnapshotStructureEditedRef.current = true
+    if (studioShell && iframeRef.current) {
+      viewerInteractionIntentRef.current += 1
+      nativeSnapshotStructureEditedRef.current = true
+    }
     return sendCommand(
       iframeRef.current,
       'composePlaceholderAdd',
@@ -2566,7 +2649,10 @@ export function PresentationViewer({
     realSlideId?: string | null,
     targetPresentationId?: string | null,
   ) => {
-    if (studioShell && iframeRef.current) nativeSnapshotStructureEditedRef.current = true
+    if (studioShell && iframeRef.current) {
+      viewerInteractionIntentRef.current += 1
+      nativeSnapshotStructureEditedRef.current = true
+    }
     return sendCommand(
       iframeRef.current,
       'composeSlideReconcile',
@@ -2626,7 +2712,10 @@ export function PresentationViewer({
     realSlideId: string,
     targetPresentationId?: string | null,
   ) => {
-    if (studioShell && iframeRef.current) nativeSnapshotStructureEditedRef.current = true
+    if (studioShell && iframeRef.current) {
+      viewerInteractionIntentRef.current += 1
+      nativeSnapshotStructureEditedRef.current = true
+    }
     return sendCommand(
       iframeRef.current,
       'refineSlideReconcile',
@@ -2653,10 +2742,142 @@ export function PresentationViewer({
     return sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
   }, [])
 
-  const handleComposeGoToVisualIndex = useCallback(async (visualIndex: number) => {
+  const handleComposeCaptureSelectionContext = useCallback((): StudioComposeSelectionContext | null => {
+    if (!studioShell) return null
+    const iframe = iframeRef.current
+    const owner = slideMutationOwnerRef.current
+    const source = iframe?.src
+    const nativeWindow = iframe?.contentWindow
+    const mount = slideMutationMountRef.current.generation
+    const mode = studioFormatModeRef.current
+    const interaction = viewerInteractionIntentRef.current
+    const structure = thumbnailNativeRevisionRef.current
+    const loadRevision = studioComposeLoadRevisionRef.current
+    const loadedFrame = studioComposeLoadedFrameRef.current
+    const continuationKey = JSON.stringify([owner.userId, owner.presentationId, owner.sessionId,
+      owner.deckOwnerSessionId, owner.activeVersion, mount, mode.revision, interaction, structure])
+    const deckOwner = studioComposeDeckOwnerRef.current.token
+    if (studioComposeContinuationRef.current?.key !== continuationKey || studioComposeContinuationRef.current.deckOwner !== deckOwner) {
+      studioComposeContinuationRef.current = { key: continuationKey, deckOwner, token: {} }
+    }
+    const continuation = studioComposeContinuationRef.current.token
+    let retired = false
+    const isCurrent = () => {
+      const safety = getStudioIntroductionSafety()
+      if (retired || !iframe || !nativeWindow || !owner.userId || !owner.presentationId
+        || !owner.sessionId || owner.sessionId === 'new' || owner.deckOwnerSessionId !== owner.sessionId
+        || !slideMutationMountRef.current.active || slideMutationMountRef.current.generation !== mount
+        || slideMutationOwnerRef.current !== owner || iframeRef.current !== iframe
+        || iframe.src !== source || iframe.contentWindow !== nativeWindow
+        || !loadedFrame || studioComposeLoadedFrameRef.current !== loadedFrame
+        || loadedFrame.iframe !== iframe || loadedFrame.source !== source || loadedFrame.nativeWindow !== nativeWindow
+        || loadedFrame.revision !== loadRevision || studioComposeLoadRevisionRef.current !== loadRevision
+        || source !== owner.source
+        || studioFormatModeRef.current !== mode || mode.enabled
+        || viewerInteractionIntentRef.current !== interaction || thumbnailNativeRevisionRef.current !== structure
+        || studioSaveRequestRef.current !== null || !safety.ready || safety.dirty || safety.busy || safety.error) {
+        retired = true
+        return false
+      }
+      return true
+    }
+    if (!isCurrent()) return null
+    const assertCurrent = () => {
+      if (!isCurrent()) throw new Error('Native selection context retired')
+    }
+    const readNativeOrder = async () => {
+      assertCurrent()
+      const receipt = await sendCommand(iframe, 'composeGetState', {}, { timeoutMs: 5000 })
+      assertCurrent()
+      if (!parseStudioNativeSlideOrder(receipt)) throw new Error('Native slide identity/order unavailable')
+      return receipt
+    }
+    return Object.freeze({
+      frameEpoch: owner,
+      continuationKey: continuation,
+      loadRevision,
+      interactionRevision: interaction,
+      structureRevision: structure,
+      presentationUrl: introSafetyRef.current.presentationUrl!,
+      isCurrent,
+      readNativeOrder,
+      restoreIdentity: async ({ slideId, expectedNativeCount, isCurrent: targetIsCurrent }: Parameters<StudioComposeSelectionContext['restoreIdentity']>[0]) => {
+        let orderRetired = false
+        const active = () => !orderRetired && isCurrent() && targetIsCurrent()
+        const check = () => {
+          if (!active()) throw new Error('Native selection target retired')
+        }
+        if (!slideId || slideId !== slideId.trim() || (expectedNativeCount !== null
+          && (!Number.isSafeInteger(expectedNativeCount) || expectedNativeCount < 1))) {
+          throw new Error('Invalid native selection identity/count')
+        }
+        check()
+        const initial = parseStudioNativeSlideOrder(await readNativeOrder())!
+        check()
+        const visualIndex = initial.slideIds.indexOf(slideId)
+        const nativeCount = initial.nativeCount
+        if (visualIndex < 0 || (expectedNativeCount !== null && nativeCount !== expectedNativeCount)) {
+          throw new Error('Requested native slide identity/count unavailable')
+        }
+        const read = async () => {
+          check()
+          const receipt = await readNativeOrder()
+          check()
+          const order = parseStudioNativeSlideOrder(receipt)!
+          if (order.nativeCount !== nativeCount || order.slideIds[visualIndex] !== slideId) {
+            // Never keep navigating an old index after the real ID moved.
+            orderRetired = true
+            throw new Error('Native slide order changed during selection')
+          }
+          return order
+        }
+        await restoreSlideViewerSelection({
+          targetVisualIndex: visualIndex,
+          readNavigationInfo: async () => {
+            const order = await read()
+            return { currentVisualIndex: order.currentVisualIndex, totalSlides: order.nativeCount }
+          },
+          navigate: async index => {
+            // Re-read the strict identity immediately before dispatch.
+            await read()
+            check()
+            await sendCommand(iframe, 'goToSlide', { index }, { timeoutMs: 1500 })
+            check()
+          },
+          wait: waitForViewerSettle,
+          isActive: active,
+        })
+        const final = await read()
+        check()
+        if (final.currentVisualIndex !== visualIndex || final.slideIds[visualIndex] !== slideId) {
+          throw new Error('Native selection readback did not match')
+        }
+        setCurrentSlide(visualIndex + 1)
+        setTotalSlides(nativeCount)
+        setVisualTotalSlides(nativeCount)
+        lastSlideInfoRef.current = { slide: visualIndex + 1, total: nativeCount, visualTotal: nativeCount }
+        onSlideChangeRef.current?.(visualIndex + 1)
+        return { slideId, visualIndex, nativeCount, verified: true as const }
+      },
+    })
+  }, [studioShell, getStudioIntroductionSafety])
+
+  const handleComposeGoToVisualIndex = useCallback(async (visualIndex: number, options?: { isCurrent?: () => boolean }) => {
     const safeVisualIndex = Math.max(0, visualIndex)
     const iframe = iframeRef.current
     if (!iframe) throw new Error('Iframe not ready')
+    const source = iframe.src
+    const nativeWindow = iframe.contentWindow
+    const owner = slideMutationOwnerRef.current
+    const mount = slideMutationMountRef.current.generation
+    const interaction = viewerInteractionIntentRef.current
+    const structure = thumbnailNativeRevisionRef.current
+    const mode = studioFormatModeRef.current
+    const isActive = () => (!options?.isCurrent || options.isCurrent())
+      && iframeRef.current === iframe && iframe.src === source && iframe.contentWindow === nativeWindow
+      && (!studioShell || (slideMutationMountRef.current.active && slideMutationMountRef.current.generation === mount
+        && slideMutationOwnerRef.current === owner && viewerInteractionIntentRef.current === interaction
+        && thumbnailNativeRevisionRef.current === structure && studioFormatModeRef.current === mode))
 
     const result = await restoreSlideViewerSelection({
       targetVisualIndex: safeVisualIndex,
@@ -2675,7 +2896,7 @@ export function PresentationViewer({
         )
       },
       wait: waitForViewerSettle,
-      isActive: () => iframeRef.current === iframe,
+      isActive,
       onRetry: retry => {
         scTrace(
           retry.phase === 'waiting'
@@ -2692,6 +2913,7 @@ export function PresentationViewer({
       },
     })
 
+    if (!isActive()) throw new Error('Presentation iframe changed during slide selection restore')
     const nextSlide = safeVisualIndex + 1
     setCurrentSlide(nextSlide)
     onSlideChangeRef.current?.(nextSlide)
@@ -2702,7 +2924,7 @@ export function PresentationViewer({
       attempts: result.attempts,
       verified: true,
     }
-  }, [])
+  }, [studioShell])
 
   const handleComposeGoToPlaceholder = useCallback(async (jobId: string) => {
     const state = await sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
@@ -2753,6 +2975,7 @@ export function PresentationViewer({
       composeGetState: handleComposeGetState,
       composeGoToPlaceholder: handleComposeGoToPlaceholder,
       composeGoToVisualIndex: handleComposeGoToVisualIndex,
+      ...(studioShell ? { composeCaptureSelectionContext: handleComposeCaptureSelectionContext } : {}),
       refineOverlayMark: handleRefineOverlayMark,
       refineSlideReconcile: handleRefineSlideReconcile,
       refineOverlayClear: handleRefineOverlayClear,
@@ -2769,6 +2992,9 @@ export function PresentationViewer({
     handleComposeGetState,
     handleComposeGoToPlaceholder,
     handleComposeGoToVisualIndex,
+    handleComposeCaptureSelectionContext,
+    studioShell,
+    renderSlideMutationOwner,
     handleRefineOverlayMark,
     handleRefineSlideReconcile,
     handleRefineOverlayClear,
@@ -2958,13 +3184,14 @@ export function PresentationViewer({
   // Listen for save status/refine events from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
+      if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR || !isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
       const type = event.data?.type
       if (typeof type !== 'string' || !isLayoutViewerEvent(type)) return
 
       if (isDiagramRendererStateEvent(type)) {
         const update = parseDiagramRendererStateUpdate(event.data)
         if (!update) return
+        if (studioShell) viewerInteractionIntentRef.current += 1
         pendingDiagramStatesRef.current.set(update.elementId, update)
         const previousTimer = diagramStateTimersRef.current.get(update.elementId)
         if (previousTimer !== undefined) window.clearTimeout(previousTimer)
@@ -2991,7 +3218,10 @@ export function PresentationViewer({
       if (type === 'save_status' || type === 'saveStatusChanged') {
         const status = event.data.status as SaveStatus
         if (!['saved', 'unsaved', 'saving', 'error'].includes(status)) return
-        if (status !== 'saved') nativeSnapshotDirtyRef.current = true
+        if (status !== 'saved') {
+          if (studioShell) viewerInteractionIntentRef.current += 1
+          nativeSnapshotDirtyRef.current = true
+        }
         else if (event.data.hasPendingChanges === false) nativeSnapshotDirtyRef.current = false
         setNativeSnapshotSafetyRevision(value => value + 1)
         setSaveStatus(status)
@@ -3050,7 +3280,7 @@ export function PresentationViewer({
   // Listen for text box selection events from iframe
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
+      if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR || !isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       // Handle text box selection - auto-enter edit mode
       if (event.data.type === 'textBoxSelected') {
@@ -3092,7 +3322,7 @@ export function PresentationViewer({
   // Listen for element selection events from iframe (Image, Chart, Table, Infographic, Diagram)
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
+      if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR || !isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       // Handle element selection - auto-enter edit mode and show format panel
       if (event.data.type === 'elementSelected') {
@@ -3140,7 +3370,7 @@ export function PresentationViewer({
     if (!onElementMoved) return
 
     const handleMessage = (event: MessageEvent) => {
-      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
+      if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR || !isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       if (event.data.type === 'elementMoved' || event.data.action === 'elementMoved') {
         const elementId = event.data.elementId as string
@@ -3149,6 +3379,7 @@ export function PresentationViewer({
         const gridColumn = position.gridColumn as string
 
         if (elementId && gridRow && gridColumn) {
+          if (studioShell) viewerInteractionIntentRef.current += 1
           onElementMoved(elementId, gridRow, gridColumn)
         }
       }
@@ -3156,7 +3387,7 @@ export function PresentationViewer({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [onElementMoved])
+  }, [onElementMoved, studioShell])
 
   return (
     <div data-studio-v4-viewer={studioShell ? "true" : undefined} data-studio-v4-fullscreen={isFullscreen ? "true" : undefined} ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
@@ -3365,6 +3596,7 @@ export function PresentationViewer({
                         disabled={!templateModeAvailable && !templateModeOn}
                         className="cursor-pointer gap-2"
                         onClick={() => {
+                          if (studioShell) viewerInteractionIntentRef.current += 1
                           onTemplateModeChange?.(!templateModeOn)
                           setToolbarTemplateMenuOpen(false)
                         }}
@@ -3698,6 +3930,7 @@ export function PresentationViewer({
                   className="pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-violet-200 bg-white/95 text-violet-700 shadow-lg transition hover:border-violet-300 hover:bg-violet-50 dark:border-violet-800 dark:bg-slate-950/95 dark:text-violet-200 dark:hover:bg-violet-950"
                   onClick={(event) => {
                     event.stopPropagation()
+                    if (studioShell) viewerInteractionIntentRef.current += 1
                     void onTemplateModeChange?.(false)
                   }}
                   aria-label="Exit Template Mode"
@@ -3774,6 +4007,11 @@ export function PresentationViewer({
                     (blank-landing card). Rendered after frame so it stacks
                     above it. */}
                 {!isFullscreen && stageChrome?.placeholder}
+              </div>
+            ) : LAYOUT_URL_CONFIG_ERROR ? (
+              <div role="alert" className="flex max-w-xl flex-col items-center justify-center rounded-lg border border-amber-300 bg-amber-50 p-8 text-center text-amber-950 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                <p className="text-base font-semibold">Slides are unavailable in this environment</p>
+                <p className="mt-2 text-sm opacity-80">{LAYOUT_URL_CONFIG_ERROR.message}</p>
               </div>
             ) : viewerUrlDecision.status === 'blocked' ? (
               <div
@@ -3988,15 +4226,15 @@ export function PresentationViewer({
       )}
 
       {/* Version History Panel */}
-      <VersionHistoryPanel
+      {VIEWER_ORIGIN && !LAYOUT_URL_CONFIG_ERROR && <VersionHistoryPanel
         isOpen={showVersionHistory}
         onClose={() => setShowVersionHistory(false)}
         iframeRef={iframeRef}
         viewerOrigin={VIEWER_ORIGIN}
-      />
+      />}
 
       {/* Presentation Settings Panel (Footer, Logo) */}
-      <PresentationSettingsPanel
+      {VIEWER_ORIGIN && !LAYOUT_URL_CONFIG_ERROR && <PresentationSettingsPanel
         isOpen={showPresentationSettings}
         onClose={() => setShowPresentationSettings(false)}
         iframeRef={iframeRef}
@@ -4004,7 +4242,7 @@ export function PresentationViewer({
         currentSlide={currentSlide}
         totalSlides={totalSlides}
         presentationId={presentationId}
-      />
+      />}
 
       {/* Theme Panel */}
       <ThemePanel

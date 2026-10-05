@@ -1,3 +1,5 @@
+import { requireServiceUrl } from '@/lib/service-url'
+
 export type ThemeSyncStatus = 'idle' | 'syncing' | 'applied' | 'failed'
 
 export interface ThemeSyncState {
@@ -121,7 +123,7 @@ export async function probePersistedPresentationTheme({
   )
   try {
     const response = await fetchImpl(
-      `${layoutServiceUrl}/api/presentations/${encodeURIComponent(presentationId)}/theme/css-variables`,
+      `${requireServiceUrl('Layout theme service', [{ name: 'layoutServiceUrl', value: layoutServiceUrl }])}/api/presentations/${encodeURIComponent(presentationId)}/theme/css-variables`,
       { cache: 'no-store', signal: controller.signal },
     )
     if (response.ok) {

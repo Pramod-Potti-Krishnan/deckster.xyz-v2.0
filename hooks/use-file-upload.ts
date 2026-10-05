@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { UploadedFile } from '@/components/file-chip'
 import { validateFile } from '@/lib/file-validation'
-import { apiConfig, uploadConfig } from '@/lib/config'
+import { getKnowledgeServiceUrl, uploadConfig } from '@/lib/config'
 import {
   getEnrichmentLabel,
   resolveEnrichmentOutcome,
@@ -12,7 +12,8 @@ import {
 } from '@/lib/upload-status'
 
 const MAX_FILES = uploadConfig.maxFiles
-const RESEARCHER_BASE_URL = apiConfig.knowledgeServiceUrl.replace(/\/$/, '')
+// Resolve only for an admitted Knowledge action; optional uploader imports stay safe.
+const getResearcherBaseUrl = () => getKnowledgeServiceUrl().replace(/\/$/, '')
 const POLL_ATTEMPTS = 120
 const POLL_INTERVAL_MS = 5000
 // Per-request ceiling. The attempt budget above is meaningless without it:
@@ -175,7 +176,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       if (owner.researcherSessionId) return owner.researcherSessionId
       if (owner.researcherSessionPromise) return owner.researcherSessionPromise
       const pending = (async () => {
-        const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/sessions/create`, {
+        const response = await fetch(`${getResearcherBaseUrl()}/api/v1/sessions/create`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -211,7 +212,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     }
 
     researcherSessionPromiseRef.current = (async () => {
-      const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/sessions/create`, {
+      const response = await fetch(`${getResearcherBaseUrl()}/api/v1/sessions/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -247,7 +248,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     file: File,
     contentType: string,
   ): Promise<StorageUploadUrlResponse> => {
-    const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/files/storage-upload-url`, {
+    const response = await fetch(`${getResearcherBaseUrl()}/api/v1/files/storage-upload-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -292,7 +293,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     file: File,
     contentType: string,
   ): Promise<ProcessUploadedResponse> => {
-    const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/files/process-uploaded`, {
+    const response = await fetch(`${getResearcherBaseUrl()}/api/v1/files/process-uploaded`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -322,6 +323,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     fileId: string,
     owner?: UploadOwner,
   ): Promise<IngestStatusResponse> => {
+    // Configuration is not a transient request failure. Refuse before sleeping
+    // or entering the retry loop, while preserving the existing poll protocol.
+    const researcherBaseUrl = getResearcherBaseUrl()
     let unknownCount = 0
     let consecutiveTransient = 0
     const deadline = Date.now() + POLL_DEADLINE_MS
@@ -338,7 +342,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         // overall attempt budget below can never be reached — the chip spins
         // indefinitely and can reach neither 'success' nor 'error'.
         const response = await fetch(
-          `${RESEARCHER_BASE_URL}/api/v1/files/ingest-status/${jobId}`,
+          `${researcherBaseUrl}/api/v1/files/ingest-status/${jobId}`,
           { signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) },
         )
         const body = await readResponseBody(response)

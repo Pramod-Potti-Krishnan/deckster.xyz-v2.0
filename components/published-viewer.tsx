@@ -37,7 +37,9 @@ interface PublishedViewerProps {
   /** Published-deck slug — download links route through the server gate */
   slug: string
   /** Public Layout Service origin the browser can reach */
-  layoutBaseUrl: string
+  layoutBaseUrl: string | null
+  /** Sanitized service-configuration message from the authorized server page. */
+  layoutConfigurationError?: string
   /** The frozen snapshot presentation viewers see */
   snapshotPresentationId: string
   slideCount: number
@@ -63,6 +65,7 @@ export function PublishedViewer({
   title,
   slug,
   layoutBaseUrl,
+  layoutConfigurationError,
   snapshotPresentationId,
   slideCount,
   allowPdf,
@@ -71,15 +74,28 @@ export function PublishedViewer({
   qaEnabled,
   initialFaq,
 }: PublishedViewerProps) {
+  const narrationOwnerKey = JSON.stringify([slug, layoutBaseUrl, snapshotPresentationId])
+  const narrationOwnerRef = useRef({ key: narrationOwnerKey })
+  if (narrationOwnerRef.current.key !== narrationOwnerKey) {
+    narrationOwnerRef.current = { key: narrationOwnerKey }
+  }
+  const narrationOwner = narrationOwnerRef.current
   const stageRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [qaOpen, setQaOpen] = useState(false)
   // The narrated run. Null until we know there is anything to play — the deck
   // is perfectly usable without it, so nothing here may block the slides.
-  const [manifest, setManifest] = useState<NarrationManifest | null>(null)
-  const [presenting, setPresenting] = useState(false)
+  const [manifestReceipt, setManifestReceipt] = useState<{
+    owner: typeof narrationOwner; manifest: NarrationManifest
+  } | null>(null)
+  const manifest = manifestReceipt?.owner === narrationOwner ? manifestReceipt.manifest : null
+  const [presentingOwner, setPresentingOwner] = useState<typeof narrationOwner | null>(null)
+  const presenting = presentingOwner === narrationOwner
   // Reveal deep link for a cited slide, 0-based (`#/2` is slide 3).
-  const [slideHash, setSlideHash] = useState('')
+  const [slideNavigation, setSlideNavigation] = useState<{
+    owner: typeof narrationOwner; hash: string
+  } | null>(null)
+  const slideHash = slideNavigation?.owner === narrationOwner ? slideNavigation.hash : ''
 
   // The Q&A affordance appears when the owner accepts questions OR has already
   // published answers — a deck with an FAQ and questions since switched off is
@@ -88,15 +104,18 @@ export function PublishedViewer({
   const unreadCount = useUnreadThreadCount(slug, qaAvailable)
 
   const handleCiteSlide = useCallback((slideNumber: number) => {
+    if (narrationOwnerRef.current !== narrationOwner) return
     // Reveal counts from 0; citations carry human 1-based slide numbers.
-    setSlideHash(`#/${Math.max(0, slideNumber - 1)}`)
-  }, [])
+    setSlideNavigation({ owner: narrationOwner, hash: `#/${Math.max(0, slideNumber - 1)}` })
+  }, [narrationOwner])
 
   // The read-only viewer for the iframe. Downloads no longer go straight to the
   // public Downloads service from here — they route through the server gate at
   // /api/publish/{slug}/download/{format}, which enforces the passcode + the
   // per-format flags before proxying + streaming the file back.
-  const viewerUrl = `${layoutBaseUrl}/p/${snapshotPresentationId}?viewOnly=true${slideHash}`
+  const viewerUrl = layoutBaseUrl
+    ? `${layoutBaseUrl}/p/${snapshotPresentationId}?viewOnly=true${slideHash}`
+    : null
   const downloadHref = (format: 'pdf' | 'pptx') => `/api/publish/${slug}/download/${format}`
 
   const canDownload = allowPdf || allowPptx
@@ -104,15 +123,18 @@ export function PublishedViewer({
   // Ask once whether this deck can narrate. A 404 is the ordinary answer for a
   // deck with narration off, so it is not treated as an error.
   useEffect(() => {
+    if (!layoutBaseUrl) return
     let cancelled = false
+    const isCurrent = () => !cancelled && narrationOwnerRef.current === narrationOwner
     ;(async () => {
       try {
         const response = await fetch(`/api/narration/manifest?slug=${encodeURIComponent(slug)}`)
-        if (!response.ok || cancelled) return
+        if (!response.ok || !isCurrent()) return
         const data = (await response.json()) as NarrationManifest
+        if (!isCurrent()) return
         // Offered only when something is genuinely playable. A "Play" button
         // that produces silence is worse than no button.
-        if (data.slides?.some((slide) => slide.full)) setManifest(data)
+        if (data.slides?.some((slide) => slide.full)) setManifestReceipt({ owner: narrationOwner, manifest: data })
       } catch {
         /* narration is optional — the deck stands without it */
       }
@@ -120,7 +142,7 @@ export function PublishedViewer({
     return () => {
       cancelled = true
     }
-  }, [slug])
+  }, [slug, layoutBaseUrl, snapshotPresentationId])
 
   useEffect(() => {
     const handleChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
@@ -201,10 +223,10 @@ export function PublishedViewer({
               offering both invited the reading that one of them is a passive
               watch. A deck with narration presents; a deck without one still
               goes fullscreen, which is what presenting meant before. */}
-          {manifest && !presenting ? (
+          {viewerUrl && manifest && !presenting ? (
             <button
               onClick={() => {
-                setPresenting(true)
+                setPresentingOwner(narrationOwner)
                 if (!document.fullscreenElement) {
                   stageRef.current?.requestFullscreen().catch(() => {})
                 }
@@ -219,6 +241,7 @@ export function PublishedViewer({
           ) : (
             <button
               onClick={handleToggleFullscreen}
+              disabled={!viewerUrl}
               className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
               title={isFullscreen ? 'Exit fullscreen' : 'Present fullscreen'}
               aria-label={STUDIO_PUBLISHED ? isFullscreen ? 'Exit fullscreen' : 'Present fullscreen' : undefined}
@@ -248,19 +271,22 @@ export function PublishedViewer({
               : 'min(100%, calc((100dvh - 120px) * (16 / 9)))',
           }}
         >
-          <iframe
+          {viewerUrl ? <iframe
             src={viewerUrl}
             className="h-full w-full border-0"
             title={title}
             allow="fullscreen"
-          />
-          {presenting && manifest && (
+          /> : <div role="alert" className="flex h-full flex-col items-center justify-center gap-2 bg-amber-50 p-8 text-center text-amber-950 dark:bg-amber-950/40 dark:text-amber-100">
+            <p className="font-semibold">Slides are unavailable in this environment</p>
+            {layoutConfigurationError && <p className="text-sm opacity-80">{layoutConfigurationError}</p>}
+          </div>}
+          {viewerUrl && presenting && manifest && (
             <PublishedPresenter
               slug={slug}
               manifest={manifest}
               onSlide={handleCiteSlide}
               onExit={() => {
-                setPresenting(false)
+                setPresentingOwner(null)
                 if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
               }}
             />

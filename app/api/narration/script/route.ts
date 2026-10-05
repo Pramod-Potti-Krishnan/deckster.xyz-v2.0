@@ -1,3 +1,4 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 /**
  * POST /api/narration/script — draft the spoken script for a whole deck.
  *
@@ -22,7 +23,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import { getPresentation, updateSlideNarration } from '@/lib/layout-service-client';
+import { getPresentation, getLayoutServiceUrl, updateSlideNarration } from '@/lib/layout-service-client';
 import { resolveBudget, COMPRESSED_RATIO } from '@/lib/narration/budget';
 import { allocate, allocatedSeconds } from '@/lib/narration/allocate';
 import { draftSlideScript, DraftError } from '@/lib/narration/draft';
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
     if (!presentationId) {
       return NextResponse.json({ error: 'This deck has no slides yet' }, { status: 400 });
     }
+    getLayoutServiceUrl();
     const presentation = await getPresentation(presentationId);
     const slides: Record<string, any>[] = presentation?.slides ?? [];
     if (slides.length === 0) {
@@ -275,6 +277,7 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Narration] script generation failed:', error);
     return NextResponse.json({ error: 'Could not generate the script' }, { status: 500 });
   }

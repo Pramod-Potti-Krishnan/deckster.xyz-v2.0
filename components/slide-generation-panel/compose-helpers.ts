@@ -87,6 +87,9 @@ export type SlideSelections = {
 export interface SlideComposeBuiltResult {
   status: 'built'
   presentation_id: string
+  real_slide_id?: string | null
+  inserted_at_index?: number | null
+  kind?: 'compose' | 'refine'
   presentation_url?: string | null
   slide_index: number
   appended_index?: number | null

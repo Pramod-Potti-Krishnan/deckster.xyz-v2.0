@@ -1,3 +1,4 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 /**
  * POST /api/narration/render — turn a deck's scripts into audio.
  *
@@ -21,7 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import { getPresentation } from '@/lib/layout-service-client';
+import { getPresentation, getLayoutServiceUrl } from '@/lib/layout-service-client';
 import { getVoice } from '@/lib/narration/voices';
 import {
   synthesize,
@@ -108,6 +109,7 @@ export async function POST(request: NextRequest) {
     const { voiceId } = await getSessionVoiceId(deck.sessionId, user.id);
     const voice = getVoice(voiceId);
 
+    getLayoutServiceUrl();
     const presentation = await getPresentation(presentationId);
     const slides: Record<string, any>[] = presentation?.slides ?? [];
 
@@ -319,6 +321,7 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Narration] render failed:', error);
     return NextResponse.json({ error: 'Could not render the narration' }, { status: 500 });
   }

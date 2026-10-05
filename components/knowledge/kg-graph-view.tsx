@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -171,6 +172,65 @@ function friendlyRelation(relation: string): string {
   return relation.replace(/_/g, " ").toLowerCase()
 }
 
+function compactGraphLabel(text: string, limit: number): string {
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text
+}
+function graphLabelWidth(text: string, fontSize: number, minimum = 40): number {
+  const glyphs = [...text].reduce((sum, char) => sum + (/[MW@#%&]/.test(char) ? 1.05 : /[mw]/.test(char) ? .96 : /[iIl.,:;!|' ]/.test(char) ? .34 : /[A-Z]/.test(char) ? .8 : char.charCodeAt(0) > 255 ? 1.05 : .68), 0)
+  return Math.max(minimum, glyphs * fontSize + 20)
+}
+
+interface LabelBox { x: number; y: number; width: number; height: number }
+interface EntityLabelPlacement extends LabelBox { point: LayoutNode; fontSize: number; offsetY: number }
+function labelBoxesOverlap(a: LabelBox, b: LabelBox): boolean {
+  const gap = 5
+  return a.x < b.x + b.width + gap && a.x + a.width + gap > b.x && a.y < b.y + b.height + gap && a.y + a.height + gap > b.y
+}
+
+/** Place annotations in painted pixels without moving a node or changing an edge.
+ * Priority labels stay visible; ordinary collisions yield to real node/list inspection. */
+function placeStudioLabels(layout: LayoutNode[], edges: KgViewEdge[], labeledIds: Set<string>, selectedId: string | null | undefined, hoverId: string | null, activeId: string | null, paintedScale: number, viewport?: LabelBox) {
+  const occupied: LabelBox[] = []
+  const entities: EntityLabelPlacement[] = []
+  const relations = new Set<string>()
+  const circles = layout.map(point => ({ x: point.x * paintedScale, y: point.y * paintedScale, r: point.r * paintedScale + 3 }))
+  const hitsCircle = (box: LabelBox) => circles.some(circle => {
+    const x = Math.max(box.x, Math.min(circle.x, box.x + box.width)), y = Math.max(box.y, Math.min(circle.y, box.y + box.height))
+    return Math.hypot(circle.x - x, circle.y - y) < circle.r
+  })
+  const priority = (point: LayoutNode) => point.node_id === hoverId ? 0 : point.node_id === selectedId ? 1 : 2
+  const candidates = layout.filter(point => labeledIds.has(point.node_id) || priority(point) < 2).sort((a, b) => priority(a) - priority(b) || b.salience - a.salience)
+  for (const point of candidates) {
+    const important = priority(point) < 2, fontSize = important ? 15 : 13
+    // Reserve the same displayed text as the rendered plate, including wide glyphs.
+    const width = graphLabelWidth(compactGraphLabel(point.name, 25), fontSize), height = 24, radius = point.r * paintedScale
+    const offsets = [-radius - 29, radius + 5]
+    const makeBox = (offsetY: number): LabelBox => ({ x: point.x * paintedScale - width / 2, y: point.y * paintedScale + offsetY, width, height })
+    const clear = (offset: number, avoidCircles: boolean) => { const box = makeBox(offset); return !occupied.some(other => labelBoxesOverlap(box, other)) && (!avoidCircles || !hitsCircle(box)) }
+    const fitsView = (offset: number) => { const box = makeBox(offset); return !viewport || box.x >= viewport.x && box.y >= viewport.y && box.x + box.width <= viewport.x + viewport.width && box.y + box.height <= viewport.y + viewport.height }
+    let offsetY = offsets.find(offset => clear(offset, true) && fitsView(offset))
+    if (important && offsetY === undefined) offsetY = offsets.find(offset => clear(offset, false) && fitsView(offset))
+    // A panned-offscreen selection still owns a label and the existing Focus control.
+    if (important && offsetY === undefined) offsetY = offsets.find(offset => clear(offset, false))
+    if (important && offsetY === undefined) {
+      // At most two priority entities exist. A bounded extra row keeps both accessible
+      // even when their nodes coincide; the small leader shows its own node anchor.
+      offsetY = [1, 2, 3].map(row => offsets[0] - row * 32).find(offset => clear(offset, false))
+    }
+    if (offsetY === undefined) continue
+    const box = makeBox(offsetY); occupied.push(box); entities.push({ ...box, point, fontSize, offsetY })
+  }
+  if (activeId) for (const edge of edges.filter(edge => edge.src_node_id === activeId || edge.dst_node_id === activeId).slice(0, 8)) {
+    const source = layout.find(point => point.node_id === edge.src_node_id), target = layout.find(point => point.node_id === edge.dst_node_id)
+    if (!source || !target) continue
+    const label = friendlyRelation(edge.relation), width = graphLabelWidth(compactGraphLabel(label, 20), 11, 62)
+    const box = { x: (source.x + target.x) / 2 * paintedScale - width / 2, y: (source.y + target.y) / 2 * paintedScale - 11, width, height: 22 }
+    if (occupied.some(other => labelBoxesOverlap(box, other)) || hitsCircle(box)) continue
+    occupied.push(box); relations.add(`${edge.src_node_id}-${edge.dst_node_id}-${edge.relation}`)
+  }
+  return { entities, relations }
+}
+
 export function KgGraphView({
   nodes,
   edges,
@@ -191,6 +251,26 @@ export function KgGraphView({
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [view, setView] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 })
   const [showList, setShowList] = useState(false)
+  const [canvasScale, setCanvasScale] = useState(1)
+
+  // Keep the accepted graph/layout transform, but make Studio labels readable at
+  // their painted CSS size even when the SVG is letterboxed or the map is zoomed.
+  useLayoutEffect(() => {
+    if (!STUDIO_GRAPH_CONTROLS || showList) return
+    const svg = svgRef.current
+    if (!svg) return
+    const measure = () => {
+      const matrix = svg.getScreenCTM()
+      if (!matrix) return
+      const scale = Math.hypot(matrix.a, matrix.b)
+      if (Number.isFinite(scale) && scale > 0) setCanvasScale(scale)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(svg)
+    return () => observer.disconnect()
+  }, [height, width, showList])
+  const labelScale = STUDIO_GRAPH_CONTROLS ? 1 / (canvasScale * view.scale) : 1
 
   const layout = useMemo(
     () => computeLayout(nodes, edges, width, height),
@@ -221,6 +301,8 @@ export function KgGraphView({
     }
     return ids
   }, [activeId, edges])
+
+  const studioLabels = useMemo(() => STUDIO_GRAPH_CONTROLS ? placeStudioLabels(layout, edges, labeledIds, selectedId, hoverId, activeId, canvasScale * view.scale, { x: -view.x * canvasScale, y: -view.y * canvasScale, width: width * canvasScale, height: height * canvasScale }) : null, [layout, edges, labeledIds, selectedId, hoverId, activeId, canvasScale, view.scale, view.x, view.y, width, height])
 
   const fitGraph = useCallback(() => {
     if (layout.length === 0) {
@@ -481,25 +563,27 @@ export function KgGraphView({
               const source = byId.get(edge.src_node_id)
               const target = byId.get(edge.dst_node_id)
               if (!source || !target) return null
+              if (STUDIO_GRAPH_CONTROLS && !studioLabels?.relations.has(`${edge.src_node_id}-${edge.dst_node_id}-${edge.relation}`)) return null
               const label = friendlyRelation(edge.relation)
               const x = (source.x + target.x) / 2
               const y = (source.y + target.y) / 2
-              const labelWidth = Math.max(42, Math.min(label.length * 5.4 + 14, 126))
+              const labelWidth = STUDIO_GRAPH_CONTROLS ? graphLabelWidth(compactGraphLabel(label, 20), 11, 62) : Math.max(42, Math.min(label.length * 5.4 + 14, 126))
               return (
-                <g key={`label-${edge.src_node_id}-${edge.dst_node_id}-${edge.relation}`}>
+                <g key={`label-${edge.src_node_id}-${edge.dst_node_id}-${edge.relation}`} data-studio-graph-label={STUDIO_GRAPH_CONTROLS ? "relation" : undefined} transform={STUDIO_GRAPH_CONTROLS ? `translate(${x} ${y}) scale(${labelScale})` : undefined} className={STUDIO_GRAPH_CONTROLS ? "pointer-events-none" : undefined}>
+                  {STUDIO_GRAPH_CONTROLS && <title>{label}</title>}
                   <rect
-                    x={x - labelWidth / 2}
-                    y={y - 9}
+                    x={(STUDIO_GRAPH_CONTROLS ? 0 : x) - labelWidth / 2}
+                    y={STUDIO_GRAPH_CONTROLS ? -11 : y - 9}
                     width={labelWidth}
-                    height={18}
-                    rx={9}
+                    height={STUDIO_GRAPH_CONTROLS ? 22 : 18}
+                    rx={STUDIO_GRAPH_CONTROLS ? 8 : 9}
                     fill="#0F172A"
                     stroke="#475569"
                     strokeWidth={0.7}
                     opacity={0.96}
                   />
-                  <text x={x} y={y + 3} textAnchor="middle" fill="#CBD5E1" fontSize={8.5}>
-                    {label.length > 20 ? `${label.slice(0, 19)}…` : label}
+                  <text x={STUDIO_GRAPH_CONTROLS ? 0 : x} y={STUDIO_GRAPH_CONTROLS ? 4 : y + 3} textAnchor="middle" fill="#CBD5E1" fontSize={STUDIO_GRAPH_CONTROLS ? 11 : 8.5}>
+                    {compactGraphLabel(label, 20)}
                   </text>
                 </g>
               )
@@ -555,7 +639,7 @@ export function KgGraphView({
                   <title>{`${point.name} (${point.entity_type}) — seen ${point.mention_count}×`}</title>
                 </circle>
                 <circle r={Math.max(point.r - 4, 2)} fill="#FFFFFF" opacity={0.08} />
-                {showLabel && (
+                {showLabel && !STUDIO_GRAPH_CONTROLS && (
                   <g className="pointer-events-none">
                     <rect
                       x={-Math.min(point.name.length * 3.1 + 8, 78)}
@@ -579,6 +663,16 @@ export function KgGraphView({
                 )}
               </g>
             )
+          })}
+          {studioLabels?.entities.map(({ point, width: plateWidth, height: plateHeight, fontSize, offsetY }) => {
+            const dimmed = neighborIds ? !neighborIds.has(point.node_id) : false
+            const radius = point.r * canvasScale * view.scale
+            const extraRow = offsetY < -radius - 29
+            return <g key={`entity-label-${point.node_id}`} data-studio-graph-label="entity" data-studio-graph-label-node={point.node_id} aria-hidden="true" className="pointer-events-none" opacity={dimmed ? .18 : 1} transform={`translate(${point.x} ${point.y}) scale(${labelScale})`}>
+              {extraRow && <line data-studio-graph-label-leader="true" x1={0} y1={-radius} x2={0} y2={offsetY + plateHeight} stroke="#81949f" strokeWidth={.7} opacity={.6} />}
+              <rect x={-plateWidth / 2} y={offsetY} width={plateWidth} height={plateHeight} rx={8} fill="#020617" opacity={.92} />
+              <text x={0} y={offsetY + 17} textAnchor="middle" fill="#E2E8F0" fontSize={fontSize} fontWeight={500}>{compactGraphLabel(point.name, 25)}</text>
+            </g>
           })}
         </g>
       </svg>

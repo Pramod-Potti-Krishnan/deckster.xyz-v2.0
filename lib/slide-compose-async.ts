@@ -396,43 +396,58 @@ export async function restoreSlideViewerSelection(options: {
   const maxAttempts = Math.max(1, options.maxAttempts ?? 20)
   let lastError: unknown = null
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+  const checkActive = () => {
     if (options.isActive && !options.isActive()) {
       throw new Error('Presentation iframe changed during slide selection restore')
     }
+  }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    checkActive()
 
     try {
       const before = await options.readNavigationInfo()
+      checkActive()
       if (!before || targetVisualIndex >= before.totalSlides) {
         options.onRetry?.({ attempt, phase: 'waiting', viewerState: before })
         await options.wait(200)
+        checkActive()
         continue
       }
 
       await options.navigate(targetVisualIndex)
+      checkActive()
       await options.wait(100)
+      checkActive()
       const firstCheck = await options.readNavigationInfo()
+      checkActive()
       if (firstCheck?.currentVisualIndex !== targetVisualIndex) {
         options.onRetry?.({ attempt, phase: 'first_check', viewerState: firstCheck })
         await options.wait(200)
+        checkActive()
         continue
       }
 
       // Reveal can acknowledge navigation before initialization finishes.
       // Verify again after its ready event has had time to reset the initial index.
       await options.wait(450)
+      checkActive()
       const stableCheck = await options.readNavigationInfo()
+      checkActive()
       if (stableCheck?.currentVisualIndex !== targetVisualIndex) {
         options.onRetry?.({ attempt, phase: 'stability_check', viewerState: stableCheck })
         await options.wait(200)
+        checkActive()
         continue
       }
 
       return { attempts: attempt }
     } catch (error) {
+      checkActive()
       lastError = error
       options.onRetry?.({ attempt, phase: 'command_error', error })
       await options.wait(200)
+      checkActive()
     }
   }
 

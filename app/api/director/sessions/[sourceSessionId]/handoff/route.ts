@@ -1,14 +1,16 @@
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 
 export const maxDuration = 60
 
-const DIRECTOR_API_URL = (
-  process.env.DIRECTOR_API_URL ||
-  process.env.NEXT_PUBLIC_DIRECTOR_API_URL ||
-  'https://directorv33-production.up.railway.app'
-).replace(/\/+$/, '')
+function directorBaseUrl(): string {
+  return requireServiceUrl('Director', [
+    { name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL },
+    { name: 'NEXT_PUBLIC_DIRECTOR_API_URL', value: process.env.NEXT_PUBLIC_DIRECTOR_API_URL },
+  ], { stripTrailingSlash: true })
+}
 
 type SessionUser = {
   id?: string | null
@@ -58,7 +60,7 @@ export async function POST(
 
   try {
     const response = await fetch(
-      `${DIRECTOR_API_URL}/api/sessions/${encodeURIComponent(sourceSessionId)}/handoff`,
+      `${directorBaseUrl()}/api/sessions/${encodeURIComponent(sourceSessionId)}/handoff`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,6 +79,7 @@ export async function POST(
     }
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     return NextResponse.json(
       {
         error: 'director_unreachable',

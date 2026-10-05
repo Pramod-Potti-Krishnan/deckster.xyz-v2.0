@@ -21,10 +21,13 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'node:crypto'
+import { inspectServiceUrl } from '@/lib/service-url'
 
 export const MEDIA_BUCKET = 'deck-media'
 
 let client: SupabaseClient | null = null
+let clientUrl: string | null = null
+let clientKey: string | null = null
 
 /**
  * Which piece of configuration is actually absent.
@@ -39,17 +42,25 @@ let client: SupabaseClient | null = null
  */
 export function missingMediaConfig(): string[] {
   const missing: string[] = []
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missing.push('NEXT_PUBLIC_SUPABASE_URL')
+  const config = inspectServiceUrl('Narration media storage', [
+    { name: 'NEXT_PUBLIC_SUPABASE_URL', value: process.env.NEXT_PUBLIC_SUPABASE_URL },
+  ])
+  if (config.error) missing.push(config.error.code === 'SERVICE_URL_INVALID'
+    ? 'NEXT_PUBLIC_SUPABASE_URL (invalid service URL)' : 'NEXT_PUBLIC_SUPABASE_URL')
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY')
   return missing.length > 0 ? missing : ['(both are set — the client failed to build)']
 }
 
 function admin(): SupabaseClient | null {
-  if (client) return client
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const { url } = inspectServiceUrl('Narration media storage', [
+    { name: 'NEXT_PUBLIC_SUPABASE_URL', value: process.env.NEXT_PUBLIC_SUPABASE_URL },
+  ])
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) return null
+  if (client && clientUrl === url && clientKey === key) return client
   client = createClient(url, key, { auth: { persistSession: false } })
+  clientUrl = url
+  clientKey = key
   return client
 }
 

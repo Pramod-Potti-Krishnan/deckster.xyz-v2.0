@@ -32,7 +32,8 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react"
-import { config, features } from '@/lib/config'
+import { getThemeBuilderUrl, features } from '@/lib/config'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import {
   FALLBACK_THEME_PRESETS,
   isValidThemeHex,
@@ -214,6 +215,7 @@ export function ChatInput({
   const [themePresets, setThemePresets] = useState<ThemePresetSummary[]>(FALLBACK_THEME_PRESETS)
   const [themePresetsLoading, setThemePresetsLoading] = useState(false)
   const [themePresetsError, setThemePresetsError] = useState<string | null>(null)
+  const [themePresetsConfigurationError, setThemePresetsConfigurationError] = useState<string | null>(null)
   const [brandHexDraft, setBrandHexDraft] = useState(buildTheme.primary_hex || '#1e40af')
   const [savedThemes, setSavedThemes] = useState<SavedThemeProfile[]>([])
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
@@ -314,8 +316,9 @@ export function ChatInput({
     async function loadPresets() {
       setThemePresetsLoading(true)
       setThemePresetsError(null)
+      setThemePresetsConfigurationError(null)
       try {
-        const baseUrl = config.api.themeBuilderUrl.replace(/\/$/, '')
+        const baseUrl = getThemeBuilderUrl().replace(/\/+$/, '')
         const response = await fetch(`${baseUrl}/api/v1/themes/presets`)
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
@@ -328,6 +331,7 @@ export function ChatInput({
         if (!cancelled) {
           setThemePresets(FALLBACK_THEME_PRESETS)
           setThemePresetsError(error instanceof Error ? error.message : 'Unable to load presets')
+          setThemePresetsConfigurationError(error instanceof ServiceUrlConfigError ? error.message : null)
         }
       } finally {
         if (!cancelled) {
@@ -1077,6 +1081,7 @@ export function ChatInput({
                   if (event.key === 'Tab') event.stopPropagation()
                 } : undefined} data-studio-composer-menu={studio ? 'theme' : undefined} data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined} data-studio-v4-menu="theme" align="start" className={studio ? 'studio-theme-popover' : 'w-72 p-2'}>
                   {/* Studio theme presentation START */}
+                  {themePresetsConfigurationError && <p role="status" data-studio-theme-config-error="true" className={studio ? 'studio-theme-note' : 'text-[10px] text-amber-600 dark:text-amber-300'}>{themePresetsConfigurationError}</p>}
                   {studio ? <StudioThemeMenu
                     view={studioThemeView} onView={setStudioThemeView} onClose={() => setThemeMenuOpen(false)}
                     selection={buildTheme} presets={themePresets} presetsLoading={themePresetsLoading} presetsError={!!themePresetsError}

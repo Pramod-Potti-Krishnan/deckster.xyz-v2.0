@@ -7,9 +7,7 @@
  * Replaces direct Gemini API calls via gemini-store-manager.ts.
  */
 
-import { config } from '@/lib/config';
-
-const BASE_URL = config.api.knowledgeServiceUrl;
+import { getKnowledgeServiceUrl } from '@/lib/config';
 
 export interface KnowledgeSession {
   session_id: string;
@@ -34,7 +32,7 @@ export async function createSession(
   sessionName?: string,
   sessionId?: string
 ): Promise<KnowledgeSession> {
-  const response = await fetch(`${BASE_URL}/api/v1/sessions/create`, {
+  const response = await fetch(`${getKnowledgeServiceUrl()}/api/v1/sessions/create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -74,7 +72,7 @@ export async function uploadFile(
   formData.append('file', file, fileName);
 
   const response = await fetch(
-    `${BASE_URL}/api/v1/files/upload`,
+    `${getKnowledgeServiceUrl()}/api/v1/files/upload`,
     {
       method: 'POST',
       body: formData,

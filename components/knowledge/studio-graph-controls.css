@@ -65,3 +65,10 @@
   [data-studio-graph-view="true"] { height: auto; }
   [data-studio-graph-view="true"] .skg-legend { padding-top: 9px; }
 }
+
+
+/* Labels stay at a readable painted size; map geometry and pointer transforms
+   remain the same. The list is the compact, keyboard-accessible narrow view. */
+[data-studio-graph-view="true"] [data-studio-graph-label] text { font-family: inherit; }
+[data-studio-graph-view="true"] [data-studio-graph-label="entity"] rect { stroke: #405265; stroke-width: .7; }
+[data-studio-graph-view="true"] [data-studio-graph-control="entity"] { min-height: 44px; }

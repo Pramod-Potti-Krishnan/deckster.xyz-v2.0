@@ -1,3 +1,5 @@
+import { getLayoutServiceBaseUrl } from '@/lib/publish/service-urls'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -124,6 +126,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Mandatory snapshot work requires explicit configuration before any
+    // advisory read, service dispatch or publish-state persistence.
+    getLayoutServiceBaseUrl();
 
     // Staleness baseline, part 1: read the SOURCE deck's updated_at BEFORE the
     // snapshot is taken. Reading it only afterwards opens a false-NEGATIVE
@@ -326,6 +332,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ deck: serializePublishedDeck(record), snapshotDeleted });
 
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('Error publishing deck:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

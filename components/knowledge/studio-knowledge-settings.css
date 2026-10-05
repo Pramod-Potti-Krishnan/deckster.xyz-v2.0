@@ -35,6 +35,10 @@
 [data-studio-v4-shell="true"] [data-studio-knowledge-settings-error] { color: #ad4248; font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
 .dark [data-studio-v4-shell="true"] [data-studio-knowledge-settings-error] { color: #ef9a8f; }
 [data-studio-v4-shell="true"] [data-studio-knowledge-settings-result] { color: var(--ss-teal); font-size: 12px; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-settings-notice] { color: var(--ss-muted); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-settings-eligibility] { border: 1px solid var(--ss-line); background: var(--ss-surface); padding: 12px 14px; border-radius: 8px; display: grid; gap: 9px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-settings-eligibility] p { color: var(--ss-muted); font-size: 12px; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-settings-eligibility] a { justify-self: start; }
 [data-studio-v4-shell="true"] [data-studio-knowledge-settings] :is(button,a,summary):focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; box-shadow: none; }
 @media (max-width: 640px) {
   [data-studio-v4-shell="true"] [data-studio-knowledge-settings-role="header"] { padding: 16px; }

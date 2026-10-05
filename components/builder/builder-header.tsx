@@ -189,7 +189,7 @@ export function BuilderHeader({
       {/* Connection Error Alert */}
       {wsError && (
         <div className="px-4 py-2 bg-white border-b dark:bg-slate-900 dark:border-slate-800">
-          <ConnectionError onRetry={() => window.location.reload()} />
+          <ConnectionError message={typeof wsError?.message === "string" ? wsError.message : undefined} onRetry={() => window.location.reload()} />
         </div>
       )}
       <BuildVersionGuard />

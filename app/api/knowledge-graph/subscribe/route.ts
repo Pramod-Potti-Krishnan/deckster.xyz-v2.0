@@ -1,5 +1,6 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextResponse } from 'next/server'
-import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { getKgBaseUrl, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 
 export async function POST() {
   // Paid-entitlement gate (review finding 1): only a Pro-and-above account
@@ -9,7 +10,8 @@ export async function POST() {
   const userId = gate.userId
 
   try {
-    const resp = await fetch(`${KG_BASE}/api/v1/kg/subscribe`, {
+    const kgBaseUrl = getKgBaseUrl()
+    const resp = await fetch(`${kgBaseUrl}/api/v1/kg/subscribe`, {
       method: 'POST',
       headers: kgHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
@@ -42,6 +44,7 @@ export async function POST() {
 
     return NextResponse.json(await resp.json())
   } catch (e) {
+    if (e instanceof ServiceUrlConfigError) return NextResponse.json({ error: e.message, code: e.code, service_unavailable: true }, { status: 503 })
     console.error('[KG Proxy] Subscribe network error:', e)
     return NextResponse.json(
       {

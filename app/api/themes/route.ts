@@ -1,9 +1,11 @@
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 
-const DIRECTOR_API_URL =
-  process.env.DIRECTOR_API_URL || 'https://directorv33-production.up.railway.app'
+function directorBaseUrl(): string {
+  return requireServiceUrl('Director', [{ name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL }])
+}
 
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions)
@@ -16,12 +18,13 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/themes`,
+      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes`,
       { cache: 'no-store' },
     )
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })
-  } catch {
+  } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     return NextResponse.json(
       { error: 'director_unreachable', themes: [], count: 0 },
       { status: 502 },
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/themes`,
+      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +52,8 @@ export async function POST(req: NextRequest) {
     )
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })
-  } catch {
+  } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     return NextResponse.json({ error: 'director_unreachable' }, { status: 502 })
   }
 }

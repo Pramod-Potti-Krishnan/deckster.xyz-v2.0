@@ -1,13 +1,47 @@
+import { inspectServiceUrl, requireServiceUrl } from '@/lib/service-url'
+
+const apiCandidates = () => [{ name: 'NEXT_PUBLIC_API_URL', value: process.env.NEXT_PUBLIC_API_URL }]
+const wsCandidates = () => [{ name: 'NEXT_PUBLIC_WS_URL', value: process.env.NEXT_PUBLIC_WS_URL }]
+const knowledgeCandidates = () => [
+  { name: 'NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL', value: process.env.NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL },
+  { name: 'KNOWLEDGE_SERVICE_URL', value: process.env.KNOWLEDGE_SERVICE_URL },
+]
+const themeCandidates = () => [{ name: 'NEXT_PUBLIC_THEME_BUILDER_URL', value: process.env.NEXT_PUBLIC_THEME_BUILDER_URL }]
+const uploadCandidates = () => [{ name: 'NEXT_PUBLIC_UPLOAD_URL', value: process.env.NEXT_PUBLIC_UPLOAD_URL }]
+const usesAppUploadProxy = () => {
+  const value = process.env.NEXT_PUBLIC_UPLOAD_URL?.trim()
+  return !value || value === '/api/upload'
+}
+
+// Actions resolve lazily. Legacy strings below remain import-safe for existing consumers.
+export const getApiBaseUrl = () => requireServiceUrl('API service', apiCandidates())
+export const getApiWsUrl = () => requireServiceUrl('Director WebSocket', wsCandidates(), { protocols: ['ws:', 'wss:'] })
+export const getKnowledgeServiceUrl = () => requireServiceUrl('Knowledge service', knowledgeCandidates())
+export const getThemeBuilderUrl = () => requireServiceUrl('Theme Builder', themeCandidates())
+// /api/upload is an intentional app-owned proxy, not a backend host fallback.
+export const getUploadUrl = () => usesAppUploadProxy()
+  ? '/api/upload' : requireServiceUrl('Upload service', uploadCandidates())
+
+export const apiUrlConfigErrors = {
+  baseUrl: inspectServiceUrl('API service', apiCandidates()).error,
+  wsUrl: inspectServiceUrl('Director WebSocket', wsCandidates(), { protocols: ['ws:', 'wss:'] }).error,
+  knowledgeServiceUrl: inspectServiceUrl('Knowledge service', knowledgeCandidates()).error,
+  themeBuilderUrl: inspectServiceUrl('Theme Builder', themeCandidates()).error,
+  uploadUrl: usesAppUploadProxy()
+    ? null : inspectServiceUrl('Upload service', uploadCandidates()).error,
+}
+
 // Application configuration
 export const config = {
   // API Configuration
   api: {
-    baseUrl: process.env.NEXT_PUBLIC_API_URL || 'https://vibe-decker-agents-mvp10-production.up.railway.app',
-    wsUrl: process.env.NEXT_PUBLIC_WS_URL || 'wss://api.deckster.xyz/ws',
-    uploadUrl: process.env.NEXT_PUBLIC_UPLOAD_URL || '/api/upload',
+    baseUrl: inspectServiceUrl('API service', apiCandidates()).url ?? '',
+    wsUrl: inspectServiceUrl('Director WebSocket', wsCandidates(), { protocols: ['ws:', 'wss:'] }).url ?? '',
+    uploadUrl: usesAppUploadProxy()
+      ? '/api/upload' : inspectServiceUrl('Upload service', uploadCandidates()).url ?? '',
     timeout: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000', 10),
-    knowledgeServiceUrl: process.env.NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL || process.env.KNOWLEDGE_SERVICE_URL || 'https://researcher-v1.up.railway.app',
-    themeBuilderUrl: process.env.NEXT_PUBLIC_THEME_BUILDER_URL || 'https://theme-v1.up.railway.app',
+    knowledgeServiceUrl: inspectServiceUrl('Knowledge service', knowledgeCandidates()).url ?? '',
+    themeBuilderUrl: inspectServiceUrl('Theme Builder', themeCandidates()).url ?? '',
   },
 
   // WebSocket Configuration
@@ -101,8 +135,9 @@ export function validateConfig(): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   // Check required environment variables
-  if (!process.env.NEXT_PUBLIC_API_URL && config.features.useRealAPI) {
-    errors.push('NEXT_PUBLIC_API_URL is required when using real API');
+  if (config.features.useRealAPI) {
+    const { error } = inspectServiceUrl('API service', apiCandidates())
+    if (error) errors.push(error.message)
   }
 
   if (!process.env.NEXTAUTH_URL) {

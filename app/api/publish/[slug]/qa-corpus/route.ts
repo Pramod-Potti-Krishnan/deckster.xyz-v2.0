@@ -1,3 +1,4 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 /**
  * GET/POST /api/publish/[slug]/qa-corpus — corpus status, and rebuild on demand.
  *
@@ -43,6 +44,7 @@ export async function GET(
       configured: isQaBackendConfigured(),
     })
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Publish QA] corpus status failed:', error)
     return NextResponse.json({ error: 'Could not read corpus status' }, { status: 500 })
   }
@@ -87,6 +89,7 @@ export async function POST(
 
     return NextResponse.json({ status: 'building' })
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Publish QA] corpus rebuild failed:', error)
     return NextResponse.json({ error: 'Could not start the rebuild' }, { status: 500 })
   }

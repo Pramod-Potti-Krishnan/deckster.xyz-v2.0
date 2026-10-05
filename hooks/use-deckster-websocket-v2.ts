@@ -19,6 +19,7 @@ import { mergeDirectorChatHistory } from '@/lib/director-chat-history';
 import { projectVerifiedOutlineReplay } from '@/lib/director-history-presentation';
 import { guardDirectorLayoutUrlMessage } from '@/lib/director-layout-url-ingress';
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client';
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url';
 import type { UserChatMessage } from '@/lib/user-message-attachments';
 import { evaluateLayoutViewerUrl, sanitizeRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy';
 import {
@@ -744,9 +745,10 @@ export interface UseDecksterWebSocketV2Options {
   }) => void;
 }
 
-// NEXT_PUBLIC_WS_URL lets local UAT point the builder at a locally-run Director
-// (e.g. ws://localhost:8000/ws); falls back to the deployed Director otherwise.
-const DEFAULT_WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://directorv33-production.up.railway.app/ws';
+// Resolve only at the transport/action boundary; absence never chooses a host.
+const getDirectorWsUrl = () => requireServiceUrl('Director', [
+  { name: 'NEXT_PUBLIC_WS_URL', value: process.env.NEXT_PUBLIC_WS_URL },
+], { protocols: ['ws:', 'wss:'], urlType: 'endpoint' });
 const BUILD_CONTROL_HTTP_TIMEOUT_MS = 4000;
 const COMPOSER_LIBRARY_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true';
 
@@ -1161,6 +1163,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const connectionDesiredRef = useRef(options.autoConnect !== false);
   const reconnectPausedForOfflineRef = useRef(false);
   const reconnectStatusRef = useRef<DirectorReconnectStatus>('idle');
+  const configurationErrorRef = useRef<ServiceUrlConfigError | null>(null);
   const browserOnlineRef = useRef(
     typeof navigator === 'undefined' || navigator.onLine !== false,
   );
@@ -1214,21 +1217,35 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
    */
   const scheduleAuthRefresh = useCallback((expiresInSeconds: number) => {
     clearAuthRefreshTimer();
-    if (!expiresInSeconds || expiresInSeconds <= 0) return;
+    if (!expiresInSeconds || expiresInSeconds <= 0 || configurationErrorRef.current) return;
+    const socket = wsRef.current;
+    const attemptGeneration = connectionAttemptGenerationRef.current;
+    const refreshSessionId = sessionIdRef.current;
+    const refreshUserId = userIdRef.current;
+    const lifecycleGeneration = turnSubmissionLifecycleRef.current.generation;
+    const isCurrentRefresh = () => Boolean(socket && wsRef.current === socket &&
+      socket.readyState === WebSocket.OPEN && !configurationErrorRef.current &&
+      connectionAttemptGenerationRef.current === attemptGeneration &&
+      sessionIdRef.current === refreshSessionId && userIdRef.current === refreshUserId &&
+      turnSubmissionLifecycleRef.current.active &&
+      turnSubmissionLifecycleRef.current.generation === lifecycleGeneration &&
+      connectionDesiredRef.current && !manualDisconnectRef.current);
+    if (!isCurrentRefresh()) return;
     const delayMs = Math.max(30_000, Math.floor(expiresInSeconds * 0.6) * 1000);
     authRefreshTimerRef.current = setTimeout(async () => {
-      const socket = wsRef.current;
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      if (!isCurrentRefresh()) return;
       try {
         const resp = await fetch(
-          `/api/director/ws-token?session_id=${encodeURIComponent(sessionIdRef.current)}`,
+          `/api/director/ws-token?session_id=${encodeURIComponent(refreshSessionId)}`,
           { cache: 'no-store' },
         );
+        if (!isCurrentRefresh()) return;
         if (!resp.ok) throw new Error(`ws-token HTTP ${resp.status}`);
         const body = await resp.json();
+        if (!isCurrentRefresh()) return;
         if (body?.auth_enabled === false) return; // tokenless deployment
         if (!body?.auth_token) throw new Error('ws-token returned no token');
-        socket.send(JSON.stringify({
+        socket!.send(JSON.stringify({
           type: 'auth_refresh',
           payload: { token: body.auth_token },
         }));
@@ -1238,10 +1255,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           typeof body.expires_in === 'number' ? body.expires_in : expiresInSeconds,
         );
       } catch (refreshError) {
+        if (!isCurrentRefresh()) return;
         // Retry once quickly; if the socket dies the reconnect path re-mints.
         console.warn('[WS AUTH] Token refresh failed, retrying shortly:', refreshError);
         authRefreshTimerRef.current = setTimeout(
-          () => scheduleAuthRefresh(expiresInSeconds), 30_000,
+          () => { if (isCurrentRefresh()) scheduleAuthRefresh(expiresInSeconds); }, 30_000,
         );
       }
     }, delayMs);
@@ -1330,7 +1348,43 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }, DIRECTOR_HEARTBEAT_INTERVAL_MS);
   }, [stopHeartbeat]);
 
+  const reportConfigurationError = useCallback((error: ServiceUrlConfigError) => {
+    const previous = configurationErrorRef.current;
+    const stableError = previous?.code === error.code && previous.message === error.message
+      ? previous : error;
+    configurationErrorRef.current = stableError;
+    // Retire any pending token continuation and loaded socket before cleanup.
+    // A separate action refusal cannot let an older transport publish later.
+    connectionAttemptGenerationRef.current += 1;
+    const retiredSocket = wsRef.current;
+    wsRef.current = null;
+    socketSessionRef.current = null;
+    buildControlTokenRef.current = null;
+    clearAuthRefreshTimer();
+    stopHeartbeat();
+    if (retiredSocket) {
+      try { retiredSocket.close(4001, 'Service configuration unavailable'); } catch { /* Already retired. */ }
+    }
+    clearReconnectTimer();
+    clearReconnectStabilityTimer();
+    reconnectPausedForOfflineRef.current = false;
+    isConnectingRef.current = false;
+    // Reuse the existing durable manual-retry gate without consuming attempts.
+    // Keeping this transport-owned also prevents the session effect retrying on
+    // each render when its inline options recreate ensureConnected.
+    setReconnectStatus('exhausted', reconnectAttemptsRef.current);
+    setState(prev => prev.error === stableError && !prev.connecting &&
+      !prev.connected && prev.connectionState === 'error' ? prev : {
+      ...prev, error: stableError, connected: false, connecting: false, connectionState: 'error',
+    });
+    if (stableError !== previous) options.onError?.(stableError);
+  }, [clearAuthRefreshTimer, clearReconnectTimer, clearReconnectStabilityTimer, stopHeartbeat, setReconnectStatus, options]);
+
   const scheduleReconnect = useCallback((trigger: string) => {
+    if (configurationErrorRef.current) {
+      setReconnectStatus('exhausted', reconnectAttemptsRef.current);
+      return;
+    }
     if (reconnectTimeoutRef.current) {
       debugLog('⏳ Director reconnect is already scheduled; ignoring duplicate close', { trigger });
       return;
@@ -1437,6 +1491,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return false;
     }
 
+    let configuredWsUrl: string;
+    try {
+      configuredWsUrl = getDirectorWsUrl();
+    } catch (error) {
+      if (!(error instanceof ServiceUrlConfigError)) throw error;
+      reportConfigurationError(error);
+      // The hook accepted ownership of this terminal configuration refusal.
+      return true;
+    }
+    configurationErrorRef.current = null;
+
     isConnectingRef.current = true;
     const attemptGeneration = ++connectionAttemptGenerationRef.current;
     const turnLifecycleGeneration = turnSubmissionLifecycleRef.current.generation;
@@ -1483,7 +1548,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // Explicit capability opt-in prevents a newly deployed Director from
       // sending a secret frame to older frontend bundles that would treat it
       // as ordinary chat/cache data during a rolling deploy.
-      const wsUrl = `${DEFAULT_WS_URL}?session_id=${socketSessionId}&user_id=${socketUserId}&skip_history=${skipHistory}&message_count=${totalMessageCount}&build_control_capability=1`;
+      const handshakeUrl = new URL(configuredWsUrl);
+      handshakeUrl.searchParams.set('session_id', socketSessionId);
+      handshakeUrl.searchParams.set('user_id', socketUserId);
+      handshakeUrl.searchParams.set('skip_history', skipHistory);
+      handshakeUrl.searchParams.set('message_count', String(totalMessageCount));
+      handshakeUrl.searchParams.set('build_control_capability', '1');
+      const wsUrl = handshakeUrl.toString();
 
       // DEBUG: Comprehensive logging of connection parameters
       debugLog('🔌 [WEBSOCKET] Initiating connection to Director', {
@@ -2790,6 +2861,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, [
     options,
+    reportConfigurationError,
     acknowledgeHeartbeat,
     clearReconnectStabilityTimer,
     clearReconnectTimer,
@@ -3368,7 +3440,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         return false;
       }
     }
-    const endpoint = buildControlEndpointFromWsUrl(DEFAULT_WS_URL)
+    let configuredWsUrl: string;
+    try {
+      configuredWsUrl = getDirectorWsUrl();
+    } catch (error) {
+      if (!(error instanceof ServiceUrlConfigError)) throw error;
+      reportConfigurationError(error);
+      return null;
+    }
+    const endpoint = buildControlEndpointFromWsUrl(configuredWsUrl)
     if (endpoint && typeof fetch === 'function') {
       debugLog('📤 Sending build_control via HTTP:', {
         session_id: data.session_id,
@@ -3419,7 +3499,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       console.error('Failed to send build_control:', error);
       return null;
     }
-  }, []);
+  }, [reportConfigurationError]);
 
   // Template Ingest (C-5): apply a completed ingest job fetched via the REST
   // reconnect-polling path exactly as if the template_ingest_ready WS frame had

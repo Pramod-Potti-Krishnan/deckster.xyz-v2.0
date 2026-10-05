@@ -1,7 +1,8 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
-import { KG_BASE, kgHeaders } from '@/lib/kg-proxy'
+import { getKgBaseUrl, kgHeaders } from '@/lib/kg-proxy'
 
 export async function DELETE() {
   const session = await getServerSession(authOptions)
@@ -10,7 +11,8 @@ export async function DELETE() {
   }
 
   try {
-    const resp = await fetch(`${KG_BASE}/api/v1/kg/${session.user.id}`, {
+    const kgBaseUrl = getKgBaseUrl()
+    const resp = await fetch(`${kgBaseUrl}/api/v1/kg/${session.user.id}`, {
       method: 'DELETE',
       headers: kgHeaders(),
     })
@@ -38,6 +40,7 @@ export async function DELETE() {
 
     return NextResponse.json(await resp.json())
   } catch (e) {
+    if (e instanceof ServiceUrlConfigError) return NextResponse.json({ error: e.message, code: e.code, service_unavailable: true }, { status: 503 })
     console.error('[KG Proxy] Purge network error:', e)
     return NextResponse.json(
       {

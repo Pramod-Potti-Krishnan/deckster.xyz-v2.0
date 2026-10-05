@@ -11,7 +11,15 @@ import { SlideLayoutType, SLIDE_LAYOUT_DEFAULTS } from '@/types/elements'
 import { createLayoutViewerUrlPolicy } from '@/lib/layout-viewer-url-policy'
 
 // Layout Service API Base URL
-export const LAYOUT_SERVICE_URL = process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL || 'https://web-production-f0d13.up.railway.app'
+import { inspectServiceUrl, requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+
+const layoutCandidates = () => [{ name: 'NEXT_PUBLIC_LAYOUT_SERVICE_URL', value: process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL }]
+export const getLayoutServiceUrl = (baseUrl?: string) => requireServiceUrl('Layout service', baseUrl === undefined
+  ? layoutCandidates() : [{ name: 'baseUrl', value: baseUrl }])
+const layoutUrlConfig = inspectServiceUrl('Layout service', layoutCandidates())
+// Compatibility introspection only. Requests and viewer URLs use the resolver.
+export const LAYOUT_SERVICE_URL = layoutUrlConfig.url ?? ''
+export const LAYOUT_URL_CONFIG_ERROR = layoutUrlConfig.error
 
 export const LAYOUT_VIEWER_URL_POLICY = createLayoutViewerUrlPolicy(
   LAYOUT_SERVICE_URL,
@@ -84,11 +92,12 @@ export interface SlideNarrationFields {
 export async function addSlide(
   presentationId: string,
   layout: SlideLayoutType,
-  options: AddSlideOptions = {}
+  options: AddSlideOptions = {},
+  baseUrl?: string
 ): Promise<LayoutServiceResponse> {
   try {
     const response = await fetch(
-      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/slides`,
+      `${getLayoutServiceUrl(baseUrl)}/api/presentations/${presentationId}/slides`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -119,7 +128,7 @@ export async function addSlide(
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
+        code: error instanceof ServiceUrlConfigError ? error.code : 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Network request failed',
       },
     }
@@ -137,11 +146,12 @@ export async function addSlide(
  */
 export async function deleteSlide(
   presentationId: string,
-  slideIndex: number
+  slideIndex: number,
+  baseUrl?: string
 ): Promise<LayoutServiceResponse> {
   try {
     const response = await fetch(
-      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/slides/${slideIndex}`,
+      `${getLayoutServiceUrl(baseUrl)}/api/presentations/${presentationId}/slides/${slideIndex}`,
       {
         method: 'DELETE',
       }
@@ -164,7 +174,7 @@ export async function deleteSlide(
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
+        code: error instanceof ServiceUrlConfigError ? error.code : 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Network request failed',
       },
     }
@@ -182,11 +192,12 @@ export async function deleteSlide(
 export async function duplicateSlide(
   presentationId: string,
   slideIndex: number,
-  insertAfter: boolean = true
+  insertAfter: boolean = true,
+  baseUrl?: string
 ): Promise<LayoutServiceResponse> {
   try {
     const response = await fetch(
-      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/slides/${slideIndex}/duplicate`,
+      `${getLayoutServiceUrl(baseUrl)}/api/presentations/${presentationId}/slides/${slideIndex}/duplicate`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -211,7 +222,7 @@ export async function duplicateSlide(
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
+        code: error instanceof ServiceUrlConfigError ? error.code : 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Network request failed',
       },
     }
@@ -229,11 +240,12 @@ export async function duplicateSlide(
 export async function reorderSlides(
   presentationId: string,
   fromIndex: number,
-  toIndex: number
+  toIndex: number,
+  baseUrl?: string
 ): Promise<LayoutServiceResponse> {
   try {
     const response = await fetch(
-      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/slides/reorder`,
+      `${getLayoutServiceUrl(baseUrl)}/api/presentations/${presentationId}/slides/reorder`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -261,7 +273,7 @@ export async function reorderSlides(
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
+        code: error instanceof ServiceUrlConfigError ? error.code : 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Network request failed',
       },
     }
@@ -281,11 +293,12 @@ export async function changeSlideLayout(
   presentationId: string,
   slideIndex: number,
   newLayout: SlideLayoutType,
-  options: ChangeLayoutOptions = {}
+  options: ChangeLayoutOptions = {},
+  baseUrl?: string
 ): Promise<LayoutServiceResponse> {
   try {
     const response = await fetch(
-      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/slides/${slideIndex}/layout`,
+      `${getLayoutServiceUrl(baseUrl)}/api/presentations/${presentationId}/slides/${slideIndex}/layout`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -314,7 +327,7 @@ export async function changeSlideLayout(
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
+        code: error instanceof ServiceUrlConfigError ? error.code : 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Network request failed',
       },
     }
@@ -335,11 +348,12 @@ export async function changeSlideLayout(
 export async function updateSlideFields(
   presentationId: string,
   slideIndex: number,
-  fields: SlideNarrationFields
+  fields: SlideNarrationFields,
+  baseUrl?: string
 ): Promise<LayoutServiceResponse> {
   try {
     const response = await fetch(
-      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/slides/${slideIndex}`,
+      `${getLayoutServiceUrl(baseUrl)}/api/presentations/${presentationId}/slides/${slideIndex}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -364,7 +378,7 @@ export async function updateSlideFields(
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
+        code: error instanceof ServiceUrlConfigError ? error.code : 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Network request failed',
       },
     }
@@ -403,11 +417,12 @@ export async function updateSlideNarration(
   presentationId: string,
   slideId: string,
   fields: SlideNarrationFields,
-  expectedUpdatedAt: string
+  expectedUpdatedAt: string,
+  baseUrl?: string
 ): Promise<SlideNarrationUpdateResult> {
   try {
     const response = await fetch(
-      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/slides/${encodeURIComponent(
+      `${getLayoutServiceUrl(baseUrl)}/api/presentations/${presentationId}/slides/${encodeURIComponent(
         slideId
       )}/narration`,
       {
@@ -450,7 +465,7 @@ export async function updateSlideNarration(
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
+        code: error instanceof ServiceUrlConfigError ? error.code : 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Network request failed',
       },
     }
@@ -468,11 +483,12 @@ export async function updateSlideNarration(
  * @returns Promise with the presentation JSON, or null on failure
  */
 export async function getPresentation(
-  presentationId: string
+  presentationId: string,
+  baseUrl?: string
 ): Promise<Record<string, any> | null> {
   try {
     const response = await fetch(
-      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}`,
+      `${getLayoutServiceUrl(baseUrl)}/api/presentations/${presentationId}`,
       {
         method: 'GET',
       }
@@ -495,8 +511,8 @@ export async function getPresentation(
  * @param presentationId - The presentation UUID
  * @returns The URL to view the presentation
  */
-export function getPresentationViewerUrl(presentationId: string): string {
-  return `${LAYOUT_SERVICE_URL}/p/${presentationId}`
+export function getPresentationViewerUrl(presentationId: string, baseUrl?: string): string {
+  return `${getLayoutServiceUrl(baseUrl)}/p/${presentationId}`
 }
 
 /**
@@ -506,11 +522,12 @@ export function getPresentationViewerUrl(presentationId: string): string {
  * @returns Promise with version list
  */
 export async function listVersions(
-  presentationId: string
+  presentationId: string,
+  baseUrl?: string
 ): Promise<LayoutServiceResponse & { versions?: Array<{ id: string; timestamp: string }> }> {
   try {
     const response = await fetch(
-      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/versions`,
+      `${getLayoutServiceUrl(baseUrl)}/api/presentations/${presentationId}/versions`,
       {
         method: 'GET',
       }
@@ -533,7 +550,7 @@ export async function listVersions(
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
+        code: error instanceof ServiceUrlConfigError ? error.code : 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Network request failed',
       },
     }
@@ -549,11 +566,12 @@ export async function listVersions(
  */
 export async function restoreVersion(
   presentationId: string,
-  versionId: string
+  versionId: string,
+  baseUrl?: string
 ): Promise<LayoutServiceResponse> {
   try {
     const response = await fetch(
-      `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/restore/${versionId}`,
+      `${getLayoutServiceUrl(baseUrl)}/api/presentations/${presentationId}/restore/${versionId}`,
       {
         method: 'POST',
       }
@@ -576,7 +594,7 @@ export async function restoreVersion(
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
+        code: error instanceof ServiceUrlConfigError ? error.code : 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Network request failed',
       },
     }
@@ -595,9 +613,9 @@ export async function restoreVersion(
  * await manager.addSlide('presentation-uuid', 'C1-text', { position: 2 })
  */
 export class SlideManager {
-  private baseUrl: string
+  private baseUrl: string | undefined
 
-  constructor(baseUrl: string = LAYOUT_SERVICE_URL) {
+  constructor(baseUrl?: string) {
     this.baseUrl = baseUrl
   }
 
@@ -606,14 +624,14 @@ export class SlideManager {
     layout: SlideLayoutType,
     options: AddSlideOptions = {}
   ): Promise<LayoutServiceResponse> {
-    return addSlide(presentationId, layout, options)
+    return addSlide(presentationId, layout, options, this.baseUrl)
   }
 
   async deleteSlide(
     presentationId: string,
     slideIndex: number
   ): Promise<LayoutServiceResponse> {
-    return deleteSlide(presentationId, slideIndex)
+    return deleteSlide(presentationId, slideIndex, this.baseUrl)
   }
 
   async duplicateSlide(
@@ -621,7 +639,7 @@ export class SlideManager {
     slideIndex: number,
     insertAfter: boolean = true
   ): Promise<LayoutServiceResponse> {
-    return duplicateSlide(presentationId, slideIndex, insertAfter)
+    return duplicateSlide(presentationId, slideIndex, insertAfter, this.baseUrl)
   }
 
   async reorderSlides(
@@ -629,7 +647,7 @@ export class SlideManager {
     fromIndex: number,
     toIndex: number
   ): Promise<LayoutServiceResponse> {
-    return reorderSlides(presentationId, fromIndex, toIndex)
+    return reorderSlides(presentationId, fromIndex, toIndex, this.baseUrl)
   }
 
   async changeLayout(
@@ -638,7 +656,7 @@ export class SlideManager {
     newLayout: SlideLayoutType,
     options: ChangeLayoutOptions = {}
   ): Promise<LayoutServiceResponse> {
-    return changeSlideLayout(presentationId, slideIndex, newLayout, options)
+    return changeSlideLayout(presentationId, slideIndex, newLayout, options, this.baseUrl)
   }
 
   async updateSlideFields(
@@ -646,11 +664,11 @@ export class SlideManager {
     slideIndex: number,
     fields: SlideNarrationFields
   ): Promise<LayoutServiceResponse> {
-    return updateSlideFields(presentationId, slideIndex, fields)
+    return updateSlideFields(presentationId, slideIndex, fields, this.baseUrl)
   }
 
   getViewerUrl(presentationId: string): string {
-    return getPresentationViewerUrl(presentationId)
+    return getPresentationViewerUrl(presentationId, this.baseUrl)
   }
 }
 

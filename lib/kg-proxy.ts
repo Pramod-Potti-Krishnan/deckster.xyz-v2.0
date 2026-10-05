@@ -10,9 +10,19 @@ import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import { getUserSubscription } from '@/lib/stripe/stripe-utils'
 import { isKgEntitled } from '@/lib/kg-entitlement'
+import { inspectServiceUrl, requireServiceUrl } from '@/lib/service-url'
 
-export const KG_BASE =
-  process.env.KNOWLEDGE_SERVICE_URL || 'https://researcher-v1.up.railway.app'
+const kgUrlCandidates = () => [
+  { name: 'KNOWLEDGE_SERVICE_URL', value: process.env.KNOWLEDGE_SERVICE_URL },
+]
+
+/** @deprecated Import-safe compatibility only; requests must use getKgBaseUrl(). */
+export const KG_BASE = inspectServiceUrl('Knowledge Service', kgUrlCandidates()).url ?? ''
+
+/** Resolve inside an authenticated action, before constructing the request URL. */
+export function getKgBaseUrl(): string {
+  return requireServiceUrl('Knowledge Service', kgUrlCandidates())
+}
 
 /**
  * Server-side auth + paid-entitlement gate for KG proxy routes.

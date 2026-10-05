@@ -7,7 +7,11 @@
  * Service URL: https://web-production-4908a.up.railway.app
  */
 
-const DOWNLOAD_SERVICE_URL = process.env.NEXT_PUBLIC_DOWNLOAD_SERVICE_URL || 'https://web-production-4908a.up.railway.app';
+import { requireServiceUrl } from '@/lib/service-url';
+
+export const getDownloadServiceUrl = () => requireServiceUrl('Downloads service', [
+  { name: 'NEXT_PUBLIC_DOWNLOAD_SERVICE_URL', value: process.env.NEXT_PUBLIC_DOWNLOAD_SERVICE_URL },
+]);
 
 export type DownloadQuality = 'high' | 'medium' | 'low';
 export type DownloadFormat = 'pdf' | 'pptx';
@@ -59,7 +63,7 @@ export async function downloadPDF(
       quality
     };
 
-    const response = await fetch(`${DOWNLOAD_SERVICE_URL}/convert/pdf`, {
+    const response = await fetch(`${getDownloadServiceUrl()}/convert/pdf`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -129,7 +133,7 @@ export async function downloadPPTX(
       quality
     };
 
-    const response = await fetch(`${DOWNLOAD_SERVICE_URL}/convert/pptx`, {
+    const response = await fetch(`${getDownloadServiceUrl()}/convert/pptx`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -241,7 +245,7 @@ function triggerDownload(blob: Blob, filename: string): void {
  */
 export async function checkDownloadServiceHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${DOWNLOAD_SERVICE_URL}/health`, {
+    const response = await fetch(`${getDownloadServiceUrl()}/health`, {
       method: 'GET'
     });
     return response.ok;
@@ -256,7 +260,7 @@ export async function checkDownloadServiceHealth(): Promise<boolean> {
  */
 export async function getServiceInfo(): Promise<any> {
   try {
-    const response = await fetch(`${DOWNLOAD_SERVICE_URL}/`, {
+    const response = await fetch(`${getDownloadServiceUrl()}/`, {
       method: 'GET'
     });
     if (response.ok) {

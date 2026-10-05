@@ -1,3 +1,5 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
+import { getKnowledgeServiceUrl } from '@/lib/config'
 /**
  * File Upload API Route
  *
@@ -116,6 +118,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Configuration is checked after existing auth/owner/file validations and
+    // before creating an uploading record or dispatching a service request.
+    getKnowledgeServiceUrl()
+
     // 8. Get or create Knowledge Service session
     let storeName = chatSession.geminiStoreName;
     let storeId = chatSession.geminiStoreId;
@@ -144,6 +150,7 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Upload] Knowledge Service session created: ${storeId} / ${storeName}`);
       } catch (storeError) {
+        if (storeError instanceof ServiceUrlConfigError) return NextResponse.json({ error: storeError.message, code: storeError.code }, { status: 503 })
         console.error('[Upload] Error creating Knowledge Service session:', storeError);
         const detail = storeError instanceof KnowledgeServiceError
           ? `${storeError.message} — ${storeError.body}`
@@ -230,6 +237,7 @@ export async function POST(req: NextRequest) {
       );
     }
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Upload] Unexpected error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },

@@ -7,11 +7,7 @@
  * Base URL: https://web-production-f0d13.up.railway.app
  */
 
-const LAYOUT_SERVICE_URL = process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL;
-
-if (!LAYOUT_SERVICE_URL) {
-  console.warn('NEXT_PUBLIC_LAYOUT_SERVICE_URL is not configured');
-}
+import { getLayoutServiceUrl } from '@/lib/layout-service-client';
 
 export type PresentationVersion = 'strawman' | 'refined' | 'final';
 export type DownloadFormat = 'pdf' | 'pptx';
@@ -75,16 +71,9 @@ async function downloadPresentation(
 ): Promise<DownloadResult> {
   const { presentationId, version, format } = options;
 
-  if (!LAYOUT_SERVICE_URL) {
-    return {
-      success: false,
-      error: 'Layout Service URL is not configured'
-    };
-  }
-
   try {
     // Construct the download URL
-    const url = `${LAYOUT_SERVICE_URL}/api/presentations/${presentationId}/download/${format}?version=${version}`;
+    const url = `${getLayoutServiceUrl()}/api/presentations/${presentationId}/download/${format}?version=${version}`;
 
     // Fetch the file
     const response = await fetch(url, {
@@ -138,12 +127,8 @@ async function downloadPresentation(
  * Check if the Layout Service is available
  */
 export async function checkLayoutServiceHealth(): Promise<boolean> {
-  if (!LAYOUT_SERVICE_URL) {
-    return false;
-  }
-
   try {
-    const response = await fetch(`${LAYOUT_SERVICE_URL}/health`, {
+    const response = await fetch(`${getLayoutServiceUrl()}/health`, {
       method: 'GET'
     });
     return response.ok;

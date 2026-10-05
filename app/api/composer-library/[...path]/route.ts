@@ -1,3 +1,4 @@
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
@@ -30,15 +31,6 @@ async function proxy(req: NextRequest, context: RouteContext) {
   const upload = req.method === 'POST' && path.length === 1 && path[0] === 'upload-reference'
   const use = req.method === 'POST' && path.length === 3 && path[0] === 'templates' && safeId(path[1]) && path[2] === 'use'
   if (!list && !job && !upload && !use) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  let base: string
-  const token = process.env.COMPOSER_FRONTDOOR_TOKEN
-  try {
-    base = requireComposerServiceUrl(process.env.COMPOSER_DIRECTOR_URL, 'directorv40-uat.up.railway.app')
-    if (!token) throw new Error('missing token')
-  } catch {
-    return NextResponse.json({ error: 'Template library is not configured.' }, { status: 503 })
-  }
 
   let body: string | undefined
   if (upload || use) {
@@ -91,6 +83,19 @@ async function proxy(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Invalid template library reference.' }, { status: 400 })
     }
   }
+  let base: string
+  const token = process.env.COMPOSER_FRONTDOOR_TOKEN
+  try {
+    const configured = requireServiceUrl('Template library Director', [
+      { name: 'COMPOSER_DIRECTOR_URL', value: process.env.COMPOSER_DIRECTOR_URL },
+    ])
+    base = requireComposerServiceUrl(configured, 'directorv40-uat.up.railway.app')
+    if (!token) throw new Error('missing token')
+  } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
+    return NextResponse.json({ error: 'Template library is not configured.' }, { status: 503 })
+  }
+
   try {
     const response = await fetch(`${base}/api/template-ingest/stage/${path.map(encodeURIComponent).join('/')}`, {
       method: req.method,

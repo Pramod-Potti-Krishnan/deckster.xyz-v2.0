@@ -9,9 +9,8 @@
  * into process-uploaded so Researcher retains the raw file (contract C-6).
  */
 
-import { apiConfig } from '@/lib/config'
-
-const RESEARCHER_BASE_URL = apiConfig.knowledgeServiceUrl.replace(/\/$/, '')
+import { getKnowledgeServiceUrl } from '@/lib/config'
+import { requireServiceUrl } from '@/lib/service-url'
 
 export interface ResearcherUploadProgress {
   /** 0–100 coarse progress across the four steps. */
@@ -70,11 +69,13 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
     throw new Error('No session id for upload')
   }
 
+  // Preserve this pipeline's existing single-slash normalization.
+  const researcherBaseUrl = getKnowledgeServiceUrl().replace(/\/$/, '')
   const contentType = file.type || 'application/octet-stream'
 
   // 1) Ensure a Researcher session exists for this frontend session.
   onProgress?.({ percent: 5, stage: 'session' })
-  const sessionResponse = await fetch(`${RESEARCHER_BASE_URL}/api/v1/sessions/create`, {
+  const sessionResponse = await fetch(`${researcherBaseUrl}/api/v1/sessions/create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -96,7 +97,7 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
 
   // 2) Ask Researcher for a signed storage upload URL.
   onProgress?.({ percent: 20, stage: 'prepare' })
-  const prepareResponse = await fetch(`${RESEARCHER_BASE_URL}/api/v1/files/storage-upload-url`, {
+  const prepareResponse = await fetch(`${researcherBaseUrl}/api/v1/files/storage-upload-url`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -112,7 +113,9 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
   if (!prepareBody?.signed_url || !prepareBody?.storage_path) {
     throw new Error('Researcher did not return a signed upload URL')
   }
-  const signedUrl: string = prepareBody.signed_url
+  const signedUrl = requireServiceUrl('Researcher storage upload', [
+    { name: 'signed_url', value: prepareBody.signed_url },
+  ], { urlType: 'endpoint' })
   const storagePath: string = prepareBody.storage_path
 
   // 3) PUT the bytes straight to storage.
@@ -138,7 +141,7 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
 
   // 4) Tell Researcher to process the uploaded object (with intent).
   onProgress?.({ percent: 75, stage: 'process' })
-  const processResponse = await fetch(`${RESEARCHER_BASE_URL}/api/v1/files/process-uploaded`, {
+  const processResponse = await fetch(`${researcherBaseUrl}/api/v1/files/process-uploaded`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

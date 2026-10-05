@@ -1,3 +1,4 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -246,6 +247,7 @@ export async function PATCH(
     return NextResponse.json({ deck: serializePublishedDeck(updated) });
 
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('Error updating published deck:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -400,6 +402,7 @@ export async function DELETE(
     return NextResponse.json({ deck: serializePublishedDeck(revoked), snapshotDeleted });
 
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('Error unpublishing deck:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

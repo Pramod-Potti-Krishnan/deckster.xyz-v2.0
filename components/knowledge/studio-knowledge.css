@@ -283,3 +283,15 @@
 @media (max-width: 639px) {
   [data-studio-v4-shell="true"] [data-studio-knowledge="true"] .sk-map-selection-note { align-items: flex-start; flex-direction: column; }
 }
+
+
+/* A short desktop scrolls the workspace rather than compressing its constellation.
+   Keep the approved two-column map/inspector, with room for filters, real controls
+   and a 420px drawing surface even when explanatory disclosures are opened. */
+@media (min-width: 1024px) {
+  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="layout"]:has([data-studio-graph-view="true"]) { min-height: 640px; }
+  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-panel"]:has([data-studio-graph-view="true"]) { overflow: visible; }
+  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-content"]:has(> [data-studio-graph-view="true"]) { flex: 1 0 auto; min-height: 520px; }
+  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-content"] > [data-studio-graph-view="true"] { min-height: 504px; }
+  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-content"] > [data-studio-graph-view="true"] > svg[role="group"] { flex: 1 0 420px; height: auto; min-height: 420px; }
+}

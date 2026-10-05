@@ -1,10 +1,9 @@
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 
 export const maxDuration = 300
-
-const DEFAULT_DIRECTOR_URL = 'http://localhost:8000'
 
 type SessionUserWithId = {
   id?: string | null
@@ -12,12 +11,11 @@ type SessionUserWithId = {
 }
 
 function directorBaseUrl(): string {
-  return (
-    process.env.SLIDE_COMPOSER_DIRECTOR_URL ||
-    process.env.DIRECTOR_API_URL ||
-    process.env.NEXT_PUBLIC_DIRECTOR_API_URL ||
-    DEFAULT_DIRECTOR_URL
-  ).replace(/\/+$/, '')
+  return requireServiceUrl('Slide Composer Director', [
+    { name: 'SLIDE_COMPOSER_DIRECTOR_URL', value: process.env.SLIDE_COMPOSER_DIRECTOR_URL },
+    { name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL },
+    { name: 'NEXT_PUBLIC_DIRECTOR_API_URL', value: process.env.NEXT_PUBLIC_DIRECTOR_API_URL },
+  ], { stripTrailingSlash: true })
 }
 
 export async function POST(req: NextRequest) {
@@ -69,6 +67,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code, status: 'error', stage: 'proxy', errors: [error.message] }, { status: 503 })
     return NextResponse.json(
       {
         status: 'error',

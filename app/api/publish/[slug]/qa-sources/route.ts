@@ -1,3 +1,4 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 /**
  * GET/PATCH /api/publish/[slug]/qa-sources — the per-document Q&A allowlist.
  *
@@ -87,6 +88,7 @@ export async function GET(
       corpusVersion: owned.deck.qaCorpusVersion,
     })
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Publish QA] sources read failed:', error)
     return NextResponse.json({ error: 'Could not load Q&A sources' }, { status: 500 })
   }
@@ -162,6 +164,7 @@ export async function PATCH(
         : null,
     })
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Publish QA] sources update failed:', error)
     return NextResponse.json({ error: 'Could not update Q&A sources' }, { status: 500 })
   }

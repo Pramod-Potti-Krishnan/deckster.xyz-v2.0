@@ -4,8 +4,6 @@ import type { ComponentType } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { useSubscription } from "@/hooks/use-subscription"
-import { isKgEntitled } from "@/lib/kg-entitlement"
 import { cn } from "@/lib/utils"
 import { User, Palette, Bell, ShieldCheck, Lock, Brain } from "lucide-react"
 
@@ -13,7 +11,7 @@ interface NavItem {
   href: string
   label: string
   icon: ComponentType<{ className?: string }>
-  premiumOnly?: boolean
+  authenticatedOnly?: boolean
 }
 
 const ITEMS: NavItem[] = [
@@ -22,18 +20,15 @@ const ITEMS: NavItem[] = [
   { href: "/settings/notifications", label: "Notifications", icon: Bell },
   { href: "/settings/privacy", label: "Privacy & Data", icon: ShieldCheck },
   { href: "/settings/security", label: "Security", icon: Lock },
-  { href: "/settings/knowledge-graph", label: "Knowledge Graph", icon: Brain, premiumOnly: true },
+  { href: "/settings/knowledge-graph", label: "Knowledge Graph", icon: Brain, authenticatedOnly: true },
 ]
 
 export function SettingsSidebar() {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
   const pathname = usePathname()
-  const { data: session } = useSession()
-  const { subscription } = useSubscription()
-  // Same central gate as useKnowledgeGraph().isEntitled (lib/kg-entitlement).
-  const entitled = isKgEntitled(session?.user?.tier, subscription)
-
-  const items = ITEMS.filter((item) => !item.premiumOnly || entitled)
+  const { data: session, status } = useSession()
+  const authenticated = status === "authenticated" && Boolean(session?.user?.id)
+  const items = ITEMS.filter((item) => !item.authenticatedOnly || authenticated)
 
   return (
     <nav

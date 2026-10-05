@@ -11,7 +11,7 @@ import {
 } from '@/lib/studio-initial-stage-owner'
 import { debugLog } from '@/lib/debug-log'
 import { directorHistoryTimestamp, missingDirectorUserTurns } from '@/lib/director-chat-history'
-import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
+import { getLayoutServiceUrl, LAYOUT_URL_CONFIG_ERROR, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import { recoverRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy'
 import { type DirectorMessage, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
 import {
@@ -252,11 +252,13 @@ export function useBuilderSession({
   }, [currentSessionId, messages, userMessages, persistence]);
 
   // Helper to create new session
-  const createNewSession = useCallback(async () => {
+  const createNewSession = useCallback(async (isCurrent: () => boolean = () => true) => {
     lastLoadedSessionRef.current = null
     const newSessionId = crypto.randomUUID()
     const originScope = transcriptScopeRef.current
     const session = await createSession(newSessionId)
+    if (!isCurrent() || transcriptScopeRef.current !== originScope
+      || (session && session.id !== newSessionId)) return
 
     if (session) {
       if (transcriptScopeRef.current === originScope && session.id === newSessionId) {
@@ -273,6 +275,13 @@ export function useBuilderSession({
 
   // Session initialization - load or create session
   useEffect(() => {
+    const initializationScope = transcriptScopeRef.current
+    const initializationRequest = {}
+    transcriptLoadRequestRef.current = initializationRequest
+    let cancelled = false
+    const mayContinueInitialization = () => !cancelled
+      && transcriptScopeRef.current === initializationScope
+      && transcriptLoadRequestRef.current === initializationRequest
     const initializeSession = async () => {
       debugLog('🔍 [SESSION-INIT] Effect triggered', {
         hasUser: !!user,
@@ -372,14 +381,12 @@ export function useBuilderSession({
             return
           }
 
-          lastLoadedSessionRef.current = sessionParam
-
           debugLog('📂 Loading session from URL:', sessionParam)
-          const transcriptScope = transcriptScopeRef.current
-          const transcriptRequest = {}
-          transcriptLoadRequestRef.current = transcriptRequest
+          const transcriptScope = initializationScope
+          const transcriptRequest = initializationRequest
           setStudioFrontendTranscriptReceipt(null)
           const session = await loadSession(sessionParam)
+          if (!mayContinueInitialization() || (session && session.id !== sessionParam)) return
 
           if (session) {
             if (session.status === 'deleted') {
@@ -427,6 +434,9 @@ export function useBuilderSession({
               currentStage: session.currentStage,
               activeVersion: (session as any).stateCache?.activeVersion || null
             }
+            if (LAYOUT_URL_CONFIG_ERROR && restoredSessionState.presentationUrl) {
+              toast({ title: 'Slides are unavailable in this environment', description: LAYOUT_URL_CONFIG_ERROR.message, variant: 'destructive' })
+            }
             const {
               state: sessionState,
               recovered: recoveredViewerUrls,
@@ -435,13 +445,15 @@ export function useBuilderSession({
               restoredSessionState,
               LAYOUT_VIEWER_URL_POLICY,
               async (presentationId) => {
+                if (!mayContinueInitialization()) return false
                 const response = await fetch(
-                  `${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(presentationId)}`,
+                  `${getLayoutServiceUrl()}/api/presentations/${encodeURIComponent(presentationId)}`,
                   { cache: 'no-store' },
                 )
-                return response.ok
+                return mayContinueInitialization() && response.ok
               },
             )
+            if (!mayContinueInitialization()) return
 
             if (recoveredViewerUrls.length > 0) {
               const normalizedSessionUrls: Record<string, string> = {}
@@ -462,10 +474,12 @@ export function useBuilderSession({
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(normalizedSessionUrls),
                   })
+                  if (!mayContinueInitialization()) return
                   if (!response.ok) {
                     console.warn('Failed to persist recovered Layout viewer URLs:', response.status)
                   }
                 } catch (error) {
+                  if (!mayContinueInitialization()) return
                   // The recovered in-memory state is still safe to use for this
                   // load; a later reload can retry the id-verified normalization.
                   console.warn('Failed to persist recovered Layout viewer URLs:', error)
@@ -473,7 +487,7 @@ export function useBuilderSession({
               }
             }
 
-            if (blockedViewerUrls.length > 0) {
+            if (!LAYOUT_URL_CONFIG_ERROR && blockedViewerUrls.length > 0) {
               toast({
                 title: 'Saved presentation unavailable here',
                 description: 'This session points to a Layout Service from another environment, so its viewer was not loaded.',
@@ -570,7 +584,9 @@ export function useBuilderSession({
               const hasPresentationState = Boolean(
                 sessionState.presentationUrl ||
                 sessionState.finalPresentationUrl ||
-                sessionState.strawmanPreviewUrl
+                sessionState.strawmanPreviewUrl ||
+                restoredSessionState.presentationUrl ||
+                restoredSessionState.presentationId
               )
               if (hasPresentationState) {
                 restoreMessages([], sessionState)
@@ -602,6 +618,7 @@ export function useBuilderSession({
           } else {
             console.warn('⚠️ Session not found in frontend DB, adopting URL session:', sessionParam)
             const adopted = await createSession(sessionParam)
+            if (!mayContinueInitialization() || (adopted && adopted.id !== sessionParam)) return
             if (adopted) {
               setCurrentSessionId(adopted.id)
               setSessionStoreName(adopted.geminiStoreName || null)
@@ -625,6 +642,9 @@ export function useBuilderSession({
             }
             setIsResumedSession(false)
           }
+          // Only a completed current load is reusable. A cancelled in-flight
+          // request must not make a StrictMode replacement skip restoration.
+          lastLoadedSessionRef.current = sessionParam
         } else {
           debugLog('🆕 [SESSION-BRANCH] No session in URL', {
             currentSessionId,
@@ -671,15 +691,17 @@ export function useBuilderSession({
           }
         }
       } catch (error) {
+        if (!mayContinueInitialization()) return
         console.error('❌ Error initializing session:', error)
-        await createNewSession()
+        await createNewSession(mayContinueInitialization)
       } finally {
-        setIsLoadingSession(false)
+        if (mayContinueInitialization()) setIsLoadingSession(false)
       }
     }
 
     initializeSession()
-  }, [user, isAuthLoading, searchParams])
+    return () => { cancelled = true }
+  }, [transcriptScopeKey])
 
   // Loading timeout safety net
   useEffect(() => {
@@ -733,6 +755,7 @@ export function useBuilderSession({
   // Handle session selection from sidebar
   const handleSessionSelect = useCallback((sessionId: string) => {
     if (sessionId === currentSessionId) return
+    transcriptLoadRequestRef.current = null
 
     debugLog('📂 Switching to session:', sessionId)
 
@@ -754,6 +777,7 @@ export function useBuilderSession({
 
   // Handle new chat from sidebar
   const handleNewChat = useCallback(() => {
+    transcriptLoadRequestRef.current = null
     const newSessionId = crypto.randomUUID()
 
     debugLog('🆕 Starting new unsaved session')

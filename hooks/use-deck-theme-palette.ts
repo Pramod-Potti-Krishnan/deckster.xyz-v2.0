@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { LAYOUT_SERVICE_URL } from '@/lib/layout-service-client'
+import { getLayoutServiceUrl } from '@/lib/layout-service-client'
 import type { ThemePalette } from '@/types/textlabs'
 
 export interface DeckThemeToken {
@@ -77,6 +77,7 @@ export function useDeckThemePalette(presentationId?: string | null) {
       setPalette(null)
       setTokens([])
       setError(null)
+      setLoading(false)
       return
     }
 
@@ -84,7 +85,20 @@ export function useDeckThemePalette(presentationId?: string | null) {
     setLoading(true)
     setError(null)
 
-    fetch(`${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(presentationId)}/theme/css-variables`, {
+    // Optional local views may import this hook without Layout configuration.
+    // Admit the service only when this owned effect is about to request a palette.
+    let layoutServiceUrl: string
+    try {
+      layoutServiceUrl = getLayoutServiceUrl()
+    } catch (err) {
+      setPalette(null)
+      setTokens([])
+      setError(err instanceof Error ? err.message : String(err))
+      setLoading(false)
+      return () => { cancelled = true }
+    }
+
+    fetch(`${layoutServiceUrl}/api/presentations/${encodeURIComponent(presentationId)}/theme/css-variables`, {
       cache: 'no-store',
     })
       .then(async response => {

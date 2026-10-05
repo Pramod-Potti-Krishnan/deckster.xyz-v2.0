@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, useEffect, useLayoutEffect, type ReactNode } from 'react'
 import {
   AlertCircle,
   BarChart3,
@@ -94,6 +94,10 @@ export interface SlideComposePanelEvent {
   status: 'building' | 'built' | 'error'
   message?: string
 }
+export interface StudioSlideBuiltSelection {
+  proof: object | null
+  draftStillCurrent: boolean
+}
 
 interface SlideGenerationPanelProps {
   isOpen: boolean
@@ -108,7 +112,9 @@ interface SlideGenerationPanelProps {
   buildThemeSelection: BuildThemeSelection
   activeBuildThemeProfileName?: string | null
   enabled: boolean
-  onBuilt: (result: SlideComposeBuiltResult) => void
+  studioOwner?: object
+  onBuilt: (result: SlideComposeBuiltResult, selection?: StudioSlideBuiltSelection) => void
+  onSelectionRequestStart?: (lane?: 'compose' | 'refine') => Promise<object | null>
   onAccepted?: (job: SlideComposeAcceptedJob) => void
   jobEvent?: SlideComposePanelEvent | null
 }
@@ -226,7 +232,9 @@ export function SlideGenerationPanel({
   buildThemeSelection,
   activeBuildThemeProfileName,
   enabled,
+  studioOwner,
   onBuilt,
+  onSelectionRequestStart,
   onAccepted,
   jobEvent,
 }: SlideGenerationPanelProps) {
@@ -410,10 +418,17 @@ export function SlideGenerationPanel({
   )
 
   function handleLayoutChange(layout: LayoutChoice) {
-    retireStudioDraft()
+    if (!changeStudioComposeIntent('selectedLayout', layout)) return
     setSelectedLayout(layout)
 
     const defaults = layoutDefaults(layout)
+    if (studioPanel) Object.assign(studioIntentValuesRef.current, {
+      canvasType: defaults.canvas_type ?? AUTO_VALUE,
+      contentType: defaults.content_type ?? AUTO_VALUE,
+      shapeSubtype: subtypeFromSelections(defaults),
+      heroStyle: defaultHeroStyle(layout), eyebrow: '', contactEmail: '', contactPhone: '',
+      contactWebsite: '', contactLinkedin: '', attribution: '', heroBackground: 'solid_dark',
+    })
     setCanvasType(defaults.canvas_type ?? AUTO_VALUE)
     setContentType(defaults.content_type ?? AUTO_VALUE)
     setNarrativeRole(AUTO_VALUE)
@@ -432,12 +447,15 @@ export function SlideGenerationPanel({
   }
 
   function handleContentTypeChange(value: OptionalChoice<ContentType>) {
-    retireStudioDraft()
+    if (!changeStudioComposeIntent('contentType', value)) return
     const defaultShape = defaultShapeForContent(value)
+    if (studioPanel) studioIntentValuesRef.current.shapeSubtype = defaultShape
     setContentType(value)
     setShapeSubtype(defaultShape)
     const nextImageOptions = imageOptionsFor(value, defaultShape)
-    if (!nextImageOptions.some(option => option.value === canvasType)) {
+    const currentCanvas = studioPanel ? studioIntentValuesRef.current.canvasType : canvasType
+    if (!nextImageOptions.some(option => option.value === currentCanvas)) {
+      if (studioPanel) studioIntentValuesRef.current.canvasType = value === AUTO_VALUE ? AUTO_VALUE : 'C1'
       setCanvasType(value === AUTO_VALUE ? AUTO_VALUE : 'C1')
     }
     setError(null)
@@ -445,11 +463,15 @@ export function SlideGenerationPanel({
   }
 
   function handleShapeChange(value: OptionalChoice<ShapeSubtype>) {
-    retireStudioDraft()
+    if (!changeStudioComposeIntent('shapeSubtype', value)) return
     setShapeSubtype(value)
-    const nextImageOptions = imageOptionsFor(contentType, value)
-    if (!nextImageOptions.some(option => option.value === canvasType)) {
-      setCanvasType(contentType === AUTO_VALUE || contentType === 'hero' ? AUTO_VALUE : 'C1')
+    const currentContent = studioPanel ? studioIntentValuesRef.current.contentType as OptionalChoice<ContentType> : contentType
+    const currentCanvas = studioPanel ? studioIntentValuesRef.current.canvasType : canvasType
+    const nextImageOptions = imageOptionsFor(currentContent, value)
+    if (!nextImageOptions.some(option => option.value === currentCanvas)) {
+      const nextCanvas = currentContent === AUTO_VALUE || currentContent === 'hero' ? AUTO_VALUE : 'C1'
+      if (studioPanel) studioIntentValuesRef.current.canvasType = nextCanvas
+      setCanvasType(nextCanvas)
     }
     setError(null)
     setSuccessMessage(null)
@@ -461,11 +483,34 @@ export function SlideGenerationPanel({
   const [studioLifetime, setStudioLifetime] = useState(() => ({ active: false, retired: false }))
   const studioLifetimeRef = useRef(studioLifetime)
   const studioContextKey = studioPanel ? JSON.stringify([isOpen, mode, sessionId, presentationId, currentSlide, refineTarget?.slide_id, refineTarget?.slide_index]) : ''
-  const studioContextRef = useRef({ key: studioContextKey })
-  if (studioPanel && studioContextRef.current.key !== studioContextKey) {
-    studioContextRef.current = { key: studioContextKey }
+  const studioContextRef = useRef({ key: studioContextKey, owner: studioOwner })
+  if (studioPanel && (studioContextRef.current.key !== studioContextKey || studioContextRef.current.owner !== studioOwner)) {
+    studioContextRef.current = { key: studioContextKey, owner: studioOwner }
   }
   const studioContext = studioContextRef.current
+  // Clarification belongs to the base request. Questions, answers and retry
+  // state are deliberately excluded, so answering a real gate preserves it.
+  const studioClarificationKey = studioPanel ? JSON.stringify([
+    prompt, keyMessage, selections, buildThemeSelection, enabled,
+    !isDiagram && hasUploadedFiles && useUploadedDocuments,
+    !isDiagram && useWebSearch, !isDiagram && useDeepResearch,
+    !isDiagram && kgCardVisible && useKnowledgeGraph, webSearchMaxQueries,
+  ], (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+    : value) : ''
+  const studioClarificationRef = useRef({ key: studioClarificationKey, context: studioContext, lifetime: studioLifetime })
+  const retireClarification = studioPanel && (
+    studioClarificationRef.current.key !== studioClarificationKey
+    || studioClarificationRef.current.context !== studioContext
+    || studioClarificationRef.current.lifetime !== studioLifetime
+  )
+  const studioIntentValuesRef = useRef<Record<string, unknown>>({})
+  studioIntentValuesRef.current = {
+    prompt, keyMessage, selectedLayout, contentType, shapeSubtype, canvasType,
+    heroStyle, eyebrow, contactEmail, contactPhone, contactWebsite, contactLinkedin,
+    attribution, heroBackground, useWebSearch, useDeepResearch,
+    useUploadedDocuments, useKnowledgeGraph, webSearchMaxQueries,
+  }
   const studioDraftKey = studioPanel ? JSON.stringify([prompt, keyMessage, questions, answers, selections, buildThemeSelection, enabled, hasUploadedFiles, kgCardVisible, useUploadedDocuments, useWebSearch, useDeepResearch, useKnowledgeGraph, webSearchMaxQueries]) : ''
   const studioDraftRef = useRef({ key: studioDraftKey, context: studioContext, lifetime: studioLifetime })
   if (studioPanel && (studioDraftRef.current.key !== studioDraftKey || studioDraftRef.current.context !== studioContext || studioDraftRef.current.lifetime !== studioLifetime)) {
@@ -476,6 +521,25 @@ export function SlideGenerationPanel({
   function retireStudioDraft() {
     if (studioPanel) studioDraftRef.current = { ...studioDraftRef.current }
   }
+  function changeStudioComposeIntent(key: string, value: unknown) {
+    if (!studioPanel) return true
+    if (Object.is(studioIntentValuesRef.current[key], value)) return false
+    // Retire immediately, including A→B→A before React renders. A late response
+    // cannot reattach questions to a different draft merely because it is clean.
+    studioIntentValuesRef.current[key] = value
+    retireStudioDraft()
+    setNeedsInput(null)
+    setAnswers({})
+    return true
+  }
+  useLayoutEffect(() => {
+    if (!retireClarification) return
+    // A render may be restarted before commit. Consume retirement only when
+    // this committed effect clears the prior owner's gate.
+    studioClarificationRef.current = { key: studioClarificationKey, context: studioContext, lifetime: studioLifetime }
+    setNeedsInput(null)
+    setAnswers({})
+  }, [retireClarification, studioClarificationKey, studioContext, studioLifetime])
 
   useEffect(() => {
     if (!studioPanel) return
@@ -641,6 +705,11 @@ export function SlideGenerationPanel({
 
     setIsGenerating(true)
     try {
+      let selectionProof: object | null = null
+      if (studioPanel && onSelectionRequestStart) {
+        selectionProof = await onSelectionRequestStart(isRefineMode ? 'refine' : 'compose')
+        if (!ownsDraft()) return
+      }
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -665,14 +734,16 @@ export function SlideGenerationPanel({
       }
 
       if (isBuiltResponse(data)) {
-        if (ownsDraft()) {
+        const draftStillCurrent = ownsDraft()
+        if (draftStillCurrent) {
           setNeedsInput(null)
           setAnswers({})
           setPrompt('')
           setKeyMessage('')
           setSuccessMessage(isRefineMode ? `Updated slide ${data.slide_index + 1}.` : `Built slide ${data.slide_index + 1}.`)
         }
-        onBuilt(data)
+        if (studioPanel) onBuilt(data, { proof: selectionProof, draftStillCurrent })
+        else onBuilt(data)
         return
       }
 
@@ -698,6 +769,7 @@ export function SlideGenerationPanel({
     keyMessage,
     onAccepted,
     onBuilt,
+    onSelectionRequestStart,
     presentationId,
     prompt,
     questions,
@@ -794,7 +866,7 @@ export function SlideGenerationPanel({
         <GenerationInput
           prompt={prompt}
           onPromptChange={(value) => {
-            retireStudioDraft()
+            if (!changeStudioComposeIntent('prompt', value)) return
             setPrompt(value)
             setNeedsInput(null)
             setError(null)
@@ -892,7 +964,7 @@ export function SlideGenerationPanel({
                     <ImageOptionRow
                       value={canvasType}
                       options={imageOptions}
-                      onChange={(value) => { retireStudioDraft(); setCanvasType(value) }}
+                      onChange={(value) => { changeStudioComposeIntent('canvasType', value); setCanvasType(value) }}
                     />
                   )}
                 </div>
@@ -904,33 +976,33 @@ export function SlideGenerationPanel({
                     label="Hero style"
                     value={heroStyle}
                     options={heroStyleDropdownOptions}
-                    onChange={(value) => { retireStudioDraft(); setHeroStyle(value) }}
+                    onChange={(value) => { changeStudioComposeIntent('heroStyle', value); setHeroStyle(value) }}
                     columns={3}
                   />
                   <label className="space-y-1">
                     <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Kicker line</span>
                     <Input
                       value={eyebrow}
-                      onChange={(event) => { retireStudioDraft(); setEyebrow(event.target.value) }}
+                      onChange={(event) => { changeStudioComposeIntent('eyebrow', event.target.value); setEyebrow(event.target.value) }}
                       placeholder="Optional"
                       className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800"
                     />
                   </label>
                   {selectedLayout === 'hero_closing' && heroStyle === 'split_contact' && (
                     <div className="grid grid-cols-2 gap-2">
-                      <HeroTextInput label="Email" value={contactEmail} onChange={(value) => { retireStudioDraft(); setContactEmail(value) }} />
-                      <HeroTextInput label="Phone" value={contactPhone} onChange={(value) => { retireStudioDraft(); setContactPhone(value) }} />
-                      <HeroTextInput label="Website" value={contactWebsite} onChange={(value) => { retireStudioDraft(); setContactWebsite(value) }} />
-                      <HeroTextInput label="LinkedIn" value={contactLinkedin} onChange={(value) => { retireStudioDraft(); setContactLinkedin(value) }} />
+                      <HeroTextInput label="Email" value={contactEmail} onChange={(value) => { changeStudioComposeIntent('contactEmail', value); setContactEmail(value) }} />
+                      <HeroTextInput label="Phone" value={contactPhone} onChange={(value) => { changeStudioComposeIntent('contactPhone', value); setContactPhone(value) }} />
+                      <HeroTextInput label="Website" value={contactWebsite} onChange={(value) => { changeStudioComposeIntent('contactWebsite', value); setContactWebsite(value) }} />
+                      <HeroTextInput label="LinkedIn" value={contactLinkedin} onChange={(value) => { changeStudioComposeIntent('contactLinkedin', value); setContactLinkedin(value) }} />
                     </div>
                   )}
                   {selectedLayout === 'hero_closing' && heroStyle === 'quote' && (
-                    <HeroTextInput label="Attribution" value={attribution} onChange={(value) => { retireStudioDraft(); setAttribution(value) }} />
+                    <HeroTextInput label="Attribution" value={attribution} onChange={(value) => { changeStudioComposeIntent('attribution', value); setAttribution(value) }} />
                   )}
                   <CompactSelect
                     label="Background"
                     value={heroBackground}
-                    onValueChange={(value) => { retireStudioDraft(); setHeroBackground(value) }}
+                    onValueChange={(value) => { changeStudioComposeIntent('heroBackground', value); setHeroBackground(value) }}
                     options={HERO_BACKGROUND_OPTIONS}
                   />
                 </div>
@@ -951,7 +1023,7 @@ export function SlideGenerationPanel({
                       <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Key message</span>
                       <Input
                         value={keyMessage}
-                        onChange={(event) => { retireStudioDraft(); setKeyMessage(event.target.value) }}
+                        onChange={(event) => { changeStudioComposeIntent('keyMessage', event.target.value); setKeyMessage(event.target.value) }}
                         placeholder="Optional"
                         className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800"
                       />
@@ -974,28 +1046,28 @@ export function SlideGenerationPanel({
                     label="Web search"
                     description="Use live web grounding"
                     pressed={useWebSearch}
-                    onClick={() => { retireStudioDraft(); setUseWebSearch(prev => !prev) }}
+                    onClick={() => { changeStudioComposeIntent('useWebSearch', !studioIntentValuesRef.current.useWebSearch); setUseWebSearch(prev => !prev) }}
                   />
                   <ToggleRow
                     label="Deep research"
                     badge="Premium"
                     description="Multi-step research pass"
                     pressed={useDeepResearch}
-                    onClick={() => { retireStudioDraft(); setUseDeepResearch(prev => !prev) }}
+                    onClick={() => { changeStudioComposeIntent('useDeepResearch', !studioIntentValuesRef.current.useDeepResearch); setUseDeepResearch(prev => !prev) }}
                   />
                   <ToggleRow
                     label="Use my uploaded files"
                     description={hasUploadedFiles ? 'Use files attached to this session' : 'No files uploaded'}
                     pressed={hasUploadedFiles && useUploadedDocuments}
                     disabled={!hasUploadedFiles}
-                    onClick={() => { retireStudioDraft(); setUseUploadedDocuments(prev => !prev) }}
+                    onClick={() => { changeStudioComposeIntent('useUploadedDocuments', !studioIntentValuesRef.current.useUploadedDocuments); setUseUploadedDocuments(prev => !prev) }}
                   />
                   {kgCardVisible && (
                     <ToggleRow
                       label="Use my knowledge repo"
                       description="Use saved domain memory"
                       pressed={useKnowledgeGraph}
-                      onClick={() => { retireStudioDraft(); setUseKnowledgeGraph(prev => !prev) }}
+                      onClick={() => { changeStudioComposeIntent('useKnowledgeGraph', !studioIntentValuesRef.current.useKnowledgeGraph); setUseKnowledgeGraph(prev => !prev) }}
                     />
                   )}
                 </div>
@@ -1008,7 +1080,7 @@ export function SlideGenerationPanel({
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => { retireStudioDraft(); setWebSearchMaxQueries(prev => Math.max(1, prev - 1)) }}
+                        onClick={() => { changeStudioComposeIntent('webSearchMaxQueries', Math.max(1, Number(studioIntentValuesRef.current.webSearchMaxQueries) - 1)); setWebSearchMaxQueries(prev => Math.max(1, prev - 1)) }}
                         className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                         title="Decrease max queries"
                       >
@@ -1017,7 +1089,7 @@ export function SlideGenerationPanel({
                       <span className="w-5 text-center text-xs text-gray-700 dark:text-slate-200">{webSearchMaxQueries}</span>
                       <button
                         type="button"
-                        onClick={() => { retireStudioDraft(); setWebSearchMaxQueries(prev => Math.min(10, prev + 1)) }}
+                        onClick={() => { changeStudioComposeIntent('webSearchMaxQueries', Math.min(10, Number(studioIntentValuesRef.current.webSearchMaxQueries) + 1)); setWebSearchMaxQueries(prev => Math.min(10, prev + 1)) }}
                         className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                         title="Increase max queries"
                       >

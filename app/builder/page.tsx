@@ -36,11 +36,16 @@ import { centerStageFor, effectiveNarrationEnabled } from '@/lib/build-narration
 import { DirectorPresence } from '@/components/build-narration/director-presence'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent } from '@/components/slide-generation-panel'
+import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent, type StudioSlideBuiltSelection } from '@/components/slide-generation-panel'
 import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
 import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
-import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety } from '@/components/presentation-viewer'
+import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext } from '@/components/presentation-viewer'
+import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
+import {
+  createStudioComposeRestoreTarget, resolveStudioComposeRestore, verifyStudioComposeRestoreSelection,
+  type StudioComposeRestoreOwner, type StudioComposeRestoreTarget, type StudioComposeRestoreState,
+} from '@/lib/studio-compose-selection-restore'
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties, SlideLayoutType } from '@/types/elements'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -117,7 +122,8 @@ import {
   themeSelectionFingerprint,
   type BuildThemeSelection,
 } from '@/lib/theme-builder'
-import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY, getPresentationViewerUrl } from '@/lib/layout-service-client'
+import { getLayoutServiceUrl, LAYOUT_URL_CONFIG_ERROR, LAYOUT_VIEWER_URL_POLICY, getPresentationViewerUrl } from '@/lib/layout-service-client'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
 import { shouldDeferStudioInitialNative, type StudioInitialStageTarget } from '@/lib/studio-initial-stage-admission'
 import {
@@ -498,6 +504,26 @@ function extractPresentationIdFromViewerUrl(url: string | null): string | null {
   }
 }
 
+interface StudioSyncSelectionRecord {
+  sequence: number
+  lane: 'compose' | 'refine'
+  owner: StudioComposeRestoreOwner
+  isOwnerCurrent: () => boolean
+  context: StudioComposeSelectionContext | null
+  priorOrder: StudioNativeSlideOrder | null
+  consumed: boolean
+  persistCount: (count: number) => void
+}
+interface StudioSyncPendingSelection {
+  request: StudioSyncSelectionRecord
+  target: StudioComposeRestoreTarget | null
+  restoreSelection: boolean
+  refreshRevision: number
+  refreshToken: number
+  expectedUrl: string
+  observedRefresh: boolean
+}
+
 function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: string }) {
   const { user, isLoading: isAuthLoading } = useAuth()
   // This component is keyed by authScopeUserId at the boundary below. Account
@@ -606,8 +632,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     ? templateSnapshot?.source_presentation_id ?? null
     : null
   const templateModeSourcePresentationUrl = useMemo(
-    () => templateModeSourcePresentationId
-      ? `${LAYOUT_SERVICE_URL}/p/${encodeURIComponent(templateModeSourcePresentationId)}`
+    () => templateModeSourcePresentationId && !LAYOUT_URL_CONFIG_ERROR
+      ? `${getLayoutServiceUrl()}/p/${encodeURIComponent(templateModeSourcePresentationId)}`
       : null,
     [templateModeSourcePresentationId],
   )
@@ -868,7 +894,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }>>({})
   const slideComposeReconcileQueuesRef = useRef<Record<string, Promise<void>>>({})
   const slideComposeFallbackReloadInFlightRef = useRef(false)
-  const pendingComposeSelectionRestoreRef = useRef<number | null>(null)
+  const pendingComposeSelectionRestoreRef = useRef<{
+    visualIndex: number
+    isCurrentOwner: () => boolean
+  } | null>(null)
+  const composeSelectionAttemptRef = useRef<object | null>(null)
+  const studioSyncSequenceRef = useRef(0)
+  const studioSyncRefreshRevisionRef = useRef(0)
+  const studioSyncRefreshTokenRef = useRef(0)
+  const studioSyncRequestRef = useRef<StudioSyncSelectionRecord | null>(null)
+  const studioSyncProofsRef = useRef(new WeakMap<object, StudioSyncSelectionRecord>())
+  const studioSyncPendingRef = useRef<StudioSyncPendingSelection | null>(null)
+  function queueComposeSelectionRestore(visualIndex: number | null) {
+    pendingComposeSelectionRestoreRef.current = visualIndex === null ? null
+      : { visualIndex, isCurrentOwner: captureStudioSlideComposeOwner() }
+  }
   const slideComposerLayoutCountReconcileRef = useRef<string | null>(null)
 
   const clearSlideComposerWork = useCallback(() => {
@@ -884,6 +924,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     slideComposeReconcileQueuesRef.current = {}
     slideComposeFallbackReloadInFlightRef.current = false
     pendingComposeSelectionRestoreRef.current = null
+    composeSelectionAttemptRef.current = null
+    studioSyncSequenceRef.current += 1
+    studioSyncRefreshRevisionRef.current += 1
+    studioSyncRequestRef.current = null
+    studioSyncPendingRef.current = null
     slideComposerLayoutCountReconcileRef.current = null
   }, [])
 
@@ -965,7 +1010,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const fetchSlideComposePresentationSnapshot = useCallback(async (presentationId: string | null | undefined) => {
     if (!presentationId) return null
     try {
-      const response = await fetch(`${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(presentationId)}`, {
+      const response = await fetch(`${getLayoutServiceUrl()}/api/presentations/${encodeURIComponent(presentationId)}`, {
         cache: 'no-store',
       })
       if (!response.ok) return null
@@ -1121,11 +1166,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   [jobId]: recoveredJob,
                 }
                 setSlideComposeJobs(prev => ({ ...prev, [jobId]: recoveredJob }))
-                pendingComposeSelectionRestoreRef.current = resolveSlideComposeSelectionAfterReady({
+                queueComposeSelectionRestore(resolveSlideComposeSelectionAfterReady({
                   currentSlideIndex: currentSlideIndexRef.current,
                   jobTargetVisualIndex: job.target_visual_index,
                   resolvedVisualIndex: recoveredLayoutIndex,
-                })
+                }))
                 scTrace('builder.poll.job_status_built', {
                   job_id: jobId,
                   session_id: recovered.session_id,
@@ -2555,7 +2600,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           selection_restore_visual_index: selectionRestoreVisualIndex,
           live_swap_succeeded: liveSwapSucceeded,
         })
-        pendingComposeSelectionRestoreRef.current = selectionRestoreVisualIndex
+        queueComposeSelectionRestore(selectionRestoreVisualIndex)
         const nextOverride = {
           presentationUrl: nextPresentationUrl ?? targetPresentationUrl ?? null,
           presentationId: targetPresentationId ?? null,
@@ -2785,7 +2830,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (narrationCenterStage === 'final_fill' && buildNarration.buildPresentationId) {
         // Keep Director's canonical /p/{id}; the viewer separately admits a
         // completed snapshot refresh when this mounted build frame is stale.
-        return getPresentationViewerUrl(buildNarration.buildPresentationId)
+        return LAYOUT_URL_CONFIG_ERROR ? null : getPresentationViewerUrl(buildNarration.buildPresentationId)
       }
       return withSlideComposerRefreshToken(
         templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
@@ -2832,7 +2877,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     selected: {
       presentationId: effectivePresentationId,
       presentationUrl: narrationCenterStage === 'final_fill' && buildNarration.buildPresentationId
-        ? getPresentationViewerUrl(buildNarration.buildPresentationId)
+        ? (LAYOUT_URL_CONFIG_ERROR ? null : getPresentationViewerUrl(buildNarration.buildPresentationId))
         : templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
       activeVersion,
       slideCount: effectiveSlideCount,
@@ -3058,7 +3103,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
     const persisted = await probePersistedPresentationTheme({
       presentationId: targetPresentationId,
-      layoutServiceUrl: LAYOUT_SERVICE_URL,
+      layoutServiceUrl: getLayoutServiceUrl(),
     })
     return {
       ready: true,
@@ -3281,27 +3326,36 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const handleComposeApiReady = useCallback((apis: SlideComposeViewerApi | null) => {
     const isCurrentOwner = captureStudioSlideComposeOwner()
     composeViewerApiRef.current = apis
+    const attempt = {}
+    composeSelectionAttemptRef.current = attempt
     scTrace('builder.compose_api.ready', {
       ready: !!apis,
       queued_placeholders: pendingComposePlaceholdersRef.current.size,
     })
     if (!apis) return
+    const syncTarget = studioSyncPendingRef.current
+    if (studioShell && syncTarget) void restoreStudioSyncSelection(apis, syncTarget, attempt)
 
-    const selectionRestoreVisualIndex = pendingComposeSelectionRestoreRef.current
-    if (selectionRestoreVisualIndex !== null) {
-      pendingComposeSelectionRestoreRef.current = null
+    const selectionRestoreTarget = pendingComposeSelectionRestoreRef.current
+    if (selectionRestoreTarget !== null) {
+      const selectionRestoreVisualIndex = selectionRestoreTarget.visualIndex
+      const isCurrent = () => composeSelectionAttemptRef.current === attempt
+        && composeViewerApiRef.current === apis && pendingComposeSelectionRestoreRef.current === selectionRestoreTarget
+        && isCurrentOwner() && selectionRestoreTarget.isCurrentOwner()
       scTrace('builder.selection_restore.requested', {
         visual_index: selectionRestoreVisualIndex,
       })
-      void apis.composeGoToVisualIndex(selectionRestoreVisualIndex)
+      void apis.composeGoToVisualIndex(selectionRestoreVisualIndex, { isCurrent })
         .then(result => {
+          if (!isCurrent()) return
+          pendingComposeSelectionRestoreRef.current = null
           scTrace('builder.selection_restore.applied', {
             visual_index: selectionRestoreVisualIndex,
             result,
           })
         })
         .catch(error => {
-          pendingComposeSelectionRestoreRef.current = selectionRestoreVisualIndex
+          if (!isCurrent()) return
           console.warn('[Slide Composer] Failed to restore the selected slide after refresh.', error)
         })
     }
@@ -3338,6 +3392,113 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
     })
   }, [studioShell])
+
+  async function restoreStudioSyncSelection(apis: SlideComposeViewerApi, pending: StudioSyncPendingSelection, attempt: object) {
+    const request = pending.request
+    const context = apis.composeCaptureSelectionContext?.()
+    const sameRequest = () => studioSyncPendingRef.current === pending && pending.observedRefresh
+      && studioSyncRequestRef.current === request && studioSyncSequenceRef.current === request.sequence
+      && studioSyncRefreshRevisionRef.current === pending.refreshRevision && request.isOwnerCurrent()
+      && composeSelectionAttemptRef.current === attempt && composeViewerApiRef.current === apis
+    const priorContext = request.context
+    const priorOrder = request.priorOrder
+    const isCurrent = () => !!context && sameRequest() && context.isCurrent()
+      && context.presentationUrl === pending.expectedUrl
+      && (!pending.restoreSelection || (!!priorContext && !!priorOrder
+        && context.continuationKey === priorContext.continuationKey
+        && context.loadRevision === priorContext.loadRevision + 1))
+    if (!isCurrent() || !context) {
+      if (studioSyncPendingRef.current === pending && pending.observedRefresh) studioSyncPendingRef.current = null
+      return
+    }
+    const state = (): StudioComposeRestoreState => ({ owner: request.owner, active: isCurrent(),
+      latestRequestSequence: studioSyncSequenceRef.current, reloadRevision: studioSyncRefreshRevisionRef.current,
+      interactionRevision: context.interactionRevision, structureRevision: context.structureRevision,
+      frameEpoch: context.frameEpoch, templateMode: false, dirty: false, saving: false, structuralWork: false })
+    const read = async () => {
+      const captured = { ownerToken: request.owner.token, presentationId: request.owner.presentationId,
+        frameEpoch: context.frameEpoch, structureRevision: context.structureRevision }
+      if (!isCurrent()) throw new Error('Slide selection request retired')
+      const receipt = await context.readNativeOrder()
+      if (!isCurrent()) throw new Error('Slide selection request retired')
+      return { ...captured, receipt }
+    }
+    const proveInsertion = (order: StudioNativeSlideOrder) => {
+      if (!priorOrder) throw new Error('Prior native identity is unavailable')
+      const oldIds = priorOrder.slideIds
+      const newIds = order.slideIds.filter(id => !oldIds.includes(id))
+      if (order.nativeCount !== priorOrder.nativeCount + 1 || newIds.length !== 1
+        || order.slideIds.filter(id => oldIds.includes(id)).some((id, index) => id !== oldIds[index])) {
+        throw new Error('Native order does not prove a single owned insertion')
+      }
+      return newIds[0]
+    }
+    try {
+      const native = await read()
+      const order = parseStudioNativeSlideOrder(native.receipt)
+      if (!order) throw new Error('Native order is unavailable')
+      let verified: { slideId: string; visualIndex: number; nativeCount: number; verified: true } | null = null
+      let selectedGeneratedResult = false
+      if (pending.restoreSelection && priorOrder) {
+        const newId = proveInsertion(order)
+        const primary = pending.target && pending.target.slideId === newId
+          ? resolveStudioComposeRestore(pending.target, state(), native) : null
+        const restorePrevious = async () => {
+          const fresh = parseStudioNativeSlideOrder((await read()).receipt)
+          if (!fresh) throw new Error('Native order is unavailable')
+          proveInsertion(fresh)
+          const previousId = priorOrder.slideIds[priorOrder.currentVisualIndex]
+          const restored = await context.restoreIdentity({ slideId: previousId,
+            expectedNativeCount: fresh.nativeCount, isCurrent })
+          const final = parseStudioNativeSlideOrder((await read()).receipt)
+          if (!final || final.nativeCount !== restored.nativeCount
+            || final.currentVisualIndex !== restored.visualIndex
+            || final.slideIds[restored.visualIndex] !== previousId) throw new Error('Prior native selection was not verified')
+          proveInsertion(final)
+          return restored
+        }
+        if (primary?.kind === 'ready') {
+          try {
+            verified = await context.restoreIdentity({ slideId: primary.lease.slideId,
+              expectedNativeCount: primary.lease.nativeCount, isCurrent })
+            const final = await read()
+            if (verified.slideId !== primary.lease.slideId || verified.nativeCount !== primary.lease.nativeCount
+              || verified.visualIndex !== primary.lease.visualIndex
+              || !verifyStudioComposeRestoreSelection(primary.lease, pending.target, state(), final)) {
+              throw new Error('Native selection did not match the current request')
+            }
+            selectedGeneratedResult = true
+          } catch (error) {
+            if (!isCurrent()) throw error
+            verified = await restorePrevious()
+          }
+        } else verified = await restorePrevious()
+      }
+      if (!isCurrent()) return
+      const commitIsCurrent = () => studioSyncRequestRef.current === request
+        && studioSyncSequenceRef.current === request.sequence && request.isOwnerCurrent()
+        && context.isCurrent() && context.presentationUrl === pending.expectedUrl
+        && studioSyncRefreshRevisionRef.current === pending.refreshRevision
+      const nativeCount = verified?.nativeCount ?? order.nativeCount
+      if (verified) {
+        const visualIndex = verified.visualIndex
+        currentSlideIndexRef.current = visualIndex
+        setCurrentSlideIndex(previous => commitIsCurrent() ? visualIndex : previous)
+        setSelectedLayoutSlideIndex(previous => commitIsCurrent() ? visualIndex : previous)
+      }
+      setSlideComposerOverride(previous => commitIsCurrent() && previous?.refreshToken === pending.refreshToken
+        ? { ...previous, slideCount: nativeCount } : previous)
+      request.persistCount(nativeCount)
+      if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      scTrace('builder.sync_selection.verified', { visual_index: verified?.visualIndex ?? null,
+        native_count: nativeCount, selected_generated_result: selectedGeneratedResult })
+    } catch (error) {
+      if (!isCurrent()) return
+      // An old failure never replaces a newer target or requeues a numeric index.
+      if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      console.warn('[Slide Composer] Native selection could not be verified; choose the slide in the rail.', error)
+    }
+  }
 
   const handleSlideComposerAccepted = useCallback((job: SlideComposeAcceptedJob) => {
     const isCurrentSession = captureStudioSlideComposeSessionOwner()
@@ -3715,7 +3876,54 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     [studioShell, studioSlideComposeOwnerRef.current, studioComposeMountGeneration, questionSubmissionScopeRef.current.generation],
   )
 
-  const handleSlideComposerBuilt = useCallback((result: SlideComposeBuiltResult) => {
+  const syncPending = studioSyncPendingRef.current
+  if (syncPending) {
+    if (!syncPending.request.isOwnerCurrent()) studioSyncPendingRef.current = null
+    else if (directorOwnedPresentation.refreshToken === syncPending.refreshToken
+      && effectivePresentationUrl === syncPending.expectedUrl) syncPending.observedRefresh = true
+    else if (syncPending.observedRefresh) studioSyncPendingRef.current = null
+  }
+
+  const handleStudioSyncSelectionRequestStart = useCallback(async (lane: 'compose' | 'refine' = 'compose'): Promise<object | null> => {
+    if (!studioShell) return null
+    if (!isCurrentSlideBuiltOwner()) throw new Error('Slide request owner retired')
+    const sequence = ++studioSyncSequenceRef.current
+    studioSyncPendingRef.current = null
+    studioSyncRequestRef.current = null
+    const ownerToken = studioSlideComposeOwnerRef.current
+    const chatOwner = { ...questionSubmissionScopeRef.current }
+    const isOwnerCurrent = captureStudioSlideComposeOwner()
+    const context = composeViewerApiRef.current?.composeCaptureSelectionContext?.()
+    const version = ownerToken.activeVersion
+    // Every admitted request has a private lifetime, even when native identity
+    // is unavailable. Its late response cannot adopt a newer request's viewer.
+    const record: StudioSyncSelectionRecord = {
+      sequence, lane,
+      owner: { token: ownerToken, userId: chatOwner.userId ?? '', sessionId: chatOwner.sessionId ?? '',
+        presentationId: ownerToken.presentationId ?? '', activeVersion: version ?? '', mountGeneration: chatOwner.generation },
+      isOwnerCurrent, context: null, priorOrder: null, consumed: false,
+      persistCount: count => { if (isOwnerCurrent()) persistence?.updateMetadata({ slideCount: count, lastMessageAt: new Date() }) },
+    }
+    const proof = Object.freeze({})
+    studioSyncProofsRef.current.set(proof, record)
+    studioSyncRequestRef.current = record
+    if (lane === 'refine') return proof
+    if (!context || !ownerToken.presentationId || !chatOwner.sessionId || !chatOwner.userId
+      || !['blank', 'strawman', 'final'].includes(version ?? '')
+      || extractPresentationIdFromViewerUrl(context.presentationUrl) !== ownerToken.presentationId) return proof
+    try {
+      const priorOrder = parseStudioNativeSlideOrder(await context.readNativeOrder())
+      if (!isOwnerCurrent() || sequence !== studioSyncSequenceRef.current) throw new Error('Slide request owner retired')
+      if (priorOrder && context.isCurrent()) { record.context = context; record.priorOrder = priorOrder }
+      return proof
+    } catch (error) {
+      if (!isOwnerCurrent() || sequence !== studioSyncSequenceRef.current) throw new Error('Slide request owner retired')
+      // Unavailable native identity must not disable otherwise supported generation.
+      return proof
+    }
+  }, [studioShell, isCurrentSlideBuiltOwner, persistence])
+
+  const handleSlideComposerBuilt = useCallback((result: SlideComposeBuiltResult, selection?: StudioSlideBuiltSelection) => {
     if (studioShell && !isCurrentSlideBuiltOwner()) return
     const nextSlideIndex = Math.max(0, result.slide_index)
     const targetPresentationId = result.presentation_id
@@ -3732,19 +3940,48 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     const targetPresentationUrl = result.presentation_url ?? slideComposerOverride?.presentationUrl ?? presentationUrl
     const existingDeck = !!effectivePresentationId && targetPresentationId === effectivePresentationId
     const baseSlideCount = effectiveSlideCount ?? 0
-    const nextSlideCount = Math.max(
+    const nextSlideCount = studioShell && existingDeck ? baseSlideCount : Math.max(
       existingDeck ? baseSlideCount + 1 : (result.slides_built ?? 1),
       nextSlideIndex + 1,
     )
+    const record = studioShell && selection?.proof ? studioSyncProofsRef.current.get(selection.proof) : null
+    // Studio callbacks with a private envelope require an issued lifetime.
+    // Current refine also receives one; an unknown/null late ingress cannot
+    // clear the newer compose receipt merely because its session still matches.
+    if (studioShell && selection && !record) return
+    if (record && (record.consumed || record !== studioSyncRequestRef.current
+      || record.sequence !== studioSyncSequenceRef.current || !record.isOwnerCurrent())) return
+    if (record) record.consumed = true
+    const refreshRevision = ++studioSyncRefreshRevisionRef.current
+    const refreshToken = Math.max(Date.now(), slideComposerPresentationRef.current.refreshToken + 1,
+      studioSyncRefreshTokenRef.current + 1, refreshRevision)
+    studioSyncRefreshTokenRef.current = refreshToken
+    const expectedUrl = withSlideComposerRefreshToken(targetPresentationUrl ?? null, refreshToken)
+    studioSyncPendingRef.current = null
+    if (studioShell && record && existingDeck && expectedUrl) {
+      const restoreSelection = Boolean(record.lane !== 'refine' && selection?.draftStillCurrent && record.context?.isCurrent() && record.priorOrder)
+      const target = restoreSelection && record.context ? createStudioComposeRestoreTarget({ owner: record.owner,
+        requestSequence: record.sequence, reloadRevision: refreshRevision,
+        interactionRevision: record.context.interactionRevision,
+        structureRevision: record.context.structureRevision, result }) : null
+      // Count-only receipts do not navigate. Missing/unsafe generation identity
+      // may preserve the captured prior real slide, never a positional guess.
+      studioSyncPendingRef.current = { request: record, restoreSelection,
+        target: target && !record.priorOrder?.slideIds.includes(target.slideId) ? target : null,
+        refreshRevision, refreshToken, expectedUrl, observedRefresh: false }
+    }
 
     setSlideComposerOverride({
       presentationUrl: targetPresentationUrl ?? null,
       presentationId: targetPresentationId,
       slideCount: nextSlideCount,
-      refreshToken: Date.now(),
+      refreshToken,
     })
-    setCurrentSlideIndex(nextSlideIndex)
-    setSelectedLayoutSlideIndex(nextSlideIndex)
+    if (!studioShell || !existingDeck) {
+      currentSlideIndexRef.current = nextSlideIndex
+      setCurrentSlideIndex(nextSlideIndex)
+      setSelectedLayoutSlideIndex(nextSlideIndex)
+    }
 
     if (persistence) {
       const updates: any = {
@@ -4815,7 +5052,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       manualDeckInspectionInFlightRef.current = true
       try {
         const response = await fetch(
-          `${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(manualSourcePresentationId!)}`,
+          `${getLayoutServiceUrl()}/api/presentations/${encodeURIComponent(manualSourcePresentationId!)}`,
           { cache: 'no-store' },
         )
         if (!mayDispatchSubmission()) return
@@ -4838,7 +5075,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               messageText,
               presentationId: manualSourcePresentationId!,
               presentationUrl: effectivePresentationUrl
-                ?? `${LAYOUT_SERVICE_URL}/p/${encodeURIComponent(manualSourcePresentationId!)}`,
+                ?? `${getLayoutServiceUrl()}/p/${encodeURIComponent(manualSourcePresentationId!)}`,
               summary: inspection.summary,
               operationId: crypto.randomUUID(),
             })
@@ -4858,7 +5095,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         console.warn('[Manual Deck] Could not inspect presentation before build.', error)
         toast({
           title: 'Could not verify your current slides',
-          description: 'Your deck was left unchanged. Check your connection and retry before building.',
+          description: error instanceof ServiceUrlConfigError
+            ? error.message
+            : 'Your deck was left unchanged. Check your connection and retry before building.',
           variant: 'destructive',
         })
         return
@@ -5665,7 +5904,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     selected: studioInitialSelectedTarget,
     automaticBlankTarget: studioInitialBlankProofRef.current.target,
     hasOwnedSelection: studioCanvasLifecycle.hasOwnedSelection,
-    viewerUrlAllowed: evaluateLayoutViewerUrl(studioInitialSelectedTarget.presentationUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed',
+    viewerUrlAllowed: !LAYOUT_URL_CONFIG_ERROR && evaluateLayoutViewerUrl(studioInitialSelectedTarget.presentationUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed',
     initialStageEligible: !session.isLoadingSession && (studioCanvasLifecycle.showLanding
       || (!isGeneratingFinal && !isGeneratingStrawman && buildNarration.phase === 'awaiting_user')),
     nativeWorkPresent: studioInitialNativeWork,
@@ -6026,6 +6265,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   buildThemeSelection={buildThemeSelection}
                   activeBuildThemeProfileName={activeBuildThemeProfileForSelection?.name ?? null}
                   enabled={features.slideComposerEnabled}
+                  studioOwner={studioShell ? studioSlideComposeOwnerRef.current : undefined}
+                  onSelectionRequestStart={studioShell ? handleStudioSyncSelectionRequestStart : undefined}
                   onBuilt={handleSlideComposerBuilt}
                   onAccepted={handleSlideComposerAccepted}
                   jobEvent={slideComposePanelEvent}

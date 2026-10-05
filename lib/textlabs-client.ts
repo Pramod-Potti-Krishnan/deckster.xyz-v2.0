@@ -29,7 +29,13 @@ import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-prove
 import { isNonResearchVisualElement } from '@/lib/element-research-policy'
 
 // Same service as Elementor - reuse the URL
-const TEXT_LABS_BASE_URL = process.env.NEXT_PUBLIC_ELEMENTOR_URL || 'https://web-production-3b42.up.railway.app'
+import { inspectServiceUrl, requireServiceUrl } from '@/lib/service-url'
+
+const textLabsCandidates = () => [{ name: 'NEXT_PUBLIC_ELEMENTOR_URL', value: process.env.NEXT_PUBLIC_ELEMENTOR_URL }]
+export const getTextLabsServiceUrl = () => requireServiceUrl('Text Labs service', textLabsCandidates())
+const textLabsUrlConfig = inspectServiceUrl('Text Labs service', textLabsCandidates())
+const TEXT_LABS_BASE_URL = textLabsUrlConfig.url ?? ''
+export const TEXT_LABS_URL_CONFIG_ERROR = textLabsUrlConfig.error
 const snapGridLine = (value: number) => Number((Math.round(value * 5) / 5).toFixed(1))
 
 let elementIdSequence = 0
@@ -125,7 +131,7 @@ export async function createSession(
   presentationId?: string | null,
   signal?: AbortSignal,
 ): Promise<TextLabsSessionResponse> {
-  const response = await fetch(`${TEXT_LABS_BASE_URL}/api/canvas/session`, {
+  const response = await fetch(`${getTextLabsServiceUrl()}/api/canvas/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(presentationId ? { presentation_id: presentationId } : {}),
@@ -145,7 +151,7 @@ export async function createSession(
 
 export async function healthCheck(): Promise<boolean> {
   try {
-    const response = await fetch(`${TEXT_LABS_BASE_URL}/health`)
+    const response = await fetch(`${getTextLabsServiceUrl()}/health`)
     return response.ok
   } catch {
     return false
@@ -487,9 +493,11 @@ export async function sendMessage(
     payload[snakeKey] = value
   }
 
+  // Configuration failures happen before dispatch, never as ambiguous network retries.
+  const textLabsBaseUrl = getTextLabsServiceUrl()
   let response: Response
   try {
-    response = await fetch(`${TEXT_LABS_BASE_URL}/api/chat/message`, {
+    response = await fetch(`${textLabsBaseUrl}/api/chat/message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -676,7 +684,7 @@ export async function generateInfographic(
     formData.append('infographic_config', JSON.stringify(config))
   }
 
-  const response = await fetch(`${TEXT_LABS_BASE_URL}/api/infographic/generate`, {
+  const response = await fetch(`${getTextLabsServiceUrl()}/api/infographic/generate`, {
     method: 'POST',
     body: formData,
     signal,

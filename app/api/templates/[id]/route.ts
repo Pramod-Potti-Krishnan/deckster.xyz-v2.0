@@ -1,10 +1,12 @@
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 
 /** Template Builder proxy → Director CRUD for a single template. See ../route.ts. */
-const DIRECTOR_API_URL =
-  process.env.DIRECTOR_API_URL || 'https://directorv33-production.up.railway.app';
+function directorBaseUrl(): string {
+  return requireServiceUrl('Director', [{ name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL }])
+}
 
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions);
@@ -19,12 +21,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
+      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
       { cache: 'no-store' },
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
-  } catch {
+  } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     return NextResponse.json({ error: 'director_unreachable' }, { status: 502 });
   }
 }
@@ -36,12 +39,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
+      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
       { method: 'DELETE' },
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
-  } catch {
+  } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     return NextResponse.json({ error: 'director_unreachable' }, { status: 502 });
   }
 }

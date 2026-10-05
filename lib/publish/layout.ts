@@ -6,6 +6,7 @@
 // would create and delete presentations in production.
 
 import { getLayoutServiceBaseUrl } from './service-urls'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 
 export { getLayoutServiceBaseUrl }
 
@@ -32,6 +33,7 @@ export async function snapshotPresentation(presentationId: string): Promise<Snap
     if (!data?.snapshot_id) return null
     return { snapshotId: data.snapshot_id, sourceId: data.source_id ?? presentationId }
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) throw error
     console.error('[Publish] Snapshot request error:', error)
     return null
   }

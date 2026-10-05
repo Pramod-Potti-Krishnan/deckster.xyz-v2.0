@@ -1,3 +1,5 @@
+import { getLayoutServiceBaseUrl } from '@/lib/publish/service-urls'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
@@ -77,6 +79,10 @@ export async function POST(
     });
     const sourcePresentationId =
       chatSession?.finalPresentationId || existing.sourcePresentationId;
+
+    // Mandatory snapshot work requires explicit configuration before any
+    // advisory read, service dispatch or publish-state persistence.
+    getLayoutServiceBaseUrl();
 
     // Staleness baseline, part 1: read the SOURCE deck's updated_at BEFORE the
     // new snapshot is taken, for the same reason POST /api/publish does — a read
@@ -231,6 +237,7 @@ export async function POST(
     return NextResponse.json({ deck: serializePublishedDeck(updated), snapshotDeleted });
 
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('Error rotating published deck slug:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

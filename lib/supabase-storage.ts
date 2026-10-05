@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { requireServiceUrl } from "@/lib/service-url"
 
 /**
  * Supabase server-side client for Storage operations only.
@@ -14,11 +15,13 @@ import { createClient } from "@supabase/supabase-js"
  */
 
 let _client: ReturnType<typeof createClient> | null = null
+let _clientUrl: string | null = null
+let _clientKey: string | null = null
 
 function getSupabaseAdmin() {
-  if (_client) return _client
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const url = requireServiceUrl("Supabase Storage", [
+    { name: "NEXT_PUBLIC_SUPABASE_URL", value: process.env.NEXT_PUBLIC_SUPABASE_URL },
+  ])
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!url || !key) {
@@ -27,9 +30,13 @@ function getSupabaseAdmin() {
     )
   }
 
+  if (_client && _clientUrl === url && _clientKey === key) return _client
+
   _client = createClient(url, key, {
     auth: { persistSession: false },
   })
+  _clientUrl = url
+  _clientKey = key
   return _client
 }
 

@@ -8,6 +8,7 @@ import { PublishPasscodeGate } from '@/components/publish-passcode-gate'
 import { serializeFaqForViewer } from '@/lib/publish/qa-serialize'
 
 import { getPublicLayoutBaseUrl } from '@/lib/publish/service-urls'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 
 // Slug resolution reads the database — never prerender/cache this page
 export const dynamic = 'force-dynamic'
@@ -77,11 +78,21 @@ export default async function PublishedDeckPage({ params }: PublishedDeckPagePro
     })
   )
 
+  let layoutBaseUrl: string | null = null
+  let layoutConfigurationError: string | undefined
+  try {
+    layoutBaseUrl = getPublicLayoutBaseUrl()
+  } catch (error) {
+    if (!(error instanceof ServiceUrlConfigError)) throw error
+    layoutConfigurationError = error.message
+  }
+
   return (
     <PublishedViewer
       title={deck.title}
       slug={deck.slug}
-      layoutBaseUrl={getPublicLayoutBaseUrl()}
+      layoutBaseUrl={layoutBaseUrl}
+      layoutConfigurationError={layoutConfigurationError}
       snapshotPresentationId={deck.snapshotPresentationId}
       slideCount={deck.slideCount}
       allowPdf={deck.allowPdf}

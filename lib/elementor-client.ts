@@ -30,7 +30,14 @@ import {
   SlideLayoutType,
 } from '@/types/elements'
 
-const ELEMENTOR_BASE_URL = process.env.NEXT_PUBLIC_ELEMENTOR_URL || 'https://web-production-3b42.up.railway.app'
+import { inspectServiceUrl, requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+
+const elementorCandidates = () => [{ name: 'NEXT_PUBLIC_ELEMENTOR_URL', value: process.env.NEXT_PUBLIC_ELEMENTOR_URL }]
+export const getElementorServiceUrl = () => requireServiceUrl('Elementor service', elementorCandidates())
+const elementorUrlConfig = inspectServiceUrl('Elementor service', elementorCandidates())
+// Compatibility introspection only: actions use the resolver above.
+const ELEMENTOR_BASE_URL = elementorUrlConfig.url ?? ''
+export const ELEMENTOR_URL_CONFIG_ERROR = elementorUrlConfig.error
 
 export interface ElementorContext {
   presentation_id: string
@@ -223,7 +230,7 @@ export async function setSlideBackground(params: SlideBackgroundRequest): Promis
 // ============================================================================
 async function elementorRequest(endpoint: string, params: ElementorBaseRequest): Promise<ElementorResponse> {
   try {
-    const response = await fetch(`${ELEMENTOR_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${getElementorServiceUrl()}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -248,7 +255,7 @@ async function elementorRequest(endpoint: string, params: ElementorBaseRequest):
     return {
       success: false,
       error: {
-        code: 'NETWORK_ERROR',
+        code: error instanceof ServiceUrlConfigError ? error.code : 'NETWORK_ERROR',
         message: error instanceof Error ? error.message : 'Network request failed'
       }
     }
