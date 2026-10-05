@@ -23,7 +23,7 @@ import {
 import { debugLog } from "@/lib/debug-log"
 import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/lib/director-transcript"
 import { directorHistoryTimestamp } from "@/lib/director-chat-history"
-import { coalesceOutlineStateReplays, historicalActionStatuses, type HistoricalActionStatus } from "@/lib/director-history-presentation"
+import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, historicalActionStatuses, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -333,7 +333,7 @@ export function MessageList({
     });
 
     // Filter out duplicate welcome messages
-    const filtered = coalesceOutlineStateReplays(sorted).filter((item, index) => {
+    const filtered = presentTerminalOutlineRevisions(coalesceOutlineStateReplays(sorted)).filter((item, index) => {
       if (item.messageType === 'bot') {
         const msg = item as DirectorMessage;
         if (msg.type === 'chat_message') {
@@ -537,7 +537,7 @@ export function MessageList({
                       <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
 
                       {/* Slide Structure Card */}
-                      {studio && slideUpdate ? <StudioOutlineCard payload={slideUpdate.payload} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} /> : (
+                      {studio && slideUpdate ? <StudioOutlineCard payload={slideUpdate.payload} historyStatus={slideUpdate.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} /> : (
                       <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
@@ -804,7 +804,7 @@ export function MessageList({
                   </div>
                 )
               } else if (msg.type === 'slide_update') {
-                const slideMsg = msg as SlideUpdate
+                const slideMsg = msg as SlideUpdate & { clientOutlineHistoryStatus?: OutlineHistoryStatus }
                 return (
                   <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
@@ -812,7 +812,7 @@ export function MessageList({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      {studio ? <StudioOutlineCard payload={slideMsg.payload} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} /> : (
+                      {studio ? <StudioOutlineCard payload={slideMsg.payload} historyStatus={slideMsg.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} /> : (
                       <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>

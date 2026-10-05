@@ -128,3 +128,21 @@
 /* A foreground overlay has its own Close button. Its outer edge handle falls
    behind the app rail or outside the viewport, so keep it out of keyboard order. */
 [data-studio-v4-shell="true"] [data-studio-workspace-overlay="true"] [data-studio-workspace-drawer][data-studio-workspace-visible="true"] > [data-studio-drawer-handle] { display: none; }
+
+/* Native c8 Reveal minimum scale requires a 192×108 iframe viewport.
+   Preserve that viewport and let only the Studio slide region scroll when
+   available space is smaller. Existing tool/drawer preferences remain intact. */
+[data-studio-v4-shell="true"] [data-studio-v4-viewer]:not([data-studio-v4-fullscreen="true"]) [data-studio-slide-space="true"] {
+  overflow: auto;
+  align-items: safe center;
+  justify-content: safe center;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-viewer]:not([data-studio-v4-fullscreen="true"]) [data-studio-slide-space="true"]:focus-visible {
+  outline: 2px solid var(--ss-accent);
+  outline-offset: -2px;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-viewer]:not([data-studio-v4-fullscreen="true"]) [data-studio-slide-space="true"] > div:has(> div > iframe[title="Presentation Viewer"]) {
+  min-width: 192px;
+  min-height: 108px;
+  flex-shrink: 0;
+}

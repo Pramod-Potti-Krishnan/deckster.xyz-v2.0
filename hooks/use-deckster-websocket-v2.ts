@@ -800,8 +800,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         userId: userIdRef.current,
         error: null,
         messages: scrubBuildControlCapabilityMessages(cached.messages).map(message => {
-          const clean = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string };
+          const clean = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string };
           delete clean.clientOutlineReplayOf;
+          delete clean.clientTerminalOutlineRevisionOf;
           return clean;
         }),
         presentationUrl: cachedDisplayUrl || cached.presentationUrl || null,
@@ -1512,7 +1513,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             const parsedMessage = normalizeDirectorMessageFrame(JSON.parse(event.data)) as DirectorMessage & { type?: unknown };
             // Client replay provenance is assigned only after owned terminal
             // state validates the wire frame; never accept a supplied marker.
-            delete (parsedMessage as DirectorMessage & { clientOutlineReplayOf?: string }).clientOutlineReplayOf;
+            delete (parsedMessage as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string }).clientOutlineReplayOf;
+            delete (parsedMessage as DirectorMessage & { clientTerminalOutlineRevisionOf?: string }).clientTerminalOutlineRevisionOf;
             if (!isKnownDirectorMessageType(parsedMessage.type)) {
               return;
             }
@@ -1996,9 +1998,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     break; // Exit early - don't process as strawman
                   }
 
-                  if (transcriptMessage.clientOutlineReplayOf) {
+                  if (transcriptMessage.clientOutlineReplayOf || transcriptMessage.clientTerminalOutlineRevisionOf) {
                     // Completed Director reconnects retarget the saved outline
-                    // to the final viewer. Verified replay remains historical;
+                    // to the final viewer. Verified state or narrative revisions remain historical;
                     // it must not switch the live final deck back to strawman.
                     newState.directorWorkflowState = prev.directorWorkflowState;
                     newState.currentStatus = null;
@@ -3319,8 +3321,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
 
     const safeHistoricalMessages = historicalMessages.map(message => {
-      const cleanMessage = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string };
+      const cleanMessage = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string };
       delete cleanMessage.clientOutlineReplayOf;
+      delete cleanMessage.clientTerminalOutlineRevisionOf;
       const guarded = guardDirectorLayoutUrlMessage(
         cleanMessage as DirectorMessage & { payload: Record<string, any> },
         LAYOUT_VIEWER_URL_POLICY,

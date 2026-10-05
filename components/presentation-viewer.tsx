@@ -3444,6 +3444,9 @@ export function PresentationViewer({
           <div
             ref={slideContainerRef}
             data-studio-slide-space={studioShell ? "true" : undefined}
+            tabIndex={studioShell && !isFullscreen && approvedPresentationUrl ? 0 : undefined}
+            role={studioShell && !isFullscreen && approvedPresentationUrl ? "region" : undefined}
+            aria-label={studioShell && !isFullscreen && approvedPresentationUrl ? "Slide canvas" : undefined}
             data-studio-template-active={studioShell ? String(templateModeOn) : undefined}
             className={cn(
               "flex-1 min-h-0 relative flex items-center justify-center overflow-hidden",

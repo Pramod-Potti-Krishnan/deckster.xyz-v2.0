@@ -8,13 +8,15 @@ interface StudioOutlineCardProps {
   payload: SlideUpdate["payload"]
   contextByIndex?: Record<number, SlideContextItem> | null
   renderEvidence: (context?: SlideContextItem) => ReactNode
+  historyStatus?: 'earlier' | 'current'
 }
 
 /** Reads the existing outline/context only; expanding a row never sends or mutates. */
-export function StudioOutlineCard({ payload, contextByIndex, renderEvidence }: StudioOutlineCardProps) {
-  return (
-    <section data-studio-director-part="outline-review" aria-label="Presentation outline">
-      <div data-studio-director-part="outline-review-heading"><ListOrdered size={13} aria-hidden="true" /><span>Presentation outline</span></div>
+export function StudioOutlineCard({ payload, contextByIndex, renderEvidence, historyStatus }: StudioOutlineCardProps) {
+  const card = (
+    <section data-studio-director-part={historyStatus === 'earlier' ? 'outline-history-review' : 'outline-review'} aria-label={historyStatus === 'earlier' ? 'Earlier presentation outline' : 'Presentation outline'}>
+      <div data-studio-director-part="outline-review-heading"><ListOrdered size={13} aria-hidden="true" /><span>{historyStatus === 'earlier' ? 'Earlier outline' : historyStatus === 'current' ? 'Current outline' : 'Presentation outline'}</span></div>
+      {historyStatus === 'current' && <p className="text-xs text-muted-foreground">This outline has different notes. The earlier outline remains available above.</p>}
       <h3>{payload.metadata.main_title}</h3>
       <p data-studio-director-part="outline-review-meta">{payload.slides.length} slides · {payload.metadata.presentation_duration} min{payload.metadata.overall_theme && ` · ${payload.metadata.overall_theme}`}</p>
       {payload.metadata.target_audience && <p data-studio-director-part="outline-review-audience">For {payload.metadata.target_audience}</p>}
@@ -62,4 +64,9 @@ export function StudioOutlineCard({ payload, contextByIndex, renderEvidence }: S
       </ol>
     </section>
   )
+  return historyStatus === 'earlier' ? <details data-studio-director-part="outline-history" className="mt-2 rounded-lg border p-3">
+    <summary className="cursor-pointer text-xs font-medium">Earlier outline · {payload.slides.length} slides</summary>
+    <p className="text-xs text-muted-foreground">Previous outline notes. Expand to compare with the current outline.</p>
+    {card}
+  </details> : card
 }

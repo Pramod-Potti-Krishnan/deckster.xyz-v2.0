@@ -27,6 +27,57 @@ function outlineIdentity(message: DirectorMessage): { presentationId: string; co
   return { presentationId, content: JSON.stringify(canonical(content)) }
 }
 
+// The native completed reconnect reconstructs narrative from saved notes, or
+// this exact fallback. This relates two preserved versions; it never equates
+// their different narratives or discards an additive/structural change.
+function isTerminalNarrativeRevision(previous: DirectorMessage, current: DirectorMessage): boolean {
+  if (!outlineIdentity(previous) || !outlineIdentity(current)) return false
+  const before = previous.payload as Record<string, any>, after = current.payload as Record<string, any>
+  if (before.slides.length !== after.slides.length) return false
+  let changed = false
+  for (let index = 0; index < before.slides.length; index++) {
+    const oldSlide = before.slides[index], newSlide = after.slides[index]
+    if (oldSlide.narrative === newSlide.narrative) continue
+    if (typeof oldSlide.narrative !== 'string' || !oldSlide.narrative.trim()
+      || newSlide.narrative !== `Key content about ${newSlide.title}`) return false
+    changed = true
+  }
+  const withoutNarratives = (message: DirectorMessage) => outlineIdentity({ ...message,
+    payload: { ...(message.payload as any), slides: (message.payload as any).slides.map((slide: any) => ({ ...slide, narrative: undefined })) },
+  })?.content
+  return changed && withoutNarratives(previous) === withoutNarratives(current)
+}
+
+export type OutlineHistoryStatus = 'earlier' | 'current'
+type PresentedEntry = DirectorTranscriptEntry & { clientOutlineHistoryStatus?: OutlineHistoryStatus }
+
+/** Validate projected revision provenance against the actual sorted user-turn
+ * segment. Keep both payloads and mark only presentation; uncertain copies
+ * stay independently expanded. Never accept a supplied presentation status. */
+export function presentTerminalOutlineRevisions(entries: DirectorTranscriptEntry[]): PresentedEntry[] {
+  const originals = new Map<string, { message: DirectorMessage; index: number; userTurn: number }>()
+  const statuses = new Map<number, OutlineHistoryStatus>()
+  let userTurn = 0
+  entries.forEach((entry, index) => {
+    if (entry.messageType === 'user') { userTurn++; return }
+    const prior = originals.get((entry as DirectorMessage & { clientTerminalOutlineRevisionOf?: string }).clientTerminalOutlineRevisionOf || '')
+    const time = directorHistoryTimestamp(entry.timestamp)
+    if (prior && prior.userTurn === userTurn && prior.message.session_id === entry.session_id
+      && Number.isFinite(time) && Number.isFinite(directorHistoryTimestamp(prior.message.timestamp))
+      && time > directorHistoryTimestamp(prior.message.timestamp)
+      && isTerminalNarrativeRevision(prior.message, entry)) {
+      statuses.set(prior.index, 'earlier'); statuses.set(index, 'current')
+    }
+    if (outlineIdentity(entry)) originals.set(entry.message_id, { message: entry, index, userTurn })
+  })
+  return entries.map((entry, index) => {
+    const clean = { ...entry } as PresentedEntry
+    delete clean.clientOutlineHistoryStatus
+    if (statuses.has(index)) clean.clientOutlineHistoryStatus = statuses.get(index)
+    return clean
+  })
+}
+
 /** A full-update frame is idempotent state only within the same artifact and
  * user-turn segment. Preserve uncertain copies, changed fields and new turns. */
 export function coalesceOutlineStateReplays(entries: DirectorTranscriptEntry[]): DirectorTranscriptEntry[] {
@@ -63,9 +114,10 @@ export function projectVerifiedOutlineReplay<T extends DirectorMessage>(
   message: T,
   previousMessages: readonly DirectorMessage[],
   owner: OutlineReplayOwnership,
-): T & { clientOutlineReplayOf?: string } {
-  const clean = { ...message } as T & { clientOutlineReplayOf?: string }
+): T & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string } {
+  const clean = { ...message } as T & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string }
   delete clean.clientOutlineReplayOf
+  delete clean.clientTerminalOutlineRevisionOf
   const identity = outlineIdentity(clean)
   const payload = (clean.payload || {}) as Record<string, any>
   const previewUrl = payload.preview_url || payload.metadata?.preview_url || payload.strawman?.preview_url || payload.url
@@ -73,9 +125,21 @@ export function projectVerifiedOutlineReplay<T extends DirectorMessage>(
     || owner.socketSessionId !== owner.displayedSessionId || owner.deckOwnerSessionId !== owner.displayedSessionId
     || clean.session_id !== owner.displayedSessionId || identity.presentationId !== owner.finalPresentationId
     || !owner.finalPresentationUrl || previewUrl !== owner.finalPresentationUrl) return clean
-  const previous = [...previousMessages].reverse().find(candidate => candidate.message_id !== clean.message_id
+  let currentTurnStart = 0
+  previousMessages.forEach((candidate, index) => {
+    if (candidate.type === 'chat_message' && (candidate as DirectorMessage & { role?: string }).role === 'user'
+      && candidate.session_id === clean.session_id) currentTurnStart = index + 1
+  })
+  const currentTurn = previousMessages.slice(currentTurnStart)
+  const previous = [...currentTurn].reverse().find(candidate => candidate.message_id !== clean.message_id
     && candidate.session_id === clean.session_id && outlineIdentity(candidate)?.content === identity.content)
-  return previous ? { ...clean, clientOutlineReplayOf: previous.message_id } : clean
+  if (previous) return { ...clean, clientOutlineReplayOf: previous.message_id }
+  const time = directorHistoryTimestamp(clean.timestamp)
+  const revision = [...currentTurn].reverse().find(candidate => candidate.message_id !== clean.message_id
+    && candidate.session_id === clean.session_id && Number.isFinite(time)
+    && Number.isFinite(directorHistoryTimestamp(candidate.timestamp)) && time > directorHistoryTimestamp(candidate.timestamp)
+    && isTerminalNarrativeRevision(candidate, clean))
+  return revision ? { ...clean, clientTerminalOutlineRevisionOf: revision.message_id } : clean
 }
 
 export type HistoricalActionStatus = 'answered' | 'earlier'
