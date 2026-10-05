@@ -646,7 +646,7 @@ export interface UseDecksterWebSocketV2Options {
   // Build Narration typed frames (Director BUILD_EVENTS_ENABLED). Payloads
   // only — the frames never enter messages[]/state. slide_built reuses uat's
   // onSlideBuilt (above) — one frame, one dispatch (D1).
-  onBuildPhase?: (payload: BuildPhaseSocketMessage['payload']) => void;
+  onBuildPhase?: (payload: BuildPhaseSocketMessage['payload'], ownerSessionId?: string) => void;
   onBuildEvent?: (payload: BuildEventSocketMessage['payload']) => void;
   // sync_response.build_state (mid-flight/paused build re-hydration).
   onBuildStateSync?: (buildState: unknown) => void;
@@ -2310,7 +2310,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             } else if (message.type === 'template_ingest_failed' && ingestFrameIsForDisplayedSession) {
               options.onTemplateIngestFailed?.(message);
             } else if (message.type === 'build_phase') {
-              options.onBuildPhase?.((message as any).payload);
+              options.onBuildPhase?.((message as any).payload, message.session_id);
             } else if (message.type === 'build_event') {
               options.onBuildEvent?.((message as any).payload);
             } else if (message.type === 'sync_response' && (message.payload as any)?.build_state) {
@@ -3421,46 +3421,73 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     const cachedUserIds = new Set(cachedHistory?.userMessages?.map(message => message.id) || []);
     const cachedBotMessages = (cachedHistory?.messages || []).filter(message => !cachedUserIds.has(message.message_id));
 
-    setStateWithCache(prev => ({
-      ...prev,
-      messages: mergeDirectorChatHistory(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages)
-        .reduce<DirectorMessage[]>((accepted, message) => {
-          accepted.push(projectVerifiedOutlineReplay(message, accepted, {
-            isTerminal: activeVersion === 'final' && !!sessionState.finalPresentationId && !!sessionState.finalPresentationUrl,
-            socketSessionId: sessionIdRef.current,
-            displayedSessionId: historySessionId,
-            deckOwnerSessionId: restoredDeckOwnerSessionId ?? null,
-            finalPresentationId: sessionState.finalPresentationId ?? null,
-            finalPresentationUrl: sessionState.finalPresentationUrl ?? null,
-          }));
-          return accepted;
-        }, []),
-      // CRITICAL FIX: Use computed display URL based on activeVersion
-      // This ensures the correct presentation version is shown
-      presentationUrl: displayUrl,
-      presentationId: displayId,
-      strawmanPreviewUrl: sessionState.strawmanPreviewUrl || null,
-      strawmanPresentationId: sessionState.strawmanPresentationId || null,
-      finalPresentationUrl: sessionState.finalPresentationUrl || null,
-      finalPresentationId: sessionState.finalPresentationId || null,
-      deckOwnerSessionId: restoredDeckOwnerSessionId,
-      // NEW: Blank presentation state (Builder V2)
-      blankPresentationUrl: sessionState.blankPresentationUrl || null,
-      blankPresentationId: sessionState.blankPresentationId || null,
-      isBlankPresentation: sessionState.isBlankPresentation || false,
-      activeVersion: activeVersion,
-      slideCount: sessionState.slideCount || null,
-      slideStructure: sessionState.slideStructure || null,
-      currentStage: sessionState.currentStage || null,
-      currentStatus: null, // Always clear status on session restore
-      ephemeralMessageIds: [],
-      ephemeralFadeToken: 0,
-      tokenUsage: (sessionState as any).tokenUsage || null,
-      tokenUsageMessageId: (sessionState as any).tokenUsageMessageId || null,
-      templateIngestResult: (sessionState as any).templateIngestResult || null,
-      templateIngestError: null,
-      templateIngestJobId: null,
-    }));
+    setStateWithCache(prev => {
+      // An incomplete DB snapshot must not erase a final deck already owned
+      // by this selected session. Explicit version/new-build/final claims win.
+      const retainFinal = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+        && sessionState.deckOwnerSessionId === historySessionId
+        && prev.deckOwnerSessionId === historySessionId
+        && prev.activeVersion === 'final'
+        && !!prev.finalPresentationId && !!prev.finalPresentationUrl
+        && prev.presentationId === prev.finalPresentationId
+        && prev.presentationUrl === prev.finalPresentationUrl
+        && Number.isInteger(prev.slideCount) && (prev.slideCount ?? 0) > 0
+        && evaluateLayoutViewerUrl(prev.finalPresentationUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed'
+        && !restoredSessionState?.finalPresentationId && !restoredSessionState?.finalPresentationUrl
+        && sessionState.activeVersion !== 'blank' && sessionState.activeVersion !== 'strawman'
+        && (sessionState.currentStage == null || sessionState.currentStage === 6);
+      const restoredFinalId = retainFinal ? prev.finalPresentationId : sessionState.finalPresentationId || null;
+      const restoredFinalUrl = retainFinal ? prev.finalPresentationUrl : sessionState.finalPresentationUrl || null;
+      const restoredVersion = retainFinal ? 'final' : activeVersion;
+      const restoredOwner = retainFinal ? prev.deckOwnerSessionId : restoredDeckOwnerSessionId;
+      const retainBlank = retainFinal && !restoredSessionState?.blankPresentationId && !restoredSessionState?.blankPresentationUrl
+        && !!prev.blankPresentationId && !!prev.blankPresentationUrl
+        && evaluateLayoutViewerUrl(prev.blankPresentationUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed';
+      const retainStrawman = retainFinal && !restoredSessionState?.strawmanPresentationId && !restoredSessionState?.strawmanPreviewUrl
+        && !!prev.strawmanPresentationId && !!prev.strawmanPreviewUrl
+        && evaluateLayoutViewerUrl(prev.strawmanPreviewUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed';
+      return {
+        ...prev,
+        messages: mergeDirectorChatHistory(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages)
+          .reduce<DirectorMessage[]>((accepted, message) => {
+            accepted.push(projectVerifiedOutlineReplay(message, accepted, {
+              isTerminal: restoredVersion === 'final' && !!restoredFinalId && !!restoredFinalUrl,
+              socketSessionId: sessionIdRef.current,
+              displayedSessionId: historySessionId,
+              deckOwnerSessionId: restoredOwner ?? null,
+              finalPresentationId: restoredFinalId,
+              finalPresentationUrl: restoredFinalUrl,
+            }));
+            return accepted;
+          }, []),
+        // CRITICAL FIX: Use computed display URL based on activeVersion
+        // This ensures the correct presentation version is shown
+        presentationUrl: retainFinal ? restoredFinalUrl : displayUrl,
+        presentationId: retainFinal ? restoredFinalId : displayId,
+        strawmanPreviewUrl: retainStrawman ? prev.strawmanPreviewUrl : sessionState.strawmanPreviewUrl || null,
+        strawmanPresentationId: retainStrawman ? prev.strawmanPresentationId : sessionState.strawmanPresentationId || null,
+        finalPresentationUrl: restoredFinalUrl,
+        finalPresentationId: restoredFinalId,
+        deckOwnerSessionId: restoredOwner,
+        // NEW: Blank presentation state (Builder V2)
+        blankPresentationUrl: retainBlank ? prev.blankPresentationUrl : sessionState.blankPresentationUrl || null,
+        blankPresentationId: retainBlank ? prev.blankPresentationId : sessionState.blankPresentationId || null,
+        isBlankPresentation: process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+          ? restoredVersion === 'blank' : sessionState.isBlankPresentation || false,
+        activeVersion: restoredVersion,
+        slideCount: retainFinal ? prev.slideCount : sessionState.slideCount || null,
+        slideStructure: retainFinal ? prev.slideStructure : sessionState.slideStructure || null,
+        ...(retainFinal ? {} : { currentStage: sessionState.currentStage || null }),
+        currentStatus: null, // Always clear status on session restore
+        ephemeralMessageIds: [],
+        ephemeralFadeToken: 0,
+        tokenUsage: (sessionState as any).tokenUsage || null,
+        tokenUsageMessageId: (sessionState as any).tokenUsageMessageId || null,
+        templateIngestResult: (sessionState as any).templateIngestResult || null,
+        templateIngestError: null,
+        templateIngestJobId: null,
+      };
+    });
   }, [sessionCache, setStateWithCache]);
 
   // Auto-connect on mount (only once)

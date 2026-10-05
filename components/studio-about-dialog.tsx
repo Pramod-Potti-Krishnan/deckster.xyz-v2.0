@@ -1,12 +1,12 @@
 "use client"
 
 import Link from 'next/link'
-import { Layers, MessageSquare, Layout, Share2 } from 'lucide-react'
+import { Layers, MessageSquare, Layout, Share2, Clapperboard } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { StudioIntroReplay } from '@/components/studio-intro-replay'
 import './studio-about-dialog.css'
 
-export function StudioAboutDialog({ open, onOpenChange, onCloseAutoFocus }: { open: boolean; onOpenChange: (open: boolean) => void; onCloseAutoFocus?: (event: Event) => void }) {
+export function StudioAboutDialog({ open, onOpenChange, onCloseAutoFocus, onReplay, replayEnabled = true }: { open: boolean; onOpenChange: (open: boolean) => void; onCloseAutoFocus?: (event: Event) => void; onReplay?: () => void; replayEnabled?: boolean }) {
   if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== 'true') return null
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent data-studio-v4-shell="true" data-studio-about="true" onCloseAutoFocus={onCloseAutoFocus}>
@@ -17,9 +17,9 @@ export function StudioAboutDialog({ open, onOpenChange, onCloseAutoFocus }: { op
           <article><Layout size={19} aria-hidden="true" /><h3>Shape the story</h3><p>Review slides on the canvas and work with the selected content in the Inspector.</p></article>
           <article><Share2 size={19} aria-hidden="true" /><h3>Prepare to share</h3><p>Review script, notes and references, then choose the available delivery actions.</p></article>
         </div>
-        <p className="sa-note">Available tools depend on your current deck and account. The introduction is a manual guide; replaying it keeps your work intact.</p>
+        <p className="sa-note">Available tools depend on your current deck and account. Replaying the introduction keeps your work intact.</p>
       </div>
-      <div className="sa-actions"><StudioIntroReplay /><Link href="/help">Help</Link><button type="button" onClick={() => onOpenChange(false)}>Back to my work</button></div>
+      <div className="sa-actions">{onReplay ? <button type="button" data-studio-intro-replay="true" aria-label="Replay introduction" disabled={!replayEnabled} onClick={onReplay}><Clapperboard size={13} aria-hidden="true" />Replay intro</button> : <StudioIntroReplay />}<Link href="/help">Help</Link><button type="button" onClick={() => onOpenChange(false)}>Back to my work</button></div>
     </DialogContent>
   </Dialog>
 }

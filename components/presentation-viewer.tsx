@@ -1,6 +1,7 @@
 "use client"
 
 import './studio-presentation.css'
+import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
 import { EditModeGuide } from './edit-mode-guide'
 import { StudioToolbarSaveFeedback } from './studio-toolbar-save-feedback'
 import { StudioIntroReplay } from '@/components/studio-intro-replay'
@@ -292,6 +293,7 @@ interface PresentationViewerProps {
   // placeholder render INSIDE the sized 16:9 box (frame around/over the
   // iframe, placeholder covering it). All slots skipped in fullscreen; the
   // whole prop null/undefined ⇒ byte-identical output to today.
+  studioIntroReplay?: React.ReactNode
   stageChrome?: {
     ribbon?: React.ReactNode
     footer?: React.ReactNode
@@ -327,8 +329,20 @@ interface PresentationViewerProps {
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
     // MDC P8: index-based navigation for chat-invoked element placement.
     goToSlide: (slideIndex: number) => Promise<void>
+    getStudioIntroductionSafety?: () => StudioIntroductionSafety
   } | null) => void
+  onStudioIntroductionSafetyChange?: (safety: StudioIntroductionSafety | null) => void
   onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
+}
+
+/** Local observed safety only; this getter performs no iframe command or save. */
+export interface StudioIntroductionSafety {
+  presentationId: string | null
+  presentationUrl: string | null
+  ready: boolean
+  dirty: boolean
+  busy: boolean
+  error: boolean
 }
 
 export interface SlideComposeViewerApi {
@@ -544,6 +558,7 @@ export function PresentationViewer({
   onElementDeselected,
   onElementDeleted,
   onApiReady,
+  onStudioIntroductionSafetyChange,
   onComposeApiReady,
   onOpenGenerationPanel,
   onRefineElementRequested,
@@ -557,6 +572,7 @@ export function PresentationViewer({
   connecting,
   isGenerating,
   generatingMode,
+  studioIntroReplay,
   stageChrome = null,
   completedBuildSnapshot = null,
   sessionId,
@@ -816,6 +832,27 @@ export function PresentationViewer({
     || nativeReadySource === approvedIframeNavigationUrl)
   const snapshotSafetyRef = useRef({ isEditMode, isSaving, saveStatus, composeJobs: composeJobs.length })
   snapshotSafetyRef.current = { isEditMode, isSaving, saveStatus, composeJobs: composeJobs.length }
+  const introSafetyRef = useRef({ presentationId, presentationUrl, viewerIsReady, isEditMode, isSaving, saveStatus,
+    composing: composeJobs.some(job => job.status === 'building'), composeError: composeJobs.some(job => job.status === 'error') })
+  introSafetyRef.current = { presentationId, presentationUrl, viewerIsReady, isEditMode, isSaving, saveStatus,
+    composing: composeJobs.some(job => job.status === 'building'), composeError: composeJobs.some(job => job.status === 'error') }
+  const getStudioIntroductionSafety = useCallback((): StudioIntroductionSafety => {
+    const safety = introSafetyRef.current
+    return { presentationId: safety.presentationId, presentationUrl: safety.presentationUrl,
+      ready: safety.viewerIsReady,
+      dirty: nativeSnapshotDirtyRef.current || safety.isEditMode || safety.saveStatus !== 'saved',
+      busy: safety.isSaving || slideMutationPendingRef.current || !!slideMutationRequestRef.current
+        || safety.composing || diagramStateTimersRef.current.size > 0 || pendingDiagramStatesRef.current.size > 0,
+      error: safety.saveStatus === 'error' || safety.composeError }
+  }, [])
+  useEffect(() => {
+    if (studioShell) onStudioIntroductionSafetyChange?.(getStudioIntroductionSafety())
+  }, [studioShell, onStudioIntroductionSafetyChange, getStudioIntroductionSafety, presentationId, presentationUrl,
+    viewerIsReady, isEditMode, isSaving, saveStatus, nativeSnapshotSafetyRevision, isSlideMutationPending,
+    introSafetyRef.current.composing, introSafetyRef.current.composeError])
+  const introSafetyCallbackRef = useRef(onStudioIntroductionSafetyChange)
+  introSafetyCallbackRef.current = onStudioIntroductionSafetyChange
+  useEffect(() => () => { introSafetyCallbackRef.current?.(null) }, [])
   const snapshotBaseOwnerKey = JSON.stringify([
     approvedPresentationUrl, presentationId, sessionId, deckOwnerSessionId,
   ])
@@ -2507,11 +2544,12 @@ export function PresentationViewer({
       sendTextBoxCommand: handleSendTextBoxCommand,
       sendElementCommand: handleSendElementCommand,
       // MDC P8: index-based navigation for chat-invoked element placement.
-      goToSlide: handleGoToSlide
+      goToSlide: handleGoToSlide,
+      ...(studioShell ? { getStudioIntroductionSafety } : {})
     })
 
     return () => onApiReady(null)
-  }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand, handleGoToSlide])
+  }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand, handleGoToSlide, studioShell, getStudioIntroductionSafety])
 
   useEffect(() => {
     if (!onComposeApiReady) return
@@ -3517,6 +3555,9 @@ export function PresentationViewer({
                   title="Presentation Viewer"
                   allow="fullscreen"
                 />
+                {studioShell && !viewerHasLoaded && <div className="absolute inset-0 z-20 pointer-events-none" data-studio-viewer-loading="true">
+                  <StudioWaitingState scope="canvas" message="Loading your slides…" />
+                </div>}
                 {templateModeOn && templateBuilderEnabled && (
                   <TemplateModeOverlay
                     snapshot={templateSnapshot}
@@ -3598,7 +3639,7 @@ export function PresentationViewer({
           {/* powered by deckster — inside slide column so it tracks the slide's right edge */}
           {!isFullscreen && (
             <div data-studio-canvas-brand={studioShell ? "true" : undefined} className="flex-shrink-0 flex justify-end pr-4 py-0.5">
-              {studioShell && <StudioIntroReplay className="studio-canvas-intro-replay" />}
+              {studioShell && (studioIntroReplay ?? <StudioIntroReplay className="studio-canvas-intro-replay" />)}
               {studioShell && showControls && <div ref={setStudioPresentPortalTarget} data-studio-present-slot="true" />}
               <Link
                 href="/"

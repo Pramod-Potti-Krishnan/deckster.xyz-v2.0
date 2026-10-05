@@ -1,11 +1,12 @@
 "use client"
 
+import type { ReactNode } from 'react'
 import { Layers, Sparkles, LayoutTemplate } from 'lucide-react'
 import Link from 'next/link'
 import { StudioIntroReplay } from '@/components/studio-intro-replay'
 
 /** A static first-entry specimen; the real Layout iframe owns authored slides. */
-export function StudioWelcomeStage() {
+export function StudioWelcomeStage({ studioIntroReplay }: { studioIntroReplay?: ReactNode } = {}) {
   return <div className="studio-welcome-stage" role="region" aria-label="Your presentation stage">
     <div className="studio-welcome-label"><Layers size={14} aria-hidden="true" /><span>Your story starts here</span></div>
     <div className="studio-welcome-slide" aria-label="Empty presentation placeholder">
@@ -14,6 +15,6 @@ export function StudioWelcomeStage() {
       <p>Tell Director who it’s for and what you want to say.<br />Your presentation will take shape on this stage.</p>
       <div className="studio-welcome-slide-bottom"><span>DECKSTER STUDIO</span><span>01</span></div>
     </div>
-    <div className="studio-welcome-caption"><span><Sparkles size={14} aria-hidden="true" /> Start with a conversation</span><StudioIntroReplay /><Link href="/studio/templates"><LayoutTemplate size={14} aria-hidden="true" />Explore templates</Link></div>
+    <div className="studio-welcome-caption"><span><Sparkles size={14} aria-hidden="true" /> Start with a conversation</span>{studioIntroReplay ?? <StudioIntroReplay />}<Link href="/studio/templates"><LayoutTemplate size={14} aria-hidden="true" />Explore templates</Link></div>
   </div>
 }

@@ -22,6 +22,7 @@ export interface BuilderHeaderProps {
   onOpenChatHistory: () => void
   isChatHistoryOpen?: boolean
   toolbarSlotRef?: (el: HTMLDivElement | null) => void
+  introAction?: React.ReactNode
   onToolbarInteract?: () => void
 }
 
@@ -33,6 +34,7 @@ export function BuilderHeader({
   isChatHistoryOpen = false,
   toolbarSlotRef,
   onToolbarInteract,
+  introAction,
 }: BuilderHeaderProps) {
   // Theme is owned by next-themes; the in-toolbar light/dark toggle lives
   // in the Mode dropdown (inside presentation-viewer.tsx). We still read
@@ -176,6 +178,7 @@ export function BuilderHeader({
               {!studioShell && <UserProfileMenu studioLabels={studioLabels} studioPalette={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === "true"} />}
             </div>
           )}
+          {studioShell && introAction}
           {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && <Button className="studio-shell-new" onClick={onNewPresentation}><Plus className="h-4 w-4" />Presentation</Button>}
         </div>
       </header>

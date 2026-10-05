@@ -1,6 +1,8 @@
 "use client"
 
 import React from "react"
+import { classifyStudioCanvasLifecycle, type StudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
+import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
 import type { StudioWorkflowRequest } from "@/lib/studio-workflow"
 import { StudioWelcomeStage } from "@/components/builder/studio-welcome-stage"
 import { PresentationViewer, TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi } from "@/components/presentation-viewer"
@@ -53,6 +55,11 @@ export function handleBlankElementClick(
 }
 
 export interface PresentationAreaProps {
+  onStudioIntroductionSafetyChange?: (safety: import("@/components/presentation-viewer").StudioIntroductionSafety | null) => void
+  studioIntroReplay?: React.ReactNode
+  showOutlinePreview?: boolean
+  studioCanvasLifecycle?: StudioCanvasLifecycle
+  awaitingDirectorReply?: boolean
   studioWorkflowRequest?: StudioWorkflowRequest | null
   presentationUrl: string | null
   presentationId: string | null
@@ -158,6 +165,11 @@ export interface PresentationAreaProps {
 }
 
 export function PresentationArea({
+  studioCanvasLifecycle,
+  studioIntroReplay,
+  onStudioIntroductionSafetyChange,
+  showOutlinePreview = false,
+  awaitingDirectorReply = false,
   presentationUrl,
   presentationId,
   slideCount,
@@ -230,6 +242,7 @@ export function PresentationArea({
   narrationNavigate = null,
   studioWorkflowRequest = null,
 }: PresentationAreaProps) {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const narrationActive = !!(buildNarration && buildNarration.active)
   const narrationPhase = buildNarration?.phase ?? 'idle'
   // Canvas v2 R3: the deck walkthrough — auto-step the real strawman once,
@@ -251,7 +264,7 @@ export function PresentationArea({
   // Canvas v2 R1 (rev 2): cover any CONTENTLESS landing deck with the designed
   // placeholder — restore can mislabel a fresh deck 'final', so the gate keys
   // on authored content (slide structure), not on the version label.
-  const showBlankPlaceholder = shouldShowBlankPlaceholder(buildNarrationEnabled, {
+  const legacyBlankPlaceholder = shouldShowBlankPlaceholder(buildNarrationEnabled, {
     dismissed: blankPlaceholderDismissed,
     hasSlideStructure: Boolean(
       slideStructure && Array.isArray(slideStructure?.slides ?? slideStructure)
@@ -265,14 +278,52 @@ export function PresentationArea({
     phase: narrationActive ? narrationPhase : 'idle',
     hasPresentationUrl: Boolean(presentationUrl),
   })
+  const lifecycle = studioCanvasLifecycle ?? classifyStudioCanvasLifecycle({
+    displayedSessionId: publishSessionId ?? sessionId ?? null,
+    deckOwnerSessionId: deckOwnerSessionId ?? null,
+    selected: { presentationId, presentationUrl,
+      activeVersion: activeVersion === 'blank' || activeVersion === 'strawman' ? activeVersion : 'final', slideCount },
+    finalPresentationId: publishFinalPresentationId ?? null,
+    finalPresentationUrl,
+    hasAuthoredStructure: Boolean((slideStructure?.slides ?? (Array.isArray(slideStructure) ? slideStructure : [])).length),
+    loading: false,
+    generating: narrationActive ? false : isGeneratingFinal || isGeneratingStrawman,
+    phase: narrationActive ? narrationPhase : 'idle',
+    dismissed: blankPlaceholderDismissed,
+    connected, connecting,
+  })
+  const waitingActivity = currentStatus?.status === 'thinking' || awaitingDirectorReply ? 'thinking' as const
+    : currentStatus?.status === 'awaiting_user' ? 'awaiting_user' as const
+    : (isGeneratingFinal || isGeneratingStrawman || currentStatus?.status === 'generating') ? 'planning' as const : undefined
+  const waitingForDirector = narrationActive || !!waitingActivity
+  const workingPlaceholder = studioShell && !blankPlaceholderDismissed && lifecycle.hasOwnedSelection
+    && !lifecycle.hasGeneratedDeck && !lifecycle.hasAuthoredDeck
+    && waitingForDirector && (narrationPhase === 'idle' || narrationPhase === 'planning')
+  const showBlankPlaceholder = studioShell
+    ? (legacyBlankPlaceholder && lifecycle.showLanding) || workingPlaceholder
+    : legacyBlankPlaceholder
+  // Visual intro only. Native ribbon/footer, viewer identity and real build state stay active.
+  const outlinePreview = studioShell && showOutlinePreview && narrationActive
+    && buildNarration?.phase === 'building' && buildNarration.slidesDone === 0
+  const waitingNarration = outlinePreview && buildNarration
+    ? { ...buildNarration, phase: 'strawman' as const, phaseLabel: 'Outline ready — building has begun' }
+    : buildNarration
   const focusContext =
     narrationActive && slideContextByIndex ? slideContextByIndex[currentSlideIndex] : null
   // Canvas v2 R2/R3: narration chrome anchors to the slide via the viewer slots.
   const stageChrome =
-    showBlankPlaceholder || (narrationActive && buildNarration)
+    showBlankPlaceholder || outlinePreview || (narrationActive && buildNarration)
       ? {
-          placeholder: showBlankPlaceholder ? (
-            <StagePlaceholder mode="overlay" onDismiss={onDismissBlankPlaceholder} />
+          placeholder: outlinePreview ? (
+            <div className="absolute inset-0 z-30 pointer-events-none" data-studio-outline-preview="true"><StudioWaitingState scope="canvas" narration={waitingNarration} /></div>
+          ) : showBlankPlaceholder ? (
+            studioShell && waitingForDirector ? <div className="absolute inset-0 z-30">
+              <StudioWaitingState scope="canvas" narration={waitingNarration} activity={waitingActivity} />
+              {workingPlaceholder && onDismissBlankPlaceholder && <button type="button" onClick={onDismissBlankPlaceholder}
+                className="absolute bottom-3 right-4 rounded-md px-2 py-1 text-xs text-muted-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                data-testid="bn-placeholder-dismiss" data-studio-stage-placeholder-dismiss="true">Start on this blank canvas</button>}
+            </div>
+              : <StagePlaceholder mode="overlay" onDismiss={onDismissBlankPlaceholder} />
           ) : undefined,
           ribbon:
             narrationActive && buildNarration ? (
@@ -302,7 +353,7 @@ export function PresentationArea({
   return (
     <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
-        {presentationUrl ? (
+        {presentationUrl && !(studioShell && lifecycle.mode === 'awaiting_owner' && !templateModeOn) ? (
           <PresentationViewer
             studioWorkflowRequest={studioWorkflowRequest}
             presentationUrl={presentationUrl}
@@ -421,14 +472,24 @@ export function PresentationArea({
             onTemplateElementSelect={onTemplateElementSelect}
             onTemplateBlueprintChange={onTemplateBlueprintChange}
             toolbarOffset={toolbarOffset}
-            isGenerating={narrationActive ? false : (isGeneratingFinal || isGeneratingStrawman)}
+            isGenerating={narrationActive ? false : workingPlaceholder ? false : (isGeneratingFinal || isGeneratingStrawman)}
             generatingMode={isGeneratingFinal ? 'default' : 'strawman'}
+            onStudioIntroductionSafetyChange={onStudioIntroductionSafetyChange}
+            studioIntroReplay={studioIntroReplay}
             stageChrome={stageChrome}
             className="flex-1"
           />
         ) : (
           <div className="flex-1 flex items-center justify-center min-h-0 p-4">
-            {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && !(currentStatus || isGeneratingFinal || isGeneratingStrawman) ? <StudioWelcomeStage /> : buildNarrationEnabled ? (
+            {studioShell ? (
+              (lifecycle.mode === 'awaiting_owner' || lifecycle.mode === 'awaiting_viewer') ? <StudioWaitingState scope="canvas" message="Loading your selected deck…" />
+                : waitingForDirector ? <div className="flex w-full min-h-0 flex-col gap-4">
+                  {narrationActive && buildNarration && <StageRibbon narration={buildNarration} control={buildNarrationApi?.control} />}
+                  <StudioWaitingState scope="canvas" narration={waitingNarration} activity={waitingActivity} />
+                  {narrationActive && buildNarration && <StageProgressFooter narration={buildNarration} />}
+                </div>
+                : <StudioWelcomeStage studioIntroReplay={studioIntroReplay} />
+            ) : buildNarrationEnabled ? (
               /* Canvas v2 R1: designed 16:9 placeholder for the no-URL case
                  (no dismiss — there is no blank deck to reveal). */
               <StagePlaceholder mode="standalone" />

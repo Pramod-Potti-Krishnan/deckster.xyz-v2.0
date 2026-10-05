@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useStudioAboutReplay } from "@/components/builder/studio-introduction"
 import { StudioAboutDialog } from "@/components/studio-about-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -125,6 +126,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
   const [isOpen, setIsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const accountTrigger = useRef<HTMLButtonElement>(null)
+  const aboutReplay = useStudioAboutReplay({ onOpenChange: setAboutOpen, restoreFocus: () => accountTrigger.current?.focus() })
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null)
   const [isUsageExpanded, setIsUsageExpanded] = useState(false)
   const studioProfile = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && studioPalette
@@ -278,7 +280,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-    {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && <StudioAboutDialog open={aboutOpen} onOpenChange={setAboutOpen} onCloseAutoFocus={event => { event.preventDefault(); accountTrigger.current?.focus() }} />}
+    {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && <StudioAboutDialog open={aboutOpen} onOpenChange={setAboutOpen} onCloseAutoFocus={aboutReplay.onCloseAutoFocus} onReplay={aboutReplay.intro ? aboutReplay.requestFromAbout : undefined} replayEnabled={aboutReplay.intro?.availableIgnoringOwnAboutModal} />}
     </>
   )
 }

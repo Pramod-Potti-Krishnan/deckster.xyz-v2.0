@@ -19,6 +19,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Plus, Search, Filter, MoreVertical, Sparkles, Calendar, Users, Crown, Folder, Tag, X, ChevronDown, LayoutGrid, List, Loader2, RefreshCw } from "lucide-react"
 import Link from "next/link"
+import { StudioIntroReplay } from "@/components/studio-intro-replay"
+import "@/components/studio-libraries/destination-intros.css"
 import { useRouter } from "next/navigation"
 import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
 import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
@@ -401,7 +403,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
   }
 
   return (
-    <main data-studio-decks="true" className="container mx-auto px-4 py-8">
+    <main data-studio-decks="true" data-studio-intro-surface="decks" className="container mx-auto px-4 py-8">
       {/* Welcome Section */}
       <div data-studio-deck-welcome="true" className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -622,6 +624,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>}
+      <StudioIntroReplay screen="decks" autoStart={true} enabled={!deleteTarget} targetSelector='[data-studio-intro-surface="decks"]' className="studio-destination-intro-replay" />
     </main>
   )
 }

@@ -1,0 +1,50 @@
+/* Accepted v4 library corner; only explicit destination consumers opt in. */
+[data-studio-v4-shell="true"] main:is([data-studio-intro-surface="decks"], [data-studio-intro-surface="templates"], [data-studio-intro-surface="brand"], [data-studio-intro-surface="knowledge"], [data-studio-intro-surface="models"], [data-studio-intro-surface="details"]) {
+  position: relative;
+  padding-bottom: 52px;
+}
+[data-studio-v4-shell="true"][data-studio-intro-replay="true"].studio-destination-intro-replay {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--ss-line, #dde5e2);
+  border-radius: 7px;
+  background: var(--ss-panel, #fff);
+  color: var(--ss-muted, #566965);
+  box-shadow: 0 2px 8px #10201c14;
+  opacity: .75;
+}
+[data-studio-intro-replay="true"].studio-destination-intro-replay > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+[data-studio-v4-shell="true"][data-studio-intro-replay="true"].studio-destination-intro-replay:is(:hover, :focus-visible) {
+  opacity: 1;
+  color: var(--ss-text, #243438);
+  background: var(--ss-panel, #fff);
+}
+
+/* Long Decks/Knowledge surfaces scroll; keep replay visible in the accepted
+   viewport corner. The trailing gutter protects controls at every scroll
+   position, including narrow layouts. Native library forms retain their
+   reserved absolute corner because fixed replay previously obscured an input. */
+[data-studio-v4-shell="true"] main:is([data-studio-intro-surface="decks"], [data-studio-intro-surface="knowledge"]) {
+  padding-inline-end: 64px;
+}
+[data-studio-v4-shell="true"] main:is([data-studio-intro-surface="decks"], [data-studio-intro-surface="knowledge"]) > [data-studio-intro-replay="true"].studio-destination-intro-replay {
+  position: fixed;
+  right: 22px;
+  bottom: 20px;
+}

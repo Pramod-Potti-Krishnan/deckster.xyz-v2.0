@@ -10,7 +10,49 @@
 [data-studio-waiting="true"] [data-studio-waiting-spinner="true"] { box-sizing:border-box; width:32px; height:32px; margin:0 auto 12px; border:3px solid var(--sw-line); border-top-color:var(--sw-accent); border-radius:50%; animation:studio-waiting-spin 1s linear infinite; }
 [data-studio-waiting="true"] p { margin:0; color:var(--sw-text); font-size:14px; line-height:1.6; overflow-wrap:anywhere; }
 .dark [data-studio-v4-shell="true"][data-studio-waiting="true"] { --sw-surface:#222d30; --sw-text:#b4c5bd; --sw-line:#3b5147; --sw-accent:#c3abea; }
+[data-studio-waiting="true"][data-waiting-progress="true"] { overflow:auto; align-items:safe center; }
+[data-studio-waiting="true"] [data-studio-waiting-stage="true"] { box-sizing:border-box; width:100%; max-width:620px; padding:24px; border:1px solid var(--sw-line); border-radius:16px; background:color-mix(in srgb,var(--sw-surface),white 38%); box-shadow:0 12px 36px #16291b08; }
+[data-studio-waiting="true"] [data-studio-waiting-art="true"] { position:relative; width:112px; height:90px; margin:0 auto 20px; }
+[data-studio-waiting="true"] [data-studio-waiting-sheet] { position:absolute; display:block; box-sizing:border-box; width:94px; height:64px; border:1px solid var(--sw-line); border-radius:6px; background:var(--sw-surface); }
+[data-studio-waiting="true"] [data-studio-waiting-sheet="back"] { left:5px; top:10px; transform:rotate(-8deg); opacity:.7; }
+[data-studio-waiting="true"] [data-studio-waiting-sheet="front"] { left:16px; top:22px; padding:12px; text-align:left; box-shadow:0 6px 16px #16291b0d; }
+[data-studio-waiting="true"] [data-studio-waiting-sheet="front"] > i { display:block; height:3px; width:75%; margin-bottom:6px; border-radius:2px; background:var(--sw-accent); opacity:.5; }
+[data-studio-waiting="true"] [data-studio-waiting-sheet="front"] > i:nth-child(2) { width:48%; opacity:.25; }
+[data-studio-waiting="true"] [data-studio-waiting-sheet="front"] > span { display:flex; gap:5px; margin-top:9px; }
+[data-studio-waiting="true"] [data-studio-waiting-sheet="front"] > span > i { flex:1; height:14px; border:1px solid var(--sw-line); border-radius:2px; }
+[data-studio-waiting="true"][data-waiting-motion="true"] [data-studio-waiting-sheet="front"] { animation:studio-waiting-float 4s ease-in-out infinite; }
+[data-studio-waiting="true"] [data-studio-waiting-heading="true"] { display:flex; justify-content:center; align-items:center; gap:9px; }
+[data-studio-waiting="true"] [data-studio-waiting-heading="true"] p { font-size:16px; font-weight:600; }
+[data-studio-waiting="true"] [data-studio-waiting-dot="true"] { flex:none; width:7px; height:7px; border-radius:50%; background:var(--sw-accent); }
+[data-studio-waiting="true"][data-waiting-motion="true"] [data-studio-waiting-dot="true"] { animation:studio-waiting-breathe 2s ease-in-out infinite; }
+[data-studio-waiting="true"][data-waiting-phase="error"] [data-studio-waiting-dot="true"] { background:#b15c55; }
+[data-studio-waiting="true"] [data-studio-waiting-tally="true"] { margin-top:8px; font-size:12px; }
+[data-studio-waiting="true"] [data-studio-waiting-meter="true"] { display:block; width:100%; height:5px; margin:14px 0 0; border:0; border-radius:4px; overflow:hidden; accent-color:var(--sw-accent); background:var(--sw-line); }
+[data-studio-waiting="true"] [data-studio-waiting-meter="true"]::-webkit-progress-bar { background:var(--sw-line); }
+[data-studio-waiting="true"] [data-studio-waiting-meter="true"]::-webkit-progress-value { background:var(--sw-accent); }
+[data-studio-waiting="true"] [data-studio-waiting-meter="true"]::-moz-progress-bar { background:var(--sw-accent); }
+[data-studio-waiting="true"] [data-studio-waiting-outline="true"] { list-style:none; padding:0; margin:20px 0 0; display:flex; flex-direction:column; gap:7px; text-align:left; }
+[data-studio-waiting="true"] [data-studio-waiting-outline="true"] > li { display:flex; align-items:center; gap:10px; min-width:0; padding:10px; border:1px solid var(--sw-line); border-radius:8px; }
+[data-studio-waiting="true"] [data-studio-waiting-outline="true"] > li[data-slide-focused="true"] { border-color:var(--sw-accent); }
+[data-studio-waiting="true"] [data-studio-waiting-outline="true"] > li > div { flex:1; min-width:0; }
+[data-studio-waiting="true"] [data-studio-waiting-outline="true"] strong { display:block; font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+[data-studio-waiting="true"] [data-studio-waiting-outline="true"] p { margin-top:2px; font-size:11px; }
+[data-studio-waiting="true"] [data-studio-waiting-slide-number="true"] { flex:none; font-size:11px; color:var(--sw-accent); font-variant-numeric:tabular-nums; }
+[data-studio-waiting="true"] [data-studio-waiting-slide-status="true"] { flex:none; max-width:85px; font-size:10px; overflow-wrap:anywhere; }
+[data-studio-waiting="true"] [data-studio-waiting-events="true"] { list-style:none; padding:0; margin:16px 0 0; text-align:left; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+[data-studio-waiting="true"] [data-studio-waiting-events="true"] > li + li { margin-top:5px; }
+[data-studio-waiting="true"] [data-studio-waiting-events="true"] > li[data-event-status="error"] { color:#b15c55; }
+.dark [data-studio-waiting="true"] [data-studio-waiting-stage="true"] { background:color-mix(in srgb,var(--sw-surface),black 8%); }
+.dark [data-studio-waiting="true"] [data-studio-waiting-events="true"] > li[data-event-status="error"] { color:#f0aaa0; }
 @keyframes studio-waiting-spin { to { transform:rotate(360deg); } }
+@keyframes studio-waiting-float { 50% { transform:translateY(-5px); } }
+@keyframes studio-waiting-breathe { 50% { opacity:.35; } }
+@media(max-width:420px) {
+  [data-studio-waiting="true"] [data-studio-waiting-stage="true"] { padding:16px; }
+  [data-studio-waiting="true"] [data-studio-waiting-outline="true"] > li { flex-wrap:wrap; }
+}
 @media(prefers-reduced-motion:reduce) {
   [data-studio-waiting="true"] [data-studio-waiting-spinner="true"] { animation:none; }
+  [data-studio-waiting="true"][data-waiting-motion="true"] [data-studio-waiting-sheet="front"],
+  [data-studio-waiting="true"][data-waiting-motion="true"] [data-studio-waiting-dot="true"] { animation:none; }
 }

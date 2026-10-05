@@ -7,6 +7,8 @@ import { useAuth } from "@/hooks/use-auth"
 import { AccountProfileEditor } from "./account-profile-editor"
 import { AccountIdentityPreview } from "./account-identity-preview"
 import { StudioWorkflowAction } from "@/components/studio-libraries/studio-workflow-action"
+import { StudioIntroReplay } from "@/components/studio-intro-replay"
+import "@/components/studio-libraries/destination-intros.css"
 import "./personal-workspaces.css"
 
 type DetailsDraft = { author: string; role: string; company: string; email: string; footer: "author" | "title" | "pages" | "none"; confidentiality: string }
@@ -87,7 +89,7 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
       : draft.footer === "pages" ? `Page ${page} of 8` : ""
 
   return (
-    <main className="sp-workspace sp-details" data-studio-personal="details">
+    <main className="sp-workspace sp-details" data-studio-personal="details" data-studio-intro-surface="details">
       <header className="sp-heading">
         <div><p className="sp-eyebrow">MAKE IT YOURS</p><h1>Your details</h1><p>The person behind the presentation.</p></div>
         <span className="sp-draft-badge"><span /> {section === "account" ? "Your account" : "Local draft preview"}</span>
@@ -136,6 +138,7 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
         <div className="sp-action-buttons"><button className="sp-button" type="button" disabled={!dirty} onClick={() => { setDraft(initialDraft(accountName)); setLogo(null); setLogoError(""); setStatus("Draft reset. Author name restored from your account.") }}><RotateCcw size={14} aria-hidden="true" /> Reset draft</button><button className="sp-button sp-button-save" type="button" disabled aria-describedby="sp-details-save-note">Save as defaults</button></div>
       </div>}
       <p className="sp-later-note">Presenter avatars and voice are optional later additions.</p>
+      <StudioIntroReplay screen="details" autoStart={true} targetSelector='[data-studio-intro-surface="details"]' className="studio-destination-intro-replay" />
     </main>
   )
 }

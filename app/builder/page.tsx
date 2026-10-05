@@ -6,6 +6,8 @@ import '@/components/layout/studio-shell.css'
 import '@/components/builder/studio-workspace.css'
 import '@/components/builder/studio-canvas.css'
 import { allocateStudioWorkspace, resizeStudioPane, type StudioWorkspacePane, type StudioInspector } from '@/lib/studio-workspace-layout'
+import { StudioIntroductionProvider, StudioIntroductionButton } from '@/components/builder/studio-introduction'
+import { historicalActionStatuses } from '@/lib/director-history-presentation'
 import { StudioRail } from '@/components/layout/studio-rail'
 
 import { composerThemeSyncBlocked } from '@/lib/composer-theme-policy'
@@ -28,6 +30,7 @@ import { useFileUpload } from '@/hooks/use-file-upload'
 import type { UploadedFile } from '@/components/file-chip'
 import { features } from '@/lib/config'
 import { useBuildNarration } from '@/hooks/use-build-narration'
+import { useStudioOutlinePreview } from '@/hooks/use-studio-outline-preview'
 import { useStageFThumbnailCache } from '@/hooks/use-stage-f-thumbnail-cache'
 import { centerStageFor, effectiveNarrationEnabled } from '@/lib/build-narration-heuristics'
 import { DirectorPresence } from '@/components/build-narration/director-presence'
@@ -35,7 +38,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent } from '@/components/slide-generation-panel'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
-import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi } from '@/components/presentation-viewer'
+import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety } from '@/components/presentation-viewer'
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties, SlideLayoutType } from '@/types/elements'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -62,6 +65,7 @@ import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { StudioDirectorHeader } from '@/components/builder/chat/studio-director-header'
+import { classifyStudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
 import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
 import { TemplateIngestReviewCards } from '@/components/template-ingest-review-cards'
 import { INGEST_INTENT_KEY_PREFIX, type IngestIntentPayload } from '@/components/template-ingest-dialog'
@@ -727,6 +731,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const [showSettings, setShowSettings] = useState(false)
   const [showVersions, setShowVersions] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [studioViewerEditing, setStudioViewerEditing] = useState(false)
   const [showFormatPanel, setShowFormatPanel] = useState(false)
   const [slideGenerationMode, setSlideGenerationMode] = useState<'compose' | 'refine'>('compose')
   const [slideRefineTarget, setSlideRefineTarget] = useState<SlideRefineTarget | null>(null)
@@ -753,7 +758,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
     goToSlide: (slideIndex: number) => Promise<void>
+    getStudioIntroductionSafety?: () => StudioIntroductionSafety
   } | null>(null)
+  const [studioViewerSafety, setStudioViewerSafety] = useState<StudioIntroductionSafety | null>(null)
+  const handleStudioViewerSafety = useCallback((next: StudioIntroductionSafety | null) => {
+    setStudioViewerSafety(previous => previous && next && Object.keys(next).every(key =>
+      previous[key as keyof StudioIntroductionSafety] === next[key as keyof StudioIntroductionSafety]) ? previous : next)
+  }, [])
   const composeViewerApiRef = useRef<SlideComposeViewerApi | null>(null)
 
 
@@ -1385,7 +1396,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // narration hook exists, so typed-frame callbacks route through this ref
   // (populated in an effect after useBuildNarration below).
   const buildNarrationHandlersRef = useRef<{
-    onBuildPhase?: (payload: any) => void
+    onBuildPhase?: (payload: any, ownerSessionId?: string) => void
     onBuildEvent?: (payload: any) => void
     onSlideBuilt?: (payload: any) => void
     onBuildStateSync?: (buildState: unknown) => void
@@ -2089,7 +2100,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     },
     // Build Narration: typed-frame ref-forwarders (WS options precede the
     // useBuildNarration hook, so the handlers land via a ref).
-    onBuildPhase: (payload) => buildNarrationHandlersRef.current.onBuildPhase?.(payload),
+    onBuildPhase: (payload, ownerSessionId) => buildNarrationHandlersRef.current.onBuildPhase?.(payload, ownerSessionId),
     onBuildEvent: (payload) => buildNarrationHandlersRef.current.onBuildEvent?.(payload),
     onBuildStateSync: (buildState) => buildNarrationHandlersRef.current.onBuildStateSync?.(buildState),
     onSlideComposeReady: (message: SlideComposeReady) => {
@@ -2610,19 +2621,32 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // a distinct newer typed build or its recovery controls.
   })
 
+  const { showOutlinePreview, onNativeBuildPhase, cancelOutlinePreview } = useStudioOutlinePreview({
+    enabled: studioShell && effectiveBuildNarrationEnabled,
+    sessionId: currentSessionId,
+    buildId: buildNarration.buildId,
+    phase: buildNarration.phase,
+    slidesDone: buildNarration.slidesDone,
+    activeVersion,
+    templateModeOn,
+  })
+
   // Route typed narration frames from the WS hook into the reducer. With the
   // flag off the ref stays empty — frames from a new Director are dropped at
   // the callback boundary (nothing accumulates).
   useEffect(() => {
     buildNarrationHandlersRef.current = effectiveBuildNarrationEnabled
       ? {
-          onBuildPhase: narrationOnBuildPhase,
+          onBuildPhase: (payload, ownerSessionId) => {
+            narrationOnBuildPhase(payload)
+            onNativeBuildPhase(payload, ownerSessionId ?? null)
+          },
           onBuildEvent: narrationOnBuildEvent,
           onSlideBuilt: narrationOnSlideBuilt,
           onBuildStateSync: narrationSyncBuildState,
       }
       : {}
-  }, [effectiveBuildNarrationEnabled, narrationOnBuildPhase, narrationOnBuildEvent, narrationOnSlideBuilt, narrationSyncBuildState])
+  }, [effectiveBuildNarrationEnabled, narrationOnBuildPhase, onNativeBuildPhase, narrationOnBuildEvent, narrationOnSlideBuilt, narrationSyncBuildState])
 
   const directorOwnedPresentation = useMemo(
     () => resolveEffectivePresentation({
@@ -2687,8 +2711,29 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     studioSlideComposeCountsRef.current[effectivePresentationId] = effectiveSlideCount
   }
 
-  const studioWelcome = studioShell && !blankPlaceholderDismissed && !isGeneratingFinal && !isGeneratingStrawman
-    && (!effectivePresentationUrl || (isBlankPresentation && !(slideStructure?.slides ?? []).length))
+  const studioCanvasLifecycle = classifyStudioCanvasLifecycle({
+    displayedSessionId: currentSessionId || wsSessionId,
+    deckOwnerSessionId,
+    selected: {
+      presentationId: effectivePresentationId,
+      presentationUrl: narrationCenterStage === 'final_fill' && buildNarration.buildPresentationId
+        ? getPresentationViewerUrl(buildNarration.buildPresentationId)
+        : templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
+      activeVersion,
+      slideCount: effectiveSlideCount,
+    },
+    finalPresentationId,
+    finalPresentationUrl,
+    hasAuthoredStructure: (slideStructure?.slides ?? []).length > 0,
+    // Session loading has its own exclusive canvas branch below.
+    loading: false,
+    generating: isGeneratingFinal || isGeneratingStrawman,
+    phase: buildNarration.active ? buildNarration.phase : 'idle',
+    dismissed: blankPlaceholderDismissed,
+    connected,
+    connecting,
+  })
+  const studioWelcome = studioShell && studioCanvasLifecycle.showLanding
   const workspaceLayout = allocateStudioWorkspace({
     width: studioOverlayWorkspace ? workspaceInnerWidth : workspaceWidth,
     chatPreference: chatWidth ?? (studioWelcome ? Math.min(640, workspaceWidth * .44) : 304),
@@ -5285,7 +5330,47 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [builderOptionsScope, clearAllFiles, session.handleNewChat])
   handleNewChatWrappedRef.current = handleNewChatWrapped
 
+  const retiredIntroActions = historicalActionStatuses(messages, session.answeredActionsRef.current)
+  const studioMandatoryDecision = messages.some(message => message.type === 'action_request'
+    && message.session_id === (currentSessionId || wsSessionId) && !retiredIntroActions.has(message.message_id)
+    && Boolean((message.payload as any).question_set || (message as ActionRequest).payload.actions.some(action =>
+      action.value === 'accept_plan' || action.value === 'accept_strawman')))
+  const nativeIntroTargetReady = Boolean(studioViewerSafety?.ready && studioCanvasLifecycle.hasOwnedSelection
+    && studioViewerSafety.presentationId === effectivePresentationId && studioViewerSafety.presentationUrl === effectivePresentationUrl)
+  const studioIntroInputs = {
+    workspaceReady: studioShell && !!user && !isAuthLoading && !session.isLoadingSession
+      && workspaceWidth > 0 && connected && !connecting
+      && (effectivePresentationUrl ? nativeIntroTargetReady : studioCanvasLifecycle.showLanding),
+    initialEntry: studioWelcome && !session.isResumedSession && session.userMessages.length === 0,
+    activeBuild: isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput
+      || (buildNarration.active && !['idle', 'complete'].includes(buildNarration.phase)),
+    decisionPending: studioMandatoryDecision || buildNarration.phase === 'awaiting_user'
+      || !!pendingActionInput || !!pendingManualDeckBuild || questionSubmissionPendingRef.current,
+    errorPresent: !!wsError || currentStatus?.status === 'error' || buildNarration.phase === 'error'
+      || themeSync.status === 'failed' || !!generationPanel.error || !!manualDeckHandoffError || !!studioViewerSafety?.error,
+    modalOpen: showOnboarding || topUpOpen || showComposerLibrary || !!pendingManualDeckBuild
+      || (!effectivePresentationUrl && workflowKey !== dismissedWorkflowKey && !!workflowAction),
+    dirtyDraft: !!inputMessage.trim() || uploadedFiles.length > 0 || !!workflowBrief || templateBlueprintDirty
+      || !!generationPanel.currentDraft || studioViewerEditing || !!selectedElementId || !!selectedTextBoxId
+      || isElementDrawerOpen || isSlideDrawerOpen || isTemplateParamsDrawerOpen || !!studioViewerSafety?.dirty,
+    workInFlight: awaitingDirectorReply || isExecutingSendRef.current || questionSubmissionPendingRef.current
+      || manualDeckHandoffBusy || generationPanel.hasActiveGenerations || templateBlueprintSaving
+      || templateSnapshotLoading || themeSync.status === 'syncing' || !!studioViewerSafety?.busy
+      || Object.values(slideComposeJobs).some(job => job.status === 'building'),
+  }
+
   return (
+    <StudioIntroductionProvider enabled={studioShell} eligibility={studioIntroInputs}
+      getEligibility={() => {
+        const native = effectivePresentationUrl ? layoutServiceApis?.getStudioIntroductionSafety?.() : null
+        const targetReady = !effectivePresentationUrl || Boolean(native?.ready && studioCanvasLifecycle.hasOwnedSelection
+          && native.presentationId === effectivePresentationId && native.presentationUrl === effectivePresentationUrl)
+        return { ...studioIntroInputs, workspaceReady: studioIntroInputs.workspaceReady && targetReady,
+          dirtyDraft: studioIntroInputs.dirtyDraft || !!native?.dirty,
+          errorPresent: studioIntroInputs.errorPresent || !!native?.error,
+          workInFlight: studioIntroInputs.workInFlight || !!native?.busy
+            || isExecutingSendRef.current || questionSubmissionPendingRef.current }
+      }}>
     <div data-studio-v4-shell={studioShell ? "true" : undefined} data-studio-v4-tokens={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
       {studioShell && <StudioRail homeHref="https://deckster.xyz" sessionUsage={<TokenUsageStrip tokenUsage={tokenUsage} displayMode="counter" />} />}
       {studioShell && !effectivePresentationUrl && !session.isLoadingSession && workflowKey !== dismissedWorkflowKey && <>
@@ -5307,11 +5392,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           onOpenChatHistory={() => setShowChatHistory((prev) => !prev)}
           isChatHistoryOpen={showChatHistory}
           toolbarSlotRef={setToolbarPortalTarget}
+          introAction={<StudioIntroductionButton persistent className="studio-header-intro-replay" />}
           onToolbarInteract={studioOverlayWorkspace ? revealStudioStage : undefined}
         />
 
         {/* Main Content Area */}
-        <div ref={workspaceRef} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
+        <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
           {studioShell && !workspaceLayout.dualPane && (
             <div data-studio-workspace-switch="true" role="group" aria-label="Workspace pane">
               {studioOverlayWorkspace && <button type="button" aria-pressed={studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)} onClick={() => setStudioStageSelected(true)}>Stage</button>}
@@ -5967,6 +6053,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             )
           ) : (
           <PresentationArea
+            studioIntroReplay={studioShell ? <StudioIntroductionButton className="studio-canvas-intro-replay" /> : undefined}
+            onEditModeChange={studioShell ? setStudioViewerEditing : undefined}
+            onStudioIntroductionSafetyChange={studioShell ? handleStudioViewerSafety : undefined}
+            studioCanvasLifecycle={studioShell ? studioCanvasLifecycle : undefined}
+            showOutlinePreview={showOutlinePreview}
+            awaitingDirectorReply={studioShell ? awaitingDirectorReply : undefined}
             studioWorkflowRequest={viewerWorkflowRequest}
             presentationUrl={effectivePresentationUrl}
             presentationId={effectivePresentationId}
@@ -5976,7 +6068,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             finalPresentationUrl={finalPresentationUrl}
             activeVersion={activeVersion}
             isBlankPresentation={isBlankPresentation}
-            onVersionSwitch={switchVersion}
+            onVersionSwitch={(version) => { cancelOutlinePreview(); switchVersion(version) }}
             currentStage={currentStage}
             currentSlideIndex={currentSlideIndex}
             onSlideChange={(slideNum) => {
@@ -6126,7 +6218,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onTemplateOptimizationFailed={handleTemplateOptimizationFailed}
             templateSelectionLocked={templateSelectionLocked}
             templateModeOn={templateModeOn}
-            onTemplateModeChange={handleTemplateModeChange}
+            onTemplateModeChange={(enabled) => { cancelOutlinePreview(); handleTemplateModeChange(enabled) }}
             templateModeAvailable={Boolean(activeTemplate)}
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
@@ -6176,6 +6268,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       <TopUpModal open={topUpOpen} onOpenChange={setTopUpOpen} reason={topUpReason} />
 
     </div>
+    </StudioIntroductionProvider>
   )
 }
 

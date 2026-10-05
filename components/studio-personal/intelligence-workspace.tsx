@@ -5,6 +5,8 @@ import { ArrowDownUp, ArrowRight, AudioLines, Compass, ImageIcon, Info, PenLine,
 import { StudioWorkflowAction } from "@/components/studio-libraries/studio-workflow-action"
 import { BackToBuilderButton } from "@/components/layout/app-header"
 import catalog from "./model-catalog-snapshot.json"
+import { StudioIntroReplay } from "@/components/studio-intro-replay"
+import "@/components/studio-libraries/destination-intros.css"
 import "./personal-workspaces.css"
 import "./intelligence-workspace.css"
 
@@ -77,7 +79,7 @@ export function IntelligenceWorkspace() {
     window.addEventListener("beforeunload", beforeUnload)
     return () => window.removeEventListener("beforeunload", beforeUnload)
   }, [dirty])
-  return <main className="sp-workspace sp-intelligence" data-studio-personal="intelligence">
+  return <main className="sp-workspace sp-intelligence" data-studio-personal="intelligence" data-studio-intro-surface="models">
     <header className="sp-heading"><div><p className="sp-eyebrow">WORK WITH DECKSTER</p><h1>Intelligence</h1><p>Give each part of your story a clear direction.</p></div><span className="sp-draft-badge"><span />{view === "current" ? "Current workflows" : "Design preview only"}</span></header>
     <div className="sp-context-bar"><span><SlidersHorizontal size={16} aria-hidden="true" /> {view === "current" ? "Available controls · service-managed model routing" : "Prototype model catalog · local comparison"}</span><div className="sp-preview-switcher" role="group" aria-label="Intelligence view"><button type="button" aria-pressed={view === "current"} onClick={() => setView("current")}>Current workflows</button><button type="button" aria-pressed={view === "design"} onClick={() => setView("design")}>Design preview</button></div></div>
     <div className="sp-intelligence-view" hidden={view !== "current"}>
@@ -95,6 +97,7 @@ export function IntelligenceWorkspace() {
       <div className="sp-draft-actions"><div><p><Info size={15} aria-hidden="true" /> Briefs stay while switching tasks and views. Leaving this page discards any brief you have not taken to Studio.</p><span className="sp-feedback" role="status">{briefFeedback}</span></div><div className="sp-action-buttons">{resetBriefs && <button className="sp-button" type="button" onClick={undoReset}>Undo reset</button>}<button className="sp-button" type="button" disabled={!taskIds.some(id => Boolean(briefs[id]))} onClick={resetLocalBriefs}><RotateCcw size={14} aria-hidden="true" />Reset local briefs</button></div></div>
     </div>
     <div className="sp-intelligence-view" hidden={view !== "design"}><ModelDesignPreview /></div>
+    <StudioIntroReplay screen="models" autoStart={true} targetSelector='[data-studio-intro-surface="models"]' className="studio-destination-intro-replay" />
   </main>
 }
 

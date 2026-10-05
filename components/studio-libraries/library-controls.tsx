@@ -5,6 +5,8 @@ import { ArrowRight, FolderOpen, Loader2, Plus, Search, X } from 'lucide-react'
 import { BackToBuilderButton } from '@/components/layout/app-header'
 import './libraries.css'
 import { StudioIntroReplay } from '@/components/studio-intro-replay'
+import type { WorkspaceIntroScreen } from '@/components/workspace-intro/types'
+import './destination-intros.css'
 
 export type LibraryMode = 'create' | 'library'
 
@@ -14,18 +16,20 @@ export function libraryDate(value?: string | null): string | undefined {
   return Number.isFinite(date.getTime()) ? date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }) : undefined
 }
 
-export function LibraryWorkspace({ title, description, mode, onModeChange, children, actions, workspaceId }: {
+export function LibraryWorkspace({ title, description, mode, onModeChange, children, actions, workspaceId, introScreen, introAutoStart, introEnabled = true }: {
   title: string; description: string; mode: LibraryMode
   onModeChange: (mode: LibraryMode) => void; children: ReactNode; actions?: ReactNode; workspaceId?: string
+  introScreen?: WorkspaceIntroScreen; introAutoStart?: boolean; introEnabled?: boolean
 }) {
-  return <main className="studio-library" data-studio-library={workspaceId ?? title.toLowerCase()}>
+  return <main className="studio-library" data-studio-library={workspaceId ?? title.toLowerCase()} data-studio-intro-surface={introScreen}>
     <div className="sl-heading"><div><p className="sl-eyebrow">YOUR REUSABLE LIBRARY</p><h1>{title}</h1><p>{description}</p></div>
-      <div className="sl-heading-actions"><StudioIntroReplay />{actions}<div className="sl-mode" aria-label={`${title} workspace`}>
+      <div className="sl-heading-actions">{!introScreen && <StudioIntroReplay />}{actions}<div className="sl-mode" aria-label={`${title} workspace`}>
         <button type="button" aria-pressed={mode === 'create'} onClick={() => onModeChange('create')}><Plus size={15} />Create</button>
         <button type="button" aria-pressed={mode === 'library'} onClick={() => onModeChange('library')}><FolderOpen size={15} />Library</button>
       </div></div>
     </div>
     {children}
+    {introScreen && <StudioIntroReplay screen={introScreen} autoStart={introAutoStart} enabled={introEnabled} targetSelector={`[data-studio-intro-surface="${introScreen}"]`} className="studio-destination-intro-replay" />}
   </main>
 }
 

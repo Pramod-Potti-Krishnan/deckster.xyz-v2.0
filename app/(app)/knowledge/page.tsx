@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { StudioIntroReplay } from "@/components/studio-intro-replay"
+import "@/components/studio-libraries/destination-intros.css"
 import {
   AlertCircle,
   ArrowRight,
@@ -792,7 +794,7 @@ stats && stats.nodes_by_type.length > 0 && (
   </>
 
   return (
-    <main data-studio-knowledge="true" className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+    <main data-studio-knowledge="true" data-studio-intro-surface="knowledge" className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
       <header data-studio-knowledge-role="header" className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div data-studio-knowledge-role="caption" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
@@ -986,6 +988,7 @@ stats && stats.nodes_by_type.length > 0 && (
           onClear={() => setSelectedId(null)}
         />
       </div>
+      <StudioIntroReplay screen="knowledge" autoStart={true} targetSelector='[data-studio-intro-surface="knowledge"]' className="studio-destination-intro-replay" />
     </main>
   )
 }
