@@ -1,12 +1,14 @@
 "use client"
 
 import { Sparkles } from "lucide-react"
+import type { ReactNode } from "react"
 import type { StudioDirectorConnectionState } from "./studio-welcome"
 import "./studio-director-header.css"
 
 export interface StudioDirectorHeaderProps {
   connectionState: StudioDirectorConnectionState
   isLoadingSession?: boolean
+  actions?: ReactNode
 }
 
 const CONNECTION_LABELS: Record<StudioDirectorConnectionState, string> = {
@@ -17,7 +19,7 @@ const CONNECTION_LABELS: Record<StudioDirectorConnectionState, string> = {
 }
 
 /** Persistent local identity. Connection describes the socket, not send availability. */
-export function StudioDirectorHeader({ connectionState, isLoadingSession = false }: StudioDirectorHeaderProps) {
+export function StudioDirectorHeader({ connectionState, isLoadingSession = false, actions }: StudioDirectorHeaderProps) {
   if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true") return null
   return (
     <header data-studio-director-header="true" role="group" aria-label="Director conversation">
@@ -26,6 +28,7 @@ export function StudioDirectorHeader({ connectionState, isLoadingSession = false
       <span role="status" aria-label="Director connection" aria-atomic="true" data-connection-state={isLoadingSession ? "loading" : connectionState}>
         {isLoadingSession ? "Loading conversation…" : CONNECTION_LABELS[connectionState]}
       </span>
+      {actions}
     </header>
   )
 }

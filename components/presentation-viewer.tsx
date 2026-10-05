@@ -417,6 +417,7 @@ const VIEWER_ORIGIN = LAYOUT_VIEWER_URL_POLICY.configuredOrigin
 type SendCommandOptions = {
   timeoutMs?: number
   expectedJobId?: string | null
+  requireRequestId?: boolean
 }
 
 function createViewerRequestId(): string {
@@ -482,7 +483,9 @@ function sendCommand(
             requestId,
             expectedJobId: options.expectedJobId,
           })
-        : event.data?.action === action && (!event.data?.requestId || event.data.requestId === requestId)
+        : event.data?.action === action && (options.requireRequestId
+          ? event.data.requestId === requestId
+          : !event.data?.requestId || event.data.requestId === requestId)
 
       if (matches) {
         if (requiresStrictResponse) {
@@ -746,7 +749,23 @@ export function PresentationViewer({
   const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
   const [isSlideMutationPending, setIsSlideMutationPending] = useState(false)
   const slideMutationPendingRef = useRef(false)
+  // Publication survives release of the busy lease, so queued React updates
+  // remain owned until a newer structural intent or frame/deck retires them.
+  const studioNativeMutationPublicationRef = useRef<object | null>(null)
+  // A native reload retires publication, but its latest logical operation may
+  // still need an honest check-result notice. New intent/deck/mount wins.
+  const studioNativeMutationIntentRef = useRef<object | null>(null)
+  const studioDeleteDialogRef = useRef<{
+    indices: number[]; open: boolean; submitted: boolean; isCurrent: () => boolean
+  } | null>(null)
   const viewerInteractionIntentRef = useRef(0)
+  // Manual navigation can retire automatic selection without retiring owned
+  // structural counts/metadata. Poll movement is not a manual-intent receipt.
+  const studioSlideNavigationRevisionRef = useRef(0)
+  const studioManualSlideNavigationRef = useRef<{
+    revision: number; iframe: HTMLIFrameElement; isCurrent: () => boolean
+    selectedId: Promise<string | null>
+  } | null>(null)
   const studioComposeLoadRevisionRef = useRef(0)
   const studioComposeLoadedFrameRef = useRef<{
     iframe: HTMLIFrameElement; source: string; nativeWindow: Window | null; revision: number
@@ -766,6 +785,9 @@ export function PresentationViewer({
     owner: object
     mountGeneration: number
     iframe: HTMLIFrameElement
+    isCurrent?: () => boolean
+    reportUnconfirmed?: () => void
+    operation?: 'add'
   } | null>(null)
   const toolbarDropdownPortalContainer = isFullscreen ? containerRef.current ?? undefined : undefined
   // Text box selection state
@@ -835,6 +857,10 @@ export function PresentationViewer({
     // receipt continues settling. Its eventual finally cannot release this gate.
     slideMutationRequestRef.current = null
     slideMutationPendingRef.current = false
+    studioNativeMutationPublicationRef.current = null
+    studioNativeMutationIntentRef.current = null
+    studioDeleteDialogRef.current = null
+    studioManualSlideNavigationRef.current = null
     studioSaveRequestRef.current = null
   }
   const renderSlideMutationOwner = slideMutationOwnerRef.current
@@ -886,6 +912,124 @@ export function PresentationViewer({
       onThumbnailInvalidatedRef.current?.(owner.presentationId)
     }
   }, [studioShell, renderSlideMutationOwner])
+  const captureStudioNativeSlideFrame = useCallback(() => {
+    const owner = renderSlideMutationOwner
+    const iframe = iframeRef.current
+    if (!iframe) return null
+    if (!studioShell) return { iframe, isCurrent: () => true, isLogicalCurrent: () => true }
+    const mount = slideMutationMountRef.current.generation
+    const source = iframe.src
+    const nativeWindow = iframe.contentWindow
+    const loaded = studioComposeLoadedFrameRef.current
+    const deck = studioComposeDeckOwnerRef.current.token
+    let retired = false
+    const isLogicalCurrent = () => slideMutationMountRef.current.active
+      && slideMutationMountRef.current.generation === mount
+      && studioComposeDeckOwnerRef.current.token === deck
+      && slideMutationOwnerRef.current.source === source
+    const isCurrent = () => {
+      if (retired) return false
+      const current = isLogicalCurrent() && slideMutationOwnerRef.current === owner
+        && iframeRef.current === iframe && iframe.src === source && iframe.contentWindow === nativeWindow
+        && Boolean(nativeWindow && loaded && loaded.iframe === iframe && loaded.source === source
+          && loaded.nativeWindow === nativeWindow && loaded.revision === studioComposeLoadRevisionRef.current)
+        && studioComposeLoadedFrameRef.current === loaded && source === owner.source
+      if (!current) retired = true
+      return current
+    }
+    return isCurrent() ? { iframe, isCurrent, isLogicalCurrent } : null
+  }, [studioShell, renderSlideMutationOwner])
+  const beginStudioManualSlideNavigation = useCallback((targetIndex: number) => {
+    if (!studioShell) return null
+    const revision = ++studioSlideNavigationRevisionRef.current
+    studioManualSlideNavigationRef.current = null
+    // Only a pending Add can self-navigate without a frame reload. Capture a
+    // real selected ID for that recovery; no ordinary navigation read is added.
+    if (slideMutationRequestRef.current?.operation !== 'add') return null
+    const frame = captureStudioNativeSlideFrame()
+    if (!frame) return null
+    let settle: (id: string | null) => void = () => {}
+    const selectedId = new Promise<string | null>(resolve => { settle = resolve })
+    const record = { revision, iframe: frame.iframe, selectedId,
+      isCurrent: () => studioManualSlideNavigationRef.current === record
+        && studioSlideNavigationRevisionRef.current === revision && frame.isCurrent() }
+    studioManualSlideNavigationRef.current = record
+    let started = false
+    return {
+      capture: async () => {
+        if (started) return
+        started = true
+        let id: string | null = null
+        try {
+          if (record.isCurrent()) {
+            const order = parseStudioNativeSlideOrder(await sendCommand(frame.iframe, 'composeGetState', {}, {
+              timeoutMs: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+            }))
+            if (record.isCurrent() && order?.currentVisualIndex === targetIndex) id = order.slideIds[targetIndex] ?? null
+          }
+        } catch { /* Optional identity proof never guesses or repeats Add. */ }
+        settle(id)
+      },
+      cancel: () => { started = true; settle(null) },
+    }
+  }, [studioShell, captureStudioNativeSlideFrame])
+  const beginStudioNativeSlideMutation = useCallback((operation = 'slide change') => {
+    const frame = captureStudioNativeSlideFrame()
+    if (!frame) return null
+    if (!studioShell) return {
+      ...frame, release: () => {}, reportUnconfirmed: (_operation: string) => {},
+      commit: <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => setter(value),
+      commitSelection: <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => setter(value),
+    }
+    const owner = renderSlideMutationOwner
+    const mount = slideMutationMountRef.current.generation
+    const navigationRevision = studioSlideNavigationRevisionRef.current
+    const pending = slideMutationRequestRef.current
+    if (pending && (pending.owner !== owner || pending.mountGeneration !== mount
+      || pending.iframe !== frame.iframe || pending.isCurrent?.() === false)) {
+      slideMutationRequestRef.current = null
+      slideMutationPendingRef.current = false
+    }
+    if (slideMutationPendingRef.current) return null
+    const request = { owner, mountGeneration: mount, iframe: frame.iframe,
+      isCurrent: () => false, reportUnconfirmed: () => {} }
+    studioNativeMutationPublicationRef.current = request
+    studioNativeMutationIntentRef.current = request
+    const isLogicalCurrent = () => studioNativeMutationPublicationRef.current === request && frame.isLogicalCurrent()
+    const isCurrent = () => isLogicalCurrent() && frame.isCurrent()
+    request.isCurrent = isCurrent
+    slideMutationRequestRef.current = request
+    slideMutationPendingRef.current = true
+    setIsSlideMutationPending(previous => isLogicalCurrent() ? true : previous)
+    let reported = false
+    const reportUnconfirmed = (label = operation) => {
+      if (reported || studioNativeMutationIntentRef.current !== request || !frame.isLogicalCurrent()
+        || iframeRef.current?.src !== owner.source) return
+      reported = true
+      toast({ title: 'Check slide result',
+        description: `The ${label} result could not be confirmed. Check the slide list before trying again.`,
+        variant: 'destructive' })
+    }
+    request.reportUnconfirmed = () => reportUnconfirmed()
+    return {
+      iframe: frame.iframe, isCurrent, isLogicalCurrent,
+      commit: <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+        if (isCurrent()) setter(previous => isCurrent() ? value : previous)
+      },
+      commitSelection: <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+        const selected = () => isCurrent() && studioSlideNavigationRevisionRef.current === navigationRevision
+        if (selected()) setter(previous => selected() ? value : previous)
+      },
+      reportUnconfirmed,
+      release: () => {
+        if (slideMutationRequestRef.current !== request) return
+        slideMutationRequestRef.current = null
+        slideMutationPendingRef.current = false
+        // Releasing this request's busy UI does not publish native slide data.
+        setIsSlideMutationPending(previous => isLogicalCurrent() ? false : previous)
+      },
+    }
+  }, [captureStudioNativeSlideFrame, studioShell, renderSlideMutationOwner, toast])
   const beginStudioViewerInteraction = useCallback(() => {
     const owner = renderSlideMutationOwner
     const mountGeneration = slideMutationMountRef.current.generation
@@ -912,12 +1056,21 @@ export function PresentationViewer({
       if (studioShell) {
         slideMutationRequestRef.current = null
         slideMutationPendingRef.current = false
+        studioNativeMutationPublicationRef.current = null
+        studioNativeMutationIntentRef.current = null
+        studioDeleteDialogRef.current = null
+        studioManualSlideNavigationRef.current = null
       }
     }
   }, [studioShell])
   useEffect(() => {
     if (studioShell) setIsSlideMutationPending(slideMutationPendingRef.current)
     if (studioShell && !studioSaveRequestRef.current) setIsSaving(false)
+    if (studioShell && !studioDeleteDialogRef.current) {
+      setIsDeleting(false)
+      setShowDeleteDialog(false)
+      setSlidesToDelete(null)
+    }
   }, [studioShell, renderSlideMutationOwner])
   const viewerHasLoaded = Boolean(
     iframeReady &&
@@ -1110,7 +1263,18 @@ export function PresentationViewer({
     if (studioShell && event.currentTarget !== iframeRef.current) return
     const loadedUrl = event.currentTarget.src
     if (!approvedIframeNavigationUrl || loadedUrl !== approvedIframeNavigationUrl) {
-      if (studioShell) studioComposeLoadedFrameRef.current = null
+      if (studioShell) {
+        studioComposeLoadedFrameRef.current = null
+        studioNativeMutationPublicationRef.current = null
+        slideMutationRequestRef.current = null
+        slideMutationPendingRef.current = false
+        studioDeleteDialogRef.current = null
+        studioManualSlideNavigationRef.current = null
+        setIsSlideMutationPending(false)
+        setIsDeleting(false)
+        setShowDeleteDialog(false)
+        setSlidesToDelete(null)
+      }
       setIframeReady(false)
       setLoadedApprovedNavigationUrl(null)
       return
@@ -1118,6 +1282,7 @@ export function PresentationViewer({
     debugLog('✅ Iframe loaded and ready')
     if (studioShell) {
       // Even an identical URL is a fresh native frame lifetime.
+      const retiredNativeRequest = slideMutationRequestRef.current
       studioComposeLoadRevisionRef.current += 1
       studioComposeLoadedFrameRef.current = { iframe: event.currentTarget, source: loadedUrl,
         nativeWindow: event.currentTarget.contentWindow, revision: studioComposeLoadRevisionRef.current }
@@ -1125,10 +1290,19 @@ export function PresentationViewer({
         generation: slideMutationOwnerRef.current.generation + 1 }
       slideMutationRequestRef.current = null
       slideMutationPendingRef.current = false
+      studioNativeMutationPublicationRef.current = null
+      studioDeleteDialogRef.current = null
+      studioManualSlideNavigationRef.current = null
       studioSaveRequestRef.current = null
       setIsSaving(false)
       setIsSlideMutationPending(false)
+      setIsDeleting(false)
+      setShowDeleteDialog(false)
+      setSlidesToDelete(null)
       setNativeSnapshotSafetyRevision(value => value + 1)
+      // Layout's existing CRUD handlers reload before ACK. Warn promptly,
+      // once, without claiming success or borrowing this new frame's data.
+      retiredNativeRequest?.reportUnconfirmed?.()
     }
     setLoadedApprovedNavigationUrl(loadedUrl)
     setIframeReady(true)
@@ -1185,8 +1359,10 @@ export function PresentationViewer({
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
     debugLog('🔘 Next button clicked!')
+    const navigation = beginStudioManualSlideNavigation(currentSlide)
     const interaction = studioShell ? beginStudioViewerInteraction() : null
     if (studioShell && snapshotSelectionRef.current) {
+      navigation?.cancel()
       const next = Math.min(Math.max(1, totalSlides || currentSlide), snapshotCurrentSlideRef.current + 1)
       snapshotSelectionRef.current.index = next - 1
       setCurrentSlide(next)
@@ -1194,12 +1370,14 @@ export function PresentationViewer({
       return
     }
     if (!iframeRef.current) {
+      navigation?.cancel()
       debugLog('❌ Iframe not ready')
       return
     }
     try {
       await sendCommand(interaction?.iframe ?? iframeRef.current, 'nextSlide')
-      if (interaction && !interaction.isCurrent()) return
+      if (interaction && !interaction.isCurrent()) { navigation?.cancel(); return }
+      void navigation?.capture()
       // Immediately update local state (polling will confirm/sync)
       const navigationTotal = Math.max(visualTotalSlides || 0, totalSlides || 0, currentSlide)
       if (currentSlide < (navigationTotal || 999)) {
@@ -1209,14 +1387,17 @@ export function PresentationViewer({
         debugLog(`➡️ Next slide (${currentSlide} → ${newSlide})`)
       }
     } catch (error) {
+      navigation?.cancel()
       console.error('Error navigating to next slide:', error)
     }
-  }, [currentSlide, totalSlides, visualTotalSlides, onSlideChange, studioShell, beginStudioViewerInteraction])
+  }, [currentSlide, totalSlides, visualTotalSlides, onSlideChange, studioShell, beginStudioViewerInteraction, beginStudioManualSlideNavigation])
 
   const handlePrevSlide = useCallback(async () => {
     debugLog('🔘 Prev button clicked!')
+    const navigation = beginStudioManualSlideNavigation(Math.max(0, currentSlide - 2))
     const interaction = studioShell ? beginStudioViewerInteraction() : null
     if (studioShell && snapshotSelectionRef.current) {
+      navigation?.cancel()
       const previous = Math.max(1, snapshotCurrentSlideRef.current - 1)
       snapshotSelectionRef.current.index = previous - 1
       setCurrentSlide(previous)
@@ -1226,13 +1407,15 @@ export function PresentationViewer({
     debugLog(`   Current slide: ${currentSlide}, Total: ${totalSlides}`)
     debugLog(`   Button should be disabled: ${currentSlide <= 1}`)
     if (!iframeRef.current) {
+      navigation?.cancel()
       debugLog('❌ Iframe not ready')
       return
     }
     try {
       debugLog('📤 Sending prevSlide command...')
       await sendCommand(interaction?.iframe ?? iframeRef.current, 'prevSlide')
-      if (interaction && !interaction.isCurrent()) return
+      if (interaction && !interaction.isCurrent()) { navigation?.cancel(); return }
+      void navigation?.capture()
       // Immediately update local state (polling will confirm/sync)
       if (currentSlide > 1) {
         const newSlide = currentSlide - 1
@@ -1241,9 +1424,10 @@ export function PresentationViewer({
         debugLog(`⬅️ Previous slide (${currentSlide} → ${newSlide})`)
       }
     } catch (error) {
+      navigation?.cancel()
       console.error('❌ Error navigating to previous slide:', error)
     }
-  }, [currentSlide, totalSlides, onSlideChange, studioShell, beginStudioViewerInteraction])
+  }, [currentSlide, totalSlides, onSlideChange, studioShell, beginStudioViewerInteraction, beginStudioManualSlideNavigation])
 
   const handleToggleOverview = useCallback(() => {
     debugLog('🔘 Grid button clicked - toggling thumbnail strip!')
@@ -1316,30 +1500,35 @@ export function PresentationViewer({
   // existing effect-synced onSlideChangeRef instead; identity stays stable.
   const handleGoToSlide = useCallback(async (slideIndex: number) => {
     debugLog(`🎯 Navigating to slide ${slideIndex + 1}`)
+    const navigation = beginStudioManualSlideNavigation(slideIndex)
     const interaction = studioShell ? beginStudioViewerInteraction() : null
     const nextSlide = slideIndex + 1
     setCurrentSlide(nextSlide)
     onSlideChangeRef.current?.(nextSlide)
     if (snapshotSelectionRef.current) {
+      navigation?.cancel()
       snapshotSelectionRef.current.index = Math.max(0, slideIndex)
       return
     }
 
     if (!iframeRef.current) {
+      navigation?.cancel()
       debugLog('❌ Iframe not ready')
       return
     }
 
     try {
       await sendCommand(interaction?.iframe ?? iframeRef.current, 'goToSlide', { index: slideIndex }, { timeoutMs: 1500 })
-      if (interaction && !interaction.isCurrent()) return
+      if (interaction && !interaction.isCurrent()) { navigation?.cancel(); return }
+      void navigation?.capture()
       debugLog(`✅ Navigated to slide ${slideIndex + 1}`)
     } catch (error) {
-      if (interaction && !interaction.isCurrent()) return
+      if (interaction && !interaction.isCurrent()) { navigation?.cancel(); return }
       console.warn('goToSlide response timed out; keeping optimistic slide state and sending fallback navigation.', error)
       postCommand(interaction?.iframe ?? iframeRef.current, 'goToSlide', { index: slideIndex })
+      void navigation?.capture()
     }
-  }, [studioShell, beginStudioViewerInteraction])
+  }, [studioShell, beginStudioViewerInteraction, beginStudioManualSlideNavigation])
 
   // Poll for slide info updates via postMessage (with exponential backoff)
   useEffect(() => {
@@ -1364,6 +1553,16 @@ export function PresentationViewer({
       if (!iframeRef.current || !viewerHasLoaded) return
       const polledFrame = iframeRef.current
       const polledOwner = renderSlideMutationOwner
+      const polledNavigationRevision = studioSlideNavigationRevisionRef.current
+      // This receipt's read origin stays excluded after Add releases its busy
+      // lease; it may already contain Add's self-selected native index.
+      const polledDuringManualAdd = slideMutationRequestRef.current?.operation === 'add'
+        && studioManualSlideNavigationRef.current?.revision === polledNavigationRevision
+      const selectionIsCurrent = () => !studioShell || (
+        !polledDuringManualAdd && studioSlideNavigationRevisionRef.current === polledNavigationRevision
+        && !(slideMutationRequestRef.current?.operation === 'add'
+          && studioManualSlideNavigationRef.current?.revision === polledNavigationRevision)
+      )
 
       try {
         const hasComposeJobs = composeJobs.length > 0
@@ -1418,11 +1617,15 @@ export function PresentationViewer({
 
           if (slideInfoChanged) {
             debugLog(`📊 Slide info: ${slideNum} / ${visualTotal} visual (${total} real)`)
-            lastSlideInfoRef.current = { slide: slideNum, total, visualTotal }
-            setCurrentSlide(prev => prev === slideNum ? prev : slideNum)
+            // An older poll, or Add's own native self-navigation while a later
+            // explicit choice is being restored, cannot supersede that choice.
+            if (selectionIsCurrent()) {
+              lastSlideInfoRef.current = { slide: slideNum, total, visualTotal }
+              setCurrentSlide(prev => selectionIsCurrent() && prev !== slideNum ? slideNum : prev)
+            }
             setTotalSlides(prev => prev === total ? prev : total)
             setVisualTotalSlides(prev => prev === visualTotal ? prev : visualTotal)
-            onSlideChangeRef.current?.(slideNum)
+            if (selectionIsCurrent()) onSlideChangeRef.current?.(slideNum)
           }
 
           // Reset failure count on success
@@ -1609,15 +1812,18 @@ export function PresentationViewer({
   const handleAddSlide = useCallback(async (layoutId: SlideLayoutType) => {
     const expectedOwner = renderSlideMutationOwner
     const expectedMountGeneration = slideMutationMountRef.current.generation
+    const capturedFrame = studioShell ? captureStudioNativeSlideFrame() : null
     if (studioShell && (
       !slideMutationMountRef.current.active
       || slideMutationOwnerRef.current !== expectedOwner
+      || !capturedFrame
     )) return
     const pendingRequest = slideMutationRequestRef.current
     if (studioShell && pendingRequest && (
       pendingRequest.owner !== expectedOwner
       || pendingRequest.mountGeneration !== expectedMountGeneration
       || pendingRequest.iframe !== iframeRef.current
+      || pendingRequest.isCurrent?.() === false
     )) {
       slideMutationRequestRef.current = null
       slideMutationPendingRef.current = false
@@ -1625,7 +1831,7 @@ export function PresentationViewer({
     // State updates are asynchronous; the ref closes the same-tick duplicate
     // click window before SlideLayoutPicker can repaint its disabled state.
     if (slideMutationPendingRef.current) return
-    const iframe = iframeRef.current
+    const iframe = capturedFrame?.iframe ?? iframeRef.current
     if (!iframe) {
       toast({
         title: 'Error',
@@ -1635,22 +1841,49 @@ export function PresentationViewer({
       return
     }
 
-    const request = { owner: expectedOwner, mountGeneration: expectedMountGeneration, iframe }
+    const navigationRevision = studioSlideNavigationRevisionRef.current
+    let addDispatched = false
+    let committedSlideNumber: number | null = null
+    let reportedRetirement = false
+    const request = { owner: expectedOwner, mountGeneration: expectedMountGeneration, iframe,
+      operation: 'add' as const, isCurrent: () => false, reportUnconfirmed: () => {} }
     const isCurrentSlideMutation = () => !studioShell || (
-      slideMutationMountRef.current.active
-      && slideMutationMountRef.current.generation === expectedMountGeneration
-      && slideMutationOwnerRef.current === expectedOwner
-      && iframeRef.current === iframe
+      studioNativeMutationPublicationRef.current === request && capturedFrame?.isCurrent() === true
     )
-    if (studioShell) slideMutationRequestRef.current = request
+    const isCurrentSlideSelection = () => isCurrentSlideMutation()
+      && (!studioShell || studioSlideNavigationRevisionRef.current === navigationRevision)
+    const commit = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+      if (!studioShell) { setter(value); return }
+      if (isCurrentSlideMutation()) setter(previous => isCurrentSlideMutation() ? value : previous)
+    }
+    const commitSelection = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+      if (!studioShell) { setter(value); return }
+      if (isCurrentSlideSelection()) setter(previous => isCurrentSlideSelection() ? value : previous)
+    }
+    const reportRetiredAdd = () => {
+      if (!studioShell || !addDispatched || reportedRetirement
+        || studioNativeMutationIntentRef.current !== request || !capturedFrame?.isLogicalCurrent()
+        || iframeRef.current?.src !== expectedOwner.source) return
+      reportedRetirement = true
+      toast({ title: 'Check slide result',
+        description: 'The slide result could not be confirmed. Check the slide list before trying again; do not add it again merely to recover the acknowledgement.',
+        variant: 'destructive' })
+    }
+    request.isCurrent = isCurrentSlideMutation
+    request.reportUnconfirmed = reportRetiredAdd
+    if (studioShell) {
+      studioNativeMutationPublicationRef.current = request
+      studioNativeMutationIntentRef.current = request
+      studioManualSlideNavigationRef.current = null
+      slideMutationRequestRef.current = request
+    }
     slideMutationPendingRef.current = true
     if (studioShell) nativeSnapshotStructureEditedRef.current = true
-    setIsSlideMutationPending(true)
+    commit<boolean>(setIsSlideMutationPending, true)
     const capturedNativeRevision = thumbnailNativeRevisionRef.current
     const capturedMetadataRevision = thumbnailMetadataRef.current.revision
     const invalidateThumbnails = studioShell ? captureThumbnailInvalidation(false) : () => {}
-    const commitThumbnailMutation = studioShell && expectedOwner.presentationId
-      ? onThumbnailMutationCapture?.(expectedOwner.presentationId, expectedOwner) : undefined
+    let commitThumbnailMutation: ReturnType<StudioThumbnailMutationCapture> | undefined
     const isCurrentThumbnailProof = () => isCurrentSlideMutation()
       && capturedNativeRevision === thumbnailNativeRevisionRef.current
       && capturedMetadataRevision === thumbnailMetadataRef.current.revision
@@ -1658,10 +1891,41 @@ export function PresentationViewer({
     // never blocks Add, retries its mutation, or substitutes an invented ID.
     const readNativeOrder = async () => {
       try {
-        return parseStudioNativeSlideOrder(await sendCommand(iframe, 'composeGetState', {}, {
+        if (!isCurrentSlideMutation()) { reportRetiredAdd(); return null }
+        const receipt = await sendCommand(iframe, 'composeGetState', {}, {
           timeoutMs: READ_LAYOUT_COMMAND_TIMEOUT_MS,
-        }))
+        })
+        return isCurrentSlideMutation() ? parseStudioNativeSlideOrder(receipt) : null
       } catch { return null }
+    }
+    const restoreManualSlideSelection = async (expectedTotal: number) => {
+      const manual = studioManualSlideNavigationRef.current
+      const active = () => isCurrentSlideMutation() && !!manual
+        && manual.iframe === iframe && manual.isCurrent()
+      if (!active() || !manual) return false
+      const selectedId = await manual.selectedId
+      if (!selectedId || !active()) return false
+      const before = await readNativeOrder()
+      if (!active() || !before || before.nativeCount !== expectedTotal) return false
+      const index = before.slideIds.indexOf(selectedId)
+      if (index < 0) return false
+      try {
+        if (before.currentVisualIndex !== index) {
+          // Existing navigation only: the ID was observed at the user's own
+          // selection, and this exact current order proves its new index.
+          if (!active()) return false
+          await sendCommand(iframe, 'goToSlide', { index })
+          if (!active()) return false
+        }
+        const after = await readNativeOrder()
+        if (!active() || !after || after.nativeCount !== expectedTotal
+          || after.slideIds[index] !== selectedId || after.currentVisualIndex !== index) return false
+        setCurrentSlide(previous => active() ? index + 1 : previous)
+        setSelectedSlideIndices(previous => active() ? [index] : previous)
+        if (!active()) return false
+        onSlideChangeRef.current?.(index + 1)
+        return active()
+      } catch { return false }
     }
     const proofOwner = {
       userId: expectedOwner.userId ?? '', sessionId: expectedOwner.sessionId ?? '',
@@ -1671,12 +1935,14 @@ export function PresentationViewer({
     let beforeOrder: ReturnType<typeof parseStudioNativeSlideOrder> = null
     let provenRows: SlideThumbnail[] | null = null
     let thumbnailCapture: StudioSlideThumbnailCapture | null = null
-    let committedSlideNumber: number | null = null
     let thumbnailCacheRetired = false
     try {
+      commitThumbnailMutation = studioShell && expectedOwner.presentationId
+        ? onThumbnailMutationCapture?.(expectedOwner.presentationId, expectedOwner) : undefined
+      if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
       if (studioShell && commitThumbnailMutation && expectedOwner.deckOwnerSessionId === expectedOwner.sessionId) {
         beforeOrder = await readNativeOrder()
-        if (!isCurrentSlideMutation()) return
+        if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
         if (beforeOrder && isCurrentThumbnailProof()) {
           const rows = studioCanonicalThumbnails?.owner === expectedOwner
             && studioCanonicalThumbnails.nativeRevision === capturedNativeRevision
@@ -1701,16 +1967,15 @@ export function PresentationViewer({
       }
       const mutationId = createLayoutMutationId('add-slide')
       const result = await sendLayoutMutationWithReconciliation(
-        (action, params) => sendCommand(
-          iframe,
-          action,
-          params,
-          {
+        (action, params) => {
+          if (!isCurrentSlideMutation()) throw new Error('Native Add frame retired')
+          if (action === 'addSlide') addDispatched = true
+          return sendCommand(iframe, action, params, {
             timeoutMs: action === 'getElementMutationReceipt'
               ? READ_LAYOUT_COMMAND_TIMEOUT_MS
               : MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
-          },
-        ),
+          })
+        },
         'addSlide',
         {
           layout: layoutId,
@@ -1719,7 +1984,7 @@ export function PresentationViewer({
         mutationId,
         { attempts: 12, delayMs: 250 },
       )
-      if (!isCurrentSlideMutation()) return
+      if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
 
       if (result.success) {
         // Backend sends slide_index and slide_count directly (not nested in data)
@@ -1743,25 +2008,27 @@ export function PresentationViewer({
 
         if (studioShell && capturedNativeRevision === thumbnailNativeRevisionRef.current) {
           // Do not display old-index images while the post-ACK identity read waits.
-          setStudioCanonicalThumbnails(null)
+          setStudioCanonicalThumbnails(previous => isCurrentSlideMutation()
+            && thumbnailNativeRevisionRef.current === capturedNativeRevision ? null : previous)
           if (commitThumbnailMutation?.fence?.(expectedOwner) !== true) invalidateThumbnails()
           thumbnailCacheRetired = true
         }
-        setTotalSlides(newTotal)
-        setCurrentSlide(newSlideNumber) // Update local state (1-based)
-        if (studioShell) setSelectedSlideIndices([newSlideIndex])
+        if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+        commit(setTotalSlides, newTotal)
+        commitSelection(setCurrentSlide, newSlideNumber) // Update local state (1-based)
+        if (studioShell) commitSelection<number[]>(setSelectedSlideIndices, [newSlideIndex])
         // The parent owns the slide index used by Add Element. Publish the
         // authoritative addSlide result before awaiting navigation/edit-mode
         // commands so an immediate Add Blank → Chart cannot target the prior
         // slide while the 3-second viewer poll is still stale.
-        onSlideChangeRef.current?.(newSlideNumber)
-        if (!isCurrentSlideMutation()) return
-        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+        if (isCurrentSlideSelection()) onSlideChangeRef.current?.(newSlideNumber)
+        if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+        commit<boolean>(setSlidesModifiedByCrud, true) // Invalidate stale slideStructure
         if (studioShell) {
           let preserved = false
           if (beforeOrder && provenRows && thumbnailCapture && commitThumbnailMutation && isCurrentThumbnailProof()) {
             const afterOrder = await readNativeOrder()
-            if (!isCurrentSlideMutation()) return
+            if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
             if (afterOrder && isCurrentThumbnailProof()) {
               const plan = planStudioSlideThumbnailMutation({ captured: thumbnailCapture,
                 current: thumbnailCapture, mutation: { kind: 'add' },
@@ -1773,9 +2040,13 @@ export function PresentationViewer({
                   ...row, slideId: order.slideIds[index],
                 })) as SlideThumbnail[]
                 thumbnailNativeRevisionRef.current += 1
-                setStudioCanonicalThumbnails({ owner: expectedOwner,
-                  nativeRevision: thumbnailNativeRevisionRef.current,
-                  metadataRevision: capturedMetadataRevision, rows })
+                const nativeRevision = thumbnailNativeRevisionRef.current
+                setStudioCanonicalThumbnails(previous => isCurrentSlideMutation()
+                  && thumbnailNativeRevisionRef.current === nativeRevision
+                  && thumbnailMetadataRef.current.revision === capturedMetadataRevision
+                  ? { owner: expectedOwner, nativeRevision, metadataRevision: capturedMetadataRevision, rows }
+                  : previous)
+                if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
                 commitThumbnailMutation(expectedOwner, plan)
                 preserved = true
               }
@@ -1787,33 +2058,45 @@ export function PresentationViewer({
           if (!preserved && isCurrentSlideMutation()
             && capturedNativeRevision === thumbnailNativeRevisionRef.current) {
             thumbnailNativeRevisionRef.current += 1
-            setStudioCanonicalThumbnails(null)
+            const retiredNativeRevision = thumbnailNativeRevisionRef.current
+            setStudioCanonicalThumbnails(previous => isCurrentSlideMutation()
+              && thumbnailNativeRevisionRef.current === retiredNativeRevision ? null : previous)
             if (!thumbnailCacheRetired) invalidateThumbnails()
           }
         }
 
-        // Navigate iframe to the new slide (PowerPoint/Keynote behavior)
-        await sendCommand(iframe, 'goToSlide', { index: newSlideIndex })
-        if (!isCurrentSlideMutation()) return
-
-        // Activate element borders for editing (like pressing 'B')
-        await sendCommand(iframe, 'toggleBorderHighlight')
-        if (!isCurrentSlideMutation()) return
-
-        // Auto-enter edit mode after adding a slide
-        if (studioShell) await ensureEditMode(iframe, isCurrentSlideMutation)
-        else await ensureEditMode()
-        if (!isCurrentSlideMutation()) return
+        let manualSelectionConfirmed = true
+        if (isCurrentSlideSelection()) {
+          // Navigate iframe to the new slide (PowerPoint/Keynote behavior).
+          await sendCommand(iframe, 'goToSlide', { index: newSlideIndex })
+          if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+          if (isCurrentSlideSelection()) {
+            // Only the still-current automatic selection owns these editing
+            // follow-ups; a later manual slide is not this Add's edit target.
+            await sendCommand(iframe, 'toggleBorderHighlight')
+            if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+            if (isCurrentSlideSelection()) {
+              if (studioShell) await ensureEditMode(iframe, isCurrentSlideSelection)
+              else await ensureEditMode()
+            }
+          }
+        }
+        if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+        if (studioShell && !isCurrentSlideSelection()) {
+          manualSelectionConfirmed = await restoreManualSlideSelection(newTotal)
+          if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+        }
 
         toast({
-          title: 'Slide Added',
-          description: `New slide inserted at position ${newSlideIndex + 1}`
+          title: manualSelectionConfirmed ? 'Slide Added' : 'Slide added; selection not confirmed',
+          description: manualSelectionConfirmed ? `New slide inserted at position ${newSlideIndex + 1}`
+            : `Slide ${newSlideNumber} was added. Select your slide again; do not add it again.`,
         })
 
         debugLog(`➕ Added ${layoutId} slide at position ${newSlideIndex + 1}`)
       }
     } catch (error) {
-      if (!isCurrentSlideMutation()) return
+      if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
       console.error('Error adding slide:', error)
       toast({
         title: committedSlideNumber
@@ -1832,32 +2115,37 @@ export function PresentationViewer({
       if (!studioShell || slideMutationRequestRef.current === request) {
         if (studioShell) slideMutationRequestRef.current = null
         slideMutationPendingRef.current = false
-        if (isCurrentSlideMutation()) setIsSlideMutationPending(false)
+        if (!studioShell) setIsSlideMutationPending(false)
+        else setIsSlideMutationPending(previous => studioNativeMutationPublicationRef.current === request
+          && capturedFrame?.isLogicalCurrent() === true ? false : previous)
       }
     }
   }, [currentSlide, totalSlides, toast, ensureEditMode, studioShell, renderSlideMutationOwner, captureThumbnailInvalidation,
-    onThumbnailMutationCapture, studioCanonicalThumbnails, slideStructure, slidesModifiedByCrud, presentationId])
+    onThumbnailMutationCapture, studioCanonicalThumbnails, slideStructure, slidesModifiedByCrud, presentationId, captureStudioNativeSlideFrame])
 
   // Duplicate slide handler
   const handleDuplicateSlide = useCallback(async (slideIndex: number) => {
-    if (!iframeRef.current) return
+    const mutation = beginStudioNativeSlideMutation('duplicate')
+    if (!mutation) return
     const invalidateThumbnails = captureThumbnailInvalidation()
 
     try {
-      const result = await sendCommand(iframeRef.current, 'duplicateSlide', {
+      const result = await sendCommand(mutation.iframe, 'duplicateSlide', {
         index: slideIndex,      // snake_case to match backend
         insert_after: true
-      })
+      }, studioShell ? { requireRequestId: true } : 5000)
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('duplicate'); return }
 
       if (result.success) {
         // Backend sends new_slide_index directly (not nested in data)
         const newSlideIndex = result.new_slide_index ?? result.data?.newSlideIndex ?? slideIndex + 1
         const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides + 1
 
-        setTotalSlides(newTotal)
-        setCurrentSlide(newSlideIndex + 1)
-        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+        mutation.commit(setTotalSlides, newTotal)
+        mutation.commitSelection(setCurrentSlide, newSlideIndex + 1)
+        mutation.commit<boolean>(setSlidesModifiedByCrud, true) // Invalidate stale slideStructure
         invalidateThumbnails()
+        if (!mutation.isCurrent()) { mutation.reportUnconfirmed('duplicate'); return }
 
         toast({
           title: 'Slide Duplicated',
@@ -1867,20 +2155,33 @@ export function PresentationViewer({
         debugLog(`📋 Duplicated slide ${slideIndex + 1} → ${newSlideIndex + 1}`)
       }
     } catch (error) {
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('duplicate'); return }
+      if (studioShell && error instanceof Error && /command timeout/i.test(error.message)) {
+        mutation.reportUnconfirmed('duplicate'); return
+      }
       console.error('Error duplicating slide:', error)
       toast({
         title: 'Error',
         description: 'Failed to duplicate slide. Please try again.',
         variant: 'destructive'
       })
-    }
-  }, [totalSlides, toast, captureThumbnailInvalidation])
+    } finally { mutation.release() }
+  }, [totalSlides, toast, captureThumbnailInvalidation, studioShell, beginStudioNativeSlideMutation])
 
   // Open delete dialog for single slide
   const handleOpenDeleteDialog = useCallback((slideIndex: number) => {
-    setSlidesToDelete([slideIndex])
+    const indices = [slideIndex]
+    if (studioShell) {
+      if (slideMutationPendingRef.current) return
+      const frame = captureStudioNativeSlideFrame()
+      if (!frame) return
+      const intent = viewerInteractionIntentRef.current
+      studioDeleteDialogRef.current = { indices, open: true, submitted: false,
+        isCurrent: () => frame.isCurrent() && viewerInteractionIntentRef.current === intent }
+    }
+    setSlidesToDelete(indices)
     setShowDeleteDialog(true)
-  }, [])
+  }, [studioShell, captureStudioNativeSlideFrame])
 
   // Open delete dialog for multiple slides (bulk delete)
   const handleOpenBulkDeleteDialog = useCallback((slideIndices: number[]) => {
@@ -1894,23 +2195,52 @@ export function PresentationViewer({
       })
       return
     }
+    if (studioShell) {
+      if (slideMutationPendingRef.current) return
+      const frame = captureStudioNativeSlideFrame()
+      if (!frame) return
+      const intent = viewerInteractionIntentRef.current
+      studioDeleteDialogRef.current = { indices: slideIndices, open: true, submitted: false,
+        isCurrent: () => frame.isCurrent() && viewerInteractionIntentRef.current === intent }
+    }
     setSlidesToDelete(slideIndices)
     setShowDeleteDialog(true)
-  }, [totalSlides, toast])
+  }, [totalSlides, toast, studioShell, captureStudioNativeSlideFrame])
+
+  const renderStudioDeleteDialog = studioDeleteDialogRef.current
+  const handleDeleteDialogOpenChange = useCallback((open: boolean) => {
+    if (!studioShell) { setShowDeleteDialog(open); return }
+    const dialog = renderStudioDeleteDialog
+    if (!dialog || studioDeleteDialogRef.current !== dialog) return
+    dialog.open = open
+    setShowDeleteDialog(previous => studioDeleteDialogRef.current === dialog ? open : previous)
+    // Radix closes its Action after onConfirm. That visibility event must not
+    // retire an already dispatched mutation or erase its recovery target.
+    if (!open && !dialog.submitted) {
+      setSlidesToDelete(previous => studioDeleteDialogRef.current === dialog ? null : previous)
+    }
+  }, [studioShell, renderStudioDeleteDialog])
 
   // Confirm delete slide(s) - uses bulk deleteSlides endpoint
   const handleConfirmDelete = useCallback(async () => {
     if (!slidesToDelete || slidesToDelete.length === 0 || !iframeRef.current) return
+    const dialog = studioDeleteDialogRef.current
+    if (studioShell && (!dialog || !dialog.open || dialog.submitted
+      || dialog.indices !== slidesToDelete || !dialog.isCurrent())) return
+    const mutation = beginStudioNativeSlideMutation('delete')
+    if (!mutation) return
+    if (studioShell && dialog) dialog.submitted = true
     const invalidateThumbnails = captureThumbnailInvalidation()
 
-    setIsDeleting(true)
+    mutation.commit<boolean>(setIsDeleting, true)
     try {
       debugLog('🗑️ Attempting bulk delete with indices:', slidesToDelete)
 
       // Use bulk delete endpoint - pass all indices at once
-      const result = await sendCommand(iframeRef.current, 'deleteSlides', {
+      const result = await sendCommand(mutation.iframe, 'deleteSlides', {
         indices: slidesToDelete  // 0-based indices
-      })
+      }, studioShell ? { requireRequestId: true } : 5000)
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('delete'); return }
 
       debugLog('🗑️ Bulk delete response:', result)
 
@@ -1928,25 +2258,27 @@ export function PresentationViewer({
       const deletedCount = result.deleted_count || slidesToDelete.length
       const remainingCount = result.remaining_slide_count || (totalSlides - deletedCount)
 
-      setTotalSlides(remainingCount)
-      setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+      mutation.commit(setTotalSlides, remainingCount)
+      mutation.commit<boolean>(setSlidesModifiedByCrud, true) // Invalidate stale slideStructure
       invalidateThumbnails()
-      setSelectedSlideIndices([]) // Clear selection after delete
+      mutation.commitSelection<number[]>(setSelectedSlideIndices, []) // Clear the mutation's selection after delete
 
       // Adjust current slide if needed
       if (currentSlide > remainingCount) {
-        setCurrentSlide(remainingCount)
+        mutation.commitSelection(setCurrentSlide, remainingCount)
       } else {
         // Find how many deleted slides were before current
         const deletedBefore = slidesToDelete.filter(i => i < currentSlide - 1).length
         if (deletedBefore > 0) {
-          setCurrentSlide(currentSlide - deletedBefore)
+          mutation.commitSelection(setCurrentSlide, currentSlide - deletedBefore)
         }
       }
 
       const message = deletedCount === 1
         ? `Slide ${slidesToDelete[0] + 1} has been removed`
         : `${deletedCount} slides have been removed`
+
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('delete'); return }
 
       toast({
         title: deletedCount === 1 ? 'Slide Deleted' : 'Slides Deleted',
@@ -1955,6 +2287,10 @@ export function PresentationViewer({
 
       debugLog(`🗑️ Bulk deleted ${deletedCount} slide(s), ${remainingCount} remaining`)
     } catch (error) {
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('delete'); return }
+      if (studioShell && error instanceof Error && /command timeout/i.test(error.message)) {
+        mutation.reportUnconfirmed('delete'); return
+      }
       console.error('Error deleting slides:', error)
       toast({
         title: 'Error',
@@ -1962,26 +2298,40 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     } finally {
-      setIsDeleting(false)
-      setShowDeleteDialog(false)
-      setSlidesToDelete(null)
+      if (!studioShell) {
+        setIsDeleting(false)
+        setShowDeleteDialog(false)
+        setSlidesToDelete(null)
+      } else if (dialog && studioDeleteDialogRef.current === dialog && mutation.isLogicalCurrent()) {
+        // Busy belongs to this request, even if its exact frame was retired.
+        setIsDeleting(previous => studioDeleteDialogRef.current === dialog && mutation.isLogicalCurrent() ? false : previous)
+        if (mutation.isCurrent()) {
+          dialog.open = false
+          setShowDeleteDialog(previous => studioDeleteDialogRef.current === dialog && mutation.isCurrent() ? false : previous)
+          setSlidesToDelete(previous => studioDeleteDialogRef.current === dialog && mutation.isCurrent() ? null : previous)
+        }
+      }
+      mutation.release()
     }
-  }, [slidesToDelete, totalSlides, currentSlide, toast, captureThumbnailInvalidation])
+  }, [slidesToDelete, totalSlides, currentSlide, toast, captureThumbnailInvalidation, studioShell, beginStudioNativeSlideMutation])
 
   // Change slide layout handler
   const handleChangeLayout = useCallback(async (slideIndex: number, newLayout: SlideLayoutType) => {
-    if (!iframeRef.current) return
+    const mutation = beginStudioNativeSlideMutation('layout change')
+    if (!mutation) return
     const invalidateThumbnails = captureThumbnailInvalidation()
 
     try {
-      const result = await sendCommand(iframeRef.current, 'changeSlideLayout', {
+      const result = await sendCommand(mutation.iframe, 'changeSlideLayout', {
         index: slideIndex,       // snake_case to match backend
         new_layout: newLayout,
         preserve_content: true
-      })
+      }, studioShell ? { requireRequestId: true } : 5000)
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('layout change'); return }
 
       if (result.success) {
         invalidateThumbnails()
+        if (!mutation.isCurrent()) { mutation.reportUnconfirmed('layout change'); return }
         toast({
           title: 'Layout Changed',
           description: `Slide ${slideIndex + 1} layout updated`
@@ -1990,33 +2340,40 @@ export function PresentationViewer({
         debugLog(`🔄 Changed slide ${slideIndex + 1} layout to ${newLayout}`)
       }
     } catch (error) {
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('layout change'); return }
+      if (studioShell && error instanceof Error && /command timeout/i.test(error.message)) {
+        mutation.reportUnconfirmed('layout change'); return
+      }
       console.error('Error changing layout:', error)
       toast({
         title: 'Error',
         description: 'Failed to change layout. Please try again.',
         variant: 'destructive'
       })
-    }
-  }, [toast, captureThumbnailInvalidation])
+    } finally { mutation.release() }
+  }, [toast, captureThumbnailInvalidation, studioShell, beginStudioNativeSlideMutation])
 
   // Reorder slides handler
   const handleReorderSlides = useCallback(async (fromIndex: number, toIndex: number) => {
-    if (!iframeRef.current) return
+    const mutation = beginStudioNativeSlideMutation('reorder')
+    if (!mutation) return
     const invalidateThumbnails = captureThumbnailInvalidation()
 
     try {
-      const result = await sendCommand(iframeRef.current, 'reorderSlides', {
+      const result = await sendCommand(mutation.iframe, 'reorderSlides', {
         from_index: fromIndex,   // snake_case to match backend
         to_index: toIndex
-      })
+      }, studioShell ? { requireRequestId: true } : 5000)
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('reorder'); return }
 
       if (result.success) {
         // Update current slide if it was moved
         if (currentSlide === fromIndex + 1) {
-          setCurrentSlide(toIndex + 1)
+          mutation.commitSelection(setCurrentSlide, toIndex + 1)
         }
-        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+        mutation.commit<boolean>(setSlidesModifiedByCrud, true) // Invalidate stale slideStructure
         invalidateThumbnails()
+        if (!mutation.isCurrent()) { mutation.reportUnconfirmed('reorder'); return }
 
         toast({
           title: 'Slide Moved',
@@ -2026,14 +2383,18 @@ export function PresentationViewer({
         debugLog(`↕️ Moved slide ${fromIndex + 1} → ${toIndex + 1}`)
       }
     } catch (error) {
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('reorder'); return }
+      if (studioShell && error instanceof Error && /command timeout/i.test(error.message)) {
+        mutation.reportUnconfirmed('reorder'); return
+      }
       console.error('Error reordering slides:', error)
       toast({
         title: 'Error',
         description: 'Failed to reorder slides. Please try again.',
         variant: 'destructive'
       })
-    }
-  }, [currentSlide, toast, ensureEditMode, captureThumbnailInvalidation])
+    } finally { mutation.release() }
+  }, [currentSlide, toast, ensureEditMode, captureThumbnailInvalidation, studioShell, beginStudioNativeSlideMutation])
 
   // === Layout Service v7.5.3 API Handlers ===
 
@@ -4200,7 +4561,7 @@ export function PresentationViewer({
       {/* Delete Slide Confirmation Dialog */}
       <DeleteSlideDialog
         open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
+        onOpenChange={handleDeleteDialogOpenChange}
         slideNumbers={slidesToDelete ? slidesToDelete.map(i => i + 1) : []}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}

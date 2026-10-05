@@ -29,8 +29,9 @@ import {
   type InferredGreetingPrefixCertificate,
 } from '@/lib/studio-greeting-lifecycle'
 import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/lib/director-transcript"
+import { classifyDirectorMessage, getDirectorActionPolicy } from "@/lib/studio-director-message-policy"
 import { directorHistoryTimestamp } from "@/lib/director-chat-history"
-import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, historicalActionStatuses, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
+import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -178,10 +179,7 @@ export function MessageList({
     certificate: InferredGreetingPrefixCertificate | null
   }>({ receipt: null, revision: 0, eligibleIds: new Set(), userIntentSeen: false, nonIntroSeen: false, certificate: null })
 
-  const historicalActions = historicalActionStatuses(messages, answeredActionsRef.current)
-  const activeActionIds = new Set(messages.filter(message => message.type === 'action_request'
-    && (!sessionId || !message.session_id || message.session_id === sessionId)
-    && !historicalActions.has(message.message_id)).map(message => message.message_id))
+  const { historicalActions, activeActionIds } = getDirectorActionPolicy(messages, answeredActionsRef.current, sessionId)
   // Old card callbacks may survive a parent history transition. Validate at
   // interaction time against render-current IDs rather than a captured list.
   const activeActionsRef = useRef(activeActionIds)
@@ -257,12 +255,15 @@ export function MessageList({
       ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
       ...messages.map(m => {
         const mAny = m as any;
-        let classificationMethod = 'DEFAULT';
+        const classification = classifyDirectorMessage(m, {
+          userMessageIds: userMessageIdsRef.current,
+          userMessageContentMap: userMessageContentMapRef.current,
+        });
+        const { classificationMethod, isUserMessage } = classification;
 
         // PRIORITY 1: Check Director's role field (proper fix from Director team)
-        if (mAny.role === 'user') {
+        if (classificationMethod === 'ROLE_FIELD') {
           userMessageIdsRef.current.add(m.message_id);
-          classificationMethod = 'ROLE_FIELD';
 
           const text = mAny.payload?.text || mAny.content || '';
           const timestamp = directorHistoryTimestamp(m.timestamp);
@@ -285,29 +286,13 @@ export function MessageList({
           };
         }
 
-        // An explicit assistant role remains authoritative even if the
-        // Director quotes a user's exact words or an old content map matches.
-        const hasDirectorRole = typeof mAny.role === 'string' && mAny.role !== 'user';
-        // PRIORITY 2: Check if message ID is in our tracking ref
-        let isUserMessage = !hasDirectorRole && m.type === 'chat_message' && userMessageIdsRef.current.has(m.message_id);
-        if (isUserMessage) {
-          classificationMethod = 'USER_MESSAGE_IDS_REF';
-        }
-
-        // PRIORITY 3: Content matching fallback (backward compatibility workaround)
-        if (!hasDirectorRole && m.type === 'chat_message' && !isUserMessage && mAny.payload?.text) {
-          const normalizedContent = (typeof mAny.payload.text === 'string' ? mAny.payload.text : '').trim().toLowerCase();
-          const matchingUserId = userMessageContentMapRef.current.get(normalizedContent);
-          if (matchingUserId) {
-            isUserMessage = true;
-            classificationMethod = 'CONTENT_MATCH';
-            userMessageIdsRef.current.add(m.message_id);
-            debugLog('🎯 Content match fallback (pre-Director-fix message):', {
-              directorMessageId: m.message_id,
-              matchedUserId: matchingUserId,
-              content: normalizedContent.substring(0, 30)
-            });
-          }
+        if (classification.trackUserId) {
+          userMessageIdsRef.current.add(m.message_id);
+          debugLog('🎯 Content match fallback (pre-Director-fix message):', {
+            directorMessageId: m.message_id,
+            matchedUserId: classification.matchingUserId,
+            content: classification.normalizedContent!.substring(0, 30)
+          });
         }
 
         debugLog('🔍 Message classification:', {

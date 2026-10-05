@@ -17,6 +17,12 @@ import {
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
 import { mergeDirectorChatHistory } from '@/lib/director-chat-history';
 import { projectVerifiedOutlineReplay } from '@/lib/director-history-presentation';
+import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive';
+import {
+  createStudioVoiceTranscriptProvenance, admitStudioVoiceTranscriptFrame,
+  completeStudioVoiceTranscriptRestore, type StudioVoiceTranscriptProvenance,
+  type StudioVoiceTranscriptMessage,
+} from '@/lib/studio-voice-transcript-provenance';
 import { guardDirectorLayoutUrlMessage } from '@/lib/director-layout-url-ingress';
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client';
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url';
@@ -651,6 +657,8 @@ export interface UseDecksterWebSocketV2State {
   transportNotice: DirectorTransportNotice | null;
   handoffRequestStatus: DirectorHandoffRequestStatus | null;
   messages: DirectorMessage[];
+  /** Private volatile admission evidence, excluded from every persistence field. */
+  studioVoiceTranscriptReceipt: StudioVoiceTranscriptProvenance | null;
   // UPDATED: Split presentation URLs to support blank/strawman/final toggle (Builder V2)
   presentationUrl: string | null; // Currently displayed URL (computed from blank/strawman/final)
   strawmanPreviewUrl: string | null; // Strawman preview URL
@@ -709,6 +717,8 @@ export interface UseDecksterWebSocketV2Options {
   existingSessionId?: string; // Resume existing session instead of creating new one
   onError?: (error: Error) => void;
   onMessage?: (message: DirectorMessage) => void;
+  /** The actual current renderer classifier; generic delivery is not admission. */
+  getStudioVoiceAssistantAdmission?: (message: DirectorMessage) => boolean;
   // Completion metadata only. The page owns native dirty/edit/save/structure
   // fences and reconciliation; receiving this callback never reloads the deck.
   onDeckMutation?: (message: import('@/types/mdc').DeckMutationMessage, owner: DirectorDeckMutationOwner) => void;
@@ -817,6 +827,33 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   }, [user?.id, user?.email]);
 
   // Initialize browser cache for this session
+  const voiceTranscriptAuthorityRef = useRef({
+    active: true, userId: user?.id ?? user?.email ?? null,
+    sessionId: options.existingSessionId || sessionIdRef.current,
+  });
+  const voiceRequestedUserId = user?.id ?? user?.email ?? null;
+  const voiceRequestedSessionId = options.existingSessionId || sessionIdRef.current;
+  if (voiceTranscriptAuthorityRef.current.userId !== voiceRequestedUserId
+    || voiceTranscriptAuthorityRef.current.sessionId !== voiceRequestedSessionId) {
+    voiceTranscriptAuthorityRef.current = {
+      active: voiceTranscriptAuthorityRef.current.active,
+      userId: voiceRequestedUserId, sessionId: voiceRequestedSessionId,
+    };
+  }
+  const cacheVoiceMessages = (cached: CachedSessionState | null | undefined): StudioVoiceTranscriptMessage[] => [
+    ...scrubBuildControlCapabilityMessages(cached?.messages),
+    ...(cached?.userMessages || []).map(message => ({ message_id: message.id })),
+  ];
+  const createVoiceTranscript = (cachedMessages: readonly StudioVoiceTranscriptMessage[], priorVisibleMessages: readonly StudioVoiceTranscriptMessage[], ephemeralIds: string[]) => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return null;
+    const authority = voiceTranscriptAuthorityRef.current;
+    return createStudioVoiceTranscriptProvenance({
+      owner: authority, userId: authority.userId, sessionId: authority.sessionId,
+      cachedMessages, priorVisibleMessages, ephemeralIds,
+      isCurrentOwner: () => voiceTranscriptAuthorityRef.current === authority && authority.active
+        && authority.userId === userIdRef.current && authority.sessionId === sessionIdRef.current,
+    });
+  };
   const sessionCache = useSessionCache({
     sessionId: sessionIdRef.current,
     // Owner-scoped cache: never let one account read another's cached deck.
@@ -892,6 +929,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           delete clean.clientTerminalOutlineRevisionOf;
           return clean;
         }),
+        studioVoiceTranscriptReceipt: createVoiceTranscript(cacheVoiceMessages(cached), [], (cached as any).ephemeralMessageIds || []),
         presentationUrl: cachedDisplayUrl || cached.presentationUrl || null,
         strawmanPreviewUrl: cached.strawmanPreviewUrl || null,
         finalPresentationUrl: cached.finalPresentationUrl || null,
@@ -936,6 +974,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       transportNotice: null,
       handoffRequestStatus: null,
       messages: [],
+      studioVoiceTranscriptReceipt: createVoiceTranscript([], [], []),
       presentationUrl: null,
       strawmanPreviewUrl: null,
       finalPresentationUrl: null,
@@ -966,6 +1005,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   };
 
   const [state, setState] = useState<UseDecksterWebSocketV2State>(() => getInitialState());
+  const voiceTranscriptReceiptRef = useRef(state.studioVoiceTranscriptReceipt);
+  voiceTranscriptReceiptRef.current = state.studioVoiceTranscriptReceipt;
+  const retireVoiceTranscript = useCallback(() => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return;
+    voiceTranscriptReceiptRef.current?.retire();
+    voiceTranscriptAuthorityRef.current = { ...voiceTranscriptAuthorityRef.current };
+  }, []);
+  useLayoutEffect(() => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return;
+    voiceTranscriptAuthorityRef.current = { ...voiceTranscriptAuthorityRef.current, active: true };
+    setState(prev => ({ ...prev, studioVoiceTranscriptReceipt: createVoiceTranscript(
+      cacheVoiceMessages(sessionCache.isCacheValid() ? sessionCache.getCachedState() : null),
+      [...prev.messages, ...Array.from(prev.studioVoiceTranscriptReceipt?.restored || [], message_id => ({ message_id }))],
+      [...prev.ephemeralMessageIds, ...Array.from(prev.studioVoiceTranscriptReceipt?.ephemeral || [])],
+    ) }));
+    return () => {
+      retireVoiceTranscript();
+      voiceTranscriptAuthorityRef.current = { ...voiceTranscriptAuthorityRef.current, active: false };
+    };
+  }, [retireVoiceTranscript]);
   const transportCallbacksRef = useRef(options);
   transportCallbacksRef.current = options;
   const deckMutationKey = JSON.stringify([state.deckOwnerSessionId, state.presentationId, state.presentationUrl, state.activeVersion]);
@@ -991,6 +1050,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   ) => {
     setState(prev => {
       const newState = updateFn(prev);
+      voiceTranscriptReceiptRef.current = newState.studioVoiceTranscriptReceipt;
 
       // CRITICAL FIX: Get existing cached messages to preserve them
       // This prevents cache corruption when React state updates are pending (async)
@@ -1994,6 +2054,24 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       )
                     : prev.messages,
               };
+              if (STUDIO_VOICE_INTERACTIVE_ENABLED && isCurrentSocket()
+                && socketSessionId === voiceTranscriptAuthorityRef.current.sessionId
+                && socketUserId === voiceTranscriptAuthorityRef.current.userId) {
+                const previousReceipt = prev.studioVoiceTranscriptReceipt;
+                const receipt = previousReceipt?.owner === voiceTranscriptAuthorityRef.current
+                  ? previousReceipt : createVoiceTranscript(
+                    cacheVoiceMessages(sessionCache.getCachedState()),
+                    prev.messages, prev.ephemeralMessageIds,
+                  );
+                if (receipt) newState.studioVoiceTranscriptReceipt = admitStudioVoiceTranscriptFrame(receipt, {
+                  frame: message, admittedMessage: transcriptMessage,
+                  beforeMessages: prev.messages, afterMessages: newState.messages,
+                  ownershipAdmitted: isCurrentSocket(), reducerAppended: shouldAddToMessages,
+                  assistantAdmitted: message.type === 'chat_message'
+                    && transportCallbacksRef.current.getStudioVoiceAssistantAdmission?.(transcriptMessage) === true,
+                  ephemeralIds: prev.ephemeralMessageIds,
+                });
+              }
 
               if (blockedIngress) {
                 // Keep an already-approved displayed deck, but never let a rejected
@@ -3032,6 +3110,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   useEffect(() => {
     const nextSessionId = options.existingSessionId;
     if (!nextSessionId || nextSessionId === sessionIdRef.current) return;
+    retireVoiceTranscript();
 
     const previousSessionId = sessionIdRef.current;
     const previousSocket = wsRef.current;
@@ -3080,6 +3159,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     pendingSessionReconnectRef.current = shouldReconnect ? nextSessionId : null;
   }, [
     options.existingSessionId,
+    retireVoiceTranscript,
     clearReconnectStabilityTimer,
     clearReconnectTimer,
     setReconnectStatus,
@@ -3104,6 +3184,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
+    retireVoiceTranscript();
     turnSubmissionLifecycleRef.current.generation += 1;
     connectionAttemptGenerationRef.current += 1;
     debugLog('🔌 Disconnecting WebSocket');
@@ -3138,6 +3219,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       connectionState: 'disconnected',
     }));
   }, [
+    retireVoiceTranscript,
     clearReconnectStabilityTimer,
     clearReconnectTimer,
     setReconnectStatus,
@@ -3629,6 +3711,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Clear messages
   const clearMessages = useCallback(() => {
+    retireVoiceTranscript();
     retireDeckMutationOwner();
     retireHandoffRequest();
     // Also clear the cache
@@ -3639,6 +3722,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       composerAdoption: null,
       composerThemeResolved: false,
       messages: [],
+      studioVoiceTranscriptReceipt: createVoiceTranscript([], [], []),
       presentationUrl: null,
       studioAutomaticBlankSelection: null,
       strawmanPreviewUrl: null,
@@ -3667,7 +3751,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       templateIngestError: null,
       templateIngestJobId: null,
     }));
-  }, [retireDeckMutationOwner, retireHandoffRequest, sessionCache, setStateWithCache]);
+  }, [retireDeckMutationOwner, retireHandoffRequest, sessionCache, setStateWithCache, retireVoiceTranscript]);
 
   // Restore messages from database (for session loading)
   const restoreMessages = useCallback((historicalMessages: DirectorMessage[], restoredSessionState?: {
@@ -3687,7 +3771,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     slideStructure?: any;
     currentStage?: number | null;
     activeVersion?: 'blank' | 'strawman' | 'final' | null;
-  }) => {
+  }, studioTranscriptRestoredIds: readonly string[] = []) => {
+    retireVoiceTranscript();
     retireDeckMutationOwner();
     retireHandoffRequest();
     const { state: sessionState, blocked: blockedViewerUrls } = sanitizeRestoredLayoutViewerUrls(
@@ -3830,20 +3915,30 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       const retainStrawman = retainFinal && !restoredSessionState?.strawmanPresentationId && !restoredSessionState?.strawmanPreviewUrl
         && !!prev.strawmanPresentationId && !!prev.strawmanPreviewUrl
         && evaluateLayoutViewerUrl(prev.strawmanPreviewUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed';
+      const restoredMessages = mergeDirectorChatHistory(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages)
+        .reduce<DirectorMessage[]>((accepted, message) => {
+          accepted.push(projectVerifiedOutlineReplay(message, accepted, {
+            isTerminal: restoredVersion === 'final' && !!restoredFinalId && !!restoredFinalUrl,
+            socketSessionId: sessionIdRef.current,
+            displayedSessionId: historySessionId,
+            deckOwnerSessionId: restoredOwner ?? null,
+            finalPresentationId: restoredFinalId,
+            finalPresentationUrl: restoredFinalUrl,
+          }));
+          return accepted;
+        }, []);
+      const privateRestoreIds = studioTranscriptRestoredIds.map(message_id => ({ message_id }));
+      const unknownReceipt = createVoiceTranscript(cacheVoiceMessages(cachedHistory), prev.messages, prev.ephemeralMessageIds);
+      const restoredReceipt = unknownReceipt ? completeStudioVoiceTranscriptRestore(unknownReceipt, {
+        ownershipAdmitted: historySessionId === voiceTranscriptAuthorityRef.current.sessionId,
+        historicalMessages: [...safeHistoricalMessages, ...privateRestoreIds], cachedMessages: cacheVoiceMessages(cachedHistory),
+        priorVisibleMessages: prev.messages, acceptedMessages: restoredMessages,
+        ephemeralIds: prev.ephemeralMessageIds,
+      }) : null;
       return {
         ...prev,
-        messages: mergeDirectorChatHistory(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages)
-          .reduce<DirectorMessage[]>((accepted, message) => {
-            accepted.push(projectVerifiedOutlineReplay(message, accepted, {
-              isTerminal: restoredVersion === 'final' && !!restoredFinalId && !!restoredFinalUrl,
-              socketSessionId: sessionIdRef.current,
-              displayedSessionId: historySessionId,
-              deckOwnerSessionId: restoredOwner ?? null,
-              finalPresentationId: restoredFinalId,
-              finalPresentationUrl: restoredFinalUrl,
-            }));
-            return accepted;
-          }, []),
+        messages: restoredMessages,
+        studioVoiceTranscriptReceipt: restoredReceipt,
         studioAutomaticBlankSelection: null,
         // CRITICAL FIX: Use computed display URL based on activeVersion
         // This ensures the correct presentation version is shown
@@ -3873,7 +3968,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         templateIngestJobId: null,
       };
     });
-  }, [retireDeckMutationOwner, retireHandoffRequest, sessionCache, setStateWithCache]);
+  }, [retireDeckMutationOwner, retireHandoffRequest, sessionCache, setStateWithCache, retireVoiceTranscript]);
 
   // Auto-connect on mount (only once)
   useEffect(() => {

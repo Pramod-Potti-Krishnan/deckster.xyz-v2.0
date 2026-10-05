@@ -73,6 +73,11 @@ import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
 import { StudioDirectorHeader } from '@/components/builder/chat/studio-director-header'
+import { DirectorCallEntry, DirectorCallPanel } from '@/components/builder/voice-interactive/director-call'
+import { useStudioDirectorCall } from '@/hooks/use-studio-director-call'
+import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive'
+import { classifyDirectorMessage } from '@/lib/studio-director-message-policy'
+import { createStudioVoiceOwner } from '@/lib/studio-voice-owner'
 import { classifyStudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
 import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
 import { TemplateIngestReviewCards } from '@/components/template-ingest-review-cards'
@@ -1250,6 +1255,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const generationPanel = useGenerationPanel()
   const blankElements = useBlankElements()
 
+  const studioVoiceOwnerRef = useRef<ReturnType<typeof createStudioVoiceOwner> | null>(null)
+  if (!studioVoiceOwnerRef.current) studioVoiceOwnerRef.current = createStudioVoiceOwner()
+  const retireStudioVoiceOwner = useCallback(() => studioVoiceOwnerRef.current?.retire(), [])
+  React.useLayoutEffect(() => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return
+    studioVoiceOwnerRef.current?.mount()
+    return () => studioVoiceOwnerRef.current?.unmount()
+  }, [])
+
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const workspaceRef = useRef<HTMLDivElement>(null)
   const [workspaceWidth, setWorkspaceWidth] = useState(1100)
@@ -1257,6 +1271,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const [workspacePane, setWorkspacePane] = useState<StudioWorkspacePane>('chat')
   const [studioStageSelected, setStudioStageSelected] = useState(false)
   const [studioViewerFullscreen, setStudioViewerFullscreen] = useState(false)
+  const studioVoiceLayoutIntentRef = useRef({ studioShell, workspaceWidth })
+  studioVoiceLayoutIntentRef.current = { studioShell, workspaceWidth }
   useEffect(() => {
     if (!studioShell) return
     const syncFullscreen = () => setStudioViewerFullscreen(Boolean(document.fullscreenElement && workspaceRef.current?.contains(document.fullscreenElement)))
@@ -1266,12 +1282,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [studioShell])
   const studioOverlayWorkspace = studioShell && workspaceWidth <= 880
   const selectWorkspacePane = useCallback((pane: StudioWorkspacePane) => {
+    const current = studioVoiceLayoutIntentRef.current
+    if (pane !== 'chat' && current.studioShell && current.workspaceWidth <= 880) retireStudioVoiceOwner()
     setStudioStageSelected(false)
     setWorkspacePane(pane)
-  }, [])
+  }, [retireStudioVoiceOwner])
   const revealStudioStage = useCallback(() => {
-    if (studioShell && workspaceWidth <= 880) setStudioStageSelected(true)
-  }, [studioShell, workspaceWidth])
+    if (studioShell && workspaceWidth <= 880) { retireStudioVoiceOwner(); setStudioStageSelected(true) }
+  }, [studioShell, workspaceWidth, retireStudioVoiceOwner])
   const [preferredInspector, setPreferredInspector] = useState<StudioInspector | null>(null)
   const [chatWidth, setChatWidth] = useState<number | null>(null)
   const studioResizeCleanupRef = useRef<(() => void) | null>(null)
@@ -1508,6 +1526,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const [handoffStorageWarning, setHandoffStorageWarning] = useState<{ sessionId: string; text: string } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const studioVoiceChatRootRef = useRef<HTMLDivElement>(null)
+  const studioVoiceTranscriptRootRef = useRef<HTMLDivElement>(null)
 
   // CRITICAL: currentSessionId must be declared here in page.tsx (not inside useBuilderSession)
   // so useSessionPersistence gets the correct sessionId synchronously — no multi-render delay.
@@ -1785,6 +1805,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
+    retireStudioVoiceOwner()
     setActiveTemplate(template)
     setTemplateOverrides({})
     setTemplateBlueprintDirty(false)
@@ -1801,7 +1822,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         description: templateGenerationUnavailableReason(template),
       })
     }
-  }, [currentSlideIndex, toast])
+  }, [currentSlideIndex, toast, retireStudioVoiceOwner])
 
   const handleBuildThemeChange = useCallback((next: BuildThemeSelection) => {
     if (templateSelectionLockedRef.current) {
@@ -1837,6 +1858,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
       return
     }
+    retireStudioVoiceOwner()
     setActiveTemplate(null)
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
@@ -1847,9 +1869,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
     setTemplateSourceSlideIndex(0)
-  }, [toast])
+  }, [toast, retireStudioVoiceOwner])
 
   const handleTemplateOptimizationFailed = useCallback((templateId: string) => {
+    retireStudioVoiceOwner()
     setActiveTemplate((previous) => previous?.id === templateId ? null : previous)
     setTemplateModeOn(false)
     setTemplateSnapshot((previous) => previous?.id === templateId ? null : previous)
@@ -1859,7 +1882,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setTemplateParamsCollapsed(false)
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
-  }, [])
+  }, [retireStudioVoiceOwner])
 
   const handleTemplateOverrideChange = useCallback((
     slideIndex: number,
@@ -1933,6 +1956,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setSelectedTemplateElementId(overrideKey)
     if (!overrideKey) return
 
+    retireStudioVoiceOwner()
+
     setTemplateParamsCollapsed(false)
     setShowChat(false)
     setShowTextBoxPanel(false)
@@ -1944,9 +1969,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setSelectedElementProperties(null)
     setShowFormatPanel(false)
     generationPanel.closePanel()
-  }, [generationPanel])
+  }, [generationPanel, retireStudioVoiceOwner])
 
   const handleTemplateModeChange = useCallback(async (enabled: boolean) => {
+    if (enabled !== templateModeOn) retireStudioVoiceOwner()
     if (!enabled) {
       if (studioShell) {
         studioFormatRequestRef.current?.selection.retire()
@@ -2001,6 +2027,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
   }, [
     studioShell,
+    templateModeOn,
+    retireStudioVoiceOwner,
     activeTemplate,
     currentSlideIndex,
     handleTemplateBlueprintSave,
@@ -2021,6 +2049,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     handoffRequestStatus,
     error: wsError,
     messages,
+    studioVoiceTranscriptReceipt,
     presentationUrl,
     presentationId,
     slideCount,
@@ -2071,6 +2100,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     awaitingDirectorReply,
     stopAwaitingReply,
   } = useDecksterWebSocketV2({
+    getStudioVoiceAssistantAdmission: STUDIO_VOICE_INTERACTIVE_ENABLED ? message => !classifyDirectorMessage(message, {
+      userMessageIds: session.userMessageIdsRef.current,
+      userMessageContentMap: session.userMessageContentMapRef.current,
+    }).isUserMessage : undefined,
     expectedHandoffRequest: expectedStudioHandoffRequest,
     onHandoffRequestStatus: handleStudioHandoffRequestStatus,
     // Don't auto-connect when restoring an existing session from URL.
@@ -4073,6 +4106,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const restoreBuilderSessionMessages = useCallback((
     historicalMessages: Parameters<typeof restoreMessages>[0],
     restoredSessionState?: Parameters<typeof restoreMessages>[1],
+    studioTranscriptRestoredIds?: Parameters<typeof restoreMessages>[2],
   ) => {
     const owner = studioHandoffRestoreOwner
     const isCurrentRestore = () => {
@@ -4082,7 +4116,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         && current.userId === authScopeUserId && currentSessionIdRef.current === owner.sessionId
     }
     if (studioShell && !isCurrentRestore()) return
-    restoreMessages(historicalMessages, restoredSessionState)
+    retireStudioVoiceOwner()
+    if (STUDIO_VOICE_INTERACTIVE_ENABLED) {
+      restoreMessages(historicalMessages, restoredSessionState,
+        [...(studioTranscriptRestoredIds || []), ...session.userMessageIdsRef.current])
+    } else restoreMessages(historicalMessages, restoredSessionState)
     if (!studioShell || !isCurrentRestore() || !owner.sessionId
       || restoredSessionState?.deckOwnerSessionId !== owner.sessionId) return
     const currentExpected = getExpectedStudioHandoffRequest(readCurrentStudioHandoff(owner.sessionId), {
@@ -4095,7 +4133,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       || currentExpected.idempotencyKey !== expected.idempotencyKey) return
     trackHandoffRequest(currentExpected)
   }, [studioShell, studioHandoffRestoreOwner, authScopeUserId, restoreMessages,
-    readCurrentStudioHandoff, trackHandoffRequest])
+    readCurrentStudioHandoff, trackHandoffRequest, retireStudioVoiceOwner])
 
   // Builder session hook (session init, loading, switching, persistence effects)
   const session = useBuilderSession({
@@ -5238,6 +5276,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             } catch {}
             if (!currentSessionId) {
+              // This branch confirms an existing transport ID before dispatch;
+              // it is not the session hook's fresh-assignment certificate.
+              retireStudioVoiceOwner()
               const stageObservation = studioInitialOwnerObservationRef.current
               studioInitialRouteAdoptionRef.current = stageObservation
                 ? createStudioInitialRouteAdoptionIntent(studioInitialBlankProofRef.current, stageObservation,
@@ -5570,6 +5611,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (!isCurrentHandoff()) return
 
       disconnect()
+      retireStudioVoiceOwner()
       clearMessages()
       session.setUserMessages([])
       session.lastLoadedSessionRef.current = null
@@ -5824,6 +5866,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // Wrapped session select handler (clears local UI state too)
   const handleSessionSelectWrapped = useCallback((sessionId: string) => {
+    retireStudioVoiceOwner()
     setIsGeneratingFinal(false)
     setTemplateReuseAwaitingInput(false)
     setIsGeneratingStrawman(false)
@@ -5833,9 +5876,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // The KG switch is a per-deck privacy choice, never a global sticky bit.
     setKnowledgeGraphEnabled(false)
     session.handleSessionSelect(sessionId)
-  }, [session.handleSessionSelect])
+  }, [session.handleSessionSelect, retireStudioVoiceOwner])
 
   const handleNewChatWrapped = useCallback(() => {
+    retireStudioVoiceOwner()
     if (builderOptionsScope) skipBuilderOptionsPersistRef.current = builderOptionsScope
     setInputMessage("")
     setPendingActionInput(null)
@@ -5862,7 +5906,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setSessionStoreName(null)
     clearAllFiles()
     session.handleNewChat()
-  }, [builderOptionsScope, clearAllFiles, session.handleNewChat])
+  }, [builderOptionsScope, clearAllFiles, session.handleNewChat, retireStudioVoiceOwner])
   handleNewChatWrappedRef.current = handleNewChatWrapped
 
   const studioInitialNativeWork = Boolean(templateModeOn || templateModeSourcePresentationId || slideComposerOverride
@@ -5945,6 +5989,43 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       || Object.values(slideComposeJobs).some(job => job.status === 'building'),
   }
 
+  const voiceDisplayedSessionId = currentSessionId || wsSessionId || null
+  const voiceRouteSessionId = searchParams.get('session_id')
+  const voiceNavigationExtras = new URLSearchParams(searchParams.toString())
+  voiceNavigationExtras.delete('session_id')
+  const voiceTranscriptOwned = Boolean(studioVoiceTranscriptReceipt?.isCurrent()
+    && studioVoiceTranscriptReceipt.userId === authScopeUserId
+    && studioVoiceTranscriptReceipt.sessionId === voiceDisplayedSessionId)
+  const voiceDisplayedOwned = Boolean(voiceDisplayedSessionId && voiceDisplayedSessionId === wsSessionId
+    && questionSubmissionScopeRef.current.active
+    && questionSubmissionScopeRef.current.userId === authScopeUserId
+    && questionSubmissionScopeRef.current.sessionId === voiceDisplayedSessionId
+    && (voiceRouteSessionId === voiceDisplayedSessionId || studioInitialKnownFresh
+      || (!currentSessionId && (!voiceRouteSessionId || voiceRouteSessionId === 'new'))))
+  const voiceChatVisible = studioShell && showChat && isDeckDrawerOpen && workspaceLayout.chatVisible && !studioViewerFullscreen
+  const studioDirectorCall = useStudioDirectorCall({
+    enabled: STUDIO_VOICE_INTERACTIVE_ENABLED,
+    authority: studioVoiceOwnerRef.current!,
+    observation: {
+      authUserId: authScopeUserId, sessionId: voiceDisplayedSessionId,
+      routeSessionId: voiceRouteSessionId, navigationExtras: voiceNavigationExtras.toString(),
+      presentationId: effectivePresentationId, presentationUrl: effectivePresentationUrl,
+      activeVersion, templateIdentity: JSON.stringify([templateModeOn, activeTemplate?.id ?? null, templateModeSourcePresentationId]),
+      transcriptEpoch: studioVoiceTranscriptReceipt?.epoch ?? null,
+      restoreReceipt: session.studioFrontendTranscriptReceipt,
+      eligible: STUDIO_VOICE_INTERACTIVE_ENABLED && voiceTranscriptOwned && voiceDisplayedOwned
+        && voiceChatVisible && !isAuthLoading && !session.isLoadingSession && !session.isCreatingSession
+        && connected && !connecting && !transportNotice?.requiresResend && !studioIntroInputs.modalOpen,
+      freshAssignment: studioInitialKnownFresh ? session.studioInitialFreshCanonicalEntry : null,
+      automaticBlank: studioAutomaticBlankSelection ?? null,
+    },
+    messages, userMessages: session.userMessages,
+    userMessageIdsRef: session.userMessageIdsRef, userMessageContentMapRef: session.userMessageContentMapRef,
+    answeredActionsRef: session.answeredActionsRef, messageListSessionId: currentSessionId,
+    transcript: studioVoiceTranscriptReceipt, chatRootRef: studioVoiceChatRootRef,
+    transcriptRootRef: studioVoiceTranscriptRootRef, textareaRef,
+  })
+
   return (
     <StudioIntroductionProvider enabled={studioShell} eligibility={studioIntroInputs}
       getEligibility={() => {
@@ -5985,7 +6066,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
           {studioShell && !workspaceLayout.dualPane && (
             <div data-studio-workspace-switch="true" role="group" aria-label="Workspace pane">
-              {studioOverlayWorkspace && <button type="button" aria-pressed={studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)} onClick={() => setStudioStageSelected(true)}>Stage</button>}
+              {studioOverlayWorkspace && <button type="button" aria-pressed={studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)} onClick={() => { retireStudioVoiceOwner(); setStudioStageSelected(true) }}>Stage</button>}
               <button type="button" aria-pressed={studioOverlayWorkspace ? workspaceLayout.chatVisible : workspaceLayout.presentedPane === 'chat'} onClick={() => { selectWorkspacePane('chat'); if (!showChat) setShowChat(true) }}>Chat</button>
               <button type="button" aria-pressed={studioOverlayWorkspace ? workspaceLayout.inspectorVisible : workspaceLayout.presentedPane === 'inspector'} disabled={!activeInspector} onClick={() => selectWorkspacePane('inspector')}>Inspector</button>
             </div>
@@ -6331,6 +6412,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           >
             {/* Panel area */}
             <div
+              ref={studioVoiceChatRootRef}
               className={`absolute inset-y-0 left-0 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100 overflow-hidden flex flex-col ${isDeckDrawerOpen ? 'shadow-xl' : ''}`}
               data-studio-workspace-content={studioShell ? 'true' : undefined}
               aria-hidden={studioShell && !workspaceLayout.chatVisible ? true : undefined}
@@ -6339,7 +6421,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             >
               {showChat && (
                 <>
-                  {studioShell && <StudioDirectorHeader connectionState={connectionState} isLoadingSession={session.isLoadingSession} />}
+                  {studioShell && <StudioDirectorHeader connectionState={connectionState} isLoadingSession={session.isLoadingSession}
+                    actions={STUDIO_VOICE_INTERACTIVE_ENABLED ? <DirectorCallEntry call={studioDirectorCall.call} disabled={!studioDirectorCall.eligible} /> : undefined} />}
                   {studioShell && <StudioDirectorNotice
                     className="mx-3 mt-2"
                     notice={transportNotice?.sessionId === (currentSessionId || wsSessionId) ? transportNotice : null}
@@ -6360,8 +6443,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     }}
                   />
 
+                  {STUDIO_VOICE_INTERACTIVE_ENABLED && <DirectorCallPanel
+                    call={studioDirectorCall.call} awaitingReply={awaitingDirectorReply}
+                    building={isGeneratingFinal || isGeneratingStrawman}
+                    latestDirectorText={studioDirectorCall.latestDirectorText}
+                    latestUserText={studioDirectorCall.latestUserText}
+                    pendingAsk={studioDirectorCall.pendingAsk} isCurrentAsk={studioDirectorCall.isCurrentAsk}
+                    getQuestionRoot={studioDirectorCall.getQuestionRoot} focusComposer={studioDirectorCall.focusComposer}
+                  />}
                   <ScrollArea className="flex-1">
-                    <div className="px-3 py-4 space-y-4">
+                    <div ref={studioVoiceTranscriptRootRef} className="px-3 py-4 space-y-4">
                       <MessageList
                         sessionId={currentSessionId}
                         presentationContext={studioShell && effectivePresentationUrl && (!isBlankPresentation || (slideStructure?.slides ?? []).length > 0) ? {
@@ -6566,6 +6657,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               onClick={() => {
                 if (studioShell && isDeckDrawerOpen && !workspaceLayout.chatVisible) { selectWorkspacePane('chat'); return }
                 const next = !showChat
+                if (!next) retireStudioVoiceOwner()
                 setShowChat(next)
                 if (next) bringToFront('deck')
               }}
@@ -6685,7 +6777,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             finalPresentationUrl={finalPresentationUrl}
             activeVersion={activeVersion}
             isBlankPresentation={isBlankPresentation}
-            onVersionSwitch={(version) => { cancelOutlinePreview(); switchVersion(version) }}
+            onVersionSwitch={(version) => { retireStudioVoiceOwner(); cancelOutlinePreview(); switchVersion(version) }}
             currentStage={currentStage}
             currentSlideIndex={currentSlideIndex}
             onSlideChange={(slideNum) => {

@@ -104,6 +104,7 @@ export function QuestionCard({
   return (
     <div
       ref={cardRef}
+      data-director-action-id={messageId}
       data-studio-director-ask={studio ? (structured ? "questions" : isOutlineApproval ? "approval" : "choice") : undefined}
       role={studio ? "group" : undefined}
       aria-label={studio ? "Director asks" : undefined}

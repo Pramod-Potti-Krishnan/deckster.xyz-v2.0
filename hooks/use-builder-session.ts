@@ -24,6 +24,7 @@ import {
   type CachedSessionState,
 } from '@/hooks/use-session-cache'
 import { unsavedBuilderSessionKey } from '@/lib/last-builder-session'
+import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive'
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -56,7 +57,7 @@ interface UseBuilderSessionParams {
   ensureConnected: () => boolean
   disconnect: () => void
   clearMessages: () => void
-  restoreMessages: (messages: DirectorMessage[], sessionState: any) => void
+  restoreMessages: (messages: DirectorMessage[], sessionState: any, studioTranscriptRestoredIds?: readonly string[]) => void
   updateCacheUserMessages: (messages: UserChatMessage[]) => void
   messages: DirectorMessage[]
   toast: (opts: any) => any
@@ -560,7 +561,10 @@ export function useBuilderSession({
               })
               debugLog('🗺️ Created content map with', userMessageContentMapRef.current.size, 'user messages')
 
-              restoreMessages(botMsgs, sessionState)
+              if (STUDIO_VOICE_INTERACTIVE_ENABLED) {
+                restoreMessages(botMsgs, sessionState, session.messages.map((message: any) => message.id)
+                  .filter((id: unknown): id is string => typeof id === 'string' && Boolean(id.trim())))
+              } else restoreMessages(botMsgs, sessionState)
               botMsgs.forEach(msg => persistedMessageIdsRef.current.add(msg.message_id))
 
               debugLog('📊 Restored session state:', {
