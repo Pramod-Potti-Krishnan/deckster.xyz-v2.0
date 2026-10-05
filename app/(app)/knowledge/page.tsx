@@ -27,7 +27,7 @@ import {
 import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
 import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
-import type { KgViewEdge, KgViewNode } from "@/components/knowledge/kg-graph-view"
+import type { KgGraphPresentationState, KgViewEdge, KgViewNode } from "@/components/knowledge/kg-graph-view"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -497,6 +497,32 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const operationLifetime = accessRef.current.lifetime
   const retiredLifetimeRef = useRef(accessRef.current.lifetime)
 
+  // Retain presentation only while this access lifetime remains valid. Pending
+  // still unmounts every private graph element; resolved loss or an observed
+  // entitlement transition retires the holder before children can use it.
+  const presentationContextRef = useRef({
+    lifetime: operationLifetime,
+    entitlementKey: kg.entitlementKey,
+    generation: 0,
+    stateRef: { current: null as KgGraphPresentationState | null },
+  })
+  if (presentationContextRef.current.lifetime !== operationLifetime ||
+    presentationContextRef.current.entitlementKey !== kg.entitlementKey) {
+    presentationContextRef.current = {
+      lifetime: operationLifetime,
+      entitlementKey: kg.entitlementKey,
+      generation: presentationContextRef.current.generation + 1,
+      stateRef: { current: null },
+    }
+  }
+  const presentationContext = presentationContextRef.current
+  const selectKnowledgeNode = useCallback((nodeId: string) => {
+    const access = accessRef.current
+    if (!mountedRef.current || access.status !== "ready" || access.owner !== operationOwner ||
+      access.lifetime !== operationLifetime || presentationContextRef.current !== presentationContext) return
+    setSelectedId(nodeId)
+  }, [operationOwner, operationLifetime, presentationContext])
+
   const wakeAdmissionWaiters = useCallback(() => {
     for (const wake of [...admissionWaitersRef.current]) wake()
   }, [])
@@ -853,6 +879,14 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     }
   }, [graph, hiddenTypes])
 
+  // The opaque key contains no graph data. An unchanged filtered snapshot may
+  // restore its view after a temporary check; material data/filter changes fit.
+  const presentationKey = useMemo(() => ({}), [filteredGraph])
+  const graphPresentation = useMemo(() => ({
+    key: presentationKey,
+    stateRef: presentationContext.stateRef,
+  }), [presentationKey, presentationContext])
+
   if (kg.isLoading) return <AccessState kind="loading" />
   if (!kg.isEntitled) return <AccessState kind="locked" />
   if (!kg.serviceAvailable || (kg.error && !kg.settings)) return <AccessState kind="unavailable" onRetry={() => void kg.refetch()} />
@@ -1099,10 +1133,12 @@ stats && stats.nodes_by_type.length > 0 && (
 
             {filteredGraph && filteredGraph.nodes.length > 0 && (
               <KgGraphView
+                key={presentationContext.generation}
                 nodes={filteredGraph.nodes}
                 edges={filteredGraph.edges}
                 selectedId={selectedId}
-                onSelect={setSelectedId}
+                onSelect={selectKnowledgeNode}
+                presentation={graphPresentation}
               />
             )}
 
@@ -1121,7 +1157,7 @@ stats && stats.nodes_by_type.length > 0 && (
           loading={selectedLoading}
           error={selectedError}
           topEntities={stats?.top_entities ?? []}
-          onSelect={setSelectedId}
+          onSelect={selectKnowledgeNode}
           selectedId={selectedId}
           onRetry={() => setDetailAttempt(attempt => attempt + 1)}
           onClear={() => setSelectedId(null)}

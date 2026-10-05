@@ -804,6 +804,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const [studioFormatLoading, setStudioFormatLoading] = useState(false)
   const [studioFormatError, setStudioFormatError] = useState<string | null>(null)
   const studioFormatRequestRef = useRef<{ selection: StudioFormatSelectionHandle; scope: object & { busy: boolean; presentationId: string | null; slideIndex: number } } | null>(null)
+  const studioFormatCommandIntentRef = useRef<object | null>(null)
   const [showTextBoxPanel, setShowTextBoxPanel] = useState(false)
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   const [selectedTextBoxFormatting, setSelectedTextBoxFormatting] = useState<TextBoxFormatting | null>(null)
@@ -4296,7 +4297,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setStudioFormatOpen(false); setStudioFormatTarget(null); setStudioFormatLoading(false); setStudioFormatError(null)
   }, [])
   const studioFormatMountedRef = useRef(false)
-  useEffect(() => { studioFormatMountedRef.current = true; return () => { studioFormatMountedRef.current = false; studioFormatRequestRef.current = null } }, [])
+  useEffect(() => { studioFormatMountedRef.current = true; return () => { studioFormatMountedRef.current = false; studioFormatRequestRef.current = null; studioFormatCommandIntentRef.current = null } }, [])
   const studioFormatScope = studioFormatScopeRef.current
   useEffect(() => {
     const request = studioFormatRequestRef.current
@@ -4327,24 +4328,41 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       || target.presentationId !== request.scope.presentationId || target.slideIndex !== request.scope.slideIndex) {
       throw new Error('Select the element again before formatting.')
     }
-    const result = await request.selection.send(action, params, target)
-    if (!studioFormatMountedRef.current || studioFormatRequestRef.current !== request
-      || studioFormatScopeRef.current !== request.scope || !request.selection.isCurrent()) throw new Error('The selection changed before formatting was confirmed.')
-    // A confirmed primitive is followed by another strict native read. Attempted
-    // field values never become the source of the next formatting snapshot.
+    const intent = {}
+    studioFormatCommandIntentRef.current = intent
     try {
-      const refreshed = await request.selection.read()
-      if (studioFormatMountedRef.current && studioFormatRequestRef.current === request
-        && studioFormatScopeRef.current === request.scope && request.selection.isCurrent()) setStudioFormatTarget(refreshed)
-    } catch {
-      if (studioFormatMountedRef.current && studioFormatRequestRef.current === request
-        && studioFormatScopeRef.current === request.scope && request.selection.isCurrent()) {
-        setStudioFormatTarget(null)
-        setStudioFormatError('The change was confirmed, but its updated properties could not be read. Select the element again.')
+      const result = await request.selection.send(action, params, target)
+      if (!studioFormatMountedRef.current || studioFormatRequestRef.current !== request
+        || studioFormatScopeRef.current !== request.scope || !request.selection.isCurrent()) throw new Error('The selection changed before formatting was confirmed.')
+      // A confirmed primitive is followed by another strict native read. Attempted
+      // field values never become the source of the next formatting snapshot.
+      try {
+        const refreshed = await request.selection.read()
+        if (studioFormatMountedRef.current && studioFormatRequestRef.current === request
+          && studioFormatScopeRef.current === request.scope && request.selection.isCurrent()) setStudioFormatTarget(refreshed)
+      } catch {
+        if (studioFormatMountedRef.current && studioFormatRequestRef.current === request
+          && studioFormatScopeRef.current === request.scope && request.selection.isCurrent()) {
+          setStudioFormatTarget(null)
+          setStudioFormatError('The change was confirmed, but its updated properties could not be read. Select the element again.')
+        }
       }
+      if (action === 'generateTextBoxContent' && (!studioFormatMountedRef.current
+        || studioFormatRequestRef.current !== request || studioFormatScopeRef.current !== request.scope
+        || !request.selection.isCurrent())) throw new Error('The AI edit was observed, but the current selection changed before its updated properties could be read.')
+      return result
+    } catch (error) {
+      // Native AI work cannot be unsent. A fixed uncertainty notice may outlive
+      // selection ownership only within this exact current Page scope/intent.
+      if (action === 'generateTextBoxContent' && studioFormatMountedRef.current
+        && studioFormatScopeRef.current === request.scope && studioFormatCommandIntentRef.current === intent
+        && (studioFormatRequestRef.current !== request || !request.selection.isCurrent())) {
+        toast({ title: 'Check AI text result',
+          description: 'An earlier AI edit could not be confirmed and may have applied to its original text box. Check before generating it again.' })
+      }
+      throw error
     }
-    return result
-  }, [])
+  }, [toast])
   const handleOpenGenerationPanelInFront = useCallback(async (type: string) => {
     activateElementPanel()
     await handleOpenGenerationPanel(type)

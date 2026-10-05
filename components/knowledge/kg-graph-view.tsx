@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react"
@@ -68,6 +69,44 @@ interface ViewTransform {
 
 const MIN_SCALE = 0.45
 const MAX_SCALE = 3.5
+
+/** Presentation only: the page owns the in-memory access lifetime and opaque key. */
+export interface KgGraphPresentationState {
+  key: object
+  width: number
+  height: number
+  view: ViewTransform
+  showList: boolean
+}
+
+export interface KgGraphPresentation {
+  key: object
+  stateRef: MutableRefObject<KgGraphPresentationState | null>
+}
+
+interface LayoutInputs {
+  nodes: KgViewNode[]
+  edges: KgViewEdge[]
+  width: number
+  height: number
+}
+
+function validView(view: ViewTransform): boolean {
+  return Number.isFinite(view.x) && Number.isFinite(view.y) &&
+    Number.isFinite(view.scale) && view.scale >= MIN_SCALE && view.scale <= MAX_SCALE
+}
+
+function readPresentation(presentation: KgGraphPresentation | undefined, width: number, height: number): KgGraphPresentationState | null {
+  const state = presentation?.stateRef.current
+  if (!state || state.key !== presentation?.key || state.width !== width || state.height !== height ||
+    !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 ||
+    !state.view || !validView(state.view) || typeof state.showList !== "boolean") return null
+  return { key: state.key, width, height, view: { ...state.view }, showList: state.showList }
+}
+
+function matchesLayout(inputs: LayoutInputs | null, nodes: KgViewNode[], edges: KgViewEdge[], width: number, height: number): boolean {
+  return Boolean(inputs && inputs.nodes === nodes && inputs.edges === edges && inputs.width === width && inputs.height === height)
+}
 
 function computeLayout(
   nodes: KgViewNode[],
@@ -238,6 +277,7 @@ export function KgGraphView({
   onSelect,
   width = 960,
   height = 610,
+  presentation,
 }: {
   nodes: KgViewNode[]
   edges: KgViewEdge[]
@@ -245,12 +285,16 @@ export function KgGraphView({
   onSelect?: (nodeId: string) => void
   width?: number
   height?: number
+  presentation?: KgGraphPresentation
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const panRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
   const [hoverId, setHoverId] = useState<string | null>(null)
-  const [view, setView] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 })
-  const [showList, setShowList] = useState(false)
+  const [initialPresentation] = useState(() => readPresentation(presentation, width, height))
+  const [view, setView] = useState<ViewTransform>(() => initialPresentation?.view ?? { x: 0, y: 0, scale: 1 })
+  const [showList, setShowList] = useState(() => initialPresentation?.showList ?? false)
+  const restoredInputsRef = useRef<LayoutInputs | null>(initialPresentation ? { nodes, edges, width, height } : null)
+  const [fittedInputs, setFittedInputs] = useState<LayoutInputs | null>(() => initialPresentation ? { nodes, edges, width, height } : null)
   const [canvasScale, setCanvasScale] = useState(1)
 
   // Keep the accepted graph/layout transform, but make Studio labels readable at
@@ -327,8 +371,21 @@ export function KgGraphView({
   }, [height, layout, width])
 
   useEffect(() => {
+    // Keep a valid restored tuple through StrictMode's setup rehearsal. A real
+    // layout change invalidates restoration and uses the accepted automatic fit.
+    if (matchesLayout(restoredInputsRef.current, nodes, edges, width, height)) return
+    restoredInputsRef.current = null
     fitGraph()
-  }, [fitGraph])
+    setFittedInputs({ nodes, edges, width, height })
+  }, [fitGraph, nodes, edges, width, height])
+
+  useLayoutEffect(() => {
+    // Publish only after the matching fit/restoration has committed. In
+    // particular, never bind a previous view to new data before passive fit.
+    // No cleanup writes: a retired parent holder stays retired on unmount.
+    if (!presentation || !matchesLayout(fittedInputs, nodes, edges, width, height) || !validView(view)) return
+    presentation.stateRef.current = { key: presentation.key, width, height, view: { ...view }, showList }
+  }, [presentation?.key, presentation?.stateRef, fittedInputs, nodes, edges, width, height, view, showList])
 
   const focusSelected = () => {
     if (!selectedPoint) return

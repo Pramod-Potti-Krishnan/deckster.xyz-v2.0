@@ -1,11 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Sparkles, Loader2 } from 'lucide-react'
 import type { TextBoxFormatting } from '@/components/presentation-viewer'
 import type { BaseElementProperties, ElementType } from '@/types/elements'
 import type { DeckThemeToken } from '@/hooks/use-deck-theme-palette'
-import { AITab } from '@/components/textbox-format-panel/ai-tab'
+import { PanelSection, ButtonGroup, Divider } from '@/components/ui/panel'
+import { cn } from '@/lib/utils'
 import { ArrangeTab } from '@/components/element-format-panel/tabs/arrange-tab'
 import '@/components/builder/studio-panels.css'
 import '@/components/builder/studio-format-failures.css'
@@ -62,6 +63,8 @@ export interface StudioFormatInspectorProps {
   onError?: (error: unknown, target: StudioFormatTarget) => void
 }
 
+interface StudioAIContentDraft { prompt: string; tone: string | null; style: string | null; revision: number; unconfirmed?: boolean }
+interface StudioAIContentDraftEntry { elementId: string; presentationId: string; slideIndex: number; sessionId?: string | null; draft: StudioAIContentDraft }
 type Tab = 'content' | 'appearance' | 'arrange'
 const validTarget = (target: StudioFormatTarget | null): target is StudioFormatTarget => Boolean(target
   && target.selectionOwner && typeof target.selectionOwner === 'object' && !Array.isArray(target.selectionOwner)
@@ -102,6 +105,19 @@ export function StudioFormatInspector(props: StudioFormatInspectorProps) {
     readSnapshotRef.current = { snapshot: props.readSnapshot, revision: readSnapshotRef.current.revision + 1 }
   }
   const target = validTarget(props.target) ? props.target : null
+  // Drafts stay local to the exact opaque selection owner; no storage or cross-scope copy.
+  const contentDrafts = useRef(new WeakMap<object, StudioAIContentDraftEntry>())
+  let contentDraft: StudioAIContentDraft | null = null
+  if (target?.kind === 'editable-text') {
+    let entry = contentDrafts.current.get(target.selectionOwner)
+    if (!entry || entry.elementId !== target.elementId || entry.presentationId !== target.presentationId
+      || entry.slideIndex !== target.slideIndex || entry.sessionId !== target.sessionId) {
+      entry = { elementId: target.elementId, presentationId: target.presentationId, slideIndex: target.slideIndex,
+        sessionId: target.sessionId, draft: { prompt: '', tone: null, style: null, revision: 0 } }
+      contentDrafts.current.set(target.selectionOwner, entry)
+    }
+    contentDraft = entry.draft
+  }
   const send = useCallback(async (action: string, params: Record<string, any>) => {
     const mount = mountRevision.current
     const current = () => mounted.current && mountRevision.current === mount && scopeRef.current === scope && latest.current.isOpen
@@ -116,7 +132,7 @@ export function StudioFormatInspector(props: StudioFormatInspectorProps) {
     const commands = target.kind === 'editable-text'
       ? [...STUDIO_FORMAT_COMMANDS.appearance, ...STUDIO_FORMAT_COMMANDS.content, ...STUDIO_FORMAT_COMMANDS.arrange]
       : target.kind === 'textbox-shell' ? [...STUDIO_FORMAT_COMMANDS.box, ...STUDIO_FORMAT_COMMANDS.arrange] : STUDIO_FORMAT_COMMANDS.arrange
-    if ((action === 'generateTextBoxContent' || action === 'applyTextFormatCommand' || action === 'setTextHighlightColor') && (admitted.kind !== 'editable-text' || !admitted.textRangeOwner || admitted.textRangeOwner !== (target.kind === 'editable-text' ? target.textRangeOwner : null))) return refuse('The editable text selection must be confirmed before using this action.')
+    if ((action === 'applyTextFormatCommand' || action === 'setTextHighlightColor') && (admitted.kind !== 'editable-text' || !admitted.textRangeOwner || admitted.textRangeOwner !== (target.kind === 'editable-text' ? target.textRangeOwner : null))) return refuse('The editable text selection must be confirmed before using this action.')
     if (!commands.includes(action as never) || !admitted.supportedCommands.includes(action as StudioFormatCommand)) {
       return refuse('This formatting command is not available for the selected element.')
     }
@@ -125,6 +141,11 @@ export function StudioFormatInspector(props: StudioFormatInspectorProps) {
     try {
       const result = await latest.current.onSendCommand(action as StudioFormatCommand, params, target)
       if (!current()) return { success: false, error: 'Formatting target changed.' }
+      if (action === 'generateTextBoxContent' && result?.success === true && (result.contentEffectConfirmed !== true || typeof result.contentChanged !== 'boolean')) {
+        const error = 'The text box change was not confirmed. Your prompt has been kept.'
+        setFailure({ scope, message: error }); latest.current.onError?.(error, target)
+        return { success: false, error }
+      }
       if (result?.success !== true) {
         const error = result?.error ?? 'Formatting change was not confirmed.'
         setFailure({ scope, message: describeFailure(error) }); latest.current.onError?.(error, target)
@@ -138,7 +159,7 @@ export function StudioFormatInspector(props: StudioFormatInspectorProps) {
     }
   }, [scope, target])
   if (!props.isOpen) return null
-  return <div data-studio-v4-shell="true" className="h-full min-h-0 min-w-0"><section data-studio-v4-panel="format-inspector" aria-label="Format selected element"
+  return <div data-studio-v4-shell="true" className="h-full min-h-0 min-w-0"><section data-studio-v4-panel="inspector-format" aria-label="Format selected element"
     className="relative flex h-full min-h-0 min-w-0 flex-col bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100">
     <header data-studio-v4-panel-header className="flex shrink-0 items-center justify-between border-b px-4 py-3">
       <div className="min-w-0"><h2>Format</h2><p>{target?.kind === 'editable-text' ? 'Selected text' : target?.kind === 'textbox-shell' ? 'Selected graphic box' : target ? 'Selected element' : 'No element selected'}</p></div>
@@ -146,16 +167,16 @@ export function StudioFormatInspector(props: StudioFormatInspectorProps) {
     </header>
     {props.busy && <p role="status" className="px-4 py-2 text-xs">Formatting is unavailable while generation is in progress.</p>}
     {failure?.scope === scope && <div data-studio-format-failure="true" role="alert"><strong>Formatting change not confirmed</strong><p>{failure.message}</p><small>Attempted control values do not confirm that the slide changed.</small></div>}
-    {target ? <InspectorControls key={scope.revision} target={target} send={send} disabled={props.busy || pending === scope} readRevision={readSnapshotRef.current.revision}/>
+    {target ? <InspectorControls key={scope.revision} target={target} send={send} disabled={props.busy || pending === scope} readRevision={readSnapshotRef.current.revision} contentDraft={contentDraft} externalBusy={props.busy}/>
       : <p className="px-4 py-4 text-sm">Select an element on the slide to format it.</p>}
   </section></div>
 }
 
-function InspectorControls({ target, send, disabled, readRevision }: { readRevision: number; target: StudioFormatTarget; send: (action: string, params: Record<string, any>) => Promise<any>; disabled: boolean }) {
+function InspectorControls({ target, send, disabled, readRevision, contentDraft, externalBusy }: { readRevision: number; target: StudioFormatTarget; send: (action: string, params: Record<string, any>) => Promise<any>; disabled: boolean; contentDraft: StudioAIContentDraft | null; externalBusy: boolean }) {
   const [tab, setTab] = useState<Tab>(target.kind === 'editable-text' ? 'content' : target.kind === 'textbox-shell' ? 'appearance' : 'arrange')
   const tabs: Tab[] = target.kind === 'editable-text' ? ['content', 'appearance', 'arrange'] : target.kind === 'textbox-shell' ? ['appearance', 'arrange'] : ['arrange']
   const supported = (catalog: readonly StudioFormatCommand[]) => catalog.every(command => target.supportedCommands.includes(command))
-  const content = target.kind === 'editable-text' && Boolean(target.textRangeOwner) && supported(STUDIO_FORMAT_COMMANDS.content)
+  const content = target.kind === 'editable-text' && supported(STUDIO_FORMAT_COMMANDS.content)
   const nativeProperties = target.properties && target.properties.elementId === target.elementId
     && [target.properties.position?.x,target.properties.position?.y,target.properties.size?.width,target.properties.size?.height,target.properties.rotation,target.properties.zIndex].every(value=>typeof value === 'number' && Number.isFinite(value))
     && target.properties.size.width > 0 && target.properties.size.height > 0 && typeof target.properties.locked === 'boolean' ? target.properties : null
@@ -170,7 +191,7 @@ function InspectorControls({ target, send, disabled, readRevision }: { readRevis
         <div role="tabpanel" aria-label="Content" hidden={tab !== 'content'}>
           <p className="px-4 pt-3 text-xs">Edit text directly on the slide, or use the existing AI text actions below.</p>
           {!content && <p className="px-4 pt-2 text-xs" role="status">AI text actions are unavailable for this selection.</p>}
-          <fieldset disabled={disabled || !content} className="min-w-0 border-0 p-0"><AITab elementId={target.elementId} presentationId={target.presentationId} slideIndex={target.slideIndex} onSendCommand={send} isApplying={disabled || !content}/></fieldset>
+          <fieldset disabled={!content} className="min-w-0 border-0 p-0">{contentDraft && <StudioAIContent target={target} draft={contentDraft} onSendCommand={send} enabled={content} isApplying={disabled || !content} externalBusy={externalBusy}/>}</fieldset>
         </div>
         <div role="tabpanel" aria-label="Appearance" hidden={tab !== 'appearance'}>
           <CompactAppearance key={`appearance-${readRevision}`} target={target} send={send} disabled={disabled}/>
@@ -189,6 +210,95 @@ function InspectorControls({ target, send, disabled, readRevision }: { readRevis
       </div>
     </div>
   </>
+}
+
+// Studio owns prompt lifetime here; the shared AITab and Classic behavior remain unchanged.
+const STUDIO_AI_QUICK_ACTIONS = [
+  { label: 'Shorten', action: 'shorten' }, { label: 'Expand', action: 'expand' },
+  { label: 'Fix Grammar', action: 'grammar' }, { label: 'Add Bullets', action: 'bulletize' },
+  { label: 'Simplify', action: 'simplify' }, { label: 'Professional', action: 'professional' },
+]
+const STUDIO_AI_TONES = [
+  { value: 'professional', label: 'Prof' }, { value: 'casual', label: 'Casual' },
+  { value: 'persuasive', label: 'Pers' }, { value: 'technical', label: 'Tech' },
+]
+const STUDIO_AI_STYLES = [
+  { value: 'expand', label: 'Expand' }, { value: 'summarize', label: 'Summary' }, { value: 'rewrite', label: 'Rewrite' },
+]
+function StudioAIContent({ target, draft, onSendCommand, enabled, isApplying, externalBusy }: {
+  target: Extract<StudioFormatTarget, { kind: 'editable-text' }>; draft: StudioAIContentDraft;
+  onSendCommand: (action: string, params: Record<string, any>) => Promise<any>;
+  enabled: boolean; isApplying: boolean; externalBusy: boolean;
+}) {
+  const [view, setView] = useState(() => ({ ...draft }))
+  const [generating, setGenerating] = useState(false)
+  const [message, setMessage] = useState<{ error: boolean; text: string } | null>(() => draft.unconfirmed ? { error: true, text: 'The previous text box change was not confirmed. Your prompt has been kept.' } : null)
+  const mounted = useRef(false), requestRef = useRef<object | null>(null)
+  const latest = useRef({ target, draft, enabled, externalBusy })
+  latest.current = { target, draft, enabled, externalBusy }
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; requestRef.current = null } }, [])
+  const update = (field: 'prompt' | 'tone' | 'style', value: string | null) => {
+    if (!mounted.current) return
+    if (field === 'prompt') draft.prompt = value ?? ''
+    else draft[field] = value
+    draft.revision += 1
+    setView({ ...draft })
+  }
+  const run = async (action?: string) => {
+    if (!mounted.current || !enabled || isApplying || requestRef.current) return
+    const captured = { ...draft }
+    if (!action && !captured.prompt.trim()) { setMessage({ error: true, text: 'Please enter a prompt' }); return }
+    const request = {}, owner = target.selectionOwner
+    requestRef.current = request; setGenerating(true); setMessage(null)
+    const current = () => mounted.current && requestRef.current === request
+      && latest.current.target.selectionOwner === owner && latest.current.draft === draft
+      && latest.current.enabled && !latest.current.externalBusy
+    try {
+      const result = await onSendCommand('generateTextBoxContent', action
+        ? { action, elementId: target.elementId, presentationId: target.presentationId, slideIndex: target.slideIndex }
+        : { prompt: captured.prompt.trim(), tone: captured.tone || undefined, style: captured.style || undefined,
+            elementId: target.elementId, presentationId: target.presentationId, slideIndex: target.slideIndex })
+      if (!current()) { draft.unconfirmed = true; return }
+      if (result?.success !== true || result.contentEffectConfirmed !== true || typeof result.contentChanged !== 'boolean') {
+        draft.unconfirmed = true
+        setMessage({ error: true, text: describeFailure(result?.error ?? 'The text box change was not confirmed. Your prompt has been kept.') })
+        return
+      }
+      draft.unconfirmed = false
+      if (result.contentChanged !== true) {
+        setMessage({ error: false, text: 'The text box already matches. Your prompt has been kept.' })
+        return
+      }
+      // A successful older request cannot clear a newer prompt/tone/style draft.
+      if (!action && draft.revision === captured.revision && draft.prompt === captured.prompt
+        && draft.tone === captured.tone && draft.style === captured.style) {
+        draft.prompt = ''; draft.revision += 1; setView({ ...draft })
+      }
+      setMessage({ error: false, text: 'Text box updated.' })
+    } catch (error) {
+      draft.unconfirmed = true
+      if (current()) setMessage({ error: true, text: describeFailure(error) })
+    } finally {
+      if (mounted.current && requestRef.current === request) {
+        requestRef.current = null; setGenerating(false)
+      }
+    }
+  }
+  return <div className="p-4 space-y-5">
+    <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-indigo-400"/><span className="text-[11px] font-medium text-gray-300" style={{ color: 'var(--sp-ink)' }}>AI Content Assistant</span></div>
+    <PanelSection title="Quick Actions"><div className="flex flex-wrap gap-1.5">{STUDIO_AI_QUICK_ACTIONS.map(({ label, action }) => <button key={action} type="button" onClick={() => run(action)} disabled={generating || isApplying}
+      className={cn('px-3 py-1.5 rounded-full', 'bg-gray-800/60 border border-gray-700/50', 'text-[10px] text-gray-300', 'hover:bg-gray-700/50 hover:border-gray-600 hover:text-white', 'transition-all duration-150', 'disabled:opacity-50 disabled:cursor-not-allowed')}>{label}</button>)}</div></PanelSection>
+    <Divider label="or generate new"/>
+    <div className="space-y-3"><textarea aria-label="AI content prompt" value={view.prompt} onChange={event => update('prompt', event.target.value)} placeholder="Describe what you want to write..." disabled={!enabled}
+      className={cn('w-full h-20 px-3 py-2.5 rounded-lg', 'bg-gray-800/60 border border-gray-700/50', 'text-[11px] text-white placeholder:text-gray-500', 'resize-none', 'focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20', 'transition-all duration-150')}/></div>
+    <PanelSection title="Tone"><ButtonGroup options={STUDIO_AI_TONES} value={view.tone} onChange={value => update('tone', view.tone === value ? null : value)} disabled={!enabled} accentColor="indigo"/></PanelSection>
+    <PanelSection title="Style"><ButtonGroup options={STUDIO_AI_STYLES} value={view.style} onChange={value => update('style', view.style === value ? null : value)} disabled={!enabled} accentColor="purple"/></PanelSection>
+    {message && <div role={message.error ? 'alert' : 'status'} style={{ color: 'var(--sp-ink)' }} className={cn('px-3 py-2 rounded-lg text-[10px]', message.error ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'text-gray-300')}>{message.text}</div>}
+    <button type="button" onClick={() => run()} disabled={generating || isApplying || !view.prompt.trim()} className={cn('w-full flex items-center justify-center gap-2', 'h-10 rounded-lg', 'text-[11px] font-medium', 'transition-all duration-150', generating || isApplying || !view.prompt.trim() ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-900/20 hover:shadow-xl hover:shadow-indigo-900/30')}>
+      {generating ? <><Loader2 className="h-3.5 w-3.5 animate-spin"/>Generating...</> : <><Sparkles className="h-3.5 w-3.5"/>Generate Content</>}
+    </button>
+    <p className="text-[9px] text-gray-600 text-center">AI generates styled HTML content</p>
+  </div>
 }
 
 function fontSizeInPoints(value: string | undefined): string {
