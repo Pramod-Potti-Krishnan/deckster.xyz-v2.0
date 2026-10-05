@@ -410,6 +410,7 @@ export function SlideGenerationPanel({
   )
 
   function handleLayoutChange(layout: LayoutChoice) {
+    retireStudioDraft()
     setSelectedLayout(layout)
 
     const defaults = layoutDefaults(layout)
@@ -431,6 +432,7 @@ export function SlideGenerationPanel({
   }
 
   function handleContentTypeChange(value: OptionalChoice<ContentType>) {
+    retireStudioDraft()
     const defaultShape = defaultShapeForContent(value)
     setContentType(value)
     setShapeSubtype(defaultShape)
@@ -443,6 +445,7 @@ export function SlideGenerationPanel({
   }
 
   function handleShapeChange(value: OptionalChoice<ShapeSubtype>) {
+    retireStudioDraft()
     setShapeSubtype(value)
     const nextImageOptions = imageOptionsFor(contentType, value)
     if (!nextImageOptions.some(option => option.value === canvasType)) {
@@ -889,7 +892,7 @@ export function SlideGenerationPanel({
                     <ImageOptionRow
                       value={canvasType}
                       options={imageOptions}
-                      onChange={setCanvasType}
+                      onChange={(value) => { retireStudioDraft(); setCanvasType(value) }}
                     />
                   )}
                 </div>
@@ -901,33 +904,33 @@ export function SlideGenerationPanel({
                     label="Hero style"
                     value={heroStyle}
                     options={heroStyleDropdownOptions}
-                    onChange={setHeroStyle}
+                    onChange={(value) => { retireStudioDraft(); setHeroStyle(value) }}
                     columns={3}
                   />
                   <label className="space-y-1">
                     <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Kicker line</span>
                     <Input
                       value={eyebrow}
-                      onChange={(event) => setEyebrow(event.target.value)}
+                      onChange={(event) => { retireStudioDraft(); setEyebrow(event.target.value) }}
                       placeholder="Optional"
                       className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800"
                     />
                   </label>
                   {selectedLayout === 'hero_closing' && heroStyle === 'split_contact' && (
                     <div className="grid grid-cols-2 gap-2">
-                      <HeroTextInput label="Email" value={contactEmail} onChange={setContactEmail} />
-                      <HeroTextInput label="Phone" value={contactPhone} onChange={setContactPhone} />
-                      <HeroTextInput label="Website" value={contactWebsite} onChange={setContactWebsite} />
-                      <HeroTextInput label="LinkedIn" value={contactLinkedin} onChange={setContactLinkedin} />
+                      <HeroTextInput label="Email" value={contactEmail} onChange={(value) => { retireStudioDraft(); setContactEmail(value) }} />
+                      <HeroTextInput label="Phone" value={contactPhone} onChange={(value) => { retireStudioDraft(); setContactPhone(value) }} />
+                      <HeroTextInput label="Website" value={contactWebsite} onChange={(value) => { retireStudioDraft(); setContactWebsite(value) }} />
+                      <HeroTextInput label="LinkedIn" value={contactLinkedin} onChange={(value) => { retireStudioDraft(); setContactLinkedin(value) }} />
                     </div>
                   )}
                   {selectedLayout === 'hero_closing' && heroStyle === 'quote' && (
-                    <HeroTextInput label="Attribution" value={attribution} onChange={setAttribution} />
+                    <HeroTextInput label="Attribution" value={attribution} onChange={(value) => { retireStudioDraft(); setAttribution(value) }} />
                   )}
                   <CompactSelect
                     label="Background"
                     value={heroBackground}
-                    onValueChange={setHeroBackground}
+                    onValueChange={(value) => { retireStudioDraft(); setHeroBackground(value) }}
                     options={HERO_BACKGROUND_OPTIONS}
                   />
                 </div>
@@ -971,28 +974,28 @@ export function SlideGenerationPanel({
                     label="Web search"
                     description="Use live web grounding"
                     pressed={useWebSearch}
-                    onClick={() => setUseWebSearch(prev => !prev)}
+                    onClick={() => { retireStudioDraft(); setUseWebSearch(prev => !prev) }}
                   />
                   <ToggleRow
                     label="Deep research"
                     badge="Premium"
                     description="Multi-step research pass"
                     pressed={useDeepResearch}
-                    onClick={() => setUseDeepResearch(prev => !prev)}
+                    onClick={() => { retireStudioDraft(); setUseDeepResearch(prev => !prev) }}
                   />
                   <ToggleRow
                     label="Use my uploaded files"
                     description={hasUploadedFiles ? 'Use files attached to this session' : 'No files uploaded'}
                     pressed={hasUploadedFiles && useUploadedDocuments}
                     disabled={!hasUploadedFiles}
-                    onClick={() => setUseUploadedDocuments(prev => !prev)}
+                    onClick={() => { retireStudioDraft(); setUseUploadedDocuments(prev => !prev) }}
                   />
                   {kgCardVisible && (
                     <ToggleRow
                       label="Use my knowledge repo"
                       description="Use saved domain memory"
                       pressed={useKnowledgeGraph}
-                      onClick={() => setUseKnowledgeGraph(prev => !prev)}
+                      onClick={() => { retireStudioDraft(); setUseKnowledgeGraph(prev => !prev) }}
                     />
                   )}
                 </div>
@@ -1005,7 +1008,7 @@ export function SlideGenerationPanel({
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => setWebSearchMaxQueries(prev => Math.max(1, prev - 1))}
+                        onClick={() => { retireStudioDraft(); setWebSearchMaxQueries(prev => Math.max(1, prev - 1)) }}
                         className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                         title="Decrease max queries"
                       >
@@ -1014,7 +1017,7 @@ export function SlideGenerationPanel({
                       <span className="w-5 text-center text-xs text-gray-700 dark:text-slate-200">{webSearchMaxQueries}</span>
                       <button
                         type="button"
-                        onClick={() => setWebSearchMaxQueries(prev => Math.min(10, prev + 1))}
+                        onClick={() => { retireStudioDraft(); setWebSearchMaxQueries(prev => Math.min(10, prev + 1)) }}
                         className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                         title="Increase max queries"
                       >

@@ -94,6 +94,7 @@ const getLayoutsByCategory = (category: SlideLayoutCategory): typeof SLIDE_LAYOU
 
 interface SlideLayoutPickerProps {
   onAddSlide: (layoutId: SlideLayoutType) => Promise<void>
+  onGenerateSlide?: () => void
   disabled?: boolean
   className?: string
 }
@@ -106,6 +107,7 @@ interface SlideLayoutPickerProps {
  */
 export function SlideLayoutPicker({
   onAddSlide,
+  onGenerateSlide,
   disabled = false,
   className = '',
 }: SlideLayoutPickerProps) {
@@ -145,6 +147,7 @@ export function SlideLayoutPicker({
       <PopoverTrigger asChild><button disabled={disabled || isAdding} className={cn("flex h-12 min-w-[88px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 dark:text-slate-200", "hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors", className)}><Plus className="h-5 w-5" /><span className="text-[10px] font-medium whitespace-nowrap">{isAdding ? 'Adding' : 'Add Slide'}</span></button></PopoverTrigger>
       <PopoverContent portalContainer={portalContainer} data-studio-slide-layout-picker="true" align="start" sideOffset={8} aria-label="Choose a slide layout">
         <header className="slp-heading"><div><h2>Add a slide</h2><p>Choose a structure to insert after your current slide.</p></div><button type="button" className="slp-close" aria-label="Close slide layouts" onClick={() => setOpen(false)}><X size={14} /></button></header>
+        {onGenerateSlide && <nav className="slp-methods" aria-label="New slide method"><button type="button" disabled={unavailable} onClick={() => { setOpen(false); onGenerateSlide() }}><Sparkles size={13} aria-hidden="true" />Generate</button><button type="button" aria-current="page" onClick={() => searchInput.current?.focus()}><LayoutGrid size={13} aria-hidden="true" />From a layout</button></nav>}
         <div className="slp-search"><Search size={15} aria-hidden="true" /><input ref={searchInput} aria-label="Find a slide layout" placeholder="e.g. comparison, image, text…" value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" aria-label="Clear slide layout search" onClick={() => { setQuery(''); searchInput.current?.focus() }}><X size={13} /></button>}</div>
         <div className="slp-categories" role="group" aria-label="Slide layout category"><button type="button" aria-pressed={category === 'all'} onClick={() => setCategory('all')}>All layouts</button>{SLIDE_LAYOUT_CATEGORIES.map(item => <button type="button" key={item.category} aria-pressed={category === item.category} onClick={() => setCategory(item.category)}>{item.label}</button>)}</div>
         <p className="slp-count" role="status">{unavailable ? isAdding ? 'Adding your slide…' : 'Adding slides is currently unavailable.' : `${matches.length} of ${SLIDE_LAYOUT_DEFINITIONS.length} layouts${query.trim() || category !== 'all' ? ' match' : ' available'}`}</p>

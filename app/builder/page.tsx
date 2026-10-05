@@ -3504,6 +3504,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     bringToFront('slide')
   }, [bringToFront])
 
+  const handleOpenSlideCompose = useCallback(() => {
+    setSlideGenerationMode('compose')
+    setSlideRefineTarget(null)
+    setShowFormatPanel(true)
+    bringToFront('slide')
+  }, [bringToFront])
+
   const slideComposeThumbnailJobs = useMemo<SlideComposeThumbnailJob[]>(
     () => Object.values(slideComposeJobs)
       .filter(job => job.status === 'building' || job.status === 'error')
@@ -6127,6 +6134,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onApiReady={setLayoutServiceApis}
             onComposeApiReady={handleComposeApiReady}
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
+            onGenerateSlide={studioShell && features.slideComposerEnabled ? handleOpenSlideCompose : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
               if (features.useTextLabsGeneration) {
                 setSelectedTextBoxId(elementId)

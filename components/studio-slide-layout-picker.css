@@ -25,6 +25,10 @@
 [data-studio-slide-layout-picker="true"] .slp-heading h2 { font-family: Georgia, serif; font-size: 21px; font-weight: 400; margin: 0; line-height: 1.2; }
 [data-studio-slide-layout-picker="true"] .slp-heading p { color: var(--slp-muted); font-size: 11px; margin: 5px 0 0; }
 [data-studio-slide-layout-picker="true"] .slp-close { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border: 1px solid var(--slp-line); border-radius: 6px; background: transparent; color: var(--slp-muted); }
+[data-studio-slide-layout-picker="true"] .slp-methods { display: flex; gap: 5px; padding: 0 15px 10px; flex-shrink: 0; }
+[data-studio-slide-layout-picker="true"] .slp-methods button { display: flex; align-items: center; gap: 5px; padding: 6px 9px; border: 1px solid var(--slp-line); border-radius: 6px; background: transparent; color: var(--slp-muted); font-size: 11px; }
+[data-studio-slide-layout-picker="true"] .slp-methods button[aria-current="page"] { background: var(--slp-active); border-color: var(--slp-teal); color: var(--slp-teal); }
+[data-studio-slide-layout-picker="true"] .slp-methods button:not([aria-current="page"]):hover { background: var(--slp-surface); color: var(--slp-text); }
 [data-studio-slide-layout-picker="true"] .slp-search { display: flex; align-items: center; gap: 8px; margin: 0 15px 10px; padding: 8px 9px; border: 1px solid var(--slp-line); border-radius: 7px; color: var(--slp-muted); flex-shrink: 0; }
 [data-studio-slide-layout-picker="true"] .slp-search input { width: 100%; min-width: 0; border: 0; background: transparent; color: var(--slp-text); font-size: 12px; }
 [data-studio-slide-layout-picker="true"] .slp-search input::placeholder { color: var(--slp-muted); }

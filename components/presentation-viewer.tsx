@@ -8,7 +8,7 @@ import { StudioIntroReplay } from '@/components/studio-intro-replay'
 import './studio-authoring-menus.css'
 import type { StudioWorkflowRequest } from "@/lib/studio-workflow"
 import { shouldHandleStudioCanvasShortcut } from "@/lib/studio-canvas-shortcuts"
-import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ChevronLeft,
@@ -313,6 +313,7 @@ interface PresentationViewerProps {
   templateModeAvailable?: boolean
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
+  onGenerateSlide?: () => void
   thumbnailUrlsBySlide?: Record<number, string>
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
@@ -587,6 +588,7 @@ export function PresentationViewer({
   templateModeAvailable = false,
   composeJobs = [],
   onRefineSlide,
+  onGenerateSlide,
   thumbnailUrlsBySlide = {},
   templateSnapshot = null,
   templateSnapshotLoading = false,
@@ -959,8 +961,8 @@ export function PresentationViewer({
   }, [slideStructure])
 
   // Reset readiness for every exact iframe navigation, including notes and
-  // fullscreen query-string rewrites.
-  useEffect(() => {
+  // fullscreen query-string rewrites, before that frame can report its load.
+  useLayoutEffect(() => {
     debugLog('🔄 Presentation iframe navigation changed, resetting readiness')
     setIframeReady(false)
     setLoadedApprovedNavigationUrl(null)
@@ -3099,6 +3101,7 @@ export function PresentationViewer({
               {/* Add Slide */}
               <SlideLayoutPicker
                 onAddSlide={handleAddSlide}
+                onGenerateSlide={onGenerateSlide}
                 disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
                 className="min-w-[80px] justify-center"
               />

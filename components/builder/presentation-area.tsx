@@ -136,6 +136,7 @@ export interface PresentationAreaProps {
   templateCurrentSlideIndex?: number
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
+  onGenerateSlide?: () => void
   thumbnailUrlsBySlide?: Record<number, string>
   onThumbnailInvalidated?: (presentationId: string) => void
   selectedTemplateElementId?: string | null
@@ -226,6 +227,7 @@ export function PresentationArea({
   templateCurrentSlideIndex,
   composeJobs = [],
   onRefineSlide,
+  onGenerateSlide,
   thumbnailUrlsBySlide = {},
   onThumbnailInvalidated,
   selectedTemplateElementId = null,
@@ -298,7 +300,7 @@ export function PresentationArea({
   const waitingForDirector = narrationActive || !!waitingActivity
   const workingPlaceholder = studioShell && !blankPlaceholderDismissed && lifecycle.hasOwnedSelection
     && !lifecycle.hasGeneratedDeck && !lifecycle.hasAuthoredDeck
-    && waitingForDirector && (narrationPhase === 'idle' || narrationPhase === 'planning')
+    && waitingForDirector && (narrationPhase === 'idle' || narrationPhase === 'planning' || narrationPhase === 'awaiting_user')
   const showBlankPlaceholder = studioShell
     ? (legacyBlankPlaceholder && lifecycle.showLanding) || workingPlaceholder
     : legacyBlankPlaceholder
@@ -462,6 +464,7 @@ export function PresentationArea({
             templateModeAvailable={templateModeAvailable}
             composeJobs={composeJobs}
             onRefineSlide={onRefineSlide}
+            onGenerateSlide={onGenerateSlide}
             thumbnailUrlsBySlide={thumbnailUrlsBySlide}
             onThumbnailInvalidated={onThumbnailInvalidated}
             templateSnapshot={templateSnapshot}
