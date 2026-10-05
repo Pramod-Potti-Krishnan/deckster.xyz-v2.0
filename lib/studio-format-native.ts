@@ -87,6 +87,7 @@ export function createStudioFormatSelectionHandle(input: {
   let admitted: StudioFormatTarget | null = null
   let pending = false
   let retired = false
+  let settleAfterConfirmed: { fontSizePx?: number } | null = null
   const isCurrent = () => !retired && input.isCurrent()
   const check = () => { if (!isCurrent()) throw new Error('Select the element again before formatting.') }
   const native = async (action: string, params: Record<string, unknown>, timeout = 8000) => {
@@ -95,11 +96,20 @@ export function createStudioFormatSelectionHandle(input: {
   return {
     owner: input.owner, elementId: input.elementId, presentationId: input.presentationId, slideIndex: input.slideIndex,
     isCurrent,
-    retire: () => { retired = true; admitted = null },
+    retire: () => { retired = true; admitted = null; settleAfterConfirmed = null },
     async read() {
       check(); if (pending) throw new Error('Wait for the current formatting operation.')
       pending = true
+      const settlement = settleAfterConfirmed
+      settleAfterConfirmed = null
       try {
+        if (settlement) {
+          // The pinned native .editable rule transitions all properties for
+          // 0.2s. ACK confirms the setter, before computed styles have settled.
+          admitted = null
+          await new Promise<void>(resolve => setTimeout(resolve, 250))
+          check()
+        }
         const membership = await native('getSlideGenerationContext', { slideIndex: input.slideIndex, targetElementId: input.elementId })
         if (membership.slide_index !== input.slideIndex || membership.target_element_id !== input.elementId) throw new Error('The selected element is not confirmed on this slide.')
         const geometry = await native('getElementGeometry', { elementId: input.elementId })
@@ -121,6 +131,13 @@ export function createStudioFormatSelectionHandle(input: {
           const ordinaryBox = ordinary && !rawSpec
           const response = await native('getTextBoxFormatting', { elementId: input.elementId })
           if (!record(response.formatting)) throw new Error('Native formatting properties were not returned.')
+          if (settlement?.fontSizePx !== undefined) {
+            const value = response.formatting.fontSize
+            const computed = typeof value === 'string' && /^\d+(?:\.\d+)?px$/.test(value) ? Number.parseFloat(value) : NaN
+            if (!Number.isFinite(computed) || Math.abs(computed - settlement.fontSizePx) > 0.001) {
+              throw new Error('The confirmed font size has not settled in the native formatting read. Select the element again.')
+            }
+          }
           const formatting = Object.fromEntries(Object.entries(response.formatting).filter(([, value]) => typeof value === 'string'))
           const box = Object.fromEntries(['padding', 'backgroundColor', 'borderStyle', 'borderWidth', 'borderColor', 'borderRadius'].filter(key => typeof formatting[key] === 'string').map(key => [key, formatting[key]]))
           const text = ordinaryBox && typeof nativeBox.componentType === 'string'
@@ -138,7 +155,13 @@ export function createStudioFormatSelectionHandle(input: {
       check()
       if (pending || target !== admitted || target.selectionOwner !== input.owner || !validateStudioFormatParams(action, params, target)) throw new Error('This formatting control is unavailable for the current selection.')
       pending = true
-      try { return await native(action, { ...params, elementId: input.elementId }, 30000) }
+      const commandParams: Record<string, unknown> = { ...params, elementId: input.elementId }
+      try {
+        const result = await native(action, commandParams, 30000)
+        settleAfterConfirmed = action === 'setTextBoxFontSize'
+          ? { fontSizePx: Number.parseFloat(String(commandParams.fontSize)) * 4 / 3 } : {}
+        return result
+      }
       finally { pending = false }
     },
   }
