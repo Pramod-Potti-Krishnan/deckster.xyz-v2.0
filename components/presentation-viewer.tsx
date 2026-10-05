@@ -1527,6 +1527,7 @@ export function PresentationViewer({
 
         setTotalSlides(newTotal)
         setCurrentSlide(newSlideNumber) // Update local state (1-based)
+        if (studioShell) setSelectedSlideIndices([newSlideIndex])
         // The parent owns the slide index used by Add Element. Publish the
         // authoritative addSlide result before awaiting navigation/edit-mode
         // commands so an immediate Add Blank → Chart cannot target the prior

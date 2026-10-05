@@ -58,6 +58,7 @@ import type {
 // Extracted components
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
+import { StudioDirectorNotice } from '@/components/builder/studio-director-notice'
 import { ComposerLibraryDialog } from '@/components/builder/composer-library-dialog'
 import { COMPOSER_READY_KEY_PREFIX, type ComposerReady } from '@/lib/composer-library'
 import { BuilderHeader } from '@/components/builder/builder-header'
@@ -98,7 +99,7 @@ import {
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
-import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
+import { useTextLabsGeneration, type TextLabsGenerationResult } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
 import { useQuota } from '@/hooks/use-quota'
 import { useThemeProfiles } from '@/hooks/use-theme-profiles'
@@ -152,6 +153,13 @@ import {
   type PendingHandoffSubmission,
 } from '@/lib/manual-deck-workflow'
 import { lastBuilderSessionKey, unsavedBuilderSessionKey } from '@/lib/last-builder-session'
+import {
+  absorbStudioHandoffStatus,
+  canAutomaticallySubmitStudioHandoff,
+  getExpectedStudioHandoffRequest,
+  markStudioHandoffSubmitted,
+} from '@/lib/studio-handoff-status'
+import type { DirectorHandoffRequestOwner, DirectorHandoffRequestStatus } from '@/hooks/use-deckster-websocket-v2'
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -1424,6 +1432,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const manualDeckInspectionInFlightRef = useRef(false)
   const handoffSubmissionInFlightRef = useRef<Set<string>>(new Set())
   const pendingHandoffMemoryRef = useRef<PendingHandoffSubmission | null>(null)
+  const [pendingHandoffRevision, setPendingHandoffRevision] = useState(0)
+  const [handoffStorageWarning, setHandoffStorageWarning] = useState<{ sessionId: string; text: string } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -1447,6 +1457,49 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (urlSessionId && urlSessionId !== 'new') return urlSessionId
     return null
   })
+
+  // A socket receipt can arrive before the submission effect. Keep the owned
+  // in-memory receipt ahead of an older staged copy in browser storage.
+  const readCurrentStudioHandoff = useCallback((sessionId: string | null) => {
+    if (!sessionId || typeof window === 'undefined') return null
+    let stored: PendingHandoffSubmission | null = null
+    try { stored = readPendingHandoff(window.sessionStorage, sessionId) } catch { /* Memory remains available. */ }
+    const memory = pendingHandoffMemoryRef.current
+    if (memory?.new_session_id === sessionId
+      && (memory.owner_user_id === undefined || memory.owner_user_id === authScopeUserId)
+      && (!stored || stored.idempotency_key === memory.idempotency_key)) {
+      const accountSession = { userId: authScopeUserId, sessionId }
+      // Neither storage nor memory may downgrade a known submitted/observed
+      // request to staged. Both directions must suppress uncertain replay.
+      if (stored && canAutomaticallySubmitStudioHandoff(memory, accountSession)
+        && !canAutomaticallySubmitStudioHandoff(stored, accountSession)) return stored
+      return memory
+    }
+    return stored
+  }, [authScopeUserId])
+  const expectedStudioHandoffRequest = useMemo(() => studioShell
+    ? getExpectedStudioHandoffRequest(readCurrentStudioHandoff(currentSessionId), {
+        userId: authScopeUserId, sessionId: currentSessionId,
+      })
+    : null, [studioShell, currentSessionId, authScopeUserId, readCurrentStudioHandoff, pendingHandoffRevision])
+  const expectedStudioHandoffRequestRef = useRef(expectedStudioHandoffRequest)
+  expectedStudioHandoffRequestRef.current = expectedStudioHandoffRequest
+  const handleStudioHandoffRequestStatus = useCallback((status: DirectorHandoffRequestStatus, owner: DirectorHandoffRequestOwner) => {
+    if (!studioShell || typeof window === 'undefined') return
+    const result = absorbStudioHandoffStatus(readCurrentStudioHandoff(currentSessionId), {
+      userId: authScopeUserId, sessionId: currentSessionId,
+    }, status, owner)
+    if (!result.accepted || !result.pending) return
+    pendingHandoffMemoryRef.current = result.pending
+    setPendingHandoffRevision(value => value + 1)
+    try {
+      savePendingHandoff(window.sessionStorage, result.pending)
+      setHandoffStorageWarning(null)
+    } catch {
+      setHandoffStorageWarning({ sessionId: result.pending.new_session_id,
+        text: 'Director reported this request, but its recovery record could not be saved in this browser. Keep this tab open to retain its recovery record. Reload recovery is uncertain.' })
+    }
+  }, [studioShell, currentSessionId, authScopeUserId, readCurrentStudioHandoff])
 
   const {
     thumbnailUrls: slideThumbnailUrlsByPresentation,
@@ -1872,6 +1925,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     connecting,
     connectionState,
     reconnectStatus,
+    transportNotice,
+    handoffRequestStatus,
     error: wsError,
     messages,
     presentationUrl,
@@ -1910,6 +1965,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearMessages,
     clearEphemeralIds,
     restoreMessages,
+    trackHandoffRequest,
     switchVersion,
     connect,
     ensureConnected,
@@ -1922,6 +1978,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     awaitingDirectorReply,
     stopAwaitingReply,
   } = useDecksterWebSocketV2({
+    expectedHandoffRequest: expectedStudioHandoffRequest,
+    onHandoffRequestStatus: handleStudioHandoffRequestStatus,
     // Don't auto-connect when restoring an existing session from URL.
     // The useBuilderSession hook will connect AFTER DB load + restoreMessages,
     // preventing Director's blank state from flashing before restored content.
@@ -3713,6 +3771,38 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
   }, [studioShell, questionSubmissionScopeRef.current.generation])
 
+  // DB restore retires transport request owners. Re-prime only the still-owned
+  // durable key after that real restore, before the session hook connects. This
+  // observes a request; it sends/replays nothing and never runs on every render.
+  const studioHandoffRestoreOwner = useMemo(() => ({ ...questionSubmissionScopeRef.current }),
+    [studioShell, questionSubmissionScopeRef.current.generation])
+  const restoreBuilderSessionMessages = useCallback((
+    historicalMessages: Parameters<typeof restoreMessages>[0],
+    restoredSessionState?: Parameters<typeof restoreMessages>[1],
+  ) => {
+    const owner = studioHandoffRestoreOwner
+    const isCurrentRestore = () => {
+      const current = questionSubmissionScopeRef.current
+      return current.active && current.generation === owner.generation
+        && current.sessionId === owner.sessionId && current.userId === owner.userId
+        && current.userId === authScopeUserId && currentSessionIdRef.current === owner.sessionId
+    }
+    if (studioShell && !isCurrentRestore()) return
+    restoreMessages(historicalMessages, restoredSessionState)
+    if (!studioShell || !isCurrentRestore() || !owner.sessionId
+      || restoredSessionState?.deckOwnerSessionId !== owner.sessionId) return
+    const currentExpected = getExpectedStudioHandoffRequest(readCurrentStudioHandoff(owner.sessionId), {
+      userId: owner.userId, sessionId: owner.sessionId,
+    })
+    const expected = expectedStudioHandoffRequestRef.current
+    if (!currentExpected || !expected
+      || currentExpected.sessionId !== expected.sessionId
+      || currentExpected.userId !== expected.userId
+      || currentExpected.idempotencyKey !== expected.idempotencyKey) return
+    trackHandoffRequest(currentExpected)
+  }, [studioShell, studioHandoffRestoreOwner, authScopeUserId, restoreMessages,
+    readCurrentStudioHandoff, trackHandoffRequest])
+
   // Builder session hook (session init, loading, switching, persistence effects)
   const session = useBuilderSession({
     user,
@@ -3727,7 +3817,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     ensureConnected,
     disconnect,
     clearMessages,
-    restoreMessages,
+    restoreMessages: restoreBuilderSessionMessages,
     updateCacheUserMessages,
     messages,
     toast,
@@ -3868,7 +3958,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const handleApprovedTextLabsGenerate = useCallback(async (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent,
-  ) => {
+    invocation?: { kind: 'chat-add'; slideIndex: number },
+  ): Promise<TextLabsGenerationResult> => {
     if (!layoutServiceApis?.sendElementCommand) {
       generationPanel.setError('The presentation viewer is unavailable. Reload the presentation and try again.')
       toast({
@@ -3876,11 +3967,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         description: 'Wait for an approved presentation viewer to load before generating an element.',
         variant: 'destructive',
       })
-      return
+      return { status: 'failed', presentationId: effectivePresentationId,
+        slideIndex: formData.slideIndex ?? null,
+        error: 'The presentation viewer is unavailable. Reload the presentation and try again.' }
     }
 
-    await handleTextLabsGenerate(formData, submitIntent)
-  }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast])
+    return handleTextLabsGenerate(formData, submitIntent, invocation)
+  }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast, effectivePresentationId])
 
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
     if (!features.useTextLabsGeneration) return
@@ -3917,12 +4010,29 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // MDC P8 (K5): execute a chat-invoked element add through the SAME pipeline
   // as the element panel, then report the outcome to the Director.
+  const elementDirectiveGenerationOwnerRef = useRef({ sessionId: currentSessionId || wsSessionId,
+    deckOwnerSessionId, presentationId: effectivePresentationId, epoch: 0 })
+  const previousDirectiveOwner = elementDirectiveGenerationOwnerRef.current
+  const nextDirectiveSessionId = currentSessionId || wsSessionId
+  const directiveOwnerChanged = previousDirectiveOwner.sessionId !== nextDirectiveSessionId
+    || previousDirectiveOwner.deckOwnerSessionId !== deckOwnerSessionId
+    || previousDirectiveOwner.presentationId !== effectivePresentationId
+  elementDirectiveGenerationOwnerRef.current = { sessionId: nextDirectiveSessionId,
+    deckOwnerSessionId, presentationId: effectivePresentationId,
+    epoch: previousDirectiveOwner.epoch + (directiveOwnerChanged ? 1 : 0) }
   elementDirectiveRunnerRef.current = (payload) => {
+    const owner = elementDirectiveGenerationOwnerRef.current
+    const ownsDirective = () => {
+      const current = elementDirectiveGenerationOwnerRef.current
+      return Boolean(owner.sessionId && owner.presentationId
+        && current.sessionId === owner.sessionId && current.deckOwnerSessionId === owner.sessionId
+        && current.presentationId === owner.presentationId && current.epoch === owner.epoch)
+    }
     void (async () => {
-      const report = (status: 'inserted' | 'failed' | 'dismissed', error?: string) =>
-        sendElementDirectiveResult({
+      const report = (status: 'inserted' | 'failed' | 'dismissed', error?: string, elementId?: string) =>
+        ownsDirective() && sendElementDirectiveResult({
           directive_id: payload.directive_id, status,
-          element_id: null, error: error ?? null,
+          element_id: status === 'inserted' ? elementId ?? null : null, error: error ?? null,
         })
       try {
         const { buildFormDataForDirective } = await import('@/lib/mdc-element-directive')
@@ -3933,6 +4043,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         }
         const slideCount = slideStructure?.slides?.length ?? 0
         const target = payload.slide_index
+        if (!ownsDirective()) {
+          report('failed', 'The requested presentation is no longer owned by this chat.')
+          return
+        }
+        const panel = generationPanel.getSnapshot()
+        if (generationPanel.hasActiveGenerations || panel.isOpen) {
+          report('dismissed', 'Finish or close the active element draft before adding an element from chat.')
+          return
+        }
         if (target < 0 || (slideCount > 0 && target >= slideCount)) {
           report('failed', 'target slide out of range')
           return
@@ -3945,8 +4064,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           await layoutServiceApis.goToSlide(target)
           await new Promise(resolve => setTimeout(resolve, 400))
         }
-        await handleApprovedTextLabsGenerate(formData, 'generate')
-        report('inserted')
+        if (!ownsDirective() || currentSlideIndexRef.current !== target) {
+          report('failed', 'The requested slide could not be confirmed. No generation was started.')
+          return
+        }
+        const outcome = await handleApprovedTextLabsGenerate(formData, 'generate', { kind: 'chat-add', slideIndex: target })
+        if (outcome.status !== 'inserted') {
+          report('failed', outcome.error)
+          return
+        }
+        if (!ownsDirective() || outcome.presentationId !== owner.presentationId || outcome.slideIndex !== target
+          || !outcome.elementIds.length || outcome.elementIds.some(id => !id.trim())) {
+          report('failed', 'The requested slide insertion could not be confirmed. Inspect the slide before trying again.')
+          return
+        }
+        report('inserted', undefined, outcome.elementIds[0])
         toast({ title: 'Element added', description: `Added to slide ${target + 1} from chat.` })
       } catch (error) {
         report('failed', error instanceof Error ? error.message : 'generation failed')
@@ -5027,6 +5159,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         source_session_id: sourceSessionId,
         new_session_id: newSessionId,
         idempotency_key: idempotencyKey,
+        ...(studioShell ? { owner_user_id: authScopeUserId, submission_state: 'staged' as const } : {}),
         text: pending.messageText,
         store_name: sessionStoreName,
         file_count: attachedFiles.length,
@@ -5106,19 +5239,23 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     persistence, researchEnabled, router, session, sessionStoreName,
     showKnowledgeGraphToggle, templateOverrides, toast, uploadedFiles, user,
     webSearchEnabled, wsSessionId, studioShell,
+    authScopeUserId,
   ])
 
-  // The Director handoff endpoint seeds a pending request but intentionally does
-  // not execute it. Submit it once after the new session's socket is ready. The
-  // key is retained until WebSocket.send succeeds, so reloads can safely retry;
-  // Director suppresses a duplicate with the same idempotency key.
+  // Current Director can resume the durable request during connection. An owned
+  // receipt retires automatic submission; local send success retains the request
+  // for observation/recovery and does not imply server or native completion.
   useEffect(() => {
     if (!isReady || !currentSessionId || typeof window === 'undefined') return
-    const pending = readPendingHandoff(window.sessionStorage, currentSessionId)
+    const pending = studioShell ? readCurrentStudioHandoff(currentSessionId)
+      : readPendingHandoff(window.sessionStorage, currentSessionId)
       ?? (pendingHandoffMemoryRef.current?.new_session_id === currentSessionId
         ? pendingHandoffMemoryRef.current
         : null)
     if (!pending) return
+    if (studioShell && !canAutomaticallySubmitStudioHandoff(pending, {
+      userId: authScopeUserId, sessionId: currentSessionId,
+    })) return
 
     const submissionKey = `${pending.new_session_id}:${pending.idempotency_key}`
     if (handoffSubmissionInFlightRef.current.has(submissionKey)) return
@@ -5147,8 +5284,25 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
-    clearPendingHandoff(window.sessionStorage, currentSessionId)
-    pendingHandoffMemoryRef.current = null
+    if (studioShell) {
+      const retained = markStudioHandoffSubmitted(pending, {
+        userId: authScopeUserId, sessionId: currentSessionId,
+      }, sent)
+      pendingHandoffMemoryRef.current = retained
+      setPendingHandoffRevision(value => value + 1)
+      if (retained) {
+        try {
+          savePendingHandoff(window.sessionStorage, retained)
+          setHandoffStorageWarning(null)
+        } catch {
+          setHandoffStorageWarning({ sessionId: currentSessionId,
+            text: 'This request was sent, but its recovery record could not be saved in this browser. Keep this tab open to retain its recovery record. Reload recovery is uncertain.' })
+        }
+      }
+    } else {
+      clearPendingHandoff(window.sessionStorage, currentSessionId)
+      pendingHandoffMemoryRef.current = null
+    }
     const timestamp = Date.now()
     const messageId = pending.idempotency_key
     const attachments = attachmentsFromPayload({ attachments: pending.attachments })
@@ -5189,6 +5343,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearAllFiles, currentSessionId, deckIdentity, isReady, sendMessage,
     session.hasTitleFromUserMessageRef, session.setUserMessages,
     session.userMessageContentMapRef, session.userMessageIdsRef,
+    studioShell, authScopeUserId, readCurrentStudioHandoff, pendingHandoffRevision,
   ])
 
   // Handle action button clicks
@@ -5753,6 +5908,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               {showChat && (
                 <>
                   {studioShell && <StudioDirectorHeader connectionState={connectionState} isLoadingSession={session.isLoadingSession} />}
+                  {studioShell && <StudioDirectorNotice
+                    className="mx-3 mt-2"
+                    notice={transportNotice?.sessionId === (currentSessionId || wsSessionId) ? transportNotice : null}
+                    handoffStatus={handoffRequestStatus?.sessionId === (currentSessionId || wsSessionId) ? handoffRequestStatus : null}
+                  />}
+                  {studioShell && handoffStorageWarning?.sessionId === (currentSessionId || wsSessionId) && (
+                    <p role="alert" className="mx-3 mt-2 rounded-lg border border-[var(--ss-line)] bg-[var(--ss-panel)] p-3 text-xs text-[var(--ss-text)]">
+                      {handoffStorageWarning.text}
+                    </p>
+                  )}
                   <TokenUsageStrip
                     displayMode={studioShell ? "warning" : "all"}
                     tokenUsage={tokenUsage}

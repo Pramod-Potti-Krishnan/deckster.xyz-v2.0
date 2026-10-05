@@ -279,7 +279,7 @@ export function IconLabelForm({ onSubmit, registerSubmit, isGenerating, presenta
       useDeckTheme,
       themeOverrides,
       iconLabelConfig: {
-        operation,
+        operation: STUDIO_VISUAL_FORMS && mode === 'label' ? 'generate' : operation,
         mode,
         ...(explicitFields.has('size') ? { size } : {}),
         ...(explicitFields.has('style') ? { style } : {}),

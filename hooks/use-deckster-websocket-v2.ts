@@ -48,7 +48,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive' | 'build_phase' | 'build_event' | 'build_control_capability' | 'template_ingest_update' | 'template_ingest_ready' | 'template_ingest_failed';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive' | 'deck_mutation' | 'build_phase' | 'build_event' | 'build_control_capability' | 'template_ingest_update' | 'template_ingest_ready' | 'template_ingest_failed';
   payload: any;
 }
 
@@ -81,6 +81,7 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   // MDC (K3/K5): directive frames — handled out-of-band, never rendered in chat.
   'session_directive',
   'element_directive',
+  'deck_mutation',
   // Build Narration: typed frames — rendered on the canvas, never in chat.
   'build_phase',
   'build_event',
@@ -484,7 +485,72 @@ export interface TemplateIngestFailed {
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage | BuildPhaseSocketMessage | BuildEventSocketMessage | BuildControlCapability | TemplateIngestUpdate | TemplateIngestReady | TemplateIngestFailed;
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage | BuildPhaseSocketMessage | BuildEventSocketMessage | BuildControlCapability | TemplateIngestUpdate | TemplateIngestReady | TemplateIngestFailed | import('@/types/mdc').DeckMutationMessage;
+
+/** Ephemeral socket ownership; callers must recheck after every native await. */
+export interface DirectorTransportOwner {
+  sessionId: string;
+  userId: string;
+  transportGeneration: number;
+  isCurrent: () => boolean;
+}
+
+export interface DirectorDeckMutationOwner extends DirectorTransportOwner {
+  presentationId: string;
+  activeVersion: 'blank' | 'strawman' | 'final';
+}
+
+/** Only supported transport metadata is retained, never the raw auth frame. */
+export interface DirectorTransportNotice {
+  type: 'auth_refreshed' | 'auth_refresh_failed' | 'auth_expired' | 'error';
+  sessionId: string;
+  code?: string;
+  message: string;
+  detail?: string;
+  expiresAt?: number;
+  discardedMessageType?: string;
+  requiresResend: boolean;
+}
+
+export interface DirectorHandoffRequestIdentity {
+  sessionId: string;
+  userId: string;
+  idempotencyKey: string;
+}
+
+export interface DirectorHandoffRequestStatus {
+  sessionId: string;
+  idempotencyKey: string;
+  status: 'processing' | 'already_processing' | 'already_completed' | 'failed';
+  error?: string;
+}
+
+export interface DirectorHandoffRequestOwner extends DirectorTransportOwner {
+  idempotencyKey: string;
+  requestGeneration: number;
+}
+
+interface TrackedHandoffRequest extends DirectorHandoffRequestIdentity {
+  requestGeneration: number;
+  lifecycleGeneration: number;
+  awaitingTurnSequence: number | null;
+}
+
+export class DirectorTransportError extends Error {
+  readonly code?: string;
+  readonly detail?: string;
+  readonly discardedMessageType?: string;
+  readonly frameType: DirectorTransportNotice['type'];
+
+  constructor(notice: DirectorTransportNotice) {
+    super(notice.message);
+    this.name = 'DirectorTransportError';
+    this.code = notice.code;
+    this.detail = notice.detail;
+    this.discardedMessageType = notice.discardedMessageType;
+    this.frameType = notice.type;
+  }
+}
 
 export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
   return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
@@ -581,6 +647,8 @@ export interface UseDecksterWebSocketV2State {
   sessionId: string;
   userId: string;
   error: Error | null;
+  transportNotice: DirectorTransportNotice | null;
+  handoffRequestStatus: DirectorHandoffRequestStatus | null;
   messages: DirectorMessage[];
   // UPDATED: Split presentation URLs to support blank/strawman/final toggle (Builder V2)
   presentationUrl: string | null; // Currently displayed URL (computed from blank/strawman/final)
@@ -632,6 +700,13 @@ export interface UseDecksterWebSocketV2Options {
   existingSessionId?: string; // Resume existing session instead of creating new one
   onError?: (error: Error) => void;
   onMessage?: (message: DirectorMessage) => void;
+  // Completion metadata only. The page owns native dirty/edit/save/structure
+  // fences and reconciliation; receiving this callback never reloads the deck.
+  onDeckMutation?: (message: import('@/types/mdc').DeckMutationMessage, owner: DirectorDeckMutationOwner) => void;
+  onTransportNotice?: (notice: DirectorTransportNotice, owner: DirectorTransportOwner) => void;
+  // Known pending identity only; this never sends/retries the durable request.
+  expectedHandoffRequest?: DirectorHandoffRequestIdentity | null;
+  onHandoffRequestStatus?: (status: DirectorHandoffRequestStatus, owner: DirectorHandoffRequestOwner) => void;
   onPresentationReady?: (url: string) => void;
   onSlideComposeProgress?: (message: SlideComposeProgress) => void;
   onSlideBuilt?: (message: SlideBuilt) => void;
@@ -799,6 +874,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         sessionId: sessionIdRef.current,
         userId: userIdRef.current,
         error: null,
+        transportNotice: null,
+        handoffRequestStatus: null,
         messages: scrubBuildControlCapabilityMessages(cached.messages).map(message => {
           const clean = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string };
           delete clean.clientOutlineReplayOf;
@@ -846,6 +923,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       sessionId: sessionIdRef.current,
       userId: userIdRef.current,
       error: null,
+      transportNotice: null,
+      handoffRequestStatus: null,
       messages: [],
       presentationUrl: null,
       strawmanPreviewUrl: null,
@@ -877,6 +956,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   };
 
   const [state, setState] = useState<UseDecksterWebSocketV2State>(() => getInitialState());
+  const transportCallbacksRef = useRef(options);
+  transportCallbacksRef.current = options;
+  const deckMutationKey = JSON.stringify([state.deckOwnerSessionId, state.presentationId, state.presentationUrl, state.activeVersion]);
+  const deckMutationOwnerRef = useRef({ key: deckMutationKey, deckOwnerSessionId: state.deckOwnerSessionId, presentationId: state.presentationId, activeVersion: state.activeVersion });
+  if (deckMutationOwnerRef.current.key !== deckMutationKey) {
+    deckMutationOwnerRef.current = { key: deckMutationKey, deckOwnerSessionId: state.deckOwnerSessionId, presentationId: state.presentationId, activeVersion: state.activeVersion };
+  }
+  const processedDeckMutationIdsRef = useRef(new Set<string>());
+  const transportNoticeRef = useRef<DirectorTransportNotice | null>(state.transportNotice);
+  const retireDeckMutationOwner = useCallback(() => {
+    // Retire retained callbacks before React paints a version/restore/clear.
+    deckMutationOwnerRef.current = { key: '', deckOwnerSessionId: null, presentationId: null, activeVersion: deckMutationOwnerRef.current.activeVersion };
+  }, []);
 
   // Synchronous transport guard: a cached deck can render before the new
   // socket's authoritative sync arrives. Never let onopen race theme apply.
@@ -973,6 +1065,51 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       turnSubmissionLifecycleRef.current.generation += 1;
     };
   }, []);
+  const handoffRequestRef = useRef<TrackedHandoffRequest | null>(null);
+  const handoffRequestGenerationRef = useRef(0);
+  const sentTurnSequenceRef = useRef(0);
+  const expected = options.expectedHandoffRequest;
+  const expectedHandoffSignature = JSON.stringify([
+    expected?.sessionId, expected?.userId, expected?.idempotencyKey,
+    requestedTurnSessionId, requestedTurnUserId, turnSubmissionLifecycleRef.current.generation,
+  ]);
+  const expectedHandoffSignatureRef = useRef<string | null>(null);
+  if (expectedHandoffSignatureRef.current !== expectedHandoffSignature) {
+    expectedHandoffSignatureRef.current = expectedHandoffSignature;
+    handoffRequestRef.current = expected
+      && expected.sessionId === requestedTurnSessionId
+      && expected.userId === requestedTurnUserId
+      && typeof expected.idempotencyKey === 'string' && Boolean(expected.idempotencyKey.trim())
+      ? { ...expected, idempotencyKey: expected.idempotencyKey.trim(), requestGeneration: ++handoffRequestGenerationRef.current, lifecycleGeneration: turnSubmissionLifecycleRef.current.generation, awaitingTurnSequence: null }
+      : null;
+  }
+  useLayoutEffect(() => {
+    // Mount cleanup/setup can retire the initial lifecycle before passive
+    // connect runs. Renew only the explicitly supplied owned pending identity.
+    const lifecycle = turnSubmissionLifecycleRef.current;
+    if (expected && expected.sessionId === lifecycle.sessionId && expected.userId === lifecycle.userId
+      && typeof expected.idempotencyKey === 'string' && expected.idempotencyKey.trim()
+      && handoffRequestRef.current?.lifecycleGeneration !== lifecycle.generation) {
+      handoffRequestRef.current = { ...expected, idempotencyKey: expected.idempotencyKey.trim(), requestGeneration: ++handoffRequestGenerationRef.current, lifecycleGeneration: lifecycle.generation, awaitingTurnSequence: null };
+    }
+    setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+  }, [expectedHandoffSignature, turnSubmissionLifecycleRef.current.generation]);
+
+  const retireHandoffRequest = useCallback(() => {
+    handoffRequestRef.current = null;
+    setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+  }, []);
+  const trackHandoffRequest = useCallback((identity: DirectorHandoffRequestIdentity): boolean => {
+    const lifecycle = turnSubmissionLifecycleRef.current;
+    if (!lifecycle.active || !identity || identity.sessionId !== lifecycle.sessionId
+      || identity.userId !== lifecycle.userId || identity.sessionId !== sessionIdRef.current
+      || identity.userId !== userIdRef.current || typeof identity.idempotencyKey !== 'string'
+      || !identity.idempotencyKey.trim()) return false;
+    handoffRequestRef.current = { ...identity, idempotencyKey: identity.idempotencyKey.trim(), requestGeneration: ++handoffRequestGenerationRef.current, lifecycleGeneration: lifecycle.generation, awaitingTurnSequence: null };
+    setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+    return true;
+  }, []);
+
   // Ephemeral per-connection capability. It is intentionally never copied to
   // React state or sessionStorage, and is cleared before every reconnect.
   const buildControlTokenRef = useRef<string | null>(null);
@@ -1087,7 +1224,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           type: 'auth_refresh',
           payload: { token: body.auth_token },
         }));
-        debugLog('🔐 Director WS token refreshed');
+        // Browser send is not the server's auth_refreshed acknowledgement.
+        debugLog('🔐 Director WS auth refresh sent; awaiting acknowledgement');
         scheduleAuthRefresh(
           typeof body.expires_in === 'number' ? body.expires_in : expiresInSeconds,
         );
@@ -1510,12 +1648,134 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               return;
             }
 
-            const parsedMessage = normalizeDirectorMessageFrame(JSON.parse(event.data)) as DirectorMessage & { type?: unknown };
+            const rawMessage = JSON.parse(event.data);
+            if (!rawMessage || typeof rawMessage !== 'object') return;
+
+            // The durable handoff acknowledgement has session/key identity,
+            // but intentionally no normal message ID or timestamp envelope.
+            if (rawMessage.type === 'handoff_request_status') {
+              const payload = rawMessage.payload;
+              const request = handoffRequestRef.current;
+              const lifecycle = turnSubmissionLifecycleRef.current;
+              if (!request || !payload || typeof payload !== 'object' || Array.isArray(payload)
+                || rawMessage.session_id !== socketSessionId
+                || (payload.session_id !== undefined && payload.session_id !== socketSessionId)
+                || request.sessionId !== socketSessionId || request.userId !== socketUserId
+                || request.lifecycleGeneration !== lifecycle.generation
+                || typeof payload.idempotency_key !== 'string' || payload.idempotency_key !== request.idempotencyKey
+                || !['processing', 'already_processing', 'already_completed', 'failed'].includes(payload.status)
+                || (payload.error !== undefined && typeof payload.error !== 'string')) return;
+              const status: DirectorHandoffRequestStatus = {
+                sessionId: socketSessionId, idempotencyKey: request.idempotencyKey,
+                status: payload.status,
+                ...(typeof payload.error === 'string' ? { error: payload.error } : {}),
+              };
+              const owner: DirectorHandoffRequestOwner = {
+                sessionId: socketSessionId, userId: socketUserId, idempotencyKey: request.idempotencyKey,
+                requestGeneration: request.requestGeneration, transportGeneration: attemptGeneration,
+                isCurrent: () => isCurrentSocket() && handoffRequestRef.current === request
+                  && turnSubmissionLifecycleRef.current.generation === request.lifecycleGeneration,
+              };
+              if (request.awaitingTurnSequence !== null && request.awaitingTurnSequence === sentTurnSequenceRef.current) clearAwaitReply();
+              setState(prev => ({ ...prev, handoffRequestStatus: status }));
+              transportCallbacksRef.current.onHandoffRequestStatus?.(status, owner);
+              // Receipt is not native completion/persistence, and does not replay
+              // the request or add server metadata to the durable transcript.
+              return;
+            }
+
+            // These server frames intentionally omit the regular message/session
+            // envelope. Their owner is this exact socket, not a mutable route.
+            if (['auth_refreshed', 'auth_refresh_failed', 'auth_expired', 'error'].includes(rawMessage.type)) {
+              const payload = rawMessage.payload;
+              if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
+              if ((rawMessage.session_id !== undefined && rawMessage.session_id !== socketSessionId)
+                || (payload.session_id !== undefined && payload.session_id !== socketSessionId)) return;
+              const transportOwner: DirectorTransportOwner = { sessionId: socketSessionId, userId: socketUserId, transportGeneration: attemptGeneration, isCurrent: isCurrentSocket };
+              const acknowledged = rawMessage.type === 'auth_refreshed';
+              if (acknowledged && (!Number.isInteger(payload.expires_at) || payload.expires_at <= 0)) return;
+              if (!acknowledged && (typeof payload.code !== 'string' || !payload.code || typeof payload.message !== 'string' || !payload.message)) return;
+              let notice: DirectorTransportNotice = {
+                type: rawMessage.type,
+                sessionId: socketSessionId,
+                message: acknowledged ? 'Secure connection refreshed.' : payload.message,
+                requiresResend: rawMessage.type === 'auth_expired',
+                ...(acknowledged ? { expiresAt: payload.expires_at } : { code: payload.code }),
+                ...(rawMessage.type === 'error' && typeof payload.detail === 'string' ? { detail: payload.detail } : {}),
+                ...(rawMessage.type === 'auth_expired' && typeof payload.discarded_message_type === 'string' ? { discardedMessageType: payload.discarded_message_type } : {}),
+              };
+              const previousNotice = transportNoticeRef.current;
+              if (previousNotice?.requiresResend && previousNotice.sessionId === socketSessionId) {
+                // A later transport error is new information, not proof that the
+                // discarded action was sent. Keep its recovery requirement while
+                // retaining the latest server message/code/detail.
+                notice = { ...notice, requiresResend: true,
+                  discardedMessageType: notice.discardedMessageType ?? previousNotice.discardedMessageType,
+                  ...(acknowledged ? { message: 'Secure connection refreshed. Please resend your last action.' } : {}),
+                };
+              }
+              transportNoticeRef.current = notice;
+              if (rawMessage.type === 'auth_expired' || rawMessage.type === 'error') clearAwaitReply();
+              const transportError = acknowledged ? null : new DirectorTransportError(notice);
+              setState(prev => ({
+                ...prev,
+                transportNotice: notice,
+                ...(transportError ? { error: transportError } : acknowledged && prev.error instanceof DirectorTransportError && prev.error.frameType === 'auth_refresh_failed' ? { error: null } : {}),
+                ...(rawMessage.type === 'auth_expired' || rawMessage.type === 'error' ? { currentStatus: null } : {}),
+              }));
+              if (transportError) transportCallbacksRef.current.onError?.(transportError);
+              if (isCurrentSocket()) transportCallbacksRef.current.onTransportNotice?.(notice, transportOwner);
+              // Neither raw auth metadata nor structured errors enter durable chat,
+              // generic consumers, cache or a mutation replay path.
+              return;
+            }
+
+            const parsedMessage = normalizeDirectorMessageFrame(rawMessage) as DirectorMessage & { type?: unknown };
             // Client replay provenance is assigned only after owned terminal
             // state validates the wire frame; never accept a supplied marker.
             delete (parsedMessage as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string }).clientOutlineReplayOf;
             delete (parsedMessage as DirectorMessage & { clientTerminalOutlineRevisionOf?: string }).clientTerminalOutlineRevisionOf;
             if (!isKnownDirectorMessageType(parsedMessage.type)) {
+              return;
+            }
+
+            if (parsedMessage.type === 'deck_mutation') {
+              const message = parsedMessage as import('@/types/mdc').DeckMutationMessage;
+              const payload = message.payload;
+              const displayedOwner = deckMutationOwnerRef.current;
+              if (!payload || typeof payload !== 'object'
+                || message.session_id !== socketSessionId
+                || typeof message.message_id !== 'string' || !message.message_id
+                || !['slide_added', 'slide_deleted', 'slide_replaced', 'slide_reordered'].includes(payload.mutation)
+                || !Number.isInteger(payload.slide_index) || payload.slide_index < 0
+                || (payload.new_slide_index != null && (!Number.isInteger(payload.new_slide_index) || payload.new_slide_index < 0))
+                || typeof payload.refresh_token !== 'string' || !payload.refresh_token
+                || typeof payload.presentation_id !== 'string' || !payload.presentation_id
+                || displayedOwner.deckOwnerSessionId !== socketSessionId
+                || displayedOwner.presentationId !== payload.presentation_id) return;
+              if (payload.presentation_url != null) {
+                if (typeof payload.presentation_url !== 'string'
+                  || evaluateLayoutViewerUrl(payload.presentation_url, LAYOUT_VIEWER_URL_POLICY).status !== 'allowed') return;
+                const path = new URL(payload.presentation_url).pathname;
+                if (path !== `/p/${encodeURIComponent(payload.presentation_id)}` && path !== `/p/${payload.presentation_id}`) return;
+              }
+              clearAwaitReply();
+              const callback = transportCallbacksRef.current.onDeckMutation;
+              if (!callback) return;
+              const frameKey = JSON.stringify([socketSessionId, payload.presentation_id, message.message_id]);
+              if (processedDeckMutationIdsRef.current.has(frameKey)) return;
+              processedDeckMutationIdsRef.current.add(frameKey);
+              if (processedDeckMutationIdsRef.current.size > 1000) {
+                const oldest = processedDeckMutationIdsRef.current.values().next().value;
+                if (oldest) processedDeckMutationIdsRef.current.delete(oldest);
+              }
+              const owner: DirectorDeckMutationOwner = {
+                sessionId: socketSessionId, userId: socketUserId,
+                presentationId: payload.presentation_id, activeVersion: displayedOwner.activeVersion,
+                transportGeneration: attemptGeneration,
+                isCurrent: () => isCurrentSocket() && deckMutationOwnerRef.current === displayedOwner,
+              };
+              callback(message, owner);
               return;
             }
 
@@ -2699,6 +2959,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     });
 
     sessionIdRef.current = nextSessionId;
+    transportNoticeRef.current = null;
     connectionAttemptGenerationRef.current += 1;
     reconnectAttemptsRef.current = 0;
     clearReconnectTimer();
@@ -2719,6 +2980,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     setState(prev => ({
       ...prev,
       sessionId: nextSessionId,
+      transportNotice: null,
+      handoffRequestStatus: null,
       ...(COMPOSER_LIBRARY_ENABLED ? { composerAdoption: null, composerThemeResolved: false } : {}),
       connected: false,
       connecting: shouldReconnect,
@@ -2869,6 +3132,25 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, identity=${message.data.deck_identity ? 'yes' : 'no'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
+      const turnSequence = ++sentTurnSequenceRef.current;
+      const key = message.data.handoff_idempotency_key;
+      const lifecycle = turnSubmissionLifecycleRef.current;
+      if (typeof key === 'string' && key.trim() && lifecycle.active
+        && lifecycle.sessionId === sessionIdRef.current && lifecycle.userId === userIdRef.current
+        && socketSessionRef.current === sessionIdRef.current) {
+        handoffRequestRef.current = {
+          sessionId: sessionIdRef.current, userId: userIdRef.current, idempotencyKey: key.trim(),
+          requestGeneration: ++handoffRequestGenerationRef.current,
+          lifecycleGeneration: lifecycle.generation, awaitingTurnSequence: turnSequence,
+        };
+        setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+      }
+      // Only an explicit successfully admitted user action clears a discard
+      // notice. Reconnect/refresh never resends the action automatically.
+      if (transportNoticeRef.current?.requiresResend && transportNoticeRef.current.sessionId === sessionIdRef.current) {
+        transportNoticeRef.current = null;
+        setState(prev => ({ ...prev, transportNotice: null }));
+      }
       beginAwaitReply();
 
       return true;
@@ -3212,6 +3494,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Switch between blank, strawman and final versions (Builder V2)
   const switchVersion = useCallback((version: 'blank' | 'strawman' | 'final') => {
+    retireDeckMutationOwner();
     setStateWithCache(prev => {
       const newActiveVersion = version;
       let newPresentationUrl = null;
@@ -3241,7 +3524,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         deckOwnerSessionId: newPresentationUrl ? (prev.deckOwnerSessionId || sessionIdRef.current) : prev.deckOwnerSessionId
       };
     });
-  }, [setStateWithCache]);
+  }, [retireDeckMutationOwner, setStateWithCache]);
 
   // Drain tracked ephemeral message IDs after MessageList finishes the fade-out animation.
   const clearEphemeralIds = useCallback(() => {
@@ -3250,6 +3533,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Clear messages
   const clearMessages = useCallback(() => {
+    retireDeckMutationOwner();
+    retireHandoffRequest();
     // Also clear the cache
     sessionCache.clearCache();
 
@@ -3285,7 +3570,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       templateIngestError: null,
       templateIngestJobId: null,
     }));
-  }, [sessionCache, setStateWithCache]);
+  }, [retireDeckMutationOwner, retireHandoffRequest, sessionCache, setStateWithCache]);
 
   // Restore messages from database (for session loading)
   const restoreMessages = useCallback((historicalMessages: DirectorMessage[], restoredSessionState?: {
@@ -3306,6 +3591,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     currentStage?: number | null;
     activeVersion?: 'blank' | 'strawman' | 'final' | null;
   }) => {
+    retireDeckMutationOwner();
+    retireHandoffRequest();
     const { state: sessionState, blocked: blockedViewerUrls } = sanitizeRestoredLayoutViewerUrls(
       restoredSessionState || {},
       LAYOUT_VIEWER_URL_POLICY,
@@ -3488,7 +3775,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         templateIngestJobId: null,
       };
     });
-  }, [sessionCache, setStateWithCache]);
+  }, [retireDeckMutationOwner, retireHandoffRequest, sessionCache, setStateWithCache]);
 
   // Auto-connect on mount (only once)
   useEffect(() => {
@@ -3556,6 +3843,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     awaitingDirectorReply,
     stopAwaitingReply: clearAwaitReply,
+    trackHandoffRequest,
 
     // Utility
     isReady: state.connected,

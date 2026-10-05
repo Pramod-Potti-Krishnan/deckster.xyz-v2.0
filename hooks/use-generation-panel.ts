@@ -12,6 +12,7 @@ import {
 } from '@/lib/element-research-policy'
 import { resolveBlankReplacementPanelState } from '@/lib/blank-element-replacement'
 import { stripChartDataUpdateMode } from '@/lib/chart-data-contract'
+import { normalizeGeneratedMetricsCardDraft, type GeneratedMetricsCardTarget } from '@/lib/metrics-card-refine-draft'
 
 function cloneFormDataForDraft(formData: TextLabsFormData): TextLabsFormData {
   const copy: Record<string, unknown> = {}
@@ -146,7 +147,7 @@ export function useGenerationPanel() {
     setDraftVersion(previousVersion => previousVersion + 1)
   }, [draftKey, studio])
 
-  const rememberDraftForElement = useCallback((elementId: string, formData?: TextLabsFormData | null) => {
+  const rememberDraftForElement = useCallback((elementId: string, formData?: TextLabsFormData | null, target?: GeneratedMetricsCardTarget) => {
     const source = draftKey ? draftsRef.current.get(draftKey) : null
     const next: GenerationPanelDraft = {
       ...(source || {}),
@@ -158,9 +159,11 @@ export function useGenerationPanel() {
       researchUploadedDocs,
       researchKnowledgeGraph,
     }
-    draftsRef.current.set(`element:${elementId}`, next)
+    draftsRef.current.set(`element:${elementId}`, studio && target?.elementType === 'METRICS'
+      ? normalizeGeneratedMetricsCardDraft(next, target)
+      : next)
     setDraftVersion(previousVersion => previousVersion + 1)
-  }, [draftKey, researchKnowledgeGraph, researchMode, researchUploadedDocs, researchWeb])
+  }, [draftKey, researchKnowledgeGraph, researchMode, researchUploadedDocs, researchWeb, studio])
 
   const resetResearch = useCallback(() => {
     setResearchMode('off')

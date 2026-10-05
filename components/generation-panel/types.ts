@@ -31,7 +31,7 @@ export interface GenerationPanelProps {
   onGenerate: (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent,
-  ) => Promise<void>
+  ) => Promise<unknown>
   onElementTypeChange: (type: TextLabsComponentType) => void
   isGenerating: boolean
   error: string | null
