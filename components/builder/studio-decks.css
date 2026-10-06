@@ -227,3 +227,8 @@
 [data-studio-v4-shell="true"] [data-studio-deck-pagination] p[role="alert"] { flex-basis: 100%; color: #ad4248; }
 .dark [data-studio-v4-shell="true"] [data-studio-deck-pagination] p[role="alert"] { color: #ef9a8f; }
 [data-studio-v4-shell="true"] [data-studio-deck-pagination] button { flex-shrink: 0; background: var(--ss-panel); border-color: var(--ss-line); color: var(--ss-teal); }
+
+/* Keep the existing Cancel-to-Search focus return clear of the viewport edge. */
+[data-studio-v4-shell="true"] [data-studio-decks] [data-studio-deck-search] input {
+  scroll-margin-block: 6px;
+}
