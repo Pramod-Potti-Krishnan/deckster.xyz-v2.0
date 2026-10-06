@@ -55,6 +55,8 @@ export default function ProfileSettingsPage() {
   const mounted = useRef(true)
   const generation = useRef(0)
   const active = useRef<ProfileOperation | null>(null)
+  const presentationFrame = useRef<number | null>(null)
+  const presentationSerial = useRef(0)
   const waiters = useRef(new Set<() => void>())
   const draft = useRef({ lifetime, revision: ui.draftRevision, value: displayName })
   draft.current = { lifetime, revision: ui.draftRevision, value: displayName }
@@ -207,26 +209,55 @@ export default function ProfileSettingsPage() {
     try { await refreshAcknowledged(operation, refresh) } finally { await finish(operation) }
   }
 
+  // Native focus/caret scrolling can stop at the control border and crop its
+  // outer ring. Reveal only the still-current focused control after it settles.
+  const revealProfileControl = (event: React.SyntheticEvent<HTMLDivElement>) => {
+    if (!STUDIO_SHELL || !canStart() || active.current) return
+    const target = event.target
+    const panel = event.currentTarget
+    if (!(target instanceof HTMLElement) || !target.matches('input:not([type="file"]), button, a[href]') ||
+      !target.isConnected || !panel.isConnected || !panel.contains(target) || document.activeElement !== target || !target.getClientRects().length) return
+    const serial = ++presentationSerial.current
+    const operationGeneration = generation.current
+    if (presentationFrame.current !== null) cancelAnimationFrame(presentationFrame.current)
+    const currentControl = () => canStart() && !active.current && generation.current === operationGeneration &&
+      presentationSerial.current === serial && target.isConnected && panel.isConnected && panel.contains(target) && document.activeElement === target
+    presentationFrame.current = requestAnimationFrame(() => {
+      presentationFrame.current = null
+      if (!currentControl()) return
+      presentationFrame.current = requestAnimationFrame(() => {
+        presentationFrame.current = null
+        if (currentControl()) target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" })
+      })
+    })
+  }
+  useLayoutEffect(() => () => {
+    ++presentationSerial.current
+    if (presentationFrame.current !== null) cancelAnimationFrame(presentationFrame.current)
+    presentationFrame.current = null
+  }, [])
+  const controlScrollMargin = STUDIO_SHELL ? { scrollMarginBlock: 8 } : undefined
+
   if (isLoading) return <div role={STUDIO_SHELL ? "status" : undefined} aria-busy={STUDIO_SHELL ? true : undefined} className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
   if (!ready || !user) return null
   const userInitials = user.name?.split(" ").map(name => name[0]).join("").toUpperCase().slice(0, 2) || "U"
 
   return (
-    <Card data-studio-settings-profile={STUDIO_SHELL ? "true" : undefined} aria-busy={STUDIO_SHELL ? isSaving || isUploading : undefined}>
+    <Card data-studio-settings-profile={STUDIO_SHELL ? "true" : undefined} aria-busy={STUDIO_SHELL ? isSaving || isUploading : undefined} onFocusCapture={STUDIO_SHELL ? revealProfileControl : undefined} onInputCapture={STUDIO_SHELL ? revealProfileControl : undefined}>
       <CardHeader data-studio-settings-profile-header={STUDIO_SHELL ? "true" : undefined}>
         <div className="flex items-center justify-between">
           <CardTitle>Profile Information</CardTitle>
           {isEditing ? (
             <div className="flex items-center gap-2">
-              <Button data-studio-settings-profile-cancel={STUDIO_SHELL ? "true" : undefined} variant="ghost" size="sm" onClick={cancelEditing} disabled={isSaving || isUploading}>
+              <Button style={controlScrollMargin} data-studio-settings-profile-cancel={STUDIO_SHELL ? "true" : undefined} variant="ghost" size="sm" onClick={cancelEditing} disabled={isSaving || isUploading}>
                 Cancel
               </Button>
-              <Button data-studio-settings-profile-save={STUDIO_SHELL ? "true" : undefined} size="sm" onClick={handleSave} disabled={isSaving || isUploading}>
+              <Button style={controlScrollMargin} data-studio-settings-profile-save={STUDIO_SHELL ? "true" : undefined} size="sm" onClick={handleSave} disabled={isSaving || isUploading}>
                 {isSaving ? "Saving…" : "Save"}
               </Button>
             </div>
           ) : (
-            <Button data-studio-settings-profile-outline={STUDIO_SHELL ? "true" : undefined} variant="outline" size="sm" onClick={startEditing} disabled={isSaving || isUploading}>
+            <Button style={controlScrollMargin} data-studio-settings-profile-outline={STUDIO_SHELL ? "true" : undefined} variant="outline" size="sm" onClick={startEditing} disabled={isSaving || isUploading}>
               Edit Profile
             </Button>
           )}
@@ -244,6 +275,7 @@ export default function ProfileSettingsPage() {
               </AvatarFallback>
             </Avatar>
             <button
+              style={controlScrollMargin}
               data-studio-settings-profile-upload={STUDIO_SHELL ? "true" : undefined}
               aria-busy={STUDIO_SHELL ? isUploading : undefined}
               type="button"
@@ -296,7 +328,7 @@ export default function ProfileSettingsPage() {
           </div>
         </div>
 
-        {notice && <div data-studio-settings-profile-status={STUDIO_SHELL ? "true" : undefined}><p role="status" className="text-sm text-muted-foreground">{notice}</p>{refresh && <Button variant="outline" size="sm" onClick={retryAccountRefresh} disabled={isSaving || isUploading}>Retry account refresh</Button>}</div>}
+        {notice && <div data-studio-settings-profile-status={STUDIO_SHELL ? "true" : undefined}><p role="status" className="text-sm text-muted-foreground">{notice}</p>{refresh && <Button style={controlScrollMargin} variant="outline" size="sm" onClick={retryAccountRefresh} disabled={isSaving || isUploading}>Retry account refresh</Button>}</div>}
 
         <Separator />
 
@@ -310,6 +342,7 @@ export default function ProfileSettingsPage() {
             {isEditing ? (
               <>
                 <Input
+                  style={controlScrollMargin}
                   id={STUDIO_SHELL ? "settings-profile-display-name" : undefined}
                   autoComplete={STUDIO_SHELL ? "name" : undefined}
                   aria-invalid={STUDIO_SHELL ? Boolean(error) : undefined}
@@ -350,7 +383,7 @@ export default function ProfileSettingsPage() {
               Manage your plan, payment method, and invoices
             </p>
           </div>
-          <Button data-studio-settings-profile-outline={STUDIO_SHELL ? "true" : undefined} variant="outline" asChild>
+          <Button style={controlScrollMargin} data-studio-settings-profile-outline={STUDIO_SHELL ? "true" : undefined} variant="outline" asChild>
             <Link href="/billing">Manage</Link>
           </Button>
         </div>
