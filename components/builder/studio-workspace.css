@@ -34,6 +34,21 @@
 [data-studio-v4-shell="true"] [data-studio-workspace-drawer]:not([data-studio-workspace-drawer="deck"]) [data-studio-workspace-content] {
   border-left: 1px solid var(--ss-line);
 }
+/* A full composer can exhaust a short chat column. Scroll this owned pane,
+   retaining the mounted transcript, draft and inline slide-mention picker. */
+[data-studio-v4-shell="true"] [data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] > [data-studio-workspace-content] {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scroll-padding-block: 8px;
+}
+/* The actual Page transcript is the direct Radix Root. At the measured 560px
+   chat height, 160px retains useful conversation space while the pane can
+   scroll to the full composer; ample columns still use its existing flex-1. */
+[data-studio-v4-shell="true"] [data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] > [data-studio-workspace-content] > div:has(> [data-radix-scroll-area-viewport]) {
+  min-height: 160px;
+  flex-shrink: 0;
+}
 [data-studio-v4-shell="true"] [data-studio-workspace-drawer][data-studio-workspace-visible="false"] > [data-studio-workspace-content],
 [data-studio-v4-shell="true"] [data-studio-workspace-drawer="template"][data-studio-workspace-visible="false"] > div {
   visibility: hidden;

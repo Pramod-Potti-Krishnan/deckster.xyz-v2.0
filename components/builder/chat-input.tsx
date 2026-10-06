@@ -171,6 +171,7 @@ export function ChatInput({
   composerTextareaRef,
 }: ChatInputProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const PromptRegion = studio ? 'div' : React.Fragment
   // Only raw transfer/session-linking blocks Send. Once a file is stored,
   // background source enrichment is calm and non-blocking (`processing`);
   // a degraded enrichment result remains a valid attachment too.
@@ -947,7 +948,8 @@ export function ChatInput({
             </div>
           )}
 
-          {/* MDC P6: @slide mention picker (flag-gated, absolute above input) */}
+          <PromptRegion {...(studio ? { className: 'relative', 'data-studio-composer-prompt': 'true' } : {})}>
+          {/* Anchor Studio mentions to the text field, below any attachments. */}
           {(() => {
             if (!CHAT_MENTIONS || !mentionSlides || mentionSlides.length === 0) return null
             const match = /@([\w ]{0,30})$/.exec(inputMessage)
@@ -1025,6 +1027,7 @@ export function ChatInput({
             className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[96px] max-h-[220px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto dark:text-slate-100 dark:placeholder:text-slate-500"
             rows={1}
           />
+          </PromptRegion>
 
           {/* Bottom toolbar inside input */}
           <div data-studio-v4-composer-toolbar="true"

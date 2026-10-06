@@ -73,12 +73,7 @@
 [data-studio-v4-shell="true"] [data-studio-canvas-brand="true"] { min-height:38px; height:auto; align-items:center; gap:8px; padding:3px 10px; }
 [data-studio-v4-shell="true"] [data-studio-canvas-brand="true"] span { font-size:9px; }
 [data-studio-v4-shell="true"] [data-studio-canvas-brand="true"] img { height:16px; width:auto; }
-@media(max-width:820px) {
-  [data-studio-v4-shell="true"] [data-studio-workspace-welcome="true"] [data-builder-panel="deck"],
-  [data-studio-v4-shell="true"] [data-studio-workspace-welcome="true"] [data-builder-panel="deck"] > div { width:100%!important; }
-  [data-studio-v4-shell="true"] [data-studio-workspace-welcome="true"] [data-studio-v4-shell-presentation],
-  [data-studio-v4-shell="true"] [data-studio-workspace-welcome="true"] [data-studio-workspace-resize="chat"] { display:none; }
-}
+/* Compact welcome panes use the same allocator and mounted visibility as decks. */
 
 [data-studio-v4-shell="true"] [data-studio-canvas-brand="true"] .studio-canvas-intro-replay { flex-shrink:0; margin:0; height:22px; padding:2px 5px; color:var(--ss-muted); background:transparent; }
 

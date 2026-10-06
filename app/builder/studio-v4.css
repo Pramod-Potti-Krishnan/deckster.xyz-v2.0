@@ -54,10 +54,10 @@ header[data-studio-v4-chrome="true"] [data-studio-v4-nav][aria-label="Close deck
   border-color: var(--sv4-accent);
   box-shadow: 0 0 0 2px var(--sv4-accent);
 }
-[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > textarea {
+[data-studio-v4-chrome="true"] :is([data-studio-v4-prompt], [data-studio-composer-prompt]) > textarea {
   color: var(--sv4-text);
 }
-[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > textarea::placeholder {
+[data-studio-v4-chrome="true"] :is([data-studio-v4-prompt], [data-studio-composer-prompt]) > textarea::placeholder {
   color: var(--sv4-muted);
 }
 /* Stop owns its destructive colors; :where keeps other toolbar specificity unchanged. */
@@ -92,21 +92,21 @@ header[data-studio-v4-chrome="true"] [data-studio-v4-nav][aria-label="Close deck
 }
 /* The inline @slide picker stays in the existing prompt, retaining mouse focus
    and the composer's Enter/Tab precedence. It is not a new portal or handler. */
-[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full {
+[data-studio-v4-chrome="true"] :is([data-studio-v4-prompt], [data-studio-composer-prompt]) > .bottom-full {
   background-color: var(--sv4-panel);
   border-color: var(--sv4-line);
 }
-[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full p,
-[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full .truncate {
+[data-studio-v4-chrome="true"] :is([data-studio-v4-prompt], [data-studio-composer-prompt]) > .bottom-full p,
+[data-studio-v4-chrome="true"] :is([data-studio-v4-prompt], [data-studio-composer-prompt]) > .bottom-full .truncate {
   color: var(--sv4-muted);
 }
-[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full button {
+[data-studio-v4-chrome="true"] :is([data-studio-v4-prompt], [data-studio-composer-prompt]) > .bottom-full button {
   color: var(--sv4-text);
 }
-[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full button:hover {
+[data-studio-v4-chrome="true"] :is([data-studio-v4-prompt], [data-studio-composer-prompt]) > .bottom-full button:hover {
   background-color: var(--sv4-soft);
 }
-[data-studio-v4-chrome="true"] [data-studio-v4-prompt] > .bottom-full svg {
+[data-studio-v4-chrome="true"] :is([data-studio-v4-prompt], [data-studio-composer-prompt]) > .bottom-full svg {
   color: var(--sv4-accent);
 }
 [data-studio-v4-chrome="true"][data-studio-v4-menu] {
@@ -149,7 +149,7 @@ header[data-studio-v4-chrome="true"] [data-studio-v4-nav][aria-label="Close deck
 [data-studio-v4-chrome="true"][data-studio-v4-menu] button[aria-label="Delete saved theme"]:hover {
   color: var(--sv4-danger);
 }
-[data-studio-v4-chrome="true"] :is([data-studio-v4-nav], [data-studio-v4-composer-toolbar] button, [data-studio-v4-theme-chip] button, [data-studio-v4-prompt] > .bottom-full button):focus-visible,
+[data-studio-v4-chrome="true"] :is([data-studio-v4-nav], [data-studio-v4-composer-toolbar] button, [data-studio-v4-theme-chip] button, :is([data-studio-v4-prompt], [data-studio-composer-prompt]) > .bottom-full button):focus-visible,
 [data-studio-v4-chrome="true"][data-studio-v4-menu] :is(button, input, select):focus-visible {
   outline: 2px solid var(--sv4-accent);
   outline-offset: 2px;
