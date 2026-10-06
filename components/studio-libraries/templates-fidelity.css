@@ -136,3 +136,54 @@
   .studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) { padding: 18px 24px 52px; }
   .studio-library[data-studio-library="templates"]:has(> [data-studio-templates-fidelity="true"]) .sl-split { grid-template-columns: minmax(280px, .8fr) minmax(0, 1.2fr); gap: 18px; }
 }
+
+/* Saved semantic intent editing: ordinary workspace scroll, never a new viewer. */
+.studio-library[data-studio-library="templates"] .sl-saved-editor {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--sl-line);
+  border-radius: 10px;
+  background: var(--sl-panel);
+  min-width: 0;
+}
+.studio-library[data-studio-library="templates"] .sl-editor-fields {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  margin: 12px 0;
+  border: 0;
+}
+.studio-library[data-studio-library="templates"] .sl-saved-editor .sl-segment {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.studio-library[data-studio-library="templates"] .sl-saved-editor .sl-field,
+.studio-library[data-studio-library="templates"] .sl-saved-editor textarea,
+.studio-library[data-studio-library="templates"] .sl-saved-editor select {
+  min-width: 0;
+  width: 100%;
+}
+.studio-library[data-studio-library="templates"] .sl-editor-fields:disabled {
+  opacity: .65;
+}
+.studio-library[data-studio-library="templates"] .sl-saved-editor h3:focus-visible {
+  outline: 2px solid var(--sl-teal);
+  outline-offset: 4px;
+}
+
+/* Keep full controls and their existing 2px + 3px focus rings in ordinary scroll. */
+.studio-library[data-studio-library="templates"] .sl-preview-panel:has(> .sl-saved-editor) {
+  scroll-padding-block: 8px;
+}
+.studio-library[data-studio-library="templates"] .sl-saved-editor :is(button, input, textarea, select) {
+  scroll-margin-block: 8px;
+}
+
+/* Desktop editor scroll stays in its preview pane; hidden shell must not pan. */
+@media (min-width: 821px) {
+  .studio-library[data-studio-library="templates"]:has(.sl-saved-editor) {
+    overflow: clip;
+  }
+}
