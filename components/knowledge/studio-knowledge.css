@@ -351,3 +351,11 @@
 @media (min-width: 1024px) {
   [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="layout"][data-knowledge-immersive="true"] { grid-template-columns: minmax(0,1fr) clamp(280px,26vw,370px); grid-template-rows: auto minmax(0,1fr); }
 }
+
+/* Short immersive maps keep the accepted readable surface. The existing map-panel
+   scroll reaches controls below it; list, narrow and nonimmersive layouts stay as-is. */
+@media (min-width: 1024px) and (max-height: 760px) {
+  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-knowledge-role="map-content"]:has(> [data-studio-graph-view="true"][data-studio-graph-mode="map"]) { flex: 1 0 520px; min-height: 520px; }
+  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-knowledge-role="map-content"] > [data-studio-graph-view="true"][data-studio-graph-mode="map"] { min-height: 504px; }
+  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-graph-view="true"][data-studio-graph-mode="map"] > svg[role="group"] { flex: 1 0 420px; height: auto; min-height: 420px; }
+}

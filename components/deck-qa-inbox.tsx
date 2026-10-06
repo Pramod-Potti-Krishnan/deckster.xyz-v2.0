@@ -61,6 +61,55 @@ interface InboxResponse {
   corpusStatus: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** A failed or partial read is not a receipt that publishing or Q&A is off. */
+function readPublishedSlug(data: unknown, sessionId: string): string | null {
+  if (!isRecord(data)) throw new Error('Could not load questions: invalid publish response')
+  const hasDeck = Object.prototype.hasOwnProperty.call(data, 'deck')
+  const hasAlias = Object.prototype.hasOwnProperty.call(data, 'publishedDeck')
+  const readRecord = (record: unknown): string => {
+    if (!isRecord(record) || typeof record.slug !== 'string' || !record.slug.trim()
+      || (record.sessionId !== undefined && record.sessionId !== sessionId)) {
+      throw new Error('Could not load questions: invalid publish response')
+    }
+    return record.slug
+  }
+  if (hasDeck) {
+    const slug = data.deck === null ? null : readRecord(data.deck)
+    if (hasAlias && (data.publishedDeck === null ? null : readRecord(data.publishedDeck)) !== slug) {
+      throw new Error('Could not load questions: conflicting publish response')
+    }
+    return slug
+  }
+  // Retain the existing non-null alias compatibility; absence comes from deck:null.
+  if (hasAlias) return readRecord(data.publishedDeck)
+  throw new Error('Could not load questions: invalid publish response')
+}
+
+function readInbox(data: unknown): InboxResponse {
+  if (!isRecord(data) || !Array.isArray(data.questions) || typeof data.qaEnabled !== 'boolean'
+    || typeof data.unansweredCount !== 'number' || !Number.isSafeInteger(data.unansweredCount)
+    || data.unansweredCount < 0) {
+    throw new Error('Could not load questions: invalid queue response')
+  }
+  const ids = new Set<string>()
+  const textFields = ['gateReason', 'aiAnswer', 'askerName', 'askerEmail', 'ownerAnswer', 'ownerAnsweredAt']
+  for (const item of data.questions) {
+    if (!isRecord(item) || typeof item.id !== 'string' || !item.id.trim() || ids.has(item.id)
+      || typeof item.question !== 'string' || typeof item.createdAt !== 'string'
+      || !['answered', 'deferred', 'owner_answered', 'blocked'].includes(item.status as string)
+      || textFields.some(field => item[field] !== undefined && item[field] !== null && typeof item[field] !== 'string')) {
+      throw new Error('Could not load questions: invalid queue response')
+    }
+    ids.add(item.id)
+  }
+  // Keep the server's count, authored text and extra fields; never infer a count from this page.
+  return data as unknown as InboxResponse
+}
+
 /** Why the machine stood down, in the owner's vocabulary rather than the gate's. */
 const GATE_LABELS: Record<string, string> = {
   no_evidence: 'Not in the material',
@@ -101,7 +150,19 @@ function QuestionRow({
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(item.ownerAnswer ?? '')
-  const [busy, setBusy] = useState<string | null>(null)
+  const ownerKey = JSON.stringify([slug, item.id])
+  const ownerRef = useRef({ key: ownerKey })
+  if (ownerRef.current.key !== ownerKey) ownerRef.current = { key: ownerKey }
+  const owner = ownerRef.current
+  const [busyState, setBusy] = useState<{ owner: typeof owner; value: string | null } | null>(null)
+  const busy = busyState?.owner === owner ? busyState.value : null
+  const mountedRef = useRef(true)
+  const operationRef = useRef<object | null>(null)
+  const ownerIsCurrent = () => mountedRef.current && ownerRef.current === owner
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false; operationRef.current = null }
+  }, [])
 
   const isDeferred = item.status === 'deferred'
   const isBlocked = item.status === 'blocked'
@@ -109,37 +170,47 @@ function QuestionRow({
 
   const call = useCallback(
     async (action: string, path: string, body: unknown, ok: string) => {
-      setBusy(action)
+      if (!ownerIsCurrent()) return false
+      const operation = {}
+      operationRef.current = operation
+      const isCurrent = () => ownerIsCurrent() && operationRef.current === operation
+      setBusy(previous => isCurrent() ? { owner, value: action } : previous)
       try {
         const response = await fetch(`/api/publish/${slug}/questions/${item.id}${path}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         })
+        if (!isCurrent()) return false
         const data = await response.json().catch(() => ({}))
+        if (!isCurrent()) return false
         if (!response.ok) throw new Error(data.error || 'That did not go through')
         toast({ title: ok })
+        if (!isCurrent()) return false
         onChanged(data.question as DeckQuestion | undefined)
-        return true
+        return isCurrent()
       } catch (error) {
+        if (!isCurrent()) return false
         toast({
           title: error instanceof Error ? error.message : 'That did not go through',
           variant: 'destructive',
         })
         return false
       } finally {
-        setBusy(null)
+        setBusy(previous => isCurrent() ? { owner, value: null } : previous)
       }
     },
-    [item.id, onChanged, slug, toast]
+    [item.id, onChanged, slug, toast, owner]
   )
 
   const sendAnswer = useCallback(async () => {
     const text = draft.trim()
     if (!text) return
-    const sent = await call('answer', '/answer', { answerText: text }, 'Answer sent')
-    if (sent) setOpen(false)
-  }, [call, draft])
+    const pending = call('answer', '/answer', { answerText: text }, 'Answer sent')
+    const operation = operationRef.current
+    const sent = await pending
+    if (sent) setOpen(previous => ownerIsCurrent() && operationRef.current === operation ? false : previous)
+  }, [call, draft, owner])
 
   // Promoting a MACHINE draft sends the text back deliberately: that round trip
   // IS the approval, and it is what lets the publisher's byline attach to words
@@ -276,47 +347,75 @@ export function DeckQaInbox({
   sessionId: string | null
   onUnansweredChange?: (count: number) => void
 }) {
-  const [slug, setSlug] = useState<string | null>(null)
-  const [state, setState] = useState<InboxResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const ownerRef = useRef({ sessionId })
+  if (ownerRef.current.sessionId !== sessionId) ownerRef.current = { sessionId }
+  const owner = ownerRef.current
+  const mountedRef = useRef(true)
+  const requestRef = useRef<object | null>(null)
+  const [view, setView] = useState<{
+    owner: typeof owner; slug: string | null; state: InboxResponse | null; loading: boolean; error: string | null
+  } | null>(null)
+  const currentView = view?.owner === owner ? view : null
+  const slug = currentView?.slug ?? null
+  const state = currentView?.state ?? null
+  const loading = currentView?.loading ?? true
+  const error = currentView?.error ?? null
   // Read in an effect but never rendered — a ref, so changing it cannot loop.
   const notify = useRef(onUnansweredChange)
   notify.current = onUnansweredChange
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false; requestRef.current = null }
+  }, [])
 
   const load = useCallback(async () => {
+    if (!mountedRef.current || ownerRef.current !== owner) return
+    const request = {}
+    requestRef.current = request
+    const isCurrent = () => mountedRef.current && ownerRef.current === owner && requestRef.current === request
+    const publish = (next: (previous: NonNullable<typeof view>) => NonNullable<typeof view>) => {
+      setView(previous => isCurrent() ? next(previous?.owner === owner ? previous
+        : { owner, slug: null, state: null, loading: true, error: null }) : previous)
+    }
     if (!sessionId) {
-      setLoading(false)
+      publish(previous => ({ ...previous, loading: false }))
       return
     }
-    setError(null)
+    publish(previous => ({ ...previous, error: null, loading: previous.state === null }))
     try {
       const deckResponse = await fetch(`/api/publish/by-session/${sessionId}`)
-      const deckData = await deckResponse.json().catch(() => ({}))
-      const record = deckData?.deck ?? deckData?.publishedDeck ?? null
-      if (!deckResponse.ok || !record?.slug) {
-        setSlug(null)
-        setState(null)
+      if (!isCurrent()) return
+      const deckData: unknown = await deckResponse.json()
+      if (!isCurrent()) return
+      if (!deckResponse.ok) throw new Error(isRecord(deckData) && typeof deckData.error === 'string' ? deckData.error : 'Could not load questions')
+      const publishedSlug = readPublishedSlug(deckData, sessionId)
+      if (publishedSlug === null) {
+        publish(previous => ({ ...previous, slug: null, state: null }))
         notify.current?.(0)
         return
       }
-      setSlug(record.slug)
+      publish(previous => previous.slug === publishedSlug
+        ? { ...previous, slug: publishedSlug }
+        : { ...previous, slug: publishedSlug, state: null, loading: true })
 
-      const response = await fetch(`/api/publish/${record.slug}/questions`)
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data.error || 'Could not load questions')
-      setState(data as InboxResponse)
-      notify.current?.((data as InboxResponse).unansweredCount ?? 0)
+      const response = await fetch(`/api/publish/${publishedSlug}/questions`)
+      if (!isCurrent()) return
+      const data: unknown = await response.json()
+      if (!isCurrent()) return
+      if (!response.ok) throw new Error(isRecord(data) && typeof data.error === 'string' ? data.error : 'Could not load questions')
+      const inbox = readInbox(data)
+      publish(previous => ({ ...previous, state: inbox }))
+      notify.current?.(inbox.unansweredCount)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load questions')
+      publish(previous => ({ ...previous, error: e instanceof Error ? e.message : 'Could not load questions' }))
     } finally {
-      setLoading(false)
+      publish(previous => ({ ...previous, loading: false }))
     }
-  }, [sessionId])
+  }, [sessionId, owner])
 
   useEffect(() => {
-    setLoading(true)
     void load()
+    return () => { requestRef.current = null }
   }, [load])
 
   const questions = state?.questions ?? []
@@ -333,16 +432,16 @@ export function DeckQaInbox({
     )
   }
 
-  if (STUDIO_QA_INBOX && !slug && error) {
+  if (!state && error) {
     return (
       <div className="studio-qa-inbox-read-error flex h-full flex-col items-center justify-center text-center"
-        data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX} data-studio-qa-inbox-error="true">
+        data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX} data-studio-qa-inbox-error={STUDIO_QA_INBOX ? 'true' : undefined}>
         <div role="alert">
           <strong>Questions could not be loaded</strong>
           <p>{error}</p>
         </div>
         <Button type="button" variant="outline" size="sm" data-studio-qa-inbox-retry="true"
-          onClick={() => { setLoading(true); void load() }}>
+          onClick={() => { void load() }}>
           <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Retry questions
         </Button>
       </div>
@@ -363,6 +462,12 @@ export function DeckQaInbox({
       <div className="studio-qa-inbox-notice flex h-full flex-col items-center justify-center gap-1 text-center text-xs text-slate-400" data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX}>
         <MessageSquare className="h-4 w-4" />
         <p>{STUDIO_QA_INBOX ? 'Questions are off for this deck. Turn them on under Publish → Sharing.' : 'Q&A is off for this deck. Turn it on under Publish → Q&A.'}</p>
+        {error && <>
+          <p role="alert" className="studio-qa-inbox-error text-xs text-amber-600 dark:text-amber-400">{error}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => { void load() }}>
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Retry questions
+          </Button>
+        </>}
       </div>
     )
   }
@@ -371,7 +476,9 @@ export function DeckQaInbox({
     <div className="flex h-full flex-col" data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX}>
       <div className="studio-qa-inbox-heading flex flex-shrink-0 items-center justify-between pb-1.5 text-[11px] text-slate-500 dark:text-slate-400">
         <span>
-          {waiting > 0
+          {state === null
+            ? 'Questions not confirmed'
+            : waiting > 0
             ? `${waiting} waiting on you`
             : questions.length > 0
               ? 'Nothing waiting'

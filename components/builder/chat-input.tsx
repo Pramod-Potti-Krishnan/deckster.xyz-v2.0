@@ -314,6 +314,26 @@ export function ChatInput({
     }
   }, [inputMessage])
 
+  // A resized Studio pane can wrap an unchanged draft onto more lines.
+  useEffect(() => {
+    if (!studio || typeof ResizeObserver === 'undefined') return
+    const textarea = textareaRef.current
+    if (!textarea) return
+    let active = true
+    let width = textarea.getBoundingClientRect().width
+    const observer = new ResizeObserver(() => {
+      if (!active || textareaRef.current !== textarea) return
+      const nextWidth = textarea.getBoundingClientRect().width
+      if (nextWidth <= 0 || nextWidth === width) return
+      width = nextWidth
+      textarea.style.height = 'auto'
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, TEXTAREA_MIN_HEIGHT), TEXTAREA_MAX_HEIGHT)
+      textarea.style.height = `${newHeight}px`
+    })
+    observer.observe(textarea)
+    return () => { active = false; observer.disconnect() }
+  }, [studio])
+
   useEffect(() => {
     let cancelled = false
     async function loadPresets() {
@@ -1300,7 +1320,10 @@ export function ChatInput({
                   </button>
                 </DropdownMenuTrigger>
                 </StudioComposerHint>
-                <DropdownMenuContent data-studio-composer-menu={studio ? 'research' : undefined} data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined} data-studio-v4-menu="research" align="start" className="w-52">
+                <DropdownMenuContent onKeyDownCapture={studio ? (event) => {
+                  // Research switches use native form Tab traversal inside the menu.
+                  if (event.key === 'Tab') event.stopPropagation()
+                } : undefined} data-studio-composer-menu={studio ? 'research' : undefined} data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined} data-studio-v4-menu="research" align="start" className="w-52">
                   {studio && (
                     <div data-studio-composer-options-part="heading">
                       <strong>Research options</strong>

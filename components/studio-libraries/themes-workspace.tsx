@@ -102,6 +102,11 @@ export function ThemesWorkspace() {
     deleteTarget.current = { context: contextLifetime, mode, selectedId, loading, lifetime: {} }
   }
   const targetLifetime = deleteTarget.current.lifetime
+  const draftResetScope = useRef({ target: targetLifetime, draft: draftKey, operation, lifetime: {} })
+  if (draftResetScope.current.target !== targetLifetime || draftResetScope.current.draft !== draftKey || draftResetScope.current.operation !== operation) {
+    draftResetScope.current = { target: targetLifetime, draft: draftKey, operation, lifetime: {} }
+  }
+  const draftResetLifetime = draftResetScope.current.lifetime
   const currentDeletePrompt = useRef(deletePrompt)
   currentDeletePrompt.current = deletePrompt?.lifetime === targetLifetime ? deletePrompt : null
   const currentDeleteFeedback = useRef(deleteFeedback)
@@ -336,6 +341,25 @@ export function ThemesWorkspace() {
     if (value === undefined || value === '') delete overrides[key]; else overrides[key] = value
     patchDraft({ ...draft, color_overrides: Object.keys(overrides).length ? overrides : undefined })
   }
+  const paletteResetAvailable = draft.mode !== 'auto' && (draft.mode === 'custom' || CUSTOM_FIELDS.some(([key]) => draft[key] !== undefined))
+  const tokenResetAvailable = Object.keys(draft.color_overrides || {}).length > 0
+  const canResetDraft = () => mounted.current && accountCanStart() && !busy.current && operation === null
+    && deleteContext.current.lifetime === contextLifetime && deleteTarget.current.lifetime === targetLifetime
+    && deleteTarget.current.mode === 'create' && draftResetScope.current.lifetime === draftResetLifetime
+    && currentDraft.current === draftKey
+  const resetPalette = () => {
+    if (!canResetDraft() || !paletteResetAvailable) return
+    // A base switch would promote these literals into tokens; reset only the brand layer.
+    const next = { ...draft }
+    delete next.primary_hex; delete next.secondary_hex; delete next.tertiary_hex; delete next.neutral_hex
+    patchDraft({ ...next, mode: 'preset', preset_id: draft.preset_id || 'corporate_light' })
+  }
+  const resetTokenOverrides = () => {
+    if (!canResetDraft() || !tokenResetAvailable) return
+    const next = { ...draft }
+    delete next.color_overrides
+    patchDraft(next)
+  }
 
   const canContinueInStudio = () => mounted.current && accountCanStart()
 
@@ -354,10 +378,11 @@ export function ThemesWorkspace() {
             <label className="sl-field">Description<textarea rows={2} value={description} placeholder="The identity behind your next story" onChange={event => { if (!mounted.current || !accountIsCurrent()) return; setDescription(event.target.value); setDirty(true) }} /></label>
             <label className="sl-field">Base theme<select value={draft.mode === 'auto' ? 'auto' : draft.preset_id || 'corporate_light'} onChange={event => changePreset(event.target.value)}><option value="auto">Auto / session default</option>{FALLBACK_THEME_PRESETS.map(theme => <option key={theme.preset_id} value={theme.preset_id}>{theme.name}</option>)}{draft.preset_id && !FALLBACK_THEME_PRESETS.some(theme => theme.preset_id === draft.preset_id) && <option value={draft.preset_id}>{draft.preset_id} (saved base)</option>}</select></label>
             <div className="sl-segment" aria-label="Color approach"><button type="button" aria-pressed={draft.mode !== 'custom'} onClick={() => changePreset(draft.preset_id || 'corporate_light')}>Theme-linked</button><button type="button" aria-pressed={draft.mode === 'custom'} onClick={() => patchDraft({ ...draft, mode: 'custom', primary_hex: draft.primary_hex || palette.primary, harmony_preference: draft.harmony_preference || 'auto', palette_mode: draft.palette_mode || 'both' })}>Custom palette</button></div>
+            <div className="sl-section-line"><span className="sl-helper">Brand colors</span><button type="button" className="sl-text-button inline-flex items-center gap-1" disabled={!accountReady || Boolean(operation) || !paletteResetAvailable} onClick={resetPalette}><RotateCcw size={11} />Reset palette</button></div>
             {draft.mode === 'auto' && <p className="sl-helper">Auto is resolved by Director in Studio. Choose a preset or custom palette to save a reusable theme.</p>}
             {draft.mode === 'custom' && <><div className="sl-colors">{CUSTOM_FIELDS.map(([key, label]) => <ColorField key={key} label={label} value={draft[key]} fallback={palette[key.replace('_hex', '')]} onChange={value => patchDraft({ ...draft, [key]: value || undefined })} onReset={() => patchDraft({ ...draft, [key]: undefined })} />)}</div>
               <div className="sl-two-fields"><label className="sl-field">Color harmony<select value={draft.harmony_preference || 'auto'} onChange={event => patchDraft({ ...draft, harmony_preference: event.target.value as BuildThemeSelection['harmony_preference'] })}>{['auto', 'monochrome', 'analogous', 'complementary', 'triadic'].map(value => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></label><label className="sl-field">Palette mode<select value={draft.palette_mode || 'both'} onChange={event => patchDraft({ ...draft, palette_mode: event.target.value as BuildThemeSelection['palette_mode'] })}><option value="light">Light</option><option value="dark">Dark</option><option value="both">Both</option></select></label></div></>}
-            <details className="sl-disclosure"><summary>Individual colors <span>{Object.keys(draft.color_overrides || {}).length} overrides</span></summary><p className="sl-helper">Explicit colors stay yours when changing the base. Reset a color to follow the theme again.</p><div className="sl-colors">{THEME_TOKENS.map(([token, label]) => <ColorField key={token} label={label} value={draft.color_overrides?.[token]} fallback={palette[token]} onChange={value => setOverride(token, value)} onReset={() => setOverride(token)} />)}{Object.keys(draft.color_overrides || {}).filter(key => !THEME_TOKENS.some(([token]) => token === key)).map(key => <ColorField key={key} label={key} value={draft.color_overrides?.[key]} fallback="#64748b" onChange={value => setOverride(key, value)} onReset={() => setOverride(key)} />)}</div></details>
+            <details className="sl-disclosure"><summary>Individual colors <span>{Object.keys(draft.color_overrides || {}).length} overrides</span></summary><p className="sl-helper">Explicit colors stay yours when changing the base. Reset a color to follow the theme again.</p><button type="button" className="sl-text-button inline-flex items-center gap-1" disabled={!accountReady || Boolean(operation) || !tokenResetAvailable} onClick={resetTokenOverrides}><RotateCcw size={11} />Reset all token overrides</button><div className="sl-colors">{THEME_TOKENS.map(([token, label]) => <ColorField key={token} label={label} value={draft.color_overrides?.[token]} fallback={palette[token]} onChange={value => setOverride(token, value)} onReset={() => setOverride(token)} />)}{Object.keys(draft.color_overrides || {}).filter(key => !THEME_TOKENS.some(([token]) => token === key)).map(key => <ColorField key={key} label={key} value={draft.color_overrides?.[key]} fallback="#64748b" onChange={value => setOverride(key, value)} onReset={() => setOverride(key)} />)}</div></details>
             <p className="sl-helper">Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.</p>
           </fieldset></div>
           <div className="sl-side-footer"><button type="button" className="sl-primary" onClick={() => void save()} disabled={!canSave || !accountReady}><Save size={15} />{operation === 'save' ? 'Saving…' : 'Save reusable theme'}</button><span>{dirty ? 'Unsaved draft · kept while switching tabs' : 'Choose colors to begin'}</span></div>
