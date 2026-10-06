@@ -193,7 +193,13 @@ export function MessageList({
         if (activeActionsRef.current.has(messageId) && !answeredActionsRef.current.has(messageId)) onSubmitAnswers(text, displayText)
       }
     : undefined
-  const isEmptyStudioConversation = studio && userMessages.length === 0 && messages.length === 0
+  const isEmptyStudioConversation = studio && userMessages.length === 0 && messages.every(message =>
+    message.type === 'slide_update' && (message as SlideUpdate).payload.is_blank === true
+      && !classifyDirectorMessage(message, {
+        userMessageIds: userMessageIdsRef.current,
+        userMessageContentMap: userMessageContentMapRef.current,
+      }).isUserMessage,
+  )
   // Thinking-stream fade-out: when slide_update lands, fade tracked ephemeral
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
   const [fadingIds, setFadingIds] = useState<Set<string>>(new Set())
@@ -442,6 +448,14 @@ export function MessageList({
 
       if (current.messageType === 'bot') {
         const botMsg = current as DirectorMessage;
+
+        // Automatic blank initialization is state, like presentation_init.
+        // Keep its raw entry without grouping away a following real decision.
+        if (studio && botMsg.type === 'slide_update' && (botMsg as SlideUpdate).payload.is_blank === true) {
+          processedMessages.push(current);
+          i++;
+          continue;
+        }
 
         if (botMsg.type === 'chat_message' && (botMsg as V2ChatMessage).payload.ephemeral === true) {
           const thinkingMessages: V2ChatMessage[] = []
@@ -864,6 +878,7 @@ export function MessageList({
                 )
               } else if (msg.type === 'slide_update') {
                 const slideMsg = msg as SlideUpdate & { clientOutlineHistoryStatus?: OutlineHistoryStatus }
+                if (studio && slideMsg.payload.is_blank === true) return null
                 return (
                   <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">

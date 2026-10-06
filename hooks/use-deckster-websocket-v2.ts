@@ -1050,6 +1050,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   ) => {
     setState(prev => {
       const newState = updateFn(prev);
+      if (newState === prev) return prev;
       voiceTranscriptReceiptRef.current = newState.studioVoiceTranscriptReceipt;
 
       // CRITICAL FIX: Get existing cached messages to preserve them
@@ -2001,6 +2002,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             }
 
             setStateWithCache(prev => {
+              // React can apply this publication after the dispatching socket
+              // has retired. Recheck its captured lifetime before any writes.
+              if (!isCurrentSocket()) return prev;
+
               // Prevent duplicate messages by checking message_id
               const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
 
@@ -2360,8 +2365,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     }
                     break;
                   }
-                  newState.slideStructure = message.payload;
-
                   if (
                     message.payload.operation === 'full_update' &&
                     !message.payload.is_blank &&
@@ -2431,6 +2434,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     }
                     break; // Exit early - don't process as strawman
                   }
+
+                  newState.slideStructure = message.payload;
 
                   if (transcriptMessage.clientOutlineReplayOf || transcriptMessage.clientTerminalOutlineRevisionOf) {
                     // Completed Director reconnects retarget the saved outline
