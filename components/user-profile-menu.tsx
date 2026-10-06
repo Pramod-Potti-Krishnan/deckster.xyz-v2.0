@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, useRef, type ReactNode } from "react"
+import { useCallback, useEffect, useLayoutEffect, useState, useRef, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import {
@@ -48,6 +48,17 @@ interface QuotaSnapshot {
   spent?: { dailyCents: number; weeklyCents: number }
 }
 
+function readQuotaSnapshot(data: unknown): QuotaSnapshot | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null
+  const value = data as Partial<QuotaSnapshot>
+  if (typeof value.tierLabel !== "string" || !value.tierLabel.trim() ||
+    !value.remainingPct || !Number.isFinite(value.remainingPct.daily) || !Number.isFinite(value.remainingPct.weekly) ||
+    !value.flags || [value.flags.dailyNear, value.flags.dailyAt, value.flags.weeklyNear, value.flags.weeklyAt].some(flag => typeof flag !== "boolean")) return null
+  if (value.resetAt !== undefined && (!value.resetAt || typeof value.resetAt.daily !== "string" || typeof value.resetAt.weekly !== "string")) return null
+  return { tierLabel: value.tierLabel, remainingPct: value.remainingPct, flags: value.flags,
+    resetAt: value.resetAt, caps: value.caps, spent: value.spent }
+}
+
 function formatResetTime(isoString: string): string {
   const d = new Date(isoString)
   const now = new Date()
@@ -75,9 +86,10 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
 
   return (
     <div>
-      <button
+      <DropdownMenuItem
         data-studio-v4-profile-role="usage"
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle() }}
+        aria-expanded={isExpanded}
+        onSelect={(event) => { event.preventDefault(); onToggle() }}
         className="flex w-full items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm cursor-pointer"
       >
         <Clock className="h-4 w-4 text-muted-foreground" />
@@ -88,7 +100,7 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
             : <ChevronRight className="h-4 w-4 text-muted-foreground" />
           }
         </span>
-      </button>
+      </DropdownMenuItem>
       {isExpanded && (
         <div className="pl-8 pr-3 pb-1">
           <div className="flex items-center justify-between py-1.5 text-sm">
@@ -101,14 +113,14 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
             <span className="tabular-nums font-medium w-12 text-center">{weeklyPct}%</span>
             <span className="text-muted-foreground tabular-nums w-16 text-right">{data.resetAt ? formatResetTime(data.resetAt.weekly) : ""}</span>
           </div>
-          <a
+          <DropdownMenuItem asChild><a
             data-studio-v4-profile-role="upgrade"
             href="/billing"
             className="flex items-center justify-between py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <span>Upgrade for more usage</span>
             <ExternalLink className="h-3.5 w-3.5" />
-          </a>
+          </a></DropdownMenuItem>
         </div>
       )}
     </div>
@@ -120,36 +132,98 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
 // ---------------------------------------------------------------------------
 
 export function UserProfileMenu({ studioLabels = false, studioPalette = false, sessionUsage }: { studioLabels?: boolean; studioPalette?: boolean; sessionUsage?: ReactNode } = {}) {
-  const { user, logout, isLoading } = useAuth()
+  const { user, logout, isLoading, isAuthenticated } = useAuth()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
-  const [isOpen, setIsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const accountTrigger = useRef<HTMLButtonElement>(null)
   const aboutReplay = useStudioAboutReplay({ onOpenChange: setAboutOpen, restoreFocus: () => accountTrigger.current?.focus() })
-  const [quota, setQuota] = useState<QuotaSnapshot | null>(null)
-  const [isUsageExpanded, setIsUsageExpanded] = useState(false)
+  const quotaOwner = user?.id ? `id:${user.id}` : user?.email ? `email:${user.email}` : null
+  const quotaReady = !isLoading && isAuthenticated && quotaOwner !== null
+  // An observed owner change retires private cached data even after A→B→A.
+  // Readiness checks retire requests, but can retain the same owner's cache.
+  const quotaOwnerRef = useRef({ owner: quotaOwner })
+  if (quotaOwnerRef.current.owner !== quotaOwner) quotaOwnerRef.current = { owner: quotaOwner }
+  const quotaOwnerLifetime = quotaOwnerRef.current
+  const quotaContextRef = useRef({ owner: quotaOwnerLifetime, ready: quotaReady })
+  if (quotaContextRef.current.owner !== quotaOwnerLifetime || quotaContextRef.current.ready !== quotaReady) {
+    quotaContextRef.current = { owner: quotaOwnerLifetime, ready: quotaReady }
+  }
+  const quotaContext = quotaContextRef.current
+  const [menuOpen, setMenuOpen] = useState<{ context: typeof quotaContext; open: boolean } | null>(null)
+  const isOpen = menuOpen?.context === quotaContext && menuOpen.open
+  const setIsOpen = useCallback((open: boolean) => setMenuOpen({ context: quotaContext, open }), [quotaContext])
+  const [quotaCache, setQuotaCache] = useState<{ owner: typeof quotaOwnerLifetime; data: QuotaSnapshot } | null>(null)
+  const [usageExpansion, setUsageExpansion] = useState<{ owner: typeof quotaOwnerLifetime; expanded: boolean } | null>(null)
+  const [quotaRead, setQuotaRead] = useState<{ owner: typeof quotaOwnerLifetime; status: "loading" | "ready" | "failed" } | null>(null)
+  const quota = quotaReady && quotaCache?.owner === quotaOwnerLifetime ? quotaCache.data : null
+  const quotaReadStatus = quotaReady && quotaRead?.owner === quotaOwnerLifetime ? quotaRead.status : null
+  const isUsageExpanded = usageExpansion?.owner === quotaOwnerLifetime && usageExpansion.expanded
+  const quotaMountedRef = useRef(false)
+  const quotaRequestRef = useRef(0)
+  const quotaAbortRef = useRef<AbortController | null>(null)
   const studioProfile = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && studioPalette
+
+  useLayoutEffect(() => {
+    quotaMountedRef.current = true
+    return () => {
+      quotaMountedRef.current = false
+      quotaRequestRef.current += 1
+      quotaAbortRef.current?.abort()
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    quotaRequestRef.current += 1
+    quotaAbortRef.current?.abort()
+    quotaAbortRef.current = null
+    setIsOpen(false)
+    setQuotaCache(previous => previous?.owner === quotaOwnerLifetime ? previous : null)
+    setUsageExpansion(previous => previous?.owner === quotaOwnerLifetime ? previous : null)
+    setQuotaRead(previous => previous?.owner === quotaOwnerLifetime ? previous : null)
+  }, [quotaContext, quotaOwnerLifetime, setIsOpen])
+
+  const canReadQuota = useCallback(() => quotaMountedRef.current && quotaContext.ready &&
+    quotaContextRef.current === quotaContext && quotaOwnerRef.current === quotaOwnerLifetime,
+  [quotaContext, quotaOwnerLifetime])
+
+  const onMenuOpenChange = useCallback((open: boolean) => {
+    if (canReadQuota()) setIsOpen(open)
+  }, [canReadQuota, setIsOpen])
+
+  const toggleUsage = useCallback(() => {
+    if (!canReadQuota()) return
+    setUsageExpansion(previous => ({ owner: quotaOwnerLifetime,
+      expanded: previous?.owner === quotaOwnerLifetime ? !previous.expanded : true }))
+  }, [canReadQuota, quotaOwnerLifetime])
 
   // Fetch quota when dropdown opens (lightweight GET, cached by React state)
   const fetchQuota = useCallback(async () => {
+    if (!canReadQuota()) return
+    const request = ++quotaRequestRef.current
+    quotaAbortRef.current?.abort()
+    const controller = new AbortController()
+    quotaAbortRef.current = controller
+    const current = () => canReadQuota() && quotaRequestRef.current === request && !controller.signal.aborted
+    setQuotaRead({ owner: quotaOwnerLifetime, status: "loading" })
     try {
-      const res = await fetch("/api/usage/quota")
+      const res = await fetch("/api/usage/quota", { signal: controller.signal })
+      if (!current()) return
       if (res.ok) {
-        const data = await res.json()
-        setQuota({
-          tierLabel: data.tierLabel,
-          remainingPct: data.remainingPct,
-          flags: data.flags,
-          resetAt: data.resetAt,
-          caps: data.caps,
-          spent: data.spent,
-        })
-      }
+        const data = readQuotaSnapshot(await res.json())
+        if (!current()) return
+        if (data) {
+          setQuotaCache({ owner: quotaOwnerLifetime, data })
+          setQuotaRead({ owner: quotaOwnerLifetime, status: "ready" })
+        } else setQuotaRead({ owner: quotaOwnerLifetime, status: "failed" })
+      } else setQuotaRead({ owner: quotaOwnerLifetime, status: "failed" })
     } catch {
-      // Non-fatal — dropdown still works without bars
+      // Non-fatal — preserve an owned cached snapshot, never substitute zero.
+      if (current()) setQuotaRead({ owner: quotaOwnerLifetime, status: "failed" })
+    } finally {
+      if (quotaAbortRef.current === controller) quotaAbortRef.current = null
     }
-  }, [])
+  }, [canReadQuota, quotaOwnerLifetime])
 
   useEffect(() => {
     if (isOpen) fetchQuota()
@@ -184,7 +258,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
 
   return (
     <>
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu open={isOpen} onOpenChange={onMenuOpenChange}>
       <StudioNavigationHint enabled={studioLabels} label="Account menu">
         <DropdownMenuTrigger asChild>
           <Button
@@ -265,10 +339,12 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
 
         {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && <DropdownMenuItem data-studio-v4-profile-role="item" onSelect={event => { event.preventDefault(); setIsOpen(false); setAboutOpen(true) }}><Info className="mr-2 h-4 w-4" /><span>About Studio</span></DropdownMenuItem>}
 
+        {quotaReadStatus === "loading" && <p role="status" className="px-2 py-1.5 text-xs text-muted-foreground">{quota ? "Refreshing usage. Showing previously loaded usage." : "Loading usage…"}</p>}
+        {quotaReadStatus === "failed" && <p role="status" className="px-2 py-1.5 text-xs text-muted-foreground">{quota ? "Usage refresh unavailable. Showing previously loaded usage." : "Usage unavailable. Reopen the menu to retry."}</p>}
         {quota && (
           <>
             <DropdownMenuSeparator data-studio-v4-profile-role="separator" />
-            <UsageRemaining data={quota} isExpanded={isUsageExpanded} onToggle={() => setIsUsageExpanded(v => !v)} />
+            <UsageRemaining data={quota} isExpanded={isUsageExpanded} onToggle={toggleUsage} />
           </>
         )}
 

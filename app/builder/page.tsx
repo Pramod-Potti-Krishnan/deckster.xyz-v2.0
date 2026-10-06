@@ -852,6 +852,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const studioPartialCandidatesRef = useRef<{ scope: object; receipts: Map<string, StudioPartialBuildReceipt> } | null>(null)
   const studioPartialVersionIntentRef = useRef<StudioPartialStageVersionIntent | null>(null)
   const studioPartialVersionHandlerRef = useRef<((version: 'blank' | 'strawman' | 'final') => void) | null>(null)
+  const studioPartialVersionInputsRef = useRef<{
+    authority: StudioPartialStageAuthority; owner: object; buildId: string | null; observation: object
+  } | null>(null)
   const studioPartialNativeReadbackHandlerRef = useRef<((readback: StudioPartialNativeReadback) => void) | null>(null)
   const studioPartialIngressRef = useRef<((message: SlideBuilt, owner?: DirectorTransportOwner) => void) | null>(null)
   const [studioPartialRevision, setStudioPartialRevision] = useState(0)
@@ -6246,6 +6249,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     retireStudioVoiceOwner(); cancelOutlinePreview(); switchVersion(version)
   }
   studioPartialVersionHandlerRef.current = handleStudioPartialVersionSwitch
+  const previousVersionInputs = studioPartialVersionInputsRef.current
+  const studioPartialVersionObservation = previousVersionInputs?.authority === studioPartialAuthority
+    && previousVersionInputs.buildId === buildNarration.buildId ? previousVersionInputs.observation : {}
+  studioPartialVersionInputsRef.current = {
+    authority: studioPartialAuthority, owner: studioInitialSelectedTarget.owner, buildId: buildNarration.buildId,
+    observation: studioPartialVersionObservation,
+  }
+  // Same-owner renders may replace the private handler before its portal commits.
+  // Keep the visible callback stable while still retiring old owner/build intent.
+  const handleStudioPartialVersionIntent = useCallback((version: 'blank' | 'strawman' | 'final') => {
+    const current = studioPartialVersionInputsRef.current
+    if (!studioPartialAuthority.isCurrent() || studioSlideComposeOwnerRef.current !== studioInitialSelectedTarget.owner
+      || current?.authority !== studioPartialAuthority || current.owner !== studioInitialSelectedTarget.owner
+      || current.buildId !== buildNarration.buildId || current.observation !== studioPartialVersionObservation) return
+    studioPartialVersionHandlerRef.current?.(version)
+  }, [studioPartialAuthority, studioInitialSelectedTarget.owner, buildNarration.buildId, studioPartialVersionObservation])
   const handleStudioPartialNativeReadback = (readback: StudioPartialNativeReadback) => {
     const owner = studioInitialSelectedTarget.owner
     const current = () => studioPartialAuthority.isCurrent() && studioSlideComposeOwnerRef.current === owner
@@ -7089,7 +7108,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             finalPresentationUrl={finalPresentationUrl}
             activeVersion={effectiveActiveVersion}
             isBlankPresentation={effectiveIsBlankPresentation}
-            onVersionSwitch={studioShell ? handleStudioPartialVersionSwitch
+            onVersionSwitch={studioShell ? handleStudioPartialVersionIntent
               : (version) => { retireStudioVoiceOwner(); cancelOutlinePreview(); switchVersion(version) }}
             currentStage={currentStage}
             currentSlideIndex={studioPartialMetadata

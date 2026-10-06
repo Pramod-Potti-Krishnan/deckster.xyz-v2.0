@@ -169,6 +169,11 @@
   [data-studio-v4-shell="true"] [data-studio-knowledge-role="filters"] { margin-top: 8px; }
 }
 
+/* The retained immersive map must paint above the inert surrounding rail. */
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has([data-studio-knowledge="true"] [data-knowledge-immersive="true"]) {
+  isolation: auto;
+}
+
 /* Loaded, unavailable and cached snapshots are distinct native review states. */
 [data-studio-v4-shell="true"] [data-studio-knowledge-role="load-error"] { border-color: var(--ss-line); border-radius: 9px; background: var(--ss-surface); padding: 11px 13px; max-height: 110px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 [data-studio-v4-shell="true"] [data-studio-knowledge-role="load-error"] p { color: var(--ss-muted); font-size: 11px; line-height: 1.6; }
