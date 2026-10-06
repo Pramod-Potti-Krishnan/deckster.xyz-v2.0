@@ -182,13 +182,21 @@ assert.match(
   'every TABLE insert uses the generalized atomic cited-element path',
 )
 assert.match(generationSource, /resolvedTableProfile/)
-assert.match(generationSource, /150_000/, 'researched table generation timeout allows Researcher bounded retries')
+const timeoutPolicy = compile(new URL('../lib/element-generation-timeout.ts', import.meta.url))
+assert.equal(timeoutPolicy.resolveElementGenerationTimeoutMs('TABLE', 'on'), 150_000,
+  'researched table generation timeout allows Researcher bounded retries')
+assert.equal(timeoutPolicy.resolveElementGenerationTimeoutMs('TABLE', 'off'), 30_000,
+  'non-researched table generation retains the existing short timeout')
+assert.match(generationSource, /const generationTimeoutMs = resolveElementGenerationTimeoutMs\(\s*formData\.componentType,\s*effectiveResearchMode,?\s*\)/,
+  'the generation hook uses the actual shared timeout policy')
 assert.match(generationSource, /restoredBlankElementId = await restoreBlankElementAfterFailure/)
 assert.match(
   generationSource,
-  /openPanelForElement\(currentBlankInfo\.componentType, restoredBlankElementId\)/,
-  'failed generation reopens the restored placeholder panel before publishing the error',
+  /generationPanel\.resumePanelForElement\(recoveryBlankInfo\.componentType, restoredBlankElementId\)/,
+  'failed generation resumes the restored placeholder panel before publishing the error',
 )
+assert.ok(generationSource.indexOf('generationPanel.resumePanelForElement(recoveryBlankInfo.componentType, restoredBlankElementId)')
+  < generationSource.indexOf('setGenerationError(errorMessage)'), 'recovery still precedes final error publication')
 assert.match(generationPanelHookSource, /draftsRef = useRef<Map<string, GenerationPanelDraft>>/)
 assert.match(generationPanelHookSource, /`blank:\$\{elementId\}`/)
 assert.match(generationPanelHookSource, /`element:\$\{elementId\}`/)
@@ -198,7 +206,11 @@ assert.match(panelSource, /onDraftChange\?\.\(\{\s*prompt: formData\.prompt/)
 assert.match(formSource, /initialDraft\?: GenerationPanelDraft/)
 assert.match(formSource, /initialTableFormData\?\.tableConfig/)
 assert.match(formSource, /onDraftChange\?\.\(\{\s*formData:/)
-assert.match(generationSource, /rememberDraftForElement\(insertedElementId, formData\)/)
+assert.match(
+  generationSource,
+  /rememberDraftForElement\(insertedElementId, formData,\s*studio && insertionComponentType === 'METRICS'\s*\? \{ elementId: insertedElementId, elementType: 'METRICS' \}\s*: undefined\)/,
+  'table draft remains unchanged; only Studio Metrics receives the per-card target',
+)
 assert.doesNotMatch(
   generationSource,
   /generationPanel\.closePanel\(\)\s*generationPanel\.setIsGenerating\(false\)\s*\/\/ Grounded generation/,

@@ -1,0 +1,94 @@
+{
+  "source": "lib/narration/voices.ts",
+  "voices": [
+    {
+      "id": "alloy",
+      "name": "Alloy",
+      "description": "Warm and even. The best all-rounder for narration.",
+      "costPerMinuteUsd": 0.0156,
+      "firstAudioSeconds": 0.87,
+      "liveAnswers": true,
+      "sampleUrl": "/api/narration/voice/sample/alloy"
+    },
+    {
+      "id": "ava",
+      "name": "Ava",
+      "description": "Clear and businesslike. The quickest to start speaking.",
+      "costPerMinuteUsd": 0.0137,
+      "firstAudioSeconds": 0.68,
+      "liveAnswers": true,
+      "sampleUrl": "/api/narration/voice/sample/ava"
+    },
+    {
+      "id": "andrew",
+      "name": "Andrew",
+      "description": "Clear and businesslike, lower register.",
+      "costPerMinuteUsd": 0.0142,
+      "firstAudioSeconds": 0.83,
+      "liveAnswers": true,
+      "sampleUrl": "/api/narration/voice/sample/andrew"
+    },
+    {
+      "id": "heart",
+      "name": "Heart",
+      "description": "Natural and unhurried, and by far the cheapest to render.",
+      "costPerMinuteUsd": 0.0005,
+      "firstAudioSeconds": 4.66,
+      "liveAnswers": false,
+      "sampleUrl": "/api/narration/voice/sample/heart"
+    },
+    {
+      "id": "zephyr",
+      "name": "Zephyr",
+      "description": "The most expressive of the set. Slow and costly to render.",
+      "costPerMinuteUsd": 0.0585,
+      "firstAudioSeconds": 17.74,
+      "liveAnswers": false,
+      "sampleUrl": "/api/narration/voice/sample/zephyr"
+    },
+    {
+      "id": "puck",
+      "name": "Puck",
+      "description": "Bright and characterful. Slow and costly to render.",
+      "costPerMinuteUsd": 0.0599,
+      "firstAudioSeconds": 9.02,
+      "liveAnswers": false,
+      "sampleUrl": "/api/narration/voice/sample/puck"
+    },
+    {
+      "id": "charon",
+      "name": "Charon",
+      "description": "Measured and authoritative. Slow and costly to render.",
+      "costPerMinuteUsd": 0.0594,
+      "firstAudioSeconds": 7.65,
+      "liveAnswers": false,
+      "sampleUrl": "/api/narration/voice/sample/charon"
+    },
+    {
+      "id": "kore",
+      "name": "Kore",
+      "description": "Even and precise. Slow and costly to render.",
+      "costPerMinuteUsd": 0.0596,
+      "firstAudioSeconds": 10.41,
+      "liveAnswers": false,
+      "sampleUrl": "/api/narration/voice/sample/kore"
+    },
+    {
+      "id": "aoede",
+      "name": "Aoede",
+      "description": "Softer and more lyrical. Slow and costly to render.",
+      "costPerMinuteUsd": 0.0604,
+      "firstAudioSeconds": 9.18,
+      "liveAnswers": false,
+      "sampleUrl": "/api/narration/voice/sample/aoede"
+    }
+  ],
+  "selectedVoiceId": null,
+  "effectiveVoiceId": "alloy",
+  "persistenceReady": false,
+  "samplesReady": false,
+  "storage": {
+    "ok": false,
+    "reason": "Isolated fixture does not provide media storage"
+  }
+}

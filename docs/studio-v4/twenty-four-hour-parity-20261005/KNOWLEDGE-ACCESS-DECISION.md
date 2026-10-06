@@ -1,0 +1,13 @@
+# Knowledge access lifetime — scope decision
+
+5 October2026,14:56UTC. Atlas reported first candidates7c56ed7f (intro), e9fd8b38 (Knowledge presentation) and fd40ba50 (source audit), all on exact public308746bd. These are **pending complete rendered/interaction evidence and Architect acceptance**. No export/release/connected acceptance follows from these checkpoints.
+
+Architect read exact e9fd8b38 Knowledge page420–735, current308 useKnowledgeGraph and Atlas's source/contract audit. The accountKey workspace remount protects account changes. Same-owner entitlement/subscription loss only aborts/increments the graph-data request generation; detail, search and multi-batch import continuations have separate lifetimes without current effective-access checks. Pending operations may therefore finish through a lost/restored access interval. This is inherited source evidence, not an observed connected disclosure or a newly introduced candidate regression.
+
+**Decision: proceed within existing page ownership.** Atlas may correct operation admission/continuation in app/(app)/knowledge/page.tsx and return a narrow successor with the first complete slice. No new user permission is required for this authorized frontend fix. Hooks, proxies, backend authorization, settings, consent, routes, capabilities and configuration remain unchanged.
+
+The correction must guard start, async state commit, next import-batch dispatch and post-import refresh against the current owner/access lifetime. Abort/invalidate on observed loss and refuse obsolete responses even across a rapid revoke→restore. Keep the existing real access/readiness gate; distinguish temporary resolution/healthy refresh according to actual hook semantics. Preserve healthy refresh/intro state such as selection, filters and zoom. Client abort does not cancel or roll back an already-dispatched server import; any partial/interrupted notice must say so and must not carry old-owner content into another owner.
+
+Require focused actual-page service-disabled K14/owner-switch evidence, held/out-of-order responses, revoked callbacks and rapid restore, plus healthy refresh/intro preservation. Do not change real entitlement, consent or graph records to test this. The retained-record management issue after pause/downgrade (KR-F1) remains a separate Settings/hook/sidebar scope decision; no such edits are included here.
+
+Decision relayed directly to Atlas under PK's existing two-way coordination authority. Shared Studio files and connected browser/runtime remain B1-owned. Intro/Knowledge visual acceptance, server access behavior and actual connected Knowledge parity remain separate review gates.

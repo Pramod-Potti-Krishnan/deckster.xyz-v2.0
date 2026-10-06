@@ -377,7 +377,123 @@ assert.match(formSource, /Explicit values below become sparse overrides/)
 assert.doesNotMatch(formSource, />Structure</)
 assert.doesNotMatch(panelSource, /Regenerate|onRegenerateToggle|regenerateEnabled/)
 assert.doesNotMatch(typesSource, /function recalcTextBoxLimits/)
-assert.match(generationSource, /sendElementCommand\('upsertSemanticElement'/)
+// Execute the actual hook insertion block and shared reconciliation wrapper.
+// The July acknowledgement refactor made the former direct-call literal stale.
+function insertionBlock(source) {
+  const tree = ts.createSourceFile('generation.ts', source, ts.ScriptTarget.Latest, true)
+  let result
+  const variable = (node, name) => ts.isVariableStatement(node) && node.declarationList.declarations.some(d => d.name.getText(tree) === name)
+  function visit(node) {
+    if (ts.isBlock(node)) {
+      const start = node.statements.findIndex(n => variable(n, 'insertionComponentType'))
+      if (start >= 0) {
+        const end = node.statements.findIndex((n, i) => i > start && ts.isExpressionStatement(n) && ts.isCallExpression(n.expression) && n.expression.expression.getText(tree) === 'assertLayoutCommandSucceeded')
+        assert.ok(end > start, 'insertion must require an acknowledged result')
+        result = node.statements.slice(start, end + 1).map(n => n.getText(tree)).join('\n')
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(tree)
+  assert.ok(result, 'actual hook insertion block must exist')
+  return result
+}
+const reconcileModule = compile(new URL('../lib/layout-command-result.ts', import.meta.url))
+async function dispatchCase(block, fixture, behavior = 'success') {
+  const calls = []
+  const element = { element_id: 'generated-local', html: '<p>Local semantic content</p>', component_type: 'TEXT_BOX', semantic_role: 'BODY_TEXT', slot_kind: 'body', grid_position: { start_col: 5, start_row: 10, position_width: 10, position_height: 6 }, generation_config: { version: 1, prompt: 'Local source' }, ...fixture.element }
+  let polls = 0, insertion
+  const send = async (action, params) => {
+    calls.push({ action, params: JSON.parse(JSON.stringify(params)) })
+    if (action === 'getElementMutationReceipt') {
+      polls++
+      if (behavior === 'ambiguous' || (behavior === 'pending' && polls === 1)) return { success: true, status: 'pending' }
+      return { success: true, status: 'completed', result: behavior === 'failed-receipt' ? { success: false, error: 'local refused receipt' } : { success: true, elementId: calls[0].params.elementId } }
+    }
+    if (['timeout', 'pending', 'ambiguous', 'failed-receipt'].includes(behavior)) throw new Error('Command timeout')
+    if (behavior === 'refusal') return { success: false, error: 'local refused mutation' }
+    if (behavior === 'network') throw new Error('local transport refusal')
+    return { success: true, elementId: params.elementId }
+  }
+  const context = { element, elementWithPosition: element, formData: { slotKind: 'body', ...fixture.formData }, refineContext: fixture.refineContext ?? null, index: 0, effectiveSlideIndex: 2, lifecycleMutationId: 'local-owned-attempt', layoutServiceApis: { sendElementCommand: send }, buildInsertionParams: (...args) => { insertion = clientModule.buildInsertionParams(...args); return insertion }, buildSemanticUpsertParams: clientModule.buildSemanticUpsertParams, assertLayoutCommandSucceeded: reconcileModule.assertLayoutCommandSucceeded, sendLayoutMutationWithReconciliation: (...args) => reconcileModule.sendLayoutMutationWithReconciliation(...args, { attempts: 2, delayMs: 0 }) }
+  let result, error
+  try {
+    result = await vm.runInNewContext(ts.transpileModule('(async()=>{'+block+';return insertResponse})()', { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
+  } catch (caught) { error = caught }
+  return { calls, result, error, insertion }
+}
+let semanticDispatchChecks = 0
+async function verifySemanticDispatch(source) {
+  const block = insertionBlock(source)
+  const fixtures = [
+    ...['SLIDE_TITLE', 'SLIDE_SUBTITLE', 'FOOTER', 'SOURCES'].map(role => ({ name: role, element: { semantic_role: role, slot_name: role.toLowerCase(), slot_kind: role === 'SOURCES' ? 'system' : 'structural' }, refineContext: { elementId: 'existing-local', elementType: 'TEXT_BOX' }, action: 'upsertSemanticElement', semantic: true, geometry: undefined })),
+    { name: 'named body', element: { slot_name: 'content' }, refineContext: { elementId: 'existing-local', elementType: 'TEXT_BOX' }, action: 'upsertSemanticElement', semantic: true, geometry: { gridRow: '10/16', gridColumn: '5/15' } },
+    { name: 'cited body', element: { citations_used: [{ source_key: 'local-evidence' }] }, action: 'upsertSemanticElement', semantic: true, geometry: { gridRow: '10/16', gridColumn: '5/15' } },
+    { name: 'unnamed body', action: 'insertTextBox' },
+    { name: 'Logo accessory', element: { component_type: 'IMAGE', image_url: 'https://fixtures.invalid/brand.svg', slot_name: 'brand_logo', slot_kind: 'accessory', accessory_type: 'LOGO', semantic_role: undefined }, formData: { slotKind: 'accessory' }, refineContext: { elementId: 'existing-local', elementType: 'TEXT_BOX' }, action: 'upsertSemanticElement', semantic: true, geometry: undefined },
+    { name: 'ordinary image', element: { component_type: 'IMAGE', image_url: 'https://fixtures.invalid/image.svg' }, action: 'insertImage' },
+    { name: 'Table cited dispatch', element: { component_type: 'TABLE', citations_used: [{ source_key: 'local-table' }] }, action: 'upsertCitedElement', cited: true },
+    { name: 'refined Metric cited dispatch', element: { component_type: 'METRICS' }, refineContext: { elementId: 'existing-local', elementType: 'METRICS' }, action: 'upsertCitedElement', cited: true },
+  ]
+  for (const fixture of fixtures) {
+    const run = await dispatchCase(block, fixture)
+    assert.ifError(run.error)
+    assert.equal(run.calls.length, 1, fixture.name + ': exactly one mutation')
+    const { action, params } = run.calls[0]
+    assert.equal(action, fixture.action, fixture.name)
+    assert.equal(params.elementId, run.insertion.params.elementId)
+    assert.notEqual(params.elementId, 'existing-local')
+    assert.equal(params.slideIndex, 2)
+    assert.equal(params.mutationId, 'local-owned-attempt:insert:0')
+    assert.equal(run.result.elementId, run.insertion.params.elementId)
+    if (fixture.semantic) {
+      assert.equal(params.replacesElementId, fixture.refineContext?.elementId)
+      assert.equal(params.content, fixture.name === 'Logo accessory' ? 'https://fixtures.invalid/brand.svg' : '<p>Local semantic content</p>')
+      assert.equal(params.semanticRole, fixture.element?.semantic_role ?? (fixture.name === 'Logo accessory' ? undefined : 'BODY_TEXT'))
+      assert.equal(params.slotName, fixture.element?.slot_name)
+      assert.deepEqual(params.geometry, fixture.geometry)
+      assert.equal(params.metadata.generationConfig.prompt, 'Local source')
+      if (fixture.name === 'Logo accessory') assert.equal(params.metadata.componentType, 'IMAGE')
+      if (fixture.name === 'cited body') assert.equal(params.citationsUsed[0].source_key, 'local-evidence')
+    }
+    if (fixture.cited) {
+      assert.equal(params.componentType, fixture.element.component_type)
+      assert.equal(params.replacesElementId, fixture.refineContext?.elementId)
+      assert.equal(params.geometry.gridRow, '10/16')
+      assert.equal(params.metadata.generationConfig.prompt, 'Local source')
+    }
+    semanticDispatchChecks++
+  }
+  // Independently exercise both candidate objects to prove cited precedence in
+  // the actual action/argument expressions; no producer recipe is invented.
+  const choiceTree = ts.createSourceFile('choice.ts', block, ts.ScriptTarget.Latest, true)
+  const actionStatement = choiceTree.statements.find(n => ts.isVariableStatement(n) && n.declarationList.declarations.some(d => d.name.getText(choiceTree) === 'insertionAction'))
+  const responseStatement = choiceTree.statements.find(n => ts.isVariableStatement(n) && n.declarationList.declarations.some(d => d.name.getText(choiceTree) === 'insertResponse'))
+  assert.ok(actionStatement && responseStatement)
+  let chosen
+  const cited = { elementId: 'cited-local' }, semantic = { elementId: 'semantic-local' }
+  await vm.runInNewContext(ts.transpileModule('(async()=>{'+actionStatement.getText(choiceTree)+'\n'+responseStatement.getText(choiceTree)+'})()', { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, { citedUpsertParams: cited, semanticUpsertParams: semantic, params: { elementId: 'ordinary-local' }, method: 'insertElement', layoutServiceApis: { sendElementCommand: () => {} }, lifecycleMutationId: 'local', index: 0, sendLayoutMutationWithReconciliation: async (_, action, params) => { chosen = { action, params } } })
+  assert.equal(chosen.action, 'upsertCitedElement');assert.equal(chosen.params, cited);semanticDispatchChecks++
+  for (const behavior of ['timeout', 'pending', 'refusal', 'network', 'failed-receipt', 'ambiguous']) {
+    const run = await dispatchCase(block, fixtures[4], behavior)
+    assert.equal(run.calls.filter(c => c.action !== 'getElementMutationReceipt').length, 1, 'no duplicate semantic mutation on '+behavior)
+    for (const call of run.calls.filter(c => c.action === 'getElementMutationReceipt')) assert.deepEqual(call.params, { mutationId: 'local-owned-attempt:insert:0' })
+    if (['timeout', 'pending'].includes(behavior)) { assert.ifError(run.error);assert.equal(run.result.success, true) }
+    else { assert.ok(run.error);assert.equal(run.result, undefined);if (behavior === 'ambiguous') assert.equal(run.error.code, 'LAYOUT_MUTATION_AMBIGUOUS');if (['refusal', 'network'].includes(behavior)) assert.equal(run.calls.length, 1) }
+    semanticDispatchChecks++
+  }
+}
+await verifySemanticDispatch(generationSource)
+assert.equal(semanticDispatchChecks, 18)
+for (const [from, to] of [
+  [": semanticUpsertParams ? 'upsertSemanticElement'", ": semanticUpsertParams ? 'insertTextBox'"],
+  ['(citedUpsertParams ?? semanticUpsertParams ?? params)', '(params)'],
+  ['const semanticUpsertParams = buildSemanticUpsertParams(\n          params,\n          effectiveSlideIndex,\n          refineContext?.elementId,', 'const semanticUpsertParams = buildSemanticUpsertParams(\n          params,\n          effectiveSlideIndex,\n          undefined,'],
+]) {
+  assert.ok(generationSource.includes(from), 'negative probe source must match')
+  await assert.rejects(() => verifySemanticDispatch(generationSource.replace(from, to)))
+}
+console.log('18 actual hook semantic dispatch/reconciliation cases and3 negative probes passed; offline only.')
 assert.match(generationSource, /buildSemanticUpsertParams/)
 assert.match(clientSource, /citationsUsed/)
 assert.match(generationSource, /slot_name:/)

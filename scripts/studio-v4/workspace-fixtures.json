@@ -1,0 +1,133 @@
+{
+  "themes": {
+    "themes": [
+      {
+        "id": "fixture-theme-sage",
+        "name": "Evergreen studio",
+        "description": "A calm identity for focused stories.",
+        "theme_payload": {
+          "mode": "custom",
+          "preset_id": "minimal",
+          "primary_hex": "#287B78",
+          "secondary_hex": "#B89260",
+          "harmony_preference": "analogous",
+          "palette_mode": "both",
+          "color_overrides": {
+            "background": "#FAFBF6",
+            "surface": "#EDF3E9",
+            "text_primary": "#28453B",
+            "text_body": "#486255"
+          }
+        },
+        "is_standard": true,
+        "usage_count": 4
+      }
+    ],
+    "count": 1
+  },
+  "templates": {
+    "templates": [
+      {
+        "id": "fixture-template-review",
+        "name": "Quarterly business review",
+        "description": "A reusable story for progress, priorities, and decisions.",
+        "slide_count": 3,
+        "blueprint_generation_method": "llm",
+        "blueprint_enrichment_status": "complete",
+        "template_purity_status": "clean"
+      },
+      {
+        "id": "fixture-template-cleanup",
+        "name": "Customer growth story",
+        "slide_count": 4,
+        "blueprint_generation_method": "llm",
+        "blueprint_enrichment_status": "complete",
+        "template_purity_status": "failed",
+        "template_purity_error": "Fixture: a source-specific metric still needs review."
+      }
+    ],
+    "count": 2
+  },
+  "template": {
+    "id": "fixture-template-review",
+    "name": "Quarterly business review",
+    "slide_count": 3,
+    "blueprint_generation_method": "llm",
+    "blueprint_enrichment_status": "complete",
+    "template_purity_status": "clean",
+    "template_blueprint": {
+      "version": 1,
+      "generation_method": "llm",
+      "deck_purpose": "Explain the quarter and align on the next priorities.",
+      "deck_reuse_instruction": "Replace the evidence each quarter; retain the decision sequence.",
+      "abstraction_scope": {
+        "level": "period",
+        "label": "Same business, next quarter"
+      },
+      "slides": [
+        {
+          "slide_index": 0,
+          "slide_title": "A quarter of focused progress",
+          "purpose": "Establish the overall direction and the central result.",
+          "narrative_role": "Context",
+          "proof_goal": "Connect the result to the strategy.",
+          "population_policy": "flexible",
+          "required_inputs": [
+            "Reporting period",
+            "Central result"
+          ],
+          "elements": [
+            {
+              "element_key": "headline",
+              "purpose": "State the central result",
+              "semantic_role": "Main headline",
+              "fixedness": "variable",
+              "lock_policy": "regenerate",
+              "atom_contract": {
+                "kind": "text",
+                "abstraction_instruction": "Write a fresh headline for the reporting period.",
+                "missing_data_policy": "ask_user"
+              }
+            }
+          ]
+        },
+        {
+          "slide_index": 1,
+          "slide_title": "The evidence behind the progress",
+          "purpose": "Show the measures that explain what changed.",
+          "narrative_role": "Evidence",
+          "population_policy": "strict",
+          "required_inputs": [
+            "Current metrics",
+            "Prior-period comparison"
+          ],
+          "elements": [
+            {
+              "element_key": "metric",
+              "purpose": "Quantify the primary outcome",
+              "semantic_role": "Key metric",
+              "fixedness": "variable",
+              "lock_policy": "regenerate",
+              "atom_contract": {
+                "kind": "metric",
+                "required_data": [
+                  "Current value",
+                  "Prior value"
+                ],
+                "missing_data_policy": "ask_user"
+              }
+            }
+          ]
+        },
+        {
+          "slide_index": 2,
+          "slide_title": "The decisions that move us forward",
+          "purpose": "Make next steps and ownership explicit.",
+          "narrative_role": "Action",
+          "population_policy": "flexible",
+          "elements": []
+        }
+      ]
+    }
+  }
+}

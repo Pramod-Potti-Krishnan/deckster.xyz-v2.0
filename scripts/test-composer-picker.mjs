@@ -32,6 +32,10 @@ const toasts = []
 const imports = {
   react: { ...react, default: react },
   'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
+  // Rendering only: keep the native library link visible without Next's router.
+  'next/link': { default: 'a' },
+  // The scoped stylesheet has no executable behavior in this DOM-free fixture.
+  './studio-template-picker.css': {},
   'lucide-react': primitives,
   '@/components/ui/dropdown-menu': primitives,
   '@/components/ui/button': primitives,

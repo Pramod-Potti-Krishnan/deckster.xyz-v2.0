@@ -169,11 +169,6 @@
   [data-studio-v4-shell="true"] [data-studio-knowledge-role="filters"] { margin-top: 8px; }
 }
 
-/* The retained immersive map must paint above the inert surrounding rail. */
-[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has([data-studio-knowledge="true"] [data-knowledge-immersive="true"]) {
-  isolation: auto;
-}
-
 /* Loaded, unavailable and cached snapshots are distinct native review states. */
 [data-studio-v4-shell="true"] [data-studio-knowledge-role="load-error"] { border-color: var(--ss-line); border-radius: 9px; background: var(--ss-surface); padding: 11px 13px; max-height: 110px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 [data-studio-v4-shell="true"] [data-studio-knowledge-role="load-error"] p { color: var(--ss-muted); font-size: 11px; line-height: 1.6; }
@@ -299,63 +294,4 @@
   [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-content"]:has(> [data-studio-graph-view="true"]) { flex: 1 0 auto; min-height: 520px; }
   [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-content"] > [data-studio-graph-view="true"] { min-height: 504px; }
   [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-content"] > [data-studio-graph-view="true"] > svg[role="group"] { flex: 1 0 420px; height: auto; min-height: 420px; }
-}
-
-/* K08: one mounted real map/list and Inspector, presented in place. */
-[data-studio-knowledge="true"] .sk-map-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-[data-studio-knowledge="true"] .sk-fullscreen-trigger,
-[data-studio-knowledge="true"] .sk-immersive-header > button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #cbd5e1; border-radius: 7px; padding: 7px 10px; background: #fff; color: #334155; font-size: 11px; line-height: 17px; }
-.dark [data-studio-knowledge="true"] :is(.sk-fullscreen-trigger, .sk-immersive-header > button) { background: #1e293b; border-color: #475569; color: #e2e8f0; }
-[data-studio-knowledge="true"] .sk-fullscreen-trigger:disabled { opacity: .45; cursor: not-allowed; }
-[data-studio-knowledge="true"] :is(.sk-fullscreen-trigger, .sk-immersive-header > button):focus-visible { outline: 2px solid #8b5cf6; outline-offset: 3px; }
-[data-studio-knowledge="true"] .sk-immersive-header[hidden],
-[data-studio-knowledge="true"] .sk-fullscreen-trigger[hidden] { display: none; }
-[data-studio-knowledge="true"] [data-knowledge-immersive="true"] {
-  position: fixed; inset: 0; z-index: 100; box-sizing: border-box; max-width: none;
-  width: 100%; height: 100dvh; min-height: 0; padding: 14px; margin: 0;
-  background: #f8fafc; color: #0f172a; overflow: auto; overscroll-behavior: contain;
-  grid-template-columns: minmax(0,1fr); align-items: start;
-}
-.dark [data-studio-knowledge="true"] [data-knowledge-immersive="true"] { background: #0f172a; color: #e2e8f0; }
-[data-studio-knowledge="true"] .sk-immersive-header {
-  grid-column: 1 / -1; position: sticky; top: -14px; z-index: 45;
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
-  gap: 10px; padding: 12px 0; background: #f8fafc; border-bottom: 1px solid #cbd5e1;
-}
-.dark [data-studio-knowledge="true"] .sk-immersive-header { background: #0f172a; border-color: #475569; }
-[data-studio-knowledge="true"] .sk-immersive-header > div { display: flex; align-items: center; gap: 10px; }
-[data-studio-knowledge="true"] .sk-immersive-header strong { display: block; font-size: 15px; line-height: 21px; font-weight: 500; }
-[data-studio-knowledge="true"] .sk-immersive-header small { display: block; color: #64748b; font-size: 11px; line-height: 17px; }
-.dark [data-studio-knowledge="true"] .sk-immersive-header small { color: #94a3b8; }
-[data-studio-knowledge="true"] .sk-immersive-header kbd { font: inherit; font-size: 10px; opacity: .65; }
-[data-studio-v4-shell="true"] [data-studio-knowledge="true"] :is(.sk-fullscreen-trigger, .sk-immersive-header > button) { background: var(--ss-panel); border-color: var(--ss-line); color: var(--ss-text); }
-[data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"],
-[data-studio-v4-shell="true"] [data-studio-knowledge="true"] .sk-immersive-header { background: var(--ss-surface); color: var(--ss-text); border-color: var(--ss-line); }
-[data-studio-v4-shell="true"] [data-studio-knowledge="true"] .sk-immersive-header small { color: var(--ss-muted); }
-@media (min-width: 1024px) {
-  [data-studio-knowledge="true"] [data-knowledge-immersive="true"] { grid-template-columns: minmax(0,1fr) clamp(280px,26vw,370px); grid-template-rows: auto minmax(0,1fr); align-items: stretch; overflow: hidden; }
-  [data-studio-knowledge="true"] [data-knowledge-immersive="true"] .sk-immersive-header { position: static; padding-top: 0; }
-  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-knowledge-role="map-panel"] { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
-  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-knowledge-role="map-content"] { flex: 1 0 210px; min-height: 210px; }
-  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-knowledge-role="map-content"] > [data-studio-graph-view="true"] { min-height: 194px; }
-  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-graph-view="true"] > svg[role="group"] { flex: 1 0 150px; height: auto; min-height: 150px; }
-  [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-knowledge-role="inspector"] { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-}
-@media (max-width: 1023px) {
-  [data-studio-knowledge="true"] [data-knowledge-immersive="true"] { display: flex; flex-direction: column; align-items: stretch; }
-  [data-studio-knowledge="true"] [data-knowledge-immersive="true"] > * { flex-shrink: 0; }
-  [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-knowledge-role="inspector"] { height: auto; max-height: none; }
-}
-/* Override the inline640px stage floor only for this fixed, gated frame. */
-[data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="layout"][data-knowledge-immersive="true"] { min-height: 0; flex: none; }
-@media (min-width: 1024px) {
-  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="layout"][data-knowledge-immersive="true"] { grid-template-columns: minmax(0,1fr) clamp(280px,26vw,370px); grid-template-rows: auto minmax(0,1fr); }
-}
-
-/* Short immersive maps keep the accepted readable surface. The existing map-panel
-   scroll reaches controls below it; list, narrow and nonimmersive layouts stay as-is. */
-@media (min-width: 1024px) and (max-height: 760px) {
-  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-knowledge-role="map-content"]:has(> [data-studio-graph-view="true"][data-studio-graph-mode="map"]) { flex: 1 0 520px; min-height: 520px; }
-  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-knowledge-role="map-content"] > [data-studio-graph-view="true"][data-studio-graph-mode="map"] { min-height: 504px; }
-  [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-knowledge-immersive="true"] [data-studio-graph-view="true"][data-studio-graph-mode="map"] > svg[role="group"] { flex: 1 0 420px; height: auto; min-height: 420px; }
 }

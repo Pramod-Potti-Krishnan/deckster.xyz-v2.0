@@ -210,6 +210,7 @@ const diagramFormModule = loadTypeScriptModule(
       }),
     },
     '@/lib/element-prompt-limit': promptLimitModule,
+    './studio-chart-diagram.css': {},
   },
   ts.JsxEmit.React,
 )

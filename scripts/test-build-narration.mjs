@@ -5,10 +5,16 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import ts from 'typescript';
+import { execFileSync } from 'node:child_process';
 
 const require = createRequire(import.meta.url);
-const helperPath = new URL('../lib/build-narration-heuristics.ts', import.meta.url);
-const source = fs.readFileSync(helperPath, 'utf8');
+const sourceRef = process.argv.find(arg => arg.startsWith('--source-ref='))?.slice('--source-ref='.length);
+function readNarrationSource(relativePath) {
+  return sourceRef
+    ? execFileSync('git', ['show', `${sourceRef}:${relativePath}`], { encoding: 'utf8' })
+    : fs.readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8');
+}
+const source = readNarrationSource('lib/build-narration-heuristics.ts');
 const compiled = ts.transpileModule(source, {
   compilerOptions: {
     module: ts.ModuleKind.CommonJS,
@@ -23,8 +29,7 @@ vm.runInNewContext(compiled.outputText, {
   require,
 });
 
-const controlHelperPath = new URL('../lib/build-control-helpers.ts', import.meta.url);
-const controlHelperSource = fs.readFileSync(controlHelperPath, 'utf8');
+const controlHelperSource = readNarrationSource('lib/build-control-helpers.ts');
 const controlHelperCompiled = ts.transpileModule(controlHelperSource, {
   compilerOptions: {
     module: ts.ModuleKind.CommonJS,
@@ -50,10 +55,7 @@ const websocketHookSource = fs.readFileSync(
   new URL('../hooks/use-deckster-websocket-v2.ts', import.meta.url),
   'utf8',
 );
-const narrationHookSource = fs.readFileSync(
-  new URL('../hooks/use-build-narration.ts', import.meta.url),
-  'utf8',
-);
+const narrationHookSource = readNarrationSource('hooks/use-build-narration.ts');
 const sessionCacheSource = fs.readFileSync(
   new URL('../hooks/use-session-cache.ts', import.meta.url),
   'utf8',
@@ -108,6 +110,222 @@ function run(name, fn) {
     throw err;
   }
 }
+
+// Execute the complete real hook/reducer; only React, browser storage and clock
+// boundaries are deterministic. This is source reproduction, not a live chat.
+export function createBuildNarrationHarness(initial = {}, saved = {}) {
+  let inputs = { enabled: true, sessionId: 'synthetic-session', messages: [], currentStatus: null,
+    slideStructure: null, isGeneratingFinal: false, isGeneratingStrawman: false,
+    finalPresentationUrl: null, ...initial };
+  let index = 0, dirty = false, time = T0, nextTimer = 1, api;
+  const slots = [], effects = [], timers = new Map(), storage = new Map(Object.entries(saved)), toasts = [];
+  const memo = (value, deps) => {
+    const i = index++, old = slots[i];
+    if (!old || deps.some((dep, j) => dep !== old.deps[j])) slots[i] = { value: value(), deps };
+    return slots[i].value;
+  };
+  const react = {
+    useRef(value) { return slots[index++] ||= { current: value }; },
+    useMemo: memo,
+    useCallback(callback, deps) { return memo(() => callback, deps); },
+    useReducer(reducer, value, init) {
+      const i = index++;
+      slots[i] ||= { value: init ? init(value) : value };
+      return [slots[i].value, action => {
+        const next = reducer(slots[i].value, action);
+        if (next !== slots[i].value) { slots[i].value = next; dirty = true; }
+      }];
+    },
+    useEffect(setup, deps) {
+      const i = index++, old = slots[i];
+      if (!old || deps.some((dep, j) => dep !== old.deps[j])) effects.push(() => {
+        old?.cleanup?.(); slots[i].cleanup = setup();
+      });
+      slots[i] = { deps, cleanup: old?.cleanup };
+    },
+  };
+  const hook = { exports: {} };
+  vm.runInNewContext(ts.transpileModule(narrationHookSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText, {
+    module: hook, exports: hook.exports,
+    require(name) {
+      if (name === 'react') return react;
+      if (name === '@/lib/build-narration-heuristics') return mod.exports;
+      if (name === '@/lib/build-control-helpers') return controlHelperMod.exports;
+      if (name === '@/hooks/use-toast') return { toast(value) { toasts.push(value); } };
+      throw Error(`Unexpected dependency ${name}`);
+    },
+    window: { sessionStorage: { getItem: key => storage.get(key) ?? null,
+      setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) } },
+    Date: class extends Date { static now() { return time; } },
+    setTimeout(callback, delay) { const id = nextTimer++; timers.set(id, { callback, due: time + delay }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+  });
+  function render() {
+    index = 0; dirty = false; api = hook.exports.useBuildNarration(inputs);
+    while (effects.length) effects.shift()();
+  }
+  function flush() { let count = 0; while (dirty) { assert.ok(++count < 30, 'hook settles'); render(); } }
+  render(); flush();
+  return {
+    get api() { return api; }, storage, toasts,
+    update(next) { inputs = { ...inputs, ...next }; render(); flush(); },
+    frame(method, payload) { api[method](payload); flush(); },
+    advance(ms) {
+      const until = time + ms;
+      while (true) {
+        const next = [...timers].sort((a, b) => a[1].due - b[1].due)[0];
+        if (!next || next[1].due > until) break;
+        time = next[1].due; timers.delete(next[0]); next[1].callback(); flush();
+      }
+      time = until; flush();
+    },
+    unmount() { for (const slot of slots) slot?.cleanup?.(); },
+  };
+}
+
+const recoveryGhosts = [{ index: 0, title: 'Recovered', points: [] }];
+const recoveryStructure = () => ({ slides: [{ slide_number: 1, title: 'Recovered' }] });
+const recoveryChecks = [
+  ['hook: cold final restore survives later outline and historical ephemeral replay', () => {
+    const h = createBuildNarrationHarness({ finalPresentationUrl: 'https://synthetic.invalid/p/final' });
+    h.advance(2000);
+    h.update({ slideStructure: recoveryStructure(), messages: [{ message_id: 'old', type: 'chat_message', payload: { ephemeral: true, text: 'Building slide 1/1' } }] });
+    assert.equal(h.api.narration.active, false); assert.equal(h.api.narration.phase, 'complete');
+    assert.equal(h.api.narration.slidesDone, 1); h.unmount();
+  }],
+  ['hook: async final restore settles local snapshot then stays settled on outline refresh', () => {
+    let snapshot = step(initialNarrationState(), { type: 'typed_phase', payload: { build_id: 'b1', phase: 'building', label: 'Building' }, ts: T0 });
+    const h = createBuildNarrationHarness({}, { 'deckster_narration_synthetic-session': serializeNarration(snapshot, T0) });
+    assert.equal(h.api.narration.active, true);
+    h.update({ slideStructure: recoveryStructure(), finalPresentationUrl: 'https://synthetic.invalid/p/final' });
+    h.advance(2000); h.update({ slideStructure: recoveryStructure() });
+    assert.equal(h.api.narration.phase, 'complete'); assert.equal(h.api.narration.active, false);
+    assert.equal(h.storage.has('deckster_narration_synthetic-session'), false); h.unmount();
+  }],
+  ['hook: completed sync survives metadata but distinct build recovers running', () => {
+    const h = createBuildNarrationHarness();
+    h.frame('syncBuildState', { build_id: 'b1', phase: 'complete', slide_count: 1, slides: { 0: 'built' } });
+    h.update({ slideStructure: recoveryStructure() });
+    assert.equal(h.api.narration.active, false); assert.equal(h.api.narration.phase, 'complete');
+    h.frame('onBuildPhase', { build_id: 'b2', phase: 'building', label: 'New build' });
+    assert.equal(h.api.narration.active, true); assert.equal(h.api.narration.buildId, 'b2'); h.unmount();
+  }],
+  ['hook: old final URL settle timer cannot dismiss a different active build', () => {
+    const h = createBuildNarrationHarness({ slideStructure: recoveryStructure() });
+    h.frame('onBuildPhase', { build_id: 'b1', phase: 'building', label: 'Building' });
+    h.update({ finalPresentationUrl: 'https://synthetic.invalid/p/first' });
+    h.frame('onBuildPhase', { build_id: 'b2', phase: 'building', label: 'New build' });
+    h.advance(2000); assert.equal(h.api.narration.active, true); assert.equal(h.api.narration.buildId, 'b2'); h.unmount();
+  }],
+  ['hook: typed live completion settles without waiting for a changed final URL', () => {
+    const h = createBuildNarrationHarness();
+    h.frame('onBuildPhase', { build_id: 'b1', phase: 'building', label: 'Building' });
+    h.frame('onBuildPhase', { build_id: 'b1', phase: 'complete', label: 'Ready' });
+    h.advance(2000); assert.equal(h.api.narration.active, false); assert.equal(h.api.narration.phase, 'complete'); h.unmount();
+  }],
+  ['reducer: structure cannot rewind running, paused, stopped, error or complete recovery', () => {
+    for (const phase of ['building', 'qa', 'finalizing', 'paused', 'stopped', 'error', 'complete']) {
+      let s = step(initialNarrationState(), { type: 'typed_sync', buildState: { build_id: 'b1', phase }, ts: T0 });
+      const active = s.active;
+      s = step(s, { type: 'strawman', ghosts: recoveryGhosts, ts: T0 + 1 });
+      assert.equal(s.phase, phase); assert.equal(s.active, active);
+    }
+  }],
+  ['reducer: late same-build phase/event cannot resurrect completion; thumbnail enrichment remains', () => {
+    let s = step(initialNarrationState(), { type: 'typed_sync', buildState: { build_id: 'b1', phase: 'complete', slides: { 0: 'built' } }, ts: T0 });
+    for (const action of [
+      { type: 'typed_phase', payload: { build_id: 'b1', phase: 'building', label: 'Late' } },
+      { type: 'typed_event', payload: { build_id: 'b1', seq: 9, scope: 'slide', slide_index: 0, stage: 'qa', text: 'Late' } },
+      { type: 'typed_sync', buildState: { build_id: 'b1', phase: 'building' } },
+    ]) s = step(s, { ...action, ts: T0 + 1 });
+    s = step(s, { type: 'typed_slide_built', payload: { build_id: 'b1', session_id: 'synthetic-session', presentation_id: 'p1', slide_index: 0, slide_count: 1, thumbnail_url: 'https://synthetic.invalid/thumbnail' }, ts: T0 + 2 });
+    assert.equal(s.active, false); assert.equal(s.phase, 'complete'); assert.equal(s.slidesDone, 1);
+    assert.equal(s.thumbnails[0], 'https://synthetic.invalid/thumbnail');
+  }],
+  ['hook: terminal timer cannot dismiss a new session or error recovery', () => {
+    const h = createBuildNarrationHarness();
+    h.frame('onBuildPhase', { build_id: 'b1', phase: 'complete', label: 'Ready' });
+    h.update({ sessionId: 'synthetic-other' });
+    h.frame('syncBuildState', { build_id: 'b2', phase: 'error', slide_count: 2, slides: { 0: 'built', 1: 'error' } });
+    h.advance(2000);
+    assert.equal(h.api.narration.active, true); assert.equal(h.api.narration.phase, 'error');
+    assert.equal(h.api.narration.slidesDone, 1); h.unmount();
+  }],
+  ['hook: partial paused recovery retains controls and new authoritative error after cold final restore', () => {
+    const h = createBuildNarrationHarness({ finalPresentationUrl: 'https://synthetic.invalid/p/previous' });
+    h.frame('syncBuildState', { build_id: 'b2', phase: 'paused', slide_count: 2, slides: { 0: 'built', 1: 'pending' } });
+    h.update({ slideStructure: recoveryStructure() });
+    assert.equal(h.api.narration.phase, 'paused'); assert.equal(h.api.narration.active, true);
+    assert.equal(h.api.narration.control, 'paused'); assert.equal(h.api.narration.slidesDone, 1);
+    h.frame('onBuildPhase', { build_id: 'b2', phase: 'error', label: 'Failed' });
+    h.advance(2000); assert.equal(h.api.narration.phase, 'error'); assert.equal(h.api.narration.active, true); h.unmount();
+  }],
+  ['reducer: explicit local acceptance can start a new heuristic build after completion', () => {
+    let s = step(initialNarrationState(), { type: 'strawman', ghosts: recoveryGhosts, ts: T0 });
+    s = step(s, { type: 'final_url', ts: T0 + 1 });
+    s = step(s, { type: 'dismiss' });
+    s = step(s, { type: 'accepted', ts: T0 + 2 });
+    assert.equal(s.active, true); assert.equal(s.phase, 'building'); assert.equal(s.slidesDone, 0);
+    assert.equal(s.slideStates[0], 'pending');
+  }],
+  ['hook: durable final completion retires a pending control timeout', () => {
+    const h = createBuildNarrationHarness({ slideStructure: recoveryStructure() });
+    h.frame('onBuildPhase', { build_id: 'b1', phase: 'building', label: 'Building' });
+    h.api.markControl('pause_requested', 'b1', 'synthetic-request');
+    h.update({ finalPresentationUrl: 'https://synthetic.invalid/p/final' });
+    h.advance(7000); assert.equal(h.toasts.length, 0); assert.equal(h.api.narration.active, false); h.unmount();
+  }],
+  ['hook: old final presentation cannot complete newer building or restored error identity', () => {
+    for (const phase of ['building', 'error']) {
+      let snapshot = step(initialNarrationState(), { type: 'typed_phase', payload: { build_id: 'b2', phase, label: phase, presentation_id: 'p2' }, ts: T0 });
+      const h = createBuildNarrationHarness({}, { 'deckster_narration_synthetic-session': serializeNarration(snapshot, T0) });
+      h.update({ finalPresentationUrl: 'https://synthetic.invalid/p/p1', finalPresentationId: 'p1' });
+      h.update({ slideStructure: recoveryStructure() }); h.advance(7000);
+      assert.equal(h.api.narration.phase, phase); assert.equal(h.api.narration.active, true);
+      assert.equal(h.api.narration.buildId, 'b2'); assert.equal(h.api.narration.buildPresentationId, 'p2');
+      h.update({ finalPresentationUrl: 'https://synthetic.invalid/p/p2', finalPresentationId: 'p2' });
+      h.advance(2000); assert.equal(h.api.narration.phase, 'complete'); assert.equal(h.api.narration.active, false); h.unmount();
+    }
+  }],
+  ['reducer: matching and unknown legacy final identities remain authoritative', () => {
+    for (const presentationId of ['p1', undefined, null]) {
+      let s = step(initialNarrationState(), { type: 'typed_phase', payload: { build_id: 'b1', phase: 'building', label: 'Building', presentation_id: 'p1' }, ts: T0 });
+      s = step(s, { type: 'final_url', presentationId, ts: T0 + 1 });
+      assert.equal(s.phase, 'complete');
+    }
+  }],
+  ['hook: rising local strawman generation starts fresh legacy planning after completion', () => {
+    const h = createBuildNarrationHarness({ finalPresentationUrl: 'https://synthetic.invalid/p/finished' });
+    h.frame('syncBuildState', { build_id: 'b1', phase: 'complete' });
+    assert.equal(h.api.narration.phase, 'complete');
+    h.update({ isGeneratingStrawman: true });
+    assert.equal(h.api.narration.phase, 'planning'); assert.equal(h.api.narration.active, true);
+    assert.equal(h.api.narration.retiredBuildIds.includes('b1'), true);
+    h.advance(2000); assert.equal(h.api.narration.active, true);
+    h.update({ finalPresentationUrl: 'https://synthetic.invalid/p/new-final' }); h.advance(2000);
+    h.update({ isGeneratingStrawman: true, slideStructure: recoveryStructure() });
+    assert.equal(h.api.narration.phase, 'complete'); assert.equal(h.api.narration.active, false); h.unmount();
+  }],
+  ['hook: initial generating flag with durable restored final does not reopen completion', () => {
+    const h = createBuildNarrationHarness({ isGeneratingStrawman: true, finalPresentationUrl: 'https://synthetic.invalid/p/finished' });
+    h.advance(2000); h.update({ slideStructure: recoveryStructure() });
+    assert.equal(h.api.narration.phase, 'complete'); assert.equal(h.api.narration.active, false); h.unmount();
+  }],
+];
+if (process.argv.includes('--recovery-only')) {
+  let failures = 0;
+  for (const [name, fn] of recoveryChecks) {
+    try { fn(); console.log(`PASS ${name}`); }
+    catch (error) { failures++; console.log(`FAIL ${name}: ${error.message}`); }
+  }
+  console.log(JSON.stringify({ source: sourceRef ?? 'working-source', checks: recoveryChecks.length, failures }));
+  process.exitCode = failures ? 1 : 0;
+  if (failures) process.exit(1);
+  process.exit(0);
+}
+for (const [name, fn] of recoveryChecks) run(name, fn);
 
 // ---------------------------------------------------------------------------
 // shouldRerouteEphemeral — THE flag-off parity contract for message-list
@@ -292,7 +510,16 @@ run('control capability: cache scrub removes only secret-bearing transport frame
   assert.equal(JSON.stringify(scrubbed).includes('never-cache'), false);
   assert.match(sessionCacheSource, /scrubBuildControlCapabilityMessages\(parsed\.messages\)/);
   assert.match(sessionCacheSource, /message\.type === ['"]build_control_capability['"]\) return/);
-  assert.match(websocketHookSource, /messages: scrubBuildControlCapabilityMessages\(safeHistoricalMessages\)/);
+  assert.match(websocketHookSource, /messages: (?:scrubBuildControlCapabilityMessages\(safeHistoricalMessages\)|mergeDirectorChatHistory\(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages\))/);
+  const historyMod = { exports: {} };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(new URL('../lib/director-chat-history.ts', import.meta.url), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+  }).outputText, { module: historyMod, exports: historyMod.exports });
+  const restored = historyMod.exports.mergeDirectorChatHistory('session', [
+    { message_id: 'public', session_id: 'session', type: 'chat_message' },
+    { message_id: 'secret', session_id: 'session', type: 'build_control_capability' },
+  ]);
+  eqJson(restored.map(message => message.message_id), ['public']);
 });
 
 run('socket ingress: the allowlist admits every narration frame AND slide_built (port review F-1)', () => {

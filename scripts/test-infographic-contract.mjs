@@ -459,7 +459,66 @@ assert.match(generationSource, /const nonResearchVisual = isNonResearchVisualEle
 assert.match(generationSource, /delete formData\.research/)
 assert.match(generationSource, /infographicConfig\.grid_row/)
 assert.match(generationSource, /resolveElementGenerationTimeoutMs\(/)
-assert.match(generationSource, /properties: params\.structuredPlan/)
+// Execute the actual immediate Refine handoff, rather than requiring the old
+// literal spelling that predated the chart-properties refactor.
+function assertImmediatePlanHandoff(source) {
+  const ast = ts.createSourceFile('generation.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const properties = [], handoffs = []
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'generatedProperties') properties.push(node)
+    if (ts.isBinaryExpression(node) && node.left.getText(ast) === 'generatedRefineContext' && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) handoffs.push(node.right)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  assert.equal(properties.length, 1)
+  assert.equal(handoffs.length, 1)
+  const executable = ts.transpileModule(
+    `const ${properties[0].getText(ast)}; module.exports = (${handoffs[0].getText(ast)});`,
+    { compilerOptions: { target: ts.ScriptTarget.ES2020 } },
+  ).outputText
+  let cases = 0
+  for (const plan of [undefined, null, { segment_count: 2, segments: manualSegments }, {}]) {
+    for (const chartCase of ['none', 'data', 'metadata', 'both']) {
+      const chartData = ['data', 'both'].includes(chartCase) ? { chart_data: { labels: ['One'], values: [4] } } : {}
+      const chartMetadata = ['metadata', 'both'].includes(chartCase) ? { title: 'Chart title', x_axis: 'Time', y_axis: 'Value' } : null
+      const config = { mode: 'v2', infographic: { mode: 'v2', structured_plan: plan } }
+      const mod = { exports: {} }
+      vm.runInNewContext(executable, {
+        module: mod, params: { structuredPlan: plan, componentType: 'INFOGRAPHIC' },
+        insertedElementId: 'local-inserted-infographic', generatedComponentType: 'INFOGRAPHIC', effectiveSlideIndex: 1,
+        generatedGridPosition: geometry, generatedConfig: config, citationsUsed: [],
+        generatedResearchProvenance: null, generatedDiagramSubtype: null, generatedZIndex: null,
+        generatedChartData: chartData, generatedChartMetadata: chartMetadata, generatedContent: '<section>Structured</section>',
+        formData: {}, deckContext: null, researchDisabled: true, effectiveResearchStoreName: null, effectiveResearchSessionId: null,
+      })
+      const target = mod.exports, existing = target.existingElement
+      assert.equal(target.elementId, 'local-inserted-infographic')
+      assert.equal(existing.element_id, target.elementId)
+      assert.equal(existing.component_type, 'INFOGRAPHIC')
+      assert.equal(existing.content, '<section>Structured</section>')
+      assert.equal(target.generationConfig, config)
+      assert.equal(existing.generation_config, config)
+      if (plan) assert.equal(existing.properties.structuredPlan, plan, 'Exact plan belongs to the immediate existingElement properties')
+      else assert.equal(existing.properties?.structuredPlan, undefined)
+      if (!plan && !chartMetadata && !Object.keys(chartData).length) assert.equal(existing.properties, undefined)
+      if (Object.keys(chartData).length) {
+        assert.equal(existing.properties.chart_data, chartData.chart_data)
+        assert.equal(existing.chart_data, chartData.chart_data)
+      }
+      if (chartMetadata) {
+        assert.equal(existing.properties.resolved_chart_metadata, chartMetadata)
+        assert.equal(existing.properties.resolvedChartMetadata, chartMetadata)
+        assert.equal(existing.resolved_chart_metadata, chartMetadata)
+      }
+      cases++
+    }
+  }
+  return cases
+}
+assert.equal(assertImmediatePlanHandoff(generationSource), 16)
+// Prove the behavioral check rejects removed plans and handoffs to another field.
+assert.throws(() => assertImmediatePlanHandoff(generationSource.replace('structuredPlan: params.structuredPlan', 'structuredPlan: null')))
+assert.throws(() => assertImmediatePlanHandoff(generationSource.replace('properties: generatedProperties', 'otherProperties: generatedProperties')))
 assert.match(generationSource, /errorRetryStrategy = err\.retryStrategy/)
 assert.doesNotMatch(
   formSource,

@@ -178,7 +178,12 @@ assert.match(
   'refinement never proceeds when Layout negatively acknowledges the visible progress overlay',
 )
 assert.match(earlyOverlaySource, /assertLayoutCommandSucceeded\(overlayResponse, 'Generation overlay'\)/)
-assert.match(earlyOverlaySource, /generationPanel\.setError/)
+assert.match(earlyOverlaySource, /setGenerationError\(/)
+assert.match(
+  hookSource,
+  /const setGenerationError = \(error: string \| null\) => \{\s*generationError = error\s*generationPanel\.setError\(error\)\s*\}/,
+  'the local error recorder still publishes the exact error through the existing panel setter',
+)
 assert.match(earlyOverlaySource, /return/)
 assert.doesNotMatch(
   earlyOverlaySource,
