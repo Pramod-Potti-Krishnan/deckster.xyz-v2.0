@@ -33,6 +33,16 @@ import { useBuildNarration } from '@/hooks/use-build-narration'
 import { useStudioOutlinePreview } from '@/hooks/use-studio-outline-preview'
 import { useStageFThumbnailCache } from '@/hooks/use-stage-f-thumbnail-cache'
 import { centerStageFor, effectiveNarrationEnabled } from '@/lib/build-narration-heuristics'
+import {
+  captureStudioPartialBuildReceipt, captureStudioPartialStageVersionIntent,
+  hasStudioPartialStageVersionIntent, prepareStudioPartialStageTransition,
+  prepareStudioInitialPartialStageTransition,
+  settleStudioPartialStageTransition, isStudioSettledPartialStageCurrent,
+  type StudioPartialStageAuthority, type StudioPartialStageAssignment,
+  type StudioPartialBuildReceipt, type StudioPartialStageVersionIntent,
+  type StudioSettledPartialStageReceipt, type StudioPartialStageTransitionInput,
+} from '@/lib/studio-partial-stage-admission'
+import type { DirectorTransportOwner } from '@/hooks/use-deckster-websocket-v2'
 import { DirectorPresence } from '@/components/build-narration/director-presence'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
@@ -40,7 +50,7 @@ import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBu
 import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
 import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
-import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease } from '@/components/presentation-viewer'
+import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease, type StudioPartialNativeReadback } from '@/components/presentation-viewer'
 import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
 import {
   createStudioComposeRestoreTarget, resolveStudioComposeRestore, verifyStudioComposeRestoreSelection,
@@ -834,6 +844,42 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       previous[key as keyof StudioIntroductionSafety] === next[key as keyof StudioIntroductionSafety]) ? previous : next)
   }, [])
   const composeViewerApiRef = useRef<SlideComposeViewerApi | null>(null)
+  const studioPartialScopeRef = useRef<{ key: string; authority: StudioPartialStageAuthority } | null>(null)
+  const studioPartialMountedRef = useRef(false)
+  const studioPartialAssignmentRef = useRef<StudioPartialStageAssignment | null>(null)
+  const studioPartialAssignmentObservationRef = useRef<{ scope: object; key: string } | null>(null)
+  const studioPartialCandidateRef = useRef<StudioPartialBuildReceipt | null>(null)
+  const studioPartialCandidatesRef = useRef<{ scope: object; receipts: Map<string, StudioPartialBuildReceipt> } | null>(null)
+  const studioPartialVersionIntentRef = useRef<StudioPartialStageVersionIntent | null>(null)
+  const studioPartialVersionHandlerRef = useRef<((version: 'blank' | 'strawman' | 'final') => void) | null>(null)
+  const studioPartialNativeReadbackHandlerRef = useRef<((readback: StudioPartialNativeReadback) => void) | null>(null)
+  const studioPartialIngressRef = useRef<((message: SlideBuilt, owner?: DirectorTransportOwner) => void) | null>(null)
+  const [studioPartialRevision, setStudioPartialRevision] = useState(0)
+  const [studioPartialDisplayed, setStudioPartialDisplayed] = useState<StudioSettledPartialStageReceipt | null>(null)
+  const studioPartialNativeRegistrationRef = useRef<{
+    scope: object; owner: object; presentationId: string | null; presentationUrl: string | null
+    layout: typeof layoutServiceApis; compose: SlideComposeViewerApi | null
+  } | null>(null)
+  const studioPartialReadCurrentRef = useRef<((context: StudioComposeSelectionContext | null) => StudioPartialStageTransitionInput) | null>(null)
+  const studioPartialNativeSeenScopeRef = useRef<object | null>(null)
+  const studioPartialNativeAbsenceRef = useRef<(() => boolean) | null>(null)
+  const [studioPartialNativeIndex, setStudioPartialNativeIndex] = useState<{
+    owner: object; presentationId: string; presentationUrl: string; count: number; index: number
+    isFrameCurrent: () => boolean; isCurrent: () => boolean
+  } | null>(null)
+  const studioPartialLocalWorkRef = useRef(new Set<object>())
+  const studioPartialRenderedWorkRef = useRef(false)
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== 'true') return
+    studioPartialMountedRef.current = true
+    setStudioPartialRevision(revision => revision + 1)
+    return () => {
+      studioPartialMountedRef.current = false
+      studioPartialScopeRef.current = null
+      studioPartialIngressRef.current = null
+      studioPartialNativeRegistrationRef.current = null
+    }
+  }, [])
 
 
   // Toast notifications
@@ -2248,7 +2294,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           console.warn('[Slide Composer] Failed to update in-deck placeholder progress.', error)
         })
     },
-    onSlideBuilt: (message: SlideBuilt) => {
+    onSlideBuilt: (message: SlideBuilt, owner?: DirectorTransportOwner) => {
       const { presentation_id, slide_index, thumbnail_url } = message.payload
       const ownsThumbnail = !studioShell || message.session_id === currentSessionIdRef.current
       if (ownsThumbnail) setReceivedSlideThumbnailUrlsByPresentation(presentation_id, prev =>
@@ -2261,6 +2307,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       )
       // Build Narration (D1): the same shared frame feeds the canvas reducer.
       buildNarrationHandlersRef.current.onSlideBuilt?.(message.payload)
+      if (studioShell) studioPartialIngressRef.current?.(message, owner)
     },
     // MDC P4 (K3): Director-confirmed new-deck handoff. Start a fresh session
     // and auto-send the captured brief (section 12-Q2 LOCKED). The send goes
@@ -2843,37 +2890,91 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }),
     [presentationId, presentationUrl, slideComposerOverride, slideCount],
   )
+  // Display ownership excludes the presentation ID: admitting B must not
+  // retire its own logical session merely because A was previously selected.
+  const studioPartialScopeKey = JSON.stringify([authScopeUserId, user?.id, currentSessionId,
+    wsSessionId, searchParams.get('session_id'), templateModeOn, templateModeSourcePresentationId])
+  if (studioPartialScopeRef.current?.key !== studioPartialScopeKey) {
+    const scope = {}
+    const authority: StudioPartialStageAuthority = {
+      scope, userId: authScopeUserId, sessionId: currentSessionId || wsSessionId || '',
+      isCurrent: () => studioPartialMountedRef.current
+        && studioPartialScopeRef.current?.authority === authority,
+    }
+    studioPartialScopeRef.current = { key: studioPartialScopeKey, authority }
+  }
+  const studioPartialAuthority = studioPartialScopeRef.current.authority
+  if (studioPartialCandidatesRef.current?.scope !== studioPartialAuthority.scope) {
+    studioPartialCandidatesRef.current = { scope: studioPartialAuthority.scope, receipts: new Map() }
+  }
+  for (const retired of buildNarration.retiredBuildIds) studioPartialCandidatesRef.current.receipts.delete(retired)
+  studioPartialCandidateRef.current = buildNarration.buildId
+    ? studioPartialCandidatesRef.current.receipts.get(buildNarration.buildId) ?? null : null
+  const studioPartialDisplayInput = {
+    authority: studioPartialAuthority, assignment: studioPartialAssignmentRef.current,
+    buildId: buildNarration.buildId, buildPresentationId: buildNarration.buildPresentationId,
+    phase: buildNarration.phase, narrationEnabled: studioShell && effectiveBuildNarrationEnabled,
+    templateOverride: Boolean(templateModeOn || templateModeSourcePresentationUrl),
+    viewerUrlAllowed: !LAYOUT_URL_CONFIG_ERROR && Boolean(buildNarration.buildPresentationId
+      && evaluateLayoutViewerUrl(getPresentationViewerUrl(buildNarration.buildPresentationId), LAYOUT_VIEWER_URL_POLICY).status === 'allowed'),
+    versionIntent: studioPartialVersionIntentRef.current,
+  }
+  const studioPartialHeld = Boolean(studioShell && studioPartialDisplayed
+    && studioPartialDisplayInput.assignment
+    && isStudioSettledPartialStageCurrent(studioPartialDisplayed, {
+      ...studioPartialDisplayInput, assignment: studioPartialDisplayInput.assignment,
+      viewerUrlAllowed: !LAYOUT_URL_CONFIG_ERROR
+        && evaluateLayoutViewerUrl(getPresentationViewerUrl(studioPartialDisplayed.presentationId), LAYOUT_VIEWER_URL_POLICY).status === 'allowed',
+    }))
   // Canvas v2 R3 (amends D11): the stage always shows the real artifact. The
   // strawman shows AS a deck (with narration chrome around it), and from the
   // first slide_built the center swaps to the FILLING final deck, addressed by
   // the id the typed frames carry — long before the official presentation_url.
-  const narrationCenterStage = centerStageFor({
+  const legacyNarrationCenterStage = centerStageFor({
     narrationEnabled: effectiveBuildNarrationEnabled,
     templateOverride: Boolean(templateModeSourcePresentationUrl),
     phase: buildNarration.phase,
     buildPresentationId: buildNarration.buildPresentationId,
     finalPresentationUrl,
   })
+  // Studio uses a private admitted target. Classic retains its exact existing
+  // center-stage policy; raw narration/history is never display authority here.
+  const narrationCenterStage = studioShell
+    ? (studioPartialHeld && !(studioPartialDisplayed!.presentationId === directorOwnedPresentation.presentationId
+      && finalPresentationId === studioPartialDisplayed!.presentationId && activeVersion === 'final'
+      && finalPresentationUrl && finalPresentationUrl === directorOwnedPresentation.presentationUrl)
+      ? 'final_fill' : 'default')
+    : legacyNarrationCenterStage
+  const studioPartialTargetId = studioPartialHeld ? studioPartialDisplayed!.presentationId : null
   const effectivePresentationId = narrationCenterStage === 'final_fill'
-    ? buildNarration.buildPresentationId
+    ? (studioShell ? studioPartialTargetId : buildNarration.buildPresentationId)
     : (templateModeSourcePresentationId ?? directorOwnedPresentation.presentationId)
   const effectiveSlideCount = templateModeSourcePresentationId
     ? slideCount
-    : directorOwnedPresentation.slideCount
+    : studioShell && narrationCenterStage === 'final_fill'
+      ? (studioPartialNativeIndex?.presentationId === effectivePresentationId
+        && studioPartialNativeIndex.owner === studioSlideComposeOwnerRef.current
+        && studioPartialNativeIndex.isFrameCurrent() ? studioPartialNativeIndex.count : null)
+      : directorOwnedPresentation.slideCount
   const effectivePresentationUrl = useMemo(
     () => {
-      if (narrationCenterStage === 'final_fill' && buildNarration.buildPresentationId) {
+      const fillingId = studioShell ? studioPartialTargetId : buildNarration.buildPresentationId
+      if (narrationCenterStage === 'final_fill' && fillingId) {
         // Keep Director's canonical /p/{id}; the viewer separately admits a
         // completed snapshot refresh when this mounted build frame is stale.
-        return LAYOUT_URL_CONFIG_ERROR ? null : getPresentationViewerUrl(buildNarration.buildPresentationId)
+        return LAYOUT_URL_CONFIG_ERROR ? null : getPresentationViewerUrl(fillingId)
       }
       return withSlideComposerRefreshToken(
         templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
         templateModeSourcePresentationId ? 0 : directorOwnedPresentation.refreshToken,
       )
     },
-    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, narrationCenterStage, buildNarration.buildPresentationId],
+    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, narrationCenterStage, buildNarration.buildPresentationId, studioShell, studioPartialTargetId],
   )
+  const studioPartialMetadata = studioShell && narrationCenterStage === 'final_fill'
+  const effectiveSlideStructure = studioPartialMetadata ? null : slideStructure
+  const effectiveActiveVersion = studioPartialMetadata ? 'final' : activeVersion
+  const effectiveIsBlankPresentation = studioPartialMetadata ? false : isBlankPresentation
 
   // Retire continuations on navigation/version intent, even if the same deck
   // is selected again. Counts and composer refreshes keep the current owner.
@@ -2882,7 +2983,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     authScopeUserId,
     searchParams.get('session_id'),
     effectivePresentationId,
-    activeVersion,
+    effectiveActiveVersion,
     templateModeOn,
   ])
   if (studioSlideComposeOwnerRef.current.key !== studioSlideComposeOwnerKey) {
@@ -2890,7 +2991,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       key: studioSlideComposeOwnerKey,
       sessionId: currentSessionId || wsSessionId,
       presentationId: effectivePresentationId,
-      activeVersion,
+      activeVersion: effectiveActiveVersion,
     }
   }
   if (studioShell && effectivePresentationId && effectiveSlideCount !== null) {
@@ -2901,8 +3002,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const studioInitialSelectedTarget: StudioInitialStageTarget = {
     owner: studioSlideComposeOwnerRef.current,
     presentationId: effectivePresentationId,
-    presentationUrl: templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
-    activeVersion,
+    presentationUrl: narrationCenterStage === 'final_fill' ? effectivePresentationUrl
+      : templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
+    activeVersion: effectiveActiveVersion,
   }
 
 
@@ -2911,15 +3013,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     deckOwnerSessionId,
     selected: {
       presentationId: effectivePresentationId,
-      presentationUrl: narrationCenterStage === 'final_fill' && buildNarration.buildPresentationId
-        ? (LAYOUT_URL_CONFIG_ERROR ? null : getPresentationViewerUrl(buildNarration.buildPresentationId))
+      presentationUrl: narrationCenterStage === 'final_fill'
+        ? effectivePresentationUrl
         : templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
-      activeVersion,
+      activeVersion: effectiveActiveVersion,
       slideCount: effectiveSlideCount,
     },
     finalPresentationId,
     finalPresentationUrl,
-    hasAuthoredStructure: (slideStructure?.slides ?? []).length > 0,
+    hasAuthoredStructure: (effectiveSlideStructure?.slides ?? []).length > 0,
     // Session loading has its own exclusive canvas branch below.
     loading: false,
     generating: isGeneratingFinal || isGeneratingStrawman,
@@ -2928,7 +3030,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     connected,
     connecting,
   })
-  const studioWelcome = studioShell && studioCanvasLifecycle.showLanding
+  const studioWelcome = studioShell && !studioPartialMetadata && studioCanvasLifecycle.showLanding
   const workspaceLayout = allocateStudioWorkspace({
     width: studioOverlayWorkspace ? workspaceInnerWidth : workspaceWidth,
     chatPreference: chatWidth ?? (studioWelcome ? Math.min(640, workspaceWidth * .44) : 304),
@@ -3243,7 +3345,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     slideComposerOverride,
   ])
   const templateSavePresentationId = useMemo(() => {
-    if (templateModeOn || activeVersion !== 'final') return null
+    if (studioPartialMetadata || templateModeOn || activeVersion !== 'final') return null
     return finalPresentationId
       ?? effectivePresentationId
       ?? extractPresentationIdFromViewerUrl(finalPresentationUrl)
@@ -3255,15 +3357,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     finalPresentationId,
     finalPresentationUrl,
     templateModeOn,
+    studioPartialMetadata,
   ])
 
   useEffect(() => {
     slideComposerPresentationRef.current = {
-      presentationUrl: directorOwnedPresentation.presentationUrl,
+      presentationUrl: studioPartialMetadata ? effectivePresentationUrl : directorOwnedPresentation.presentationUrl,
       presentationId: effectivePresentationId,
       slideCount: effectiveSlideCount,
-      activeVersion,
-      refreshToken: directorOwnedPresentation.refreshToken,
+      activeVersion: effectiveActiveVersion,
+      refreshToken: studioPartialMetadata ? 0 : directorOwnedPresentation.refreshToken,
     }
   }, [
     activeVersion,
@@ -3271,10 +3374,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     directorOwnedPresentation.refreshToken,
     effectivePresentationId,
     effectiveSlideCount,
+    effectivePresentationUrl,
+    effectiveActiveVersion,
+    studioPartialMetadata,
   ])
 
   useEffect(() => {
-    if (templateModeOn || !effectivePresentationId || !presentationUrl) return
+    if (studioPartialMetadata || templateModeOn || !effectivePresentationId || !presentationUrl) return
 
     const localSlideCount = Math.max(0, effectiveSlideCount ?? 0)
     const reconcileKey = `${effectivePresentationId}:${localSlideCount}`
@@ -3334,9 +3440,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     fetchSlideComposePresentationSnapshot,
     presentationUrl,
     templateModeOn,
+    studioPartialMetadata,
   ])
 
   const currentSlideLayout = useMemo<SlideLayoutType | undefined>(() => {
+    if (studioPartialMetadata) return undefined
     const ctx = slideContextByIndex?.[selectedLayoutSlideIndex]
     if (!ctx) return undefined
 
@@ -3355,7 +3463,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     if (contentType === 'infographic') return 'C4-infographic'
     if (contentType?.startsWith('diagram') || diagramSubtype) return 'C5-diagram'
     return 'C1-text'
-  }, [selectedLayoutSlideIndex, slideContextByIndex])
+  }, [selectedLayoutSlideIndex, slideContextByIndex, studioPartialMetadata])
 
 
   const handleComposeApiReady = useCallback((apis: SlideComposeViewerApi | null) => {
@@ -4218,8 +4326,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   const textLabsSession = useTextLabsSession(effectivePresentationId)
   const buildRefineContext = useElementRefinement({
-    slideContextByIndex,
-    deckContext: deckContext as Record<string, unknown> | null | undefined,
+    slideContextByIndex: studioPartialMetadata ? null : slideContextByIndex,
+    deckContext: studioPartialMetadata ? null : deckContext as Record<string, unknown> | null | undefined,
     sessionStoreName,
     sessionId: currentSessionId || wsSessionId || null,
     currentSlideIndex,
@@ -4266,7 +4374,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     presentationId: effectivePresentationId,
     currentSlideIndex,
     getCurrentSlideIndex,
-    deckContext: deckContext as Record<string, unknown> | null | undefined,
+    deckContext: studioPartialMetadata ? null : deckContext as Record<string, unknown> | null | undefined,
     researchSessionId: currentSessionId || wsSessionId || null,
     researchStoreName: sessionStoreName,
     researchUserId: user?.id ?? null,
@@ -4310,6 +4418,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       || scope.deckOwnerSessionId !== scope.sessionId || selection.presentationId !== scope.presentationId
       || selection.slideIndex !== scope.slideIndex || !selection.isCurrent()) return
     const request = { selection, scope }
+    const partialWork = {}
+    if (studioShell) studioPartialLocalWorkRef.current.add(partialWork)
     studioFormatRequestRef.current = request
     const current = () => studioFormatMountedRef.current && studioFormatRequestRef.current === request
       && studioFormatScopeRef.current === scope && selection.isCurrent()
@@ -4320,7 +4430,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (current()) setStudioFormatTarget(target)
     } catch (error) {
       if (current()) setStudioFormatError(error instanceof Error ? error.message : 'Formatting properties could not be confirmed.')
-    } finally { if (current()) setStudioFormatLoading(false) }
+    } finally {
+      studioPartialLocalWorkRef.current.delete(partialWork)
+      if (studioPartialMountedRef.current) setStudioPartialRevision(revision => revision + 1)
+      if (current()) setStudioFormatLoading(false)
+    }
   }, [studioShell, activateElementPanel])
   const handleStudioFormatCommand = useCallback(async (action: StudioFormatCommand, params: Record<string, unknown>, target: StudioFormatTarget) => {
     const request = studioFormatRequestRef.current
@@ -4331,6 +4445,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
     const intent = {}
     studioFormatCommandIntentRef.current = intent
+    studioPartialLocalWorkRef.current.add(intent)
     try {
       const result = await request.selection.send(action, params, target)
       if (!studioFormatMountedRef.current || studioFormatRequestRef.current !== request
@@ -4362,6 +4477,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           description: 'An earlier AI edit could not be confirmed and may have applied to its original text box. Check before generating it again.' })
       }
       throw error
+    } finally {
+      studioPartialLocalWorkRef.current.delete(intent)
+      if (studioPartialMountedRef.current) setStudioPartialRevision(revision => revision + 1)
     }
   }, [toast])
   const handleOpenGenerationPanelInFront = useCallback(async (type: string) => {
@@ -4394,7 +4512,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         error: 'The presentation viewer is unavailable. Reload the presentation and try again.' }
     }
 
-    return handleTextLabsGenerate(formData, submitIntent, invocation)
+    const partialWork = {}
+    if (studioShell) studioPartialLocalWorkRef.current.add(partialWork)
+    try { return await handleTextLabsGenerate(formData, submitIntent, invocation) }
+    finally {
+      studioPartialLocalWorkRef.current.delete(partialWork)
+      if (studioPartialMountedRef.current) setStudioPartialRevision(revision => revision + 1)
+    }
   }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast, effectivePresentationId])
 
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
@@ -5939,6 +6063,42 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     && session.studioInitialFreshCanonicalEntry.sessionId === (currentSessionId || wsSessionId)
     && session.studioInitialFreshCanonicalEntry.sessionId === wsSessionId
     && session.studioInitialFreshCanonicalEntry.isCurrentAssignment())
+  const studioPartialSessionId = currentSessionId || wsSessionId
+  const studioPartialRouteSessionId = searchParams.get('session_id')
+  const studioPartialAssignmentOwned = Boolean(studioShell && user?.id === authScopeUserId && !isAuthLoading
+    && !session.isLoadingSession && !session.isCreatingSession
+    && studioPartialSessionId && studioPartialSessionId !== 'new' && wsSessionId === studioPartialSessionId
+    && (studioPartialRouteSessionId === studioPartialSessionId || studioInitialKnownFresh)
+    && (deckOwnerSessionId === studioPartialSessionId || studioInitialKnownFresh))
+  const studioPartialAssignmentKey = JSON.stringify([studioPartialSessionId, wsSessionId,
+    studioPartialRouteSessionId, studioPartialAssignmentOwned, studioInitialKnownFresh])
+  if (studioPartialAssignmentObservationRef.current?.scope !== studioPartialAuthority.scope
+    || studioPartialAssignmentObservationRef.current.key !== studioPartialAssignmentKey) {
+    const observation = { scope: studioPartialAuthority.scope, key: studioPartialAssignmentKey }
+    studioPartialAssignmentObservationRef.current = observation
+    studioPartialAssignmentRef.current = {
+      userId: authScopeUserId, sessionId: studioPartialSessionId || '',
+      isCurrent: () => studioPartialAssignmentOwned && studioPartialAuthority.isCurrent()
+        && studioPartialAssignmentObservationRef.current === observation,
+    }
+  }
+  studioPartialIngressRef.current = (message, transport) => {
+    if (!studioShell || !effectiveBuildNarrationEnabled || !studioPartialAuthority.isCurrent()) return
+    const assignment = studioPartialAssignmentRef.current
+    if (!assignment) return
+    const receipt = captureStudioPartialBuildReceipt({ authority: studioPartialAuthority, assignment, transport, message })
+    if (!receipt || buildNarration.retiredBuildIds.includes(receipt.buildId)) return
+    const candidates = studioPartialCandidatesRef.current
+    if (!candidates || candidates.scope !== studioPartialAuthority.scope) return
+    candidates.receipts.set(receipt.buildId, receipt)
+    // Select only after the actual reducer has admitted its current build.
+    // A second queued stale frame cannot erase a newer pending candidate.
+    for (const key of candidates.receipts.keys()) {
+      if (candidates.receipts.size <= 32) break
+      if (key !== buildNarration.buildId && key !== receipt.buildId) candidates.receipts.delete(key)
+    }
+    setStudioPartialRevision(revision => revision + 1)
+  }
   const studioInitialObservation: StudioInitialStageOwnerObservation = {
     automatic: studioAutomaticBlankSelection ?? null,
     selected: studioInitialSelectedTarget,
@@ -5977,8 +6137,138 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     explicitBlankOwner: studioExplicitBlankOwnerRef.current,
   })
   const handleStudioNativeMounted = useCallback((owner: object) => {
-    if (studioSlideComposeOwnerRef.current === owner) studioNativeAdmittedOwnerRef.current = owner
-  }, [])
+    if (studioSlideComposeOwnerRef.current === owner) {
+      studioNativeAdmittedOwnerRef.current = owner
+      studioPartialNativeSeenScopeRef.current = studioPartialAuthority.scope
+    }
+  }, [studioPartialAuthority])
+  const studioPartialRegistration = useMemo(() => ({
+    scope: studioPartialAuthority.scope, owner: studioInitialSelectedTarget.owner,
+    presentationId: effectivePresentationId, presentationUrl: effectivePresentationUrl,
+    layout: null as typeof layoutServiceApis, compose: null as SlideComposeViewerApi | null,
+  }), [studioPartialAuthority, studioInitialSelectedTarget.owner, effectivePresentationId, effectivePresentationUrl])
+  studioPartialRenderedWorkRef.current = Boolean(generationPanel.isGenerating || generationPanel.hasActiveGenerations
+    || studioFormatLoading || templateBlueprintSaving
+    || Object.values(slideComposeJobs).some(job => job.status === 'building'))
+  studioPartialNativeRegistrationRef.current = studioPartialRegistration
+  const handleStudioPartialApiReady = useCallback((apis: typeof layoutServiceApis) => {
+    if (studioPartialNativeRegistrationRef.current !== studioPartialRegistration) return
+    studioPartialRegistration.layout = apis
+    setLayoutServiceApis(apis)
+  }, [studioPartialRegistration])
+  const handleStudioPartialComposeApiReady = useCallback((apis: SlideComposeViewerApi | null) => {
+    if (studioPartialNativeRegistrationRef.current !== studioPartialRegistration) return
+    studioPartialRegistration.compose = apis
+    handleComposeApiReady(apis)
+  }, [studioPartialRegistration, handleComposeApiReady])
+  studioPartialReadCurrentRef.current = context => {
+    const assignment = studioPartialAssignmentRef.current
+    if (!assignment) throw new Error('Partial display assignment unavailable')
+    const registration = studioPartialNativeRegistrationRef.current
+    const layout = registration?.layout, compose = registration?.compose
+    return {
+      ...studioPartialDisplayInput, assignment, versionIntent: studioPartialVersionIntentRef.current,
+      receipt: studioPartialCandidateRef.current,
+      selected: { owner: studioInitialSelectedTarget.owner,
+        presentationId: effectivePresentationId || '', presentationUrl: effectivePresentationUrl || '' },
+      native: registration && layout && compose && context ? {
+        api: compose, context, readSafety: () => layout.getStudioIntroductionSafety?.() ?? null,
+        isCurrent: () => studioPartialAuthority.isCurrent()
+          && !studioPartialRenderedWorkRef.current && studioPartialLocalWorkRef.current.size === 0
+          && studioPartialNativeRegistrationRef.current === registration
+          && registration.scope === studioPartialAuthority.scope
+          && registration.owner === studioSlideComposeOwnerRef.current
+          && registration.layout === layout && registration.compose === compose
+          && composeViewerApiRef.current === compose,
+      } : null,
+    }
+  }
+  const studioPartialIsNativeAbsent = () => studioPartialAuthority.isCurrent()
+    && !studioPartialRenderedWorkRef.current && studioPartialLocalWorkRef.current.size === 0
+    && studioPartialNativeRegistrationRef.current === studioPartialRegistration
+    && studioSlideComposeOwnerRef.current === studioInitialSelectedTarget.owner
+    && studioPartialAssignmentRef.current?.isCurrent() === true && studioInitialKnownFresh
+    && !layoutServiceApis && !composeViewerApiRef.current && !studioViewerSafety
+    && !studioPartialRegistration.layout && !studioPartialRegistration.compose
+    && studioPartialNativeSeenScopeRef.current !== studioPartialAuthority.scope
+    && (studioInitialNativeDeferred || (!effectivePresentationId && !effectivePresentationUrl))
+  studioPartialNativeAbsenceRef.current = studioPartialIsNativeAbsent
+  useEffect(() => {
+    if (!studioShell || !effectiveBuildNarrationEnabled || !studioPartialAuthority.isCurrent()) return
+    const candidate = studioPartialCandidateRef.current
+    if (!candidate || candidate.presentationId === effectivePresentationId) return
+    let context: StudioComposeSelectionContext | null
+    try { context = studioPartialRegistration.compose?.composeCaptureSelectionContext?.() ?? null }
+    catch { return }
+    const readCurrent = () => {
+      const read = studioPartialReadCurrentRef.current
+      if (!read) throw new Error('Partial display owner retired')
+      return read(context)
+    }
+    const transition = prepareStudioPartialStageTransition(readCurrent)
+      ?? prepareStudioInitialPartialStageTransition(() => {
+        const next = readCurrent()
+        return { ...next, selected: { ...next.selected,
+          presentationId: next.selected.presentationId || null, presentationUrl: next.selected.presentationUrl || null },
+          isNativeAbsent: studioPartialNativeAbsenceRef.current ?? (() => false) }
+      })
+    if (!transition) return
+    // React may defer/replay this updater. Recheck the captured live native
+    // frame, latest Page owner/build and explicit intent at publication.
+    setStudioPartialDisplayed(previous => {
+      const settled = settleStudioPartialStageTransition(transition)
+      if (!settled) return previous
+      return settled
+    })
+  }, [studioShell, effectiveBuildNarrationEnabled, studioPartialAuthority, studioPartialRevision,
+    buildNarration.buildId, buildNarration.buildPresentationId, buildNarration.phase,
+    effectivePresentationId, effectivePresentationUrl, studioViewerSafety, layoutServiceApis,
+    studioPartialRegistration, studioInitialNativeDeferred, studioInitialKnownFresh,
+    generationPanel.isGenerating, generationPanel.hasActiveGenerations, studioFormatLoading,
+    templateBlueprintSaving, slideComposeJobs,
+    session.isLoadingSession, session.isCreatingSession])
+  const studioPartialCandidate = studioPartialCandidateRef.current
+  const studioPartialPending = Boolean(studioShell && effectiveBuildNarrationEnabled
+    && studioPartialCandidate?.scope === studioPartialAuthority.scope
+    && studioPartialCandidate.buildId === buildNarration.buildId
+    && studioPartialCandidate.presentationId === buildNarration.buildPresentationId
+    && studioPartialCandidate.presentationId !== effectivePresentationId
+    && !templateModeOn && !templateModeSourcePresentationUrl
+    && !hasStudioPartialStageVersionIntent(studioPartialVersionIntentRef.current, studioPartialAuthority, buildNarration.buildId))
+  const handleStudioPartialVersionSwitch = (version: 'blank' | 'strawman' | 'final') => {
+    if (!studioPartialAuthority.isCurrent() || studioSlideComposeOwnerRef.current !== studioInitialSelectedTarget.owner
+      || studioPartialVersionHandlerRef.current !== handleStudioPartialVersionSwitch) return
+    studioPartialVersionIntentRef.current = captureStudioPartialStageVersionIntent({
+      authority: studioPartialAuthority, buildId: buildNarration.buildId, version,
+    })
+    setStudioPartialDisplayed(null)
+    setStudioPartialRevision(revision => revision + 1)
+    retireStudioVoiceOwner(); cancelOutlinePreview(); switchVersion(version)
+  }
+  studioPartialVersionHandlerRef.current = handleStudioPartialVersionSwitch
+  const handleStudioPartialNativeReadback = (readback: StudioPartialNativeReadback) => {
+    const owner = studioInitialSelectedTarget.owner
+    const current = () => studioPartialAuthority.isCurrent() && studioSlideComposeOwnerRef.current === owner
+      && studioPartialNativeReadbackHandlerRef.current === handleStudioPartialNativeReadback
+      && studioPartialMetadata && readback.presentationId === effectivePresentationId
+      && readback.presentationUrl === effectivePresentationUrl && readback.isCurrent()
+    if (!current() || !Number.isSafeInteger(readback.nativeCount) || readback.nativeCount < 1
+      || !Number.isSafeInteger(readback.currentVisualIndex) || readback.currentVisualIndex < 0) return
+    if (current()) currentSlideIndexRef.current = readback.currentVisualIndex
+    setCurrentSlideIndex(previous => current() ? readback.currentVisualIndex : previous)
+    setStudioPartialNativeIndex(previous => current() ? {
+      owner, presentationId: readback.presentationId, presentationUrl: readback.presentationUrl,
+      count: readback.nativeCount, index: readback.currentVisualIndex,
+      isFrameCurrent: readback.isFrameCurrent, isCurrent: readback.isCurrent,
+    } : previous)
+    const jobs = Object.fromEntries(Object.entries(slideComposeJobsRef.current)
+      .filter(([, job]) => job.target_presentation_id === readback.presentationId))
+    const resolved = resolveSlideComposeVisualIndex(readback.currentVisualIndex, { slideCount: readback.nativeCount, jobs })
+    if (resolved?.kind === 'slide') {
+      setSelectedLayoutSlideIndex(previous => current() ? resolved.layoutIndex : previous)
+    }
+  }
+  studioPartialNativeReadbackHandlerRef.current = handleStudioPartialNativeReadback
   const retiredIntroActions = historicalActionStatuses(messages, session.answeredActionsRef.current)
   const studioMandatoryDecision = messages.some(message => message.type === 'action_request'
     && message.session_id === (currentSessionId || wsSessionId) && !retiredIntroActions.has(message.message_id)
@@ -6783,6 +7073,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onStudioIntroductionSafetyChange={studioShell ? handleStudioViewerSafety : undefined}
             studioCanvasLifecycle={studioShell ? studioCanvasLifecycle : undefined}
             studioInitialNativeDeferred={studioInitialNativeDeferred}
+            studioPartialStagePending={studioShell ? studioPartialPending : undefined}
+            studioPartialArtifact={studioShell ? studioPartialMetadata : undefined}
+            onStudioPartialNativeReadback={studioShell ? handleStudioPartialNativeReadback : undefined}
             studioNativeOwner={studioShell ? studioSlideComposeOwnerRef.current : undefined}
             onStudioNativeMounted={studioShell ? handleStudioNativeMounted : undefined}
             showOutlinePreview={showOutlinePreview}
@@ -6791,14 +7084,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             presentationUrl={effectivePresentationUrl}
             presentationId={effectivePresentationId}
             slideCount={effectiveSlideCount}
-            slideStructure={slideStructure}
+            slideStructure={effectiveSlideStructure}
             strawmanPreviewUrl={strawmanPreviewUrl}
             finalPresentationUrl={finalPresentationUrl}
-            activeVersion={activeVersion}
-            isBlankPresentation={isBlankPresentation}
-            onVersionSwitch={(version) => { retireStudioVoiceOwner(); cancelOutlinePreview(); switchVersion(version) }}
+            activeVersion={effectiveActiveVersion}
+            isBlankPresentation={effectiveIsBlankPresentation}
+            onVersionSwitch={studioShell ? handleStudioPartialVersionSwitch
+              : (version) => { retireStudioVoiceOwner(); cancelOutlinePreview(); switchVersion(version) }}
             currentStage={currentStage}
-            currentSlideIndex={currentSlideIndex}
+            currentSlideIndex={studioPartialMetadata
+              ? (studioPartialNativeIndex?.owner === studioInitialSelectedTarget.owner
+                ? (studioPartialNativeIndex.isCurrent() ? studioPartialNativeIndex.index : currentSlideIndex) : 0)
+              : currentSlideIndex}
             onSlideChange={(slideNum) => {
               const nextVisualIndex = Math.max(0, slideNum - 1)
               // Keep the imperative insertion owner current before React
@@ -6823,8 +7120,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               studioExplicitBlankOwnerRef.current = studioInitialSelectedTarget.owner
               setBlankPlaceholderDismissed(true)
             }}
-            slideContextByIndex={effectiveBuildNarrationEnabled ? slideContextByIndex : null}
-            narrationNavigate={effectiveBuildNarrationEnabled ? narrationNavigate : null}
+            slideContextByIndex={effectiveBuildNarrationEnabled && !studioPartialMetadata ? slideContextByIndex : null}
+            narrationNavigate={effectiveBuildNarrationEnabled
+              && (!studioShell || (!studioPartialPending
+                && !hasStudioPartialStageVersionIntent(studioPartialVersionIntentRef.current, studioPartialAuthority, buildNarration.buildId)
+                && (!studioPartialMetadata || (studioPartialDisplayed?.buildId === buildNarration.buildId
+                  && studioPartialDisplayed.presentationId === buildNarration.buildPresentationId)))) ? narrationNavigate : null}
             buildNarration={effectiveBuildNarrationEnabled ? buildNarration : null}
             buildNarrationApi={
               effectiveBuildNarrationEnabled
@@ -6856,8 +7157,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   }
                 : null
             }
-            onApiReady={setLayoutServiceApis}
-            onComposeApiReady={handleComposeApiReady}
+            onApiReady={studioShell ? handleStudioPartialApiReady : setLayoutServiceApis}
+            onComposeApiReady={studioShell ? handleStudioPartialComposeApiReady : handleComposeApiReady}
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
             onGenerateSlide={studioShell && features.slideComposerEnabled ? handleOpenSlideCompose : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
@@ -6942,7 +7243,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             toolbarPortalTarget={toolbarPortalTarget}
             toolbarOffset={studioShell ? 0 : drawerOffset > TEMPLATE_PANEL_COLLAPSED_WIDTH ? Math.max(drawerOffset - 112, 0) : 0}
             publishSessionId={currentSessionId || wsSessionId}
-            deckTitle={slideStructure?.metadata?.main_title ?? null}
+            deckTitle={effectiveSlideStructure?.metadata?.main_title ?? null}
             hasFinalDeck={Boolean(finalPresentationId || finalPresentationUrl)}
             publishFinalPresentationId={studioShell ? finalPresentationId : undefined}
             publishThumbnailUrlsByPresentation={studioShell ? slideThumbnailUrlsByPresentation : undefined}
@@ -6959,7 +7260,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             templateModeAvailable={Boolean(activeTemplate)}
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
-            composeJobs={slideComposeThumbnailJobs}
+            composeJobs={studioPartialMetadata
+              ? slideComposeThumbnailJobs.filter(job => slideComposeJobsRef.current[job.jobId]?.target_presentation_id === effectivePresentationId)
+              : slideComposeThumbnailJobs}
             thumbnailUrlsBySlide={
               effectivePresentationId
                 ? slideThumbnailUrlsByPresentation[effectivePresentationId] ?? {}

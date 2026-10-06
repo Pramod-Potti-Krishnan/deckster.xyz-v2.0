@@ -728,7 +728,7 @@ export interface UseDecksterWebSocketV2Options {
   onHandoffRequestStatus?: (status: DirectorHandoffRequestStatus, owner: DirectorHandoffRequestOwner) => void;
   onPresentationReady?: (url: string) => void;
   onSlideComposeProgress?: (message: SlideComposeProgress) => void;
-  onSlideBuilt?: (message: SlideBuilt) => void;
+  onSlideBuilt?: (message: SlideBuilt, owner?: DirectorTransportOwner) => void;
   // MDC P4 (K3): Director instructs a capable client to start a new session.
   onSessionDirective?: (payload: import('@/types/mdc').SessionDirectivePayload) => void;
   // MDC P8 (K5): run an element generation through the FE panel pipeline.
@@ -2737,7 +2737,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             }
 
             if (message.type === 'slide_built') {
-              options.onSlideBuilt?.(message);
+              // Local continuation identity only; preserve the raw frame and
+              // existing consumers. This is not a new wire field or filter.
+              options.onSlideBuilt?.(message, {
+                sessionId: socketSessionId, userId: socketUserId,
+                transportGeneration: attemptGeneration, isCurrent: isCurrentSocket,
+              });
             } else if (message.type === 'slide_progress') {
               options.onSlideComposeProgress?.(message);
             } else if (message.type === 'slide_ready' && !blockedIngress) {

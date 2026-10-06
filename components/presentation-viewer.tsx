@@ -260,6 +260,8 @@ interface PresentationViewerProps {
   showControls?: boolean
   downloadControls?: React.ReactNode
   onSlideChange?: (slideNumber: number) => void
+  studioPartialArtifact?: boolean
+  onStudioPartialNativeReadback?: (readback: StudioPartialNativeReadback) => void
   onThumbnailInvalidated?: (presentationId: string) => void
   onThumbnailMutationCapture?: StudioThumbnailMutationCapture
   studioOwnerUserId?: string | null
@@ -587,6 +589,18 @@ function waitForViewerSettle(delayMs: number): Promise<void> {
   return new Promise(resolve => window.setTimeout(resolve, delayMs))
 }
 
+export interface StudioPartialNativeReadback {
+  readonly presentationId: string
+  readonly presentationUrl: string
+  readonly nativeCount: number
+  readonly currentVisualIndex: number
+  /** Navigation counts carry no native IDs/order. Only real_order uses the
+   * existing strict compose parser; neither kind supplies storage authority. */
+  readonly kind: 'navigation' | 'real_order'
+  readonly isFrameCurrent: () => boolean
+  readonly isCurrent: () => boolean
+}
+
 export function PresentationViewer({
   presentationUrl,
   presentationId,
@@ -595,6 +609,8 @@ export function PresentationViewer({
   showControls = true,
   downloadControls,
   onSlideChange,
+  studioPartialArtifact = false,
+  onStudioPartialNativeReadback,
   onThumbnailInvalidated,
   onThumbnailMutationCapture,
   studioOwnerUserId,
@@ -825,8 +841,8 @@ export function PresentationViewer({
     isBlankPresentation,
     templateModeOn,
   })
-  const canSaveTemplate = templateSaveGate.canSave
-  const resolvedTemplateSavePresentationId = templateSaveGate.sourcePresentationId
+  const canSaveTemplate = !studioPartialArtifact && templateSaveGate.canSave
+  const resolvedTemplateSavePresentationId = studioPartialArtifact ? null : templateSaveGate.sourcePresentationId
   // View mode toggles (grid, borders, edit) - only shown in non-fullscreen
   const [isGridActive, setIsGridActive] = useState(false)
   const [isBordersActive, setIsBordersActive] = useState(false)
@@ -1217,6 +1233,19 @@ export function PresentationViewer({
   useEffect(() => {
     onSlideChangeRef.current = onSlideChange
   }, [onSlideChange])
+  const partialNativeReadbackRef = useRef(onStudioPartialNativeReadback)
+  useEffect(() => { partialNativeReadbackRef.current = onStudioPartialNativeReadback }, [onStudioPartialNativeReadback])
+  const partialLogicalTargetKey = JSON.stringify([studioOwnerUserId, sessionId, deckOwnerSessionId, presentationId])
+  const partialLogicalTargetRef = useRef(partialLogicalTargetKey)
+  useLayoutEffect(() => {
+    const changed = partialLogicalTargetRef.current !== partialLogicalTargetKey
+    partialLogicalTargetRef.current = partialLogicalTargetKey
+    if (!studioShell || !studioPartialArtifact || !changed) return
+    // A's retained counters cannot serve as a minimum for newly admitted B.
+    // The existing poll supplies B's real count; progress never supplies it.
+    setTotalSlides(0); setVisualTotalSlides(0); setCurrentSlide(1)
+    lastSlideInfoRef.current = null
+  }, [studioShell, studioPartialArtifact, partialLogicalTargetKey])
 
   // Sync totalSlides with slideCount prop changes
   const slideCountPresentationUrlRef = useRef(presentationUrl)
@@ -1561,6 +1590,7 @@ export function PresentationViewer({
       const polledFrame = iframeRef.current
       const polledOwner = renderSlideMutationOwner
       const polledNavigationRevision = studioSlideNavigationRevisionRef.current
+      const partialFrame = studioShell && studioPartialArtifact ? captureStudioNativeSlideFrame() : null
       // This receipt's read origin stays excluded after Add releases its busy
       // lease; it may already contain Add's self-selected native index.
       const polledDuringManualAdd = slideMutationRequestRef.current?.operation === 'add'
@@ -1577,6 +1607,25 @@ export function PresentationViewer({
           ? await sendCommand(polledFrame, 'composeGetState')
           : await sendCommand(polledFrame, 'getCurrentSlideInfo')
         if (iframeRef.current !== polledFrame || slideMutationOwnerRef.current !== polledOwner) return
+        if (partialFrame?.isCurrent() && selectionIsCurrent() && presentationId) {
+          // Read only the existing native response. Do not use retained totals,
+          // typed build counts or a fallback floor as native count authority.
+          const order = hasComposeJobs ? parseStudioNativeSlideOrder(result) : null
+          const navigation = hasComposeJobs || result.success !== true ? null : resolveSlideViewerNavigationInfo(result)
+          const nativeCount = order?.nativeCount ?? navigation?.totalSlides
+          const nativeIndex = order?.currentVisualIndex ?? navigation?.currentVisualIndex
+          if (nativeCount !== undefined && nativeIndex !== undefined && partialFrame.isCurrent()) {
+            let retiredReadback = false
+            const readbackIsCurrent = () => {
+              if (!partialFrame.isCurrent() || !selectionIsCurrent()) retiredReadback = true
+              return !retiredReadback
+            }
+            partialNativeReadbackRef.current?.({ presentationId, presentationUrl,
+              nativeCount, currentVisualIndex: nativeIndex,
+              kind: order ? 'real_order' : 'navigation', isFrameCurrent: partialFrame.isCurrent,
+              isCurrent: readbackIsCurrent })
+          }
+        }
         if (result.success && (result.data || hasComposeJobs)) {
           const data = result.data ?? result
           const pendingSelection = snapshotSelectionRef.current
@@ -1647,7 +1696,8 @@ export function PresentationViewer({
 
     return () => clearInterval(interval)
   }, [composeJobs.length, pollingFailureCount, slideCount, totalSlides, viewerHasLoaded,
-    approvedIframeNavigationUrl, renderSlideMutationOwner, isGridActive, isBordersActive])
+    approvedIframeNavigationUrl, renderSlideMutationOwner, isGridActive, isBordersActive,
+    studioPartialArtifact, captureStudioNativeSlideFrame, presentationId, presentationUrl])
 
   // Force save handler (for Ctrl+S and retry on error)
   // IMPORTANT: Must be declared BEFORE the keyboard shortcuts useEffect that references it
@@ -3981,7 +4031,8 @@ export function PresentationViewer({
                       {studioShell && studioWorkflowRequest?.action === 'templates' && studioWorkflowRequest.itemId && templateSelectionLocked && <p className="px-2 py-2 text-xs leading-relaxed text-muted-foreground" role="status">The library selection has not been applied. Template selection is locked for this deck.</p>}
                       <DropdownMenuItem
                         disabled={!canSaveTemplate}
-                        title={!canSaveTemplate && templateSaveGate.disabledReason ? templateSaveGate.disabledReason.replace(/_/g, ' ') : undefined}
+                        title={studioPartialArtifact ? 'Available when this deck is complete'
+                          : !canSaveTemplate && templateSaveGate.disabledReason ? templateSaveGate.disabledReason.replace(/_/g, ' ') : undefined}
                         className="cursor-pointer gap-2"
                         onClick={() => setShowTemplateSave(true)}
                       >
@@ -4269,7 +4320,7 @@ export function PresentationViewer({
             )}
             {studioShell && !isFullscreen && studioPresentPortalTarget && createPortal(
               <div data-studio-slide-controls="true" role="group" aria-label="Presentation controls" className={cn(isGenerating && "pointer-events-none opacity-50")}>
-                <span>Slide {currentSlide} / {visualTotalSlides || totalSlides || slideCount || 1}</span>
+              <span>Slide {currentSlide} / {visualTotalSlides || totalSlides || slideCount || (studioPartialArtifact ? '—' : 1)}</span>
                 {presentControl}
               </div>,
               studioPresentPortalTarget

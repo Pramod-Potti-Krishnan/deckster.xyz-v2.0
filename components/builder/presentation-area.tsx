@@ -63,6 +63,9 @@ export interface PresentationAreaProps {
   showOutlinePreview?: boolean
   studioCanvasLifecycle?: StudioCanvasLifecycle
   studioInitialNativeDeferred?: boolean
+  studioPartialStagePending?: boolean
+  studioPartialArtifact?: boolean
+  onStudioPartialNativeReadback?: (readback: import('@/components/presentation-viewer').StudioPartialNativeReadback) => void
   studioNativeOwner?: object
   onStudioNativeMounted?: (owner: object) => void
   awaitingDirectorReply?: boolean
@@ -177,6 +180,9 @@ export function PresentationArea({
   studioCanvasLifecycle,
   studioInitialNativeDeferred = false,
   studioNativeOwner,
+  studioPartialStagePending = false,
+  studioPartialArtifact = false,
+  onStudioPartialNativeReadback,
   onStudioNativeMounted,
   studioIntroReplay,
   onStudioIntroductionSafetyChange,
@@ -275,7 +281,7 @@ export function PresentationArea({
   })
   // F-4 export-safety, re-derived for v2 (the old hidden-strawman state is gone):
   // Download/Publish only when the deck on stage is a settled artifact.
-  const exportsAllowed = exportControlsAllowed(narrationActive, narrationPhase)
+  const exportsAllowed = !studioPartialArtifact && exportControlsAllowed(narrationActive, narrationPhase)
   // Toolbar hidden only while nothing real is on stage yet.
   const toolbarSuppressed = narrationActive && narrationPhase === 'planning'
   // Canvas v2 R1 (rev 2): cover any CONTENTLESS landing deck with the designed
@@ -317,10 +323,10 @@ export function PresentationArea({
     && !lifecycle.hasGeneratedDeck && !lifecycle.hasAuthoredDeck
     && waitingForDirector && (narrationPhase === 'idle' || narrationPhase === 'planning' || narrationPhase === 'awaiting_user')
   const showBlankPlaceholder = studioShell
-    ? (legacyBlankPlaceholder && lifecycle.showLanding) || workingPlaceholder
+    ? !studioPartialArtifact && ((legacyBlankPlaceholder && lifecycle.showLanding) || workingPlaceholder)
     : legacyBlankPlaceholder
   // Visual intro only. Native ribbon/footer, viewer identity and real build state stay active.
-  const outlinePreview = studioShell && showOutlinePreview && narrationActive
+  const outlinePreview = studioShell && !studioPartialArtifact && showOutlinePreview && narrationActive
     && buildNarration?.phase === 'building' && buildNarration.slidesDone === 0
   const waitingNarration = outlinePreview && buildNarration
     ? { ...buildNarration, phase: 'strawman' as const, phaseLabel: 'Outline ready — building has begun' }
@@ -329,7 +335,7 @@ export function PresentationArea({
     narrationActive && slideContextByIndex ? slideContextByIndex[currentSlideIndex] : null
   // Canvas v2 R2/R3: narration chrome anchors to the slide via the viewer slots.
   const stageChrome =
-    showBlankPlaceholder || outlinePreview || (narrationActive && buildNarration)
+    showBlankPlaceholder || outlinePreview || studioPartialStagePending || (narrationActive && buildNarration)
       ? {
           placeholder: outlinePreview ? (
             <div className="absolute inset-0 z-30 pointer-events-none" data-studio-outline-preview="true"><StudioWaitingState scope="canvas" narration={waitingNarration} /></div>
@@ -343,8 +349,13 @@ export function PresentationArea({
               : <StagePlaceholder mode="overlay" onDismiss={onDismissBlankPlaceholder} />
           ) : undefined,
           ribbon:
-            narrationActive && buildNarration ? (
-              <StageRibbon narration={buildNarration} control={buildNarrationApi?.control} />
+            studioPartialStagePending || (narrationActive && buildNarration) ? (
+              <>
+                {narrationActive && buildNarration ? <StageRibbon narration={buildNarration} control={buildNarrationApi?.control} /> : null}
+                {studioPartialStagePending ? <div role="status" className="px-4 py-2 text-sm bg-background text-muted-foreground border-b">
+                  New slides are available. Keeping the current canvas until it is ready to switch.
+                </div> : null}
+              </>
             ) : undefined,
           frame:
             narrationActive && buildNarration ? (
@@ -377,6 +388,8 @@ export function PresentationArea({
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {presentationUrl && mountNative ? (
           <PresentationViewer
+            studioPartialArtifact={studioPartialArtifact}
+            onStudioPartialNativeReadback={onStudioPartialNativeReadback}
             studioWorkflowRequest={studioWorkflowRequest}
             presentationUrl={presentationUrl}
             presentationId={presentationId}
