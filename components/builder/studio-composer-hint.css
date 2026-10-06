@@ -1,0 +1,18 @@
+[data-studio-composer-hint="true"] {
+  z-index: 120;
+  max-width: min(260px, calc(100vw - 32px));
+  padding: 6px 9px;
+  border: 1px solid #dde5e2;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #243438;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.dark [data-studio-composer-hint="true"] {
+  border-color: #334245;
+  background: #1b2426;
+  color: #e2ebe8;
+}

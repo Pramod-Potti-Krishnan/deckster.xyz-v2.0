@@ -49,6 +49,7 @@ import {
   type TemplateSelection,
 } from '@/hooks/use-templates'
 import { TemplatePicker } from './template-picker'
+import { StudioComposerHint } from './studio-composer-hint'
 import { StudioThemeMenu, type StudioThemeView, type StudioThemeMutationKind, type StudioThemeMutationNotice } from './studio-theme-menu'
 
 const TEXTAREA_MIN_HEIGHT = 96
@@ -220,6 +221,7 @@ export function ChatInput({
   const [brandHexDraft, setBrandHexDraft] = useState(buildTheme.primary_hex || '#1e40af')
   const [savedThemes, setSavedThemes] = useState<SavedThemeProfile[]>([])
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
+  const [researchMenuOpen, setResearchMenuOpen] = useState(false)
   const [requestedSavedThemeId, setRequestedSavedThemeId] = useState<string | null>(null)
   const [dismissedSavedThemeRequestKey, setDismissedSavedThemeRequestKey] = useState<string | null>(null)
   const [unavailableSavedThemeRequest, setUnavailableSavedThemeRequest] = useState<{ key: string; failed: boolean } | null>(null)
@@ -1036,6 +1038,7 @@ export function ChatInput({
             <div className="flex items-center gap-1">
               {/* Direct file upload */}
               {features.enableFileUploads && (
+                <StudioComposerHint enabled={studio} label="Attach files">
                 <button
                   type="button"
                   className="flex items-center justify-center rounded-lg p-1.5 text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-200 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1048,11 +1051,12 @@ export function ChatInput({
                     }
                     fileInputRef.current?.click()
                   }}
-                  title="Upload a file"
+                  title={studio ? undefined : "Upload a file"}
                   aria-label="Upload a file"
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>
+                </StudioComposerHint>
               )}
 
               {/* Template Builder: reuse a saved template (sibling of attach) */}
@@ -1064,6 +1068,7 @@ export function ChatInput({
 
               {/* Build-time Theme Builder selection */}
               <DropdownMenu open={themeMenuOpen} onOpenChange={(open) => { setThemeMenuOpen(open); if (open) void refreshSavedThemes() }}>
+                <StudioComposerHint enabled={studio} label={`Choose a theme · ${activeThemeLabel}`} suppressed={themeMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
@@ -1072,13 +1077,14 @@ export function ChatInput({
                         ? 'text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                         : 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:hover:bg-sky-900'
                     }`}
-                    title={activeThemeLabel}
+                    title={studio ? undefined : activeThemeLabel}
                     aria-label="Build theme"
                     disabled={!user || isLoadingSession || templateSelectionLocked}
                   >
                     <Palette className="h-4 w-4" />
                   </button>
                 </DropdownMenuTrigger>
+                </StudioComposerHint>
                 <DropdownMenuContent onKeyDownCapture={studio ? (event) => {
                   // Native form Tab traversal must run before Radix menu key handling.
                   if (event.key === 'Tab') event.stopPropagation()
@@ -1282,7 +1288,8 @@ export function ChatInput({
               </DropdownMenu>
 
               {/* Settings/Options Menu */}
-              <DropdownMenu>
+              <DropdownMenu open={studio ? researchMenuOpen : undefined} onOpenChange={studio ? setResearchMenuOpen : undefined}>
+                <StudioComposerHint enabled={studio} label="Research options" suppressed={researchMenuOpen}>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
@@ -1292,6 +1299,7 @@ export function ChatInput({
                     <SlidersHorizontal className="h-4 w-4 text-gray-500 dark:text-slate-400" />
                   </button>
                 </DropdownMenuTrigger>
+                </StudioComposerHint>
                 <DropdownMenuContent data-studio-composer-menu={studio ? 'research' : undefined} data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined} data-studio-v4-menu="research" align="start" className="w-52">
                   {studio && (
                     <div data-studio-composer-options-part="heading">
@@ -1370,16 +1378,19 @@ export function ChatInput({
 
             {/* Right: Send button - rounded square with up arrow */}
             {isTemplateReuseRunning ? (
+              <StudioComposerHint enabled={studio} label="Stop template reuse">
               <button
                 type="button"
                 onClick={onCancelTemplateReuse}
                 className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-600 text-white transition-all hover:bg-rose-700"
-                title="Stop template reuse"
+                title={studio ? undefined : "Stop template reuse"}
                 aria-label="Stop template reuse"
               >
                 <Square className="h-3.5 w-3.5 fill-current" />
               </button>
+              </StudioComposerHint>
             ) : (
+              <StudioComposerHint enabled={studio} label={uploadBlockReason ?? "Send · Enter"}>
               <button
                 data-studio-v4-send="true"
                 aria-label={studio ? "Send message" : undefined}
@@ -1395,6 +1406,7 @@ export function ChatInput({
               >
                 <ArrowUp className="h-4 w-4" />
               </button>
+              </StudioComposerHint>
             )}
           </div>
 

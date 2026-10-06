@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, CheckCircle2, LayoutTemplate, Loader2, RotateCw, Search, X } from 'lucide-react'
 import './studio-template-picker.css'
+import { StudioComposerHint } from './studio-composer-hint'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -447,17 +448,19 @@ export function TemplatePicker({ onSelect, disabled, selectionLocked = false, mo
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
+      <StudioComposerHint enabled={STUDIO_SHELL} label="Reuse a template" suppressed={open}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           className="flex items-center justify-center rounded-lg p-1.5 text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-200 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={disabled || (selectionLocked && !onOpenLibrary)}
-          title="Reuse a saved template"
+          title={STUDIO_SHELL ? undefined : "Reuse a saved template"}
           aria-label="Reuse a saved template"
         >
           <LayoutTemplate className="h-4 w-4" />
         </button>
       </DropdownMenuTrigger>
+      </StudioComposerHint>
       <DropdownMenuContent align="start" className="w-64">
         {onOpenLibrary && <DropdownMenuItem onSelect={() => { setOpen(false); onOpenLibrary() }}>
           <LayoutTemplate className="mr-2 h-4 w-4" /> Template library

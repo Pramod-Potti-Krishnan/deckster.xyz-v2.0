@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from "react"
 import { ArrowDownUp, ArrowRight, AudioLines, Compass, ImageIcon, Info, PenLine, RotateCcw, Search, SlidersHorizontal } from "lucide-react"
 import { StudioWorkflowAction } from "@/components/studio-libraries/studio-workflow-action"
 import { BackToBuilderButton } from "@/components/layout/app-header"
 import catalog from "./model-catalog-snapshot.json"
 import { StudioIntroReplay } from "@/components/studio-intro-replay"
+import { useAuth } from "@/hooks/use-auth"
 import "@/components/studio-libraries/destination-intros.css"
 import "./personal-workspaces.css"
 import "./intelligence-workspace.css"
@@ -48,8 +49,38 @@ const currentWorkflows: Record<TaskId, { where: string; controls: string[]; note
   },
 }
 
-/** Current controls guide, alongside an opt-in prototype comparison. No model routing contract. */
+type IntelligenceLifetime = { owner: string | null; key: number }
+type IntelligenceAccess = { lifetime: IntelligenceLifetime; ready: boolean }
+
+/** Private local drafts belong to an observed account lifetime, not a reusable ID. */
 export function IntelligenceWorkspace() {
+  const { user, isLoading, isAuthenticated } = useAuth()
+  const owner = user?.id && (isAuthenticated || isLoading) ? user.id : null
+  const currentLifetime = useRef<IntelligenceLifetime>({ owner: null, key: 0 })
+  // Retire captured callbacks synchronously, before the previous child cleans up.
+  if (currentLifetime.current.owner !== owner) {
+    currentLifetime.current = { owner, key: currentLifetime.current.key + 1 }
+  }
+  const lifetime = currentLifetime.current
+  const ready = Boolean(owner && isAuthenticated && !isLoading)
+  const access = useRef<IntelligenceAccess>({ lifetime, ready })
+  access.current = { lifetime, ready }
+  if (!owner) return <main className="sp-workspace sp-intelligence" role="status">{isLoading ? "Verifying your account…" : "Sign in to view Intelligence."}</main>
+  return <IntelligenceForOwner key={lifetime.key} lifetime={lifetime} access={access} ready={ready} />
+}
+
+/** Current controls guide, alongside an opt-in prototype comparison. No model routing contract. */
+function IntelligenceForOwner({ lifetime, access, ready }: {
+  lifetime: IntelligenceLifetime
+  access: MutableRefObject<IntelligenceAccess>
+  ready: boolean
+}) {
+  const mounted = useRef(false)
+  useLayoutEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
+  const canStartReview = () => mounted.current && access.current.lifetime === lifetime && access.current.ready
   const [view, setView] = useState<"current" | "design">("current")
   const [activeTask, setActiveTask] = useState<TaskId>("planning_strategy")
   const [briefs, setBriefs] = useState<Draft>(emptyBriefs)
@@ -81,7 +112,7 @@ export function IntelligenceWorkspace() {
   }, [dirty])
   return <main className="sp-workspace sp-intelligence" data-studio-personal="intelligence" data-studio-intro-surface="models">
     <header className="sp-heading"><div><p className="sp-eyebrow">WORK WITH DECKSTER</p><h1>Intelligence</h1><p>Give each part of your story a clear direction.</p></div><span className="sp-draft-badge"><span />{view === "current" ? "Current workflows" : "Design preview only"}</span></header>
-    <div className="sp-context-bar"><span><SlidersHorizontal size={16} aria-hidden="true" /> {view === "current" ? "Available controls · service-managed model routing" : "Prototype model catalog · local comparison"}</span><div className="sp-preview-switcher" role="group" aria-label="Intelligence view"><button type="button" aria-pressed={view === "current"} onClick={() => setView("current")}>Current workflows</button><button type="button" aria-pressed={view === "design"} onClick={() => setView("design")}>Design preview</button></div></div>
+    <div className="sp-context-bar"><span role={!ready ? "status" : undefined}><SlidersHorizontal size={16} aria-hidden="true" /> {!ready ? "Verifying account · Review in Studio is paused" : view === "current" ? "Available controls · service-managed model routing" : "Prototype model catalog · local comparison"}</span><div className="sp-preview-switcher" role="group" aria-label="Intelligence view"><button type="button" aria-pressed={view === "current"} onClick={() => setView("current")}>Current workflows</button><button type="button" aria-pressed={view === "design"} onClick={() => setView("design")}>Design preview</button></div></div>
     <div className="sp-intelligence-view" hidden={view !== "current"}>
       <div className="sp-workflow-layout">
         <section className="sp-workflow-tasks" aria-labelledby="sp-workflows-heading"><div className="sp-section-heading"><h2 id="sp-workflows-heading">Choose the work you want to do</h2></div>{taskIds.map(id => { const Icon = taskDetails[id].icon; return <button type="button" key={id} className="sp-workflow-task" aria-pressed={activeTask === id} onClick={() => setActiveTask(id)}><span className="sp-task-icon"><Icon size={20} aria-hidden="true" /></span><span><strong>{catalog.tasks[id].label}</strong><small>{taskDetails[id].description}</small>{briefs[id] && <em>Local brief drafted</em>}</span><ArrowRight size={15} aria-hidden="true" /></button> })}<div className="sp-inline-note"><Info size={16} aria-hidden="true" /><p>Model assignments and reusable model preferences are not connected. Studio’s existing settings and permission checks remain authoritative.</p></div></section>
@@ -91,8 +122,8 @@ export function IntelligenceWorkspace() {
             <details className="sp-workflow-guidance"><summary>Current controls &amp; guidance</summary><div className="sp-workflow-guidance-body"><ul className="sp-workflow-controls">{workflow.controls.map(control => <li key={control}>{control}</li>)}</ul><p className="sp-workflow-note">{workflow.note}</p><p className="sp-workflow-note">Review the editable brief in Studio, then send it when ready. Opening Studio does not enable settings, generate content, or apply model preferences.</p></div></details>
             <WorkflowBriefEditor task={activeTask} value={briefs[activeTask]} starter={workflow.starter} onChange={editBrief} />
           </div>
-          <div className="sp-actions-row sp-workflow-actions"><StudioWorkflowAction action="brief" brief={briefs[activeTask].trim() || workflow.starter} className="sp-button sp-button-save">Review brief in Studio <ArrowRight size={14} /></StudioWorkflowAction><BackToBuilderButton /></div>
-        </section> : <section className="sp-workflow-inspector" aria-labelledby="sp-workflow-title"><span className="sp-eyebrow">CURRENT WORKFLOW</span><h2 id="sp-workflow-title">{catalog.tasks[activeTask].label}</h2><p className="sp-workflow-location">{workflow.where}</p><ul className="sp-workflow-controls">{workflow.controls.map(control => <li key={control}>{control}</li>)}</ul><p className="sp-workflow-note">{workflow.note}</p><WorkflowBriefEditor task={activeTask} value={briefs[activeTask]} starter={workflow.starter} onChange={editBrief} /><p className="sp-workflow-note">Review the editable brief in Studio, then send it when ready. Opening Studio does not enable settings, generate content, or apply model preferences.</p><div className="sp-actions-row"><StudioWorkflowAction action="brief" brief={briefs[activeTask].trim() || workflow.starter} className="sp-button sp-button-save">Review brief in Studio <ArrowRight size={14} /></StudioWorkflowAction><BackToBuilderButton /></div></section>}
+          <div className="sp-actions-row sp-workflow-actions"><StudioWorkflowAction action="brief" brief={briefs[activeTask].trim() || workflow.starter} disabled={!ready} canStart={canStartReview} className="sp-button sp-button-save">Review brief in Studio <ArrowRight size={14} /></StudioWorkflowAction><BackToBuilderButton /></div>
+        </section> : <section className="sp-workflow-inspector" aria-labelledby="sp-workflow-title"><span className="sp-eyebrow">CURRENT WORKFLOW</span><h2 id="sp-workflow-title">{catalog.tasks[activeTask].label}</h2><p className="sp-workflow-location">{workflow.where}</p><ul className="sp-workflow-controls">{workflow.controls.map(control => <li key={control}>{control}</li>)}</ul><p className="sp-workflow-note">{workflow.note}</p><WorkflowBriefEditor task={activeTask} value={briefs[activeTask]} starter={workflow.starter} onChange={editBrief} /><p className="sp-workflow-note">Review the editable brief in Studio, then send it when ready. Opening Studio does not enable settings, generate content, or apply model preferences.</p><div className="sp-actions-row"><StudioWorkflowAction action="brief" brief={briefs[activeTask].trim() || workflow.starter} disabled={!ready} canStart={canStartReview} className="sp-button sp-button-save">Review brief in Studio <ArrowRight size={14} /></StudioWorkflowAction><BackToBuilderButton /></div></section>}
       </div>
       <div className="sp-draft-actions"><div><p><Info size={15} aria-hidden="true" /> Briefs stay while switching tasks and views. Leaving this page discards any brief you have not taken to Studio.</p><span className="sp-feedback" role="status">{briefFeedback}</span></div><div className="sp-action-buttons">{resetBriefs && <button className="sp-button" type="button" onClick={undoReset}>Undo reset</button>}<button className="sp-button" type="button" disabled={!taskIds.some(id => Boolean(briefs[id]))} onClick={resetLocalBriefs}><RotateCcw size={14} aria-hidden="true" />Reset local briefs</button></div></div>
     </div>

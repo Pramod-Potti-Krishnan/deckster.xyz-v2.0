@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -39,83 +39,200 @@ function formatBytes(bytes: number): string {
 export default function BillingPage() {
   return (
     <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground" data-studio-billing-loading={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true" ? "true" : undefined}>Loading…</div>}>
-      <BillingPageContent />
+      <BillingAccountBoundary />
     </Suspense>
   )
 }
 
+type BillingLifetime = { ownerId: string | null; mounted: boolean; generation: number }
+type ReadState<T> = { lifetime: BillingLifetime; data: T | null; status: "loading" | "ready" | "error" }
+
+function safeRedirectUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !/^https:\/\/[^/?#\\\s]+/i.test(value) || /[\\\u0000-\u0020\u007f]/.test(value)) return null
+  try {
+    const authority = value.slice(value.indexOf("://") + 3).split(/[/?#]/, 1)[0]
+    const parsed = new URL(value)
+    return parsed.protocol === "https:" && parsed.hostname && !authority.includes("@") && !parsed.username && !parsed.password ? value : null
+  } catch { return null }
+}
+
+function parseUsage(value: unknown): Usage {
+  const data = value as Partial<Usage> | null
+  if (!data || !Number.isSafeInteger(data.presentationCount) || !Number.isSafeInteger(data.storageBytes) ||
+    Number(data.presentationCount) < 0 || Number(data.storageBytes) < 0) throw new Error("Usage unavailable")
+  return { presentationCount: data.presentationCount!, storageBytes: data.storageBytes! }
+}
+
+function parseInvoices(value: unknown): Invoice[] {
+  const data = value as { invoices?: unknown } | null
+  if (!data || !Array.isArray(data.invoices)) throw new Error("Invoices unavailable")
+  return data.invoices.map((item: unknown) => {
+    const invoice = item as Partial<Invoice> | null
+    if (!invoice || typeof invoice.id !== "string" || !invoice.id || typeof invoice.date !== "string" ||
+      !Number.isFinite(Date.parse(invoice.date)) || typeof invoice.amount !== "number" || !Number.isFinite(invoice.amount) ||
+      typeof invoice.status !== "string" || (invoice.downloadUrl != null && typeof invoice.downloadUrl !== "string")) throw new Error("Invoices unavailable")
+    return { id: invoice.id, date: invoice.date, amount: invoice.amount, status: invoice.status, downloadUrl: invoice.downloadUrl }
+  })
+}
+
+function BillingAccountBoundary() {
+  const { user, isLoading, isAuthenticated } = useAuth()
+  const router = useRouter()
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) router.push("/auth/signin")
+  }, [isLoading, isAuthenticated, router])
+  if (isLoading) return <div className="py-12 text-center text-sm text-muted-foreground" data-studio-billing-loading={studioShell ? "true" : undefined}>Loading…</div>
+  if (!isAuthenticated) return null
+  if (!user?.id) return <p role="status" className="py-12 text-center text-sm text-muted-foreground">Billing is unavailable until your account is verified.</p>
+  // Isolate unchanged child hooks: a detached old wallet instance may settle,
+  // but it cannot publish private rows into the next account's page.
+  return <BillingPageContent key={JSON.stringify([user.id, user.tier])} />
+}
+
 function BillingPageContent() {
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, isAuthenticated } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { subscription, isLoading: isLoadingSubscription, isActive, isPro } = useSubscription()
-
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [usage, setUsage] = useState<Usage | null>(null)
+  const { subscription, isLoading: isLoadingSubscription, isPro } = useSubscription()
   const wallet = useWallet()
-  const [topUpLoading, setTopUpLoading] = useState<string | null>(null)
+  const ownerId = !isLoading && !isLoadingSubscription && isAuthenticated && user?.id ? user.id : null
+  const lifetimeRef = useRef<BillingLifetime>({ ownerId, mounted: false, generation: 0 })
+  if (lifetimeRef.current.ownerId !== ownerId) {
+    lifetimeRef.current = { ownerId, mounted: lifetimeRef.current.mounted, generation: 0 }
+  }
+  const lifetime = lifetimeRef.current
+  const [usageRead, setUsageRead] = useState<ReadState<Usage> | null>(null)
+  const [invoiceRead, setInvoiceRead] = useState<ReadState<Invoice[]> | null>(null)
+  const [usageAttempt, setUsageAttempt] = useState(0)
+  const [invoiceAttempt, setInvoiceAttempt] = useState(0)
+  const usageGeneration = useRef(0)
+  const invoiceGeneration = useRef(0)
+  const [topUpBusy, setTopUpBusy] = useState<{ lifetime: BillingLifetime; packId: string } | null>(null)
+  const [topUpFailure, setTopUpFailure] = useState<{ lifetime: BillingLifetime; message: string } | null>(null)
+  const topUpOperation = useRef<{ lifetime: BillingLifetime; generation: number } | null>(null)
+  const [walletBusy, setWalletBusy] = useState<BillingLifetime | null>(null)
+  const [walletFailure, setWalletFailure] = useState<{ lifetime: BillingLifetime; message: string } | null>(null)
+  const walletOperation = useRef<{ lifetime: BillingLifetime; generation: number } | null>(null)
+  const [confirmedWallet, setConfirmedWallet] = useState<{ lifetime: BillingLifetime; balanceCents: number; transactions: typeof wallet.transactions } | null>(null)
 
-  // Real usage (deck count + storage) for every signed-in user.
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/account/usage")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!cancelled && d) setUsage(d)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
+  useLayoutEffect(() => {
+    lifetimeRef.current.mounted = true
+    lifetimeRef.current.generation++
+    return () => { lifetimeRef.current.mounted = false; lifetimeRef.current.generation++ }
   }, [])
+  const capture = () => lifetime.ownerId && lifetimeRef.current === lifetime && lifetime.mounted
+    ? { lifetime, generation: lifetime.generation } : null
+  const isCurrent = (operation: { lifetime: BillingLifetime; generation: number }) =>
+    lifetimeRef.current === operation.lifetime && operation.lifetime.mounted && Boolean(operation.lifetime.ownerId) &&
+    operation.lifetime.generation === operation.generation
 
-  // Real invoice history (from Payment rows) for paying users only.
   useEffect(() => {
-    if (!user || user.tier === "free") return
-    let cancelled = false
-    fetch("/api/billing/invoices")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!cancelled && d?.invoices) setInvoices(d.invoices)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
+    const operation = capture()
+    if (!operation) return
+    const generation = ++usageGeneration.current
+    const controller = new AbortController()
+    const current = () => isCurrent(operation) && generation === usageGeneration.current && !controller.signal.aborted
+    setUsageRead(previous => ({ lifetime, data: previous?.lifetime === lifetime ? previous.data : null, status: "loading" }))
+    void (async () => {
+      try {
+        const response = await fetch("/api/account/usage", { signal: controller.signal })
+        if (!current()) return
+        if (!response.ok) throw new Error("Usage unavailable")
+        const body = await response.json()
+        if (!current()) return
+        const data = parseUsage(body)
+        if (current()) setUsageRead({ lifetime, data, status: "ready" })
+      } catch {
+        if (current()) setUsageRead(previous => ({ lifetime, data: previous?.lifetime === lifetime ? previous.data : null, status: "error" }))
+      }
+    })()
+    return () => controller.abort()
+  }, [lifetime, usageAttempt])
+
+  useEffect(() => {
+    const operation = capture()
+    if (!operation || !user || user.tier === "free") return
+    const generation = ++invoiceGeneration.current
+    const controller = new AbortController()
+    const current = () => isCurrent(operation) && generation === invoiceGeneration.current && !controller.signal.aborted
+    setInvoiceRead(previous => ({ lifetime, data: previous?.lifetime === lifetime ? previous.data : null, status: "loading" }))
+    void (async () => {
+      try {
+        const response = await fetch("/api/billing/invoices", { signal: controller.signal })
+        if (!current()) return
+        if (!response.ok) throw new Error("Invoices unavailable")
+        const body = await response.json()
+        if (!current()) return
+        const data = parseInvoices(body)
+        if (current()) setInvoiceRead({ lifetime, data, status: "ready" })
+      } catch {
+        if (current()) setInvoiceRead(previous => ({ lifetime, data: previous?.lifetime === lifetime ? previous.data : null, status: "error" }))
+      }
+    })()
+    return () => controller.abort()
+  }, [lifetime, invoiceAttempt, user?.tier])
+
+  const walletRefreshing = walletBusy === lifetime
+  const walletValid = Number.isFinite(wallet.balanceCents) && Array.isArray(wallet.transactions)
+  useEffect(() => {
+    const operation = capture()
+    if (operation && !walletRefreshing && !wallet.isLoading && !wallet.error && walletValid && isCurrent(operation)) {
+      setConfirmedWallet({ lifetime, balanceCents: wallet.balanceCents, transactions: wallet.transactions })
     }
-  }, [user])
+  }, [lifetime, walletRefreshing, wallet.isLoading, wallet.error, wallet.balanceCents, wallet.transactions, walletValid])
 
-  if (isLoading || isLoadingSubscription) {
-    return (
-      <div className="py-12 text-center text-sm text-muted-foreground" data-studio-billing-loading={studioShell ? "true" : undefined}>Loading…</div>
-    )
+  if (isLoading || isLoadingSubscription || !ownerId || !user) {
+    return <div className="py-12 text-center text-sm text-muted-foreground" data-studio-billing-loading={studioShell ? "true" : undefined}>Loading…</div>
   }
+  const usageState = usageRead?.lifetime === lifetime ? usageRead : null
+  const invoiceState = invoiceRead?.lifetime === lifetime ? invoiceRead : null
+  const usage = usageState?.data ?? null
+  const invoices = invoiceState?.data ?? null
+  const topUpLoading = topUpBusy?.lifetime === lifetime ? topUpBusy.packId : null
+  const topUpError = topUpFailure?.lifetime === lifetime ? topUpFailure.message : null
+  const walletError = wallet.error || (walletFailure?.lifetime === lifetime ? walletFailure.message : null) || (!wallet.isLoading && !walletValid ? "Wallet balance is unavailable." : null)
+  const priorWallet = confirmedWallet?.lifetime === lifetime ? confirmedWallet : null
+  const walletData = !wallet.isLoading && !walletError && walletValid ? wallet : priorWallet
+  const handleUpgrade = () => { if (capture()) router.push("/pricing") }
 
-  if (!user) {
-    router.push("/auth/signin")
-    return null
-  }
-
-  const handleUpgrade = () => {
-    router.push("/pricing")
+  const handleWalletRefresh = async () => {
+    const operation = capture()
+    if (!operation || (walletOperation.current && isCurrent(walletOperation.current))) return
+    walletOperation.current = operation
+    setWalletBusy(lifetime)
+    setWalletFailure(null)
+    try { await wallet.refetch() }
+    catch {
+      if (isCurrent(operation) && walletOperation.current === operation) setWalletFailure({ lifetime, message: "Failed to refresh wallet. Please try again." })
+    } finally {
+      if (isCurrent(operation) && walletOperation.current === operation) { walletOperation.current = null; setWalletBusy(null) }
+    }
   }
 
   const handleTopUp = async (packId: string) => {
-    setTopUpLoading(packId)
+    const operation = capture()
+    if (!operation || (topUpOperation.current && isCurrent(topUpOperation.current))) return
+    topUpOperation.current = operation
+    setTopUpBusy({ lifetime, packId })
+    setTopUpFailure(null)
+    const current = () => isCurrent(operation) && topUpOperation.current === operation
     try {
-      const res = await fetch("/api/stripe/create-topup-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ packId }),
+      const response = await fetch("/api/stripe/create-topup-session", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packId }),
       })
-      const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
-      }
+      if (!current()) return
+      if (!response.ok) throw new Error("Checkout unavailable")
+      const data = await response.json()
+      if (!current()) return
+      const url = safeRedirectUrl(data?.url)
+      if (data?.error || !url) throw new Error("Redirect unavailable")
+      if (current()) window.location.href = url
     } catch {
-      console.error("Failed to create top-up session")
+      if (current()) setTopUpFailure({ lifetime, message: "Failed to start credit checkout. Please try again." })
     } finally {
-      setTopUpLoading(null)
+      if (current()) { topUpOperation.current = null; setTopUpBusy(null) }
     }
   }
 
@@ -264,23 +381,26 @@ function BillingPageContent() {
             </CardHeader>
             <CardContent className="space-y-4" data-studio-billing-body={studioShell ? "true" : undefined}>
               {searchParams?.get("topup") === "success" && (
-                <Alert className="border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/30">
-                  <Check className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-900 dark:text-green-300">
-                    Top-up successful! Your credits have been added.
-                  </AlertDescription>
+                <Alert role="status">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>Returned from credit checkout. This return does not confirm that credits were applied. Refresh your balance to check the latest account balance.</AlertDescription>
                 </Alert>
               )}
+              {searchParams?.get("topup") === "canceled" && <p role="status" className="text-sm text-muted-foreground">Returned from checkout cancellation. No credit update is confirmed here.</p>}
 
               <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 p-4" data-studio-billing-balance={studioShell ? "true" : undefined}>
                 <div>
                   <p className="text-sm text-muted-foreground">Available Balance</p>
                   <p className="text-3xl font-bold">
-                    {wallet.isLoading ? "…" : `$${(wallet.balanceCents / 100).toFixed(2)}`}
+                    {walletData ? `$${(walletData.balanceCents / 100).toFixed(2)}` : wallet.isLoading ? "Loading…" : "Unavailable"}
                   </p>
                 </div>
               </div>
 
+              {walletRefreshing && <p role="status" className="text-sm text-muted-foreground">Refreshing balance{walletData ? "; showing the last confirmed balance for this account" : ""}…</p>}
+              {walletError && <p role="alert" className="text-sm text-destructive dark:text-red-300">{walletError}{walletData ? " Showing the last confirmed balance and transactions for this account; they may be outdated." : " No balance or transactions have been confirmed for this account."}</p>}
+              <Button variant="outline" onClick={handleWalletRefresh} disabled={wallet.isLoading || walletRefreshing}>{walletRefreshing ? "Refreshing…" : "Refresh balance"}</Button>
+              {topUpError && <p role="alert" className="text-sm text-destructive dark:text-red-300">{topUpError}</p>}
               <div>
                 <h4 className="text-sm font-medium mb-2">Add Credits</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-studio-billing-packs={studioShell ? "true" : undefined}>
@@ -310,11 +430,11 @@ function BillingPageContent() {
                 </div>
               </div>
 
-              {!wallet.isLoading && wallet.transactions.length > 0 && (
+              {walletData && walletData.transactions.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2">Recent Transactions</h4>
                   <div className="space-y-2" data-studio-billing-transactions={studioShell ? "true" : undefined}>
-                    {wallet.transactions.slice(0, 5).map((txn) => (
+                    {walletData.transactions.slice(0, 5).map((txn) => (
                       <div
                         key={txn.id}
                         className="flex items-center justify-between text-sm py-1.5 border-b last:border-0"
@@ -377,7 +497,10 @@ function BillingPageContent() {
               <CardDescription>Download your past invoices</CardDescription>
             </CardHeader>
             <CardContent data-studio-billing-body={studioShell ? "true" : undefined}>
-              {invoices.length === 0 ? (
+              {(!invoiceState || invoiceState.status === "loading") && <p role="status" className="text-sm text-muted-foreground">{invoices ? "Refreshing invoices; showing the last confirmed history for this account…" : "Loading invoices…"}</p>}
+              {invoiceState?.status === "error" && <p role="alert" className="text-sm text-destructive dark:text-red-300">{invoices ? "Invoice refresh failed. Showing the last confirmed history for this account; it may be outdated." : "Invoice history is unavailable. No invoice history has been confirmed for this account."}</p>}
+              <Button variant="outline" size="sm" onClick={() => { if (capture()) setInvoiceAttempt(value => value + 1) }} disabled={!invoiceState || invoiceState.status === "loading"}>Retry invoices</Button>
+              {invoices && (invoices.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-8 text-center" data-studio-billing-invoice-empty={studioShell ? "true" : undefined}>
                   <Calendar className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
@@ -432,7 +555,7 @@ function BillingPageContent() {
                     </div>
                   ))}
                 </div>
-              )}
+              ))}
             </CardContent>
           </Card>
         )}
@@ -441,19 +564,22 @@ function BillingPageContent() {
         <Card data-studio-billing-card={studioShell ? "usage" : undefined}>
           <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
             <CardTitle>Usage</CardTitle>
-            <CardDescription>Your usage this billing period</CardDescription>
+            <CardDescription>All-time presentation sessions and uploaded-file storage</CardDescription>
           </CardHeader>
           <CardContent data-studio-billing-body={studioShell ? "true" : undefined}>
+            {(!usageState || usageState.status === "loading") && <p role="status" className="text-sm text-muted-foreground">{usage ? "Refreshing usage; showing the last confirmed values for this account…" : "Loading usage…"}</p>}
+            {usageState?.status === "error" && <p role="alert" className="text-sm text-destructive dark:text-red-300">{usage ? "Usage refresh failed. Showing the last confirmed values for this account; they may be outdated." : "Usage is unavailable. No usage values have been confirmed for this account."}</p>}
+            <Button variant="outline" size="sm" onClick={() => { if (capture()) setUsageAttempt(value => value + 1) }} disabled={!usageState || usageState.status === "loading"}>Retry usage</Button>
             <div className="space-y-4" data-studio-billing-usage={studioShell ? "true" : undefined}>
               <div>
                 <div className="mb-1 flex justify-between text-sm">
-                  <span>Presentations</span>
+                  <span>Presentation sessions</span>
                   <span className="font-medium">
                     {usage
                       ? user.tier === "free"
                         ? `${usage.presentationCount} / 3`
                         : `${usage.presentationCount} / Unlimited`
-                      : "…"}
+                      : usageState?.status === "error" ? "Unavailable" : "Loading…"}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -474,7 +600,7 @@ function BillingPageContent() {
               <div className="flex justify-between text-sm">
                 <span>Storage Used</span>
                 <span className="font-medium">
-                  {usage ? formatBytes(usage.storageBytes) : "…"}
+                  {usage ? formatBytes(usage.storageBytes) : usageState?.status === "error" ? "Unavailable" : "Loading…"}
                 </span>
               </div>
             </div>
