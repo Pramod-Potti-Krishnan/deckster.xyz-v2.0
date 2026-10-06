@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, type KeyboardEvent } from "react"
 import { HelpCircle, Keyboard, Mic, MicOff, PhoneCall, PhoneOff, Rows3, UserRound, Volume2, VolumeX } from "lucide-react"
-import { formatCallDuration } from "@/lib/studio-voice-interactive"
+import { formatCallDuration, STUDIO_VOICE_INTERACTIVE_ENABLED } from "@/lib/studio-voice-interactive"
+import { StudioComposerHint } from "@/components/builder/studio-composer-hint"
 import { DirectorCharacter, type DirectorCharacterState } from "./director-character"
 import type { DirectorCallState } from "./use-director-call"
 import "./director-call.css"
@@ -21,12 +22,16 @@ export function DirectorCallEntry({ call, disabled }: { call: DirectorCallState;
   }
   return (
     <span data-director-call-entry="true">
-      <button type="button" disabled={disabled} onClick={() => call.start("voice")} aria-label="Start voice call with the Director" title="Voice call">
-        <PhoneCall size={13} aria-hidden="true" />
-      </button>
-      <button type="button" disabled={disabled} onClick={() => call.start("interactive")} aria-label="Open interactive Director" title="Interactive Director">
-        <UserRound size={13} aria-hidden="true" />
-      </button>
+      <StudioComposerHint enabled={STUDIO_VOICE_INTERACTIVE_ENABLED && !disabled} label="Voice call with Director">
+        <button type="button" disabled={disabled} onClick={() => call.start("voice")} aria-label="Start voice call with the Director" title={STUDIO_VOICE_INTERACTIVE_ENABLED && !disabled ? undefined : "Voice call"}>
+          <PhoneCall size={13} aria-hidden="true" />
+        </button>
+      </StudioComposerHint>
+      <StudioComposerHint enabled={STUDIO_VOICE_INTERACTIVE_ENABLED && !disabled} label="Interactive Director">
+        <button type="button" disabled={disabled} onClick={() => call.start("interactive")} aria-label="Open interactive Director" title={STUDIO_VOICE_INTERACTIVE_ENABLED && !disabled ? undefined : "Interactive Director"}>
+          <UserRound size={13} aria-hidden="true" />
+        </button>
+      </StudioComposerHint>
     </span>
   )
 }
@@ -107,28 +112,34 @@ export function DirectorCallPanel({ call, awaitingReply, building, latestDirecto
       <button type="button" disabled aria-disabled="true" aria-label="Voice input unavailable" title={call.input.reason} data-capability="unavailable">
         {call.input.available ? <Mic size={14} aria-hidden="true" /> : <MicOff size={14} aria-hidden="true" />}
       </button>
-      <button
-        type="button"
-        aria-pressed={call.outputOn}
-        disabled={!call.output.available}
-        onClick={() => call.setOutputOn(!call.outputOn)}
-        aria-label={call.outputOn ? "Stop reading replies aloud" : "Read replies aloud"}
-        title={call.output.reason}
-      >
-        {call.outputOn ? <Volume2 size={14} aria-hidden="true" /> : <VolumeX size={14} aria-hidden="true" />}
-      </button>
-      <button
-        type="button"
-        onClick={() => call.switchMode(interactive ? "voice" : "interactive")}
-        aria-label={interactive ? "Switch to voice strip" : "Switch to interactive Director"}
-        title={interactive ? "Voice strip" : "Interactive Director"}
-      >
-        {interactive ? <Rows3 size={14} aria-hidden="true" /> : <UserRound size={14} aria-hidden="true" />}
-      </button>
+      <StudioComposerHint enabled={STUDIO_VOICE_INTERACTIVE_ENABLED && call.output.available} label={call.outputOn ? "Stop reading replies aloud" : "Read replies aloud"}>
+        <button
+          type="button"
+          aria-pressed={call.outputOn}
+          disabled={!call.output.available}
+          onClick={() => call.setOutputOn(!call.outputOn)}
+          aria-label={call.outputOn ? "Stop reading replies aloud" : "Read replies aloud"}
+          title={STUDIO_VOICE_INTERACTIVE_ENABLED && call.output.available ? undefined : call.output.reason}
+        >
+          {call.outputOn ? <Volume2 size={14} aria-hidden="true" /> : <VolumeX size={14} aria-hidden="true" />}
+        </button>
+      </StudioComposerHint>
+      <StudioComposerHint enabled={STUDIO_VOICE_INTERACTIVE_ENABLED} label={interactive ? "Switch to voice strip" : "Switch to interactive Director"}>
+        <button
+          type="button"
+          onClick={() => call.switchMode(interactive ? "voice" : "interactive")}
+          aria-label={interactive ? "Switch to voice strip" : "Switch to interactive Director"}
+          title={STUDIO_VOICE_INTERACTIVE_ENABLED ? undefined : interactive ? "Voice strip" : "Interactive Director"}
+        >
+          {interactive ? <Rows3 size={14} aria-hidden="true" /> : <UserRound size={14} aria-hidden="true" />}
+        </button>
+      </StudioComposerHint>
       <p>{call.input.available ? "Speak or type" : "Typed turns · voice input off"}</p>
-      <button type="button" data-director-call-end="true" onClick={call.end} aria-label="End call">
-        <PhoneOff size={15} aria-hidden="true" />
-      </button>
+      <StudioComposerHint enabled={STUDIO_VOICE_INTERACTIVE_ENABLED} label="End call">
+        <button type="button" data-director-call-end="true" onClick={call.end} aria-label="End call">
+          <PhoneOff size={15} aria-hidden="true" />
+        </button>
+      </StudioComposerHint>
     </div>
   )
 

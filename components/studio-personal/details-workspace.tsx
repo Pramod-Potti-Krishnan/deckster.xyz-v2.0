@@ -35,6 +35,42 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
   currentLogo.current = logo
   const [status, setStatus] = useState("")
   const dirty = JSON.stringify(draft) !== JSON.stringify(initialDraft(accountName)) || Boolean(logo)
+  const currentDraft = useRef(draft); currentDraft.current = draft
+  const focusFrame = useRef<number | null>(null)
+  const focusOccurrence = useRef<object | null>(null)
+  const mounted = useRef(true)
+  const mountEpoch = useRef({})
+  const renderedMount = mountEpoch.current
+  const [, refreshPresentation] = useState(0)
+  const presentation = useRef({ section, preview, accountName, accountEmail, accountImage, epoch: {} })
+  if (presentation.current.section !== section || presentation.current.preview !== preview || presentation.current.accountName !== accountName || presentation.current.accountEmail !== accountEmail || presentation.current.accountImage !== accountImage) presentation.current = { section, preview, accountName, accountEmail, accountImage, epoch: {} }
+  const renderedPresentation = presentation.current
+  const presentationCurrent = () => mounted.current && mountEpoch.current === renderedMount && presentation.current === renderedPresentation
+
+  useEffect(() => {
+    mounted.current = true
+    if (mountEpoch.current !== renderedMount) refreshPresentation(value => value + 1)
+    return () => { mounted.current = false; mountEpoch.current = {}; if (focusFrame.current !== null) window.cancelAnimationFrame(focusFrame.current) }
+  }, [])
+
+  // Reveal the whole control/ring after native focus or caret scrolling settles.
+  function revealFocusedControl(event: import("react").SyntheticEvent<HTMLElement>) {
+    const target = event.target
+    const host = event.currentTarget
+    if (!presentationCurrent() || currentDraft.current !== draft || currentLogo.current !== logo || !(target instanceof HTMLElement) || !target.matches('button,a,input,textarea,select') || !host.contains(target) || document.activeElement !== target) return
+    if (focusFrame.current !== null) window.cancelAnimationFrame(focusFrame.current)
+    const occurrence = event.type === 'focus' ? {} : focusOccurrence.current
+    if (!occurrence) return
+    if (event.type === 'focus') focusOccurrence.current = occurrence
+    const stillFocused = () => presentationCurrent() && focusOccurrence.current === occurrence && target.isConnected && host.isConnected && host.contains(target) && document.activeElement === target
+    focusFrame.current = window.requestAnimationFrame(() => {
+      if (!stillFocused()) { focusFrame.current = null; return }
+      focusFrame.current = window.requestAnimationFrame(() => {
+        focusFrame.current = null
+        if (stillFocused()) target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+      })
+    })
+  }
 
   useEffect(() => {
     if (!logo) return
@@ -89,7 +125,7 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
       : draft.footer === "pages" ? `Page ${page} of 8` : ""
 
   return (
-    <main className="sp-workspace sp-details" data-studio-personal="details" data-studio-intro-surface="details">
+    <main className="sp-workspace sp-details" data-studio-personal="details" data-studio-intro-surface="details" onFocusCapture={revealFocusedControl} onInputCapture={revealFocusedControl} onKeyUpCapture={revealFocusedControl}>
       <header className="sp-heading">
         <div><p className="sp-eyebrow">MAKE IT YOURS</p><h1>Your details</h1><p>The person behind the presentation.</p></div>
         <span className="sp-draft-badge"><span /> {section === "account" ? "Your account" : "Local draft preview"}</span>

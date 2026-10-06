@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -47,10 +47,25 @@ export default function NotificationsSettingsPage() {
     : <ClassicNotificationsSettingsPage />
 }
 
+type PreferenceAccess = { owner: string | null; ready: boolean; epoch: number }
+function preferenceAccessCurrent(live: PreferenceAccess, captured: PreferenceAccess) {
+  return Boolean(captured.owner && captured.ready && live.ready && live.owner === captured.owner && live.epoch === captured.epoch)
+}
+
 function StudioNotificationsSettingsPage() {
-  const { user, isLoading } = useAuth()
-  const owner = user?.id ?? null
-  return <StudioAccountNotifications key={owner ?? "pending"} owner={owner} authLoading={isLoading} email={user?.email ?? ""} />
+  const { user, isLoading, isAuthenticated } = useAuth()
+  const suppliedOwner = user?.id ?? null
+  const accessRef = useRef<PreferenceAccess>({ owner: null, ready: false, epoch: 0 })
+  // Retain a known owner's memory during an unresolved check; observed owner or
+  // readiness transitions synchronously retire captured callbacks before cleanup.
+  const owner = isLoading ? suppliedOwner ?? accessRef.current.owner : isAuthenticated ? suppliedOwner : null
+  const ready = Boolean(owner && isAuthenticated && !isLoading)
+  const previous = accessRef.current
+  if (previous.owner !== owner || previous.ready !== ready) {
+    accessRef.current = { owner, ready, epoch: previous.epoch + 1 }
+  }
+  const access = accessRef.current
+  return <StudioAccountNotifications key={owner ?? "pending"} owner={owner} authLoading={isLoading} access={access} liveAccess={accessRef} email={user?.email ?? ""} />
 }
 
 function isPreferences(value: unknown): value is Preferences {
@@ -65,7 +80,7 @@ function withoutChoice<T>(choices: Partial<Record<keyof Preferences, T>>, key: k
   return next
 }
 
-function StudioAccountNotifications({ owner, authLoading, email }: { owner: string | null; authLoading: boolean; email: string }) {
+function StudioAccountNotifications({ owner, authLoading, email, access, liveAccess }: { owner: string | null; authLoading: boolean; email: string; access: PreferenceAccess; liveAccess: { current: PreferenceAccess } }) {
   const [confirmed, setConfirmed] = useState<Preferences | null>(null)
   const [choices, setChoices] = useState<Partial<Preferences>>({})
   const [loading, setLoading] = useState(false)
@@ -74,59 +89,118 @@ function StudioAccountNotifications({ owner, authLoading, email }: { owner: stri
   const [saveErrors, setSaveErrors] = useState<Partial<Record<keyof Preferences, string>>>({})
   const [savedKey, setSavedKey] = useState<keyof Preferences | null>(null)
   const mounted = useRef(false)
+  const mountLifetimeRef = useRef(0)
+  const mountLifetime = mountLifetimeRef.current
+  const [, setMountRevision] = useState(0)
+  const interruptedWrite = useRef(false)
   const busy = useRef(false)
   const generation = useRef(0)
   const request = useRef<AbortController | null>(null)
+  const requestAccess = useRef<number | null>(null)
+  const requestKind = useRef<"read" | "write" | null>(null)
+  const confirmedRef = useRef<Preferences | null>(null)
+  confirmedRef.current = confirmed
+  const readbackNeeded = useRef(false)
+  const [operationNotice, setOperationNotice] = useState<string | null>(null)
+  const canStart = useCallback(() => mounted.current && mountLifetimeRef.current === mountLifetime && preferenceAccessCurrent(liveAccess.current, access), [liveAccess, access, mountLifetime])
+  const currentRequest = (token: number, controller: AbortController) => mounted.current && mountLifetimeRef.current === mountLifetime && !controller.signal.aborted &&
+    generation.current === token && preferenceAccessCurrent(liveAccess.current, access)
+
+  useLayoutEffect(() => {
+    mounted.current = true
+    // Effect reconnect must publish a fresh rendered mount admission. It cannot
+    // make an older captured callback current again merely by setting mounted.
+    setMountRevision(mountLifetimeRef.current)
+    setLoading(false)
+    setSaving(null)
+    if (interruptedWrite.current) {
+      interruptedWrite.current = false
+      setOperationNotice("A previous preference choice is unconfirmed after local interruption. Already dispatched work may have completed. Refresh the saved preferences before deciding whether to send another choice.")
+    }
+    return () => {
+      mounted.current = false
+      ++mountLifetimeRef.current
+      ++generation.current
+      if (requestKind.current === "write") {
+        readbackNeeded.current = true
+        interruptedWrite.current = true
+      }
+      request.current?.abort()
+      request.current = null
+      requestAccess.current = null
+      requestKind.current = null
+      busy.current = false
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    if (requestAccess.current === null || requestAccess.current === access.epoch) return
+    if (requestKind.current === "write") {
+      readbackNeeded.current = true
+      setOperationNotice("A previous preference choice is unconfirmed after account readiness changed. Already dispatched work may have completed. Refresh the saved preferences before deciding whether to send another choice.")
+    }
+    ++generation.current
+    request.current?.abort()
+    request.current = null
+    requestAccess.current = null
+    requestKind.current = null
+    busy.current = false
+    setLoading(false)
+    setSaving(null)
+  }, [access.epoch])
 
   const readPreferences = useCallback(async () => {
-    if (!owner || busy.current || !mounted.current) return
+    if (!canStart() || busy.current) return
     busy.current = true
     const token = ++generation.current
     const controller = new AbortController()
     request.current = controller
+    requestAccess.current = access.epoch
+    requestKind.current = "read"
     setLoading(true)
     setLoadError(null)
     setSavedKey(null)
     try {
       const response = await fetch("/api/preferences", { signal: controller.signal })
+      if (!currentRequest(token, controller)) return
       if (!response.ok) throw new Error("Preferences could not be loaded. Try again.")
       const record: unknown = await response.json()
+      if (!currentRequest(token, controller)) return
       if (!isPreferences(record)) throw new Error("The preference record was incomplete. Try loading it again.")
-      if (!mounted.current || generation.current !== token) return
       setConfirmed(record)
+      readbackNeeded.current = false
+      setOperationNotice(null)
       // Only remove a local choice once the server independently confirms it.
       setChoices((current) => Object.fromEntries(Object.entries(current).filter(([key, value]) => record[key as keyof Preferences] !== value)))
       setSaveErrors({})
     } catch (error) {
-      if (!mounted.current || generation.current !== token || controller.signal.aborted) return
+      if (!currentRequest(token, controller)) return
       setLoadError(error instanceof Error ? error.message : "Preferences could not be loaded. Try again.")
     } finally {
-      if (mounted.current && generation.current === token) {
+      if (currentRequest(token, controller)) {
         busy.current = false
         request.current = null
+        requestAccess.current = null
+        requestKind.current = null
         setLoading(false)
       }
     }
-  }, [owner])
+  }, [canStart, access, liveAccess, mountLifetime])
 
   useEffect(() => {
-    mounted.current = true
-    void readPreferences()
-    return () => {
-      mounted.current = false
-      ++generation.current
-      request.current?.abort()
-      request.current = null
-      busy.current = false
-    }
-  }, [readPreferences])
+    // Re-entry with a confirmed cache keeps local choices. Recovery is an explicit
+    // read, never an automatic repeat of a previously dispatched PATCH.
+    if (access.ready && confirmedRef.current === null) void readPreferences()
+  }, [readPreferences, access.ready])
 
   const savePreference = useCallback(async (key: keyof Preferences, next: boolean) => {
-    if (!owner || !confirmed || busy.current || !mounted.current) return
+    if (!canStart() || !confirmed || busy.current || readbackNeeded.current) return
     busy.current = true
     const token = ++generation.current
     const controller = new AbortController()
     request.current = controller
+    requestAccess.current = access.epoch
+    requestKind.current = "write"
     setChoices((current) => ({ ...current, [key]: next }))
     setSaveErrors((current) => withoutChoice(current, key))
     setSavedKey(null)
@@ -138,26 +212,31 @@ function StudioAccountNotifications({ owner, authLoading, email }: { owner: stri
         body: JSON.stringify({ [key]: next }),
         signal: controller.signal,
       })
+      if (!currentRequest(token, controller)) return
       if (!response.ok) throw new Error("This choice was not confirmed. Retry it or discard the local choice.")
       const record: unknown = await response.json()
+      if (!currentRequest(token, controller)) return
       if (!isPreferences(record) || record[key] !== next) throw new Error("The response did not confirm this choice. Reload preferences or retry.")
-      if (!mounted.current || generation.current !== token) return
       setConfirmed(record)
       setChoices((current) => withoutChoice(current, key))
       setSavedKey(key)
     } catch (error) {
-      if (!mounted.current || generation.current !== token || controller.signal.aborted) return
+      if (!currentRequest(token, controller)) return
       setSaveErrors((current) => ({ ...current, [key]: error instanceof Error ? error.message : "This choice was not confirmed. Please retry." }))
     } finally {
-      if (mounted.current && generation.current === token) {
+      if (currentRequest(token, controller)) {
         busy.current = false
         request.current = null
+        requestAccess.current = null
+        requestKind.current = null
         setSaving(null)
       }
     }
-  }, [owner, confirmed])
+  }, [canStart, access, liveAccess, confirmed, mountLifetime])
 
-  const disabled = !owner || !confirmed || loading || saving !== null
+  if (!access.ready) return <div data-studio-notifications="true" role="status" aria-busy={authLoading}>{authLoading ? "Checking your account…" : "Sign in to load your account preferences."}</div>
+
+  const disabled = !access.ready || readbackNeeded.current || !owner || !confirmed || loading || saving !== null
   const status = authLoading ? "Checking your account…" : !owner ? "Sign in to load your account preferences." : loading ? confirmed ? "Refreshing your saved preferences…" : "Loading your saved preferences…" : loadError ? confirmed ? "Showing the last confirmed record. Refresh failed." : "Preferences unavailable. Switches are disabled until loaded." : confirmed ? "Account preference record loaded." : "Waiting for your preference record…"
 
   return (
@@ -165,8 +244,9 @@ function StudioAccountNotifications({ owner, authLoading, email }: { owner: stri
       <Card className="sn-card">
         <CardHeader className="sn-header"><CardTitle>Email Notifications</CardTitle><CardDescription>Choose what emails you want to receive</CardDescription></CardHeader>
         <CardContent className="sn-body">
-          <div className="sn-load"><span role="status">{loading && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}{status}</span><button type="button" className="sn-action" onClick={() => void readPreferences()} disabled={!owner || loading || saving !== null} data-studio-notifications-refresh>{loadError ? "Retry loading" : "Refresh"}</button></div>
+          <div className="sn-load"><span role="status">{loading && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}{status}</span><button type="button" className="sn-action" onClick={() => void readPreferences()} disabled={!access.ready || !owner || loading || saving !== null} data-studio-notifications-refresh>{loadError ? "Retry loading" : "Refresh"}</button></div>
           {loadError && <p className="sn-error" role="alert">{loadError}</p>}
+          {operationNotice && <p role="status">{operationNotice}</p>}
           {EMAIL_PREFS.map((row) => {
             const id = `notification-${row.key}`
             const hasChoice = choices[row.key] !== undefined
@@ -176,7 +256,7 @@ function StudioAccountNotifications({ owner, authLoading, email }: { owner: stri
               {hasChoice && saving !== row.key && <div className="sn-row-recovery">
                 {saveErrors[row.key] && <p id={`${id}-error`} className="sn-error" role="alert">{saveErrors[row.key]}</p>}
                 <button type="button" className="sn-action" disabled={disabled} onClick={() => void savePreference(row.key, choices[row.key]!)}>Retry choice</button>
-                <button type="button" className="sn-action" disabled={loading || saving !== null} onClick={() => { setChoices((current) => withoutChoice(current, row.key)); setSaveErrors((current) => { const next = { ...current }; delete next[row.key]; return next }); setSavedKey(null) }}>Discard local choice</button>
+                <button type="button" className="sn-action" disabled={loading || saving !== null} onClick={() => { if (!canStart() || busy.current) return; setChoices((current) => withoutChoice(current, row.key)); setSaveErrors((current) => { const next = { ...current }; delete next[row.key]; return next }); setSavedKey(null) }}>Discard local choice</button>
               </div>}
             </div>
           })}
