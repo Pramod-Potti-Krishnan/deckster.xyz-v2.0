@@ -343,6 +343,7 @@ interface PresentationViewerProps {
     // MDC P8: index-based navigation for chat-invoked element placement.
     goToSlide: (slideIndex: number) => Promise<void>
     getStudioIntroductionSafety?: () => StudioIntroductionSafety
+    captureStudioElementGeneration?: () => StudioElementGenerationLease | null
   } | null) => void
   onStudioIntroductionSafetyChange?: (safety: StudioIntroductionSafety | null) => void
   onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
@@ -356,6 +357,12 @@ export interface StudioIntroductionSafety {
   dirty: boolean
   busy: boolean
   error: boolean
+}
+
+/** Local operation lifetime; it adds no native command or service request. */
+export interface StudioElementGenerationLease {
+  isCurrent: () => boolean
+  sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
 }
 
 export interface StudioComposeSelectionContext {
@@ -2987,6 +2994,34 @@ export function PresentationViewer({
     return sendCommand(iframeRef.current, action, params)
   }, [presentationId, currentSlide, triggerIframeRefresh, studioShell])
 
+  const captureStudioElementGeneration = useCallback((): StudioElementGenerationLease | null => {
+    const owner = renderSlideMutationOwner
+    const mode = studioFormatModeRef.current
+    const safety = getStudioIntroductionSafety()
+    if (!studioShell || !owner.userId || !owner.presentationId || !owner.sessionId
+      || owner.sessionId === 'new' || owner.deckOwnerSessionId !== owner.sessionId
+      || mode.enabled || !safety.ready || safety.busy || safety.error) return null
+    const frame = captureStudioNativeSlideFrame()
+    if (!frame) return null
+    let retired = false
+    const isCurrent = () => {
+      if (retired) return false
+      const current = frame.isCurrent() && studioFormatModeRef.current === mode
+        && !mode.enabled && getStudioIntroductionSafety().ready
+      if (!current) retired = true
+      return current
+    }
+    return {
+      isCurrent,
+      sendElementCommand: async (action, params) => {
+        if (!isCurrent()) throw new Error('The presentation viewer changed during element generation.')
+        const result = await handleSendElementCommand(action, params)
+        if (!isCurrent()) throw new Error('The presentation viewer changed during element generation. Check the original slide before retrying.')
+        return result
+      },
+    }
+  }, [studioShell, renderSlideMutationOwner, captureStudioNativeSlideFrame, getStudioIntroductionSafety, handleSendElementCommand])
+
   const handleComposePlaceholderAdd = useCallback((jobId: string, visualIndex: number, replaceJobId?: string) => {
     if (studioShell && iframeRef.current) {
       viewerInteractionIntentRef.current += 1
@@ -3314,11 +3349,11 @@ export function PresentationViewer({
       sendElementCommand: handleSendElementCommand,
       // MDC P8: index-based navigation for chat-invoked element placement.
       goToSlide: handleGoToSlide,
-      ...(studioShell ? { getStudioIntroductionSafety } : {})
+      ...(studioShell ? { getStudioIntroductionSafety, captureStudioElementGeneration } : {})
     })
 
     return () => onApiReady(null)
-  }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand, handleGoToSlide, studioShell, getStudioIntroductionSafety])
+  }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand, handleGoToSlide, studioShell, getStudioIntroductionSafety, captureStudioElementGeneration])
 
   useEffect(() => {
     if (!onComposeApiReady) return

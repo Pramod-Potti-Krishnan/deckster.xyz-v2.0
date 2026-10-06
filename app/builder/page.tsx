@@ -40,7 +40,7 @@ import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBu
 import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
 import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
-import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext } from '@/components/presentation-viewer'
+import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease } from '@/components/presentation-viewer'
 import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
 import {
   createStudioComposeRestoreTarget, resolveStudioComposeRestore, verifyStudioComposeRestoreSelection,
@@ -821,6 +821,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
     goToSlide: (slideIndex: number) => Promise<void>
     getStudioIntroductionSafety?: () => StudioIntroductionSafety
+    captureStudioElementGeneration?: () => StudioElementGenerationLease | null
   } | null>(null)
   const [studioViewerSafety, setStudioViewerSafety] = useState<StudioIntroductionSafety | null>(null)
   const studioInitialBlankProofRef = useRef(initialStudioInitialStageOwnerState())

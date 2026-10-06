@@ -15,6 +15,7 @@ import {
   getDefaultSize,
 } from '@/lib/textlabs-client'
 import type { RefineContext } from '@/hooks/use-element-refinement'
+import type { StudioElementGenerationLease } from '@/components/presentation-viewer'
 import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import {
   ElementGenerationPreflightError,
@@ -155,6 +156,7 @@ interface UseTextLabsGenerationParams {
   }
   layoutServiceApis: {
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
+    captureStudioElementGeneration?: () => StudioElementGenerationLease | null
   } | null
   presentationId?: string | null
   currentSlideIndex: number
@@ -313,10 +315,23 @@ export function useTextLabsGeneration({
     invocation?: { kind: 'chat-add'; slideIndex: number },
   ): Promise<TextLabsGenerationResult> => {
     const expectedPresentationTarget = renderPresentationTarget
+    const nativeGenerationLease = studio
+      ? layoutServiceApis?.captureStudioElementGeneration?.() ?? null
+      : null
+    const generationLayoutServiceApis = studio && nativeGenerationLease
+      ? { sendElementCommand: nativeGenerationLease.sendElementCommand }
+      : layoutServiceApis
+    const presentationOwnerIsStillAuthoritative = () => (
+      generationHookMountedRef.current
+      && activePresentationTargetRef.current.presentationId === expectedPresentationTarget.presentationId
+      && activePresentationTargetRef.current.epoch === expectedPresentationTarget.epoch
+    )
+    const presentationIsStillAuthoritative = () => presentationOwnerIsStillAuthoritative()
+      && (!studio || Boolean(nativeGenerationLease?.isCurrent()))
     let generationError: string | null = null
     const setGenerationError = (error: string | null) => {
       generationError = error
-      generationPanel.setError(error)
+      if (!studio || presentationIsStillAuthoritative()) generationPanel.setError(error)
     }
     const failureOutcome = (error?: string): TextLabsGenerationResult => ({
       status: 'failed',
@@ -324,6 +339,11 @@ export function useTextLabsGeneration({
       slideIndex: typeof formData.slideIndex === 'number' ? formData.slideIndex : null,
       error: error ?? generationError ?? 'No element insertion was confirmed. Review the element settings and try again.',
     })
+    if (studio && !nativeGenerationLease) {
+      const error = 'The presentation viewer is not ready. Wait for it to load before generating an element.'
+      if (presentationOwnerIsStillAuthoritative()) generationPanel.setError(error)
+      return failureOutcome(error)
+    }
     const retryCandidate = diagramRetryCandidateForPreDispatch(
       submitIntent,
       retryCandidateRef.current,
@@ -389,11 +409,6 @@ export function useTextLabsGeneration({
     // callbacks can remain mounted across deck transitions and must not revive
     // a captured presentation ID from the previous viewer.
     formData.presentationId = expectedPresentationTarget.presentationId
-    const presentationIsStillAuthoritative = () => (
-      generationHookMountedRef.current
-      && activePresentationTargetRef.current.presentationId === expectedPresentationTarget.presentationId
-      && activePresentationTargetRef.current.epoch === expectedPresentationTarget.epoch
-    )
     const blankId = invocation ? null : generationPanel.blankElementId
     const trackedBlankInfo = blankId ? blankElements.getElement(blankId) : undefined
     let blankInfo = trackedBlankInfo
@@ -408,7 +423,8 @@ export function useTextLabsGeneration({
       generationLifecycleCleaned = true
       const refineOverlayTargetSurvived = !refineElementDeleted
         || Boolean(refineContext && insertedElementIds.includes(refineContext.elementId))
-      if (currentBlankId && blankOverlayActive && !blankTrackingWasRemoved) {
+      if ((!studio || presentationIsStillAuthoritative())
+        && currentBlankId && blankOverlayActive && !blankTrackingWasRemoved) {
         try {
           blankElements.setStatus(currentBlankId, 'blank')
         } catch (error) {
@@ -420,10 +436,10 @@ export function useTextLabsGeneration({
         && currentBlankId
         && blankOverlayActive
         && !blankTrackingWasRemoved
-        && layoutServiceApis?.sendElementCommand
+        && generationLayoutServiceApis?.sendElementCommand
       ) {
         try {
-          const overlayResponse = await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+          const overlayResponse = await generationLayoutServiceApis.sendElementCommand('setElementGenerationState', {
             elementId: currentBlankId,
             generating: false,
           })
@@ -437,10 +453,10 @@ export function useTextLabsGeneration({
         && refineContext
         && refineOverlayActive
         && refineOverlayTargetSurvived
-        && layoutServiceApis?.sendElementCommand
+        && generationLayoutServiceApis?.sendElementCommand
       ) {
         try {
-          const overlayResponse = await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+          const overlayResponse = await generationLayoutServiceApis.sendElementCommand('setElementGenerationState', {
             elementId: refineContext.elementId,
             generating: false,
           })
@@ -470,7 +486,7 @@ export function useTextLabsGeneration({
         setGenerationError('The active presentation is unavailable, so its deck theme cannot be resolved.')
         return failureOutcome()
       }
-      if ((blankId || refineContext) && !layoutServiceApis?.sendElementCommand) {
+      if ((blankId || refineContext) && !generationLayoutServiceApis?.sendElementCommand) {
         setGenerationError('The presentation is still loading. Wait a moment and try again.')
         return failureOutcome()
       }
@@ -479,9 +495,9 @@ export function useTextLabsGeneration({
       // identity is validated. Theme, geometry, and slide-context preflights can
       // all take noticeable time; every exit below is covered by the outer
       // lifecycle finally without replacing the authoritative placeholder.
-      if (refineContext && layoutServiceApis?.sendElementCommand) {
+      if (refineContext && generationLayoutServiceApis?.sendElementCommand) {
         try {
-          const overlayResponse = await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+          const overlayResponse = await generationLayoutServiceApis.sendElementCommand('setElementGenerationState', {
             elementId: refineContext.elementId,
             generating: true,
             label: 'Regenerating…',
@@ -490,7 +506,7 @@ export function useTextLabsGeneration({
           refineOverlayActive = true
         } catch (error) {
           try {
-            await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+            await generationLayoutServiceApis.sendElementCommand('setElementGenerationState', {
               elementId: refineContext.elementId,
               generating: false,
             })
@@ -506,10 +522,10 @@ export function useTextLabsGeneration({
         }
       }
 
-      if (blankId && trackedBlankInfo && layoutServiceApis?.sendElementCommand) {
+      if (blankId && trackedBlankInfo && generationLayoutServiceApis?.sendElementCommand) {
         blankElements.setStatus(blankId, 'generating')
         try {
-          const overlayResponse = await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+          const overlayResponse = await generationLayoutServiceApis.sendElementCommand('setElementGenerationState', {
             elementId: blankId,
             generating: true,
             label: 'Generating…',
@@ -519,7 +535,7 @@ export function useTextLabsGeneration({
         } catch (error) {
           blankElements.setStatus(blankId, 'blank')
           try {
-            await layoutServiceApis.sendElementCommand('setElementGenerationState', {
+            await generationLayoutServiceApis.sendElementCommand('setElementGenerationState', {
               elementId: blankId,
               generating: false,
             })
@@ -669,11 +685,11 @@ export function useTextLabsGeneration({
     // A blank placeholder's live DOM geometry is authoritative. Resolve it
     // before starting Text Labs so a failed query leaves the user's placeholder
     // untouched instead of falling back to stale defaults.
-    if (blankId && trackedBlankInfo && layoutServiceApis?.sendElementCommand) {
+    if (blankId && trackedBlankInfo && generationLayoutServiceApis?.sendElementCommand) {
       try {
         const supportsLayoutThemeMetadata = componentSupportsThemeVariants(formData.componentType)
         const snapshot = await readElementGenerationSnapshot({
-          sendCommand: layoutServiceApis.sendElementCommand,
+          sendCommand: generationLayoutServiceApis.sendElementCommand,
           elementId: blankId,
           componentType: formData.componentType,
           useDeckTheme: formData.useDeckTheme === true,
@@ -718,7 +734,7 @@ export function useTextLabsGeneration({
     }
 
     if (refineContext) {
-      if (!layoutServiceApis?.sendElementCommand) {
+      if (!generationLayoutServiceApis?.sendElementCommand) {
         setGenerationError('The presentation is still loading. Wait a moment and try again.')
         return failureOutcome()
       }
@@ -733,7 +749,7 @@ export function useTextLabsGeneration({
 
       try {
         const snapshot = await readElementGenerationSnapshot({
-          sendCommand: layoutServiceApis.sendElementCommand,
+          sendCommand: generationLayoutServiceApis.sendElementCommand,
           elementId: refineContext.elementId,
           componentType: refineContext.elementType,
           useDeckTheme: formData.useDeckTheme === true,
@@ -943,13 +959,13 @@ export function useTextLabsGeneration({
     if (researchPolicy) formData.research = researchPolicy
     else delete formData.research
 
-    if (!layoutServiceApis?.sendElementCommand) {
+    if (!generationLayoutServiceApis?.sendElementCommand) {
       setGenerationError('The presentation viewer is unavailable, so live slide context could not be read.')
       return failureOutcome()
     }
     const deckReference = deckContext ?? refineContext?.deckContext ?? null
     try {
-      const contextResponse = await layoutServiceApis.sendElementCommand('getSlideGenerationContext', {
+      const contextResponse = await generationLayoutServiceApis.sendElementCommand('getSlideGenerationContext', {
         slideIndex: generationSlideIndex,
         targetElementId: blankId ?? refineContext?.elementId ?? undefined,
       })
@@ -988,10 +1004,10 @@ export function useTextLabsGeneration({
       formData.useDeckTheme === true &&
       formData.count > 1 &&
       formData.elements?.length === formData.count &&
-      layoutServiceApis?.sendElementCommand
+      generationLayoutServiceApis?.sendElementCommand
     ) {
       try {
-        const assignmentResponse = await layoutServiceApis.sendElementCommand('getElementThemeVariants', {
+        const assignmentResponse = await generationLayoutServiceApis.sendElementCommand('getElementThemeVariants', {
           componentType: formData.componentType,
           count: formData.count,
           slideIndex: generationSlideIndex,
@@ -1086,6 +1102,7 @@ export function useTextLabsGeneration({
 
     try {
       const sessionId = await textLabsSession.ensureSession(controller.signal)
+      assertGenerationTargetIsStillAuthoritative()
 
       let response
       if (formData.componentType === 'INFOGRAPHIC' && formData.referenceImage) {
@@ -1169,6 +1186,9 @@ export function useTextLabsGeneration({
               )
             ),
             send: async (attemptId, freshBackendDeadlineMs) => {
+              // The handoff may dispatch after the initial response settles.
+              // Recheck its captured Studio owner before every service send.
+              if (studio) assertGenerationTargetIsStillAuthoritative()
               generationAttemptId = attemptId
               formData.generationAttemptId = attemptId
               options.generationAttemptId = attemptId
@@ -1181,14 +1201,23 @@ export function useTextLabsGeneration({
                 }
                 options.deadlineMs = freshBackendDeadlineMs
               }
-              return sendTextLabsMessage(
-                sessionId,
-                message,
-                options,
-                controller.signal,
-              )
+              try {
+                const result = await sendTextLabsMessage(
+                  sessionId,
+                  message,
+                  options,
+                  controller.signal,
+                )
+                if (studio) assertGenerationTargetIsStillAuthoritative()
+                return result
+              } catch (error) {
+                // A retired failure cannot grant a fresh recovery attempt.
+                if (studio) assertGenerationTargetIsStillAuthoritative()
+                throw error
+              }
             },
             onFreshAttempt: attemptId => {
+              if (studio && !presentationIsStillAuthoritative()) return
               generationAttemptId = attemptId
               formData.generationAttemptId = attemptId
               options.generationAttemptId = attemptId
@@ -1210,6 +1239,7 @@ export function useTextLabsGeneration({
               )
             },
           })
+          if (studio) assertGenerationTargetIsStillAuthoritative()
           generationAttemptId = requestResult.attemptId
           formData.generationAttemptId = generationAttemptId
           options.generationAttemptId = generationAttemptId
@@ -1401,7 +1431,7 @@ export function useTextLabsGeneration({
           : semanticUpsertParams ? 'upsertSemanticElement'
           : method === 'insertElement' ? 'insertTextBox' : method
         const insertResponse = await sendLayoutMutationWithReconciliation(
-          layoutServiceApis.sendElementCommand,
+          generationLayoutServiceApis.sendElementCommand,
           insertionAction,
           (citedUpsertParams ?? semanticUpsertParams ?? params) as Record<string, unknown>,
           `${lifecycleMutationId}:insert:${index}`,
@@ -1431,7 +1461,7 @@ export function useTextLabsGeneration({
         }
         if (insertedElementId) {
           insertedElementIds.push(insertedElementId)
-          if (!invocation) generationPanel.rememberDraftForElement(insertedElementId, formData,
+          if (!invocation && (!studio || presentationIsStillAuthoritative())) generationPanel.rememberDraftForElement(insertedElementId, formData,
             studio && insertionComponentType === 'METRICS'
               ? { elementId: insertedElementId, elementType: 'METRICS' }
               : undefined)
@@ -1569,12 +1599,12 @@ export function useTextLabsGeneration({
       // insertion therefore leaves the authoritative original recoverable.
       if (
         currentBlankId
-        && layoutServiceApis?.sendElementCommand
+        && generationLayoutServiceApis?.sendElementCommand
         && !insertedElementIds.includes(currentBlankId)
       ) {
         try {
           const deleteResponse = await sendLayoutMutationWithReconciliation(
-            layoutServiceApis.sendElementCommand,
+            generationLayoutServiceApis.sendElementCommand,
             'deleteElement',
             { elementId: currentBlankId },
             `${lifecycleMutationId}:delete-placeholder-after-insert`,
@@ -1597,11 +1627,11 @@ export function useTextLabsGeneration({
         }
       }
 
-      if (refineContext && !refineElementDeleted && layoutServiceApis?.sendElementCommand) {
+      if (refineContext && !refineElementDeleted && generationLayoutServiceApis?.sendElementCommand) {
         try {
           assertGenerationTargetIsStillAuthoritative()
           const deleteResponse = await sendLayoutMutationWithReconciliation(
-            layoutServiceApis.sendElementCommand,
+            generationLayoutServiceApis.sendElementCommand,
             'deleteElement',
             { elementId: refineContext.elementId },
             `${lifecycleMutationId}:delete-original`,
@@ -1625,7 +1655,7 @@ export function useTextLabsGeneration({
           }
           const rollbackResults = await Promise.allSettled(
             insertedElementIds.map((elementId, index) => sendLayoutMutationWithReconciliation(
-              layoutServiceApis.sendElementCommand,
+              generationLayoutServiceApis.sendElementCommand,
               'deleteElement',
               { elementId },
               `${lifecycleMutationId}:rollback-original-delete:${index}`,
@@ -1644,6 +1674,7 @@ export function useTextLabsGeneration({
         }
       }
 
+      assertGenerationTargetIsStillAuthoritative()
       if (currentBlankId && generatedRefineContext && elements.length === 1) {
         generationPanel.completeBlankReplacement(
           generatedRefineContext.elementType,
@@ -1667,19 +1698,21 @@ export function useTextLabsGeneration({
       let errorRetryStrategy = diagramRequestWasDispatched
         ? diagramRetryStrategyForFailure(err)
         : null
-      if (
-        diagramRequestWasDispatched
-        && dispatchedDiagramRequestFingerprint
-        && errorRetryStrategy === 'resume_same_attempt'
-        && isAmbiguousDiagramRequestFailure(err)
-      ) {
-        retryCandidateRef.current = {
-          attemptId: generationAttemptId,
-          requestFingerprint: dispatchedDiagramRequestFingerprint,
+      if (!studio || presentationIsStillAuthoritative()) {
+        if (
+          diagramRequestWasDispatched
+          && dispatchedDiagramRequestFingerprint
+          && errorRetryStrategy === 'resume_same_attempt'
+          && isAmbiguousDiagramRequestFailure(err)
+        ) {
+          retryCandidateRef.current = {
+            attemptId: generationAttemptId,
+            requestFingerprint: dispatchedDiagramRequestFingerprint,
+          }
+        } else if (diagramRequestWasDispatched) {
+          // A terminal response must never retain an older ambiguous identity.
+          retryCandidateRef.current = null
         }
-      } else if (diagramRequestWasDispatched) {
-        // A terminal response must never retain an older ambiguous identity.
-        retryCandidateRef.current = null
       }
       let errorMessage = 'Generation failed'
       if (
@@ -1732,11 +1765,11 @@ export function useTextLabsGeneration({
         !presentationTargetChanged &&
         (!refineContext || !refineElementDeleted) &&
         insertedElementIds.length > 0 &&
-        layoutServiceApis?.sendElementCommand
+        generationLayoutServiceApis?.sendElementCommand
       ) {
         const rollbackResults = await Promise.allSettled(
           insertedElementIds.map((elementId, index) => sendLayoutMutationWithReconciliation(
-            layoutServiceApis.sendElementCommand,
+            generationLayoutServiceApis.sendElementCommand,
             'deleteElement',
             { elementId },
             `${lifecycleMutationId}:rollback-generation:${index}`,
@@ -1756,7 +1789,7 @@ export function useTextLabsGeneration({
         currentBlankId &&
         currentBlankInfo &&
         blankTrackingWasRemoved &&
-        layoutServiceApis?.sendElementCommand
+        generationLayoutServiceApis?.sendElementCommand
       ) {
         const recoveryBlankInfo = currentBlankInfo
         blankElements.setStatus(currentBlankId, 'blank')
@@ -1767,10 +1800,10 @@ export function useTextLabsGeneration({
           restoredBlankElementId = await restoreBlankElementAfterFailure({
             elementId: currentBlankId,
             trackingWasRemoved: blankTrackingWasRemoved,
-            deleteElement: () => layoutServiceApis.sendElementCommand('deleteElement', {
+            deleteElement: () => generationLayoutServiceApis.sendElementCommand('deleteElement', {
               elementId: currentBlankId,
             }),
-            insertElement: () => layoutServiceApis.sendElementCommand('insertTextBox', {
+            insertElement: () => generationLayoutServiceApis.sendElementCommand('insertTextBox', {
               elementId: currentBlankId,
               slideIndex: recoveryBlankInfo.slideIndex,
               content: placeholderHtml,
@@ -1817,23 +1850,25 @@ export function useTextLabsGeneration({
       }
       // openPanelForElement clears prior panel errors, so publish the final
       // failure only after any placeholder/tracking recovery has completed.
-      const latestPanel = generationPanel.getSnapshot()
-      const ownsCurrentPanel = currentBlankId
-        ? latestPanel.blankElementId === currentBlankId || latestPanel.blankElementId === restoredBlankElementId
-        : refineContext
-          ? latestPanel.editElementId === refineContext.elementId
-          : !latestPanel.isOpen
-      if (currentBlankId && currentBlankInfo && (!latestPanel.isOpen || ownsCurrentPanel)) {
-        setGenerationError(errorMessage)
-        generationPanel.setRetryStrategy(errorRetryStrategy)
-      } else if (ownsCurrentPanel || !latestPanel.isOpen) {
-        setGenerationError(errorMessage)
-        generationPanel.setRetryStrategy(errorRetryStrategy)
-      } else {
-        toast({
-          title: 'Element generation failed',
-          description: errorMessage,
-        })
+      if (!studio || presentationIsStillAuthoritative()) {
+        const latestPanel = generationPanel.getSnapshot()
+        const ownsCurrentPanel = currentBlankId
+          ? latestPanel.blankElementId === currentBlankId || latestPanel.blankElementId === restoredBlankElementId
+          : refineContext
+            ? latestPanel.editElementId === refineContext.elementId
+            : !latestPanel.isOpen
+        if (currentBlankId && currentBlankInfo && (!latestPanel.isOpen || ownsCurrentPanel)) {
+          setGenerationError(errorMessage)
+          generationPanel.setRetryStrategy(errorRetryStrategy)
+        } else if (ownsCurrentPanel || !latestPanel.isOpen) {
+          setGenerationError(errorMessage)
+          generationPanel.setRetryStrategy(errorRetryStrategy)
+        } else {
+          toast({
+            title: 'Element generation failed',
+            description: errorMessage,
+          })
+        }
       }
       return failureOutcome(errorMessage)
       } finally {
