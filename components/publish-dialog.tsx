@@ -38,6 +38,7 @@ import {
   type WizardStepResult,
 } from '@/components/publish-wizard'
 import { NarrationVoicePicker } from '@/components/narration-voice-picker'
+import { StudioPublishViewerSummary } from '@/components/studio-publish-viewer-summary'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
@@ -255,6 +256,7 @@ export function PublishDialog({
   const isLive = Boolean(record && !record.revokedAt)
   const isStale = staleness === 'stale'
   const busy = isPublishing || savingField !== null || isRotating || isUnpublishing
+
 
   /**
    * Mirror the form onto the record — and, for a DEFINITIVE "not published",
@@ -521,6 +523,73 @@ export function PublishDialog({
   // so its scripts and its audio may no longer match it — offering the same
   // "write / record" steps is the only place that staleness gets resolved.
   const [republishing, setRepublishing] = useState(false)
+
+  // Keep only an already active, non-media settings island during a Viewer
+  // visit. Unvisited tools stay lazy; Voice retains its original audio cleanup.
+  const managementOwnerRef = React.useRef({ sessionId, recordSessionId: record?.sessionId, recordId: record?.id, slug: record?.slug, snapshotId: record?.snapshotPresentationId, revokedAt: record?.revokedAt, open, isLoading, republishing, wizardActive: wizardProgress !== null })
+  if (managementOwnerRef.current.sessionId !== sessionId || managementOwnerRef.current.recordId !== record?.id
+    || managementOwnerRef.current.recordSessionId !== record?.sessionId || managementOwnerRef.current.snapshotId !== record?.snapshotPresentationId
+    || managementOwnerRef.current.slug !== record?.slug || managementOwnerRef.current.revokedAt !== record?.revokedAt
+    || managementOwnerRef.current.open !== open || managementOwnerRef.current.isLoading !== isLoading
+    || managementOwnerRef.current.republishing !== republishing || managementOwnerRef.current.wizardActive !== (wizardProgress !== null)) {
+    managementOwnerRef.current = { sessionId, recordSessionId: record?.sessionId, recordId: record?.id, slug: record?.slug, snapshotId: record?.snapshotPresentationId, revokedAt: record?.revokedAt, open, isLoading, republishing, wizardActive: wizardProgress !== null }
+  }
+  const managementOwner = managementOwnerRef.current
+  const managementEligibilityRef = React.useRef({
+    owner: managementOwner,
+    qa: { available: record?.qaEnabled === true, occurrence: {} },
+    voice: { available: record?.narrationEnabled === true, occurrence: {} },
+  })
+  if (managementEligibilityRef.current.owner !== managementOwner) {
+    managementEligibilityRef.current = {
+      owner: managementOwner,
+      qa: { available: record?.qaEnabled === true, occurrence: {} },
+      voice: { available: record?.narrationEnabled === true, occurrence: {} },
+    }
+  } else {
+    if (managementEligibilityRef.current.qa.available !== (record?.qaEnabled === true)) {
+      managementEligibilityRef.current.qa = { available: record?.qaEnabled === true, occurrence: {} }
+    }
+    if (managementEligibilityRef.current.voice.available !== (record?.narrationEnabled === true)) {
+      managementEligibilityRef.current.voice = { available: record?.narrationEnabled === true, occurrence: {} }
+    }
+  }
+  const qaOccurrence = managementEligibilityRef.current.qa.occurrence
+  const voiceOccurrence = managementEligibilityRef.current.voice.occurrence
+  const isManagementToolCurrent = useCallback((tool: string, occurrence: object | null) => {
+    if (tool === 'qa' || tool === 'voice') {
+      const eligibility = managementEligibilityRef.current[tool]
+      return eligibility.available && eligibility.occurrence === occurrence
+    }
+    return true
+  }, [])
+  const [managementTabState, setManagementTabState] = useState<{
+    owner: typeof managementOwner; active: string; lastSettings: string; toolOccurrence: object | null
+  } | null>(null)
+  const managementTab = managementTabState?.owner === managementOwner
+    && isManagementToolCurrent(managementTabState.lastSettings, managementTabState.toolOccurrence) ? managementTabState
+    : { owner: managementOwner, active: 'sharing', lastSettings: 'sharing', toolOccurrence: null }
+  const handleManagementTabChange = useCallback((value: string) => {
+    const targetOccurrence = value === 'qa' ? qaOccurrence : value === 'voice' ? voiceOccurrence : null
+    if (!STUDIO_PUBLISH || !open || managementOwnerRef.current !== managementOwner
+      || !['sharing', 'qa', 'voice', 'viewer'].includes(value)
+      || !isManagementToolCurrent(managementTab.lastSettings, managementTab.toolOccurrence)
+      || !isManagementToolCurrent(value, targetOccurrence)) return
+    setManagementTabState(previous => {
+      if (managementOwnerRef.current !== managementOwner
+        || !isManagementToolCurrent(managementTab.lastSettings, managementTab.toolOccurrence)
+        || !isManagementToolCurrent(value, targetOccurrence)) return previous
+      const current = previous?.owner === managementOwner
+        && isManagementToolCurrent(previous.lastSettings, previous.toolOccurrence) ? previous : managementTab
+      return {
+        owner: managementOwner, active: value,
+        lastSettings: value === 'viewer' ? current.lastSettings : value,
+        toolOccurrence: value === 'viewer' ? current.toolOccurrence : targetOccurrence,
+      }
+    })
+  }, [managementOwner, open, managementTab, qaOccurrence, voiceOccurrence, isManagementToolCurrent])
+  const retainedSettingsTab = STUDIO_PUBLISH && managementTab.active === 'viewer' ? managementTab.lastSettings : null
+
 
   /**
    * Publish, then do everything the choices implied.
@@ -798,7 +867,7 @@ export function PublishDialog({
           ))}
         </SelectContent>
       </Select>
-      <p id="publish-visibility-hint" className="text-xs text-muted-foreground">{VISIBILITY_LABELS[visibility].hint}</p>
+      <p id="publish-visibility-hint" className="text-xs text-muted-foreground">{VISIBILITY_LABELS[visibility]?.hint ?? 'The saved access setting is not confirmed.'}</p>
     </div>
   )
 
@@ -897,7 +966,8 @@ export function PublishDialog({
    * configure, so the pre-publish form stays a single plain column.
    */
   const liveSettingsTabs = record ? (
-    <Tabs defaultValue="sharing" className="w-full studio-publish-management">
+    <Tabs defaultValue="sharing" className="w-full studio-publish-management"
+      {...(STUDIO_PUBLISH ? { value: managementTab.active, onValueChange: handleManagementTabChange } : {})}>
       <TabsList className="grid w-full grid-cols-3" aria-label="Published deck settings">
         <TabsTrigger value="sharing">Sharing</TabsTrigger>
         {/* Disabled rather than hidden when the master switch is off: a tab that
@@ -924,11 +994,19 @@ export function PublishDialog({
             />
           )}
         </TabsTrigger>
+        {STUDIO_PUBLISH && <TabsTrigger value="viewer" data-studio-publish-viewer-tab="true">Viewer page</TabsTrigger>}
       </TabsList>
       {STUDIO_PUBLISH && (!record.qaEnabled || !record.narrationEnabled) && (
         <p id="publish-feature-help" className="studio-publish-tab-hint">Turn on {!record.qaEnabled && !record.narrationEnabled ? 'questions or narration' : !record.qaEnabled ? 'questions' : 'narration'} in Sharing to open its settings.</p>
       )}
-      <TabsContent value="sharing" className="mt-4 space-y-5 studio-publish-sharing">
+      <TabsContent value="sharing" className="mt-4 space-y-5 studio-publish-sharing"
+        {...(STUDIO_PUBLISH ? {
+          forceMount: retainedSettingsTab === 'sharing' ? true : undefined,
+          hidden: retainedSettingsTab === 'sharing' ? true : undefined,
+          inert: retainedSettingsTab === 'sharing' ? true : undefined,
+          'aria-hidden': retainedSettingsTab === 'sharing' ? true : undefined,
+          'data-studio-viewer-retained': retainedSettingsTab === 'sharing' ? 'true' : undefined,
+        } : {})}>
         {liveSettingsForm}
         {/* The master switches sit UNDER sharing, not in a tab of their own:
             they are the decisions this dialog exists to make, and burying them
@@ -938,7 +1016,14 @@ export function PublishDialog({
           <PublishSessionControls record={record} onRecordChange={setRecord} disabled={busy} />
         </div>
       </TabsContent>
-      <TabsContent value="qa" className="mt-4">
+      <TabsContent value="qa" className="mt-4"
+        {...(STUDIO_PUBLISH ? {
+          forceMount: retainedSettingsTab === 'qa' && record.qaEnabled === true ? true : undefined,
+          hidden: retainedSettingsTab === 'qa' ? true : undefined,
+          inert: retainedSettingsTab === 'qa' ? true : undefined,
+          'aria-hidden': retainedSettingsTab === 'qa' ? true : undefined,
+          'data-studio-viewer-retained': retainedSettingsTab === 'qa' ? 'true' : undefined,
+        } : {})}>
         <PublishQaSettings record={record} onRecordChange={setRecord} disabled={busy} />
       </TabsContent>
       <TabsContent value="voice" className="mt-4 studio-publish-voice">
@@ -949,6 +1034,9 @@ export function PublishDialog({
           hasBudget={Boolean(record.narrationBudgetMinutes)}
         />
       </TabsContent>
+      {STUDIO_PUBLISH && <TabsContent value="viewer" className="mt-4">
+        <StudioPublishViewerSummary record={record} sessionId={sessionId} isLoading={isLoading} loadError={loadError} staleness={staleness} />
+      </TabsContent>}
     </Tabs>
   ) : (
     liveSettingsForm
