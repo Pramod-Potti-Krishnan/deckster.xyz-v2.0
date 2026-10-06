@@ -890,7 +890,9 @@ export function useBuilderSession({
       if (msg.type === 'slide_update') {
         const slideUpdate = msg as SlideUpdate
         const presentationTitle = slideUpdate.payload.metadata.main_title
-        if (presentationTitle) {
+        // Persist initialization frames above, but their placeholder title is
+        // not an authored presentation title.
+        if (presentationTitle && slideUpdate.payload.is_blank !== true) {
           debugLog('📝 Updating session title from presentation:', presentationTitle)
           persistence.updateMetadata({
             title: presentationTitle
@@ -910,7 +912,7 @@ export function useBuilderSession({
     if (lastMessage.type === 'slide_update') {
       const slideUpdate = lastMessage as SlideUpdate
       const presentationTitle = slideUpdate.payload.metadata.main_title
-      if (presentationTitle && !hasTitleFromPresentationRef.current) {
+      if (presentationTitle && slideUpdate.payload.is_blank !== true && !hasTitleFromPresentationRef.current) {
         debugLog('📝 Updating session title from presentation:', presentationTitle)
         persistence.updateMetadata({
           title: presentationTitle
