@@ -66,6 +66,15 @@
 [data-studio-v4-shell="true"] .studio-welcome-caption { display:flex; gap:12px; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-top:14px; font-size:11px; color:var(--ss-muted); }
 [data-studio-v4-shell="true"] .studio-welcome-caption :is(span,a) { display:flex; align-items:center; gap:6px; }
 [data-studio-v4-shell="true"] .studio-welcome-caption a { color:var(--ss-teal); }
+/* The static specimen can grow with its text at a narrow allocation. The real
+   Layout iframe and its supported minimum dimensions are separate surfaces. */
+[data-studio-v4-shell="true"] .studio-welcome-stage { container-type:inline-size; container-name:studio-welcome; }
+@container studio-welcome (max-width: 560px) {
+  [data-studio-v4-shell="true"] .studio-welcome-slide { aspect-ratio:auto; padding:24px; }
+  [data-studio-v4-shell="true"] .studio-welcome-eyebrow { font-size:10px; }
+  [data-studio-v4-shell="true"] .studio-welcome-slide p { font-size:12px; }
+  [data-studio-v4-shell="true"] .studio-welcome-slide-bottom { position:static; margin-top:24px; }
+}
 [data-studio-v4-shell="true"] .studio-brief-handoff { margin:8px 12px; padding:12px; background:var(--ss-active); border:1px solid var(--ss-line); border-radius:9px; font-size:12px; }
 [data-studio-v4-shell="true"] .studio-brief-handoff p { color:var(--ss-muted); line-height:1.5; margin:4px 0 8px; }
 [data-studio-v4-shell="true"] .studio-brief-handoff button { margin-right:8px; padding:5px 9px; border:1px solid var(--ss-line); border-radius:6px; background:var(--ss-panel); }

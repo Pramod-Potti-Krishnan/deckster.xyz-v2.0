@@ -2256,7 +2256,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   // Director sends presentation_init (instead of slide_update) for blank presentations
                   // This avoids rendering a "1 slides · 0 min" card in chat
                   debugLog('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
-                  newState.directorWorkflowState = 'BLANK_PRESENTATION';
 
                   const initUrl = message.payload.presentation_url ||
                                   message.payload.preview_url ||
@@ -2273,7 +2272,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   if (initUrl) {
                     newState.blankPresentationUrl = initUrl;
                     newState.blankPresentationId = initId || null;
-                    newState.isBlankPresentation = true;
 
                     // Guard: a blank canvas must NOT clobber a real deck we already have
                     // (one restored from the session record on reload, a finished build, or
@@ -2284,6 +2282,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     if (hasRealDeck) {
                       debugLog('⚠️ presentation_init: keeping existing deck, not switching to blank');
                     } else {
+                      newState.directorWorkflowState = 'BLANK_PRESENTATION';
+                      newState.isBlankPresentation = true;
                       newState.activeVersion = 'blank';
                       newState.presentationUrl = initUrl;
                       newState.presentationId = initId || null;
@@ -2373,7 +2373,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   // Legacy: Handle blank presentation sent as slide_update with is_blank flag
                   // (kept for backward compatibility, but Director now sends presentation_init instead)
                   if (message.payload.is_blank) {
-                    newState.directorWorkflowState = 'BLANK_PRESENTATION';
                     const blankUrl = message.payload.preview_url ||
                                      message.payload.metadata?.preview_url;
                     const blankId = message.payload.metadata?.preview_presentation_id ||
@@ -2385,6 +2384,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       // Set blank presentation state
                       newState.blankPresentationUrl = blankUrl;
                       newState.blankPresentationId = blankId || null;
+
+                      // Retain the blank version without replacing current owned
+                      // work or unlocking build settings on a reconnect replay.
+                      const heldDeck = !!(prev.finalPresentationUrl || prev.strawmanPreviewUrl || prev.presentationUrl);
+                      const hasRealDeck = heldDeck && prev.deckOwnerSessionId === sessionIdRef.current;
+                      if (hasRealDeck) {
+                        newState.slideStructure = prev.slideStructure;
+                        break;
+                      }
+                      newState.directorWorkflowState = 'BLANK_PRESENTATION';
                       newState.isBlankPresentation = true;
 
                       // Set as current presentation (blank is the starting point)
