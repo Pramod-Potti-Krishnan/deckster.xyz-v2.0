@@ -16,6 +16,8 @@ import {
   Layers3,
   Loader2,
   Lock,
+  Maximize2,
+  Minimize2,
   Network,
   RefreshCw,
   Search,
@@ -516,6 +518,79 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     }
   }
   const presentationContext = presentationContextRef.current
+  // Presentation admission is intentionally narrower than the retained3294
+  // graph holder: any observed pending check closes fullscreen and retires its
+  // captured actions. The existing gates below still remove private children.
+  const immersiveEpochRef = useRef({ status: accessStatus, epoch: 0 })
+  if (immersiveEpochRef.current.status !== accessStatus) {
+    immersiveEpochRef.current = { status: accessStatus, epoch: immersiveEpochRef.current.epoch + 1 }
+  }
+  const immersiveEpoch = immersiveEpochRef.current.epoch
+  const [immersiveRequest, setImmersiveRequest] = useState<{ epoch: number; context: typeof presentationContext } | null>(null)
+  const immersive = accessStatus === "ready" && immersiveRequest?.epoch === immersiveEpoch && immersiveRequest.context === presentationContext
+  const explorationRef = useRef<HTMLDivElement>(null)
+  const fullscreenTriggerRef = useRef<HTMLButtonElement>(null)
+  const returnButtonRef = useRef<HTMLButtonElement>(null)
+  const canPresentImmersive = useCallback(() => {
+    const access = accessRef.current
+    return mountedRef.current && access.status === "ready" && access.owner === operationOwner && access.lifetime === operationLifetime &&
+      presentationContextRef.current === presentationContext && immersiveEpochRef.current.epoch === immersiveEpoch
+  }, [operationOwner, operationLifetime, presentationContext, immersiveEpoch])
+  const openImmersive = useCallback(() => {
+    if (!canPresentImmersive()) return
+    setImmersiveRequest({ epoch: immersiveEpoch, context: presentationContext })
+  }, [canPresentImmersive, immersiveEpoch, presentationContext])
+  const closeImmersive = useCallback(() => {
+    if (!canPresentImmersive()) return
+    setImmersiveRequest(null)
+  }, [canPresentImmersive])
+  useLayoutEffect(() => {
+    if (!immersive || !canPresentImmersive()) return
+    const frame = explorationRef.current
+    if (!frame) return
+    const trigger = fullscreenTriggerRef.current
+    const visible = (element: HTMLElement | SVGElement) => element.isConnected && !element.closest("[hidden], [inert]") &&
+      !element.matches(":disabled") && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden"
+    // Inert sibling branches along the existing DOM path; the graph never moves
+    // to another host and its React identity, geometry and handlers stay intact.
+    const background = new Map<HTMLElement, boolean>()
+    let branch: Element = frame
+    while (branch.parentElement) {
+      for (const sibling of Array.from(branch.parentElement.children)) {
+        if (sibling !== branch && sibling instanceof HTMLElement) background.set(sibling, sibling.inert)
+      }
+      branch = branch.parentElement
+      if (branch === document.body) break
+    }
+    background.forEach((_, element) => { element.inert = true })
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const focusReturn = () => { if (canPresentImmersive()) returnButtonRef.current?.focus({ preventScroll: true }) }
+    const onFocus = (event: FocusEvent) => { if (!frame.contains(event.target as Node)) focusReturn() }
+    const onKey = (event: KeyboardEvent) => {
+      if (!canPresentImmersive()) return
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeImmersive(); return }
+      if (event.key !== "Tab") return
+      const items = Array.from(frame.querySelectorAll<HTMLElement | SVGElement>('button, a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')).filter(visible)
+      const first = items[0], last = items[items.length - 1]
+      if (!first || !last) { event.preventDefault(); focusReturn(); return }
+      if (event.shiftKey && (document.activeElement === first || !frame.contains(document.activeElement))) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && (document.activeElement === last || !frame.contains(document.activeElement))) { event.preventDefault(); first.focus() }
+    }
+    document.addEventListener("keydown", onKey, true)
+    document.addEventListener("focusin", onFocus, true)
+    focusReturn()
+    return () => {
+      document.removeEventListener("keydown", onKey, true)
+      document.removeEventListener("focusin", onFocus, true)
+      background.forEach((wasInert, element) => { element.inert = wasInert })
+      document.body.style.overflow = previousOverflow
+      // A pending/revoked/unmounted workspace cannot recover focus through an
+      // old trigger. Ordinary Return/Escape restores only a still-visible one.
+      queueMicrotask(() => { if (canPresentImmersive() && trigger && visible(trigger)) trigger.focus({ preventScroll: true }) })
+    }
+  }, [immersive, canPresentImmersive, closeImmersive])
+
   const selectKnowledgeNode = useCallback((nodeId: string) => {
     const access = accessRef.current
     if (!mountedRef.current || access.status !== "ready" || access.owner !== operationOwner ||
@@ -1026,14 +1101,22 @@ stats && stats.nodes_by_type.length > 0 && (
         </section>
       )}
 
-      <div data-studio-knowledge-role="layout" className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_370px]">
+      <div ref={explorationRef} data-studio-knowledge-role="layout" data-knowledge-immersive={immersive ? "true" : undefined} role={immersive ? "dialog" : undefined} aria-modal={immersive || undefined} aria-label={immersive ? "Full-screen knowledge exploration" : undefined} className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_370px]">
+        {/* Keep this slot mounted so presentation changes never shift/remount the map. */}
+        <header className="sk-immersive-header" hidden={!immersive}>
+          <div><Network size={20} /><span><strong>Second Brain</strong><small>Explore your loaded map and recorded evidence</small></span></div>
+          <button ref={returnButtonRef} type="button" onClick={closeImmersive}><Minimize2 size={16} /><span>Return to Second Brain</span><kbd>Esc</kbd></button>
+        </header>
         <section data-studio-knowledge-role="map-panel" className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
           <div data-studio-knowledge-role="map-header" className="border-b border-slate-200 p-4 dark:border-slate-800">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950 dark:text-white">
-                  <Network className="h-4 w-4 text-violet-500" /> Knowledge map
-                </h2>
+                <div className="sk-map-title-row">
+                  <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950 dark:text-white">
+                    <Network className="h-4 w-4 text-violet-500" /> Knowledge map
+                  </h2>
+                  <button ref={fullscreenTriggerRef} type="button" className="sk-fullscreen-trigger" hidden={immersive} disabled={!graph || graph.nodes.length === 0} onClick={openImmersive} aria-label="Open full-screen knowledge exploration" title="Explore this map and its entity list in full screen"><Maximize2 size={14} /><span>Fullscreen</span></button>
+                </div>
                 <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                   {graph
                     ? `Showing ${formatNumber(visibleNodes)} of ${formatNumber(graph.total_nodes)} entities`
