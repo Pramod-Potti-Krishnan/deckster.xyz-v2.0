@@ -34,6 +34,7 @@
     "test:blank-element-recovery": "node scripts/test-blank-element-recovery.mjs",
     "test:visual-element-contract": "node scripts/test-visual-element-contract.mjs",
     "test:textbox-role-contract": "node scripts/test-textbox-role-contract.mjs",
+    "test:textbox-request-fidelity": "node scripts/test-textbox-request-fidelity.mjs",
     "test:metrics-overhaul-contract": "node scripts/test-metrics-overhaul-contract.mjs",
     "test:table-overhaul-contract": "node scripts/test-table-overhaul-contract.mjs",
     "test:chart-generation-contract": "node scripts/test-chart-generation-contract.mjs",

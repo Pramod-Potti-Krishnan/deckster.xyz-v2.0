@@ -715,6 +715,12 @@ export interface CustomDiagramConfig {
 export interface TextLabsBaseFormData {
   prompt: string
   count: number
+  /**
+   * The panel's Count is "Auto" (the user never chose one). `count` stays 1 for
+   * local geometry, but the request omits it so Text Labs resolves the count
+   * from the prompt. Set only behind NEXT_PUBLIC_TEXTBOX_REQUEST_FIDELITY_ENABLED.
+   */
+  countAuto?: boolean
   layout: 'horizontal' | 'vertical' | 'grid'
   advancedModified: boolean
   z_index?: number
