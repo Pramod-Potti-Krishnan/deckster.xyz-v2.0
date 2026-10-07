@@ -307,7 +307,7 @@ function clock() {
     pending: () => timers.size,
   }
 }
-function controllerHarness({ responses, baseUrl = () => 'https://l.test' }) {
+function controllerHarness({ responses, baseUrl = () => 'https://l.test', options = {} }) {
   const c = clock(), calls = [], states = []
   const queue = [...responses]
   const controller = lib.createSlideInventoryController({
@@ -318,7 +318,7 @@ function controllerHarness({ responses, baseUrl = () => 'https://l.test' }) {
       if (typeof next === 'function') return next(init)
       return next
     },
-    onChange: state => states.push(state),
+    onChange: state => states.push(state), ...options,
   })
   return { controller, c, calls, states }
 }
@@ -384,14 +384,92 @@ await check('controller: the backend turning pending into none stops the poll; "
     assert.equal(quiet.calls.length, 1)
   }
 })
-await check('controller: an endless pending is bounded (20 re-reads per trigger) and a new trigger starts a fresh budget', async () => {
-  const h = controllerHarness({ responses: [pendingInventory()] })
+// Back-off (SLIDE-2): a reload mid-build gets no frames, but Stage F registers previews for 5-10 minutes.
+// Trigger at t = 0 (refresh(true) + advance(0) lets the first read finish). Reads: t = 0, then every 3 s up to 60 s (20 polls),
+// then every 15 s, and the last one lands exactly at 10 min; nothing after that.
+const S = 1000
+async function triggered(responses) {
+  const h = controllerHarness({ responses })
   h.controller.refresh(true); await h.c.advance(0)
-  await h.c.advance(3000 * 40)
-  assert.equal(h.calls.length, 1 + 20)
+  return h
+}
+await check('controller back-off: every 3 s for the first 60 s while a row is pending', async () => {
+  const h = await triggered([pendingInventory()])
+  assert.equal(h.calls.length, 1)
+  await h.c.advance(2999); assert.equal(h.calls.length, 1)
+  await h.c.advance(2); assert.equal(h.calls.length, 2, 't = 3 s')
+  await h.c.advance(3 * S); assert.equal(h.calls.length, 3, 't = 6 s')
+  await h.c.advance(54 * S - 2); assert.equal(h.calls.length, 20, 't = 59.999 s: polls at 3, 6, ... 57')
+  await h.c.advance(2); assert.equal(h.calls.length, 21, 't = 60 s: the 20th and last fast poll')
+})
+await check('controller back-off: from 60 s on it re-reads every 15 s', async () => {
+  const h = await triggered([pendingInventory()])
+  await h.c.advance(60 * S); assert.equal(h.calls.length, 21)
+  await h.c.advance(14 * S + 999); assert.equal(h.calls.length, 21, 'quiet between 60 s and 75 s')
+  await h.c.advance(2); assert.equal(h.calls.length, 22, 't = 75 s')
+  await h.c.advance(15 * S); assert.equal(h.calls.length, 23, 't = 90 s')
+  await h.c.advance(30 * S); assert.equal(h.calls.length, 25, 't = 120 s: 105 and 120 (not every 3 s any more)')
+})
+await check('controller back-off: it stops 10 minutes after the trigger (the last read lands at 10:00)', async () => {
+  const h = await triggered([pendingInventory()])
+  await h.c.advance(599 * S); const before = h.calls.length
+  assert.equal(before, 1 + 20 + 35, '3 s phase 20 reads, then 75, 90, ... 585 s')
+  await h.c.advance(S); assert.equal(h.calls.length, before + 1, 'the final read at exactly 600 s')
+  assert.equal(h.c.pending(), 0, 'no timer left')
+  const done = h.calls.length
+  await h.c.advance(3600 * S); assert.equal(h.calls.length, done, 'nothing after 10 minutes')
+  assert.equal(h.controller.getState().inventory.slides[4].thumbnailStatus, 'pending', 'the last good state is kept')
+})
+await check('controller back-off: the last read is clamped to the end of the window, never past it', async () => {
+  const h = controllerHarness({ responses: [pendingInventory()], options: { pendingMaxMs: 100_000 } })   // 60..90 s every 15 s, then 10 s left
+  h.controller.refresh(true); await h.c.advance(0); await h.c.advance(90 * S)
+  const at90 = h.calls.length
+  await h.c.advance(9 * S + 999); assert.equal(h.calls.length, at90, 'quiet until 100 s')
+  await h.c.advance(2); assert.equal(h.calls.length, at90 + 1, 'the final read at exactly 100 s, not at 105 s')
   assert.equal(h.c.pending(), 0)
-  h.controller.refresh(true); await h.c.advance(0); await h.c.advance(3000 * 40)
-  assert.equal(h.calls.length, 2 * (1 + 20))
+  await h.c.advance(60 * S); assert.equal(h.calls.length, at90 + 1)
+})
+await check('controller back-off: it stops as soon as nothing is pending (in either phase)', async () => {
+  const fast = await triggered([pendingInventory(), pendingInventory(), response(200, registeredInventory)])
+  await h_advance(fast, 10 * S)
+  assert.equal(fast.calls.length, 3); assert.equal(fast.c.pending(), 0)
+  await h_advance(fast, 3600 * S); assert.equal(fast.calls.length, 3)
+  const slow = await triggered([...Array(25).fill(pendingInventory()), response(200, registeredInventory)])
+  await h_advance(slow, 100 * S)                      // 21 reads by 60 s, then 75 and 90 = 23
+  assert.equal(slow.calls.length, 23)
+  await h_advance(slow, 600 * S)                      // 105 and 120 (still pending), 135 = the 26th read is fresh: stop
+  assert.equal(slow.c.pending(), 0)
+  assert.equal(slow.calls.length, 26)
+  const stable = slow.calls.length
+  await h_advance(slow, 3600 * S); assert.equal(slow.calls.length, stable)
+  assert.equal(slow.controller.getState().inventory.slides[4].thumbnailStatus, 'fresh')
+})
+async function h_advance(h, ms) { await h.c.advance(ms) }
+await check('controller back-off: any trigger (frame, count change, ack) resets to the 3 s phase and restarts the 10 minute window', async () => {
+  const h = await triggered([pendingInventory()])
+  await h.c.advance(120 * S)                                  // slow phase: 25 reads
+  assert.equal(h.calls.length, 25)
+  h.controller.refresh()                                      // a frame or a count change: debounced trigger
+  await h.c.advance(150); assert.equal(h.calls.length, 26, 'the triggered read')
+  await h.c.advance(3 * S); assert.equal(h.calls.length, 27, 'back to 3 s polls')
+  await h.c.advance(3 * S); assert.equal(h.calls.length, 28)
+  h.controller.refresh(true)                                  // an ack: immediate
+  await h.c.advance(0); assert.equal(h.calls.length, 29)
+  await h.c.advance(3 * S); assert.equal(h.calls.length, 30, 'a 3 s poll again, not 15 s')
+  // The window restarts: still polling 9 minutes after the trigger, stopped 10 minutes after the *last* trigger.
+  const lastTrigger = h.calls.length
+  await h.c.advance(599 * S); assert.ok(h.calls.length > lastTrigger + 20)
+  await h.c.advance(S); const end = h.calls.length
+  await h.c.advance(3600 * S); assert.equal(h.calls.length, end)
+  assert.equal(h.c.pending(), 0)
+})
+await check('controller back-off: a trigger in the last seconds of a window extends it (reads continue past the first 10 minutes)', async () => {
+  const h = await triggered([pendingInventory()])
+  await h.c.advance(595 * S)
+  const before = h.calls.length
+  h.controller.refresh(true); await h.c.advance(0)
+  await h.c.advance(30 * S)
+  assert.ok(h.calls.length > before + 5, 'still polling at 10:25 because the trigger at 9:55 restarted the window')
 })
 await check('controller: an unchanged poll publishes nothing (same inventory object, no re-render)', async () => {
   const h = controllerHarness({ responses: [pendingInventory()] })

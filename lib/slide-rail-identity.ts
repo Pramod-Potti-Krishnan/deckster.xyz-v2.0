@@ -181,9 +181,12 @@ export interface SlideInventoryState {
 }
 
 /**
- * Coalescing reader for one presentation. While a read shows a `pending` preview it re-reads every
- * `pendingPollMs` (contract 2.2), at most `maxPendingPolls` times per trigger, and stops as soon
- * as no row is pending (the backend turns an overdue `pending` into `none`). refresh() is debounced (refresh(true) is not); a refresh
+ * Coalescing reader for one presentation. While a read shows a `pending` preview it re-reads on a
+ * back-off (contract 2.2; the case that matters is a reload mid-build, when no frame reaches this
+ * tab but Stage F keeps registering previews for minutes): every `pendingPollMs` (3 s) for the first
+ * `pendingFastWindowMs` (60 s) after the last trigger, then every `pendingSlowPollMs` (15 s), and
+ * it stops as soon as no row is pending or `pendingMaxMs` (10 min) after the trigger. Any trigger
+ * (a frame, a count change, an ack: every refresh() call) resets it to the 3 s phase. refresh() is debounced (refresh(true) is not); a refresh
  * requested while a read is in flight runs once more straight after it, so an ack that lands
  * mid-read is never lost. 404/405 or an invalid body is remembered for `unavailableTtlMs` (the endpoint is
  * absent, no need to ask on every frame); a transient failure keeps the last good inventory.
@@ -200,7 +203,9 @@ export function createSlideInventoryController({
   unavailableTtlMs = 60_000,
   timeoutMs = 8_000,
   pendingPollMs = 3_000,
-  maxPendingPolls = 20,
+  pendingFastWindowMs = 60_000,
+  pendingSlowPollMs = 15_000,
+  pendingMaxMs = 600_000,
 }: {
   presentationId: string
   getBaseUrl: () => string
@@ -213,7 +218,9 @@ export function createSlideInventoryController({
   unavailableTtlMs?: number
   timeoutMs?: number
   pendingPollMs?: number
-  maxPendingPolls?: number
+  pendingFastWindowMs?: number
+  pendingSlowPollMs?: number
+  pendingMaxMs?: number
 }) {
   let state: SlideInventoryState = { status: 'idle', inventory: null }
   let disposed = false
@@ -223,7 +230,7 @@ export function createSlideInventoryController({
   let abort: AbortController | null = null
   let unavailableUntil = 0
   let pendingHandle: unknown = null
-  let pendingPolls = 0
+  let triggerAt = now()
 
   const stopPendingPoll = () => {
     if (pendingHandle !== null) clearTimer(pendingHandle)
@@ -231,9 +238,13 @@ export function createSlideInventoryController({
   }
   const schedulePendingPoll = () => {
     stopPendingPoll()
-    if (disposed || pendingPolls >= maxPendingPolls || !state.inventory
-      || !state.inventory.slides.some(row => row.thumbnailStatus === 'pending')) return
-    pendingHandle = setTimer(() => { pendingHandle = null; pendingPolls += 1; void run() }, pendingPollMs)
+    if (disposed || !state.inventory || !state.inventory.slides.some(row => row.thumbnailStatus === 'pending')) return
+    const elapsed = now() - triggerAt
+    const remaining = pendingMaxMs - elapsed
+    if (remaining <= 0) return
+    // The last read lands exactly at the end of the window, never past it.
+    const delay = Math.min(elapsed < pendingFastWindowMs ? pendingPollMs : pendingSlowPollMs, remaining)
+    pendingHandle = setTimer(() => { pendingHandle = null; void run() }, delay)
   }
 
   const publish = (next: SlideInventoryState) => {
@@ -286,7 +297,7 @@ export function createSlideInventoryController({
       if (disposed) return
       if (debounceHandle !== null) clearTimer(debounceHandle)
       debounceHandle = null
-      pendingPolls = 0
+      triggerAt = now()
       stopPendingPoll()
       if (immediate) { void run(); return }
       debounceHandle = setTimer(() => { debounceHandle = null; void run() }, debounceMs)
