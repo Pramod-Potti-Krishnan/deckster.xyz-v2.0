@@ -1,0 +1,369 @@
+{
+  "scenario": "count",
+  "label": "after",
+  "app": "http://127.0.0.1:8861",
+  "viewport": [
+    1440,
+    900
+  ],
+  "before": {
+    "footer": "Slide 1 / 7",
+    "rail": "7"
+  },
+  "dom_before": {
+    "sha256_16": "b75c423eb6dadb87",
+    "bytes": 78587
+  },
+  "samples": [
+    {
+      "footer": "Slide 1 / 7",
+      "rail": "7",
+      "t": 0.0
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 0.16
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 0.37
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 0.53
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 0.68
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 0.83
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 0.99
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 1.14
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 1.3
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 1.45
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 1.61
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 1.76
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 1.91
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 2.07
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 2.22
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 2.37
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 2.53
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 2.68
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 2.83
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 2.99
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 3.14
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 3.3
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 3.45
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 3.61
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 3.76
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 3.91
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 4.07
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 4.22
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 4.38
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 4.53
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 4.68
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 4.83
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 4.99
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 5.14
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 5.29
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 5.45
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 5.6
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 5.75
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 5.9
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 6.06
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 6.21
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 6.37
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 6.52
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 6.67
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 6.83
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 6.98
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 7.13
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 7.29
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 7.44
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 7.6
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 7.75
+    },
+    {
+      "footer": "Slide 2 / 8",
+      "rail": "8",
+      "t": 7.9
+    }
+  ],
+  "mismatch_samples": 0,
+  "first_mismatch": null,
+  "last_mismatch_t": null,
+  "final": {
+    "footer": "Slide 2 / 8",
+    "rail": "8",
+    "t": 7.9
+  },
+  "violations": [
+    "unmocked GET /api/version",
+    "blocked GET https://themes.invalid/api/v1/themes/presets",
+    "blocked GET https://elementor.invalid/api/diagram/catalog?guard=1791352490665"
+  ],
+  "page_errors": [],
+  "console": [
+    "error: Failed to load resource: net::ERR_FAILED",
+    "error: Failed to load resource: net::ERR_FAILED",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/e6099e249fd938cc-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/558ca1a6aa3cb55e-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/26d0ba92e140f0dc-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/fbd5de7a94c8c5b7.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/3801b7497ee9d1a2.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/9cc5b37ab1350db7-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/33553e7595b74ccf-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/313bd843fd1f5073.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/8fb8828711e93095.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/e9b443debf0e5df9-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/be5834982a4df2bd.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/8ba92616b8a59412.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/0cebda93f89b9da3.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/9b7f7d59a5c1f4b1.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/e6099e249fd938cc-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/558ca1a6aa3cb55e-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/26d0ba92e140f0dc-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/fbd5de7a94c8c5b7.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/3801b7497ee9d1a2.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/9cc5b37ab1350db7-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/33553e7595b74ccf-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/313bd843fd1f5073.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/8fb8828711e93095.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/media/e9b443debf0e5df9-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/be5834982a4df2bd.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/8ba92616b8a59412.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/0cebda93f89b9da3.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+    "warning: The resource http://127.0.0.1:8861/_next/static/css/9b7f7d59a5c1f4b1.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally."
+  ],
+  "mock_log": [
+    [
+      "composeGetState",
+      {}
+    ],
+    [
+      "addSlide",
+      {
+        "layout": "H1-generated",
+        "position": 1,
+        "mutationId": "add-slide:52cf98ca-1c2c-42f5-af29-6cb51de19060"
+      }
+    ],
+    [
+      "composeGetState",
+      {}
+    ],
+    [
+      "goToSlide",
+      {
+        "index": 1
+      }
+    ],
+    [
+      "toggleBorderHighlight",
+      null
+    ],
+    [
+      "isEditModeActive",
+      null
+    ],
+    [
+      "enterEditMode",
+      null
+    ],
+    [
+      "getCurrentSlideInfo",
+      null
+    ],
+    [
+      "getCurrentSlideInfo",
+      null
+    ]
+  ]
+}

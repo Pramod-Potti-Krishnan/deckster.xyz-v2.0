@@ -1,0 +1,12 @@
+F4 count: samples where footer total != rail heading, after one Add (52 samples, 150 ms apart)
+  before     mismatched 19/52  last at 3.01 s  final {'footer': 'Slide 2 / 8', 'rail': '8', 't': 7.92}  dom e453887cc07765f6
+  flags-off  mismatched 18/50  last at 2.98 s  final {'footer': 'Slide 2 / 8', 'rail': '8', 't': 8.0}  dom e453887cc07765f6
+  after      mismatched  0/52  last at None s  final {'footer': 'Slide 2 / 8', 'rail': '8', 't': 7.9}
+F5 panel: distinct iframe sizes while the Slide panel opens (910x512 -> 510x287)
+  before     distinct 19  final iframe {'x': 377, 'y': 334, 'w': 510, 'h': 287}  remounted False  dom 56ea13d1b39ab722
+  flags-off  distinct 19  final iframe {'x': 377, 'y': 334, 'w': 510, 'h': 287}  remounted False  dom 56ea13d1b39ab722
+  after      distinct  2  final iframe {'x': 377, 'y': 334, 'w': 510, 'h': 287}  remounted False  dom bce8825ea47e336a
+F7 generate (edit mode on, anchor slide 3, deck 8 -> 9): Generate button travel and where the viewer lands
+  before     button y travel   42 px  landed 1 / 9 (Demand forecasting)  footer Slide 1 / 9  dom 4adddaaabe9292e8
+  flags-off  button y travel   42 px  landed 1 / 9 (Demand forecasting)  footer Slide 1 / 9  dom 4adddaaabe9292e8
+  after      button y travel    0 px  landed 4 / 9 (Generated: Summarise the)  footer Slide 4 / 9  dom a3c5776abb53acd0

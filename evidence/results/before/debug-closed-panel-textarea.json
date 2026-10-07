@@ -1,0 +1,28 @@
+{
+  "scenario": "debug",
+  "label": "base",
+  "app": "http://127.0.0.1:8793",
+  "viewport": [
+    1600,
+    900
+  ],
+  "closed_panel_textarea": {
+    "inlineHeight": "160px",
+    "clientWidth": 24,
+    "scrollHeight": 636
+  },
+  "url": "http://127.0.0.1:8793/builder?session_id=11111111-1111-4111-8111-111111111111",
+  "violations": [
+    "unmocked GET /api/version",
+    "blocked GET https://themes.invalid/api/v1/themes/presets",
+    "blocked GET https://elementor.invalid/api/diagram/catalog?guard=1791352868519"
+  ],
+  "page_errors": [],
+  "console": [
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Refused to execute script from 'http://127.0.0.1:8793/_vercel/insights/script.js' because its MIME type ('text/html') is not executable, and strict MIME type checking is enabled.",
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "error: Failed to load resource: net::ERR_FAILED",
+    "error: Failed to load resource: net::ERR_FAILED"
+  ]
+}
