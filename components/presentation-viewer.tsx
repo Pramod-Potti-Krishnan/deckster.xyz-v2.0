@@ -131,6 +131,11 @@ import {
   layoutMutationStateIsAmbiguous,
   sendLayoutMutationWithReconciliation,
 } from '@/lib/layout-command-result'
+import {
+  STUDIO_SLIDE_COUNT_SYNC_ENABLED,
+  syncedFooterTotal,
+  visualTotalAfterCommit,
+} from '@/lib/studio-slide-count-sync'
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
@@ -688,6 +693,10 @@ export function PresentationViewer({
   const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
   const [visualTotalSlides, setVisualTotalSlides] = useState(slideCount || 0)
+  // J2-F4 (flag NEXT_PUBLIC_STUDIO_SLIDE_COUNT_SYNC_ENABLED): the CRUD acks read the counters as they
+  // are at commit time so they can move both from one number. Unused with the flag off.
+  const slideTotalsRef = useRef({ total: 0, visual: 0 })
+  slideTotalsRef.current = { total: totalSlides, visual: visualTotalSlides }
   const [isFullscreen, setIsFullscreen] = useState(false)
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const authoringStripRef = useRef<HTMLDivElement>(null)
@@ -2072,6 +2081,11 @@ export function PresentationViewer({
         }
         if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
         commit(setTotalSlides, newTotal)
+        if (STUDIO_SLIDE_COUNT_SYNC_ENABLED) {
+          commit(setVisualTotalSlides, visualTotalAfterCommit({
+            totalBefore: slideTotalsRef.current.total, visualBefore: slideTotalsRef.current.visual, totalAfter: newTotal,
+          }))
+        }
         commitSelection(setCurrentSlide, newSlideNumber) // Update local state (1-based)
         if (studioShell) commitSelection<number[]>(setSelectedSlideIndices, [newSlideIndex])
         // The parent owns the slide index used by Add Element. Publish the
@@ -2199,6 +2213,11 @@ export function PresentationViewer({
         const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides + 1
 
         mutation.commit(setTotalSlides, newTotal)
+        if (STUDIO_SLIDE_COUNT_SYNC_ENABLED) {
+          mutation.commit(setVisualTotalSlides, visualTotalAfterCommit({
+            totalBefore: slideTotalsRef.current.total, visualBefore: slideTotalsRef.current.visual, totalAfter: newTotal,
+          }))
+        }
         mutation.commitSelection(setCurrentSlide, newSlideIndex + 1)
         mutation.commit<boolean>(setSlidesModifiedByCrud, true) // Invalidate stale slideStructure
         invalidateThumbnails()
@@ -2316,6 +2335,11 @@ export function PresentationViewer({
       const remainingCount = result.remaining_slide_count || (totalSlides - deletedCount)
 
       mutation.commit(setTotalSlides, remainingCount)
+      if (STUDIO_SLIDE_COUNT_SYNC_ENABLED) {
+        mutation.commit(setVisualTotalSlides, visualTotalAfterCommit({
+          totalBefore: slideTotalsRef.current.total, visualBefore: slideTotalsRef.current.visual, totalAfter: remainingCount,
+        }))
+      }
       mutation.commit<boolean>(setSlidesModifiedByCrud, true) // Invalidate stale slideStructure
       invalidateThumbnails()
       mutation.commitSelection<number[]>(setSelectedSlideIndices, []) // Clear the mutation's selection after delete
@@ -4320,7 +4344,9 @@ export function PresentationViewer({
             )}
             {studioShell && !isFullscreen && studioPresentPortalTarget && createPortal(
               <div data-studio-slide-controls="true" role="group" aria-label="Presentation controls" className={cn(isGenerating && "pointer-events-none opacity-50")}>
-              <span>Slide {currentSlide} / {visualTotalSlides || totalSlides || slideCount || (studioPartialArtifact ? '—' : 1)}</span>
+              <span>Slide {currentSlide} / {STUDIO_SLIDE_COUNT_SYNC_ENABLED
+                ? syncedFooterTotal({ visualTotalSlides, totalSlides, slideCount, partialArtifact: Boolean(studioPartialArtifact) })
+                : visualTotalSlides || totalSlides || slideCount || (studioPartialArtifact ? '—' : 1)}</span>
                 {presentControl}
               </div>,
               studioPresentPortalTarget
