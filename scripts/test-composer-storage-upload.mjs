@@ -13,6 +13,21 @@ vm.runInNewContext(
   { module: uploadOwnerModule, exports: uploadOwnerModule.exports, process: { env: {} } },
 )
 
+// ...and sends its Researcher calls through lib/upload-identity-token.ts (R-20261007-frontend-27; flag
+// NEXT_PUBLIC_UPLOAD_IDENTITY_TOKEN_ENABLED, unset here, so a plain `fetch(url, init)`).
+const tokenWrapperCode = ts.transpileModule(fs.readFileSync(new URL('../lib/upload-identity-token.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
+function tokenWrapper(fetchStub) {
+  const wrapper = { exports: {} }
+  vm.runInNewContext(tokenWrapperCode, {
+    module: wrapper, exports: wrapper.exports, process: { env: {} }, fetch: fetchStub,
+    require: name => {
+      assert.equal(name, '@/lib/identity-token-client')
+      return { NotYourSessionError: class extends Error {}, identityTokenClient: {} }
+    },
+  })
+  return wrapper.exports
+}
+
 async function upload(options, failAt) {
   const calls = []
   const progress = []
@@ -23,18 +38,20 @@ async function upload(options, failAt) {
     {},
     { job_id: 'researcher-job', file_name: 'processed-name.pptx', storage_path: 'owned-session/123_deck.pptx' },
   ]
+  const fetchStub = async (url, init) => {
+    calls.push({ url, init })
+    return Response.json(failAt === calls.length ? { error: 'failed upload step' } : replies[calls.length - 1],
+      { status: failAt === calls.length ? 500 : calls.length === 4 ? 202 : 200 })
+  }
   vm.runInNewContext(compiled.outputText, {
     module, exports: module.exports,
     require: name => {
       if (name === '@/lib/upload-owner') return uploadOwnerModule.exports
+      if (name === '@/lib/upload-identity-token') return tokenWrapper(fetchStub)
       assert.equal(name, '@/lib/config')
       return { apiConfig: { knowledgeServiceUrl: 'https://researcher-v11-uat.up.railway.app' } }
     },
-    fetch: async (url, init) => {
-      calls.push({ url, init })
-      return Response.json(failAt === calls.length ? { error: 'failed upload step' } : replies[calls.length - 1],
-        { status: failAt === calls.length ? 500 : calls.length === 4 ? 202 : 200 })
-    },
+    fetch: fetchStub,
   })
   const file = { name: 'deck.pptx', type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }
   try {

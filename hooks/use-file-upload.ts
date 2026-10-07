@@ -17,6 +17,7 @@ import {
   isUploadOwnerIdEnabled,
   researcherUploadOwnerId,
 } from '@/lib/upload-owner'
+import { isNotYourSessionError, researcherFetch } from '@/lib/upload-identity-token'
 
 const MAX_FILES = uploadConfig.maxFiles
 const RESEARCHER_BASE_URL = apiConfig.knowledgeServiceUrl.replace(/\/$/, '')
@@ -133,7 +134,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     }
 
     researcherSessionPromiseRef.current = (async () => {
-      const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/sessions/create`, {
+      const response = await researcherFetch(currentSessionId, `${RESEARCHER_BASE_URL}/api/v1/sessions/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -171,7 +172,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     file: File,
     contentType: string,
   ): Promise<StorageUploadUrlResponse> => {
-    const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/files/storage-upload-url`, {
+    const response = await researcherFetch(researcherSessionId, `${RESEARCHER_BASE_URL}/api/v1/files/storage-upload-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -216,7 +217,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     file: File,
     contentType: string,
   ): Promise<ProcessUploadedResponse> => {
-    const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/files/process-uploaded`, {
+    const response = await researcherFetch(researcherSessionId, `${RESEARCHER_BASE_URL}/api/v1/files/process-uploaded`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -244,6 +245,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
   const pollIngestStatus = useCallback(async (
     jobId: string,
     fileId: string,
+    tokenSessionId?: string,
   ): Promise<IngestStatusResponse> => {
     let unknownCount = 0
     let consecutiveTransient = 0
@@ -260,9 +262,10 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         // leaves `fetch` pending forever, the loop never advances, and the
         // overall attempt budget below can never be reached — the chip spins
         // indefinitely and can reach neither 'success' nor 'error'.
-        const response = await fetch(
+        const response = await researcherFetch(
+          tokenSessionId,
           `${RESEARCHER_BASE_URL}/api/v1/files/ingest-status/${jobId}`,
-          { signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) },
+          () => ({ signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) }),
         )
         const body = await readResponseBody(response)
 
@@ -280,7 +283,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         job = body as IngestStatusResponse
         consecutiveTransient = 0
       } catch (error) {
-        if ((error as { terminal?: boolean })?.terminal) throw error
+        if ((error as { terminal?: boolean })?.terminal || isNotYourSessionError(error)) throw error
 
         // Timeout, network drop, 5xx: the server may still be working.
         consecutiveTransient += 1
@@ -501,7 +504,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       setFiles(prev => prev.map(f => f.id === fileId ? processingFile : f))
 
       if (processResult.job_id) {
-        void pollIngestStatus(processResult.job_id, fileId)
+        void pollIngestStatus(processResult.job_id, fileId, researcherSessionId)
           .then(ingestResult => {
             const enrichment = resolveEnrichmentOutcome(ingestResult)
             const completedFile: UploadedFile = {
@@ -581,7 +584,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       setFiles(prev => prev.map(f => f.id === fileId ? errorFile : f))
 
       toast({
-        title: 'Upload failed',
+        title: isNotYourSessionError(error) ? 'Not your session' : 'Upload failed',
         description: `${file.name}: ${errorMessage}`,
         variant: 'destructive'
       })
