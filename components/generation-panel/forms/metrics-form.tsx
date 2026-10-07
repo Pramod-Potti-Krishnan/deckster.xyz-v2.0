@@ -26,6 +26,11 @@ import {
   resolveMetricsCardColorPatch,
   type MetricsCardColorChoice,
 } from '@/lib/metrics-card-design'
+import {
+  STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED,
+  restoredCountTouched,
+  shouldOmitUntouchedCount,
+} from '@/lib/studio-count-omit'
 
 import './studio-specialist-forms.css'
 
@@ -79,6 +84,8 @@ const MULTI_BOX_COLOR_VALUES: Array<NonNullable<MetricsFormData['multiBoxColorMo
 
 export interface MetricsControlsDraft {
   count: number
+  /** Present only with the count-omit flag on: the user chose a Count (see lib/studio-count-omit.ts). */
+  countTouched?: boolean
   layoutChoice: MetricsLayoutChoice
   multiBoxColorMode: NonNullable<MetricsFormData['multiBoxColorMode']>
   visualOverrides: Partial<MetricsConfig>
@@ -160,6 +167,7 @@ function readSavedMetricsGenerationConfig(value: unknown) {
   const fitMode = stringValue(source.metricsFitMode ?? source.metrics_fit_mode, ['AUTO', 'MANUAL'] as const, 'AUTO')
   return {
     count: Math.max(1, Math.min(4, Math.round(numberValue(source.count, 1)))),
+    countTouched: typeof source.countTouched === 'boolean' ? source.countTouched : undefined,
     layoutChoice: stringValue(
       source.metricsLayoutChoice ?? source.metrics_layout_choice ?? source.layoutChoice,
       LAYOUT_CHOICE_VALUES,
@@ -271,6 +279,10 @@ export function MetricsForm({
     asRecord(initialDraft?.formData?.generationConfig) ?? asRecord(initialDraft?.formData) ?? existingTextTarget?.generationConfig,
   ) : null)
   const [count, setCount] = useState(initialControls?.count ?? initialSaved?.count ?? 1)
+  // Used only with the count-omit flag on: did the user choose a Count (or restore a chosen one)?
+  const [countTouched, setCountTouched] = useState(() => initialControls
+    ? restoredCountTouched(initialControls.count, initialControls.countTouched)
+    : restoredCountTouched(initialSaved?.count, initialSaved?.countTouched))
   const [layoutChoice, setLayoutChoice] = useState<MetricsLayoutChoice>(initialControls?.layoutChoice ?? initialSaved?.layoutChoice ?? 'auto')
   const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<MetricsFormData['multiBoxColorMode']>>(initialControls?.multiBoxColorMode ?? initialSaved?.multiBoxColorMode ?? 'SAME')
   const [visualOverrides, setVisualOverrides] = useState<Partial<MetricsConfig>>(initialControls?.visualOverrides ?? initialSaved?.visualOverrides ?? {})
@@ -330,6 +342,7 @@ export function MetricsForm({
       if (STUDIO_SPECIALIST_FORMS) setGeometryEdited(false)
       const saved = readSavedMetricsGenerationConfig(savedGenerationConfig)
       setCount(saved?.count ?? 1)
+      setCountTouched(restoredCountTouched(saved?.count, saved?.countTouched))
       setLayoutChoice(saved?.layoutChoice ?? 'auto')
       setMultiBoxColorMode(saved?.multiBoxColorMode ?? 'SAME')
       setVisualOverrides(saved?.visualOverrides ?? {})
@@ -473,6 +486,7 @@ export function MetricsForm({
     componentType: 'METRICS',
     prompt,
     count,
+    countTouched: STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED && countTouched ? true : undefined,
     metricsLayoutChoice: layoutChoice,
     layout: resolvedLayout.layout,
     multiBoxColorMode,
@@ -488,6 +502,7 @@ export function MetricsForm({
   }), [
     advancedModified,
     count,
+    countTouched,
     fitIsManual,
     fitMode,
     layoutChoice,
@@ -508,7 +523,7 @@ export function MetricsForm({
     onDraftChange?.({
       prompt, showAdvanced,
       metricsControls: {
-        count, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
+        count, ...(STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED ? { countTouched } : {}), layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
         positionModified, geometryEdited, geometryContext: geometryContextRef.current, paddingModified, zIndex, positionConfig, paddingConfig,
         sections: {
           instances: showInstances, cardDesign: showCardDesign, value: showValue,
@@ -517,17 +532,26 @@ export function MetricsForm({
         },
       },
     })
-  }, [onDraftChange, prompt, showAdvanced, elementContext, count, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
+  }, [onDraftChange, prompt, showAdvanced, elementContext, count, countTouched, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
     positionModified, geometryEdited, paddingModified, zIndex, positionConfig, paddingConfig, showInstances,
     showCardDesign, showValue, showLabel, showDescription, showSpacing, showPositioning, showPadding])
 
   const handleSubmit = useCallback(() => {
     const metricsConfig: Partial<MetricsConfig> = { ...sparseMetricsConfig }
+    // Flag on: a Count the user never touched leaves `count` off the request so the count
+    // stated in the prompt decides ("4 KPIs"). Locally it stays 1.
+    const omitCount = shouldOmitUntouchedCount({
+      flagOn: STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED,
+      touched: countTouched,
+      count,
+      eligible: true,
+    })
 
     const formData: MetricsFormData = {
       componentType: 'METRICS',
       prompt,
       count,
+      ...(omitCount ? { countOmitted: true } : {}),
       // The backend receives the resolved structural arrangement. "Auto" is a
       // panel decision, never a second content-fit formula.
       layout: resolvedLayout.layout,
@@ -555,7 +579,7 @@ export function MetricsForm({
       paddingConfig,
     }
     onSubmit(formData)
-  }, [advancedModified, count, fitIsManual, fitMode, generationConfig, layoutChoice, manualOverrides, multiBoxColorMode, onSubmit, paddingConfig, positionConfig, presentationId, prompt, resolvedLayout, sparseMetricsConfig, zIndex])
+  }, [advancedModified, count, countTouched, fitIsManual, fitMode, generationConfig, layoutChoice, manualOverrides, multiBoxColorMode, onSubmit, paddingConfig, positionConfig, presentationId, prompt, resolvedLayout, sparseMetricsConfig, zIndex])
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 
@@ -568,7 +592,10 @@ export function MetricsForm({
             aria-label={advanced ? 'Advanced metric count' : 'Metric count'}
             value={count}
             disabled={isGenerating}
-            onChange={event => setCount(Number(event.target.value))}
+            onChange={event => {
+              setCount(Number(event.target.value))
+              setCountTouched(true)
+            }}
             className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
           >
             {[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}
