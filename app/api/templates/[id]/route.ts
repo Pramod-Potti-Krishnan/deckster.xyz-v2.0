@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement';
 
 /** Template Builder proxy → Director CRUD for a single template. See ../route.ts. */
 const DIRECTOR_API_URL =
@@ -19,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   try {
     const r = await fetch(
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(params.id)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: restEntitlementHeaders(userId, 'GET') },
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
@@ -35,7 +36,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   try {
     const r = await fetch(
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(params.id)}`,
-      { method: 'DELETE' },
+      { method: 'DELETE', headers: restEntitlementHeaders(userId, 'DELETE') },
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });

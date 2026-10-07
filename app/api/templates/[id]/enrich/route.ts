@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement';
 
 const DIRECTOR_API_URL =
   process.env.DIRECTOR_API_URL || 'https://directorv33-production.up.railway.app';
@@ -19,7 +20,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   try {
     const r = await fetch(
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}/enrich`,
-      { method: 'POST' },
+      { method: 'POST', headers: restEntitlementHeaders(userId, 'POST') },
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });

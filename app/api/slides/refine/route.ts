@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement'
 
 export const maxDuration = 300
 
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...restEntitlementHeaders(userId, 'POST'),
       },
       body: JSON.stringify(payload),
       cache: 'no-store',

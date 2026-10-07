@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement';
 
 /**
  * Template Builder proxy → Director CRUD (TEMPLATE_PLAN.md §5 C2).
@@ -30,7 +31,7 @@ export async function GET() {
   try {
     const r = await fetch(
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: restEntitlementHeaders(userId, 'GET') },
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...restEntitlementHeaders(userId, 'POST') },
         body: JSON.stringify(payload),
       },
     );
