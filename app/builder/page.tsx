@@ -76,6 +76,7 @@ import type {
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
 import { StudioDirectorNotice } from '@/components/builder/studio-director-notice'
+import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
 import { ComposerLibraryDialog } from '@/components/builder/composer-library-dialog'
 import { COMPOSER_READY_KEY_PREFIX, type ComposerReady } from '@/lib/composer-library'
 import { BuilderHeader } from '@/components/builder/builder-header'
@@ -86,6 +87,15 @@ import { StudioDirectorHeader } from '@/components/builder/chat/studio-director-
 import { DirectorCallEntry, DirectorCallPanel } from '@/components/builder/voice-interactive/director-call'
 import { useStudioDirectorCall } from '@/hooks/use-studio-director-call'
 import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive'
+import {
+  STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED,
+  nextBlockedSendNotice,
+  quotaBlockedSendNotice,
+  templateBlockedSendNotice,
+  uploadBlockedSendNotice,
+  type BlockedSendNotice,
+  type BlockedSendSource,
+} from '@/lib/studio-blocked-send'
 import { classifyDirectorMessage } from '@/lib/studio-director-message-policy'
 import { createStudioVoiceOwner } from '@/lib/studio-voice-owner'
 import { classifyStudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
@@ -2811,6 +2821,20 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const quota = useQuota(tokenUsage, tokenUsageMessageId ?? undefined)
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
+  // Blocked-send feedback (flag NEXT_PUBLIC_STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED,
+  // default off): a send refused before it leaves also posts ONE client-only
+  // notice at the end of the chat. Never sent to the Director, never persisted;
+  // the draft is untouched (a refusal never cleared it).
+  const [blockedSendNotice, setBlockedSendNotice] = useState<BlockedSendNotice | null>(null)
+  const blockedSendNoticeRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) setBlockedSendNotice(null)
+  }, [currentSessionId, wsSessionId])
+  useEffect(() => {
+    if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED && blockedSendNotice) {
+      blockedSendNoticeRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [blockedSendNotice?.id])
   const effectiveBuildNarrationEnabled = effectiveNarrationEnabled(
     features.buildNarrationEnabled,
     Boolean(activeTemplate),
@@ -5114,7 +5138,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // Typed messages and structured answers share synchronous readiness gates.
   // Reconnection itself remains the transport's job; disconnected is not a blocker.
-  const preflightDirectorTurn = useCallback(() => {
+  const preflightDirectorTurn = useCallback((source: BlockedSendSource = 'typed') => {
     if (!user) {
       console.warn('Cannot send message: user not authenticated')
       return false
@@ -5145,6 +5169,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           : `${failedUploadFile!.name} couldn't be uploaded. Remove it or try again before sending.`,
         variant: stillUploading ? 'default' : 'destructive',
       })
+      if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) {
+        setBlockedSendNotice(previous => nextBlockedSendNotice(previous, uploadBlockedSendNotice(
+          { name: (stillUploading ?? failedUploadFile)!.name, status: stillUploading ? 'uploading' : 'error' }, source)))
+      }
       return false
     }
 
@@ -5167,6 +5195,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         description: `Your ${which} budget resets ${resetLabel}. Top up reserve credits to keep generating now.`,
         variant: 'destructive',
       })
+      if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) {
+        setBlockedSendNotice(previous => nextBlockedSendNotice(previous, quotaBlockedSendNotice(
+          { which, resetLabel, caps: q.caps }, source)))
+      }
       return false
     }
 
@@ -5175,9 +5207,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         title: 'Template generation locked',
         description: templateGenerationUnavailableReason(activeTemplate),
       })
+      if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) {
+        setBlockedSendNotice(previous => nextBlockedSendNotice(previous,
+          templateBlockedSendNotice(templateGenerationUnavailableReason(activeTemplate), source)))
+      }
       return false
     }
 
+    if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) setBlockedSendNotice(null)
     return true
   }, [user, session.isLoadingSession, awaitingDirectorReply, activeTemplate,
     isGeneratingFinal, uploadedFiles, quota.status, toast])
@@ -6815,7 +6852,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                             questionSubmissionScopeRef.current.userId === origin.userId
                           )
                           if (!origin.active || origin.sessionId !== (currentSessionId || wsSessionId) ||
-                              !text.trim() || !preflightDirectorTurn()) return
+                              !text.trim() || !preflightDirectorTurn('answers')) return
                           session.markStudioUserIntent()
                           questionSubmissionPendingRef.current = true
                           try {
@@ -6872,6 +6909,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         isGeneratingFinal={isGeneratingFinal}
                         suppressEphemeral={effectiveBuildNarrationEnabled}
                       />
+                      {STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED && blockedSendNotice && (
+                        <div ref={blockedSendNoticeRef}>
+                          <StudioBlockedSendNotice notice={blockedSendNotice} onDismiss={() => setBlockedSendNotice(null)} />
+                        </div>
+                      )}
                       {/* Template Ingest (C-5, M-6): cancel the in-flight ingest job */}
                       {process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true' && templateIngestJobId && (
                         <div className="flex justify-end">
