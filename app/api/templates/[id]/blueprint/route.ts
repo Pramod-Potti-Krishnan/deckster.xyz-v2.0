@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement';
 
 const DIRECTOR_API_URL =
   process.env.DIRECTOR_API_URL || 'https://directorv33-production.up.railway.app';
@@ -27,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(params.id)}/blueprint`,
       {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...restEntitlementHeaders(userId, 'PATCH') },
         body: JSON.stringify(payload),
       },
     );
