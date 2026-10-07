@@ -457,15 +457,24 @@ for (const [mode, shell] of MODES) {
   assert.equal(both.world.calls.length > 0 && researcherCalls(both.world).every(c => c.headers[HEADER]), true, `${mode}: both flags on`)
 }
 
-// ------------------------------------------------- 401: one re-mint, one retry
+// ------------------------------------------------- 401 or 403 with a token on the call: one re-mint, one retry
+// The Researcher answers an expired or invalid token with one generic 403 (no words about the token) and 401 only
+// when no credential came, so nothing here depends on the body.
+const MINT_OK = (sid, count) => json({
+  token: `tok.${sid}.${count}`, expires_at: Math.floor(Date.now() / 1000) + 900, header: HEADER, ttl_seconds: 900,
+})
+const GENERIC_403 = () => json({ detail: { error_code: 'FORBIDDEN', message: 'Forbidden' } }, 403)
 for (const [mode, shell] of MODES) {
-  const body = { detail: { error_code: 'token_expired', message: 'Session token expired' } }
   const cases = [
-    ['create', 'token_expired object body', () => json(body, 401)],
-    ['prepare', 'token_expired object body', () => json(body, 401)],
-    ['process', 'token_invalid string detail', () => json({ detail: 'token_invalid' }, 401)],
-    ['process', 'prose "Token expired"', () => new Response('Token expired', { status: 401 })],
-    ['poll', 'token_expired object body', () => json(body, 401)],
+    ['create', '401 token_expired body', R401_EXPIRED],
+    ['create', '403 generic body', GENERIC_403],
+    ['prepare', '403 generic body', GENERIC_403],
+    ['prepare', '401 plain detail', () => json({ detail: 'Unauthorized' }, 401)],
+    ['process', '403 generic body', GENERIC_403],
+    ['process', '403 empty body', () => new Response('', { status: 403 })],
+    ['process', '401 plain text', () => new Response('Unauthorized', { status: 401 })],
+    ['poll', '403 generic body', GENERIC_403],
+    ['poll', '401 token_expired body', R401_EXPIRED],
   ]
   for (const [route, label, reply] of cases) {
     const world = makeWorld()
@@ -473,94 +482,85 @@ for (const [mode, shell] of MODES) {
     const run = await runHook({ flag: 'true', shell, world })
     const sent = callsFor(world, route)
     assert.equal(sent.length, 2, `${mode}, ${route} (${label}): the call is sent once more, once`)
-    assert.notEqual(sent[0].headers[HEADER], sent[1].headers[HEADER], `${mode}, ${route}: the retry carries a fresh token`)
+    assert.notEqual(sent[0].headers[HEADER], sent[1].headers[HEADER], `${mode}, ${route} (${label}): the retry carries a fresh token`)
     assert.equal(tokenSid(sent[1].headers[HEADER]), tokenSid(sent[0].headers[HEADER]))
-    assert.equal(world.mints.length, 3, `${mode}, ${route}: exactly one extra mint`)
-    assert.deepEqual(sent[0].body, sent[1].body, `${mode}, ${route}: the same request`)
+    assert.equal(world.mints.length, 3, `${mode}, ${route} (${label}): exactly one extra mint`)
+    assert.deepEqual(sent[0].body, sent[1].body, `${mode}, ${route} (${label}): the same request`)
     assert.equal(run.files[0].status === 'error', false)
-    assert.equal(world.toasts.some(t => /needs attention|limited source|Upload failed|Not your session/.test(t.title)), false, `${mode}, ${route}: the user sees nothing`)
+    assert.equal(world.toasts.some(t => /needs attention|limited source|Upload failed|Not your session/.test(t.title)), false, `${mode}, ${route} (${label}): the user sees nothing`)
   }
 
-  // a 401 that is not about the token is not retried, and the Researcher's own words come through
-  {
-    const world = makeWorld({ noJob: true })
-    world.replies.prepare.push(() => json({ detail: 'Unauthorized' }, 401))
-    const run = await runHook({ flag: 'true', shell, world })
-    assert.equal(callsFor(world, 'prepare').length, 1, `${mode}: a 401 that does not name the token is not retried`)
-    assert.equal(world.mints.length, 2)
-    assert.equal(run.files[0].status, 'error')
-    assert.match(run.files[0].error, /Unauthorized/)
+  // refused again with the fresh token: not your session, and never a third request
+  for (const [first, second] of [[GENERIC_403, GENERIC_403], [R401_EXPIRED, R401_EXPIRED], [R401_EXPIRED, GENERIC_403], [GENERIC_403, R401_EXPIRED]]) {
+    for (const route of ['create', 'prepare']) {
+      const world = makeWorld({ noJob: true })
+      world.replies[route].push(first, second)
+      const run = await runHook({ flag: 'true', shell, world })
+      assert.equal(callsFor(world, route).length, 2, `${mode}, ${route}: two refusals end it`)
+      assert.equal(world.mints.length, route === 'create' ? 2 : 3, `${mode}, ${route}: one re-mint, no more`)
+      const toast = world.toasts.find(t => t.title === 'Not your session')
+      assert.ok(toast, `${mode}, ${route}: the user is told`)
+      assert.match(toast.description, NOT_YOURS)
+      assert.equal(toast.variant, 'destructive')
+      assert.equal(world.toasts.some(t => t.title === 'Upload failed'), false, 'one clear message, not two')
+      assert.equal(run.files[0].status, 'error')
+      assert.equal(callsFor(world, 'process').length, 0, `${mode}, ${route}: nothing later is sent`)
+    }
+    {
+      const world = makeWorld({ noJob: true })
+      world.replies.process.push(first, second)
+      const run = await runHook({ flag: 'true', shell, world })
+      assert.equal(callsFor(world, 'process').length, 2, `${mode}: two refusals end it`)
+      assert.equal(world.mints.length, 3)
+      assert.ok(world.toasts.find(t => /needs attention/.test(t.title) && NOT_YOURS.test(t.description)))
+      assert.equal(run.files[0].status, 'degraded')
+    }
+    {
+      const world = makeWorld()
+      world.replies.poll.push(first, second)
+      const run = await runHook({ flag: 'true', shell, world })
+      assert.equal(callsFor(world, 'poll').length, 2, `${mode}: an ingest-status refusal after the re-mint is neither retried again nor polled again`)
+      assert.equal(world.mints.length, 3)
+      assert.ok(world.toasts.find(t => /limited source/.test(t.title) && NOT_YOURS.test(t.description)))
+      assert.equal(run.files[0].status, 'degraded')
+    }
   }
-  // a second refusal is returned as is: never a third request
-  {
-    const world = makeWorld({ noJob: true })
-    world.replies.process.push(R401_EXPIRED, R401_EXPIRED)
-    const run = await runHook({ flag: 'true', shell, world })
-    assert.equal(callsFor(world, 'process').length, 2, `${mode}: two refusals end it`)
-    assert.ok(world.toasts.find(t => t.title === 'Stored — source enrichment needs attention' && /token_expired|expired/i.test(t.description)))
-    assert.equal(run.files[0].status, 'degraded')
-  }
+
   // the re-mint itself is refused as "not your session": no retry
-  {
+  for (const refusal of [R401_EXPIRED, GENERIC_403]) {
     const world = makeWorld({ noJob: true })
-    world.mint = (sid, count) => (count >= 3 ? json({ error: 'session_not_owned' }, 403) : json({
-      token: `tok.${sid}.${count}`, expires_at: Math.floor(Date.now() / 1000) + 900, header: HEADER, ttl_seconds: 900,
-    }))
-    world.replies.process.push(R401_EXPIRED)
+    world.mint = (sid, count) => (count >= 3 ? json({ error: 'session_not_owned' }, 403) : MINT_OK(sid, count))
+    world.replies.process.push(refusal)
     const run = await runHook({ flag: 'true', shell, world })
     assert.equal(callsFor(world, 'process').length, 1, `${mode}: no retry when the re-mint says not your session`)
     assert.ok(world.toasts.find(t => /needs attention/.test(t.title) && NOT_YOURS.test(t.description)))
     assert.equal(run.files[0].status, 'degraded')
   }
-  // the re-mint fails for any other reason: the Researcher's own 401 stands
-  {
+  // the re-mint fails for any other reason: the Researcher's own answer stands
+  for (const refusal of [R401_EXPIRED, GENERIC_403]) {
     const world = makeWorld({ noJob: true })
-    world.mint = (sid, count) => (count >= 3 ? new Error('offline') : json({
-      token: `tok.${sid}.${count}`, expires_at: Math.floor(Date.now() / 1000) + 900, header: HEADER, ttl_seconds: 900,
-    }))
-    world.replies.process.push(R401_EXPIRED)
+    world.mint = (sid, count) => (count >= 3 ? new Error('offline') : MINT_OK(sid, count))
+    world.replies.process.push(refusal)
     const run = await runHook({ flag: 'true', shell, world })
     assert.equal(callsFor(world, 'process').length, 1)
     assert.equal(run.files[0].status, 'degraded')
+    assert.equal(world.toasts.some(t => NOT_YOURS.test(t.description)), false, 'a failed re-mint is not "not your session"')
   }
-}
 
-// ------------------------------------------------- 403: not your session, no retry
-for (const [mode, shell] of MODES) {
-  const forbidden = () => json({ detail: { error_code: 'OWNER_ID_MISMATCH', message: 'forbidden' } }, 403)
-  for (const route of ['create', 'prepare']) {
-    const world = makeWorld({ noJob: true })
-    world.replies[route].push(forbidden)
+  // no token on the call (the server has tokens off): the Researcher's answer is returned as is, never retried
+  for (const [label, refusal] of [['403', GENERIC_403], ['401', R401_EXPIRED]]) {
+    const world = makeWorld({ noJob: true, mint: () => json({ token_enabled: false }) })
+    world.replies.prepare.push(refusal)
     const run = await runHook({ flag: 'true', shell, world })
-    assert.equal(callsFor(world, route).length, 1, `${mode}, ${route}: a 403 is not retried`)
-    assert.equal(world.mints.length, route === 'create' ? 1 : 2, `${mode}, ${route}: and not re-minted`)
-    const toast = world.toasts.find(t => t.title === 'Not your session')
-    assert.ok(toast, `${mode}, ${route}: the user is told`)
-    assert.match(toast.description, NOT_YOURS)
-    assert.equal(toast.variant, 'destructive')
-    assert.equal(world.toasts.some(t => t.title === 'Upload failed'), false, 'one clear message, not two')
+    assert.equal(callsFor(world, 'prepare').length, 1, `${mode}: a ${label} with no token on the call is not retried`)
+    assert.equal(world.mints.length, 1)
     assert.equal(run.files[0].status, 'error')
-    assert.equal(callsFor(world, 'process').length, 0, `${mode}, ${route}: nothing later is sent`)
+    assert.ok(world.toasts.find(t => t.title === 'Upload failed'), `${mode}: an ordinary upload failure, as today`)
+    assert.equal(world.toasts.some(t => t.title === 'Not your session'), false)
   }
+
+  // the mint route itself says the chat session is not the caller's: no Researcher call at all
   {
-    const world = makeWorld({ noJob: true })
-    world.replies.process.push(forbidden)
-    const run = await runHook({ flag: 'true', shell, world })
-    assert.equal(callsFor(world, 'process').length, 1, `${mode}: process-uploaded 403 is not retried`)
-    assert.equal(world.mints.length, 2)
-    assert.ok(world.toasts.find(t => /needs attention/.test(t.title) && NOT_YOURS.test(t.description)))
-    assert.equal(run.files[0].status, 'degraded')
-  }
-  {
-    const world = makeWorld()
-    world.replies.poll.push(forbidden)
-    const run = await runHook({ flag: 'true', shell, world })
-    assert.equal(callsFor(world, 'poll').length, 1, `${mode}: an ingest-status 403 is neither retried nor polled again`)
-    assert.ok(world.toasts.find(t => /limited source/.test(t.title) && NOT_YOURS.test(t.description)))
-    assert.equal(run.files[0].status, 'degraded')
-  }
-  {
-    // the mint route itself says the chat session is not the caller's: no Researcher call at all
     const world = makeWorld({ mint: () => json({ error: 'session_not_owned' }, 403) })
     const run = await runHook({ flag: 'true', shell, world })
     assert.equal(researcherCalls(world).length, 0, `${mode}: nothing reaches the Researcher`)
@@ -592,41 +592,47 @@ for (const [mode, shell] of MODES) {
   const down = await runLib({ flag: 'true', options: { intent: 'template_ingest' }, world: makeWorld({ mint: () => json({ error: 'x' }, 503) }) })
   assert.deepEqual(asUnmarked(down.world), asUnmarked(off.world), 'lib: an unavailable mint route leaves every request as today')
 
-  // 401: one re-mint, one retry
+  // 401 or 403 with a token on the call: one re-mint, one retry
   for (const route of ['create', 'prepare', 'process']) {
-    const world = makeWorld()
-    world.replies[route].push(R401_EXPIRED)
-    const run = await runLib({ flag: 'true', world })
-    assert.equal(run.error, null, `lib ${route}: recovers`)
-    assert.equal(callsFor(world, route).length, 2)
-    assert.notEqual(callsFor(world, route)[0].headers[HEADER], callsFor(world, route)[1].headers[HEADER])
-    assert.equal(world.mints.length, 3)
+    for (const [label, refusal] of [['401', R401_EXPIRED], ['403 generic body', GENERIC_403], ['403 empty body', () => new Response('', { status: 403 })]]) {
+      const world = makeWorld()
+      world.replies[route].push(refusal)
+      const run = await runLib({ flag: 'true', world })
+      assert.equal(run.error, null, `lib ${route} (${label}): recovers`)
+      assert.equal(callsFor(world, route).length, 2)
+      assert.notEqual(callsFor(world, route)[0].headers[HEADER], callsFor(world, route)[1].headers[HEADER])
+      assert.equal(world.mints.length, 3)
+    }
   }
+  // refused again with the fresh token: not your session, never a third request
+  for (const route of ['create', 'prepare', 'process']) {
+    for (const [first, second] of [[GENERIC_403, GENERIC_403], [R401_EXPIRED, R401_EXPIRED], [R401_EXPIRED, GENERIC_403]]) {
+      const world = makeWorld()
+      world.replies[route].push(first, second)
+      const run = await runLib({ flag: 'true', world })
+      assert.ok(run.error, `lib ${route}: rejects`)
+      assert.equal(run.error.name, 'NotYourSessionError')
+      assert.match(run.error.message, NOT_YOURS)
+      assert.equal(callsFor(world, route).length, 2, `lib ${route}: one retry, no more`)
+      assert.equal(world.mints.length, route === 'create' ? 2 : 3, `lib ${route}: one re-mint, no more`)
+    }
+  }
+  // the re-mint says not your session: no retry
   {
     const world = makeWorld()
-    world.replies.process.push(R401_EXPIRED, R401_EXPIRED)
+    world.mint = (sid, count) => (count >= 3 ? json({ error: 'session_not_owned' }, 403) : MINT_OK(sid, count))
+    world.replies.process.push(GENERIC_403)
     const run = await runLib({ flag: 'true', world })
-    assert.equal(callsFor(world, 'process').length, 2)
-    assert.ok(run.error && /expired/i.test(run.error.message), 'a second refusal reaches the caller as the Researcher worded it')
+    assert.equal(run.error.name, 'NotYourSessionError')
+    assert.equal(callsFor(world, 'process').length, 1)
   }
-  {
-    const world = makeWorld()
-    world.replies.prepare.push(() => json({ detail: 'Unauthorized' }, 401))
+  // no token on the call: the Researcher's answer is the caller's, as today
+  for (const refusal of [GENERIC_403, R401_EXPIRED]) {
+    const world = makeWorld({ mint: () => json({ token_enabled: false }) })
+    world.replies.prepare.push(refusal)
     const run = await runLib({ flag: 'true', world })
     assert.equal(callsFor(world, 'prepare').length, 1)
-    assert.equal(run.error.message, 'Unauthorized')
-  }
-
-  // 403: the caller gets a clear "not your session" and nothing more is sent
-  for (const route of ['create', 'prepare', 'process']) {
-    const world = makeWorld()
-    world.replies[route].push(() => json({ detail: { error_code: 'OWNER_ID_MISMATCH' } }, 403))
-    const run = await runLib({ flag: 'true', world })
-    assert.ok(run.error, `lib ${route}: rejects`)
-    assert.equal(run.error.name, 'NotYourSessionError')
-    assert.match(run.error.message, NOT_YOURS)
-    assert.equal(callsFor(world, route).length, 1, `lib ${route}: no retry`)
-    assert.equal(world.mints.length, route === 'create' ? 1 : 2, `lib ${route}: no re-mint`)
+    assert.ok(run.error && run.error.name !== 'NotYourSessionError')
   }
   {
     const world = makeWorld({ mint: () => json({ error: 'session_not_owned' }, 403) })
@@ -695,26 +701,72 @@ for (const [mode, shell] of MODES) {
   await unit('s', 'http://x.test/i', bare, fakeClient({ getCredential: async () => null }))
   assert.equal(seen.every(call => call.init === bare), true, 'no id or no token: the same init object, no header')
 
-  // a 403 with no token on the call is the service's own answer, not "not your session"
-  const forbiddenStub = compileSource(tokenLibSource, { '@/lib/identity-token-client': client }, {
-    ...globalsFor(world), fetch: async () => new Response('no', { status: 403 }),
-  })
-  const unmarked = await forbiddenStub.researcherFetch('s', 'http://x.test/j', {}, fakeClient({ getCredential: async () => null }))
-  assert.equal(unmarked.status, 403)
-  await assert.rejects(
-    () => forbiddenStub.researcherFetch('s', 'http://x.test/k', {}, fakeClient()),
-    err => isNotYourSessionError(err) && NOT_YOURS.test(err.message),
-  )
+  // a call that carried no token is answered by the service as it always was: 401 or 403, returned as is, sent once
+  for (const status of [401, 403]) {
+    let sent = 0
+    const stub = compileSource(tokenLibSource, { '@/lib/identity-token-client': client }, {
+      ...globalsFor(world), fetch: async () => { sent += 1; return new Response('no', { status }) },
+    })
+    const unmarked = await stub.researcherFetch('s', 'http://x.test/j', {}, fakeClient({ getCredential: async () => null }))
+    assert.equal(unmarked.status, status)
+    assert.equal(sent, 1, `no token, ${status}: not retried`)
+    assert.equal(await unmarked.text(), 'no')
+  }
 
-  // a failed re-mint returns the Researcher's own 401, body still readable
-  const refusedStub = compileSource(tokenLibSource, { '@/lib/identity-token-client': client }, {
-    ...globalsFor(world), fetch: async () => new Response('{"detail":"token_expired"}', { status: 401 }),
-  })
-  let call = 0
-  const flaky = fakeClient({ getCredential: async () => { call += 1; if (call > 1) return null; return { header: HEADER, token: 't' } } })
-  const refusal = await refusedStub.researcherFetch('s', 'http://x.test/l', {}, flaky)
-  assert.equal(refusal.status, 401)
-  assert.equal(await refusal.text(), '{"detail":"token_expired"}', 'the body is still there for the caller')
+  // with a token on the call: 401 or 403 then 200 is a success, after exactly one re-mint
+  for (const status of [401, 403]) {
+    const statuses = [status, 200]
+    const calls = []
+    let mints = 0
+    const stub = compileSource(tokenLibSource, { '@/lib/identity-token-client': client }, {
+      ...globalsFor(world), fetch: async (url, initArg) => { calls.push(initArg); return new Response('body', { status: statuses.shift() }) },
+    })
+    const reminting = fakeClient({ getCredential: async (sid, opts) => { mints += 1; return { header: HEADER, token: `tok.${mints}.${opts?.forceRefresh ? 'fresh' : 'cached'}` } } })
+    const ok = await stub.researcherFetch('s', 'http://x.test/n', { method: 'POST' }, reminting)
+    assert.equal(ok.status, 200, `${status} then 200: success`)
+    assert.equal(await ok.text(), 'body')
+    assert.equal(calls.length, 2)
+    assert.equal(mints, 2)
+    assert.equal(calls[0].headers[HEADER], 'tok.1.cached')
+    assert.equal(calls[1].headers[HEADER], 'tok.2.fresh', 'the retry carries the freshly minted token')
+  }
+
+  // refused twice (any mix of 401 and 403): NotYourSessionError after exactly two requests
+  for (const pair of [[403, 403], [401, 401], [401, 403], [403, 401]]) {
+    const statuses = [...pair, 200]
+    let sent = 0
+    const stub = compileSource(tokenLibSource, { '@/lib/identity-token-client': client }, {
+      ...globalsFor(world), fetch: async () => { sent += 1; return new Response('no', { status: statuses.shift() }) },
+    })
+    await assert.rejects(
+      () => stub.researcherFetch('s', 'http://x.test/k', {}, fakeClient()),
+      err => isNotYourSessionError(err) && NOT_YOURS.test(err.message),
+    )
+    assert.equal(sent, 2, `${pair.join(' then ')}: one retry, never a third request`)
+  }
+
+  // a failed re-mint returns the Researcher's own answer, body still readable
+  for (const status of [401, 403]) {
+    const refusedStub = compileSource(tokenLibSource, { '@/lib/identity-token-client': client }, {
+      ...globalsFor(world), fetch: async () => new Response('{"detail":"generic"}', { status }),
+    })
+    let call = 0
+    const flaky = fakeClient({ getCredential: async () => { call += 1; if (call > 1) return null; return { header: HEADER, token: 't' } } })
+    const refusal = await refusedStub.researcherFetch('s', 'http://x.test/l', {}, flaky)
+    assert.equal(refusal.status, status)
+    assert.equal(await refusal.text(), '{"detail":"generic"}', 'the body is still there for the caller')
+  }
+  // ...and a re-mint that says not-owned is NotYourSessionError at once, with no retry
+  {
+    let sent = 0
+    const stub = compileSource(tokenLibSource, { '@/lib/identity-token-client': client }, {
+      ...globalsFor(world), fetch: async () => { sent += 1; return new Response('no', { status: 403 }) },
+    })
+    let call = 0
+    const refusing = fakeClient({ getCredential: async () => { call += 1; if (call > 1) throw new (client.NotYourSessionError)(); return { header: HEADER, token: 't' } } })
+    await assert.rejects(() => stub.researcherFetch('s', 'http://x.test/o', {}, refusing), err => isNotYourSessionError(err))
+    assert.equal(sent, 1)
+  }
 
   // after a refused token and a failed re-mint, the refused token is not reused: the next call asks again
   {
@@ -731,6 +783,19 @@ for (const [mode, shell] of MODES) {
     await real('s', url, init)
     assert.deepEqual(w2.mints, ['s', 's', 's'], 'the refused token was dropped from the cache')
     assert.equal(callsFor(w2, 'process')[1].headers[HEADER], 'tok.s.3')
+  }
+
+  // the request's own timeout firing while the re-mint is under way ends the call with that timeout, not with the refusal
+  {
+    const controller = new AbortController()
+    let sent = 0
+    const stub = compileSource(tokenLibSource, { '@/lib/identity-token-client': client }, {
+      ...globalsFor(world), fetch: async () => { sent += 1; controller.abort(new Error('timed out')); return new Response('no', { status: 403 }) },
+    })
+    let call = 0
+    const hungRemint = fakeClient({ getCredential: async () => { call += 1; if (call > 1) return new Promise(() => {}); return { header: HEADER, token: 't' } } })
+    await assert.rejects(() => stub.researcherFetch('s', 'http://x.test/p', () => ({ signal: controller.signal }), hungRemint), /timed out/)
+    assert.equal(sent, 1)
   }
 
   // a hung mint does not outlive the request's own signal

@@ -11,12 +11,15 @@
  *       * The mint route answers `{ token_enabled: false }`, or the helper has no
  *         token for any other reason: the call goes out with NO header, exactly as
  *         it does today. Tokens being off on the server must never break an upload.
- *       * The Researcher answers 401 and its body says the token is expired or
- *         invalid: mint once more and send that same request once more. A second
- *         refusal is returned as is.
- *       * The Researcher answers 403 while a token was on the call, or the mint
- *         route says the chat session is not the caller's: NotYourSessionError,
- *         no retry. Callers show its message through their existing error path.
+ *       * The Researcher refuses a call that carried a token (401 or 403: it
+ *         answers an expired or invalid token with one generic 403, and 401 only
+ *         when no credential came, so the body is never read): mint once more and
+ *         send that same request once more. A second refusal is
+ *         NotYourSessionError; so is a mint route that says the chat session is
+ *         not the caller's, at once. Callers show its message through their
+ *         existing error path.
+ *       * A call that carried no token is answered by the service as it always
+ *         was: whatever it says is returned as is.
  *
  * Only the Researcher calls go through here. The signed storage PUT does not
  * (it is not a Researcher call, and a custom header would fail its CORS check).
@@ -42,8 +45,6 @@ export function isNotYourSessionError(error: unknown): boolean {
   return error instanceof NotYourSessionError
     || (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'session_not_owned')
 }
-
-const TOKEN_REFUSAL = /token[\s_-]*(expired|invalid)|(expired|invalid)[\s_-]*token/i
 
 function resolveInit(init: ResearcherFetchInit | undefined): RequestInit | undefined {
   return typeof init === 'function' ? init() : init
@@ -94,14 +95,6 @@ async function credentialFor(
   }
 }
 
-async function tokenRefused(response: Response): Promise<boolean> {
-  try {
-    return TOKEN_REFUSAL.test(await response.clone().text())
-  } catch {
-    return false
-  }
-}
-
 async function fetchWithToken(
   client: IdentityTokenClient,
   sessionId: string | null | undefined,
@@ -114,22 +107,18 @@ async function fetchWithToken(
 
   // With no token on the call the answer is the service's own, whatever it is.
   if (!credential) return response
-  if (response.status === 403) throw new NotYourSessionError()
-  if (response.status !== 401 || !(await tokenRefused(response))) return response
+  if (response.status !== 401 && response.status !== 403) return response
 
-  // One re-mint, one retry. A failed re-mint leaves the Researcher's own 401 for the caller.
+  // The token may simply have expired (an expired or invalid token is a 403): one re-mint,
+  // one retry. If the re-mint cannot be had, the Researcher's own answer stands.
   client.invalidate(sessionId as string)
   const second = resolveInit(init)
-  let fresh: IdentityTokenCredential | null
-  try {
-    fresh = await credentialFor(client, sessionId, second?.signal, true)
-  } catch (error) {
-    if (isNotYourSessionError(error)) throw error
-    return response
-  }
+  // (Only "not your session" or the request's own abort can come out of this; anything else is null.)
+  const fresh = await credentialFor(client, sessionId, second?.signal, true)
   if (!fresh) return response
   const retried = await fetch(url, withTokenHeader(second, fresh))
-  if (retried.status === 403) throw new NotYourSessionError()
+  // Refused again with a fresh token: this session is not the caller's.
+  if (retried.status === 401 || retried.status === 403) throw new NotYourSessionError()
   return retried
 }
 
