@@ -1,12 +1,14 @@
 /**
- * Studio side of ELEMENT's L-04/F10 "chart re-insert ACK" contract (contract v1), dark.
+ * Studio side of ELEMENT's L-04/F10 "chart re-insert ACK" contract (contract v1.1), dark.
  *
  * Layout (flag LAYOUT_CHART_REINSERT_ACK_ENABLED) answers a same-id `insertChart` in two new,
  * per-request opt-in ways:
  *   - `geometryMode: 'apply'` moves the existing chart to the requested box. Without it a same-id
  *     replace keeps the old box.
  *   - `ackMode: 'settled'` defers the one ACK until the chart has rendered and a save sent after
- *     the render has returned, so `ok = applied && rendered && persisted` and `success = ok`.
+ *     the render has returned, so `ok = applied && rendered && persisted` and `success = ok`. Only the
+ *     chart's own script errors flip `rendered` (v1.1); any other page error only increments the
+ *     additive `render.page_errors`, which Studio logs as a count.
  *
  * NEXT_PUBLIC_CHART_REINSERT_SETTLED_ACK_ENABLED (exact string 'true'; default off). With it off
  * nothing in this module is reached: the insert is sent exactly as before and the ACK is handled
@@ -109,11 +111,10 @@ export type SettledChartAckOutcome =
   | { kind: 'legacy' }
   /** ok: applied, rendered and persisted. */
   | { kind: 'ok' }
-  /** ok:false although the chart rendered and was saved: success, with a warning. */
-  | { kind: 'ok_with_warning'; warning: string }
   /** The chart is on the slide but its save failed or was not confirmed: never a silent success. */
   | { kind: 'not_saved'; message: string; requestReference: string | null }
-  /** Nothing applied, a render failure, or a settle timeout before the save: today's error path. */
+  /** Nothing applied, a render failure, or a settle timeout before the save: today's error path.
+   *  ok is read strictly: ok:false is never turned into a success. */
   | { kind: 'failed' }
 
 function ackText(ack: Record<string, unknown>, key: string): string | null {
@@ -145,17 +146,19 @@ export function classifySettledChartAck(ack: unknown): SettledChartAckOutcome {
         : `The chart was updated on the slide but could not be saved. Your changes are still pending; use Save to retry.${reference}${renderNote}`,
     }
   }
-  if (ack.rendered) {
-    const render = isRecord(ack.render) ? ack.render : {}
-    const scriptErrors = Array.isArray(render.script_errors) ? render.script_errors : []
-    return {
-      kind: 'ok_with_warning',
-      warning: `${LOG_PREFIX} Layout reported ok:false (${errorCode ?? 'no errorCode'}: ${ackText(ack, 'error') ?? 'no message'}) `
-        + `but the chart rendered and was saved; treating it as success.`
-        + (scriptErrors.length ? ` Page errors captured in the settle window: ${JSON.stringify(scriptErrors)}` : ''),
-    }
-  }
   return { kind: 'failed' }
+}
+
+/**
+ * `render.page_errors` (contract v1.1, additive, diagnostic): uncaught page errors during the settle
+ * window that were not the chart's own. One console.warn with the count and nothing else.
+ */
+function warnPageErrors(ack: Record<string, unknown>, warn: Warn): void {
+  const render = isRecord(ack.render) ? ack.render : null
+  const count = render?.page_errors
+  if (typeof count === 'number' && Number.isFinite(count) && count > 0) {
+    warn(`${LOG_PREFIX} render.page_errors: ${Math.floor(count)}`)
+  }
 }
 
 /** The verified box the chart ended on (logical grid, "start/end" strings), or null. */
@@ -197,11 +200,9 @@ function settledAckFromError(error: unknown): Record<string, unknown> | null {
 
 /** A settled ACK read through the contract. Throws when the ACK says the chart did not save. */
 function applySettledChartAck(ack: Record<string, unknown>, warn: Warn): Record<string, unknown> {
+  warnPageErrors(ack, warn)
   const outcome = classifySettledChartAck(ack)
   switch (outcome.kind) {
-    case 'ok_with_warning':
-      warn(outcome.warning)
-      return { ...ack, success: true }
     case 'not_saved':
       throw new ChartReinsertNotSavedError(outcome.message, ack)
     case 'failed':
@@ -218,10 +219,11 @@ function applySettledChartAck(ack: Record<string, unknown>, warn: Warn): Record<
  * wrapper only reads the ACK; it never changes what is sent.
  *
  *   - success ACK (ok): returned as is.
- *   - failure ACK (success:false) with rendered && persisted: returned as a success, with a warning.
  *   - failure ACK with persisted:false or CHART_PERSIST_FAILED: ChartReinsertNotSavedError, which the
  *     caller's existing generation-error path shows. Never a silent success.
  *   - any other failure (render failure, nothing applied, ...): rethrown as today, Layout's text.
+ *     ok is read strictly: ok:false is never turned into a success.
+ *   - `render.page_errors` > 0 on any settled ACK: one console.warn with the count only.
  *   - a lost ACK: the caller's command-timeout reconciliation reads the mutation receipt through this
  *     same wrapper, so the receipt's settled ACK is read the same way.
  *   - an old-style ACK: passed through untouched.
@@ -252,11 +254,8 @@ export function settledChartAckSender(
     if (action === 'getElementMutationReceipt') {
       const receipt = await send(action, params)
       if (isRecord(receipt) && receipt.status === 'completed' && isSettledChartAck(receipt.result)) {
+        warnPageErrors(receipt.result, warn)
         const outcome = classifySettledChartAck(receipt.result)
-        if (outcome.kind === 'ok_with_warning') {
-          warn(outcome.warning)
-          return { ...receipt, result: { ...receipt.result, success: true } }
-        }
         if (outcome.kind === 'not_saved') {
           // The reconciliation loop swallows errors thrown here, so say it in the receipt's result.
           return { ...receipt, result: { ...receipt.result, success: false, error: outcome.message } }

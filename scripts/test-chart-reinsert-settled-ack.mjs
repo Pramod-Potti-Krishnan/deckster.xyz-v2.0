@@ -3,8 +3,9 @@
 //
 // Nothing here calls a service: the Layout viewer is a mock that answers with ACK payloads.
 // The FIXTURES block holds the ACKs a real Layout viewer produced for contract v1 (branch
-// element/chart-reinsert-ack, flag on; a self-authored Chart.js chart, offline). The three
-// 'synthetic' entries are contract examples / failure-matrix rows that evidence run did not hit.
+// element/chart-reinsert-ack, flag on; a self-authored Chart.js chart, offline). The 'synthetic'
+// entries are contract examples / failure-matrix rows (and the additive v1.1 render.page_errors)
+// that the evidence run did not hit.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import ts from 'typescript'
@@ -360,9 +361,7 @@ const FIXTURES = {
     "render": {
       "instance": true,
       "external_script_failures": [],
-      "script_errors": [
-        "ResizeObserver loop completed with undelivered notifications."
-      ],
+      "script_errors": [],
       "badge": false,
       "waited_ms": 16
     },
@@ -370,7 +369,79 @@ const FIXTURES = {
       "status": "saved",
       "waited_ms": 51
     },
-    "error": "The page reported an error during the settle window: ResizeObserver loop completed with undelivered notifications.",
+    "error": "The chart reported a render error.",
+    "errorCode": "CHART_RENDER_FAILED"
+  },
+  "synthetic_success_with_page_errors": {
+    "success": true,
+    "action": "insertChart",
+    "requestId": "f10-9",
+    "elementId": "chart_f10a",
+    "replaced": true,
+    "position": {
+      "gridRow": "7/16",
+      "gridColumn": "4/17"
+    },
+    "element_id": "chart_f10a",
+    "ok": true,
+    "applied": true,
+    "rendered": true,
+    "persisted": true,
+    "geometry": {
+      "gridRow": "7/16",
+      "gridColumn": "4/17"
+    },
+    "geometry_changed": true,
+    "settle_ms": 71,
+    "render": {
+      "instance": true,
+      "external_script_failures": [],
+      "script_errors": [],
+      "badge": false,
+      "waited_ms": 16,
+      "page_errors": 3
+    },
+    "persist": {
+      "status": "saved",
+      "waited_ms": 51
+    }
+  },
+  "synthetic_render_failed_with_page_errors": {
+    "success": false,
+    "action": "insertChart",
+    "requestId": "f10-10",
+    "elementId": "c1",
+    "position": {
+      "gridRow": "6/16",
+      "gridColumn": "3/10"
+    },
+    "element_id": "c1",
+    "ok": false,
+    "applied": true,
+    "replaced": false,
+    "rendered": false,
+    "persisted": true,
+    "geometry": {
+      "gridRow": "6/16",
+      "gridColumn": "3/10"
+    },
+    "geometry_changed": false,
+    "settle_ms": 54,
+    "render": {
+      "instance": false,
+      "external_script_failures": [],
+      "script_errors": [
+        "Uncaught Error: plugin missing (simulated runtime failure)"
+      ],
+      "badge": false,
+      "waited_ms": 0,
+      "page_errors": 2
+    },
+    "persist": {
+      "status": "saved",
+      "waited_ms": 53
+    },
+    "error": "A chart script threw: Uncaught Error: plugin missing (simulated runtime failure)",
     "errorCode": "CHART_RENDER_FAILED"
   }
 }
@@ -466,12 +537,11 @@ const lib = loadModule('../lib/chart-reinsert-settled-ack.ts')
   assert.equal(both.kind, 'not_saved')
   assert.match(both.message, /also did not render: A chart script threw: Uncaught Error: plugin missing/)
 
-  // ok:false although rendered and persisted: success with a warning (brief)
-  const warned = lib.classifySettledChartAck(FIXTURES.synthetic_ok_false_rendered_and_persisted)
-  assert.equal(warned.kind, 'ok_with_warning')
-  assert.match(warned.warning, /\[chart-reinsert-ack\]/)
-  assert.match(warned.warning, /treating it as success/)
-  assert.match(warned.warning, /ResizeObserver loop completed/)
+  // ok is read strictly (contract v1.1: ok = rendered && persisted): ok:false is a failure even if the
+  // other two say true. There is no ok_with_warning outcome any more.
+  assert.equal(kind(FIXTURES.synthetic_ok_false_rendered_and_persisted), 'failed')
+  assert.equal(kind(FIXTURES.synthetic_success_with_page_errors), 'ok', 'page_errors never change the outcome')
+  assert.equal(kind(FIXTURES.synthetic_render_failed_with_page_errors), 'failed')
 
   // a success ACK that contradicts itself is not trusted
   assert.equal(kind({ ...clone(FIXTURES.settled_success_apply), persisted: false }), 'not_saved')
@@ -580,16 +650,69 @@ const lib = loadModule('../lib/chart-reinsert-settled-ack.ts')
     })
     assert.equal(calls.length, 1, `${name}: not reconciled as a lost ACK`)
   }
-  // 6. ok:false with rendered and persisted: success + a warning
+  // 6. ok is read strictly: ok:false is never a success, even with rendered and persisted true
   {
     warnings.length = 0
-    const { send } = makeSend({ insertChart: () => viewerReply(FIXTURES.synthetic_ok_false_rendered_and_persisted) })
-    const result = await run(send)
-    assert.equal(result.success, true)
-    assert.equal(result.elementId, 'chart_f10a')
-    assert.equal(result.rendered, true)
-    assert.equal(warnings.length, 1)
-    assert.match(warnings[0], /^\[chart-reinsert-ack\]/)
+    const name = 'synthetic_ok_false_rendered_and_persisted'
+    const { send, calls } = makeSend({ insertChart: () => viewerReply(FIXTURES[name]) })
+    await assert.rejects(run(send), error => {
+      assert.equal(error.message, FIXTURES[name].error)
+      assert.equal(error.code, undefined)
+      return true
+    })
+    assert.equal(calls.length, 1)
+    assert.equal(warnings.length, 0)
+  }
+  // 6b. render.page_errors (v1.1, additive): one console.warn with the count only, outcome unchanged
+  {
+    const pageErrorsWarning = count => `[chart-reinsert-ack] render.page_errors: ${count}`
+    const warned = []
+    const runWarned = send => reconcile.sendLayoutMutationWithReconciliation(
+      lib.settledChartAckSender(send, { warn: (...args) => warned.push(args) }),
+      'insertChart', { elementId: 'chart_f10a', ackMode: 'settled' }, 'gen-9:insert:0',
+      { attempts: 2, delayMs: 0, wait: async () => {} },
+    )
+    // success with page_errors: the ACK is returned as is, one warning, the count and nothing else
+    const success = FIXTURES.synthetic_success_with_page_errors
+    assert.equal(success.render.page_errors, 3)
+    assert.deepEqual(await runWarned(makeSend({ insertChart: () => viewerReply(success) }).send), success)
+    assert.deepEqual(warned, [[pageErrorsWarning(3)]])
+    assert.doesNotMatch(String(warned[0][0]), /ResizeObserver|Uncaught|error:|http|chart_f10a/)
+    // render failure with page_errors: one warning, then Layout's rejection exactly as before
+    warned.length = 0
+    const renderFailed = FIXTURES.synthetic_render_failed_with_page_errors
+    await assert.rejects(runWarned(makeSend({ insertChart: () => viewerReply(renderFailed) }).send), { message: renderFailed.error })
+    assert.deepEqual(warned, [[pageErrorsWarning(2)]])
+    // not saved with page_errors: one warning, the not-saved error
+    warned.length = 0
+    const unsaved = { ...clone(FIXTURES.fail_persist), render: { ...clone(FIXTURES.fail_persist.render), page_errors: 5 } }
+    await assert.rejects(runWarned(makeSend({ insertChart: () => viewerReply(unsaved) }).send), { code: 'CHART_REINSERT_NOT_SAVED' })
+    assert.deepEqual(warned, [[pageErrorsWarning(5)]])
+    // a lost ACK: the receipt's ACK is read once, one warning
+    warned.length = 0
+    await runWarned(makeSend({
+      insertChart: new Error('Command timeout'),
+      getElementMutationReceipt: () => ({ success: true, status: 'completed', result: clone(success) }),
+    }).send)
+    assert.deepEqual(warned, [[pageErrorsWarning(3)]])
+    // absent, zero, negative, non-numeric, and a non-settled ACK: no warning
+    for (const page_errors of [undefined, 0, -1, NaN, '3', null, {}]) {
+      warned.length = 0
+      const ack = { ...clone(FIXTURES.settled_success_apply), render: { ...clone(FIXTURES.settled_success_apply.render), page_errors } }
+      assert.equal((await runWarned(makeSend({ insertChart: () => viewerReply(ack) }).send)).success, true)
+      assert.deepEqual(warned, [], `page_errors ${String(page_errors)}: no warning`)
+    }
+    warned.length = 0
+    const legacyWithRender = { ...clone(FIXTURES.legacy_same_id), render: { page_errors: 4 } }
+    await runWarned(makeSend({ insertChart: () => viewerReply(legacyWithRender) }).send)
+    assert.deepEqual(warned, [], 'an old-style ACK is not read')
+    // 1.5 is logged as a whole count; other actions never warn
+    const fractional = { ...clone(success), render: { ...clone(success.render), page_errors: 2.9 } }
+    await runWarned(makeSend({ insertChart: () => viewerReply(fractional) }).send)
+    assert.deepEqual(warned.at(-1), [pageErrorsWarning(2)])
+    warned.length = 0
+    await lib.settledChartAckSender(makeSend({ default: { success: true, render: { page_errors: 9 } } }).send, { warn: (...a) => warned.push(a) })('deleteElement', {})
+    assert.deepEqual(warned, [])
   }
   // 7. a lost ACK: the 30 s command timeout reconciles through the receipt, read the same way
   const receipt = result => ({ success: true, status: 'completed', result: clone(result), action: 'insertChart', mutationId: 'gen-9:insert:0' })
@@ -602,13 +725,12 @@ const lib = loadModule('../lib/chart-reinsert-settled-ack.ts')
     assert.deepEqual(calls.map(c => c.action), ['insertChart', 'getElementMutationReceipt'])
   }
   {
-    warnings.length = 0
+    // ok:false in a receipt is read strictly too: Layout's text, no success
     const { send } = makeSend({
       insertChart: new Error('Command timeout'),
       getElementMutationReceipt: () => receipt(FIXTURES.synthetic_ok_false_rendered_and_persisted),
     })
-    assert.equal((await run(send)).success, true)
-    assert.equal(warnings.length, 1)
+    await assert.rejects(run(send), error => error.message === `insertChart failed: ${FIXTURES.synthetic_ok_false_rendered_and_persisted.error}`)
   }
   {
     const { send } = makeSend({
@@ -780,7 +902,9 @@ const lib = loadModule('../lib/chart-reinsert-settled-ack.ts')
   const scenarios = {
     settled_success_apply: 'success',
     legacy_same_id: 'success',
-    synthetic_ok_false_rendered_and_persisted: 'success',
+    synthetic_ok_false_rendered_and_persisted: 'failure',
+    synthetic_success_with_page_errors: 'success',
+    synthetic_render_failed_with_page_errors: 'failure',
     fail_throws: 'failure',
     fail_unreachable_cdn: 'failure',
     fail_chartjs_rejects: 'failure',
