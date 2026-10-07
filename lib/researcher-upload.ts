@@ -12,6 +12,7 @@
 import { getKnowledgeServiceUrl } from '@/lib/config'
 import { requireServiceUrl } from '@/lib/service-url'
 import { researcherUploadOwnerId } from '@/lib/upload-owner'
+import { researcherFetch } from '@/lib/upload-identity-token'
 
 export interface ResearcherUploadProgress {
   /** 0–100 coarse progress across the four steps. */
@@ -80,7 +81,7 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
 
   // 1) Ensure a Researcher session exists for this frontend session.
   onProgress?.({ percent: 5, stage: 'session' })
-  const sessionResponse = await fetch(`${researcherBaseUrl}/api/v1/sessions/create`, {
+  const sessionResponse = await researcherFetch(sessionId, `${researcherBaseUrl}/api/v1/sessions/create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -102,7 +103,7 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
 
   // 2) Ask Researcher for a signed storage upload URL.
   onProgress?.({ percent: 20, stage: 'prepare' })
-  const prepareResponse = await fetch(`${researcherBaseUrl}/api/v1/files/storage-upload-url`, {
+  const prepareResponse = await researcherFetch(researcherSessionId, `${researcherBaseUrl}/api/v1/files/storage-upload-url`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -146,7 +147,7 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
 
   // 4) Tell Researcher to process the uploaded object (with intent).
   onProgress?.({ percent: 75, stage: 'process' })
-  const processResponse = await fetch(`${researcherBaseUrl}/api/v1/files/process-uploaded`, {
+  const processResponse = await researcherFetch(researcherSessionId, `${researcherBaseUrl}/api/v1/files/process-uploaded`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

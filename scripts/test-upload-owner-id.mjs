@@ -131,6 +131,10 @@ const config = {
   uploadConfig: { maxFiles: 5 },
   getKnowledgeServiceUrl: () => `${RESEARCHER}/`,
 }
+// The Researcher calls go through lib/upload-identity-token.ts (R-20261007-frontend-27). Its flag
+// (NEXT_PUBLIC_UPLOAD_IDENTITY_TOKEN_ENABLED) is unset throughout this test: a plain `fetch(url, init)`.
+const identityClient = compileSource(readWorking('lib/identity-token-client.ts'), {}, {})
+const tokenWrapper = compileSource(readWorking('lib/upload-identity-token.ts'), { '@/lib/identity-token-client': identityClient }, { fetch: stubFetch })
 // Studio's upload library also reads a service-url helper; uat's does not import it.
 const serviceUrlPath = 'lib/service-url.ts'
 const hasServiceUrl = fs.existsSync(path.join(REPO, serviceUrlPath))
@@ -199,6 +203,7 @@ function loadHook(source, extraImports = {}) {
     '@/lib/config': config,
     '@/lib/upload-status': uploadStatus,
     '@/lib/upload-owner': helper,
+    '@/lib/upload-identity-token': tokenWrapper,
     ...(serviceUrl ? { '@/lib/service-url': serviceUrl } : {}),
     ...extraImports,
   }
@@ -213,6 +218,7 @@ function loadUploadLib(source) {
   return compileSource(source, {
     '@/lib/config': config,
     '@/lib/upload-owner': helper,
+    '@/lib/upload-identity-token': tokenWrapper,
     ...(serviceUrl ? { '@/lib/service-url': serviceUrl } : {}),
   }, { fetch: stubFetch })
 }
