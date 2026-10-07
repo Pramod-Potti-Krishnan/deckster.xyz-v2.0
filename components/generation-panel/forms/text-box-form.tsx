@@ -39,6 +39,11 @@ import {
   slotMetadataForRequest,
   slotSelectionValue,
 } from '@/lib/text-slot-catalog'
+import {
+  STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED,
+  applyCountTouchState,
+  restoredCountTouched,
+} from '@/lib/studio-count-omit'
 
 import './studio-content-fields.css'
 
@@ -109,6 +114,8 @@ export interface TextBoxControlsDraft {
   roleContext: string | null
   structure: 'auto' | TextBoxStructure
   count: number
+  /** Present only with the count-omit flag on: the user chose a Count (see lib/studio-count-omit.ts). */
+  countTouched?: boolean
   layoutChoice: TextBoxLayoutChoice
   gridCols: number
   multiBoxColorMode: NonNullable<TextBoxFormData['multiBoxColorMode']>
@@ -181,6 +188,7 @@ function readSavedTextBoxGenerationConfig(value: unknown) {
     prompt: typeof source.prompt === 'string' ? source.prompt : undefined,
     structure: stringValue(source.structure, STRUCTURE_VALUES, 'auto'),
     count: Math.max(1, Math.min(6, Math.round(numberValue(source.count, 1)))),
+    countTouched: typeof source.countTouched === 'boolean' ? source.countTouched : undefined,
     layoutChoice: stringValue(source.layoutChoice, LAYOUT_CHOICE_VALUES, 'auto'),
     gridCols: Math.max(1, Math.min(6, Math.round(numberValue(source.gridCols, 2)))),
     multiBoxColorMode: stringValue(source.multiBoxColorMode, MULTI_BOX_COLOR_VALUES, 'SAME'),
@@ -227,7 +235,7 @@ function OptionalNumberInput({
 }
 
 export function TextBoxForm({
-  onSubmit,
+  onSubmit: onSubmitForm,
   registerSubmit,
   presentationId,
   elementContext,
@@ -250,6 +258,10 @@ export function TextBoxForm({
   const [targetValue, setTargetValue] = useState(initialControls?.targetValue ?? BODY_TEXT_AUTO_SLOT)
   const [structure, setStructure] = useState<'auto' | TextBoxStructure>(initialControls?.structure ?? initialSaved?.structure ?? 'auto')
   const [count, setCount] = useState(initialControls?.count ?? initialSaved?.count ?? 1)
+  // Used only with the count-omit flag on: did the user choose a Count (or restore a chosen one)?
+  const [countTouched, setCountTouched] = useState(() => initialControls
+    ? restoredCountTouched(initialControls.count, initialControls.countTouched)
+    : restoredCountTouched(initialSaved?.count, initialSaved?.countTouched))
   const [layoutChoice, setLayoutChoice] = useState<TextBoxLayoutChoice>(initialControls?.layoutChoice ?? initialSaved?.layoutChoice ?? 'auto')
   const [gridCols, setGridCols] = useState(initialControls?.gridCols ?? initialSaved?.gridCols ?? 2)
   const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<TextBoxFormData['multiBoxColorMode']>>(initialControls?.multiBoxColorMode ?? initialSaved?.multiBoxColorMode ?? 'SAME')
@@ -303,6 +315,7 @@ export function TextBoxForm({
       const saved = readSavedTextBoxGenerationConfig(existingTextTarget?.generationConfig)
       setStructure(saved?.structure ?? 'auto')
       setCount(saved?.count ?? 1)
+      setCountTouched(restoredCountTouched(saved?.count, saved?.countTouched))
       setLayoutChoice(saved?.layoutChoice ?? 'auto')
       setGridCols(saved?.gridCols ?? 2)
       setMultiBoxColorMode(saved?.multiBoxColorMode ?? 'SAME')
@@ -580,7 +593,9 @@ export function TextBoxForm({
     onDraftChange?.({
       prompt, showAdvanced,
       textBoxControls: {
-        targetValue, roleContext: roleContextRef.current, structure, count, layoutChoice, gridCols,
+        targetValue, roleContext: roleContextRef.current, structure, count,
+        ...(STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED ? { countTouched } : {}),
+        layoutChoice, gridCols,
         multiBoxColorMode, textboxOverrides, geometryMode, manualGeometryOverrides, zIndex,
         positionModified, paddingModified, paddingConfig, positionConfig, geometryEdited,
         geometryContext: geometryContextRef.current,
@@ -588,10 +603,17 @@ export function TextBoxForm({
           content: showContent, positioning: showPositioning, padding: showPadding },
       },
     })
-  }, [onDraftChange, prompt, showAdvanced, targetValue, roleContext, elementContext, structure, count,
+  }, [onDraftChange, prompt, showAdvanced, targetValue, roleContext, elementContext, structure, count, countTouched,
     layoutChoice, gridCols, multiBoxColorMode, textboxOverrides, geometryMode, manualGeometryOverrides,
     zIndex, positionModified, paddingModified, paddingConfig, positionConfig, geometryEdited,
     showInstances, showBoxDesign, showHeading, showContent, showPositioning, showPadding])
+
+  // Flag on: the submitted form says whether the Count was touched (see lib/studio-count-omit.ts).
+  // Wrapping the callback keeps handleSubmit and generationConfig exactly as they were.
+  const onSubmit = useCallback(
+    (formData: TextLabsFormData) => onSubmitForm(applyCountTouchState(formData, STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED, countTouched)),
+    [onSubmitForm, countTouched],
+  )
 
   const handleSubmit = useCallback(() => {
     const bodyCount = isBodyText ? count : 1
@@ -921,6 +943,7 @@ export function TextBoxForm({
                       value={count}
                       onChange={event => {
                         setCount(Number(event.target.value))
+                        setCountTouched(true)
                         setLayoutChoice('auto')
                       }}
                       className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"

@@ -715,6 +715,12 @@ export interface CustomDiagramConfig {
 export interface TextLabsBaseFormData {
   prompt: string
   count: number
+  /**
+   * Set by a Studio form (flag NEXT_PUBLIC_STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED) when the
+   * user never touched the Count control: `count` stays 1 locally, but the request leaves
+   * it out so the count stated in the prompt decides. Never set when the flag is off.
+   */
+  countOmitted?: boolean
   layout: 'horizontal' | 'vertical' | 'grid'
   advancedModified: boolean
   z_index?: number

@@ -27,6 +27,7 @@ import { semanticTypeForInsertion } from '@/lib/element-semantic-type'
 import { resolveElementThemeMetadata } from '@/lib/textlabs-theme-metadata'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { isNonResearchVisualElement } from '@/lib/element-research-policy'
+import { STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED, requestCountOmitted } from '@/lib/studio-count-omit'
 
 // Same service as Elementor - reuse the URL
 import { inspectServiceUrl, requireServiceUrl } from '@/lib/service-url'
@@ -774,7 +775,9 @@ export function buildApiPayload(
     textOnlyMode: isDiagramSubtype(formData.componentType)
       ? false
       : !advancedModified,
-    count,
+    // A Count the user never touched is left out so the prompt's own count decides
+    // (flag NEXT_PUBLIC_STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED; sendMessage drops undefined).
+    count: requestCountOmitted(STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED, formData) ? undefined : count,
     layout,
     zIndex: z_index,
   }

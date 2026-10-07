@@ -61,6 +61,7 @@
     "test:qa-ask-gates": "node scripts/test-qa-ask-gates.mjs",
     "test:narration": "node scripts/test-narration-voices.mjs",
     "test:build-narration": "node scripts/test-build-narration.mjs",
+    "test:studio-count-omit-untouched": "node scripts/test-studio-count-omit-untouched.mjs",
     "test:slide-thumbnail-menu": "node scripts/test-slide-thumbnail-menu.mjs"
   },
   "dependencies": {

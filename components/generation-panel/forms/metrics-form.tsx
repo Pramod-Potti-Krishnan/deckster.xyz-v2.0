@@ -26,6 +26,11 @@ import {
   resolveMetricsCardColorPatch,
   type MetricsCardColorChoice,
 } from '@/lib/metrics-card-design'
+import {
+  STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED,
+  applyCountTouchState,
+  restoredCountTouched,
+} from '@/lib/studio-count-omit'
 
 import './studio-specialist-forms.css'
 
@@ -79,6 +84,8 @@ const MULTI_BOX_COLOR_VALUES: Array<NonNullable<MetricsFormData['multiBoxColorMo
 
 export interface MetricsControlsDraft {
   count: number
+  /** Present only with the count-omit flag on: the user chose a Count (see lib/studio-count-omit.ts). */
+  countTouched?: boolean
   layoutChoice: MetricsLayoutChoice
   multiBoxColorMode: NonNullable<MetricsFormData['multiBoxColorMode']>
   visualOverrides: Partial<MetricsConfig>
@@ -160,6 +167,7 @@ function readSavedMetricsGenerationConfig(value: unknown) {
   const fitMode = stringValue(source.metricsFitMode ?? source.metrics_fit_mode, ['AUTO', 'MANUAL'] as const, 'AUTO')
   return {
     count: Math.max(1, Math.min(4, Math.round(numberValue(source.count, 1)))),
+    countTouched: typeof source.countTouched === 'boolean' ? source.countTouched : undefined,
     layoutChoice: stringValue(
       source.metricsLayoutChoice ?? source.metrics_layout_choice ?? source.layoutChoice,
       LAYOUT_CHOICE_VALUES,
@@ -251,7 +259,7 @@ function TriStateStyleButton({
 }
 
 export function MetricsForm({
-  onSubmit,
+  onSubmit: onSubmitForm,
   registerSubmit,
   isGenerating,
   presentationId,
@@ -271,6 +279,10 @@ export function MetricsForm({
     asRecord(initialDraft?.formData?.generationConfig) ?? asRecord(initialDraft?.formData) ?? existingTextTarget?.generationConfig,
   ) : null)
   const [count, setCount] = useState(initialControls?.count ?? initialSaved?.count ?? 1)
+  // Used only with the count-omit flag on: did the user choose a Count (or restore a chosen one)?
+  const [countTouched, setCountTouched] = useState(() => initialControls
+    ? restoredCountTouched(initialControls.count, initialControls.countTouched)
+    : restoredCountTouched(initialSaved?.count, initialSaved?.countTouched))
   const [layoutChoice, setLayoutChoice] = useState<MetricsLayoutChoice>(initialControls?.layoutChoice ?? initialSaved?.layoutChoice ?? 'auto')
   const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<MetricsFormData['multiBoxColorMode']>>(initialControls?.multiBoxColorMode ?? initialSaved?.multiBoxColorMode ?? 'SAME')
   const [visualOverrides, setVisualOverrides] = useState<Partial<MetricsConfig>>(initialControls?.visualOverrides ?? initialSaved?.visualOverrides ?? {})
@@ -330,6 +342,7 @@ export function MetricsForm({
       if (STUDIO_SPECIALIST_FORMS) setGeometryEdited(false)
       const saved = readSavedMetricsGenerationConfig(savedGenerationConfig)
       setCount(saved?.count ?? 1)
+      setCountTouched(restoredCountTouched(saved?.count, saved?.countTouched))
       setLayoutChoice(saved?.layoutChoice ?? 'auto')
       setMultiBoxColorMode(saved?.multiBoxColorMode ?? 'SAME')
       setVisualOverrides(saved?.visualOverrides ?? {})
@@ -508,7 +521,7 @@ export function MetricsForm({
     onDraftChange?.({
       prompt, showAdvanced,
       metricsControls: {
-        count, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
+        count, ...(STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED ? { countTouched } : {}), layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
         positionModified, geometryEdited, geometryContext: geometryContextRef.current, paddingModified, zIndex, positionConfig, paddingConfig,
         sections: {
           instances: showInstances, cardDesign: showCardDesign, value: showValue,
@@ -517,9 +530,16 @@ export function MetricsForm({
         },
       },
     })
-  }, [onDraftChange, prompt, showAdvanced, elementContext, count, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
+  }, [onDraftChange, prompt, showAdvanced, elementContext, count, countTouched, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
     positionModified, geometryEdited, paddingModified, zIndex, positionConfig, paddingConfig, showInstances,
     showCardDesign, showValue, showLabel, showDescription, showSpacing, showPositioning, showPadding])
+
+  // Flag on: the submitted form says whether the Count was touched (see lib/studio-count-omit.ts).
+  // Wrapping the callback keeps handleSubmit and generationConfig exactly as they were.
+  const onSubmit = useCallback(
+    (formData: MetricsFormData) => onSubmitForm(applyCountTouchState(formData, STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED, countTouched)),
+    [onSubmitForm, countTouched],
+  )
 
   const handleSubmit = useCallback(() => {
     const metricsConfig: Partial<MetricsConfig> = { ...sparseMetricsConfig }
@@ -568,7 +588,10 @@ export function MetricsForm({
             aria-label={advanced ? 'Advanced metric count' : 'Metric count'}
             value={count}
             disabled={isGenerating}
-            onChange={event => setCount(Number(event.target.value))}
+            onChange={event => {
+              setCount(Number(event.target.value))
+              setCountTouched(true)
+            }}
             className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
           >
             {[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}
