@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { isSessionApiHardeningEnabled } from '@/lib/session-api-hardening';
 
 /**
  * GET /api/sessions
@@ -223,6 +224,15 @@ export async function POST(req: NextRequest) {
     });
 
     if (existing) {
+      // SESSION_API_HARDENING_ENABLED: the row (user id, Gemini store, deck URLs) is
+      // only echoed back to its owner. For anyone else the id is simply taken.
+      if (isSessionApiHardeningEnabled() && existing.userId !== user.id) {
+        console.log('[Session Create] ⚠️ Session id already in use by another account');
+        return NextResponse.json(
+          { error: 'Session already exists' },
+          { status: 409 }
+        );
+      }
       console.log('[Session Create] ⚠️ Session already exists:', sessionId);
       return NextResponse.json(
         { error: 'Session already exists', session: existing },
