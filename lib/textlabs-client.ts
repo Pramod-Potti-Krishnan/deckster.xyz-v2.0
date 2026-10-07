@@ -975,15 +975,36 @@ export function getDefaultSize(componentType: TextLabsComponentType): { width: n
 }
 
 /**
+ * NEXT_PUBLIC_CHART_STRIP_PREVIEW_SCRIPTS_ENABLED (exact string 'true'; default off).
+ *
+ * Text Labs wraps every chart in a preview document whose <head> loads Chart.js from a CDN
+ * (text-labs backend/api/chat_routes.py, `element_html`). extractBodyContent hoists head
+ * scripts into the stored chart_html, so when the Layout viewer renders the stored element that
+ * second Chart.js load replaces window.Chart. The viewer's datalabels registration and its
+ * font defaults sat on the first Chart object and are lost (no point labels, default ticks).
+ * With this on, the chart insertion drops those head <script src> loads (the viewer already
+ * loads Chart.js and its plugins) and keeps the chart's own inline init script and markup.
+ * Referenced literally so Next inlines the public value at build time.
+ */
+function chartStripPreviewScriptsEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_CHART_STRIP_PREVIEW_SCRIPTS_ENABLED === 'true'
+}
+
+/**
  * Extract body content from full HTML documents.
  * Backend returns complete HTML (<!DOCTYPE html>...) but Layout Service expects
  * just body content with scripts. Ported from Text Labs canvas-renderer.js.
  */
-function extractBodyContent(html: string): string {
+function extractBodyContent(html: string, options: { dropHeadScriptSources?: boolean } = {}): string {
   if (html.includes('<!DOCTYPE') || html.includes('<html')) {
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
-    const headScripts = Array.from(doc.head.querySelectorAll('script'))
+    const allHeadScripts = Array.from(doc.head.querySelectorAll('script'))
+    // Chart-only, flag-gated: keep the head's inline scripts, drop `<script src=...>` library
+    // loads. Flag off: every head script is kept, exactly as before.
+    const headScripts = options.dropHeadScriptSources
+      ? allHeadScripts.filter(s => !s.hasAttribute('src'))
+      : allHeadScripts
     const bodyContent = doc.body.innerHTML
     const scriptTags = headScripts.map(s => s.outerHTML).join('\n')
     return scriptTags + '\n' + bodyContent
@@ -1216,7 +1237,12 @@ export function buildInsertionParams(
     case 'insertChart':
       return {
         method: 'insertChart',
-        params: { ...baseParams, chartHtml: extractBodyContent(element.html || '') },
+        params: {
+          ...baseParams,
+          chartHtml: extractBodyContent(element.html || '', {
+            dropHeadScriptSources: chartStripPreviewScriptsEnabled(),
+          }),
+        },
       }
     case 'insertImage':
     {
