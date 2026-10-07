@@ -14,6 +14,8 @@
 // NEXT_PUBLIC_APP_URL=https://deckster-xyz-uat.vercel.app) must configure the
 // service URLs explicitly, or publish fails loudly instead of touching prod.
 
+import { isServiceUrlFailClosedEnabled, warnServiceUrlFallbackOnce } from '@/lib/server-service-url'
+
 const PROD_APP_ORIGINS = ['https://deckster.xyz', 'https://www.deckster.xyz']
 
 export const PROD_LAYOUT_SERVICE_URL = 'https://web-production-f0d13.up.railway.app'
@@ -22,13 +24,17 @@ export const PROD_RESEARCHER_URL = 'https://researcher-v1.up.railway.app'
 
 const trimTrailingSlash = (value: string) => value.trim().replace(/\/+$/, '')
 
-/** Thrown when a non-production deployment has no explicit service URL. */
+/** Thrown when a non-production deployment has no explicit service URL (or, with the J8.0 flag on, any deployment). */
 export class PublishServiceConfigError extends Error {
-  constructor(varNames: string[], serviceLabel: string) {
+  constructor(varNames: string[], serviceLabel: string, reason: 'non-production' | 'fail-closed' = 'non-production') {
     super(
-      `${serviceLabel} is not configured for this deployment. Set ${varNames.join(' or ')} ` +
-        `to the environment's own ${serviceLabel} (e.g. the UAT service URL). Refusing to fall ` +
-        `back to the production service from a non-production deployment.`
+      reason === 'fail-closed'
+        ? `${serviceLabel} is not configured for this deployment. Set ${varNames.join(' or ')} ` +
+            `to the environment's own ${serviceLabel}. DECKSTER_SERVICE_URL_FAIL_CLOSED_ENABLED is on, ` +
+            `so there is no fallback to a built-in production service.`
+        : `${serviceLabel} is not configured for this deployment. Set ${varNames.join(' or ')} ` +
+            `to the environment's own ${serviceLabel} (e.g. the UAT service URL). Refusing to fall ` +
+            `back to the production service from a non-production deployment.`
     )
     this.name = 'PublishServiceConfigError'
   }
@@ -53,7 +59,14 @@ function resolve(
   for (const value of configured) {
     if (value && value.trim()) return trimTrailingSlash(value)
   }
-  if (isProductionDeployment()) return prodFallback
+  // J8.0: with the fail-closed flag on there is no production fallback at all, not
+  // even for a production deployment. Flag off: unchanged, plus one warning per
+  // process when the production default is actually used.
+  if (isServiceUrlFailClosedEnabled()) throw new PublishServiceConfigError(varNames, serviceLabel, 'fail-closed')
+  if (isProductionDeployment()) {
+    warnServiceUrlFallbackOnce(serviceLabel, varNames, 'production')
+    return prodFallback
+  }
   throw new PublishServiceConfigError(varNames, serviceLabel)
 }
 

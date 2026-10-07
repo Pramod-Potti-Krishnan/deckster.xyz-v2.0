@@ -11,9 +11,6 @@ import { prisma } from '@/lib/prisma'
 import { getUserSubscription } from '@/lib/stripe/stripe-utils'
 import { isKgEntitled } from '@/lib/kg-entitlement'
 
-export const KG_BASE =
-  process.env.KNOWLEDGE_SERVICE_URL || 'https://researcher-v1.up.railway.app'
-
 /**
  * Server-side auth + paid-entitlement gate for KG proxy routes.
  *

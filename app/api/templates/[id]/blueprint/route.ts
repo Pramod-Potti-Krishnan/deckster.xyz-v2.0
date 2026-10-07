@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
-
-const DIRECTOR_API_URL =
-  process.env.DIRECTOR_API_URL || 'https://directorv33-production.up.railway.app';
+import { directorApiUrlOrResponse } from '@/lib/service-url-response';
 
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions);
@@ -22,6 +20,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'invalid json' }, { status: 400 });
   }
 
+  const director = directorApiUrlOrResponse();
+  if (director.error) return director.error;
+  const DIRECTOR_API_URL = director.url;
   try {
     const r = await fetch(
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(params.id)}/blueprint`,

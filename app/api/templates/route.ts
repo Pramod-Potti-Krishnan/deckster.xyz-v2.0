@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { directorApiUrlOrResponse } from '@/lib/service-url-response';
 
 /**
  * Template Builder proxy → Director CRUD (TEMPLATE_PLAN.md §5 C2).
@@ -12,9 +13,6 @@ import { authOptions } from '@/lib/auth-options';
  *
  * DIRECTOR_API_URL points at the Director HTTP host (local UAT: http://localhost:8000).
  */
-const DIRECTOR_API_URL =
-  process.env.DIRECTOR_API_URL || 'https://directorv33-production.up.railway.app';
-
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions);
   const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;
@@ -27,6 +25,9 @@ export async function GET() {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const director = directorApiUrlOrResponse();
+  if (director.error) return director.error;
+  const DIRECTOR_API_URL = director.url;
   try {
     const r = await fetch(
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates`,
@@ -54,6 +55,9 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 });
   }
+  const director = directorApiUrlOrResponse();
+  if (director.error) return director.error;
+  const DIRECTOR_API_URL = director.url;
   try {
     const r = await fetch(
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates`,

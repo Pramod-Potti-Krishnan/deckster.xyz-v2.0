@@ -1,4 +1,5 @@
-import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { knowledgeGraphUrlOrResponse } from '@/lib/service-url-response'
 import { NextResponse } from 'next/server'
 
 export async function GET(
@@ -9,6 +10,10 @@ export async function GET(
   if (gate.error) return gate.error
 
   const { nodeId } = await params
+
+  const kg = knowledgeGraphUrlOrResponse()
+  if (kg.error) return kg.error
+  const KG_BASE = kg.url
 
   try {
     const resp = await fetch(

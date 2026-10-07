@@ -23,6 +23,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getPresentation, updateSlideNarration } from '@/lib/layout-service-client';
+import { layoutServiceGuardResponse } from '@/lib/service-url-response';
 import { resolveBudget, COMPRESSED_RATIO } from '@/lib/narration/budget';
 import { allocate, allocatedSeconds } from '@/lib/narration/allocate';
 import { draftSlideScript, DraftError } from '@/lib/narration/draft';
@@ -114,6 +115,10 @@ export async function POST(request: NextRequest) {
     if (!presentationId) {
       return NextResponse.json({ error: 'This deck has no slides yet' }, { status: 400 });
     }
+    // J8.0: with DECKSTER_SERVICE_URL_FAIL_CLOSED_ENABLED on, refuse rather than reach the
+    // built-in production Layout Service default. A no-op (plus one warning) when off.
+    const layoutGuard = layoutServiceGuardResponse();
+    if (layoutGuard) return layoutGuard;
     const presentation = await getPresentation(presentationId);
     const slides: Record<string, any>[] = presentation?.slides ?? [];
     if (slides.length === 0) {

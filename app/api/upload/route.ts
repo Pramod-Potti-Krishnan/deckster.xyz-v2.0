@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { knowledgeUploadUrlOrResponse } from '@/lib/service-url-response';
 import {
   createSession,
   uploadFile,
@@ -65,6 +66,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // 4b. J8.0: with DECKSTER_SERVICE_URL_FAIL_CLOSED_ENABLED on, refuse before any
+    // database write if the Knowledge Service URL is not configured. A no-op when off.
+    const knowledgeService = knowledgeUploadUrlOrResponse();
+    if (knowledgeService.error) return knowledgeService.error;
 
     // 5. Get user from database
     const user = await prisma.user.findUnique({
