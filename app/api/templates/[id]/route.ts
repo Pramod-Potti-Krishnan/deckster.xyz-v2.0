@@ -2,6 +2,7 @@ import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement';
 
 /** Template Builder proxy → Director CRUD for a single template. See ../route.ts. */
 function directorBaseUrl(): string {
@@ -22,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: restEntitlementHeaders(userId, 'GET') },
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
@@ -40,7 +41,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
-      { method: 'DELETE' },
+      { method: 'DELETE', headers: restEntitlementHeaders(userId, 'DELETE') },
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
