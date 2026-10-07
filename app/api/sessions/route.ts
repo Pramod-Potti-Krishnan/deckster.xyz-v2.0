@@ -134,7 +134,6 @@ export async function POST(req: NextRequest) {
   console.log('[Session Create] Timestamp:', new Date().toISOString());
   console.log('[Session Create] Environment:', process.env.NODE_ENV);
   console.log('[Session Create] DATABASE_URL configured:', !!process.env.DATABASE_URL);
-  console.log('[Session Create] DATABASE_URL prefix:', process.env.DATABASE_URL?.substring(0, 40) + '...');
   console.log('[Session Create] DIRECT_URL configured:', !!process.env.DIRECT_URL);
 
   try {
