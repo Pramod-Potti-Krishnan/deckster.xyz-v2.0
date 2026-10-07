@@ -53,6 +53,8 @@ import {
   isTrustedLayoutViewerMessage,
 } from '@/lib/layout-viewer-messaging'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
+import { isPresentViewOnlyEnabled, presentNavigationCommand } from '@/lib/present-view-only'
+import { PresentViewOnlyFrame } from './present-view-only-frame'
 import {
   buildSnapshotNavigationUrl,
   completedBuildSnapshotKey,
@@ -689,6 +691,13 @@ export function PresentationViewer({
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
   const [visualTotalSlides, setVisualTotalSlides] = useState(slideCount || 0)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // A4: while Present is on, a separate `?viewOnly=true` frame covers the editing frame so audiences
+  // never see authoring placeholders. Flag NEXT_PUBLIC_PRESENT_VIEW_ONLY_ENABLED, default off = unchanged.
+  const presentViewOnlyEnabled = isPresentViewOnlyEnabled()
+  const [presentFrameFailed, setPresentFrameFailed] = useState(false)
+  const presentFrameRef = useRef<HTMLIFrameElement | null>(null) // the view-only frame, once initialised
+  const presentSlideIndexRef = useRef<number | null>(null) // last slide it reported, 0-based
+  const presentViewOnlyActiveRef = useRef(false)
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const authoringStripRef = useRef<HTMLDivElement>(null)
   const [studioAuthoringPortalTarget, setStudioAuthoringPortalTarget] = useState<HTMLDivElement | null>(null)
@@ -849,6 +858,8 @@ export function PresentationViewer({
   const approvedIframeNavigationUrl = useMemo(() => {
     return buildSnapshotNavigationUrl(approvedPresentationUrl, studioShell ? buildSnapshotRevision : 0)
   }, [approvedPresentationUrl, studioShell, buildSnapshotRevision])
+  const presentViewOnlyActive = presentViewOnlyEnabled && isFullscreen && !presentFrameFailed && !!approvedIframeNavigationUrl
+  presentViewOnlyActiveRef.current = presentViewOnlyActive
   const slideMutationOwnerRef = useRef({
     userId: studioOwnerUserId ?? null,
     presentationId: presentationId ?? null,
@@ -1731,6 +1742,17 @@ export function PresentationViewer({
 
       // Only handle if not in an input/textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      // A4: the view-only Present frame owns the keyboard. Arrow keys are forwarded to it;
+      // nothing reaches the editing frame underneath (no E / G / B / Ctrl+S while presenting).
+      if (presentViewOnlyActiveRef.current) {
+        const command = presentNavigationCommand(e.key)
+        if (command) {
+          e.preventDefault()
+          postCommand(presentFrameRef.current, command)
+        }
         return
       }
 
@@ -3539,6 +3561,20 @@ export function PresentationViewer({
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
+  // A4: leaving Present drops a failed view-only frame so the next Present tries again, and
+  // brings the editing frame to the slide the audience ended on (the editing frame never moved).
+  useEffect(() => {
+    if (!presentViewOnlyEnabled || isFullscreen) return
+    setPresentFrameFailed(false)
+  }, [presentViewOnlyEnabled, isFullscreen])
+  useEffect(() => {
+    if (presentViewOnlyActive) return
+    const endedOn = presentSlideIndexRef.current
+    if (endedOn === null) return
+    presentSlideIndexRef.current = null
+    if (endedOn !== currentSlide - 1) void handleGoToSlide(endedOn)
+  }, [presentViewOnlyActive, currentSlide, handleGoToSlide])
+
   // Calculate optimal slide dimensions in fullscreen mode
   useEffect(() => {
     if (!isFullscreen || !slideContainerRef.current) return
@@ -4294,9 +4330,11 @@ export function PresentationViewer({
           <div className={cn(
             "flex items-center justify-between w-full min-w-0 gap-3",
             isFullscreen ? "px-4 py-2" : "px-3 h-full",
+            presentViewOnlyActive && "justify-end",
             isGenerating && "pointer-events-none opacity-50"
           )}>
-            {authoringControls}
+            {/* A4: the view-only frame refuses edits, so its Present toolbar carries no authoring controls. */}
+            {presentViewOnlyActive ? null : authoringControls}
             {deliveryControls}
           </div>
         )
@@ -4431,6 +4469,19 @@ export function PresentationViewer({
                   title="Presentation Viewer"
                   allow="fullscreen"
                 />
+                {presentViewOnlyActive && approvedIframeNavigationUrl && (
+                  <PresentViewOnlyFrame
+                    baseUrl={approvedIframeNavigationUrl}
+                    startIndex={Math.max(0, currentSlide - 1)}
+                    sendCommand={sendCommand}
+                    frameRef={presentFrameRef}
+                    onSlideIndex={(index) => { presentSlideIndexRef.current = index }}
+                    onFailed={() => {
+                      console.warn('[Present] View-only frame did not initialise; presenting the editing frame instead.')
+                      setPresentFrameFailed(true)
+                    }}
+                  />
+                )}
                 {studioShell && !viewerHasLoaded && <div className="absolute inset-0 z-20 pointer-events-none" data-studio-viewer-loading="true">
                   <StudioWaitingState scope="canvas" message="Loading your slides…" />
                 </div>}
