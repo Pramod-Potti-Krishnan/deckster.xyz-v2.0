@@ -5,9 +5,9 @@ import vm from 'node:vm'
 import ts from 'typescript'
 
 const baseline = 'e7a59554c1e61b0b4bb67da4e3deda5026dbb70a'
+// The debug env routes (api/debug/check-env, api/test-env) were removed outright;
+// scripts/test-no-debug-env-routes.mjs guards their absence.
 const routes = [
-  ['app/api/debug/check-env/route.ts', ['GET']],
-  ['app/api/test-env/route.ts', ['GET']],
   ['app/api/dev/mock-token/route.ts', ['GET', 'POST']],
   ['app/api/admin/cleanup-sessions/route.ts', ['GET', 'POST']],
 ]
