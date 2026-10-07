@@ -30,6 +30,7 @@ import { FALLBACK_THEME_PRESETS, type BuildThemeSelection } from '@/lib/theme-bu
 import { useKnowledgeGraph as useKnowledgeGraphEntitlement } from '@/hooks/use-knowledge-graph'
 import { withAsyncSlideComposeFields } from '@/lib/slide-compose-async'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
+import { STUDIO_GOTO_NEW_SLIDE_ENABLED } from '@/lib/studio-goto-new-slide'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -880,6 +881,7 @@ export function SlideGenerationPanel({
           isGenerating={isGenerating}
           error={error}
           placeholder={isRefineMode ? 'What should change?' : undefined}
+          stableSubmit={STUDIO_GOTO_NEW_SLIDE_ENABLED}
         />
 
         <div data-studio-slide-generation-part={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'theme' : undefined} className="mx-3 mb-2 flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
